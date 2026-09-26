@@ -25,7 +25,7 @@
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 :root[data-theme="day"] {
-  color-scheme: light;
+  color-scheme: only light;  /* "only": the browser mustn't darken it (Chrome's Auto Dark Mode) */
   --bg: #eef4fa;
   --panel: #ffffff;
   --panel-2: #f1f4f7;
