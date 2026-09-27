@@ -1254,8 +1254,15 @@ views.mods = () => {
           h("td", {}, m.version), h("td", {}, h("code", {}, m.filename)))))) : h("p", { class: "empty" }, "Nothing installed yet."),
       r.skipped.length ? h("div", { class: "notice warn mt-s" }, h("strong", {}, "Not installed: "),
         r.skipped.map((x) => h("div", { class: "small" }, `${x.key}: ${x.reason}`))) : null,
-      r.unmanaged.length ? h("div", { class: "notice mt-s" }, h("strong", {}, "Unmanaged jars (not updated by mcsm): "),
-        r.unmanaged.map((x) => h("div", {}, h("code", {}, x)))) : null,
+      r.unmanaged.length || (r.disabled || []).length ? h("div", { class: "mt-s" },
+        h("h4", {}, r.loader === "paper" ? "Plugins you added yourself" : "Jars you added yourself"),
+        h("p", { class: "muted small" }, "Not updated by mcsm. Switching one off keeps the file (as .jar.disabled) so you can switch it back on; changes apply at the next restart."),
+        h("ul", { class: "list" },
+          [...r.unmanaged.map((x) => [x, true]), ...(r.disabled || []).map((x) => [x, false])].map(([x, on]) => h("li", {},
+            h("code", { class: "grow" }, x), on ? null : h("span", { class: "tag" }, "off"),
+            h("button", { class: "btn small", onclick: () => act(() => api("/api/mods/jar", { method: "POST", body: { name: x, action: on ? "disable" : "enable" } })).then((res) => { if (res) { toast(res.message); load(); } }) }, on ? "Switch off" : "Switch on"),
+            h("button", { class: "btn small ghost", onclick: async () => (await ask(`Remove ${x}? The file is deleted.`, { ok: "Remove", danger: true })) &&
+              act(() => api("/api/mods/jar", { method: "POST", body: { name: x, action: "remove" } })).then((res) => { if (res) { toast(res.message); load(); } }) }, "Remove"))))) : null,
     );
   };
 
@@ -1273,7 +1280,7 @@ views.mods = () => {
     h("button", { type: "button", class: "btn", onclick: () => picker.click() }, "📁 Local files",
       h("span", { class: "small muted" }, ".jar files on this computer")),
     h("button", { type: "button", class: "btn", onclick: () => openBrowser({ type: "mod", target: server, loader: info.loader || "", version: info.minecraft || "" }) },
-      plugins ? "🔎 Download plugins" : "🔎 Download mods", h("span", { class: "small muted" }, plugins ? "Browse Modrinth" : "Browse Modrinth and CurseForge")),
+      plugins ? "🔎 Download plugins" : "🔎 Download mods", h("span", { class: "small muted" }, plugins ? "Browse Modrinth and Hangar" : "Browse Modrinth and CurseForge")),
     hubInfo && hubInfo.single ? null : h("button", { type: "button", class: "btn", onclick: () => openBrowser({ type: "modpack", target: "setup" }) },
       "📦 Modpacks", h("span", { class: "small muted" }, "Start a new server from a pack")),
     picker);
@@ -1917,7 +1924,8 @@ function browserPanel(params, host) {
   const sort = h("select", { "aria-label": "Sort by" }, [["relevance", "Best match"], ["downloads", "Most downloaded"],
     ["follows", "Most followed"], ["newest", "Newest"], ["updated", "Recently updated"]].map(([v, l]) => h("option", { value: v }, l)));
   const source = h("select", { "aria-label": "Source" }, h("option", { value: "modrinth" }, "Modrinth"),
-    kind === "mod" && noun !== "plugin" && !forPlayers ? h("option", { value: "curseforge" }, "CurseForge") : null);
+    kind === "mod" && noun !== "plugin" && !forPlayers ? h("option", { value: "curseforge" }, "CurseForge") : null,
+    kind === "mod" && noun === "plugin" && !forPlayers ? h("option", { value: "hangar" }, "Hangar (PaperMC)") : null);
   // Modrinth's environment tags: where each mod runs. Server pages list server-side and both,
   // players' pages client-side and both; this narrows it to one of the two.
   const envSel = kind === "mod" && noun !== "plugin" ? h("select", { "aria-label": "Runs on", title: "Where the mods run (Modrinth's environment tags)" },
@@ -3526,7 +3534,7 @@ views.setup = () => {
       h("button", { type: "button", class: "btn", onclick: () => picker.click() }, "📁 Local files",
         h("span", { class: "small muted" }, ".jar files on this computer")),
       h("button", { type: "button", class: "btn", onclick: () => openBrowser({ type: "mod", target: "setup", loader: st.loader, version: setupModVersion() }) },
-        plugins ? "🔎 Download plugins" : "🔎 Download mods", h("span", { class: "small muted" }, plugins ? "Browse Modrinth" : "Browse Modrinth and CurseForge")),
+        plugins ? "🔎 Download plugins" : "🔎 Download mods", h("span", { class: "small muted" }, plugins ? "Browse Modrinth and Hangar" : "Browse Modrinth and CurseForge")),
       plugins ? null : h("button", { type: "button", class: "btn", onclick: () => openBrowser({ type: "modpack", target: "setup", loader: st.modpack ? "" : st.loader }) },
         "📦 Modpacks", h("span", { class: "small muted" }, "A ready-made pack of mods")),
       picker);

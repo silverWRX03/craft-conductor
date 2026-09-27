@@ -11,7 +11,7 @@ from pathlib import Path
 STATE_DIR = ".mcsm"
 CONFIG_NAME = "mcsm.toml"
 LOADERS = ("fabric", "quilt", "neoforge", "forge", "paper", "vanilla")
-MOD_SOURCES = ("modrinth", "curseforge")
+MOD_SOURCES = ("modrinth", "curseforge", "hangar")  # Hangar: Paper plugins
 STRATEGIES = ("latest-compatible", "latest", "mods-only")
 CHANNELS = ("release", "beta", "alpha")
 

@@ -1184,6 +1184,7 @@ class Api:
         get("/api/mods/search", self.search)
         post("/api/mods/add", self.add_mod)
         post("/api/mods/remove", self.remove_mod)
+        post("/api/mods/jar", self.set_jar)
         post("/api/mods/required", self.set_required)
         post("/api/manual/upload", lambda q, b: None)  # handled specially (raw body)
         get("/api/players/skin", lambda q, b: None)    # handled specially (an image)
@@ -1422,7 +1423,20 @@ class Api:
             "configured": self._configured_with_deps(),
             "skipped": [{"key": k, "reason": v} for k, v in lk.skipped.items()],
             "unmanaged": self.m.unmanaged_jars(),
+            "disabled": self.m.disabled_jars(),
         }
+
+    def set_jar(self, q, b) -> dict:
+        from .manager import UpgradeError
+        action = str(b.get("action", ""))
+        if action not in ("enable", "disable", "remove"):
+            raise ApiError(400, "unknown action")
+        try:
+            message = self.m.set_jar(str(b.get("name", "")), action)
+        except UpgradeError as e:
+            raise ApiError(400, str(e)) from None
+        log.info("%s", message)
+        return {"ok": True, "message": message}
 
     def _modrinth(self) -> ModrinthProvider:
         return self.m.providers.get("modrinth") or ModrinthProvider(self.m.http)
@@ -1483,8 +1497,11 @@ class Api:
         mod_id = str(b.get("id", "")).strip()
         if not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", mod_id):
             raise ApiError(400, "invalid mod id")
-        if source != "modrinth" and self.m.loader.mods_folder != "mods":
-            raise ApiError(400, "Paper plugins come from Modrinth")
+        plugins = self.m.loader.mods_folder != "mods"
+        if source == "curseforge" and plugins:
+            raise ApiError(400, "Paper plugins come from Modrinth or Hangar")
+        if source == "hangar" and not plugins:
+            raise ApiError(400, "Hangar has Paper plugins, not mods")
         project = self.m.providers[source].project(mod_id)
         if project.server_side == "unsupported":
             raise ApiError(400, f"{project.name} is client-side only")

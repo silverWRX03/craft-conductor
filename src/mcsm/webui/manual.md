@@ -116,6 +116,8 @@ Players online and players who have joined before, with **Op/De-op**, **Kick**, 
 
 Installed mods with their versions: **Download mods** (the mod browser), **Local files**, mark a mod required or optional, **Remove** it (with the mods it needed, if nothing else needs them), and **Mod config files** to edit a mod's settings in the page (with colours for TOML, JSON, YAML and more). **Test these mods** checks a set of mods in a throwaway server, so your world is never touched; if they don't start together, **Find the culprits** adds them back a group at a time until it knows which ones clash. Changes apply at the next restart.
 
+**Paper servers (plugins):** the page is called **Plugins**. **Download plugins** searches **Modrinth** and **Hangar** (PaperMC's own plugin site; pick it as the source): tick plugins and press **Add selected**, and mcsm keeps them updated with Minecraft like mods, checking each file (Hangar's SHA-256). A plugin Hangar only links to elsewhere is listed to download yourself. **Plugins you added yourself** (jars dropped into the plugins folder, or uploaded with **Local files**) can be **switched off** (kept as `.jar.disabled`), switched back on, or removed. Plugin settings are under **Mod config files** (the `plugins/<plugin>/` folders).
+
 **Saved mod lists:** **Save the current mods** under a name, and **Switch to it** later: the mods you had are saved first as "Before …", so you can always switch back. mcsm offers to install the switched list right away (the server restarts after the countdown). **⬇** downloads a list as a file, and **Load a list from a file…** adds one, say from another server. The friends' extra mods are part of each list.
 
 ## Updates
