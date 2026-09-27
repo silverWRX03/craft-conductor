@@ -18,17 +18,15 @@ def test_invite_page_links_carry_the_invite_after_the_hash():
 
 
 def test_mcsm_links_open_this_mcsm_on_linux(tmp_path, monkeypatch):
-    monkeypatch.setattr(urlhandler.sys, "platform", "linux")
-    monkeypatch.setattr(urlhandler.os, "name", "posix")
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
     ran = []
     monkeypatch.setattr(urlhandler.shutil, "which", lambda name: "/usr/bin/xdg-mime")
     monkeypatch.setattr(urlhandler.subprocess, "run", lambda args, **kw: ran.append(args))
-    assert urlhandler.register("/home/me/mcsm-linux-x64")
-    entry = (tmp_path / "applications" / urlhandler.DESKTOP_FILE).read_text()
+    assert urlhandler._linux("/home/me/mcsm-linux-x64")  # (the Linux part runs on any system)
+    entry = (tmp_path / "applications" / urlhandler.DESKTOP_FILE).read_text(encoding="utf-8")
     assert 'Exec="/home/me/mcsm-linux-x64" join -- %u' in entry and "x-scheme-handler/mcsm;" in entry
     assert ran == [["xdg-mime", "default", urlhandler.DESKTOP_FILE, "x-scheme-handler/mcsm"]]
-    assert not urlhandler.register('/home/me/odd"name')  # never anything that could break the Exec line
+    assert not urlhandler._linux('/home/me/odd"name')  # never anything that could break the Exec line
 
 
 def test_nothing_registered_when_not_the_standalone_app(monkeypatch):

@@ -179,7 +179,7 @@ def test_the_manual_covers_every_page():
     import re
     from pathlib import Path
     webui = Path(__file__).resolve().parents[1] / "src" / "mcsm" / "webui"
-    app, manual = (webui / "app.js").read_text(), (webui / "manual.md").read_text()
+    app, manual = (webui / "app.js").read_text(encoding="utf-8"), (webui / "manual.md").read_text(encoding="utf-8")
     pages = re.findall(r'\["\w+", "([^"]+)"\]', re.search(r"const SERVER_VIEWS = \[(.*?)\];", app, re.S).group(1))
     headings = set(re.findall(r"^##+ (.+)$", manual, re.M))
     missing = [p for p in pages + ["Your servers", "mcsm settings", "Remote access and phones"]
@@ -191,5 +191,5 @@ def test_the_changelog_has_the_version_being_built():
     """Every version gets its changelog entry (see CLAUDE.md)."""
     from pathlib import Path
     from mcsm import __version__
-    changelog = (Path(__file__).resolve().parents[1] / "CHANGELOG.md").read_text()
+    changelog = (Path(__file__).resolve().parents[1] / "CHANGELOG.md").read_text(encoding="utf-8")
     assert f"## {__version__} " in changelog, f"CHANGELOG.md has no section for {__version__}"

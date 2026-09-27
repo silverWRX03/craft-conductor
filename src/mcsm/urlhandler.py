@@ -60,7 +60,7 @@ def _linux(exe: str) -> bool:
     folder.mkdir(parents=True, exist_ok=True)
     (folder / DESKTOP_FILE).write_text(
         "[Desktop Entry]\nType=Application\nName=mcsm (join a Minecraft server)\n"
-        f'Exec="{exe}" join -- %u\nMimeType=x-scheme-handler/{SCHEME};\nNoDisplay=true\nTerminal=false\n')
+        f'Exec="{exe}" join -- %u\nMimeType=x-scheme-handler/{SCHEME};\nNoDisplay=true\nTerminal=false\n', encoding="utf-8")
     if shutil.which("xdg-mime"):
         subprocess.run(["xdg-mime", "default", DESKTOP_FILE, f"x-scheme-handler/{SCHEME}"],
                        capture_output=True, timeout=10)
