@@ -88,6 +88,14 @@ ready to update to Minecraft 1.21.4 with fabric 0.16.14:
   through an SSH tunnel ([guide](docs/rented-server.md)).
 - **Paper plugins from Modrinth and Hangar,** updated with Minecraft like mods; switch hand-added
   plugins off and on.
+- **Quick start.** Ready-made starting points on New server (plain Minecraft with friends, smooth survival,
+  new lands to explore, plugins, a modpack) fill the form in; everything stays changeable.
+- **Crashes explained, with fix buttons.** "Remove this mod", "Add the mod it needs", "Give it more memory"; and
+  **Check my setup** fixes what it finds in one press.
+- **Backups you can trust.** Each one is read back and checked; **Put back an area** undoes griefing in one place
+  from a backup without losing everyone else's building.
+- **Router set up by itself.** With UPnP switched on, mcsm forwards its own ports on your router
+  (and takes them back when you quit); otherwise a picture guide shows how.
 - **No port forwarding? playit.gg.** Friends join through a playit.gg tunnel, and the Dashboard shows
   whether it's working (playit.gg is an outside service, so its disruptions are out of mcsm's control).
 - **Bedrock players too.** One button adds Geyser and Floodgate, so friends on phones, tablets and

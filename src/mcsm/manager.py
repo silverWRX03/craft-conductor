@@ -195,6 +195,7 @@ class Manager:
             self.on_process(proc)
         if not proc.wait_ready(self.config.server.startup_timeout):
             lines = proc.tail(400)
+            self.last_start_lines = lines  # (the Dashboard explains what went wrong from these)
             proc.stop(self.config.server.stop_timeout)
             from .diagnose import diagnose
             self.last_diagnosis = diagnose(lines, self.server_dir, (lock or self.lock).mods, since=started)

@@ -658,10 +658,29 @@ function openDoctor() {
   if ($("#doctor")) return;
   const list = h("ul", { class: "list doctor-list" }, h("li", { class: "muted" }, h("span", { class: "spinner" }), " Checking…"));
   const internet = h("div");
-  const row = (c) => h("li", { class: `doctor-item ${c.status}` },
-    h("span", { class: "doctor-icon", "aria-hidden": "true" }, DOCTOR_ICON[c.status] || "•"),
-    h("div", { class: "grow" }, h("strong", {}, c.title), h("div", { class: "small" }, c.detail),
-      c.fix ? h("div", { class: "small muted" }, "→ ", c.fix) : null));
+  // A fix mcsm can do itself: one press, then the checks run again.
+  const fix = async (c, btn) => {
+    const body = { action: c.action };
+    if (c.action === "eula") {
+      if (!(await ask("Minecraft's End User License Agreement (EULA) is Mojang's terms for running a Minecraft server. " +
+        "Read it at https://aka.ms/MinecraftEULA.\n\nDo you accept it?", { ok: "I accept the EULA" }))) return;
+      body.accept = true;
+    }
+    btn.disabled = true;
+    try {
+      const r = await api("/api/doctor/fix", { method: "POST", body });
+      toast(r.message);
+      load();
+    } catch (e) { if (!(e instanceof Unauthorized)) toast(e.message, true); btn.disabled = false; }
+  };
+  const row = (c) => {
+    const btn = c.action ? h("button", { class: "btn small primary", onclick: () => fix(c, btn) }, c.action_label) : null;
+    return h("li", { class: `doctor-item ${c.status}` },
+      h("span", { class: "doctor-icon", "aria-hidden": "true" }, DOCTOR_ICON[c.status] || "•"),
+      h("div", { class: "grow" }, h("strong", {}, c.title), h("div", { class: "small" }, c.detail),
+        c.fix ? h("div", { class: "small muted" }, "→ ", c.fix) : null,
+        btn ? h("div", { class: "mt-s" }, btn) : null));
+  };
   const load = async () => {
     try {
       const r = await api("/api/doctor");
@@ -745,6 +764,8 @@ views.dashboard = () => {
   const tun = tunnelCard();
   const con = consolePanel({ compact: true });
   const lagBanner = h("div");
+  const problemBox = h("div");
+  let problemShown = "";
   let evSeq = 0;
   let selected = null;      // player whose actions are open
   let ops = new Set();
@@ -807,7 +828,36 @@ views.dashboard = () => {
     if (status) renderOnline(status.players, status.max_players);
   };
 
+  // What went wrong (a crash or a failed start), in plain words with the fixes mcsm can do.
+  const renderProblem = (p) => {
+    const key = p ? JSON.stringify([p.time, p.fixed]) : "";
+    if (key === problemShown) return;
+    problemShown = key;
+    if (!p) { fill(problemBox); return; }
+    const press = async (a) => {
+      if (a.kind === "backups") { location.hash = link("backups"); return; }
+      const body = { kind: a.kind, filename: a.filename };
+      if (a.kind === "eula") {
+        if (!(await ask("Minecraft's End User License Agreement (EULA) is Mojang's terms for running a Minecraft server. " +
+          "Read it at https://aka.ms/MinecraftEULA.\n\nDo you accept it?", { ok: "I accept the EULA" }))) return;
+        body.accept = true;
+      }
+      const r = await act(() => api("/api/problem/fix", { method: "POST", body }), null);
+      if (r) { toast(r.message); refreshStatus(); }
+    };
+    fill(problemBox, h("div", { class: "notice bad mt problem" },
+      h("div", { class: "row" }, h("strong", { class: "grow" }, p.kind === "start" ? "The server didn't start: " : "The server crashed: ", p.title),
+        h("span", { class: "muted small" }, ago(p.time))),
+      h("p", { class: "small" }, p.words),
+      p.evidence ? h("details", { class: "small" }, h("summary", {}, "What Minecraft said"), h("pre", { class: "log" }, p.evidence)) : null,
+      p.fixed ? h("div", { class: "row mt-s" }, h("span", { class: "grow small ok-text" }, `✓ ${p.fixed}`),
+        h("button", { class: "btn primary small", onclick: () => act(() => api("/api/server/start", { method: "POST", body: {} }), "Starting…").then(() => press({ kind: "dismiss" })) }, "Start the server"))
+        : h("div", { class: "row mt-s" }, (p.actions || []).map((a) => h("button", { class: "btn small primary", onclick: () => press(a) }, a.label)),
+          h("button", { class: "btn small ghost", onclick: () => press({ kind: "dismiss" }) }, "Dismiss"))));
+  };
+
   const render = (s) => {
+    renderProblem(s.problem);
     renderMeters(s);
     renderOnline(s.players, s.max_players);
     fill(statusBody,
@@ -848,6 +898,7 @@ views.dashboard = () => {
 
   fill($("#main"),
     h("h2", { class: "view-title" }, "Dashboard"),
+    problemBox,
     lagBanner,
     h("div", { class: "meters" }, cpu.el, mem.el),
     h("div", { class: "mt" }, perf.el),
@@ -1359,6 +1410,41 @@ function modSetsCard(after) {
   return { el, load };
 }
 
+// Put back one area of the world from a backup: griefing or a bad explosion undone, everything
+// else kept as it is now. The corners are block coordinates (F3 in the game shows them).
+function openAreaRestore(b) {
+  if ($("#area-restore")) return;
+  const num = (v) => h("input", { type: "number", value: v, class: "narrow" });
+  const x1 = num(-50), z1 = num(-50), x2 = num(50), z2 = num(50);
+  const dim = h("select", { "aria-label": "Dimension" }, [["overworld", "Overworld"], ["nether", "The Nether"], ["end", "The End"]]
+    .map(([v, l]) => h("option", { value: v }, l)));
+  const note = h("p", { class: "muted small" });
+  const update = () => {
+    const w = Math.abs(Math.floor(x2.value / 16) - Math.floor(x1.value / 16)) + 1, d = Math.abs(Math.floor(z2.value / 16) - Math.floor(z1.value / 16)) + 1;
+    note.textContent = `${w * d} chunk(s): ${w * 16} × ${d * 16} blocks, rounded out to whole chunks.`;
+  };
+  [x1, z1, x2, z2].forEach((el) => el.addEventListener("input", update));
+  update();
+  const close = () => $("#area-restore").remove();
+  const go = async () => {
+    const body = { name: b.name, dimension: dim.value, x1: Number(x1.value), z1: Number(z1.value), x2: Number(x2.value), z2: Number(z2.value) };
+    if (!(await ask(`Put this area back as it was in ${b.name}? Everything else in the world stays as it is now. ` +
+      "mcsm backs up the world first, so you can undo it.", { ok: "Put it back", danger: true }))) return;
+    const r = await act(() => api("/api/backups/area", { method: "POST", body }), "Putting the area back…");
+    if (r) close();
+  };
+  document.body.append(h("div", { class: "modal-backdrop", id: "area-restore", role: "dialog", "aria-modal": "true" },
+    h("div", { class: "modal" },
+      h("h2", {}, "Put back an area"),
+      h("p", { class: "small" }, "From ", h("code", {}, b.name), ". Type two opposite corners (the x and z numbers F3 shows in the game)."),
+      h("div", { class: "row" }, h("span", {}, "From x"), x1, h("span", {}, "z"), z1),
+      h("div", { class: "row mt-s" }, h("span", {}, "To x"), x2, h("span", {}, "z"), z2),
+      h("label", { class: "mt-s" }, "Dimension", dim),
+      note,
+      h("p", { class: "muted small" }, "Blocks, chests, animals and villagers in that area go back to how they were. Players' inventories don't change."),
+      h("div", { class: "row mt" }, h("button", { class: "btn primary", onclick: go }, "Put it back"), h("button", { class: "btn ghost", onclick: close }, "Cancel")))));
+}
+
 views.backups = () => {
   const list = h("div");
   const label = h("input", { placeholder: "label (optional)" });
@@ -1366,15 +1452,22 @@ views.backups = () => {
     const r = await api("/api/backups").catch(() => null);
     if (!r) return;
     const stopped = status && status.state === "stopped";
+    const checked = (c) => !c ? h("span", { class: "muted small" }, "not checked")
+      : c.ok ? h("span", { class: "small ok-text", title: c.detail }, "✓ checked")
+        : h("span", { class: "small bad-text", title: c.detail }, `✗ ${c.detail}`);
     fill(list, r.backups.length ? h("table", {},
-      h("thead", {}, h("tr", {}, h("th", {}, "Backup"), h("th", {}, "Created"), h("th", {}, "Size"), h("th", {}))),
+      h("thead", {}, h("tr", {}, h("th", {}, "Backup"), h("th", {}, "Created"), h("th", {}, "Size"), h("th", {}, "Can be restored"), h("th", {}))),
       h("tbody", {}, r.backups.map((b) => h("tr", {},
         h("td", {}, h("code", {}, b.name)), h("td", {}, fmtTime(b.time)), h("td", {}, fmtBytes(b.size)),
-        h("td", {}, h("button", {
+        h("td", {}, checked(b.check), " ", h("button", { class: "link-btn small", title: "Read the whole backup to make sure it can be restored",
+          onclick: () => act(() => api("/api/backups/check", { method: "POST", body: { name: b.name } }), "Checking the backup…") }, b.check ? "Check again" : "Check")),
+        h("td", { class: "row" }, h("button", {
           class: "btn small", disabled: !stopped, title: stopped ? "" : "Stop the server first",
           onclick: async () => (await ask(`Replace the server directory with ${b.name}? Anything since then is lost.`, { ok: "Restore", danger: true })) &&
             act(() => api("/api/backups/restore", { method: "POST", body: { name: b.name } }), "Restoring…"),
-        }, "Restore")))))) : h("p", { class: "empty" }, "No backups yet."));
+        }, "Restore"),
+        h("button", { class: "btn small", disabled: !stopped, title: stopped ? "Put back only part of the world" : "Stop the server first",
+          onclick: () => openAreaRestore(b) }, "Put back an area…")))))) : h("p", { class: "empty" }, "No backups yet."));
   };
   fill($("#main"), 
     h("h2", { class: "view-title" }, "Backups"),
@@ -1921,6 +2014,33 @@ function randomSeed() {
   return String((BigInt(b[0] & 0x7fffffff) << 32n | BigInt(b[1])) * (b[0] & 0x80000000 ? -1n : 1n));
 }
 
+// New server → Quick start. Mods are Modrinth slugs; all run on the server only, so friends join
+// with plain Minecraft.
+const PERFORMANCE_MODS = [["lithium", "Lithium"], ["ferrite-core", "FerriteCore"], ["krypton", "Krypton"]];
+const SETUP_PRESETS = [
+  { icon: "🟩", name: "Plain Minecraft with friends", desc: "Vanilla, always the newest version, with a download that sets up your friends' game.",
+    loader: "vanilla", mods: [], friends: true, memory: [2, 4] },
+  { icon: "⚡", name: "Smooth survival", desc: "Fabric with performance mods (Lithium, FerriteCore, Krypton): less lag, same game. Friends join with plain Minecraft.",
+    loader: "fabric", mods: PERFORMANCE_MODS, memory: [3, 6] },
+  { icon: "🗺️", name: "New lands to explore", desc: "Fabric with Terralith (almost 100 new biomes, vanilla blocks) and the performance mods. Friends join with plain Minecraft.",
+    loader: "fabric", mods: [["terralith", "Terralith"], ...PERFORMANCE_MODS.slice(0, 2)], memory: [4, 6] },
+  { icon: "🧩", name: "Plugins (Paper)", desc: "A fast Paper server for plugins (add them in step 3). Friends join with plain Minecraft.",
+    loader: "paper", mods: [], memory: [3, 6] },
+  { icon: "📦", name: "A modpack", desc: "Browse Modrinth's modpacks: the pack decides the version and mods.", modpack: true },
+];
+async function applyPreset(p, opts) {
+  if (p.modpack) { openBrowser({ type: "modpack", target: "setup", loader: "" }); return; }
+  const st = setupState;
+  Object.assign(st, { loader: p.loader, minecraft: "latest", modpack: null, localMods: [], friends: !!p.friends });
+  st.mods.clear();
+  const [lo, hi] = p.memory;
+  st.memory_gb = Math.max(lo, Math.min(hi, opts.memory_gb || lo));
+  for (const [slug, name] of p.mods) await setupAddMod(slug, name);
+  toast(`Starting point: ${p.name}. Change anything below.`);
+  setupChanged();
+  if (current && current.refresh) current.refresh();
+}
+
 function openWorldPanel() {
   const refresh = () => { if (current && current.refresh) current.refresh(); };
   const p = worldPanel({ close: () => { closeBrowser(); refresh(); }, changed: refresh });
@@ -2385,6 +2505,9 @@ function routerHelp(opts = {}) {
     h("p", {}, "Friends on your home Wi-Fi can join straight away. Friends ", h("strong", {}, "anywhere else"),
       " reach your server through your router, which has to be told to pass Minecraft's port on to this computer. That's called ",
       h("strong", {}, "port forwarding"), ", and you set it up once:"),
+    h("div", { class: "notice" }, h("strong", {}, "Let mcsm try first: "), "many routers can do it by themselves (UPnP). Switch on ",
+      h("a", { href: "#mcsm" }, "mcsm settings → Sharing with friends → Open the ports on my router by itself"),
+      " and mcsm says whether it worked. If it didn't, or you'd rather not, do it by hand:"),
     h("img", { class: "help-img", src: "/help-network.svg", alt: "A friend on the internet connects to your router, which forwards port " + mc + " to this computer." }),
     h("ol", { class: "steps" },
       h("li", {}, "Give this computer a fixed address on your network, so the rule keeps working: in the router's ", h("strong", {}, "LAN / DHCP"),
@@ -3344,6 +3467,38 @@ function notificationsCard() {
 
 // Questions answered with "Don't ask me again" (kept in this browser): bring them back here.
 // The language of mcsm's pages (this browser): automatic (the browser's) or one picked here.
+// Automatic port forwarding (UPnP): mcsm asks the router to forward its own ports to this
+// computer, renews them while it runs and takes them back when switched off (or on quit).
+function routerBox() {
+  const box = h("div", { class: "mt" });
+  const render = (st, busy = "") => {
+    const on = h("input", { type: "checkbox", checked: !!st.enabled, disabled: !!busy, onchange: async () => {
+      render({ ...st, enabled: on.checked }, on.checked ? "Asking your router…" : "Taking the ports back…");
+      const r = await api("/api/hub/upnp", { method: "POST", body: { enabled: on.checked } }).catch((e) => { toast(e.message, true); return null; });
+      render(r || st);
+    } });
+    const ports = (st.ports || []).map((p) => h("li", {}, p.ok ? "✓ " : "✗ ", h("strong", {}, `${p.protocol} ${p.port}`),
+      h("span", { class: "muted" }, ` · ${p.label}`), p.ok ? null : h("span", { class: "bad-text" }, ` · ${p.error}`)));
+    fill(box, h("h3", {}, "Router"),
+      h("label", { class: "row check-row" }, on, h("span", {}, "Open the ports on my router by itself (UPnP)")),
+      h("p", { class: "muted small" }, "mcsm asks your router to forward each server's Minecraft port and the friends' download port to this computer, " +
+        "and takes them back when you switch this off or quit mcsm. Only mcsm's own ports are opened. Many routers have UPnP switched off: " +
+        "then forward the ports by hand (Help → Router setup), or use playit.gg."),
+      busy ? h("p", { class: "small" }, busy) : null,
+      !busy && st.enabled && st.error ? h("div", { class: "notice warn" }, h("strong", {}, "It didn't work: "), st.error, ".") : null,
+      !busy && st.enabled && !st.error && st.router ? h("p", { class: "small ok-text" },
+        `${st.router}${st.external_ip ? ` (internet address ${st.external_ip})` : ""}`) : null,
+      !busy && st.warning ? h("div", { class: "notice warn" }, st.warning[0].toUpperCase() + st.warning.slice(1) + ".") : null,
+      !busy && ports.length ? h("ul", { class: "list small" }, ports) : null,
+      !busy && st.enabled ? h("button", { class: "btn small", onclick: async () => {
+        render(st, "Asking your router…");
+        render((await api("/api/hub/upnp", { method: "POST", body: {} }).catch(() => null)) || st);
+      } }, "Check again") : null);
+  };
+  api("/api/hub/upnp").then((st) => render(st)).catch(() => null);
+  return box;
+}
+
 function languageCard() {
   const sel = h("select", { "aria-label": "Language" }, h("option", { value: "" }, "Automatic (this browser's language)"),
     Object.entries(LANGS).map(([code, name]) => h("option", { value: code }, name)));
@@ -3416,7 +3571,8 @@ views.mcsm = () => {
         const r = await act(() => api("/api/hub/share", { method: "POST", body: { address: address.value.trim(), port: Number(port.value), tunnel: tunnelIn.value.trim() } }), "Saved");
         if (r && r.share.error) toast(r.share.error, true);
       } }, "Save"),
-      h("span", { class: "muted small" }, s.running ? `Sharing is on (port ${s.port}).` : s.error || "Sharing is off: no server has a friend download switched on."))));
+      h("span", { class: "muted small" }, s.running ? `Sharing is on (port ${s.port}).` : s.error || "Sharing is off: no server has a friend download switched on.")),
+      routerBox()));
   };
   const renderSecurity = (hb) => {
     const a = (hb && hb.auth) || {};
@@ -3704,8 +3860,13 @@ views.setup = () => {
       h("div", { class: "row" },
         h("span", { class: "grow small" }, "Run the server on a Linux PC without a screen on this network (a spare PC, a home server, a Raspberry Pi): mcsm installs itself there over SSH."),
         h("button", { type: "button", class: "btn", onclick: openSshInstall }, "🐧 Install on a Linux computer…")))) : null;
+    // Quick start: a ready-made starting point that fills the form in (everything stays changeable).
+    const presetCards = isNew ? card("Quick start (optional)",
+      h("p", { class: "muted small" }, "Pick a starting point and change anything afterwards, or choose each step yourself below."),
+      h("div", { class: "choices presets" }, SETUP_PRESETS.map((p) => h("button", { type: "button", class: "choice", onclick: () => applyPreset(p, opts) },
+        h("strong", {}, `${p.icon} `, p.name), h("span", { class: "small muted" }, p.desc))))) : null;
     if (!st.loader) {  // one step at a time: the rest depends on the server type
-      fill(main, intro, card("1. Server type", loaderCards,
+      fill(main, intro, presetCards ? h("div", { class: "mb" }, presetCards) : null, card("1. Server type", loaderCards,
         h("p", { class: "muted small mt-s" }, "Pick a server type to continue. Fabric, NeoForge, Forge and Quilt run mods; Vanilla is plain Minecraft.")),
         elsewhere);
       return;

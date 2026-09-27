@@ -188,6 +188,7 @@ class Daemon:
         self._sched_last = None  # the last time schedules were looked at
         self.meter = None        # recent TPS samples (perf.Meter), made when first asked for
         self.crashed_at = None   # when the server last stopped unexpectedly
+        self.problem: dict | None = None  # what went wrong last (explain.py), until it starts fine
         self.tunnel_status = None  # the last playit.gg tunnel check (tunnel.check)
         self.started_at: float | None = None
         self.last_check: dict | None = None
@@ -276,9 +277,23 @@ class Daemon:
                 log.warning("update before starting failed (%s); starting the current version", e)
             if self.proc and self.proc.running:
                 return "updated and started"
-        self.m.start_server()
+        try:
+            self.m.start_server()
+        except Exception:
+            self._explain(getattr(self.m, "last_start_lines", None) or [], "start")
+            raise
+        if self.problem and self.problem.get("kind") == "start":  # (a crash's explanation stays until dismissed)
+            self.problem = None
         self.m.notifier.send(f"Server is up (Minecraft {self.m.lock.minecraft})")
         return "started"
+
+    def _explain(self, lines: list[str], kind: str) -> None:
+        """Keep what went wrong, in plain words with fix buttons, for the Dashboard."""
+        from .explain import explain
+        try:
+            self.problem = explain(lines, self.m.server_dir, self.m.lock.mods, since=time.time() - 900, kind=kind)
+        except Exception:
+            log.exception("couldn't work out what went wrong")
 
     def stop_server(self) -> str:
         self.want_running = False
@@ -308,8 +323,18 @@ class Daemon:
             if running and self.proc.running:
                 self.proc.send("save-on")
         backup.prune(cfg.backups.dir, cfg.backups.keep)
+        # Read it back (it's still in the computer's cache, so this is quick): a backup that
+        # can't be restored is worse than none, and it's better to know now.
+        from . import areas
+        from .properties import read_properties
+        level = read_properties(self.m.server_dir / "server.properties").get("level-name") or "world"
+        checked = areas.check(cfg.backups.dir, path.name, level)
+        if not checked["ok"]:
+            log.error("the new backup %s doesn't look right: %s", path.name, checked["detail"])
+            self.m.notifier.send(f"The backup {path.name} doesn't look right: {checked['detail']}")
         copied = backup.copy_out(path, cfg.backups.copy_to, cfg.root.name, cfg.backups.copy_keep)
-        return f"created {path.name}" + (f" (copied to {copied.parent})" if copied else "")
+        return f"created {path.name}" + (" (checked)" if checked["ok"] else " (but it doesn't look right: " + checked["detail"] + ")") + \
+            (f" (copied to {copied.parent})" if copied else "")
 
     # --------------------------------------------------- playit.gg tunnel
     TUNNEL_FRESH = 60  # seconds a check is reused for (however many pages ask)
@@ -508,6 +533,7 @@ class Daemon:
         self.crashes.append(now)
         while self.crashes and now - self.crashes[0] > CRASH_WINDOW:
             self.crashes.popleft()
+        self._explain(self.proc.tail(400), "crash")
         tail = "\n".join(self.proc.tail(15))
         from .diagnose import diagnose
         blame = diagnose(self.proc.tail(400), self.m.server_dir, self.m.lock.mods).summary

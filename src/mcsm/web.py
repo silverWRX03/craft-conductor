@@ -798,6 +798,8 @@ class HubApi:
         r[("POST", "/api/hub/trial")] = self.start_trial
         r[("GET", "/api/hub/trial")] = self.trial_status
         r[("POST", "/api/hub/trial/cancel")] = self.cancel_trial
+        r[("GET", "/api/hub/upnp")] = lambda q, b: self.hub.upnp_status()
+        r[("POST", "/api/hub/upnp")] = self.set_upnp
         r[("POST", "/api/hub/preview")] = self.start_preview
         r[("GET", "/api/hub/preview")] = self.preview_status
         r[("GET", "/api/hub/preview/map")] = self.preview_map
@@ -906,6 +908,18 @@ class HubApi:
             raise ApiError(404, "that test isn't running any more")
         t.cancel.set()
         return {"ok": True}
+
+    # ------------------------------------------- router port forwarding
+    def set_upnp(self, q, b) -> dict:
+        """Switch automatic port forwarding on or off (``refresh`` re-checks it)."""
+        if self.hub.is_single:
+            raise ApiError(400, "automatic port forwarding needs the full mcsm (not `mcsm run`)")
+        enabled = b.get("enabled")
+        if enabled is not None and not isinstance(enabled, bool):
+            raise ApiError(400, "enabled must be true or false")
+        status = self.hub.upnp_sync(enabled)
+        log.info("automatic port forwarding %s", "on" if status["enabled"] else "off")
+        return status
 
     # ---------------------------------------------------- map previews
     def start_preview(self, q, b) -> dict:
@@ -1260,6 +1274,8 @@ class Api:
         get("/api/backups", self.backups)
         post("/api/backups/create", self.create_backup)
         post("/api/backups/restore", self.restore_backup)
+        post("/api/backups/check", self.check_backup)
+        post("/api/backups/area", self.restore_area)
         post("/api/open", self.open_folder)
         get("/api/play-here", self.play_here_info)
         get("/api/doctor", self.doctor)
@@ -1280,6 +1296,8 @@ class Api:
         post("/api/join-requests/answer", self.answer_join_request)
         post("/api/performance/spark", self.spark_profile)
         post("/api/doctor/internet", self.doctor_internet)
+        post("/api/doctor/fix", self.doctor_fix)
+        post("/api/problem/fix", self.problem_fix)
         get("/api/doctor/report", lambda q, b: None)  # sent by the request handler (a zip)
         post("/api/play-here", self.play_here)
         post("/api/world/replace", self.replace_world)
@@ -1364,6 +1382,7 @@ class Api:
             "id": self.sid,
             "auth": self.web.auth.info(),
             "resources": self._resources(),
+            "problem": d.problem,
         }
 
     def _resources(self) -> dict | None:
@@ -1982,7 +2001,8 @@ class Api:
         hub = self.web.hub
         info = hub.self_update_info()
         return doctor.run(self.m, self.d.state, share=None if hub.is_single else hub.share_status(),
-                          self_update={"available": True, **info} if info else None)
+                          self_update={"available": True, **info} if info else None,
+                          upnp=None if hub.is_single else hub.upnp_status())
 
     def doctor(self, q, b) -> dict:
         from dataclasses import asdict
@@ -1999,6 +2019,120 @@ class Api:
         from . import doctor
         port = int(read_properties(self.m.server_dir / "server.properties").get("server-port", "25565") or 25565)
         return asdict(doctor.internet_check(self.m.http, port, self.d.state == "running"))
+
+    def doctor_fix(self, q, b) -> dict:
+        """Check my setup's fix buttons: each does one small, safe thing (and says what it did)."""
+        from . import backup, doctor
+        from .properties import write_properties
+        action = str(b.get("action", ""))
+        if action not in doctor.FIXES:
+            raise ApiError(400, "unknown fix")
+        offered = {c.action for c in self._doctor_checks()}
+        if action not in offered:
+            raise ApiError(409, "that's already fine: press Check again")
+        props = self.m.server_dir / "server.properties"
+        hub = self.web.hub
+        if action == "eula":
+            if b.get("accept") is not True:
+                raise ApiError(400, "accept the EULA first")
+            (self.m.server_dir / "eula.txt").write_text("# accepted in mcsm's Check my setup\neula=true\n")
+            message = "EULA accepted"
+        elif action == "java":
+            major = self.m.lock.java_major or 8
+            return {**self._job(f"install Java {major}", lambda: f"installed {self.m.java.install(major).release}"),
+                    "message": f"Downloading Java {major}: it shows on the Dashboard"}
+        elif action == "memory":
+            from .setup import total_ram_gb
+            gb = max(1, int((total_ram_gb() or 4) - 3))
+            configmod.set_value(self.m.config.path, "server", "memory", json.dumps(f"{gb}G"))
+            self.m.reload_config()
+            message = f"The server gets {gb} GB from its next start"
+        elif action == "prune-backups":
+            gone = backup.prune(self.m.config.backups.dir, doctor.KEEP_WHEN_FULL)
+            message = f"Deleted {len(gone)} old backup(s); the newest {doctor.KEEP_WHEN_FULL} are kept"
+        elif action == "port":
+            if self.d.state == "running":
+                raise ApiError(409, "stop the server first")
+            port = hub.free_port(int(read_properties(props).get("server-port", "25565") or 25565) + 1)
+            write_properties(props, {"server-port": str(port)})
+            message = f"The server now uses port {port}" + ("" if port == 25565 else f": friends connect with your address followed by :{port}")
+        elif action == "online-mode":
+            write_properties(props, {"online-mode": "true"})
+            message = "Accounts are checked again from the next start"
+        elif action == "public-ip":
+            ip = hub.public_ip()
+            s = hub.share_settings()
+            hub.save_share(s["port"], ip)
+            message = f"Friends outside your home now get {ip}"
+        else:  # upnp
+            st = hub.upnp_sync(True)
+            if st["error"]:
+                raise ApiError(400, f"your router didn't do it: {st['error']}")
+            message = "Your router forwards the ports now"
+        log.info("check my setup: %s", message)
+        return {"ok": True, "message": message}
+
+    def problem_fix(self, q, b) -> dict:
+        """The Dashboard's "What went wrong" buttons (only the ones it offered)."""
+        problem = self.d.problem
+        kind = str(b.get("kind", ""))
+        if kind == "dismiss":
+            self.d.problem = None
+            return {"ok": True, "message": "Dismissed"}
+        offered = [a for a in (problem or {}).get("actions", []) if a.get("kind") == kind]
+        if not offered:
+            raise ApiError(409, "that's not on offer any more")
+        action = offered[0] if len(offered) == 1 else next((a for a in offered if a.get("filename") == b.get("filename")), None)
+        if action is None:
+            raise ApiError(400, "which one?")
+        if kind in ("eula", "port"):
+            if kind == "eula" and b.get("accept") is not True:
+                raise ApiError(400, "accept the EULA first")
+            message = self.doctor_fix(q, {"action": kind, "accept": True})["message"]
+        elif kind == "memory-up":
+            from .doctor import server_memory_gb
+            total = setupmod.total_ram_gb() or 0
+            now = server_memory_gb(self.m.config.server.memory)
+            gb = int(min(now + 2, max(now, total - 3))) if total else int(now + 2)
+            if gb <= now:
+                raise ApiError(400, f"this computer ({total:.0f} GB) has no more to give: use fewer mods or a lower view distance")
+            configmod.set_value(self.m.config.path, "server", "memory", json.dumps(f"{gb}G"))
+            self.m.reload_config()
+            message = f"The server gets {gb} GB from its next start"
+        elif kind == "java-auto":
+            configmod.set_value(self.m.config.path, "java", "version", json.dumps("auto"))
+            self.m.reload_config()
+            message = "mcsm picks the Java version Minecraft needs from the next start"
+        elif kind == "add-mod":
+            try:
+                self.add_mod(q, {"source": "modrinth", "id": action["id"]})
+            except (ApiError, ModError, HttpError) as e:
+                raise ApiError(400, f"couldn't add {action['name']} ({e}): look for it in Download mods") from None
+            message = f"Added {action['name']}: it's installed with the next update check or start"
+        elif kind == "remove-mod":
+            mf = next((m for m in self.m.lock.mods if m.filename == action["filename"]), None)
+            if mf is None:
+                raise ApiError(409, "it's not installed any more")
+            removed = []
+            for entry in self._configured_with_deps():  # the mod itself, or the mods that brought it
+                if entry["key"] == mf.key or any(dep["key"] == mf.key for dep in entry.get("deps", [])):
+                    if configmod.remove_mod(self.m.config.path, entry["source"], entry["id"]):
+                        removed.append(entry["id"])
+            if not removed:
+                raise ApiError(409, f"{mf.name} isn't in the mod list: remove it on the Mods page")
+            self.m.reload_config()
+            message = f"Removed {', '.join(removed)}: it's gone at the next update check or start"
+        elif kind == "disable-jar":
+            from .manager import UpgradeError
+            try:
+                message = self.m.set_jar(action["filename"], "disable")
+            except UpgradeError as e:
+                raise ApiError(400, str(e)) from None
+        else:  # backups: the page opens them
+            return {"ok": True, "message": ""}
+        self.d.problem = {**problem, "fixed": message}
+        log.info("what went wrong: %s", message)
+        return {"ok": True, "message": message}
 
     def doctor_report(self) -> bytes:
         from . import doctor
@@ -2136,8 +2270,61 @@ class Api:
 
     # ------------------------------------------------------------- backups
     def backups(self, q, b) -> dict:
-        return {"backups": [{"name": p.name, "size": p.stat().st_size, "time": p.stat().st_mtime}
+        from . import areas
+        checks = areas.load_checks(self.m.config.backups.dir)
+        return {"backups": [{"name": p.name, "size": p.stat().st_size, "time": p.stat().st_mtime, "check": checks.get(p.name)}
                             for p in reversed(backup.list_backups(self.m.config.backups.dir))]}
+
+    def _backup_path(self, b) -> Path:
+        name = str(b.get("name", ""))
+        path = self.m.config.backups.dir / name
+        if Path(name).name != name or not name.endswith(backup.SUFFIX) or not path.is_file():
+            raise ApiError(404, "no such backup")
+        return path
+
+    def _level(self) -> str:
+        return read_properties(self.m.server_dir / "server.properties").get("level-name") or "world"
+
+    def check_backup(self, q, b) -> dict:
+        """Read a whole backup to make sure it can be restored."""
+        from . import areas
+        path = self._backup_path(b)
+        level = self._level()
+
+        def run():
+            r = areas.check(path.parent, path.name, level)
+            if not r["ok"]:
+                raise RuntimeError(f"{path.name} doesn't look right: {r['detail']}")
+            return f"{path.name} is fine: {r['detail']}"
+        return self._job("check backup", run)
+
+    def restore_area(self, q, b) -> dict:
+        """Put back one area of the world from a backup (after backing up what's there now)."""
+        from . import areas
+        path = self._backup_path(b)
+        if self.d.state != "stopped":
+            raise ApiError(409, "stop the server before putting an area back")
+        try:
+            coords = [int(b.get(k)) for k in ("x1", "z1", "x2", "z2")]
+        except (TypeError, ValueError):
+            raise ApiError(400, "the corners are whole numbers (x and z, from F3 in the game)") from None
+        if any(abs(c) > 30_000_000 for c in coords):
+            raise ApiError(400, "those coordinates are outside the world")
+        dimension = str(b.get("dimension", "overworld"))
+        level = self._level()
+        try:
+            areas.dimension_dir(level, dimension)
+        except areas.AreaError as e:
+            raise ApiError(400, str(e)) from None
+        if max(abs(coords[2] - coords[0]), abs(coords[3] - coords[1])) >= areas.MAX_BLOCKS:
+            raise ApiError(400, f"put back at most {areas.MAX_BLOCKS} × {areas.MAX_BLOCKS} blocks at a time")
+
+        def run():
+            before = backup.create(self.m.server_dir, self.m.config.backups.dir, "before-putting-an-area-back",
+                                   self.m.config.backups.exclude)
+            r = areas.restore_area(path, self.m.server_dir, level, dimension, *coords)
+            return (f"put back {r['chunks']} chunk(s) from {path.name}; what was there is in the backup {before.name}")
+        return self._job("put back an area", run)
 
     def create_backup(self, q, b) -> dict:
         label = re.sub(r"[^A-Za-z0-9_-]", "_", str(b.get("label") or "manual"))[:40]
