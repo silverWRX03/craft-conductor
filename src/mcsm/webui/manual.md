@@ -40,7 +40,7 @@ Go to **New server**. One step at a time:
 
 **Quick start (optional).** Ready-made starting points fill the form in for you; change anything afterwards:
 
-- **Plain Minecraft with friends:** Vanilla, the newest version, and a download for your friends.
+- **Vanilla Minecraft with friends:** Vanilla, the newest version, and a download for your friends.
 - **Smooth survival:** Fabric with performance mods (Lithium, FerriteCore, Krypton): less lag, the same game.
 - **New lands to explore:** Fabric with Terralith (new biomes made of vanilla blocks) and performance mods.
 - **Plugins (Paper):** a Paper server to add plugins to.

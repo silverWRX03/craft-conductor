@@ -88,7 +88,7 @@ ready to update to Minecraft 1.21.4 with fabric 0.16.14:
   through an SSH tunnel ([guide](docs/rented-server.md)).
 - **Paper plugins from Modrinth and Hangar,** updated with Minecraft like mods; switch hand-added
   plugins off and on.
-- **Quick start.** Ready-made starting points on New server (plain Minecraft with friends, smooth survival,
+- **Quick start.** Ready-made starting points on New server (vanilla Minecraft with friends, smooth survival,
   new lands to explore, plugins, a modpack) fill the form in; everything stays changeable.
 - **Crashes explained, with fix buttons.** "Remove this mod", "Add the mod it needs", "Give it more memory"; and
   **Check my setup** fixes what it finds in one press.
@@ -855,6 +855,8 @@ The test suite runs the full install → upgrade → crash → rollback cycle ag
 ### Roadmap ideas
 
 - Purpur servers (Paper with plugins from Modrinth and Hangar is supported)
+- **Modded single-player worlds:** set up and keep a modded single-player game up to date (version, loader,
+  mods, updates), then load it into the launcher of your choice; mcsm won't become a launcher itself
 - **Seed gallery:** one button makes maps of 10 different seeds side by side, to pick the one with the
   features you're after (a warning first says how long it takes and how hard it works the computer)
 - A native phone app (today the control panel works as a web app on your phone's home screen)

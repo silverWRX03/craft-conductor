@@ -2018,7 +2018,7 @@ function randomSeed() {
 // with plain Minecraft.
 const PERFORMANCE_MODS = [["lithium", "Lithium"], ["ferrite-core", "FerriteCore"], ["krypton", "Krypton"]];
 const SETUP_PRESETS = [
-  { icon: "🟩", name: "Plain Minecraft with friends", desc: "Vanilla, always the newest version, with a download that sets up your friends' game.",
+  { icon: "🟩", name: "Vanilla Minecraft with friends", desc: "Vanilla, always the newest version, with a download that sets up your friends' game.",
     loader: "vanilla", mods: [], friends: true, memory: [2, 4] },
   { icon: "⚡", name: "Smooth survival", desc: "Fabric with performance mods (Lithium, FerriteCore, Krypton): less lag, same game. Friends join with plain Minecraft.",
     loader: "fabric", mods: PERFORMANCE_MODS, memory: [3, 6] },
