@@ -4,7 +4,7 @@ What changed in each version of mcsm, newest first. Bugs are listed the way you'
 them. Found a new one? [Report it](https://github.com/silverWRX03/mc-server-management/issues/new/choose);
 its fix will say which version it's in.
 
-## 0.9.2 (not released yet)
+## 0.9.2 (2026-09-27)
 
 **Added**
 - **Don't ask me again** on questions you meet often (Stop the server?, Quit mcsm?, Update to Minecraft…?, beta-only mods, Aikar's flags), and **Don't show again** on notices you've read. **mcsm settings → Warnings** brings them back.
