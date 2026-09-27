@@ -1093,7 +1093,7 @@ def _first_run_joining() -> bool:
     from .join import invite_from_name
     if not selfupdate.frozen():
         return False
-    if invite_from_name(sys.executable) is not None:
+    if selfupdate.friend_build() or invite_from_name(sys.executable) is not None:
         return True
     home = default_home()  # someone who runs servers here gets their control panel
     return not (home / "servers").exists() and not (home / configmod.CONFIG_NAME).exists()

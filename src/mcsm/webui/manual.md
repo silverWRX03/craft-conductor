@@ -144,7 +144,7 @@ For power users, **Advanced: invite codes and security** shows the raw invite co
 
 ## For friends: joining a server
 
-1. Click the invite link you were sent. It opens a page that says you're invited: press the big **Download mcsm** button (it picks your computer's version).
+1. Click the invite link you were sent. It opens a page that says you're invited: press the big **Download mcsm** button (it picks your computer's version). It downloads the friends' mcsm (`mcsm-join-...`): the same mcsm, which always opens into joining a server, even on a computer that runs servers too.
 2. Open the file you downloaded. (On Windows, if it says it "protected your PC", choose **More info → Run anyway**; on a Mac, right-click it and choose **Open** the first time.) mcsm finds your invite by itself and checks it's really your friend's server. If it asks, press **Copy the invite** on the invite page and paste it into mcsm.
 3. Tick your launchers: the Minecraft Launcher, Prism Launcher, the Modrinth App and/or CurseForge (ones found on your computer are already ticked), and choose how much memory Minecraft gets.
 4. **Make it yours (optional):** add **shaders**, **resource packs** or **more mods** that only run on your computer. Each opens a browser like the server's (search, sort, categories, the item's page on the right); tick what you want and press **Add selected**. Shaders bring their shader loader (Iris, or Oculus on Forge); mods bring what they need, listed under them.

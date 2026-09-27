@@ -6,10 +6,10 @@
 
 const RELEASES = "https://github.com/silverWRX03/mc-server-management/releases/latest";
 const DOWNLOADS = {
-  windows: ["Windows", "mcsm-windows-x64.exe"],
-  macos: ["Mac (Apple silicon)", "mcsm-macos-arm64"],
-  linux: ["Linux", "mcsm-linux-x64"],
-  "linux-arm64": ["Linux (ARM)", "mcsm-linux-arm64"],
+  windows: ["Windows", "mcsm-join-windows-x64.exe"],
+  macos: ["Mac (Apple silicon)", "mcsm-join-macos-arm64"],
+  linux: ["Linux", "mcsm-join-linux-x64"],
+  "linux-arm64": ["Linux (ARM)", "mcsm-join-linux-arm64"],
 };
 const OPEN_TIP = {
   windows: ["Open the file you downloaded (it's in your Downloads folder).",

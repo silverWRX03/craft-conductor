@@ -191,6 +191,10 @@ right Java by itself).
 | Linux, 64-bit Intel/AMD | [`mcsm-linux-x64`](https://github.com/silverWRX03/mc-server-management/releases/latest/download/mcsm-linux-x64) |
 | Linux on ARM (Raspberry Pi 4/5 with a 64-bit OS) | [`mcsm-linux-arm64`](https://github.com/silverWRX03/mc-server-management/releases/latest/download/mcsm-linux-arm64) |
 
+**Joining a friend's server?** Open the invite link they sent: it offers the friends' download
+(`mcsm-join-...`), the same mcsm under its own name, which opens straight into setting up
+Minecraft for their server.
+
 **Windows:** put `mcsm-windows-x64.exe` in a folder of its own (for example
 `Documents\mcsm`) and double-click it. There's no command window: mcsm opens in your
 browser, and **Quit** (bottom left) closes it. Closing the browser tab doesn't stop mcsm
@@ -773,7 +777,8 @@ required = true
 3. The [release workflow](.github/workflows/release.yml) tests the code and builds the
    Windows, macOS and Linux executables with [PyInstaller](https://pyinstaller.org). It
    smoke-tests each one on its own OS, then publishes a GitHub release with the
-   executables, the Python wheel, and `SHA256SUMS.txt`.
+   executables, the friends' `mcsm-join-...` copies of them, the Python wheel, and
+   `SHA256SUMS.txt`, then publishes the invite page (it links to those downloads).
 4. Running copies of mcsm notice the release within a day and offer to update.
 
 To build an executable yourself:
@@ -786,8 +791,9 @@ To build an executable yourself:
 - Then run `python packaging/smoke_test.py dist/mcsm` (or `dist/mcsm.exe`).
 
 The executables aren't code-signed yet, which is why Windows and macOS show warnings.
-Signing needs a Windows code-signing certificate and an Apple Developer ID
-($99/year); both can be added to the release workflow later.
+Windows signing through SignPath Foundation (free for open source) is ready in the release
+workflow and switches on once the project is accepted: see [docs/code-signing.md](docs/code-signing.md).
+macOS needs an Apple Developer ID ($99/year) and notarization.
 
 ## Development
 
