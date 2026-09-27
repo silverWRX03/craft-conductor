@@ -47,7 +47,7 @@ exe = EXE(
     a.datas,
     [],
     name="mcsm",
-    icon=str(root / "packaging" / "mcsm.ico"),  # drawn by packaging/make_icon.py
+    icon=str(root / "packaging" / "mcsm.ico"),  # made by packaging/icon_from_picture.py
     # Windows: no command window; everything happens in the browser (see mcsm/desktop.py).
     # macOS and Linux keep the terminal, where it's started from.
     console=sys.platform != "win32",

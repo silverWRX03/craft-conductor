@@ -8,7 +8,7 @@ comes first; it says which.
 
 Before continuing or starting a feature, check this list: some features wait on one of these.
 
-- [ ] **New icon:** put the stone-and-lava "MCSM" picture in the repository (for example
+- [x] **New icon:** put the stone-and-lava "MCSM" picture in the repository (for example
       `packaging/icon-source.png`) or attach it as a file. The copy pasted in the chat didn't
       come through as a file. *Needed before:* the new icon (white background removed).
 - [ ] **Try the map preview for real** (New server → World → World generation & map preview):
@@ -29,7 +29,7 @@ Before continuing or starting a feature, check this list: some features wait on 
 
 - [x] Release 0.12.0 (router set up by itself, fix buttons, what went wrong, Quick start,
       checked backups and putting back an area).
-- [ ] New icon from your picture, without the white around it (waits on **New icon** above).
+- [x] New icon from your picture, without the white around it (waits on **New icon** above).
 - [ ] **Seed gallery:** one button makes maps of 10 seeds side by side to pick from, with a
       warning first about the time and the load on the computer (waits on **Try the map preview
       for real**).

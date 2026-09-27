@@ -141,8 +141,9 @@ def unpack(longs: tuple[int, ...], bits: int, count: int) -> list[int]:
 
 
 # -------------------------------------------------------------------- regions
-def region_chunks(path: Path):
-    """(chunk x, chunk z, root compound) for each chunk in an .mca region file."""
+def region_chunks(path: Path, problems: list | None = None):
+    """(chunk x, chunk z, root compound) for each chunk in an .mca region file. Chunks that can't
+    be read are skipped (and described in ``problems``, if given)."""
     m = re.fullmatch(r"r\.(-?\d+)\.(-?\d+)\.mca", path.name)
     if not m:
         return
@@ -166,10 +167,30 @@ def region_chunks(path: Path):
             elif kind == 1:
                 raw = gzip.decompress(raw)
             elif kind != 3:
+                if problems is not None:
+                    problems.append(f"a chunk stored with compression {kind}")
                 continue  # LZ4 or kept in a separate file: not drawn
             yield rx * 32 + i % 32, rz * 32 + i // 32, read_nbt(raw)
-        except (zlib.error, OSError, EOFError, PreviewError, struct.error):
+        except (zlib.error, OSError, EOFError, PreviewError, struct.error) as e:
+            if problems is not None:
+                problems.append(f"{path.name}: {e}")
             log.debug("skipping a damaged chunk in %s", path.name)
+
+
+def chunks_present(region: Path) -> set[tuple[int, int]]:
+    """The chunks a world's region files hold (from their headers: quick, nothing unpacked)."""
+    out: set[tuple[int, int]] = set()
+    for path in region.glob("r.*.mca") if region.is_dir() else []:
+        m = re.fullmatch(r"r\.(-?\d+)\.(-?\d+)\.mca", path.name)
+        if not m:
+            continue
+        with path.open("rb") as f:
+            head = f.read(4096)
+        rx, rz = int(m.group(1)), int(m.group(2))
+        for i in range(len(head) // 4):
+            if struct.unpack(">I", head[i * 4:i * 4 + 4])[0]:
+                out.add((rx * 32 + i % 32, rz * 32 + i // 32))
+    return out
 
 
 def _heightmap(longs: tuple[int, ...]) -> list[int]:
@@ -253,20 +274,48 @@ def _section_biome(section: dict) -> str:
     return str(palette[i]) if i < len(palette) else ""
 
 
-def spawn_point(world: Path) -> tuple[int, int]:
+def spawn_point(world: Path) -> tuple[int, int] | None:
+    """The world's spawn (x, z) from level.dat; None if it can't be read."""
     try:
         data = read_nbt(gzip.decompress((world / "level.dat").read_bytes())).get("Data", {})
     except (OSError, PreviewError, EOFError, zlib.error, struct.error):
-        return 0, 0
-    if isinstance(data.get("spawn"), dict):  # Minecraft 1.21.9+
-        pos = data["spawn"].get("pos") or (0, 0, 0)
-        return int(pos[0]), int(pos[2])
-    return int(data.get("SpawnX", 0)), int(data.get("SpawnZ", 0))
+        return None
+    spawn = data.get("spawn")
+    if isinstance(spawn, dict):  # Minecraft 1.21.9+: {pos: [x, y, z], dimension, ...}
+        pos = spawn.get("pos")
+        if isinstance(pos, (list, tuple)) and len(pos) >= 3:
+            return int(pos[0]), int(pos[2])
+        if all(k in spawn for k in ("x", "z")):
+            return int(spawn["x"]), int(spawn["z"])
+    if "SpawnX" in data and "SpawnZ" in data:
+        return int(data["SpawnX"]), int(data["SpawnZ"])
+    return None
 
 
-def render(world: Path, center: tuple[int, int], radius: int) -> tuple[bytes, dict]:
+def map_center(world: Path, radius: int) -> tuple[tuple[int, int], tuple[int, int] | None]:
+    """Where to draw: the spawn when the world has land around it, otherwise the middle of the
+    land that was generated (Chunky makes a square around the spawn, wherever that is)."""
+    spawn = spawn_point(world)
+    present = chunks_present(world / "region")
+    if not present:
+        raise PreviewError("the world has no region files to draw: the server didn't save any land")
+    if spawn and (spawn[0] >> 4, spawn[1] >> 4) in present:
+        return spawn, spawn
+    xs, zs = sorted(c[0] for c in present), sorted(c[1] for c in present)
+    middle = (xs[len(xs) // 2] * 16 + 8, zs[len(zs) // 2] * 16 + 8)  # (the median: stray chunks don't pull it)
+    log.info("map preview: spawn %s isn't in the generated land; centring on %s", spawn, middle)
+    return middle, spawn
+
+
+def render(world: Path, center: tuple[int, int], radius: int, spawn: tuple[int, int] | None = None) -> tuple[bytes, dict]:
     """A PNG of the ground within ``radius`` blocks of ``center`` (one pixel a block, north up),
-    and what the page needs: where it is, the spawn and each chunk's biome."""
+    and what the page needs: where it is, the spawn and each chunk's biome. Raises PreviewError
+    (saying what was found) when there's nothing to draw."""
+    from collections import Counter
+    problems: list[str] = []
+    statuses: Counter = Counter()
+    drawn = painted = 0
+    sample = ""  # (what the first chunk looked like, for the error when nothing shows)
     x0, z0 = center[0] - radius, center[1] - radius
     size = radius * 2
     pixels = [[BACKGROUND] * size for _ in range(size)]
@@ -281,15 +330,25 @@ def render(world: Path, center: tuple[int, int], radius: int) -> tuple[bytes, di
         path = region / f"r.{rx}.{rz}.mca"
         if not path.is_file():
             continue
-        for cx, cz, root in region_chunks(path):
+        for cx, cz, root in region_chunks(path, problems):
             if not (cx0 <= cx < cx0 + n and cz0 <= cz < cz0 + n):
                 continue
-            if str(root.get("Status", "")).removeprefix("minecraft:") != "full":
+            if "Level" in root and isinstance(root["Level"], dict):  # (the pre-1.18 layout)
+                statuses["old format"] += 1
+                continue
+            status = str(root.get("Status", "")).removeprefix("minecraft:")
+            statuses[status or "no status"] += 1
+            if status != "full":
                 continue
             maps = root.get("Heightmaps") or {}
-            if "WORLD_SURFACE" not in maps:
+            if "WORLD_SURFACE" not in maps or not isinstance(maps["WORLD_SURFACE"], LongArray):
+                statuses["full, without a height map"] += 1
                 continue
+            drawn += 1
             surface = _heightmap(maps["WORLD_SURFACE"].longs())
+            if not sample:
+                sample = (f"height map of {len(maps['WORLD_SURFACE']) // 8} longs, yPos {root.get('yPos')}, sections "
+                          f"{sorted(int(x.get('Y', 0)) for x in root.get('sections') or [] if isinstance(x, dict))}")
             floor = _heightmap(maps["OCEAN_FLOOR"].longs()) if "OCEAN_FLOOR" in maps else surface
             min_y = int(root.get("yPos", -4)) * 16
             sections = {int(s.get("Y", 0)): s for s in root.get("sections") or [] if isinstance(s, dict)}
@@ -320,6 +379,7 @@ def render(world: Path, center: tuple[int, int], radius: int) -> tuple[bytes, di
                         water[pz][px] = True
                     heights[pz][px] = y
                     pixels[pz][px] = rgb
+                    painted += 1
     # Relief, as on a Minecraft map: lighter where the ground rises going south, darker where it falls.
     for pz in range(size):
         for px in range(size):
@@ -332,8 +392,14 @@ def render(world: Path, center: tuple[int, int], radius: int) -> tuple[bytes, di
                 factor = 1.12 if here > north else 0.84 if here < north else 1.0
                 rgb = _shade(rgb, factor)
             pixels[pz][px] = (*rgb, 255)
-    sx, sz = spawn_point(world)
-    meta = {"x": x0, "z": z0, "size": size, "spawn": {"x": sx, "z": sz},
+    if not drawn:
+        found = ", ".join(f"{k}: {v}" for k, v in statuses.most_common(5)) or "no chunks in that area"
+        raise PreviewError(f"nothing could be drawn around {center[0]}, {center[1]} ({found}"
+                           + (f"; {problems[0]}" if problems else "") + ")")
+    if not painted:
+        raise PreviewError(f"the world's {drawn} chunk(s) around {center[0]}, {center[1]} came out empty ({sample})")
+    log.info("map preview: drew %d chunk(s) around %s (spawn %s)", drawn, center, spawn)
+    meta = {"x": x0, "z": z0, "size": size, "spawn": {"x": spawn[0], "z": spawn[1]} if spawn else None,
             "biomes": {"names": biome_names, "chunk_x": cx0, "chunk_z": cz0, "grid": biome_grid}}
     return png(pixels), meta
 
@@ -497,7 +563,8 @@ class Preview:
             self._check()
             world = self._generate(m)
             self.step = "Drawing the map…"
-            image, meta = render(world, spawn_point(world), self.radius)
+            center, spawn = map_center(world, self.radius)
+            image, meta = render(world, center, self.radius, spawn)
             self.folder(self.hub).mkdir(parents=True, exist_ok=True)
             self.map_path.write_bytes(image)
             self.meta = meta

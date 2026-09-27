@@ -8,7 +8,7 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.55 sys
 main { max-width: 640px; margin: 0 auto; padding: 32px 16px 48px; display: grid; gap: 16px; }
 .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 22px 24px; }
 .head { display: flex; gap: 14px; align-items: center; }
-.head img { border-radius: 10px; image-rendering: pixelated; }
+.head img { border-radius: 10px; }
 h1 { margin: 0; font-size: 24px; line-height: 1.25; }
 h2 { margin: 0 0 8px; font-size: 19px; }
 p { margin: 12px 0 0; }
@@ -32,3 +32,8 @@ code { background: var(--code); padding: 1px 5px; border-radius: 4px; }
 .error { color: #d9534f; font-weight: 600; }
 .row .code { margin-top: 0; }
 .card > .notice { margin-top: 12px; }
+/* Bigger on big screens (like mcsm's own pages). */
+@media (min-width: 1680px) { html { zoom: 1.1; } }
+@media (min-width: 1920px) { html { zoom: 1.2; } }
+@media (min-width: 2400px) { html { zoom: 1.4; } }
+@media (min-width: 3200px) { html { zoom: 1.75; } }
