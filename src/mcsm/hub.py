@@ -112,6 +112,8 @@ class Hub:
         self.make_manager = make_manager or (lambda cfg: Manager(cfg, http=self.http, echo=False))
         self.trials: dict = {}  # test boots (trial.Trial) by id
         self.join_requests: dict[str, list[dict]] = {}  # friends asking to be let in, by server
+        self._status_lock = threading.Lock()  # the Discord status message
+        self._status_sent, self._status_at = None, 0.0
         self._request_times: dict[str, float] = {}
         self._requests_lock = threading.Lock()
         self.checks: dict = {}  # quick mod checks running in the background (trial.CheckJob) by id
@@ -260,7 +262,58 @@ class Hub:
 
     def discord_settings(self) -> dict:
         d = self._hub_file().get("discord", {})
-        return {"set": bool(d.get("token")), "bot": d.get("bot"), "guild": d.get("guild", ""), "channel": d.get("channel", "")}
+        return {"set": bool(d.get("token")), "bot": d.get("bot"), "guild": d.get("guild", ""), "channel": d.get("channel", ""),
+                "status_channel": d.get("status_channel", "")}
+
+    def set_discord_status(self, channel: str) -> None:
+        """Keep a live status message in this channel ("" stops it)."""
+        from .discord import SNOWFLAKE
+        if channel and not SNOWFLAKE.fullmatch(channel):
+            raise ValueError("that isn't a Discord channel")
+        data = self._hub_file()
+        if "discord" not in data:
+            raise ValueError("add a Discord bot first")
+        data["discord"]["status_channel"] = channel
+        data["discord"].pop("status_message", None)
+        self._save_hub_file(data)
+        self._status_sent = None
+        if channel:
+            threading.Thread(target=self.discord_status, daemon=True, name="discord-status").start()
+
+    STATUS_REFRESH = 600  # post the same status again at most this often (the "updated" time)
+
+    def discord_status(self, off: bool = False) -> None:
+        """Bring the live status message up to date: edit it when something changed (state,
+        players), post a new one if it was deleted. Quietly does nothing without a bot or channel."""
+        from .discord import DiscordError, MessageGone, status_embed
+        if not (self._status_lock.acquire(timeout=10) if off else self._status_lock.acquire(blocking=False)):
+            return  # (one update at a time; the closing one waits for a running one)
+        try:
+            data = self._hub_file()
+            d = data.get("discord", {})
+            channel, bot = d.get("status_channel"), self.discord()
+            if not channel or bot is None:
+                return
+            embed = status_embed(self.summary(), (self.share_settings().get("address") or "").strip(), off=off)
+            sig = json.dumps(embed, sort_keys=True)
+            if sig == self._status_sent and time.monotonic() - self._status_at < self.STATUS_REFRESH and not off:
+                return
+            embed["timestamp"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            try:
+                if d.get("status_message"):
+                    bot.edit(channel, d["status_message"], "", embed)
+                else:
+                    raise MessageGone()
+            except MessageGone:
+                msg = bot.post(channel, "", embed)
+                data = self._hub_file()
+                data.setdefault("discord", {})["status_message"] = msg["id"]
+                self._save_hub_file(data)
+            self._status_sent, self._status_at = sig, time.monotonic()
+        except (DiscordError, OSError) as e:
+            log.warning("couldn't update the Discord status message: %s", e)
+        finally:
+            self._status_lock.release()
 
     def save_discord_token(self, token: str) -> dict | None:
         """Check a bot token with Discord and keep it (empty removes it). Returns the bot."""
@@ -768,6 +821,7 @@ class Hub:
                 import webbrowser
                 threading.Timer(1.0, webbrowser.open, args=(ui.url,)).start()
             next_scan, next_self_check = 0.0, time.monotonic() + 30
+            next_status = time.monotonic() + 20
             while not self.stop_requested.is_set():
                 if hub_stop_path(self.home).exists():
                     hub_stop_path(self.home).unlink(missing_ok=True)
@@ -781,6 +835,9 @@ class Hub:
                 if now >= next_self_check:
                     next_self_check = now + SELF_CHECK_INTERVAL
                     self.run_job("mcsm update check", self.check_self_update)
+                if now >= next_status:
+                    next_status = now + 30
+                    threading.Thread(target=self.discord_status, daemon=True, name="discord-status").start()
                 self.stop_requested.wait(self.tick)
             return 0
         finally:
@@ -788,6 +845,8 @@ class Hub:
                 ui.stop()
             if self.share:
                 self.share.stop()
+            if self._hub_file().get("discord", {}).get("status_channel"):
+                self.discord_status(off=True)  # say mcsm is closed, rather than leave "online" up
             self._stop_all()
             hub_pid_path(self.home).unlink(missing_ok=True)
 

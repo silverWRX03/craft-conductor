@@ -782,6 +782,7 @@ class HubApi:
         r[("POST", "/api/hub/discord")] = self.save_discord
         r[("GET", "/api/hub/discord/guilds")] = lambda q, b: {"guilds": self._discord().guilds()}
         r[("GET", "/api/hub/discord/channels")] = lambda q, b: {"channels": self._discord().channels(q.get("guild", ""))}
+        r[("POST", "/api/hub/discord/status")] = self.discord_status
         r[("POST", "/api/hub/mods/check")] = self.check_mods
         r[("GET", "/api/hub/mods/check")] = self.check_status
         r[("POST", "/api/hub/trial")] = self.start_trial
@@ -1023,6 +1024,14 @@ class HubApi:
         """Singleplayer worlds on this computer, to start a server from (or put on one)."""
         from . import world
         return {"worlds": world.list_saves()}
+
+    def discord_status(self, q, b) -> dict:
+        """Keep a live status message in a channel ("" stops it)."""
+        try:
+            self.hub.set_discord_status(str(b.get("channel", "")).strip())
+        except ValueError as e:
+            raise ApiError(400, str(e)) from None
+        return {"ok": True, **self.hub.discord_settings()}
 
     def open_folder(self, q, b) -> dict:
         from . import opener

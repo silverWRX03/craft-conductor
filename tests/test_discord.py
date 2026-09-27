@@ -64,3 +64,34 @@ def test_post_the_invite(hub_env):
     assert "Click here to join](https://silverwrx03.github.io/mc-server-management/join/#mcsm-" in description
     assert hub.discord_settings()["channel"] == CHANNEL  # picked again next time
     assert c.post("/api/hub/discord", {"token": ""})[0] == 200 and not hub.discord_settings()["set"]
+
+
+def test_live_status_message(hub_env):
+    """One message in a channel, kept up to date: posted once, edited when something changes,
+    posted again if someone deleted it, and "mcsm is closed" at the end."""
+    from test_web import wait_for
+    hub, c = hub_env
+    login(c)
+    sent = fake_discord(hub.http)
+    c.post("/api/hub/discord", {"token": TOKEN})
+    msg_url = f"{API}/channels/{CHANNEL}/messages/777777777777777777"
+    edits = []
+    hub.http.patches = {msg_url: lambda body: edits.append(body) or {}}
+    assert c.post("/api/hub/discord/status", {"channel": "not a channel"})[0] == 400
+    assert c.post("/api/hub/discord/status", {"channel": CHANNEL})[1]["status_channel"] == CHANNEL
+    wait_for(lambda: sent)
+    embed = sent[-1]["embeds"][0]
+    assert embed["title"] == "Minecraft servers" and "offline" in embed["description"] and sent[-1]["allowed_mentions"] == {"parse": []}
+    hub.discord_status()  # nothing changed: nothing sent
+    assert len(sent) == 1 and not edits
+    hub._status_sent = "something else"  # a change
+    hub.discord_status()
+    assert len(edits) == 1 and len(sent) == 1
+    hub.http.patches = {}  # someone deleted the message
+    hub._status_sent = None
+    hub.discord_status()
+    assert len(sent) == 2
+    hub.http.patches = {msg_url: lambda body: edits.append(body) or {}}
+    hub.discord_status(off=True)
+    assert "mcsm is closed" in edits[-1]["embeds"][0]["description"]
+    assert c.post("/api/hub/discord/status", {"channel": ""})[1]["status_channel"] == ""

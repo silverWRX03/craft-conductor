@@ -215,7 +215,7 @@ By default only the server's own computer can open the control panel. **mcsm set
 - **Remote access & phones:** see above.
 - **Sharing with friends:** the friends' port and your public address.
 - **CurseForge:** searching CurseForge needs an API key (free, from console.curseforge.com); release builds of mcsm can include one.
-- **Discord:** add a bot to post invites to a channel.
+- **Discord:** add a bot to post invites to a channel. **Live status message:** pick a Discord server and channel, and **Keep a status message there**: one message that always shows whether each server is online, how many are playing and its Minecraft version (and your public address, if set). mcsm edits it as things change and says when mcsm is closed; **Stop** ends it. The bot never reads the channel.
 - **Notifications:** **Notify me in this browser** shows a notification when a server stops unexpectedly, an update is ready, someone joins (off by default) or something mcsm was doing fails, while mcsm's tab is in the background. The browser asks first. It works when the address is localhost (or HTTPS).
 - **Warnings:** how many warnings you've hidden with "Don't ask me again", and **Show all warnings again**.
 - **About mcsm:** the version, **Check for mcsm updates**, the mcsm folder, the notice and open-source licenses. mcsm also checks by itself: when a new version is out, a message offers to install it (it stops your servers cleanly and restarts).

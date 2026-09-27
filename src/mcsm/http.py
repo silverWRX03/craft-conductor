@@ -191,8 +191,14 @@ class HttpClient:
         return data
 
     def post_json(self, url: str, body: Any, headers: dict[str, str] | None = None) -> Any:
+        return self.send_json("POST", url, body, headers)
+
+    def patch_json(self, url: str, body: Any, headers: dict[str, str] | None = None) -> Any:
+        return self.send_json("PATCH", url, body, headers)
+
+    def send_json(self, method: str, url: str, body: Any, headers: dict[str, str] | None = None) -> Any:
         req = urllib.request.Request(
-            url, data=json.dumps(body).encode("utf-8"), method="POST",
+            url, data=json.dumps(body).encode("utf-8"), method=method,
             headers={"User-Agent": USER_AGENT, "Content-Type": "application/json",
                      "Accept": "application/json", **(headers or {})})
         with self._open(req) as resp:

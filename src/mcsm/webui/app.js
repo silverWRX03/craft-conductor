@@ -3066,6 +3066,28 @@ function warningsCard() {
   return box;
 }
 
+// A live status message in a Discord channel: each server's state, players and version, kept up
+// to date by editing one message (the bot never reads the channel).
+function discordStatusPicker(r, after) {
+  const guild = h("select", { "aria-label": "Discord server" }, h("option", { value: "" }, "Pick a Discord server…"));
+  const channel = h("select", { "aria-label": "Channel" }, h("option", { value: "" }, "…then a channel"));
+  const loadChannels = async () => {
+    fill(channel, h("option", { value: "" }, "…then a channel"));
+    if (!guild.value) return;
+    const c = await api(`/api/hub/discord/channels?guild=${encodeURIComponent(guild.value)}`).catch((e) => { toast(e.message, true); return null; });
+    if (c) channel.append(...c.channels.map((x) => h("option", { value: x.id }, `#${x.name}`)));
+  };
+  guild.addEventListener("change", loadChannels);
+  api("/api/hub/discord/guilds").then((g) => { guild.append(...g.guilds.map((x) => h("option", { value: x.id }, x.name))); }).catch(() => {});
+  const set = (id) => act(() => api("/api/hub/discord/status", { method: "POST", body: { channel: id } }),
+    id ? "The status message is posted there and kept up to date" : "Status message stopped").then(after);
+  return h("div", { class: "mt" }, h("h4", {}, "Live status message"),
+    h("p", { class: "muted small" }, "One message in a channel that always shows whether each server is online, who's playing and its Minecraft version. mcsm edits it as things change, and says when mcsm is closed."),
+    r.status_channel ? h("div", { class: "row" }, h("span", { class: "grow small ok-text" }, "✓ On, in a channel you picked."),
+      h("button", { class: "btn small ghost", onclick: () => set("") }, "Stop"))
+      : h("div", { class: "row" }, guild, channel, h("button", { class: "btn small", onclick: () => channel.value ? set(channel.value) : toast("Pick a channel.", true) }, "Keep a status message there")));
+}
+
 // mcsm itself: sign-in, network access, and what mcsm is.
 views.mcsm = () => {
   const security = h("div", { class: "mb" });
@@ -3173,7 +3195,8 @@ views.mcsm = () => {
         r.invite_url ? h("a", { class: "btn small", href: r.invite_url, target: "_blank", rel: "noopener noreferrer" }, "Add it to another Discord server ↗") : null,
         h("button", { class: "btn ghost small", onclick: async () => (await ask("Disconnect the Discord bot? (It stays in your Discord servers until you remove it there.)", { ok: "Disconnect", danger: true })) &&
           act(() => api("/api/hub/discord", { method: "POST", body: { token: "" } }), "Discord bot disconnected").then(renderDc) }, "Disconnect"))
-        : h("p", { class: "small" }, "Not set up. Use “Post to Discord” on a server's Friends page to connect a bot.")));
+        : h("p", { class: "small" }, "Not set up. Use “Post to Discord” on a server's Friends page to connect a bot."),
+      r.set ? discordStatusPicker(r, renderDc) : null));
   };
   renderDc();
   fill($("#main"), security, network, sharing, cf, dc, about);
