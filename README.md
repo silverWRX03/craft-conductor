@@ -571,7 +571,7 @@ the server running.
 mcsm checks its GitHub releases once a day; set `[mcsm] update_check = false` to turn
 this off. When a new version is out:
 
-- **Web UI:** a toast shows the new version and a link to what's new, with **Update
+- **Web UI:** a message in the middle of the screen shows the new version and a link to what's new, with **Update
   now** and **Later** buttons. **Later** hides it until the next version comes out;
   **Settings → About → Check for mcsm updates** brings it back. **Update now**
   installs the release, warns players a minute ahead if anyone is online, stops the

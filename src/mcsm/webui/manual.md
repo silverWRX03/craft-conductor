@@ -61,7 +61,11 @@ If setup fails, the page says why and where the detailed report is saved; change
 
 ### On another computer (Linux, over SSH)
 
-A spare PC, a home server or a Raspberry Pi 4/5 (64-bit) can run your servers without a screen. On **New server**, under **Or on another computer**, choose **Install on a Linux computer**, type its address (e.g. `192.168.1.50`) and a normal user name on it (not root), and press **Connect with SSH**. A terminal opens: type that computer's password when SSH asks (the first time, answer `yes` to trust it). mcsm never sees the password. When it finishes, it shows that computer's control panel address and a one-time password; open it and choose your own password. See also the [headless guide](https://github.com/silverWRX03/mc-server-management/blob/main/docs/headless.md) and [Docker](https://github.com/silverWRX03/mc-server-management/blob/main/docs/docker.md).
+A spare PC, a home server or a Raspberry Pi 4/5 (64-bit) can run your servers without a screen. On **New server**, under **Or on another computer** (at the bottom of the page, at any step), choose **Install on a Linux computer**, type its address (e.g. `192.168.1.50`) and a normal user name on it (not root), and press **Connect with SSH**. A terminal opens: type that computer's password when SSH asks (the first time, answer `yes` to trust it). mcsm never sees the password. When it finishes, it shows that computer's control panel address and a one-time password; open it and choose your own password. See also the [headless guide](https://github.com/silverWRX03/mc-server-management/blob/main/docs/headless.md) and [Docker](https://github.com/silverWRX03/mc-server-management/blob/main/docs/docker.md).
+
+## Messages
+
+Everyday messages ("Saved", or what went wrong) appear at the **top of the screen** for a few seconds; click one to dismiss it. When mcsm needs an answer (use Aikar's flags? install an mcsm update? a mod test finished), it asks in the **middle of the screen** with the page blurred behind, and waits until you choose. A long mod test shows its progress at the top while you keep working.
 
 ## Your servers
 
@@ -116,7 +120,7 @@ For power users, **Advanced: invite codes and security** shows the raw invite co
 
 **For friends outside your home:** press **Use my public IP** (or type your address under mcsm settings → Sharing with friends), and forward two TCP ports on your router to this computer: the Minecraft port (25565 for the first server) and the friends' port (8766 unless you changed it). The Help page has pictures; every router is different, so check its manual if you get stuck.
 
-**What friends get:** the Minecraft version, mod loader and every mod that runs on players' computers (server-only mods are left out), plus the mods you add under **Mods for players**, and the memory you choose for their Minecraft. Mods that server mods need on players' computers are added by themselves (a toast says which and why).
+**What friends get:** the Minecraft version, mod loader and every mod that runs on players' computers (server-only mods are left out), plus the mods you add under **Mods for players**, and the memory you choose for their Minecraft. Mods that server mods need on players' computers are added by themselves (a message says which and why).
 
 **New links** makes new ones; the old ones stop working. Friends who already set up keep playing, but need a new link to update.
 

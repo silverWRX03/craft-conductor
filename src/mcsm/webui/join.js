@@ -23,10 +23,11 @@ async function api(path, body) {
   if (!res.ok) { const e = new Error(data.error || res.statusText); e.data = data; e.status = res.status; throw e; }
   return data;
 }
-function toast(message, bad = false) {
-  const el = h("div", { class: "toast" + (bad ? " bad" : "") }, message);
+function toast(message, bad = false) {  // (top centre, like mcsm's control panel; click to dismiss)
+  const el = h("div", { class: "toast" + (bad ? " bad" : ""), role: bad ? "alert" : "status", onclick: () => el.remove() },
+    h("span", { class: "toast-icon", "aria-hidden": "true" }, bad ? "⚠" : "✓"), h("span", {}, message));
   $("#toasts").append(el);
-  setTimeout(() => el.remove(), 7000);
+  setTimeout(() => el.remove(), bad ? 12000 : 7000);
 }
 
 const LOADERS = { fabric: "Fabric", quilt: "Quilt", neoforge: "NeoForge", forge: "Forge", vanilla: "no mod loader" };

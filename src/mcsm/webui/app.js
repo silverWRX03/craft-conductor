@@ -100,16 +100,26 @@ function folderBtn(what, label, sid, cls = "btn ghost small") {
 }
 
 // A toast that stays until the user picks an action.
-function stickyToast(id, children) {
+// Messages that need an answer show in the middle of the screen with the page blurred behind
+// them, and stay until one of their buttons is pressed. `blocking: false` keeps one at the top
+// of the screen without blocking anything (e.g. progress of a long test you can work alongside).
+function stickyToast(id, children, { blocking = true } = {}) {
   if (document.getElementById(id)) return;
-  $("#toasts").append(h("div", { class: "toast sticky", id }, children));
+  if (!blocking) { $("#toasts").append(h("div", { class: "toast sticky", id, role: "status" }, children)); return; }
+  const box = h("div", { class: "modal compact toast-dialog", role: "alertdialog", "aria-modal": "true" }, children);
+  document.body.append(h("div", { class: "modal-backdrop blur", id }, box));
+  const first = box.querySelector("button.primary, button");
+  if (first) first.focus();
 }
 function closeToast(id) { const el = document.getElementById(id); if (el) el.remove(); }
 
+// Everyday messages ("Saved", errors): at the top of the screen, where they're noticed, without
+// getting in the way. Click one to dismiss it; errors stay longer.
 function toast(message, bad = false) {
-  const el = h("div", { class: "toast" + (bad ? " bad" : "") }, message);
+  const el = h("div", { class: "toast" + (bad ? " bad" : ""), role: bad ? "alert" : "status", title: "Click to dismiss",
+    onclick: () => el.remove() }, h("span", { class: "toast-icon", "aria-hidden": "true" }, bad ? "⚠" : "✓"), h("span", {}, message));
   $("#toasts").append(el);
-  setTimeout(() => el.remove(), bad ? 9000 : 5000);
+  setTimeout(() => el.remove(), bad ? 12000 : 5000);
 }
 
 async function act(fn, okMessage) {
@@ -2086,7 +2096,7 @@ function openTester(opts) {
   };
   const box = h("div", { class: "modal tester" },
     h("div", { class: "row" }, h("h2", { id: "tester-title", class: "grow" }, "Test these mods"),
-      h("button", { class: "btn ghost small", title: "The test keeps going; its progress stays in a message at the bottom", onclick: hide }, "Keep working"),
+      h("button", { class: "btn ghost small", title: "The test keeps going; its progress stays in a message at the top", onclick: hide }, "Keep working"),
       h("button", { class: "btn ghost small", onclick: close }, "Close")),
     h("div", { class: "tester-step" }, h("div", { class: "row" }, h("span", { class: "spinner" }), stepText,
       h("span", { class: "muted small tester-time" })), bar),
@@ -2099,7 +2109,7 @@ function openTester(opts) {
     h("span", { class: "small" }, "This can take a long time: looking the mods up takes seconds, but a test boot takes a few minutes, and finding which mods break it can take much longer. You can keep using mcsm meanwhile."),
     toastText, toastBar,
     h("div", { class: "row mt-s" }, h("button", { class: "btn small", onclick: show }, "Show"),
-      h("button", { class: "btn small ghost", onclick: hide }, "Hide the dialog"))]);
+      h("button", { class: "btn small ghost", onclick: hide }, "Hide the dialog"))], { blocking: false });
 
   const issues = (r) => [
     ...r.conflicts.map((c) => h("li", {}, h("strong", {}, c.mods.join(" + ")), h("div", { class: "small muted" }, c.reason))),
@@ -2111,7 +2121,7 @@ function openTester(opts) {
     setStep(bisect ? "Finding which mods don't work together…" : "Test boot: installing the mods in a throwaway server and starting it…");
     fill(body, log, h("p", { class: "muted small" }, "Your servers aren't touched. The test server is deleted afterwards."));
     if (!$("#tester-toast")) stickyToast("tester-toast", [h("strong", {}, "Testing mods"), toastText, toastBar,
-      h("div", { class: "row mt-s" }, h("button", { class: "btn small", onclick: show }, "Show"))]);
+      h("div", { class: "row mt-s" }, h("button", { class: "btn small", onclick: show }, "Show"))], { blocking: false });
     let r;
     try { r = await api("/api/hub/trial", { method: "POST", body: { ...opts.trial, bisect } }); }
     catch (e) { idle(); fill(body, h("div", { class: "notice bad" }, e.message)); finished(e.message); return; }
@@ -2623,10 +2633,19 @@ views.mcsm = () => {
 
 // ------------------------------------------------------------------- setup
 // Kept outside the view so choices survive re-renders and a failed attempt.
-const setupState = { friends: false, loader: null, minecraft: "latest", mods: new Map(), motd: "A Minecraft server", properties: null, advancedOpen: false,
-  max_players: 20, difficulty: "normal", gamemode: "survival", port: 25565, memory_gb: null,
-  network_access: null, accept_eula: false, submitted: false, prefilled: false, modpack: null, localMods: [], world: null,
-  clientMods: new Map(), clientLocal: [], companionsSeen: new Set() };  // friends' download: slug -> name; staged files
+// The setup form's choices. One form at a time: `target` is what it's filling in ("new", or a
+// server's id), and it starts fresh when that changes, so a new server never inherits the
+// choices of the last one set up.
+const freshSetup = () => ({ target: null, friends: false, loader: null, minecraft: "latest", mods: new Map(), motd: "A Minecraft server",
+  properties: null, advancedOpen: false, max_players: 20, difficulty: "normal", gamemode: "survival", port: 25565, memory_gb: null,
+  network_access: null, accept_eula: false, submitted: false, prefilled: false, modpack: null, localMods: [], world: null, showBetas: false,
+  aikar: false, clientMods: new Map(), clientLocal: [], companionsSeen: new Set() });  // friends' download: slug -> name; staged files
+const setupState = freshSetup();
+function resetSetup() {
+  const keep = { friendsFor: setupState.friendsFor };  // (a server just made with friends opens its Friends page when ready)
+  for (const k of Object.keys(setupState)) delete setupState[k];
+  Object.assign(setupState, freshSetup(), keep);
+}
 
 // A mod picked in setup brings the mods it needs along (marked "needed by ..."). Entries:
 // key -> { name, required, explicit (picked by you), by: Set(keys of mods that need it), bad }.
@@ -2773,6 +2792,10 @@ views.setup = () => {
   let opts = null;
   const st = setupState;
   const isNew = !server;  // #new: a brand-new server; #s/<id>/setup: finish one that exists
+  if (setupState.target !== (isNew ? "new" : server)) {  // another form than last time: start fresh
+    resetSetup();
+    setupState.target = isNew ? "new" : server;
+  }
   let propDefaults = {};
 
   const field = (label, input, hint) => h("label", {}, label, input, hint ? h("span", { class: "muted small" }, hint) : null);
@@ -2981,9 +3004,7 @@ views.setup = () => {
         const r = await act(() => api("/api/hub/create", { method: "POST", body }));
         if (r) {
           setupState.friendsFor = body.friends || body.client_mods.length || body.client_local.length ? r.id : null;
-          Object.assign(setupState, { friends: false, loader: null, mods: new Map(), motd: "A Minecraft server", accept_eula: false,
-            prefilled: false, properties: null, advancedOpen: false, modpack: null, localMods: [], minecraft: "latest", world: null,
-            clientMods: new Map(), clientLocal: [], companionsSeen: new Set() });
+          resetSetup();
           location.hash = `#s/${r.id}/setup`;
         }
         return;
@@ -3065,6 +3086,7 @@ views.setup = () => {
             h("button", { type: "button", class: "btn", onclick: openRemoteAccess }, "🔒 Remote access…"),
             h("span", { class: "muted small" }, "Manage your servers from your phone or another computer (needs a strong password).")))),
         h("div", { class: "mt" }, advanced),
+        elsewhere,
         opts.network_option ? null : h("div", { class: "mt" }, friendsCard()),
         h("div", { class: "mt" }, card("Almost done",
           h("label", { class: "row" }, eula, h("span", {}, "I accept the ",
