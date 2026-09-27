@@ -9,6 +9,7 @@ its fix will say which version it's in.
 **Added**
 - **The friends' download** (`mcsm-join-...`): the same mcsm under its own name, opening straight into joining a server (even on a computer that runs servers). Invite links offer it.
 - Windows code signing through SignPath Foundation is ready in the release workflow; it switches on once the project is accepted ([code signing policy](docs/code-signing.md)).
+- **Co-admins:** pair a device as a **Helper** (everyday controls) or a **Viewer** (look only), for a friend who helps run the server; what they do shows in the activity.
 - **Discord live status message** (mcsm settings → Discord): one message in a channel showing each server's state, players and version, kept up to date.
 - **Saved mod lists** (Mods page): save the mods under a name, switch lists and switch back (the current list is saved first), and download or load a list as a file.
 - **World tools** (Settings): game rules with what they do, a world border, and pre-generating terrain with Chunky (added in one click), with progress.

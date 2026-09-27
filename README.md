@@ -74,6 +74,8 @@ ready to update to Minecraft 1.21.4 with fabric 0.16.14:
 
 ## Features
 
+- **Co-admins.** Pair a friend's phone or computer as a helper (everyday controls) or a viewer
+  (look only).
 - **A live status message on Discord.** One message that always shows which servers are up and
   who's playing, edited as things change.
 - **Saved mod lists.** Keep a mod list under a name, switch to another and back, and move lists

@@ -205,7 +205,8 @@ By default only the server's own computer can open the control panel. **mcsm set
 
 - It needs a **strong password**: 12+ characters with an uppercase letter, a lowercase letter and a special character. PINs don't work from other devices.
 - **Pair a phone** by scanning the QR code with its camera. The code works once, for five minutes. The phone signs in by itself afterwards, with its own key.
-- A paired phone gets the everyday controls: start, stop, restart, backups, updates and players. It can't change settings, mods or files, use the console or change the password.
+- Before making the code, choose what the device may do: **Helper** gets the everyday controls (start, stop, restart, backups, updates, players, and letting in friends who ask); **Viewer** can only look. Neither can change settings, mods or files, use the console or change the password.
+- **Co-admins:** pair the phone or computer of a friend who helps run the server the same way, as a helper or a viewer. What each device does shows in the activity with its name.
 - Each paired phone is listed with when it was last used, and can be signed out on its own; changing the password signs out every phone.
 - Away from home, use **Tailscale** (free) rather than opening the control panel's port on your router. For HTTPS, give mcsm a certificate (for example from `tailscale cert`).
 

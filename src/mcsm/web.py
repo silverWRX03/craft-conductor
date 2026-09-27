@@ -63,8 +63,11 @@ DEVICE_HIDDEN_GETS = {"/api/configs/file", "/api/export/download", "/api/setting
                       "/api/hub/remote", "/api/hub/saves", "/api/doctor/report"}
 
 
-def device_allowed(method: str, path: str) -> bool:
-    return path in DEVICE_POSTS if method == "POST" else path not in DEVICE_HIDDEN_GETS
+def device_allowed(method: str, path: str, role: str = "helper") -> bool:
+    """What a paired device may do: viewers only look (and can sign out)."""
+    if method == "POST":
+        return path == "/api/logout" if role == "viewer" else path in DEVICE_POSTS
+    return path not in DEVICE_HIDDEN_GETS
 MAX_JSON = 1 << 20
 MAX_UPLOAD = 512 << 20
 MAX_ARCHIVE = 64 << 30
@@ -404,7 +407,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             with self.web.lock:
                 self.web.failures["pair:" + client] = recent + [now]
             raise ApiError(400, str(e)) from None
-        log.info("paired a phone: %s (from %s)", device["name"], client)
+        log.info("paired %s as a %s (from %s)", device["name"], device["role"], client)
         return self._json(200, {"ok": True, "name": device["name"]},
                           {"Set-Cookie": self._cookie(token, DEVICE_COOKIE, webauth.DEVICE_DAYS * 86400)})
 
@@ -497,7 +500,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                 raise ApiError(403, "that only works in a browser on the server's own computer")
             handler = self.web.hub_api.routes.get((method, path))
             if handler is not None:
-                if device and not device_allowed(method, path):
+                if device and not device_allowed(method, path, device.get("role") or "helper"):
                     raise ApiError(403, "a paired phone can't do that; use the server's computer")
                 if path not in NOTICE_EXEMPT and not notice.accepted(self.web.hub.root):
                     raise ApiError(428, "accept the notice first")
@@ -505,7 +508,8 @@ class RequestHandler(BaseHTTPRequestHandler):
                     return self._json(200, handler(q, self))
                 result = handler(q, self._body() if method == "POST" else {})
                 if path == "/api/hub":  # whether "Open folder" buttons can work; who's signed in
-                    result = {**result, "local": local, "device": device["name"] if device else None}
+                    result = {**result, "local": local, "device": device["name"] if device else None,
+                              "role": (device.get("role") or "helper") if device else "owner"}
                 return self._json(200, result)
             if m := SERVER_PATH.match(path):
                 sid, path = m.group(1), "/api" + m.group(2)
@@ -517,7 +521,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                 raise ApiError(428, "accept the notice first")
             if path in LOCAL_ONLY and not local:
                 raise ApiError(403, "that only works in a browser on the server's own computer")
-            if device and not device_allowed(method, path):
+            if device and not device_allowed(method, path, device.get("role") or "helper"):
                 raise ApiError(403, "a paired phone can't do that; use the server's computer")
             api = self.web.api_for(sid)
             set_current_server(api.d.server_id)  # so this server's activity feed shows what happens
@@ -951,11 +955,14 @@ class HubApi:
         host = str(b.get("host", ""))
         if host not in {a["host"] for a in self._addresses()}:
             raise ApiError(400, "pick one of the addresses listed")
-        code = self.web.devices.new_code(time.time())
+        role = str(b.get("role") or "helper")
+        if role not in webauth.ROLES:
+            raise ApiError(400, "pick helper or viewer")
+        code = self.web.devices.new_code(time.time(), role)
         port = self.web.httpd.server_address[1] if self.web.httpd else self.web.port
         shown = f"[{host}]" if ":" in host else host
         url = f"{'https' if self.web.tls else 'http'}://{shown}:{port}/#pair={code}"
-        log.info("made a phone pairing code (valid for five minutes)")
+        log.info("made a pairing code for a %s (valid for five minutes)", role)
         return {"url": url, "qr": qr.svg(url), "expires_in": webauth.PAIR_SECONDS}
 
     def remove_device(self, q, b) -> dict:

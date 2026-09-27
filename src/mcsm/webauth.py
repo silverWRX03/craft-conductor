@@ -229,6 +229,12 @@ def _digest(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+# What a paired device may do. Helper: the everyday controls (start, stop, restart, backups,
+# updates, players; see web.DEVICE_POSTS). Viewer: look only. Phones paired before roles existed
+# are helpers. Neither can change settings, mods, files or the sign-in, or use the console.
+ROLES = ("helper", "viewer")
+
+
 class Devices:
     """Phones paired by scanning a QR code: each has its own key (only its hash is kept here),
     can be removed on its own, and is limited to everyday controls (see web.DEVICE_ROUTES)."""
@@ -236,7 +242,7 @@ class Devices:
     def __init__(self, state_dir):
         self.path = state_dir / DEVICES_FILE
         self._lock = threading.Lock()
-        self._codes: dict[str, float] = {}   # digest of a pairing code -> when it expires
+        self._codes: dict[str, tuple[float, str]] = {}   # digest of a pairing code -> (when it expires, role)
 
     def _read(self) -> list[dict]:
         try:
@@ -255,23 +261,27 @@ class Devices:
             pass
         os.replace(tmp, self.path)
 
-    def new_code(self, now: float) -> str:
+    def new_code(self, now: float, role: str = "helper") -> str:
+        """A one-time pairing code; the role (see ROLES) is decided here, by the owner, never by
+        whoever uses the code."""
+        if role not in ROLES:
+            raise ConfigError("unknown role")
         code = secrets.token_urlsafe(24)
         with self._lock:
-            self._codes = {c: exp for c, exp in self._codes.items() if exp > now}
-            self._codes[_digest(code)] = now + PAIR_SECONDS
+            self._codes = {c: v for c, v in self._codes.items() if v[0] > now}
+            self._codes[_digest(code)] = (now + PAIR_SECONDS, role)
         return code
 
     def pair(self, code: str, name: str, ip: str, now: float) -> tuple[str, dict]:
         """Use up a pairing code; returns the new phone's key and its record."""
         with self._lock:
-            exp = self._codes.pop(_digest(code), None)
+            exp, role = self._codes.pop(_digest(code), (None, None))
             if exp is None or exp < now:
                 raise ConfigError("that pairing code has expired or was already used; make a new one")
             token = secrets.token_urlsafe(32)
             device = {"id": secrets.token_hex(6), "name": (re.sub(r"[^\w .'()-]", "", name).strip() or "Phone")[:40],
                       "hash": _digest(token), "created": now, "expires": now + DEVICE_DAYS * 86400,
-                      "last_seen": now, "last_ip": ip}
+                      "last_seen": now, "last_ip": ip, "role": role}
             devices = self._read()
             devices.append(device)
             self._write(devices)
@@ -298,7 +308,8 @@ class Devices:
                     return
 
     def list(self) -> list[dict]:
-        return [{k: d.get(k) for k in ("id", "name", "created", "last_seen", "last_ip", "expires")} for d in self._read()]
+        return [{**{k: d.get(k) for k in ("id", "name", "created", "last_seen", "last_ip", "expires")},
+                 "role": d.get("role") if d.get("role") in ROLES else "helper"} for d in self._read()]
 
     def remove(self, device_id: str | None = None) -> int:
         """Remove one phone, or all of them (``None``)."""

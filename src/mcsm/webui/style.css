@@ -623,3 +623,6 @@ body.picking main.join { opacity: .35; transform: translateX(-30px); transition:
 .rules { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 6px 16px; }
 label.rule { display: flex; align-items: flex-start; gap: 8px; }
 input.narrow { width: 90px; }
+
+/* Signed in as a viewer (a paired device that may only look) */
+body.viewer #btn-start, body.viewer #btn-stop, body.viewer #btn-restart, body.viewer .server-card .btn:not([href]) { display: none; }

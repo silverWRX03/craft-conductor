@@ -426,7 +426,8 @@ async function refreshStatus() {
   const hb = hubInfo;
   $("#version").textContent = "v" + hb.version + " beta";
   $("#version").title = "mcsm is in beta: expect some rough edges, and keep backups.";
-  $("#quit").classList.toggle("hidden", !!hb.single);
+  $("#quit").classList.toggle("hidden", !!hb.single || (hb.role && hb.role !== "owner"));
+  document.body.classList.toggle("viewer", hb.role === "viewer");  // look-only sign-in: no buttons that change things
   if (!hb.notice_accepted) { showNotice(); return; }
   offerSelfUpdate(hb.self_update);
   if (hb.auth.default && !hb.auth.managed && !promptDismissed()) showSecurity(true);
@@ -2352,8 +2353,10 @@ function openRemoteAccess() {
     // 4. pair a phone
     const pairBox = h("div", { class: "pair-box" });
     const addr = h("select", { "aria-label": "Address the phone uses" }, r.addresses.map((a) => h("option", { value: a.host }, a.label)));
+    const role = h("select", { "aria-label": "What it may do" },
+      h("option", { value: "helper" }, "Helper: everyday controls"), h("option", { value: "viewer" }, "Viewer: look only"));
     const pair = h("button", { class: "btn primary", disabled: !r.strong || !r.running_on_network || !r.addresses.length, onclick: async () => {
-      const p = await api("/api/hub/devices/pair", { method: "POST", body: { host: addr.value } }).catch((e) => { toast(e.message, true); return null; });
+      const p = await api("/api/hub/devices/pair", { method: "POST", body: { host: addr.value, role: role.value } }).catch((e) => { toast(e.message, true); return null; });
       if (!p) return;
       let left = p.expires_in;
       const clock = h("span", { class: "muted small" });
@@ -2366,7 +2369,8 @@ function openRemoteAccess() {
         clock);
     } }, "Show a pairing QR code");
     const devices = r.devices.length ? h("ul", { class: "list" }, r.devices.map((d) => h("li", {},
-      h("div", { class: "grow" }, h("strong", {}, d.name), h("div", { class: "muted small" }, `paired ${new Date(d.created * 1000).toLocaleDateString()} · last used ${ago(d.last_seen)}${d.last_ip ? " from " + d.last_ip : ""}`)),
+      h("div", { class: "grow" }, h("strong", {}, d.name), " ", h("span", { class: "tag" }, d.role === "viewer" ? "viewer" : "helper"),
+        h("div", { class: "muted small" }, `paired ${new Date(d.created * 1000).toLocaleDateString()} · last used ${ago(d.last_seen)}${d.last_ip ? " from " + d.last_ip : ""}`)),
       h("button", { class: "btn small danger", onclick: async () => (await ask(`Sign out ${d.name}? It will need to be paired again.`, { ok: "Sign out", danger: true })) &&
         act(() => api("/api/hub/devices/remove", { method: "POST", body: { id: d.id } }), `${d.name} signed out`).then(load) }, "Sign out"))))
       : h("p", { class: "empty" }, "No phones paired yet.");
@@ -2375,10 +2379,11 @@ function openRemoteAccess() {
       step(2, "Let other devices connect", h("label", { class: "row" }, toggle, h("span", {}, "Allow access to this control panel from other devices (phones, other computers)")),
         !r.strong ? h("p", { class: "small muted" }, "Set a strong password first.") : null, restartNote),
       step(3, "Away from home", ...away, https),
-      step(4, "Pair a phone",
-        h("p", { class: "small" }, "A paired phone signs in by itself and can start, stop and restart servers, make backups, run updates and manage players. " +
-          "It can't change settings, mods or files, or use the console. Changing your password signs all phones out."),
-        r.addresses.length ? h("div", { class: "row" }, addr, pair) : h("p", { class: "small muted" }, "No network address found for this computer."),
+      step(4, "Pair a phone (or a co-admin)",
+        h("p", { class: "small" }, "A paired device signs in by itself. A ", h("strong", {}, "helper"), " can start, stop and restart servers, make backups, run updates and manage players; " +
+          "a ", h("strong", {}, "viewer"), " can only look. Neither can change settings, mods or files, or use the console, and what they do shows in the activity with their name. " +
+          "Pair a friend who helps run the server the same way, on their own phone or computer. Changing your password signs all devices out."),
+        r.addresses.length ? h("div", { class: "row" }, addr, role, pair) : h("p", { class: "small muted" }, "No network address found for this computer."),
         !r.running_on_network ? h("p", { class: "small muted" }, "Pairing works once access from other devices is on and mcsm has been reopened.") : null,
         pairBox),
       step(5, "Paired phones", devices,
