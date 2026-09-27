@@ -168,7 +168,20 @@ def test_the_user_manual_is_in_the_app(hub_env):
     hub, c = hub_env
     status, body, headers = c.get("/manual.md")
     assert status == 200 and headers["Content-Type"].startswith("text/markdown")
-    for section in ("## Creating a server", "## Playing with friends", "## For friends: joining a server", "## Troubleshooting"):
+    for section in ("## Creating a server", "## Friends: playing with friends", "## For friends: joining a server", "## Troubleshooting"):
         assert section in body
     import re
     assert all(url.startswith("https://") for url in re.findall(r"\]\(([^)]+)\)", body))  # links work from the page
+
+
+def test_the_manual_covers_every_page():
+    """A new page in the app needs a section in the user manual (kept with every change)."""
+    import re
+    from pathlib import Path
+    webui = Path(__file__).resolve().parents[1] / "src" / "mcsm" / "webui"
+    app, manual = (webui / "app.js").read_text(), (webui / "manual.md").read_text()
+    pages = re.findall(r'\["\w+", "([^"]+)"\]', re.search(r"const SERVER_VIEWS = \[(.*?)\];", app, re.S).group(1))
+    headings = set(re.findall(r"^##+ (.+)$", manual, re.M))
+    missing = [p for p in pages + ["Your servers", "mcsm settings", "Remote access and phones"]
+               if not any(h.lower().startswith(p.lower()) for h in headings)]
+    assert not missing, f"the user manual (src/mcsm/webui/manual.md) has no section for: {missing}"

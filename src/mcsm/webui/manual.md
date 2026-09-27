@@ -2,7 +2,7 @@
 
 mcsm (Minecraft server manager) sets up a Minecraft server on your own computer, keeps it running, keeps it and its mods up to date, and gets your friends' games ready to join. Everything happens in the **control panel**, a page in your web browser.
 
-This manual is also inside mcsm: open **Help → User manual** in the control panel. mcsm is in beta: back up anything you can't afford to lose.
+This manual is also inside mcsm: open **User manual** (or **Help**) in the control panel. It comes with mcsm, so it always matches the version you have and is updated with it. mcsm is in beta: back up anything you can't afford to lose.
 
 ## What mcsm can and can't do
 
@@ -105,7 +105,7 @@ mcsm downloads the right Java (Eclipse Temurin) for each Minecraft version and k
 
 The server's version and upgrade choices, memory (with Aikar's flags above 16 GB), port, name and Minecraft's settings. **Export server** saves everything (worlds, mods, configs, settings, player lists, and optionally backups) in one `.zip` to move to another computer: install mcsm there, then **Servers → Import a server...**.
 
-## Playing with friends
+## Friends: playing with friends
 
 On the server's **Friends** page, switch on "Make a download for friends". Then:
 
