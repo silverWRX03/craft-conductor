@@ -36,7 +36,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Callable
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 from . import nbt
 from .clientpack import FORMAT, allowed_url
@@ -85,9 +85,19 @@ class Invite:
 
     @property
     def link(self) -> str:
+        """The server's own address with the fingerprint (for `mcsm join`; not for browsers)."""
         return f"{self.url}#{self.fp}"
 
+    def page_link(self, name: str = "") -> str:
+        """The link friends click: mcsm's invite page on GitHub Pages (a real certificate, so no
+        browser warning). The invite follows the #, which browsers never send anywhere: the
+        page reads it, offers mcsm's download from GitHub, and hands the invite to mcsm."""
+        tail = "/" + quote(name.strip()[:60], safe="") if name.strip() else ""
+        return f"{INVITE_PAGE}#{self.code}{tail}"
 
+
+INVITE_PAGE = "https://silverwrx03.github.io/mc-server-management/join/"
+CODE = re.compile(r"mcsm-[A-Za-z0-9_-]{40,400}")
 OLD_INVITE = ("that invite is from an older mcsm and isn't secure; ask the server's owner "
               "for a new one (their mcsm needs updating first)")
 
@@ -108,6 +118,9 @@ def _checked(host: str, port, token: str, fp: str) -> Invite:
 def parse_invite(text: str) -> Invite:
     """An invite code (mcsm-...) or link (https://host:port/join/<secret>#<fingerprint>)."""
     text = text.strip().strip('"').strip("'").strip("<>")
+    code = CODE.search(text)
+    if code and not text.startswith("mcsm-"):  # an invite page link, an mcsm:// link, a whole message
+        return parse_invite(code.group(0))
     if "://" in text:
         u = urlparse(text)
         m = re.fullmatch(r"/join/([A-Za-z0-9_-]+)(/.*)?", u.path)

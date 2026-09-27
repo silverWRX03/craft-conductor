@@ -44,7 +44,8 @@ browser: no command lines, no config files, no hunting for the right mod version
   keep your own copies of anything you can't afford to lose.
 - It isn't affiliated with Mojang, Microsoft, Modrinth or CurseForge.
 
-Every section of this README is listed in the [section links](#appendix-section-links) at
+**New to mcsm? Read the [user manual](src/mcsm/webui/manual.md)** ([what's new](CHANGELOG.md) · [report a bug](https://github.com/silverWRX03/mc-server-management/issues/new/choose)) (it's also in the app: Help →
+User manual). Every section of this README is listed in the [section links](#appendix-section-links) at
 the end.
 
 ## How it works
@@ -279,14 +280,13 @@ an older mcsm) shows up in the list too.
 ### Playing with friends
 
 Switch on **Make a download for friends** when you create a server (or later, on the
-server's **Friends** page) and send your friends the invite (a code starting with
-`mcsm-`; **Post to Discord** sends it with the download link). Your friends:
+server's **Friends** page) and send your friends the invite link (**Post to Discord**
+sends it for you). Your friends:
 
-1. get mcsm for their computer from
-   [GitHub](https://github.com/silverWRX03/mc-server-management/releases/latest), the
-   same program you run;
-2. copy the invite, then open mcsm. It finds the invite by itself (or they paste it), and
-   a page opens in their browser where they tick their launchers: the
+1. click the link: mcsm's invite page offers the right download for their computer,
+   straight from GitHub;
+2. run the file they downloaded. mcsm finds the invite by itself (the page handed it
+   over), and a page opens in their browser where they tick their launchers: the
    **Minecraft Launcher**, **Prism Launcher**, the **Modrinth App** and/or **CurseForge**
    (ones found on their computer are ticked already). It adds *Your Server* to each,
    with the right Minecraft version, mod loader (Fabric, Quilt, NeoForge or Forge) and
@@ -299,14 +299,17 @@ server's **Friends** page) and send your friends the invite (a code starting wit
 Mods come straight from Modrinth or CurseForge (every file is checked against its
 checksum); only mods that run on players' computers are included, plus any
 client-only mods you add on the Friends page (a minimap, JEI, Sodium...). When your
-server upgrades, friends open mcsm again and pick your server under "Servers you've
-joined" to update. Sign-in stays with the Minecraft Launcher, so mcsm never sees anyone's
+server upgrades, friends click the link again and press **Open in mcsm** (or open mcsm
+and pick your server under "Servers you've joined") to update. Sign-in stays with the Minecraft Launcher, so mcsm never sees anyone's
 Microsoft account.
 
 **Secure by design.** Friends' mcsm talks to your computer only over HTTPS, with a
 certificate your mcsm makes for itself. Its fingerprint is part of the invite, and your
 friends' mcsm refuses anything else, so nobody in between (on café Wi-Fi, say) can read
-or swap the mods. The program itself always comes from GitHub, never from your server.
+or swap the mods. The program itself always comes from GitHub, never from your server. The invite
+page lives on GitHub Pages (a real certificate, so no browser warning), and the invite
+itself is after the `#` in the link, which browsers never send anywhere. Power users can
+still use the raw invite code with `mcsm join <code>`.
 
 For friends outside your home network, forward two TCP ports to this computer: your
 Minecraft port (25565 for the first server) and the download port (8766), and enter
@@ -568,7 +571,7 @@ the server running.
 mcsm checks its GitHub releases once a day; set `[mcsm] update_check = false` to turn
 this off. When a new version is out:
 
-- **Web UI:** a toast shows the new version and a link to what's new, with **Update
+- **Web UI:** a message in the middle of the screen shows the new version and a link to what's new, with **Update
   now** and **Later** buttons. **Later** hides it until the next version comes out;
   **Settings → About → Check for mcsm updates** brings it back. **Update now**
   installs the release, warns players a minute ahead if anyone is online, stops the

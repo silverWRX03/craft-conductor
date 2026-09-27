@@ -162,3 +162,34 @@ def test_page_files_are_cached_by_the_browser(hub_env):
     assert status == 200 and etag and headers["Cache-Control"] == "no-cache"
     status, body, _ = c.call("GET", "/app.js", headers={"If-None-Match": etag})
     assert status == 304 and not body  # unchanged: nothing sent again
+
+
+def test_the_user_manual_is_in_the_app(hub_env):
+    hub, c = hub_env
+    status, body, headers = c.get("/manual.md")
+    assert status == 200 and headers["Content-Type"].startswith("text/markdown")
+    for section in ("## Creating a server", "## Friends: playing with friends", "## For friends: joining a server", "## Troubleshooting"):
+        assert section in body
+    import re
+    assert all(url.startswith("https://") for url in re.findall(r"\]\(([^)]+)\)", body))  # links work from the page
+
+
+def test_the_manual_covers_every_page():
+    """A new page in the app needs a section in the user manual (kept with every change)."""
+    import re
+    from pathlib import Path
+    webui = Path(__file__).resolve().parents[1] / "src" / "mcsm" / "webui"
+    app, manual = (webui / "app.js").read_text(encoding="utf-8"), (webui / "manual.md").read_text(encoding="utf-8")
+    pages = re.findall(r'\["\w+", "([^"]+)"\]', re.search(r"const SERVER_VIEWS = \[(.*?)\];", app, re.S).group(1))
+    headings = set(re.findall(r"^##+ (.+)$", manual, re.M))
+    missing = [p for p in pages + ["Your servers", "mcsm settings", "Remote access and phones"]
+               if not any(h.lower().startswith(p.lower()) for h in headings)]
+    assert not missing, f"the user manual (src/mcsm/webui/manual.md) has no section for: {missing}"
+
+
+def test_the_changelog_has_the_version_being_built():
+    """Every version gets its changelog entry (see CLAUDE.md)."""
+    from pathlib import Path
+    from mcsm import __version__
+    changelog = (Path(__file__).resolve().parents[1] / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert f"## {__version__} " in changelog, f"CHANGELOG.md has no section for {__version__}"

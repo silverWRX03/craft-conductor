@@ -220,11 +220,21 @@ th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: upp
 .notice-points li { line-height: 1.5; }
 
 /* toasts */
-.toasts { position: fixed; right: 16px; bottom: 16px; display: grid; gap: 8px; z-index: 10; max-width: min(420px, calc(100vw - 32px)); }
-.toast { background: var(--panel-2); border: 1px solid var(--border); border-left: 3px solid var(--accent);
-  padding: 10px 14px; border-radius: 6px; box-shadow: 0 6px 24px var(--shadow); white-space: pre-wrap; overflow-wrap: anywhere; }
-.toast.bad { border-left-color: var(--danger); }
-.toast.sticky { border-left-color: var(--info); display: grid; gap: 4px; }
+/* at the top centre, where they're noticed; ones that need an answer are dialogs (.toast-dialog) */
+.toasts { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); display: grid; gap: 8px; z-index: 60;
+  width: min(560px, calc(100vw - 32px)); pointer-events: none; }
+.toast { pointer-events: auto; cursor: pointer; display: flex; gap: 10px; align-items: flex-start; background: var(--panel);
+  border: 1px solid var(--border); border-left: 5px solid var(--accent); padding: 13px 16px; border-radius: 10px;
+  box-shadow: 0 12px 36px var(--shadow-strong); font-size: 15px; white-space: pre-wrap; overflow-wrap: anywhere;
+  animation: toast-in .25s ease-out; }
+.toast-icon { font-weight: 700; color: var(--accent); }
+.toast.bad { border-left-color: var(--danger); } .toast.bad .toast-icon { color: var(--danger); }
+.toast.sticky { cursor: default; border-left-color: var(--info); display: grid; gap: 4px; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
+.modal-backdrop.blur, :root[data-theme="day"] .modal-backdrop.blur { backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); z-index: 70; }
+.toast-dialog { display: grid; gap: 8px; max-width: 480px; border-top: 5px solid var(--info); animation: toast-in .2s ease-out; }
+.toast-dialog strong:first-child { font-size: 17px; }
+@media (prefers-reduced-motion: reduce) { .toast, .toast-dialog { animation: none; } }
 
 /* setup */
 body.setup-mode .actions { display: none; }
@@ -572,3 +582,16 @@ body.picking main.join { opacity: .35; transform: translateX(-30px); transition:
 .jpanel > .browse { flex: 1; height: 100%; min-height: 0; }
 @media (max-width: 760px) { .jpanel { overflow: auto; } .jpanel > .browse { height: auto; } }
 @media (prefers-reduced-motion: reduce) { .jpanel { animation: none; } body.picking main.join { transition: none; } }
+
+/* the user manual */
+.manual { line-height: 1.6; }
+.manual h2 { margin-top: 1.6em; padding-top: .4em; border-top: 1px solid var(--border); }
+.manual h2:first-child { margin-top: 0; border-top: 0; }
+.manual pre { white-space: pre-wrap; }
+.help-toc li.sub { margin-left: 1.2em; font-size: 13px; }
+@media print {
+  .sidebar, .topbar, .help-toc, .theme-toggle, .toasts, .row.mb .btn { display: none !important; }
+  .app, .content, main, .stage { display: block !important; height: auto !important; overflow: visible !important; }
+  body { background: #fff !important; color: #000 !important; }
+  .card { border: 0 !important; box-shadow: none !important; }
+}

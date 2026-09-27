@@ -70,6 +70,7 @@ LOCAL_ONLY = {"/api/open", "/api/hub/open", "/api/hub/remote-install/open"}  # t
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/app.js": ("app.js", "text/javascript; charset=utf-8"),
           "/rich.js": ("rich.js", "text/javascript; charset=utf-8"),
+          "/manual.md": ("manual.md", "text/markdown; charset=utf-8"),
           "/style.css": ("style.css", "text/css; charset=utf-8"),
           "/icon.png": ("icon.png", "image/png"),
           "/manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json"),
@@ -1578,9 +1579,9 @@ class Api:
 
     # ------------------------------------------------------------- friends
     def _invite_links(self) -> dict:
-        """The invite codes for friends on this network (local) and for everyone else (internet).
-        Each carries the share certificate's fingerprint, so friends' mcsm only ever talks to
-        this computer (over HTTPS)."""
+        """The invite links for friends on this network (local) and for everyone else (internet):
+        mcsm's invite page with the invite after the #. Each invite carries the share
+        certificate's fingerprint, so friends' mcsm only ever talks to this computer (over HTTPS)."""
         c = self.m.config.client
         if not c.token:
             return {}
@@ -1588,10 +1589,11 @@ class Api:
         from .join import Invite
         hub = self.web.hub
         share, fp = hub.share_settings(), hub.share_fingerprint()
+        name = read_properties(self.m.server_dir / "server.properties").get("motd", "")
         lan = lan_ip()
-        out = {"local": Invite(lan, share["port"], c.token, fp).code if lan else None, "internet": None}
+        out = {"local": Invite(lan, share["port"], c.token, fp).page_link(name) if lan else None, "internet": None}
         if share["address"]:
-            out["internet"] = Invite(share["address"].strip("[]"), share["port"], c.token, fp).code
+            out["internet"] = Invite(share["address"].strip("[]"), share["port"], c.token, fp).page_link(name)
         return out
 
     def upload_client_jar(self, q, handler) -> dict:

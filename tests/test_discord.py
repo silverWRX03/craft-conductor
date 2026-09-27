@@ -61,6 +61,6 @@ def test_post_the_invite(hub_env):
     msg = sent[-1]
     assert msg["content"] == "Server's up! @everyone" and msg["allowed_mentions"] == {"parse": []}
     description = msg["embeds"][0]["description"]
-    assert "github.com" in description and "`mcsm-" in description  # where to get mcsm, and the invite to copy
+    assert "Click here to join](https://silverwrx03.github.io/mc-server-management/join/#mcsm-" in description
     assert hub.discord_settings()["channel"] == CHANNEL  # picked again next time
     assert c.post("/api/hub/discord", {"token": ""})[0] == 200 and not hub.discord_settings()["set"]

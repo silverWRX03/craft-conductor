@@ -1,0 +1,38 @@
+name: invite page
+
+# mcsm's invite page (site/join/), published on GitHub Pages: friends open invite links there.
+# Needs Settings → Pages → Build and deployment → Source: "GitHub Actions" (once).
+on:
+  push:
+    branches: [main]
+    paths: ["site/**", "src/mcsm/webui/icon.png", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble the site
+        run: |
+          mkdir -p _site
+          cp -r site/. _site/
+          cp src/mcsm/webui/icon.png _site/icon.png
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

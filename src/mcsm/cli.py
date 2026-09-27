@@ -511,7 +511,8 @@ def cmd_join(args) -> int:
 
 def _join(args, invite, pack, mc_dir) -> int:
     """The page in the browser when someone's there to use it; otherwise the console."""
-    from . import join, launchers
+    from . import join, launchers, urlhandler
+    urlhandler.register()  # later invites' "Open in mcsm" opens this mcsm (standalone builds)
     targets = [t.strip() for t in (args.launcher or "").split(",") if t.strip()]
     if any(t not in launchers.KEYS for t in targets):
         print(f"error: --launcher takes {', '.join(launchers.KEYS)}")
@@ -903,7 +904,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.set_defaults(fn=cmd_start)
 
     s = sub.add_parser("join", help="set up this computer's Minecraft to play on a friend's mcsm server")
-    s.add_argument("invite", nargs="?", help="the invite link (http://.../join/...)")
+    s.add_argument("invite", nargs="?", help="the invite link or code (mcsm-...)")
     s.add_argument("-y", "--yes", action="store_true", help="don't ask before setting things up")
     s.add_argument("--no-launcher", action="store_true", help="don't open the Minecraft Launcher afterwards")
     s.add_argument("--from-server", type=Path, metavar="DIR",

@@ -23,10 +23,11 @@ async function api(path, body) {
   if (!res.ok) { const e = new Error(data.error || res.statusText); e.data = data; e.status = res.status; throw e; }
   return data;
 }
-function toast(message, bad = false) {
-  const el = h("div", { class: "toast" + (bad ? " bad" : "") }, message);
+function toast(message, bad = false) {  // (top centre, like mcsm's control panel; click to dismiss)
+  const el = h("div", { class: "toast" + (bad ? " bad" : ""), role: bad ? "alert" : "status", onclick: () => el.remove() },
+    h("span", { class: "toast-icon", "aria-hidden": "true" }, bad ? "⚠" : "✓"), h("span", {}, message));
   $("#toasts").append(el);
-  setTimeout(() => el.remove(), 7000);
+  setTimeout(() => el.remove(), bad ? 12000 : 7000);
 }
 
 const LOADERS = { fabric: "Fabric", quilt: "Quilt", neoforge: "NeoForge", forge: "Forge", vanilla: "no mod loader" };
@@ -249,8 +250,8 @@ function renderAskInvite(error) {
   const go = h("button", { class: "btn primary", type: "submit" }, "Continue");
   $("#join").replaceChildren(
     h("div", { class: "card" }, h("h1", {}, "Join a friend's Minecraft server"),
-      h("p", { class: "muted" }, "Paste the invite the server's owner sent you (it starts with ", h("code", {}, "mcsm-"), "). " +
-        "mcsm checks it's really their server, then sets up your game."),
+      h("p", { class: "muted" }, "Open the invite link you were sent, press ", h("strong", {}, "Copy the invite"),
+        " there, and paste it here (or paste the whole link). mcsm checks it's really their server, then sets up your game."),
       info.copied_invite ? h("div", { class: "notice mt-s" }, "Found the invite you copied.") : null,
       h("form", { class: "row mt", onsubmit: (e) => { e.preventDefault(); if (input.value.trim()) use(input.value.trim(), go); } },
         h("div", { class: "grow" }, input), go),
@@ -268,7 +269,9 @@ function renderAskInvite(error) {
         await api("api/own-server", {}).catch(() => null);
         $("#join").replaceChildren(h("div", { class: "card" }, h("h1", {}, "Opening mcsm's control panel…"),
           h("p", { class: "muted" }, "It opens in a new tab in a moment. You can close this one.")));
-      } }, "Run my own server")));
+      } }, "Run my own server")),
+    h("p", { class: "muted small center" }, "Need help? ", h("a", { href: "https://github.com/silverWRX03/mc-server-management/blob/main/src/mcsm/webui/manual.md#for-friends-joining-a-server",
+      target: "_blank", rel: "noopener noreferrer" }, "The user manual: joining a server ↗")));
   input.focus();
 }
 

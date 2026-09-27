@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: User manual
+    url: https://github.com/silverWRX03/mc-server-management/blob/main/src/mcsm/webui/manual.md
+    about: How to do things in mcsm, and fixes for common problems (also in the app under User manual).

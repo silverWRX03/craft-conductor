@@ -1,0 +1,52 @@
+name: Report a bug
+description: Something in mcsm doesn't work the way it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting it! Please **don't paste passwords, invite links or API keys** here.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, and what went wrong (the exact message helps a lot; a screenshot is welcome).
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: mcsm version
+      description: Shown at the bottom of the control panel's menu, e.g. v0.9.0.
+      placeholder: v0.9.0
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Computer
+      options: [Windows, macOS, Linux, Docker, "Linux without a screen (SSH/service)"]
+    validations:
+      required: true
+  - type: dropdown
+    id: role
+    attributes:
+      label: Were you running a server or joining one?
+      options: ["Running a server", "Joining a friend's server", "Both / not sure"]
+  - type: input
+    id: server
+    attributes:
+      label: Server type and Minecraft version (if it matters)
+      placeholder: Fabric 1.21.1
+  - type: textarea
+    id: report
+    attributes:
+      label: Failure report (optional)
+      description: If mcsm said "the details are in ..." paste that file here. It doesn't contain passwords.
+      render: text
