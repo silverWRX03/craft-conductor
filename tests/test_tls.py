@@ -1,5 +1,6 @@
 """mcsm's own certificate for the share server, and friends' mcsm pinning it."""
 
+import os
 import socket
 import ssl
 import threading
@@ -14,7 +15,9 @@ from test_web import Client
 
 def test_certificate_is_valid_tls_and_kept(tmp_path):
     cert, key, fp = tlscert.ensure(tmp_path)
-    assert len(fp) == 43 and oct(key.stat().st_mode & 0o777) == "0o600"
+    assert len(fp) == 43
+    if os.name != "nt":  # (Windows keeps it private by where it is: the user's own profile)
+        assert oct(key.stat().st_mode & 0o777) == "0o600"
     assert tlscert.ensure(tmp_path) == (cert, key, fp)  # made once, then reused
     ctx = tlscert.server_context(cert, key)
     srv = socket.socket()

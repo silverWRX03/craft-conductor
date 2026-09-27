@@ -59,6 +59,22 @@ def _is_local(host: str) -> bool:
     return addr.is_private or addr.is_loopback or addr.is_link_local
 
 
+def _close_gently(sock) -> None:
+    """Finish sending, then read what the client sent (unread): closing with unread data makes
+    macOS and Windows reset the connection, which can lose the answer before it's read."""
+    try:
+        sock.shutdown(socket.SHUT_WR)
+        sock.settimeout(2)
+        received = 0
+        while received < 65536:
+            chunk = sock.recv(4096)
+            if not chunk:
+                break
+            received += len(chunk)
+    except OSError:
+        pass
+
+
 class ShareServer:
     def __init__(self, hub, port: int = DEFAULT_PORT, host: str = "0.0.0.0"):
         self.hub = hub
@@ -110,6 +126,7 @@ class ShareServer:
                     first = request.recv(1, socket.MSG_PEEK)
                     if first != b"\x16":  # not a TLS handshake: plain HTTP (a browser, an old mcsm)
                         request.sendall(NOT_HTTPS)
+                        _close_gently(request)
                         return
                     tls = context.wrap_socket(request, server_side=True)
                 except (OSError, ssl.SSLError) as e:
