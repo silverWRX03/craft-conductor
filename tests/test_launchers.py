@@ -29,7 +29,7 @@ def mods():
 def joiner(tmp_path, http):
     http.files[mods()[0]["url"]] = JAR
     http.files[mods()[1]["url"]] = CF_JAR
-    return join.Joiner(join.Invite("mc.example.com", 8766, "A" * 24), mc_dir=tmp_path / ".minecraft", http=http,
+    return join.Joiner(join.Invite("mc.example.com", 8766, "A" * 24, "F" * 43), mc_dir=tmp_path / ".minecraft", http=http,
                        say=lambda s: None)
 
 
@@ -102,9 +102,9 @@ def test_detect(tmp_path, monkeypatch):
 
 
 def test_friend_page(tmp_path, http, joiner, monkeypatch):
-    http.json["http://mc.example.com:8766/join/" + "A" * 24 + "/pack.json"] = pack(mods=mods())
+    http.json["https://mc.example.com:8766/join/" + "A" * 24 + "/pack.json"] = pack(mods=mods())
     monkeypatch.setattr(launchers, "open_prism", lambda slug, address: True)
-    ui = joinui.JoinUI(join.Invite("mc.example.com", 8766, "A" * 24), mc_dir=tmp_path / ".minecraft", http=http,
+    ui = joinui.JoinUI(join.Invite("mc.example.com", 8766, "A" * 24, "F" * 43), mc_dir=tmp_path / ".minecraft", http=http,
                        prism_dir=tmp_path / "prism", out_dir=tmp_path)
     (tmp_path / "prism" / "instances").mkdir(parents=True)
     url = ui.start()
@@ -139,7 +139,7 @@ def test_friend_page(tmp_path, http, joiner, monkeypatch):
 
 
 def test_friend_page_when_the_server_is_away(tmp_path, http):
-    ui = joinui.JoinUI(join.Invite("mc.example.com", 8766, "B" * 24), mc_dir=tmp_path, http=http)
+    ui = joinui.JoinUI(join.Invite("mc.example.com", 8766, "B" * 24, "F" * 43), mc_dir=tmp_path, http=http)
     info = ui.info()
     assert info["pack"] is None and "new one" in info["error"]  # the invite isn't known there
     with pytest.raises(ValueError):
@@ -153,9 +153,9 @@ def test_join_opens_the_page_or_falls_back(monkeypatch, capsys):
     calls = []
     monkeypatch.setattr(joinui, "run", lambda invite, **kw: calls.append("page") or None)  # no browser
     monkeypatch.setattr(join, "run_interactive", lambda invite, **kw: calls.append(kw["targets"]) or 0)
-    assert cli.main(["join", f"http://mc.example.com:8766/join/{code}"]) == 0
+    assert cli.main(["join", join.Invite("mc.example.com", 8766, code, "F" * 43).code]) == 0
     assert calls == ["page", ["minecraft"]]
     calls.clear()
-    assert cli.main(["join", f"http://mc.example.com:8766/join/{code}", "--launcher", "prism,modrinth"]) == 0
+    assert cli.main(["join", join.Invite("mc.example.com", 8766, code, "F" * 43).code, "--launcher", "prism,modrinth"]) == 0
     assert calls == [["prism", "modrinth"]]
-    assert cli.main(["join", f"http://mc.example.com:8766/join/{code}", "--launcher", "tlauncher"]) == 2
+    assert cli.main(["join", join.Invite("mc.example.com", 8766, code, "F" * 43).code, "--launcher", "tlauncher"]) == 2

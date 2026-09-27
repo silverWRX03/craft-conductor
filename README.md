@@ -278,11 +278,14 @@ an older mcsm) shows up in the list too.
 ### Playing with friends
 
 Switch on **Make a download for friends** when you create a server (or later, on the
-server's **Friends** page) and share the invite link. Your friends:
+server's **Friends** page) and send your friends the invite (a code starting with
+`mcsm-`; **Post to Discord** sends it with the download link). Your friends:
 
-1. open the link and download the setup for their computer (it's this same mcsm
-   program, named after your server so it knows where to connect);
-2. run it. A page opens in their browser where they tick their launchers: the
+1. get mcsm for their computer from
+   [GitHub](https://github.com/silverWRX03/mc-server-management/releases/latest), the
+   same program you run;
+2. copy the invite, then open mcsm. It finds the invite by itself (or they paste it), and
+   a page opens in their browser where they tick their launchers: the
    **Minecraft Launcher**, **Prism Launcher**, the **Modrinth App** and/or **CurseForge**
    (ones found on their computer are ticked already). It adds *Your Server* to each,
    with the right Minecraft version, mod loader (Fabric, Quilt, NeoForge or Forge) and
@@ -295,16 +298,21 @@ server's **Friends** page) and share the invite link. Your friends:
 Mods come straight from Modrinth or CurseForge (every file is checked against its
 checksum); only mods that run on players' computers are included, plus any
 client-only mods you add on the Friends page (a minimap, JEI, Sodium...). When your
-server upgrades, friends run the file again to update. Sign-in stays with the
-Minecraft Launcher, so mcsm never sees anyone's Microsoft account.
+server upgrades, friends open mcsm again and pick your server under "Servers you've
+joined" to update. Sign-in stays with the Minecraft Launcher, so mcsm never sees anyone's
+Microsoft account.
+
+**Secure by design.** Friends' mcsm talks to your computer only over HTTPS, with a
+certificate your mcsm makes for itself. Its fingerprint is part of the invite, and your
+friends' mcsm refuses anything else, so nobody in between (on café Wi-Fi, say) can read
+or swap the mods. The program itself always comes from GitHub, never from your server.
 
 For friends outside your home network, forward two TCP ports to this computer: your
 Minecraft port (25565 for the first server) and the download port (8766), and enter
 your public address under **mcsm settings → Sharing with friends**. The download port
-serves only the invite page, the mod list and the download, never the control panel.
+only answers friends' mcsm (HTTPS only): the mod list and your own mod files, never the
+control panel.
 To play on the server from this computer too: `mcsm join --from-server <server folder>`.
-
-![What friends see](docs/web-join.png)
 
 ![Picking launchers](docs/web-friend-setup.png)
 
@@ -315,7 +323,7 @@ installs) walks you through your router's port forwarding:
 
 ![The router guide](docs/web-help.png)
 
-The Friends page has two invite links: a **local** one for friends on your Wi-Fi, and an
+The Friends page has two invites: a **local** one for friends on your Wi-Fi, and an
 **internet** one; **Use my public IP** finds your public address for it. When creating a
 server, the **Friends** section's **Set up now** opens the mod browser for players' mods
 (client-side ones only) and **Local files** adds your own; mods the server's mods need on

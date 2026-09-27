@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import logging
 import os
+import ssl
 import tempfile
 import time
 import urllib.error
@@ -32,6 +34,8 @@ class HttpError(Exception):
     def friendly(self) -> str:
         """For people: which site, and what went wrong, without the full URL."""
         host = urllib.parse.urlsplit(self.url).hostname or "the internet"
+        if self.reason.startswith(("the server's security certificate", "that server must be reached")):
+            return self.reason  # a security refusal: say exactly why
         if self.status == 404:
             return f"{host} doesn't have that (not found)"
         if self.status == 429:
@@ -47,6 +51,38 @@ class HttpError(Exception):
 
 class HashMismatch(Exception):
     pass
+
+
+class PinMismatch(ConnectionError):
+    """A pinned server presented a different certificate: someone may be in the middle."""
+
+
+def _pinned_opener(fp: str) -> urllib.request.OpenerDirector:
+    """HTTPS that trusts exactly one certificate: the one whose fingerprint is ``fp``."""
+    import http.client
+    from .tlscert import fingerprint
+
+    class Connection(http.client.HTTPSConnection):
+        def __init__(self, *args, **kwargs):
+            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+            ctx.check_hostname = False     # self-signed: the fingerprint below is the check
+            ctx.verify_mode = ssl.CERT_NONE
+            kwargs["context"] = ctx
+            super().__init__(*args, **kwargs)
+
+        def connect(self):
+            super().connect()
+            der = self.sock.getpeercert(binary_form=True)
+            if not der or not hmac.compare_digest(fingerprint(der), fp):
+                self.sock.close()
+                raise PinMismatch("the server's certificate doesn't match the invite")
+
+    class Handler(urllib.request.HTTPSHandler):
+        def https_open(self, req):
+            return self.do_open(Connection, req)
+
+    return urllib.request.build_opener(Handler)
 
 
 def with_query(url: str, params: dict[str, Any] | None) -> str:
@@ -82,16 +118,28 @@ class HttpClient:
         self.timeout = timeout
         self.cache_ttl = cache_ttl
         self._cache: dict[str, tuple[float, Any]] = {}
+        self._pins: dict[str, urllib.request.OpenerDirector] = {}
 
     def clear_cache(self) -> None:
         self._cache.clear()
+
+    def pin(self, netloc: str, fp: str) -> None:
+        """Only talk to ``netloc`` (host:port) over HTTPS, and only if it presents the certificate
+        with this fingerprint (a friend's mcsm and the server it was invited to)."""
+        self._pins[netloc.lower()] = _pinned_opener(fp)
 
     def _open(self, req: urllib.request.Request):
         last: Exception | None = None
         attempt = limited = 0
         while attempt < self.retries:
             try:
-                return urllib.request.urlopen(req, timeout=self.timeout)
+                u = urllib.parse.urlsplit(req.full_url)
+                pinned = self._pins.get(u.netloc.lower())
+                if pinned is None:
+                    return urllib.request.urlopen(req, timeout=self.timeout)
+                if u.scheme != "https":
+                    raise HttpError(req.full_url, None, "that server must be reached over HTTPS")
+                return pinned.open(req, timeout=self.timeout)
             except urllib.error.HTTPError as e:
                 # 4xx (other than rate limiting and timeouts) will not succeed on retry.
                 if e.code not in (408, 429) and e.code < 500:
@@ -106,6 +154,10 @@ class HttpClient:
                     time.sleep(delay)
                     continue
             except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+                if isinstance(getattr(e, "reason", e), PinMismatch):  # never retried or ignored
+                    raise HttpError(req.full_url, None, "the server's security certificate doesn't match the "
+                                                        "invite, so mcsm didn't connect. Ask for a new invite; if "
+                                                        "you get the same error, someone may be interfering") from e
                 last = e
             delay = 2**attempt
             attempt += 1

@@ -27,8 +27,10 @@ def test_public_ip_lookup(hub_env):
     # A server with friend downloads on gets both links.
     assert c.post("/api/servers/alpha/client", {"enabled": True})[0] == 200
     links = c.get("/api/servers/alpha/client")[1]["links"]
-    assert links["internet"].startswith("http://93.184.216.34:")
-    assert links["local"] is None or "/join/" in links["local"]
+    from mcsm import join
+    internet = join.parse_invite(links["internet"])  # an invite code, pinned to this computer's certificate
+    assert internet.host == "93.184.216.34" and internet.fp == hub.share_fingerprint()
+    assert links["local"] is None or join.parse_invite(links["local"]).fp == internet.fp
 
 
 def test_friends_on_the_same_network_join_through_it():

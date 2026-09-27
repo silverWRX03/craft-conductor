@@ -61,22 +61,38 @@ class JoinError(Exception):
 
 @dataclass(frozen=True)
 class Invite:
+    """Where a server's friend download is, its secret, and the fingerprint of the certificate
+    it must present: connections are HTTPS, and pinned to that certificate (tlscert.py)."""
     host: str
     port: int
     token: str
+    fp: str = ""
+
+    @property
+    def netloc(self) -> str:
+        host = f"[{self.host}]" if ":" in self.host else self.host
+        return f"{host}:{self.port}".lower()
 
     @property
     def url(self) -> str:
-        host = f"[{self.host}]" if ":" in self.host else self.host
-        return f"http://{host}:{self.port}/join/{self.token}"
+        return f"https://{self.netloc}/join/{self.token}"
 
     @property
     def code(self) -> str:
-        raw = f"{self.host}|{self.port}|{self.token}".encode()
-        return base64.urlsafe_b64encode(raw).decode().rstrip("=")
+        """What friends paste into mcsm (it's also in the invite link after the #)."""
+        raw = f"{self.host}|{self.port}|{self.token}|{self.fp}".encode()
+        return "mcsm-" + base64.urlsafe_b64encode(raw).decode().rstrip("=")
+
+    @property
+    def link(self) -> str:
+        return f"{self.url}#{self.fp}"
 
 
-def _checked(host: str, port, token: str) -> Invite:
+OLD_INVITE = ("that invite is from an older mcsm and isn't secure; ask the server's owner "
+              "for a new one (their mcsm needs updating first)")
+
+
+def _checked(host: str, port, token: str, fp: str) -> Invite:
     try:
         port = int(port)
     except (TypeError, ValueError):
@@ -84,24 +100,33 @@ def _checked(host: str, port, token: str) -> Invite:
     if not re.fullmatch(r"[A-Za-z0-9.:-]{1,253}", host or "") or not 1 <= port <= 65535 \
             or not re.fullmatch(r"[A-Za-z0-9_-]{16,64}", token or ""):
         raise JoinError("that doesn't look like an mcsm invite")
-    return Invite(host, port, token)
+    if not re.fullmatch(r"[A-Za-z0-9_-]{43}", fp or ""):
+        raise JoinError(OLD_INVITE)
+    return Invite(host, port, token, fp)
 
 
 def parse_invite(text: str) -> Invite:
-    """An invite link (http://host:port/join/<secret>) or the code from a file name."""
-    text = text.strip().strip('"').strip("'")
+    """An invite code (mcsm-...) or link (https://host:port/join/<secret>#<fingerprint>)."""
+    text = text.strip().strip('"').strip("'").strip("<>")
     if "://" in text:
         u = urlparse(text)
         m = re.fullmatch(r"/join/([A-Za-z0-9_-]+)(/.*)?", u.path)
         if u.scheme not in ("http", "https") or not m or not u.hostname:
-            raise JoinError("that link isn't an mcsm invite (it should look like http://.../join/...)")
-        return _checked(u.hostname, u.port or 80, m.group(1))
+            raise JoinError("that link isn't an mcsm invite (it should look like https://.../join/...)")
+        if u.scheme != "https":
+            raise JoinError(OLD_INVITE)
+        return _checked(u.hostname, u.port or 443, m.group(1), u.fragment)
+    code = text.removeprefix("mcsm-")
     try:
-        raw = base64.urlsafe_b64decode(text + "=" * (-len(text) % 4)).decode()
-        host, port, token = raw.split("|")
+        raw = base64.urlsafe_b64decode(code + "=" * (-len(code) % 4)).decode()
+        parts = raw.split("|")
     except (binascii.Error, UnicodeDecodeError, ValueError):
         raise JoinError("that doesn't look like an mcsm invite") from None
-    return _checked(host, port, token)
+    if len(parts) == 3:
+        raise JoinError(OLD_INVITE)
+    if len(parts) != 4:
+        raise JoinError("that doesn't look like an mcsm invite")
+    return _checked(*parts)
 
 
 def invite_from_name(path: str | Path) -> Invite | None:
@@ -113,13 +138,6 @@ def invite_from_name(path: str | Path) -> Invite | None:
         return parse_invite(m.group(1))
     except JoinError:
         return None
-
-
-def download_name(server_name: str, invite: Invite, asset: str) -> str:
-    """The file name the invite page gives the download (so it knows where to connect)."""
-    safe = re.sub(r"[^A-Za-z0-9 _'.-]+", "", server_name).strip(" .")[:40] or "Minecraft server"
-    ext = ".exe" if asset.endswith(".exe") else ""
-    return f"Join {safe} (mcsm-{invite.code}){ext}"
 
 
 def minecraft_dir() -> Path:
@@ -198,6 +216,8 @@ class Joiner:
         self.invite = invite
         self.mc = mc_dir or minecraft_dir()
         self.http = http or HttpClient(cache_ttl=0)
+        if invite.fp:  # the server's own address: HTTPS, and only with the certificate the invite names
+            self.http.pin(invite.netloc, invite.fp)
         self.say = say
         self.run_cmd = run
         self.java_probe = java_probe

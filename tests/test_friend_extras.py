@@ -35,7 +35,7 @@ def test_extras_resolve_with_what_they_need(tmp_path, http, modrinth):
 
     # Into the game: files in their folders, the pack and the shader switched on.
     game = tmp_path / "game"
-    j = join.Joiner(join.Invite("mc.example.com", 1, "A" * 24), mc_dir=tmp_path / "mc", http=http, say=lambda s: None)
+    j = join.Joiner(join.Invite("mc.example.com", 1, "A" * 24, "F" * 43), mc_dir=tmp_path / "mc", http=http, say=lambda s: None)
     j.sync_mods(pack(mods=entries), game)
     assert (game / "shaderpacks" / "BSL.zip").is_file() and (game / "resourcepacks" / "Faithful.zip").is_file()
     assert (game / "mods" / "MAP-2.0.jar").is_file()
@@ -74,8 +74,8 @@ def test_the_server_moves_to_a_new_minecraft(tmp_path, http, modrinth):
 def test_friend_page_extras(tmp_path, http, modrinth):
     publish(modrinth)
     http.json[f"{API}/search"] = {"hits": [{"project_id": "BSL", "slug": "bsl", "title": "BSL Shaders", "description": "", "downloads": 1}]}
-    http.json["http://mc.example.com:8766/join/" + "C" * 24 + "/pack.json"] = pack(name="Weekend Server", minecraft="1.21.2")
-    ui = joinui.JoinUI(join.Invite("mc.example.com", 8766, "C" * 24), mc_dir=tmp_path / ".minecraft", http=http,
+    http.json["https://mc.example.com:8766/join/" + "C" * 24 + "/pack.json"] = pack(name="Weekend Server", minecraft="1.21.2")
+    ui = joinui.JoinUI(join.Invite("mc.example.com", 8766, "C" * 24, "F" * 43), mc_dir=tmp_path / ".minecraft", http=http,
                        prism_dir=tmp_path / "prism", out_dir=tmp_path)
     (tmp_path / "prism" / "instances").mkdir(parents=True)
     url = ui.start()

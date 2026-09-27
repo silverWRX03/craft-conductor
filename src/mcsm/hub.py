@@ -308,9 +308,18 @@ class Hub:
             try:
                 server.start()
                 self.share, self.share_error = server, None
-            except OSError as e:
+            except (OSError, ValueError) as e:  # (ssl.SSLError is an OSError)
                 self.share_error = f"port {port} is busy ({e.strerror or e}); pick another in mcsm settings"
                 log.warning("couldn't start sharing: %s", self.share_error)
+
+    def share_fingerprint(self) -> str:
+        """The share server's certificate fingerprint (it goes in every invite)."""
+        if self.share and self.share.fingerprint:
+            return self.share.fingerprint
+        if not getattr(self, "_fingerprint", None):  # sharing is off: make/read the certificate once
+            from . import tlscert
+            self._fingerprint = tlscert.ensure(self.state_dir / "tls")[2]
+        return self._fingerprint
 
     PUBLIC_IP_SERVICES = ("https://api.ipify.org?format=json", "https://api64.ipify.org?format=json",
                           "https://ifconfig.co/json")

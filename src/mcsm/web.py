@@ -1554,17 +1554,20 @@ class Api:
 
     # ------------------------------------------------------------- friends
     def _invite_links(self) -> dict:
-        """The invite for friends on this network (local) and for everyone else (internet)."""
+        """The invite codes for friends on this network (local) and for everyone else (internet).
+        Each carries the share certificate's fingerprint, so friends' mcsm only ever talks to
+        this computer (over HTTPS)."""
         c = self.m.config.client
         if not c.token:
             return {}
         from .cli import lan_ip
         from .join import Invite
-        share = self.web.hub.share_settings()
+        hub = self.web.hub
+        share, fp = hub.share_settings(), hub.share_fingerprint()
         lan = lan_ip()
-        out = {"local": Invite(lan, share["port"], c.token).url if lan else None, "internet": None}
+        out = {"local": Invite(lan, share["port"], c.token, fp).code if lan else None, "internet": None}
         if share["address"]:
-            out["internet"] = Invite(share["address"].strip("[]"), share["port"], c.token).url
+            out["internet"] = Invite(share["address"].strip("[]"), share["port"], c.token, fp).code
         return out
 
     def upload_client_jar(self, q, handler) -> dict:

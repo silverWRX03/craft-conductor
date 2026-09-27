@@ -235,8 +235,46 @@ function confirmChanges(changes) {
   });
 }
 
+// Opened without an invite: paste one (a copied one is filled in), pick a server joined
+// before (to update it), or run a server of your own instead.
+function renderAskInvite(error) {
+  const input = h("input", { type: "text", value: info.copied_invite || "", placeholder: "mcsm-…", "aria-label": "Invite",
+    autocomplete: "off", spellcheck: "false" });
+  const use = async (code, btn) => {
+    btn.disabled = true;
+    try { info = await api("api/invite", { invite: code }); } catch (e) { btn.disabled = false; return renderAskInvite(e.message); }
+    if (info.pack) extras = await api("api/extras").catch(() => extras);
+    render();
+  };
+  const go = h("button", { class: "btn primary", type: "submit" }, "Continue");
+  $("#join").replaceChildren(
+    h("div", { class: "card" }, h("h1", {}, "Join a friend's Minecraft server"),
+      h("p", { class: "muted" }, "Paste the invite the server's owner sent you (it starts with ", h("code", {}, "mcsm-"), "). " +
+        "mcsm checks it's really their server, then sets up your game."),
+      info.copied_invite ? h("div", { class: "notice mt-s" }, "Found the invite you copied.") : null,
+      h("form", { class: "row mt", onsubmit: (e) => { e.preventDefault(); if (input.value.trim()) use(input.value.trim(), go); } },
+        h("div", { class: "grow" }, input), go),
+      error ? h("div", { class: "notice bad mt-s" }, error) : null),
+    info.remembered.length ? h("div", { class: "card" }, h("h2", {}, "Servers you've joined"),
+      h("p", { class: "muted small" }, "Update your game for one of them (after the server updates, say):"),
+      h("ul", { class: "list" }, info.remembered.map((r) => {
+        const b = h("button", { class: "btn small" }, "Update");
+        b.addEventListener("click", () => use(r.code, b));
+        return h("li", {}, h("strong", { class: "grow" }, r.name), b);
+      }))) : null,
+    h("div", { class: "card" }, h("h2", {}, "Or run a Minecraft server of your own"),
+      h("p", { class: "muted small" }, "mcsm sets one up on this computer and keeps it and its mods up to date."),
+      h("button", { class: "btn", onclick: async () => {
+        await api("api/own-server", {}).catch(() => null);
+        $("#join").replaceChildren(h("div", { class: "card" }, h("h1", {}, "Opening mcsm's control panel…"),
+          h("p", { class: "muted" }, "It opens in a new tab in a moment. You can close this one.")));
+      } }, "Run my own server")));
+  input.focus();
+}
+
 function render() {
   const root = $("#join");
+  if (info.need_invite) return renderAskInvite();
   if (!info.pack) {
     root.replaceChildren(h("div", { class: "card" }, h("h1", {}, "Couldn't reach the server"),
       h("div", { class: "notice bad" }, info.error || "The server didn't answer."),
@@ -334,7 +372,7 @@ function showResults(results) {
     ok.length ? h("div", { class: "notice mt" }, h("strong", {}, "Next: "),
       `pick "${p.name}" in your launcher and press Play. ` +
       (p.quick_play ? "Minecraft joins the server by itself." : `Then choose Multiplayer: ${p.name} is in the list.`) +
-      " If the server updates later, run the download again to update your mods.") : null,
+      " If the server updates later, open mcsm again and pick it under “Servers you've joined” to update your mods.") : null,
     h("div", { class: "row mt" }, h("button", { class: "btn", onclick: async () => {
       await api("api/quit", {}).catch(() => null);
       document.body.replaceChildren(h("main", { class: "join" }, h("div", { class: "card" }, h("h1", {}, "All done"),
