@@ -618,3 +618,8 @@ body.picking main.join { opacity: .35; transform: translateX(-30px); transition:
 .tps-graph { width: 240px; height: 40px; flex: none; }
 .tps-line { stroke: var(--info); stroke-width: 2; }
 .tps-ref { stroke: var(--border); stroke-dasharray: 3 3; }
+
+/* World tools */
+.rules { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 6px 16px; }
+label.rule { display: flex; align-items: flex-start; gap: 8px; }
+input.narrow { width: 90px; }

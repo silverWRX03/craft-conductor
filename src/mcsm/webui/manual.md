@@ -142,7 +142,13 @@ The server's version and upgrade choices, memory (with Aikar's flags above 16 GB
 
 **Schedule:** restart the server and make backups at set times: **Every day at…**, **Every week on…**, **Every few hours** (backups), or **Custom (cron)** for anything else (five parts: minute, hour, day of the month, month, day of the week; for example `30 5 * * 1-5` is 5:30 on weekdays). Times are this computer's; the next run is shown. A scheduled restart gives players the in-game countdown first, and **Skip a scheduled restart while players are online** leaves them be. The same settings are `[schedule]` in `mcsm.toml`.
 
-**Backup copies:** see Backups. **Export server** saves everything (worlds, mods, configs, settings, player lists, and optionally backups) in one `.zip` to move to another computer: install mcsm there, then **Servers → Import a server...**.
+**Backup copies:** see Backups.
+
+**World tools** (while the server runs; they use its own commands):
+
+- **Game rules:** keep inventory, the day and weather cycle, mob griefing, fire spread, phantoms, how many players must sleep, and more, each with what it does. **Another game rule** sets any rule by name, for power users.
+- **World border:** keep the world to a size (blocks wide) around a centre, so it stays manageable and players can find each other.
+- **Pre-generate terrain:** making new terrain is the heaviest thing a server does; generating it ahead of time avoids lag spikes when people explore. It uses the free **Chunky** mod: **Add Chunky** installs it, then pick a radius and **Start** (with **Pause**, **Continue** and **Cancel**) and watch the progress. **Export server** saves everything (worlds, mods, configs, settings, player lists, and optionally backups) in one `.zip` to move to another computer: install mcsm there, then **Servers → Import a server...**.
 
 ## Friends: playing with friends
 

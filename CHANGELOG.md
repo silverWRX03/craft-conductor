@@ -9,6 +9,7 @@ its fix will say which version it's in.
 **Added**
 - **The friends' download** (`mcsm-join-...`): the same mcsm under its own name, opening straight into joining a server (even on a computer that runs servers). Invite links offer it.
 - Windows code signing through SignPath Foundation is ready in the release workflow; it switches on once the project is accepted ([code signing policy](docs/code-signing.md)).
+- **World tools** (Settings): game rules with what they do, a world border, and pre-generating terrain with Chunky (added in one click), with progress.
 - **Bedrock players** (phones, tablets, consoles, Windows): **Let Bedrock players join** on the Friends page adds Geyser and Floodgate and says which port to use and forward.
 - **Ask to be let in:** friends joining a server with a whitelist send their Minecraft name from their mcsm; it shows on the Players page with **Allow** / **Ignore** (and as a notification).
 - **Servers you've joined** (friends' mcsm) marks the servers that changed since you set up, so you know when to press **Update**.

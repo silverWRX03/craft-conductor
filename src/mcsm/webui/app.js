@@ -1372,6 +1372,62 @@ function schedulePicker(label, expr, kind, next) {
   return { el: h("label", {}, label, modeSel, extra, hint), value };
 }
 
+// World tools: game rules with what they do, the world border, and pre-generating terrain
+// with Chunky. They use the running server's own commands.
+function worldTools() {
+  const body = h("div", {}, h("p", { class: "muted small" }, "Loading…"));
+  const el = h("div", { class: "card mt" }, h("h3", {}, "World tools"), body);
+  let poll = null;
+  const addChunky = async () => {
+    const r = await act(() => api("/api/mods/add", { method: "POST", body: { source: "modrinth", id: "chunky", required: false } }));
+    if (!r) return;
+    const st = status || {};
+    if (st.minecraft && await ask(`Chunky is added. Install it now?\n\nThe server updates its mods for Minecraft ${st.minecraft} and restarts (players get the countdown first).`, { ok: "Install now" }))
+      await act(() => api("/api/updates/apply", { method: "POST", body: { target: st.minecraft } }), "Installing Chunky…");
+    else toast("Chunky is added: it's installed with the next update.");
+  };
+  const load = async () => {
+    const r = await api("/api/world/tools").catch(() => null);
+    if (!r) return;
+    clearTimeout(poll);
+    if (!r.running) { fill(body, h("p", { class: "muted small" }, "Start the server to change game rules, the world border or pre-generate terrain: they use the server's own commands.")); return; }
+    const rule = (x) => {
+      const input = x.kind === "bool" ? h("input", { type: "checkbox", checked: x.value === "true" }) : h("input", { type: "number", value: x.value, class: "narrow" });
+      input.addEventListener("change", () => act(() => api("/api/world/rule", { method: "POST", body: { rule: x.id, value: x.kind === "bool" ? String(input.checked) : input.value } }), `${x.id} changed`));
+      return h("label", { class: "row rule" }, input, h("span", { class: "grow" }, h("code", {}, x.id), " ", h("span", { class: "muted small" }, x.words)));
+    };
+    const otherName = h("input", { placeholder: "any game rule", class: "mono" }), otherValue = h("input", { placeholder: "true, false or a number", class: "mono" });
+    const size = h("input", { type: "number", min: 16, placeholder: "e.g. 10000", value: r.border && r.border < 59999968 ? Math.round(r.border) : "" });
+    const bx = h("input", { type: "number", value: 0, class: "narrow", "aria-label": "Centre X" }), bz = h("input", { type: "number", value: 0, class: "narrow", "aria-label": "Centre Z" });
+    const radius = h("select", {}, [["1000", "1,000 blocks (quick)"], ["2500", "2,500 blocks"], ["5000", "5,000 blocks (hours)"], ["10000", "10,000 blocks (a long while)"]].map(([v, t]) => h("option", { value: v }, t)));
+    const pg = r.progress;
+    const chunkyAct = (action, extra = {}) => act(() => api("/api/world/chunky", { method: "POST", body: { action, ...extra } }), null).then((x) => { if (x) toast(x.message); setTimeout(load, 1500); });
+    fill(body,
+      h("h4", {}, "Game rules"),
+      r.rules.length ? h("div", { class: "rules" }, r.rules.map(rule)) : h("p", { class: "muted small" }, "The server didn't say its game rules (it may still be starting)."),
+      h("details", { class: "small mt-s" }, h("summary", {}, "Another game rule (power users)"),
+        h("div", { class: "row mt-s" }, otherName, otherValue, h("button", { class: "btn small", onclick: () => otherName.value.trim() &&
+          act(() => api("/api/world/rule", { method: "POST", body: { rule: otherName.value.trim(), value: otherValue.value.trim().toLowerCase() } }), "Game rule changed") }, "Set"))),
+      h("h4", { class: "mt" }, "World border"),
+      h("p", { class: "muted small" }, r.border && r.border < 59999968 ? `The world is ${Math.round(r.border).toLocaleString()} blocks wide.` : "No border: the world goes on (almost) for ever.",
+        " A border keeps the world a size this computer can handle and players can find each other in."),
+      h("div", { class: "row" }, h("label", {}, "Width (blocks)", size), h("label", {}, "Centre X", bx), h("label", {}, "Centre Z", bz),
+        h("button", { class: "btn", onclick: () => size.value && act(() => api("/api/world/border", { method: "POST", body: { diameter: Number(size.value), x: Number(bx.value), z: Number(bz.value) } }), "World border set").then(load) }, "Set border")),
+      h("h4", { class: "mt" }, "Pre-generate terrain"),
+      h("p", { class: "muted small" }, "Making new terrain is the heaviest thing a server does. Generating it ahead of time, while nobody's playing, means no lag spikes when people explore."),
+      r.chunky ? [
+        pg ? h("div", { class: "mt-s" }, h("div", { class: "bar" }, h("span", { class: "bar-fill", "data-pct": String(pg.percent || 0) })),
+          h("div", { class: "muted small" }, pg.running ? `${(pg.percent || 0).toFixed(1)}% done` : "Finished (or stopped).")) : null,
+        h("div", { class: "row mt-s" }, radius, h("button", { class: "btn primary", onclick: () => chunkyAct("start", { radius: Number(radius.value), x: Number(bx.value), z: Number(bz.value) }) }, "Start"),
+          h("button", { class: "btn small", onclick: () => chunkyAct("pause") }, "Pause"), h("button", { class: "btn small", onclick: () => chunkyAct("continue") }, "Continue"),
+          h("button", { class: "btn small ghost", onclick: () => chunkyAct("cancel") }, "Cancel"))]
+        : h("div", { class: "row" }, h("button", { class: "btn", onclick: addChunky }, "Add Chunky"), h("span", { class: "muted small" }, "A free mod (from Modrinth) that pre-generates the world.")));
+    body.querySelectorAll(".bar-fill[data-pct]").forEach((b) => { b.style.width = `${b.dataset.pct}%`; });
+    if (pg && pg.running) poll = setTimeout(load, 10000);
+  };
+  return { el, load };
+}
+
 views.settings = () => {
   const form = h("form", { class: "card" });
   let edited = false;  // changes not saved yet
@@ -1493,7 +1549,9 @@ views.settings = () => {
       }) }, "Replace the world…"),
       folderBtn("world", "World folder")));
   worldCard.classList.add("mt");
-  fill($("#main"), h("h2", { class: "view-title" }, "Server settings"), form, worldCard, exportCard, danger);
+  const tools = worldTools();
+  fill($("#main"), h("h2", { class: "view-title" }, "Server settings"), form, worldCard, tools.el, exportCard, danger);
+  tools.load();
   load();
   loadExports();
   renderDanger();

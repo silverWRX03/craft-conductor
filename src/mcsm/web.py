@@ -1166,6 +1166,10 @@ class Api:
         get("/api/performance", self.performance)
         get("/api/join-requests", self.join_requests)
         get("/api/bedrock", self.bedrock)
+        get("/api/world/tools", self.world_tools)
+        post("/api/world/rule", self.world_rule)
+        post("/api/world/border", self.world_border)
+        post("/api/world/chunky", self.world_chunky)
         post("/api/join-requests/answer", self.answer_join_request)
         post("/api/performance/spark", self.spark_profile)
         post("/api/doctor/internet", self.doctor_internet)
@@ -1583,6 +1587,66 @@ class Api:
 
     def players(self, q, b) -> dict:
         return self._players().summary(self.d.players)
+
+    # ------------------------------------------------------ world tools
+    def _running_proc(self):
+        if not (self.d.proc and self.d.proc.running and self.d.state == "running"):
+            raise ApiError(409, "start the server first: these use the server's own commands")
+        return self.d.proc
+
+    def world_tools(self, q, b) -> dict:
+        from . import worldtools
+        chunky = any("chunky" in (x.name or "").lower() for x in self.m.lock.mods)
+        if self.d.state != "running" or not self.d.proc:
+            return {"running": False, "chunky": chunky}
+        proc = self.d.proc
+        return {"running": True, "rules": worldtools.read_rules(proc), "border": worldtools.border_size(proc),
+                "chunky": chunky, "progress": worldtools.chunky_progress(proc.tail(300)) if chunky else None}
+
+    def world_rule(self, q, b) -> dict:
+        from . import worldtools
+        try:
+            message = worldtools.set_rule(self._running_proc(), str(b.get("rule", "")), str(b.get("value", "")).lower())
+        except ValueError as e:
+            raise ApiError(400, str(e))
+        log.info("game rule: %s", message)
+        return {"ok": True, "message": message}
+
+    def world_border(self, q, b) -> dict:
+        from . import worldtools
+        try:
+            diameter, x, z = int(b.get("diameter", 0)), int(b.get("x", 0)), int(b.get("z", 0))
+        except (TypeError, ValueError):
+            raise ApiError(400, "use whole numbers") from None
+        try:
+            message = worldtools.set_border(self._running_proc(), diameter, x, z)
+        except ValueError as e:
+            raise ApiError(400, str(e)) from None
+        log.info("%s", message)
+        return {"ok": True, "message": message}
+
+    def world_chunky(self, q, b) -> dict:
+        from . import worldtools
+        if not any("chunky" in (x.name or "").lower() for x in self.m.lock.mods):
+            raise ApiError(400, "add the Chunky mod first")
+        proc = self._running_proc()
+        action = str(b.get("action", ""))
+        try:
+            if action == "start":
+                try:
+                    radius, x, z = int(b.get("radius", 0)), int(b.get("x", 0)), int(b.get("z", 0))
+                except (TypeError, ValueError):
+                    raise ValueError("use whole numbers") from None
+                message = worldtools.chunky_start(proc, radius, x, z)
+            elif action in worldtools.CHUNKY_ACTIONS:
+                proc.send(worldtools.CHUNKY_ACTIONS[action])
+                message = f"pre-generation: {action}"
+            else:
+                raise ApiError(400, "unknown action")
+        except ValueError as e:
+            raise ApiError(400, str(e)) from None
+        log.info("%s", message)
+        return {"ok": True, "message": message}
 
     # ------------------------------------------- Bedrock players (Geyser)
     BEDROCK_LOADERS = ("fabric", "quilt", "neoforge", "paper")
