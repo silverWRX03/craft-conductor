@@ -1165,6 +1165,7 @@ class Api:
         get("/api/doctor", self.doctor)
         get("/api/performance", self.performance)
         get("/api/join-requests", self.join_requests)
+        get("/api/bedrock", self.bedrock)
         post("/api/join-requests/answer", self.answer_join_request)
         post("/api/performance/spark", self.spark_profile)
         post("/api/doctor/internet", self.doctor_internet)
@@ -1582,6 +1583,27 @@ class Api:
 
     def players(self, q, b) -> dict:
         return self._players().summary(self.d.players)
+
+    # ------------------------------------------- Bedrock players (Geyser)
+    BEDROCK_LOADERS = ("fabric", "quilt", "neoforge", "paper")
+    GEYSER_CONFIGS = ("config/Geyser-Fabric/config.yml", "config/Geyser-NeoForge/config.yml", "plugins/Geyser-Spigot/config.yml")
+
+    def bedrock(self, q, b) -> dict:
+        """Whether Bedrock players (phones, tablets, consoles, Windows) can join through Geyser, and
+        the port they use (UDP; Geyser's config says, 19132 until it's written)."""
+        loader = self.m.lock.loader or self.m.config.server.loader
+        ids = {s.id.lower() for s in self.m.config.mods}
+        port = 19132
+        for rel in self.GEYSER_CONFIGS:
+            path = self.m.server_dir / rel
+            if path.exists():
+                m = re.search(r"^bedrock:\s*$.*?^\s+port:\s*(\d{2,5})", path.read_text(errors="replace"), re.M | re.S)
+                if m:
+                    port = int(m.group(1))
+                break
+        return {"supported": loader in self.BEDROCK_LOADERS, "geyser": "geyser" in ids, "floodgate": "floodgate" in ids,
+                "installed": any(x.name.lower().startswith("geyser") for x in self.m.lock.mods), "port": port,
+                "minecraft": self.m.lock.minecraft}
 
     # ------------------------------------------- friends asking to join
     def join_requests(self, q, b) -> dict:

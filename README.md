@@ -74,6 +74,8 @@ ready to update to Minecraft 1.21.4 with fabric 0.16.14:
 
 ## Features
 
+- **Bedrock players too.** One button adds Geyser and Floodgate, so friends on phones, tablets and
+  consoles can join a Java server.
 - **Friends ask to be let in.** With the whitelist on, a friend's mcsm sends their Minecraft name;
   you press Allow. Their mcsm also says when a server they joined changed, so they update in time.
 - **Performance and notifications.** See the server's ticks per second with a graph, profile it

@@ -1502,6 +1502,49 @@ views.settings = () => {
 
 // ------------------------------------------------------------------ friends
 // A download friends run to set up their Minecraft for this server (mods and all).
+// Bedrock players (phones, tablets, Windows, consoles) join a Java server through Geyser, with
+// Floodgate so they don't need a Java account. Both are mods (or plugins on Paper) from Modrinth.
+function bedrockCard() {
+  const box = h("div");
+  const load = async () => {
+    const r = await api("/api/bedrock").catch(() => null);
+    if (!r) return;
+    if (!r.supported) {
+      fill(box, card("Bedrock players (phones, tablets, consoles)",
+        h("p", { class: "muted small" }, "Players on Minecraft Bedrock can join through Geyser, which runs on Fabric, Quilt, NeoForge and Paper servers. This server's type doesn't support it.")));
+      return;
+    }
+    const turnOn = h("button", { class: "btn primary", onclick: async () => {
+      turnOn.disabled = true;
+      try {
+        for (const [id, have] of [["geyser", r.geyser], ["floodgate", r.floodgate]]) {
+          if (!have) await api("/api/mods/add", { method: "POST", body: { source: "modrinth", id, required: false } });
+        }
+        if (await ask(`Geyser and Floodgate are added. Install them now?\n\nThe server updates its mods for Minecraft ${r.minecraft} and restarts (players get the countdown first). Otherwise they're installed with the next update.`, { ok: "Install now" })) {
+          await act(() => api("/api/updates/apply", { method: "POST", body: { target: r.minecraft } }), "Installing Geyser and Floodgate…");
+        } else toast("Added: they're installed with the next update.");
+      } catch (e) { if (!(e instanceof Unauthorized)) toast(e.message, true); }
+      turnOn.disabled = false;
+      load();
+    } }, "Let Bedrock players join");
+    const on = r.geyser && r.floodgate;
+    fill(box, card("Bedrock players (phones, tablets, consoles)",
+      h("p", { class: "muted small" }, "Friends playing Minecraft on a phone, tablet, Windows (the Microsoft Store version) or a console can join too, through ",
+        h("a", { href: "https://geysermc.org", target: "_blank", rel: "noopener noreferrer" }, "Geyser ↗"),
+        ". They sign in with their own Microsoft account; they don't need Java Edition."),
+      on ? [
+        h("div", { class: `notice ${r.installed ? "ok" : "warn"} mt-s` }, r.installed ? "Bedrock players can join." : "Added: installed with the next update (Updates page)."),
+        h("ul", { class: "small mt-s" },
+          h("li", {}, "In Bedrock: Play → Servers → Add Server, with the same address as your Java friends use, and port ", h("strong", {}, String(r.port)), "."),
+          h("li", {}, "Friends outside your home: also forward ", h("strong", {}, `UDP port ${r.port}`), " on your router (Bedrock uses UDP, not TCP; see Help → Router setup)."),
+          h("li", {}, "Xbox, PlayStation and Switch can't add servers by themselves; GeyserMC's guide shows the workarounds."),
+          h("li", {}, "With the whitelist on, add Bedrock players with the console command ", h("code", {}, "fwhitelist add <name>"), "; their names start with a dot (.) in game."))]
+        : h("div", { class: "row mt-s" }, turnOn, h("span", { class: "muted small" }, "Adds the Geyser and Floodgate mods from Modrinth; remove them on the Mods page any time."))));
+  };
+  load();
+  return box;
+}
+
 views.friends = () => {
   const body = h("div");
   let data = null;
@@ -1634,7 +1677,7 @@ views.friends = () => {
     );
     announceCompanions(d);
   };
-  fill($("#main"), h("h2", { class: "view-title" }, "Friends"), body);
+  fill($("#main"), h("h2", { class: "view-title" }, "Friends"), body, h("div", { class: "mt" }, bedrockCard()));
   api("/api/client").then((r) => { data = r; render(); }).catch((e) => { if (!(e instanceof Unauthorized)) toast(e.message, true); });
   return { refresh: reload };
 };

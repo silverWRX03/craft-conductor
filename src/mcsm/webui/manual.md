@@ -161,6 +161,15 @@ For power users, **Advanced: invite codes and security** shows the raw invite co
 
 **Security:** the link opens mcsm's invite page on GitHub, and the invite itself is after the `#`, which browsers never send anywhere. Friends' mcsm connects to your computer only over HTTPS, and only to your computer: the invite carries the fingerprint of your mcsm's certificate, and anything else is refused. The mcsm program itself always comes from GitHub, never from your server. The friends' port never gives access to the control panel.
 
+### Bedrock players (phones, tablets, consoles)
+
+Friends playing Minecraft on a phone, a tablet, Windows (the Microsoft Store version) or a console can join a Fabric, Quilt, NeoForge or Paper server through [Geyser](https://geysermc.org). On the Friends page, press **Let Bedrock players join**: mcsm adds the Geyser and Floodgate mods from Modrinth and offers to install them now (the server restarts after the countdown). Bedrock players then use **Play → Servers → Add Server** with your address and the Bedrock port (19132 unless Geyser's config says otherwise), and sign in with their own Microsoft account; they don't need Java Edition.
+
+- For friends outside your home, also forward **UDP** port 19132 on your router (Bedrock uses UDP).
+- Xbox, PlayStation and Switch can't add servers by themselves; GeyserMC's guide shows the workarounds.
+- With the whitelist on, add a Bedrock player with the console command `fwhitelist add <name>`. Their names start with a dot (.) in game.
+- Remove Geyser and Floodgate on the Mods page to turn it off.
+
 ## For friends: joining a server
 
 1. Click the invite link you were sent. It opens a page that says you're invited: press the big **Download mcsm** button (it picks your computer's version). It downloads the friends' mcsm (`mcsm-join-...`): the same mcsm, which always opens into joining a server, even on a computer that runs servers too.
