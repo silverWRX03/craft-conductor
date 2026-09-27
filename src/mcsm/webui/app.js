@@ -59,10 +59,16 @@ const link = (view) => `#s/${server}/${view}`;
 async function api(path, { method = "GET", body, raw } = {}) {
   const headers = { "X-MCSM": "1" };
   if (body !== undefined) headers["Content-Type"] = "application/json";
-  const res = await fetch(scoped(path), {
-    method, headers, credentials: "same-origin",
-    body: raw !== undefined ? raw : body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  if (raw !== undefined) uploading++;  // (a file on its way: closing the tab would cut it off)
+  let res;
+  try {
+    res = await fetch(scoped(path), {
+      method, headers, credentials: "same-origin",
+      body: raw !== undefined ? raw : body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } finally {
+    if (raw !== undefined) uploading--;
+  }
   let data = {};
   try { data = await res.json(); } catch (_) { /* empty */ }
   if (res.status === 401 && path !== "/api/login") { showLogin(); throw new Unauthorized(); }
@@ -75,6 +81,8 @@ async function api(path, { method = "GET", body, raw } = {}) {
 function upload(path, file, onProgress) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
+    uploading++;
+    xhr.addEventListener("loadend", () => uploading--);
     xhr.open("POST", scoped(path));
     xhr.setRequestHeader("X-MCSM", "1");
     xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total); };
@@ -112,6 +120,38 @@ function stickyToast(id, children, { blocking = true } = {}) {
   if (first) first.focus();
 }
 function closeToast(id) { const el = document.getElementById(id); if (el) el.remove(); }
+
+// Questions ("Stop the server?"): in the middle of the screen like other messages that need an
+// answer, and a promise of the answer. The ones people meet again and again have an `id` and a
+// "Don't ask me again" box; mcsm settings → Warnings brings them all back.
+const SKIP_KEY = "mcsm-skip-warnings";
+function skippedWarnings() { try { return JSON.parse(localStorage.getItem(SKIP_KEY) || "[]"); } catch (_) { return []; } }
+function skipWarning(id) { try { localStorage.setItem(SKIP_KEY, JSON.stringify([...new Set([...skippedWarnings(), id])])); } catch (_) { /* private mode */ } }
+function showAllWarnings() { try { localStorage.removeItem(SKIP_KEY); } catch (_) { /* private mode */ } }
+let askCount = 0;
+function ask(message, { id = null, ok = "OK", danger = false } = {}) {
+  if (id && skippedWarnings().includes(id)) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const boxId = `ask-${++askCount}`;
+    const again = id ? h("input", { type: "checkbox" }) : null;
+    const onKey = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); done(false); } };
+    const done = (yes) => {
+      if (yes && again && again.checked) skipWarning(id);
+      document.removeEventListener("keydown", onKey, true);
+      closeToast(boxId);
+      resolve(yes);
+    };
+    document.addEventListener("keydown", onKey, true);
+    const [title, ...more] = String(message).split("\n\n");
+    stickyToast(boxId, [
+      h("strong", { class: "pre-line" }, title),
+      more.map((t) => h("p", { class: "small pre-line" }, t)),
+      again ? h("label", { class: "row small mt-s dont-ask" }, again, "Don't ask me again") : null,
+      h("div", { class: "row mt-s" },
+        h("button", { class: `btn small ${danger ? "danger" : "primary"}`, onclick: () => done(true) }, ok),
+        h("button", { class: "btn small ghost", onclick: () => done(false) }, "Cancel"))]);
+  });
+}
 
 // Everyday messages ("Saved", errors): at the top of the screen, where they're noticed, without
 // getting in the way. Click one to dismiss it; errors stay longer.
@@ -158,6 +198,21 @@ let lastJobSeen = null;
 let current = null;           // current view
 let timers = [];
 
+// Leaving the page (closing the tab, reloading): mcsm and its servers keep running, and jobs
+// like creating or updating a server carry on, so only what lives in this page can be lost: an
+// upload on its way, unsaved changes, a form being filled in, a mod test's report. Then the
+// browser asks first ("Leave site?"). Guards go with an element and end when it's gone.
+let uploading = 0;
+let leaveGuards = [];  // [element, () => true when leaving now would lose something]
+function guardLeave(el, check) {
+  leaveGuards = leaveGuards.filter(([e]) => e.isConnected);
+  leaveGuards.push([el, check]);
+}
+function wouldLoseWork() {
+  return uploading > 0 || leaveGuards.some(([el, check]) => el.isConnected && check());
+}
+window.addEventListener("beforeunload", (e) => { if (wouldLoseWork()) { e.preventDefault(); e.returnValue = ""; } });
+
 // Polling pauses while the page can't be seen (another tab, a phone's screen off) and
 // catches up at once when it's back: no work for the server, battery or data meanwhile.
 let polls = [];
@@ -179,7 +234,7 @@ async function showLogin() {
   input.setAttribute("inputmode", pin ? "numeric" : "text");
   input.setAttribute("autocomplete", pin ? "off" : "current-password");
   const reset = h("button", { type: "button", class: "link-btn", onclick: async () => {
-    if (!confirm("Go back to the default password, PASSWORD? Anyone signed in elsewhere is signed out, and you'll choose a new one after signing in.")) return;
+    if (!(await ask("Go back to the default password, PASSWORD? Anyone signed in elsewhere is signed out, and you'll choose a new one after signing in.", { ok: "Reset", danger: true }))) return;
     try {
       await api("/api/auth/reset-local", { method: "POST", body: {} });
       toast("The password is PASSWORD again");
@@ -243,8 +298,8 @@ $("#logout").addEventListener("click", async () => { await api("/api/logout", { 
 // There's no command window to close, so mcsm is quit from here.
 $("#quit").addEventListener("click", async () => {
   const running = ((hubInfo && hubInfo.servers) || []).filter((s) => s.state === "running" || s.state === "starting");
-  if (!confirm(running.length ? `Quit mcsm? ${running.map((s) => s.name).join(", ")} will be stopped (players get disconnected).`
-    : "Quit mcsm? Open it again from its icon when you want it back.")) return;
+  if (!(await ask(running.length ? `Quit mcsm? ${running.map((s) => s.name).join(", ")} will be stopped (players get disconnected).`
+    : "Quit mcsm? Open it again from its icon when you want it back.", { id: running.length ? "quit-running" : "quit", ok: "Quit" }))) return;
   try { await api("/api/hub/quit", { method: "POST", body: {} }); } catch (e) { if (!(e instanceof Unauthorized)) { toast(e.message, true); return; } }
   clearTimers();
   document.body.replaceChildren(h("div", { class: "login" }, h("div", { class: "login-card" },
@@ -347,8 +402,8 @@ function dismissed() { try { return localStorage.getItem(DISMISS_KEY); } catch (
 function offerSelfUpdate(u, force = false) {
   if (!u || (!force && dismissed() === u.version)) return;
   const later = () => { try { localStorage.setItem(DISMISS_KEY, u.version); } catch (_) {} closeToast("self-update"); };
-  const install = () => {
-    if (!confirm(`Update mcsm ${u.current} → ${u.version}?\n\nmcsm installs the update, stops the Minecraft server cleanly (with a 1-minute warning if players are online), and restarts on the new version. You'll need to sign in again afterwards.`)) return;
+  const install = async () => {
+    if (!(await ask(`Update mcsm ${u.current} → ${u.version}?\n\nmcsm installs the update, stops the Minecraft server cleanly (with a 1-minute warning if players are online), and restarts on the new version. You'll need to sign in again afterwards.`, { ok: "Update" }))) return;
     closeToast("self-update");
     act(() => api("/api/self-update/apply", { method: "POST", body: { version: u.version } }), "Updating mcsm… this page reconnects when it's back.");
   };
@@ -418,8 +473,8 @@ async function refreshStatus() {
 }
 
 $("#btn-start").addEventListener("click", () => act(() => api("/api/server/start", { method: "POST" })));
-$("#btn-stop").addEventListener("click", () => {
-  if (confirm("Stop the server? Players will be disconnected.")) act(() => api("/api/server/stop", { method: "POST" }));
+$("#btn-stop").addEventListener("click", async () => {
+  if (await ask("Stop the server? Players will be disconnected.", { id: "stop-server", ok: "Stop" })) act(() => api("/api/server/stop", { method: "POST" }));
 });
 $("#btn-restart").addEventListener("click", () => act(() => api("/api/server/restart", { method: "POST" })));
 
@@ -540,7 +595,7 @@ views.dashboard = () => {
   const run = async (action, name) => {
     const CONFIRM = { kick: `Kick ${name}?`, ban: `Ban ${name}? They won't be able to join until pardoned.`,
       op: `Make ${name} an operator? Operators can run any command, including /stop and /op.` };
-    if (CONFIRM[action] && !confirm(CONFIRM[action])) return;
+    if (CONFIRM[action] && !(await ask(CONFIRM[action], { id: action === "kick" ? "kick" : null, ok: action === "op" ? "Make operator" : action === "kick" ? "Kick" : "Ban", danger: action !== "op" }))) return;
     const r = await act(() => api("/api/players/action", { method: "POST", body: { action, name } }));
     if (r) { toast(r.message); setTimeout(loadPlayers, 800); }
   };
@@ -663,11 +718,11 @@ function laggingNotice(lag, installed, always = false) {
     h("ul", { class: "small" }, lag.mods.map((m) => h("li", {}, h("strong", {}, m.name), m.required ? h("span", { class: "tag" }, "required") : null,
       h("span", { class: "muted" }, ` — ${m.reason}`)))),
     h("div", { class: "row" },
-      removable.length ? h("button", { class: "btn " + (lag.due ? "danger" : "small"), onclick: () => {
+      removable.length ? h("button", { class: "btn " + (lag.due ? "danger" : "small"), onclick: async () => {
         const names = removable.map((m) => m.name).join(", ");
-        if (!confirm(`Remove ${names} from this server and update to Minecraft ${lag.version}?\n\n` +
+        if (!(await ask(`Remove ${names} from this server and update to Minecraft ${lag.version}?\n\n` +
           "Their blocks and items disappear from the world. A backup is made first, and the update rolls back if the new version fails to start. " +
-          "You can add the mods back later, once they support the new version.")) return;
+          "You can add the mods back later, once they support the new version.", { ok: "Remove and update", danger: true }))) return;
         act(() => api("/api/updates/remove-and-upgrade", { method: "POST", body: { version: lag.version, mods: removable.map((m) => m.config) } }),
           `Removing ${removable.length} mod(s) and updating…`);
       } }, `Remove ${removable.length === 1 ? "it" : "them"} and update to ${lag.version}`) : null,
@@ -732,8 +787,8 @@ views.updates = () => {
         h("p", { class: "muted small" }, "Try the next Minecraft before it's released. mcsm makes a separate copy of this server " +
           "(world, mods and settings) on the beta, so this server and its world aren't touched. In the copy, mods that don't support " +
           "the beta yet are left out. Delete the copy when you're done."),
-        h("div", { class: "row" }, pick, h("button", { class: "btn", onclick: () => {
-          if (!confirm(`Make a copy of this server on Minecraft ${pick.value}? It appears in your server list as a separate server.`)) return;
+        h("div", { class: "row" }, pick, h("button", { class: "btn", onclick: async () => {
+          if (!(await ask(`Make a copy of this server on Minecraft ${pick.value}? It appears in your server list as a separate server.`, { ok: "Make a copy" }))) return;
           act(() => api("/api/beta/test", { method: "POST", body: { version: pick.value } }), "Copying the server…");
         } }, "Make a test copy"))));
     }).catch(() => {});
@@ -743,9 +798,9 @@ views.updates = () => {
     }
     const applyBtn = h("button", {
       class: "btn primary", disabled: c.up_to_date || !c.target || c.manual.length > 0,
-      onclick: () => {
+      onclick: async () => {
         const running = s.state === "running";
-        if (confirm(`Update to Minecraft ${c.target}?` + (running ? "\n\nPlayers get an in-game countdown, then the server restarts. A backup is made first and it rolls back automatically if the new version fails to start." : "")))
+        if (await ask(`Update to Minecraft ${c.target}?` + (running ? "\n\nPlayers get an in-game countdown, then the server restarts. A backup is made first and it rolls back automatically if the new version fails to start." : ""), { id: "update-minecraft", ok: "Update" }))
           act(() => api("/api/updates/apply", { method: "POST", body: { target: c.target } }), "Update started");
       },
     }, c.installed ? "Apply update" : "Install server");
@@ -771,7 +826,7 @@ views.updates = () => {
         file.addEventListener("change", async () => {
           const f = file.files[0];
           if (!f) return;
-          if (f.name !== m.filename && !confirm(`The selected file is "${f.name}", expected "${m.filename}". Upload anyway?`)) return;
+          if (f.name !== m.filename && !(await ask(`The selected file is "${f.name}", expected "${m.filename}". Upload anyway?`, { ok: "Upload" }))) return;
           await act(() => api(`/api/manual/upload?filename=${encodeURIComponent(m.filename)}`, { method: "POST", raw: f }), `Uploaded ${m.filename}`);
           load();
         });
@@ -822,7 +877,7 @@ views.players = () => {
     op: (n) => `Make ${n} an operator? Operators can run any command, including /stop and /op.`,
   };
   const run = async (action, target, why) => {
-    if (CONFIRM[action] && !confirm(CONFIRM[action](target))) return;
+    if (CONFIRM[action] && !(await ask(CONFIRM[action](target), { id: action === "kick" ? "kick" : null, ok: action === "op" ? "Make operator" : action === "kick" ? "Kick" : "Ban", danger: action !== "op" }))) return;
     const r = await act(() => api("/api/players/action", { method: "POST", body: { action, name: target, reason: why || reason.value } }));
     if (r) { toast(r.message); setTimeout(load, 800); }
   };
@@ -857,7 +912,7 @@ views.players = () => {
 
     fill(body,
       r.running ? null : h("div", { class: "notice" }, "The server is stopped. Changes are written to its player files and apply when it starts. Kicking needs the server running."),
-      !r.online_mode ? h("div", { class: "notice warn" }, "online-mode is off: anyone can join with any name, so bans and the whitelist only match names, not accounts.") : null,
+      !r.online_mode ? dismissible("offline-mode", h("div", { class: "notice warn" }, "online-mode is off: anyone can join with any name, so bans and the whitelist only match names, not accounts.")) : null,
       h("div", { class: "grid mt" },
         card(`Online now (${r.online.length})`, playerList(r.online, r.running ? "Nobody online" : "Server is stopped")),
         card(`Operators (${r.ops.length})`, r.ops.length ? h("ul", { class: "list" }, r.ops.map((o) => h("li", {},
@@ -926,8 +981,8 @@ views.mods = () => {
           m.server_side === "optional" ? h("span", { class: "tag" }, "server optional") : null, channelTag(m.channel)),
         h("div", { class: "desc" }, m.description)),
       m.listed ? h("span", { class: "tag ok" }, "added") : h("div", { class: "row" },
-        h("button", { class: "btn primary small", onclick: () => confirmEarly([m]) && add(m.slug, true, "modrinth", m.channel) }, "Add"),
-        h("button", { class: "btn small", title: "Won't hold back Minecraft upgrades", onclick: () => confirmEarly([m]) && add(m.slug, false, "modrinth", m.channel) }, "Add optional")),
+        h("button", { class: "btn primary small", onclick: async () => (await confirmEarly([m])) && add(m.slug, true, "modrinth", m.channel) }, "Add"),
+        h("button", { class: "btn small", title: "Won't hold back Minecraft upgrades", onclick: async () => (await confirmEarly([m])) && add(m.slug, false, "modrinth", m.channel) }, "Add optional")),
     )) : [h("p", { class: "empty" }, "No server mods found" + (info.minecraft ? ` that work on Minecraft ${info.minecraft}.` : "."))]));
   };
   const add = async (id, required, source = "modrinth", channel = null) => {
@@ -972,22 +1027,22 @@ views.mods = () => {
         h("input", { type: "checkbox", checked: s.required, onchange: (e) => act(() => api("/api/mods/required", { method: "POST", body: { source: s.source, id: s.id, required: e.target.checked } })) }),
         "required"),
       cfgBtn(groupFor(s.key)),
-      h("button", { class: "btn danger small", onclick: () => {
+      h("button", { class: "btn danger small", onclick: async () => {
         // Dependencies another mod also needs stay; say so before and after.
         const shared = s.deps.map((d) => [d, needersOf(d.key).filter((c) => c.key !== s.key)]).filter(([, others]) => others.length);
         const going = s.deps.filter((d) => !shared.some(([x]) => x.key === d.key));
-        if (!confirm(`Remove ${s.name}?` +
+        if (!(await ask(`Remove ${s.name}?` +
           (going.length ? ` The mods it needs (${going.map((d) => d.name).join(", ")}) go too.` : "") +
           (shared.length ? ` ${shared.map(([d]) => d.name).join(", ")} ${shared.length === 1 ? "stays" : "stay"}, because other mods need ${shared.length === 1 ? "it" : "them"}.` : "") +
-          " It's uninstalled at the next update.")) return;
+          " It's uninstalled at the next update.", { ok: "Remove", danger: true }))) return;
         removeMods([s], s.name);
         for (const [d, others] of shared) toast(`${d.name} wasn't removed: ${others.map((c) => c.name).join(" and ")} ${others.length === 1 ? "needs" : "need"} it too.`);
       } }, "Remove")),
       ...s.deps.map((d) => h("li", { class: "dep" },
         h("div", { class: "grow" }, "↳ ", h("strong", {}, d.name), h("span", { class: "tag" }, `needed by ${needersOf(d.key).map((c) => c.name).join(", ")}`)),
-        h("button", { class: "btn ghost small", onclick: () => {
+        h("button", { class: "btn ghost small", onclick: async () => {
           const needers = needersOf(d.key);
-          if (confirm(`${d.name} is needed by ${needers.map((c) => c.name).join(", ")}, so removing it removes ${needers.length === 1 ? "that mod" : "those mods"} too. Continue?`))
+          if (await ask(`${d.name} is needed by ${needers.map((c) => c.name).join(", ")}, so removing it removes ${needers.length === 1 ? "that mod" : "those mods"} too. Continue?`, { ok: "Remove", danger: true }))
             removeMods(needers, needers.map((c) => c.name).join(", "));
         } }, "Remove")))])) : h("p", { class: "empty" }, "No mods configured."));
 
@@ -1058,7 +1113,7 @@ views.backups = () => {
         h("td", {}, h("code", {}, b.name)), h("td", {}, fmtTime(b.time)), h("td", {}, fmtBytes(b.size)),
         h("td", {}, h("button", {
           class: "btn small", disabled: !stopped, title: stopped ? "" : "Stop the server first",
-          onclick: () => confirm(`Replace the server directory with ${b.name}? Anything since then is lost.`) &&
+          onclick: async () => (await ask(`Replace the server directory with ${b.name}? Anything since then is lost.`, { ok: "Restore", danger: true })) &&
             act(() => api("/api/backups/restore", { method: "POST", body: { name: b.name } }), "Restoring…"),
         }, "Restore")))))) : h("p", { class: "empty" }, "No backups yet."));
   };
@@ -1107,6 +1162,10 @@ views.java = () => {
 
 views.settings = () => {
   const form = h("form", { class: "card" });
+  let edited = false;  // changes not saved yet
+  form.addEventListener("input", () => { edited = true; });
+  form.addEventListener("change", () => { edited = true; });
+  guardLeave(form, () => edited);
   const load = async () => {
     const s = await api("/api/settings").catch(() => null);
     if (!s) return;
@@ -1158,7 +1217,7 @@ views.settings = () => {
       if (gb > AIKAR_ABOVE_GB && !body.aikar_flags) {
         offerAikar(gb, () => { f.aikar_flags.checked = true; act(() => api("/api/settings", { method: "POST", body: { aikar_flags: true } }), "Aikar's flags on").then(load); });
       }
-      act(() => api("/api/settings", { method: "POST", body }), "Settings saved").then(load);
+      act(() => api("/api/settings", { method: "POST", body }), "Settings saved").then((r) => { if (r) edited = false; load(); });
     };
   };
   const danger = h("div", { class: "card danger-zone mt" });
@@ -1190,7 +1249,7 @@ views.settings = () => {
           h("td", {}, h("code", {}, x.name)), h("td", {}, fmtTime(x.created)), h("td", {}, fmtBytes(x.size)),
           h("td", { class: "row" },
             h("a", { class: "btn small", href: scoped(`/api/export/download?name=${encodeURIComponent(x.name)}`), download: x.name }, "Download"),
-            h("button", { class: "btn small danger", onclick: () => confirm(`Delete ${x.name}?`) && act(() => api("/api/export/delete", { method: "POST", body: { name: x.name } }), "Deleted").then(loadExports) }, "Delete"))))))
+            h("button", { class: "btn small danger", onclick: async () => (await ask(`Delete ${x.name}?`, { ok: "Delete", danger: true })) && act(() => api("/api/export/delete", { method: "POST", body: { name: x.name } }), "Deleted").then(loadExports) }, "Delete"))))))
         : null,
       h("div", { class: "row mt-s" }, h("p", { class: "muted small grow" }, "Exports are kept in ", h("code", {}, r.folder)),
         folderBtn("exports", "Exports folder"), folderBtn("server", "Server folder")));
@@ -1200,7 +1259,7 @@ views.settings = () => {
       "The current world is backed up first (see Backups), so you can go back."),
     h("div", { class: "row" },
       h("button", { class: "btn", onclick: () => pickWorld(async (w) => {
-        if (!confirm(`Replace this server's world with ${w.name}? The current world is backed up first.`)) return;
+        if (!(await ask(`Replace this server's world with ${w.name}? The current world is backed up first.`, { ok: "Replace", danger: true }))) return;
         await act(() => api("/api/world/replace", { method: "POST", body: { world: w.world } }), "Replacing the world…");
       }) }, "Replace the world…"),
       folderBtn("world", "World folder")));
@@ -1290,8 +1349,8 @@ views.friends = () => {
             h("div", { class: "muted small" }, "For friends elsewhere, mcsm needs your public address. It can find it for you.")),
         h("div", { class: "row mt-s" }, findIp,
           links.internet || links.local ? h("button", { class: "btn", onclick: () => openDiscord(links) }, "💬 Post to Discord") : null,
-          h("button", { class: "btn ghost", onclick: () => {
-            if (confirm("Make new links? The old ones stop working (friends who already set up keep playing, but can't update until they get a new link).")) {
+          h("button", { class: "btn ghost", onclick: async () => {
+            if (await ask("Make new links? The old ones stop working (friends who already set up keep playing, but can't update until they get a new link).", { ok: "Make new links", danger: true })) {
               act(() => api("/api/client/new-link", { method: "POST", body: {} }), "New links made").then((r) => { if (r) { data = r; render(); } });
             }
           } }, "New links")),
@@ -1336,7 +1395,7 @@ views.friends = () => {
           d.mods.map((x) => h("li", {}, h("strong", { class: "grow" }, x),
             h("button", { class: "btn small danger", onclick: () => save({ mods: d.mods.filter((y) => y !== x) }, `${x} removed`) }, "Remove"))),
           d.local_mods.map((x) => h("li", {}, h("div", { class: "grow" }, h("strong", {}, x), h("span", { class: "tag" }, "local file")),
-            h("button", { class: "btn small danger", onclick: () => confirm(`Remove ${x} from the players' download?`) &&
+            h("button", { class: "btn small danger", onclick: async () => (await ask(`Remove ${x} from the players' download?`, { ok: "Remove", danger: true })) &&
               act(() => api("/api/client/local/remove", { method: "POST", body: { name: x } }), `${x} removed`).then(reload) }, "Remove"))),
           companions.map((m) => h("li", { class: "dep" }, h("div", { class: "grow" }, "↳ ", h("strong", {}, m.name),
             h("span", { class: "tag" }, `added automatically: ${m.needed_by} needs it`)))))
@@ -1430,6 +1489,7 @@ function browserPanel(params, host) {
   const details = h("div", { class: "browse-right" }, h("p", { class: "empty" }, `Pick a ${noun} on the left to read about it here.`));
   const count = h("span", { class: "grow muted small" });
   const addBtn = h("button", { class: "btn primary" + (kind === "modpack" ? " hidden" : ""), disabled: true }, `Add selected ${noun}s`);
+  guardLeave(addBtn, () => st.selected.size > 0);  // picked, not added yet
   const q = h("input", { type: "search", placeholder: `Search ${noun}s…`, "aria-label": "Search" });
   const sort = h("select", { "aria-label": "Sort by" }, [["relevance", "Best match"], ["downloads", "Most downloaded"],
     ["follows", "Most followed"], ["newest", "Newest"], ["updated", "Recently updated"]].map(([v, l]) => h("option", { value: v }, l)));
@@ -1585,7 +1645,7 @@ function browserPanel(params, host) {
   addBtn.addEventListener("click", async () => {
     const mods = [...st.selected.values()].map((m) => ({ source: m.source, id: m.id, slug: m.slug, name: m.name,
       channel: m.channel && m.channel !== "release" ? m.channel : null }));
-    if (!confirmEarly(mods)) return;
+    if (!(await confirmEarly(mods))) return;
     if (forPlayers && target === "setup") {  // a new server: kept with the setup form until it's created
       for (const m of mods) setupState.clientMods.set(m.slug || m.id, m.name);
       setupState.friends = true;
@@ -1711,7 +1771,9 @@ const HELP = [
     h("p", {}, "mcsm keeps your Minecraft servers running and up to date by themselves. Make a server under ", h("strong", {}, "New server"),
       ": pick the server type (Fabric, NeoForge, Forge, Quilt, Paper or plain Minecraft), the Minecraft version and your mods, then press ",
       h("strong", {}, "Create my server"), ". mcsm downloads Java, Minecraft, the mod loader and the mods, and checks that the server starts."),
-    h("p", {}, "Press ", h("strong", {}, "Start"), " when you want to play. In Minecraft, choose Multiplayer → Add Server and use this computer's address.")]],
+    h("p", {}, "Press ", h("strong", {}, "Start"), " when you want to play. In Minecraft, choose Multiplayer → Add Server and use this computer's address."),
+    h("p", {}, "Closing this browser tab doesn't stop mcsm: servers keep running and jobs carry on. Open mcsm again from its icon to come back; ",
+      h("strong", {}, "Quit"), " (bottom left) stops everything.")]],
   ["friends", "Letting friends join", () => [
     h("p", {}, "On a server's ", h("strong", {}, "Friends"), " page, turn on the friends' download and send the link. Their copy of mcsm sets up ",
       "the right Minecraft version, mod loader and mods in their launcher, and adds your server to their list."),
@@ -1919,7 +1981,7 @@ function openRemoteAccess() {
     } }, "Show a pairing QR code");
     const devices = r.devices.length ? h("ul", { class: "list" }, r.devices.map((d) => h("li", {},
       h("div", { class: "grow" }, h("strong", {}, d.name), h("div", { class: "muted small" }, `paired ${new Date(d.created * 1000).toLocaleDateString()} · last used ${ago(d.last_seen)}${d.last_ip ? " from " + d.last_ip : ""}`)),
-      h("button", { class: "btn small danger", onclick: () => confirm(`Sign out ${d.name}? It will need to be paired again.`) &&
+      h("button", { class: "btn small danger", onclick: async () => (await ask(`Sign out ${d.name}? It will need to be paired again.`, { ok: "Sign out", danger: true })) &&
         act(() => api("/api/hub/devices/remove", { method: "POST", body: { id: d.id } }), `${d.name} signed out`).then(load) }, "Sign out"))))
       : h("p", { class: "empty" }, "No phones paired yet.");
     fill(body,
@@ -1934,7 +1996,7 @@ function openRemoteAccess() {
         !r.running_on_network ? h("p", { class: "small muted" }, "Pairing works once access from other devices is on and mcsm has been reopened.") : null,
         pairBox),
       step(5, "Paired phones", devices,
-        r.devices.length > 1 ? h("button", { class: "btn ghost small", onclick: () => confirm("Sign out every paired phone?") &&
+        r.devices.length > 1 ? h("button", { class: "btn ghost small", onclick: async () => (await ask("Sign out every paired phone?", { ok: "Sign out all", danger: true })) &&
           act(() => api("/api/hub/devices/remove", { method: "POST", body: { id: "all" } }), "All phones signed out").then(load) }, "Sign out all") : null));
   };
   load();
@@ -2082,8 +2144,8 @@ function openTester(opts) {
   };
   const hide = () => $("#tester").classList.add("hidden");
   const show = () => $("#tester").classList.remove("hidden");
-  const close = () => {
-    if (running && !confirm("Stop the test?")) return;
+  const close = async () => {
+    if (running && !(await ask("Stop the test?", { ok: "Stop", danger: true }))) return;
     if (running) api("/api/hub/trial/cancel", { method: "POST", body: { id: running } }).catch(() => {});
     clearInterval(poll);
     $("#tester").remove();
@@ -2104,6 +2166,7 @@ function openTester(opts) {
       h("span", { class: "muted small tester-time" })), bar),
     body);
   document.body.append(h("div", { class: "modal-backdrop", id: "tester", role: "dialog", "aria-modal": "true", "aria-labelledby": "tester-title" }, box));
+  guardLeave(box, () => !!running);  // the report is shown only here
   const stepBox = box.querySelector(".tester-step");
   const idle = () => stepBox.classList.add("hidden");
   const busy = () => stepBox.classList.remove("hidden");
@@ -2163,7 +2226,7 @@ function openTester(opts) {
       fill(body,
         h("div", { class: "notice bad" }, h("strong", {}, "✗ The server didn't start. "), diag || res.reason),
         h("p", {}, "mcsm can find which mods are the problem: it starts test servers with the mods added back a group at a time, splitting any group that fails, until it knows which mods work together."),
-        h("div", { class: "notice warn" }, "This can take a while: each test starts a server (usually 1 to 3 minutes each), and a long mod list can need a dozen tests or more."),
+        dismissible("test-takes-a-while", h("div", { class: "notice warn" }, "This can take a while: each test starts a server (usually 1 to 3 minutes each), and a long mod list can need a dozen tests or more.")),
         h("div", { class: "row mt-s" },
           h("button", { class: "btn primary", onclick: () => runTrial(true) }, "Find the culprits"),
           h("button", { class: "btn ghost", onclick: close }, "Not now")),
@@ -2313,8 +2376,8 @@ function openConfigEditor(title, files, first) {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); save(); }
     if (e.key === "Escape") close();
   };
-  const close = () => {
-    if (dirty && !confirm("Close without saving your changes?")) return;
+  const close = async () => {
+    if (dirty && !(await ask("Close without saving your changes?", { ok: "Close without saving", danger: true }))) return;
     $("#config-editor").remove();
     document.removeEventListener("keydown", keys);
   };
@@ -2335,7 +2398,7 @@ function openConfigEditor(title, files, first) {
       path, current && current.path === path && dirty ? " •" : ""))));
   const setDirty = (v) => { dirty = v; saveBtn.disabled = !v; revertBtn.disabled = !v; renderList(); };
   const load = async (path) => {
-    if (dirty && !confirm("Switch files without saving your changes?")) return;
+    if (dirty && !(await ask("Switch files without saving your changes?", { ok: "Switch", danger: true }))) return;
     const f = await api(`/api/configs/file?path=${encodeURIComponent(path)}`).catch((e) => { toast(e.message, true); return null; });
     if (!f) return;
     current = f;
@@ -2350,7 +2413,7 @@ function openConfigEditor(title, files, first) {
   const save = async () => {
     if (!current || !dirty) return;
     const problem = checkJson();
-    if (problem && !confirm(`${problem}\n\nSave anyway?`)) return;
+    if (problem && !(await ask(`${problem}\n\nSave anyway?`, { ok: "Save anyway", danger: true }))) return;
     try {
       const r = await api("/api/configs/file", { method: "POST", body: { path: current.path, text: editor.value, modified: current.modified } });
       current = { ...current, text: editor.value, modified: r.modified };
@@ -2360,7 +2423,7 @@ function openConfigEditor(title, files, first) {
     } catch (e) { if (!(e instanceof Unauthorized)) toast(e.message, true); }
   };
   saveBtn.addEventListener("click", save);
-  revertBtn.addEventListener("click", () => { if (current && confirm("Undo your unsaved changes?")) { editor.value = current.text; setDirty(false); showPos(); } });
+  revertBtn.addEventListener("click", async () => { if (current && await ask("Undo your unsaved changes?", { ok: "Undo", danger: true })) { editor.value = current.text; setDirty(false); showPos(); } });
   renderList();
   const box = h("div", { class: "modal editor-modal" },
     h("div", { class: "row" }, h("h2", { id: "config-editor-title", class: "grow" }, title), folderBtn("config", "Config folder"),
@@ -2368,6 +2431,7 @@ function openConfigEditor(title, files, first) {
     h("div", { class: "cfg-body" + (files.length > 1 ? "" : " single") }, files.length > 1 ? list : null, pane),
     h("div", { class: "row mt-s" }, status, revertBtn, saveBtn));
   document.body.append(h("div", { class: "modal-backdrop", id: "config-editor", role: "dialog", "aria-modal": "true", "aria-labelledby": "config-editor-title" }, box));
+  guardLeave(box, () => dirty);
   document.addEventListener("keydown", keys);
   if (first || files.length) load(first || files[0]);
 }
@@ -2456,7 +2520,7 @@ views.servers = () => {
   const list = h("div", { class: "server-list" });
   const busy = new Set();
   const control = async (s, action) => {
-    if (action === "stop" && s.players && !confirm(`Stop ${s.name}? ${s.players} player(s) will be disconnected.`)) return;
+    if (action === "stop" && s.players && !(await ask(`Stop ${s.name}? ${s.players} player(s) will be disconnected.`, { id: "stop-server", ok: "Stop" }))) return;
     busy.add(s.id);
     await act(() => api(`/api/servers/${s.id}/server/${action}`, { method: "POST" }),
       action === "start" ? `Starting ${s.name}…` : `Stopping ${s.name}…`);
@@ -2510,13 +2574,48 @@ views.servers = () => {
     }
   });
   fill($("#main"),
+    closingTip(),
     h("div", { class: "row mb" },
-      h("p", { class: "muted grow" }, "Servers only run when you start them here, and stop when you press Stop or close mcsm."),
+      h("p", { class: "muted grow" }, "Servers only run when you start them here, and stop when you press Stop or Quit mcsm."),
       hubInfo && hubInfo.single ? null : h("div", { class: "row" }, importNote, importBtn, picker)),
     list);
   render(hubInfo);
   return { onHub: render };
 };
+
+// A notice people see every time, once they know it: "Don't show again" (see mcsm settings → Warnings).
+function dismissible(id, notice) {
+  if (skippedWarnings().includes(id)) return null;
+  notice.append(" ", h("button", { class: "link-btn small", onclick: () => { skipWarning(id); notice.remove(); } }, "Don't show again"));
+  return notice;
+}
+
+// Closing the browser tab doesn't stop mcsm (there's no window of its own to close): say so
+// until the person says they've got it.
+function closingTip() {
+  if (skippedWarnings().includes("closing-tip")) return null;
+  const tip = h("div", { class: "notice mb row" },
+    h("span", { class: "grow" }, h("strong", {}, "Closing this tab doesn't stop mcsm. "),
+      "Your servers keep running and anything mcsm is doing carries on. ",
+      hubInfo && hubInfo.local ? "Open mcsm again from its icon to come back here; " : "Open this page again to come back; ",
+      "Quit (bottom left) stops everything."),
+    h("button", { class: "btn small", onclick: () => { skipWarning("closing-tip"); tip.remove(); } }, "Got it"));
+  return tip;
+}
+
+// Questions answered with "Don't ask me again" (kept in this browser): bring them back here.
+function warningsCard() {
+  const box = h("div");
+  const render = () => {
+    const n = skippedWarnings().length;
+    fill(box, card("Warnings",
+      h("p", { class: "muted small" }, n ? `You've hidden ${n} warning${n === 1 ? "" : "s"} (“Don't ask me again”, “Don't show again”, “Got it”) in this browser.`
+        : "Warnings you see often (like “Stop the server?”) have a “Don't ask me again” box. None are hidden in this browser."),
+      h("button", { class: "btn", disabled: !n, onclick: () => { showAllWarnings(); toast("You'll see every warning again"); render(); } }, "Show all warnings again")));
+  };
+  render();
+  return box;
+}
 
 // mcsm itself: sign-in, network access, and what mcsm is.
 views.mcsm = () => {
@@ -2579,6 +2678,7 @@ views.mcsm = () => {
             closeToast("self-update");
             await act(() => api("/api/self-update/check", { method: "POST", body: {} }), "Checking for a new mcsm version…");
           } }, "Check for mcsm updates"), s.single ? null : folderBtn("home", "mcsm folder", null, "btn"))),
+      h("div", { class: "mt" }, warningsCard()),
       h("div", { class: "mt" }, card("What mcsm does and doesn't do",
         h("ul", { class: "notice-points" }, n.points.map((p) => h("li", {}, p))))),
       h("div", { class: "mt" }, card("Open-source licenses",
@@ -2605,7 +2705,7 @@ views.mcsm = () => {
         h("a", { href: "https://console.curseforge.com/", target: "_blank", rel: "noopener noreferrer" }, "console.curseforge.com ↗"), " → API keys."),
       h("div", { class: "row" }, input,
         h("button", { class: "btn primary", onclick: () => input.value.trim() && saveKey(input.value, "CurseForge key saved") }, r.own ? "Replace key" : "Save key"),
-        r.own ? h("button", { class: "btn ghost", onclick: () => confirm("Remove the CurseForge key?") && saveKey("", "CurseForge key removed") }, "Remove") : null),
+        r.own ? h("button", { class: "btn ghost", onclick: async () => (await ask("Remove the CurseForge key?", { ok: "Remove", danger: true })) && saveKey("", "CurseForge key removed") }, "Remove") : null),
       r.own ? h("p", { class: "small ok-text" }, "✓ Your own key is saved.")
         : r.builtin ? h("p", { class: "small ok-text" }, "✓ This version of mcsm has CurseForge built in. You only need your own key if CurseForge starts refusing requests.")
         : null));
@@ -2621,7 +2721,7 @@ views.mcsm = () => {
       h("p", { class: "muted small" }, "Post your friends' invite to a Discord channel from a server's Friends page (“Post to Discord”)."),
       r.set ? h("div", { class: "row" }, h("span", { class: "grow small ok-text" }, `✓ Connected as ${r.bot ? r.bot.name : "your bot"}.`),
         r.invite_url ? h("a", { class: "btn small", href: r.invite_url, target: "_blank", rel: "noopener noreferrer" }, "Add it to another Discord server ↗") : null,
-        h("button", { class: "btn ghost small", onclick: () => confirm("Disconnect the Discord bot? (It stays in your Discord servers until you remove it there.)") &&
+        h("button", { class: "btn ghost small", onclick: async () => (await ask("Disconnect the Discord bot? (It stays in your Discord servers until you remove it there.)", { ok: "Disconnect", danger: true })) &&
           act(() => api("/api/hub/discord", { method: "POST", body: { token: "" } }), "Discord bot disconnected").then(renderDc) }, "Disconnect"))
         : h("p", { class: "small" }, "Not set up. Use “Post to Discord” on a server's Friends page to connect a bot.")));
   };
@@ -2664,10 +2764,10 @@ function setupModVersion() {
 const EARLY_WARNING = "Early builds (alpha and beta) are unfinished: they can crash the server, break other mods " +
   "or damage your world. Back up before you rely on them.";
 const channelTag = (c) => (c && c !== "release" ? h("span", { class: "tag warn", title: EARLY_WARNING }, `${c} only`) : null);
-function confirmEarly(mods) {
+async function confirmEarly(mods) {
   const early = mods.filter((m) => m.channel && m.channel !== "release");
-  return !early.length || confirm(`${early.map((m) => m.name).join(", ")} ${early.length === 1 ? "only has" : "only have"} ` +
-    `alpha or beta builds for this Minecraft version.\n\n${EARLY_WARNING}\n\nAdd ${early.length === 1 ? "it" : "them"} anyway?`);
+  return !early.length || ask(`${early.map((m) => m.name).join(", ")} ${early.length === 1 ? "only has" : "only have"} ` +
+    `alpha or beta builds for this Minecraft version.\n\n${EARLY_WARNING}\n\nAdd ${early.length === 1 ? "it" : "them"} anyway?`, { id: "early-builds", ok: "Add anyway" });
 }
 async function setupAddMod(key, name, channel = null) {
   const st = setupState;
@@ -2722,13 +2822,13 @@ function setupAnnounceCompanions() {
   }
   for (const [by, names] of byMod) toast(`Added ${names.join(", ")} to your friends' download, because ${by} needs ${names.length === 1 ? "it" : "them"} on players' computers.`);
 }
-function setupRemoveMod(key) {
+async function setupRemoveMod(key) {
   const st = setupState;
   const e = st.mods.get(key);
   if (!e) return;
   const needers = [...e.by].filter((k) => st.mods.has(k));
-  if (needers.length && !confirm(`${e.name} is needed by ${needers.map((k) => st.mods.get(k).name).join(", ")}. ` +
-    `Remove ${needers.length === 1 ? "that" : "those"} too?`)) return;
+  if (needers.length && !(await ask(`${e.name} is needed by ${needers.map((k) => st.mods.get(k).name).join(", ")}. ` +
+    `Remove ${needers.length === 1 ? "that" : "those"} too?`, { id: "remove-needed-mods", ok: "Remove them" }))) return;
   const stays = new Map();  // dependency name -> the mods that still need it
   const drop = (k) => {
     const x = st.mods.get(k);
@@ -2770,14 +2870,17 @@ const AIKAR_ABOVE_GB = 16;
 const memoryGb = (text) => { const m = /^(\d+)([MG])$/i.exec(String(text || "").trim()); return m ? Number(m[1]) / (m[2].toUpperCase() === "M" ? 1024 : 1) : 0; };
 function offerAikar(gb, accept, decline = () => {}) {
   closeToast("aikar-offer");
+  if (skippedWarnings().includes("aikar")) { decline(); return; }  // "No thanks, don't ask again"
+  const again = h("input", { type: "checkbox" });
   stickyToast("aikar-offer", [
     h("strong", {}, `${gb} GB: use Aikar's flags?`),
     h("span", { class: "small" }, "With this much memory, Java's default garbage collection can pause the server for long enough to cause lag spikes. " +
       "Aikar's flags are widely used settings that keep those pauses short. Recommended."),
     h("div", { class: "row mt-s" },
       h("button", { class: "btn small primary", onclick: () => { closeToast("aikar-offer"); accept(); } }, "Use them"),
-      h("button", { class: "btn small ghost", onclick: () => { closeToast("aikar-offer"); decline(); } }, "No thanks"),
-      h("a", { class: "small", href: "https://docs.papermc.io/paper/aikars-flags", target: "_blank", rel: "noopener noreferrer" }, "What are they? ↗"))]);
+      h("button", { class: "btn small ghost", onclick: () => { if (again.checked) skipWarning("aikar"); closeToast("aikar-offer"); decline(); } }, "No thanks"),
+      h("a", { class: "small", href: "https://docs.papermc.io/paper/aikars-flags", target: "_blank", rel: "noopener noreferrer" }, "What are they? ↗")),
+    h("label", { class: "row small mt-s dont-ask" }, again, "Don't ask me again (No thanks)")]);
 }
 
 // A new server is ready: its dashboard, or the friends' invite when it was made with friends.
@@ -2798,6 +2901,8 @@ views.setup = () => {
     resetSetup();
     setupState.target = isNew ? "new" : server;
   }
+  // Choices made but not created yet (once it's creating, it carries on without this page).
+  guardLeave(main, () => !st.submitted && !!(st.mods.size || st.modpack || st.localMods.length || st.world || st.clientMods.size));
   let propDefaults = {};
 
   const field = (label, input, hint) => h("label", {}, label, input, hint ? h("span", { class: "muted small" }, hint) : null);
@@ -2866,7 +2971,7 @@ views.setup = () => {
             m.bad ? h("div", { class: "small bad-text" }, m.bad) : null),
           m.explicit ? h("label", { class: "row", title: "Every mod holds back Minecraft upgrades until it supports the new version. Required ones also decide the Minecraft version a new server starts on." },
             h("input", { type: "checkbox", checked: m.required, onchange: (e) => { m.required = e.target.checked; } }), "required") : null,
-          h("button", { type: "button", class: "btn small danger", onclick: () => { setupRemoveMod(key); search(); } }, "Remove")));
+          h("button", { type: "button", class: "btn small danger", onclick: async () => { await setupRemoveMod(key); search(); } }, "Remove")));
         for (const [k, o] of st.mods) if (o.by.has(key) && !o.explicit) row(k, depth + 1);
       };
       for (const [k, m] of st.mods) if (m.explicit) row(k, 0);
@@ -2913,7 +3018,7 @@ views.setup = () => {
         check: ["/api/hub/mods/check", { loader: st.loader, minecraft: setupModVersion(),
           mods: [...st.mods].filter(([k, m]) => m.explicit && !k.startsWith("curseforge:")).map(([k]) => k), channels: earlyChannels() }],
         trial: { loader: st.loader, minecraft: st.minecraft, mods: [...st.mods].filter(([, m]) => m.explicit).map(([k]) => k), channels: earlyChannels() },
-        keepWorking: (res) => { for (const o of res.outliers) setupRemoveMod(o.source === "curseforge" ? `curseforge:${o.id}` : o.id); },
+        keepWorking: async (res) => { for (const o of res.outliers) await setupRemoveMod(o.source === "curseforge" ? `curseforge:${o.id}` : o.id); },
       }), h("span", { class: "muted small" }, "Check that these mods work together before creating the server.")),
       st.loader === "fabric" || st.loader === "quilt" ? h("p", { class: "muted small" }, "Fabric API is added automatically, since almost every Fabric mod needs it.") : null,
       plugins ? h("p", { class: "muted small" }, "Paper runs server plugins (Paper, Spigot and Bukkit ones) from its plugins folder. Players join with plain Minecraft: plugins don't need anything on their side.") : null) : null;
@@ -2991,7 +3096,7 @@ views.setup = () => {
       if (!st.accept_eula) { toast("Please read and accept the Minecraft EULA first.", true); return; }
       // Only the mods you picked: their dependencies are installed with them (and go with them).
       const bad = [...st.mods.values()].filter((m) => m.bad);
-      if (bad.length && !confirm(`${bad.map((m) => `${m.name}: ${m.bad}`).join("\n")}\n\nCreate the server anyway?`)) return;
+      if (bad.length && !(await ask(`${bad.map((m) => `${m.name}: ${m.bad}`).join("\n")}\n\nCreate the server anyway?`, { ok: "Create anyway" }))) return;
       const mods = [...st.mods].filter(([, m]) => m.explicit && m.required).map(([slug]) => slug);
       const optional = [...st.mods].filter(([, m]) => m.explicit && !m.required).map(([slug]) => slug);
       const body = { loader: st.loader, minecraft: st.minecraft, mods, optional_mods: optional, memory_gb: st.memory_gb,
@@ -3104,7 +3209,8 @@ views.setup = () => {
     const panel = h("div", { class: "progress-panel" },
       h("h2", { class: "view-title" }, "Creating your server…"),
       h("div", { class: "notice" }, h("div", { class: "row" }, h("span", { class: "spinner" }),
-        h("span", { class: "grow" }, "Downloading Java, the mod loader, Minecraft and your mods, then checking that the server starts. This usually takes a few minutes."))),
+        h("span", { class: "grow" }, "Downloading Java, the mod loader, Minecraft and your mods, then checking that the server starts. This usually takes a few minutes.")),
+        h("div", { class: "small muted mt-s" }, "You can close this page: mcsm keeps going. Open mcsm again and choose See progress on the server.")),
       card("What's happening", events),
       // While it installs: what friends outside your home will need (the lower part of the screen).
       h("details", { class: "card mt router-help", open: true }, h("summary", {}, h("strong", {}, "While you wait: letting friends outside your home join")),

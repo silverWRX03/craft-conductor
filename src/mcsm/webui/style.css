@@ -595,3 +595,8 @@ body.picking main.join { opacity: .35; transform: translateX(-30px); transition:
   body { background: #fff !important; color: #000 !important; }
   .card { border: 0 !important; box-shadow: none !important; }
 }
+
+/* Questions (ask()): keep the message's line breaks; the "Don't ask me again" box */
+.pre-line { white-space: pre-line; }
+.modal label.dont-ask, label.dont-ask { display: flex; flex-direction: row; align-items: center; gap: 8px; color: var(--muted); cursor: pointer; font-size: 13px; }
+.dont-ask input { margin: 0; }
