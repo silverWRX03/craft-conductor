@@ -268,7 +268,9 @@ function renderAskInvite(error) {
         await api("api/own-server", {}).catch(() => null);
         $("#join").replaceChildren(h("div", { class: "card" }, h("h1", {}, "Opening mcsm's control panel…"),
           h("p", { class: "muted" }, "It opens in a new tab in a moment. You can close this one.")));
-      } }, "Run my own server")));
+      } }, "Run my own server")),
+    h("p", { class: "muted small center" }, "Need help? ", h("a", { href: "https://github.com/silverWRX03/mc-server-management/blob/main/src/mcsm/webui/manual.md#for-friends-joining-a-server",
+      target: "_blank", rel: "noopener noreferrer" }, "The user manual: joining a server ↗")));
   input.focus();
 }
 

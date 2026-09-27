@@ -70,6 +70,7 @@ LOCAL_ONLY = {"/api/open", "/api/hub/open", "/api/hub/remote-install/open"}  # t
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/app.js": ("app.js", "text/javascript; charset=utf-8"),
           "/rich.js": ("rich.js", "text/javascript; charset=utf-8"),
+          "/manual.md": ("manual.md", "text/markdown; charset=utf-8"),
           "/style.css": ("style.css", "text/css; charset=utf-8"),
           "/icon.png": ("icon.png", "image/png"),
           "/manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json"),

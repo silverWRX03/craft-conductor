@@ -572,3 +572,16 @@ body.picking main.join { opacity: .35; transform: translateX(-30px); transition:
 .jpanel > .browse { flex: 1; height: 100%; min-height: 0; }
 @media (max-width: 760px) { .jpanel { overflow: auto; } .jpanel > .browse { height: auto; } }
 @media (prefers-reduced-motion: reduce) { .jpanel { animation: none; } body.picking main.join { transition: none; } }
+
+/* the user manual */
+.manual { line-height: 1.6; }
+.manual h2 { margin-top: 1.6em; padding-top: .4em; border-top: 1px solid var(--border); }
+.manual h2:first-child { margin-top: 0; border-top: 0; }
+.manual pre { white-space: pre-wrap; }
+.help-toc li.sub { margin-left: 1.2em; font-size: 13px; }
+@media print {
+  .sidebar, .topbar, .help-toc, .theme-toggle, .toasts, .row.mb .btn { display: none !important; }
+  .app, .content, main, .stage { display: block !important; height: auto !important; overflow: visible !important; }
+  body { background: #fff !important; color: #000 !important; }
+  .card { border: 0 !important; box-shadow: none !important; }
+}

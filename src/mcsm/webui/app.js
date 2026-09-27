@@ -1712,7 +1712,8 @@ const HELP = [
     h("p", {}, "Every update makes a backup first and rolls back by itself if the new version doesn't start. Backups are on the ", h("strong", {}, "Backups"), " tab.")]],
   ["headless", "Running mcsm on another computer", () => [
     h("p", {}, "mcsm can run on a spare Linux computer or a Raspberry Pi (64-bit) with no screen, and you manage it from here in the browser. " +
-      "From your own computer (PowerShell on Windows, Terminal on a Mac or Linux), run one command, using that computer's user and address:"),
+      "The easy way: ", h("a", { href: "#new" }, "New server"), " → ", h("strong", {}, "Install on a Linux computer"),
+      " opens SSH in a terminal and installs mcsm there. Or, from your own computer (PowerShell on Windows, Terminal on a Mac or Linux), run one command, using that computer's user and address:"),
     h("pre", { class: "log" }, 'ssh minecraft@192.168.1.50 "curl -fsSL https://raw.githubusercontent.com/silverWRX03/mc-server-management/main/packaging/install.sh | sh"'),
     h("p", {}, "It installs mcsm there, starts it at boot, and prints the address to open and a one-time password. ",
       h("a", { href: "https://github.com/silverWRX03/mc-server-management/blob/main/docs/headless.md", target: "_blank", rel: "noopener noreferrer" }, "Step-by-step guide ↗"),
@@ -1722,8 +1723,35 @@ const HELP = [
       ": set a strong password, allow other devices, and pair your phone by scanning a QR code. Away from home, use Tailscale rather than opening ports.")]],
 ];
 
+// The user manual (manual.md, part of mcsm): the same text as on GitHub, shown here with a
+// table of contents. Sections link within the page; printing gives a paper copy.
+const MANUAL_ON_GITHUB = "https://github.com/silverWRX03/mc-server-management/blob/main/src/mcsm/webui/manual.md";
+views.manual = () => {
+  const body = h("div", { class: "card manual" }, h("p", { class: "empty" }, "Loading the manual…"));
+  const toc = h("nav", { class: "help-toc card" }, h("strong", {}, "Contents"));
+  fill($("#main"),
+    h("div", { class: "row mb" }, h("h2", { class: "view-title grow" }, "User manual"),
+      h("button", { class: "btn small", onclick: () => window.print() }, "🖨 Print"),
+      h("a", { class: "btn small ghost", href: MANUAL_ON_GITHUB, target: "_blank", rel: "noopener noreferrer" }, "Open on GitHub ↗")),
+    toc, h("div", { class: "mt" }, body));
+  fetch("/manual.md", { credentials: "same-origin" }).then((r) => r.ok ? r.text() : Promise.reject(new Error(r.statusText)))
+    .then((md) => {
+      const rich = richText(md, "markdown");
+      rich.querySelector("h1") && rich.querySelector("h1").remove();  // the page has its own title
+      const heads = [...rich.querySelectorAll("h2, h3")];
+      heads.forEach((el, i) => { el.id = `manual-${i}`; });
+      fill(toc, h("strong", {}, "Contents"), h("ul", {}, heads.map((el) => h("li", { class: el.tagName === "H3" ? "sub" : null },
+        h("a", { href: "#manual", onclick: (e) => { e.preventDefault(); el.scrollIntoView({ behavior: "smooth" }); } }, el.textContent)))));
+      fill(body, rich);
+    })
+    .catch((e) => fill(body, h("div", { class: "notice bad" }, `Couldn't load the manual (${e.message}). It's also on `,
+      h("a", { href: MANUAL_ON_GITHUB, target: "_blank", rel: "noopener noreferrer" }, "GitHub ↗"), ".")));
+  return {};
+};
+
 views.help = () => {
   fill($("#main"), h("h2", { class: "view-title" }, "Help"),
+    h("div", { class: "notice mb" }, "📖 Everything mcsm does, step by step: ", h("a", { href: "#manual" }, h("strong", {}, "the user manual")), "."),
     h("nav", { class: "help-toc card" }, h("strong", {}, "Contents"),
       h("ul", {}, HELP.map(([id, title]) => h("li", {}, h("a", { href: "#help", onclick: (e) => { e.preventDefault(); $(`#help-${id}`).scrollIntoView({ behavior: "smooth" }); } }, title))))),
     HELP.map(([id, title, body]) => h("section", { class: "card mt help-section", id: `help-${id}` }, h("h3", {}, title), body())));
@@ -3129,13 +3157,14 @@ function renderNav() {
     ],
     h("div", { class: "nav-sep" }),
     a("#help", "Help", currentName === "help"),
+    a("#manual", "User manual", currentName === "manual"),
     hb.device ? h("div", { class: "nav-server small", title: "A paired phone has the everyday controls only" }, `📱 ${hb.device} (limited)`)
       : a("#mcsm", "mcsm settings", currentName === "mcsm"));
   const inServer = !!server;
   $(".server-id").classList.toggle("hidden", !inServer);
   $(".actions").classList.toggle("hidden", !inServer);
   $("#page-title").classList.toggle("hidden", inServer);
-  $("#page-title").textContent = { servers: "Your servers", new: "New server", mcsm: "mcsm settings", help: "Help" }[currentName] || "";
+  $("#page-title").textContent = { servers: "Your servers", new: "New server", mcsm: "mcsm settings", help: "Help", manual: "User manual" }[currentName] || "";
   if (!inServer) $("#job").classList.add("hidden");
 }
 
@@ -3157,7 +3186,7 @@ function route() {
     view = m[2] === "setup" || SERVER_VIEWS.some(([v]) => v === m[2]) ? m[2] : "dashboard";
   } else {
     server = null;
-    view = ["servers", "new", "mcsm", "help"].includes(hash) ? hash : "servers";
+    view = ["servers", "new", "mcsm", "help", "manual"].includes(hash) ? hash : "servers";
   }
   if (server !== before) { status = null; lastJobSeen = null; }
   currentName = view;

@@ -44,7 +44,8 @@ browser: no command lines, no config files, no hunting for the right mod version
   keep your own copies of anything you can't afford to lose.
 - It isn't affiliated with Mojang, Microsoft, Modrinth or CurseForge.
 
-Every section of this README is listed in the [section links](#appendix-section-links) at
+**New to mcsm? Read the [user manual](src/mcsm/webui/manual.md)** (it's also in the app: Help →
+User manual). Every section of this README is listed in the [section links](#appendix-section-links) at
 the end.
 
 ## How it works

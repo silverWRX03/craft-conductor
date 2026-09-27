@@ -162,3 +162,13 @@ def test_page_files_are_cached_by_the_browser(hub_env):
     assert status == 200 and etag and headers["Cache-Control"] == "no-cache"
     status, body, _ = c.call("GET", "/app.js", headers={"If-None-Match": etag})
     assert status == 304 and not body  # unchanged: nothing sent again
+
+
+def test_the_user_manual_is_in_the_app(hub_env):
+    hub, c = hub_env
+    status, body, headers = c.get("/manual.md")
+    assert status == 200 and headers["Content-Type"].startswith("text/markdown")
+    for section in ("## Creating a server", "## Playing with friends", "## For friends: joining a server", "## Troubleshooting"):
+        assert section in body
+    import re
+    assert all(url.startswith("https://") for url in re.findall(r"\]\(([^)]+)\)", body))  # links work from the page
