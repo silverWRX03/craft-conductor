@@ -335,3 +335,20 @@ def test_manual_links_from_a_pack_must_be_https():
                        "mods": [], "manual": [{"name": "Good", "url": "https://www.curseforge.com/x"},
                                               {"name": "Bad", "url": "javascript:alert(1)"}, "junk"]})
     assert [m["name"] for m in p["manual"]] == ["Good"]
+
+
+def test_new_servers_start_without_a_whitelist(tmp_path):
+    from mcsm.properties import read_properties
+    root = tmp_path / "srv"
+    cfg = setupmod.configure(root, setupmod.SetupSpec.from_dict({"loader": "vanilla", "accept_eula": True}))
+    props = read_properties(cfg.server.dir / "server.properties")
+    assert props["white-list"] == "false" and props["enforce-whitelist"] == "false"
+    # a modpack's server.properties turned it on: back to what was picked (off)
+    (cfg.server.dir / "server.properties").write_text("white-list=true\nenforce-whitelist=true\nmotd=Pack\n")
+    setupmod.whitelist_as_chosen(cfg.server.dir, setupmod.SetupSpec.from_dict({"loader": "vanilla", "accept_eula": True}))
+    props = read_properties(cfg.server.dir / "server.properties")
+    assert props["white-list"] == "false" and props["enforce-whitelist"] == "false" and props["motd"] == "Pack"
+    # ticked on the setup page: kept
+    spec = setupmod.SetupSpec.from_dict({"loader": "vanilla", "accept_eula": True, "properties": {"white-list": True}})
+    setupmod.whitelist_as_chosen(cfg.server.dir, spec)
+    assert read_properties(cfg.server.dir / "server.properties")["white-list"] == "true"

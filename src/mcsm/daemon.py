@@ -574,6 +574,7 @@ class Daemon:
             log.info("downloading the modpack")
             modpack.apply(self.m.config.root, spec.modpack_version, self.m.http)
         self.m.reload_config()
+        setupmod.whitelist_as_chosen(self.m.server_dir, spec)  # a modpack's server.properties may turn it on
         if spec.world_source is not None:
             from . import world
             from .properties import read_properties
