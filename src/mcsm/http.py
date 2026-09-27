@@ -6,7 +6,6 @@ import hashlib
 import json
 import logging
 import os
-import shutil
 import tempfile
 import time
 import urllib.error
@@ -154,8 +153,9 @@ class HttpClient:
         req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, **(headers or {})})
         h1, h256, h512 = hashlib.sha1(), hashlib.sha256(), hashlib.sha512()
         fd, tmp = tempfile.mkstemp(dir=dest.parent, prefix=".part-")
+        out = os.fdopen(fd, "wb")  # owned from here, so it's always closed (Windows can't delete an open file)
         try:
-            with self._open(req) as resp, os.fdopen(fd, "wb") as out:
+            with out, self._open(req) as resp:
                 while chunk := resp.read(1 << 16):
                     h1.update(chunk)
                     h256.update(chunk)
@@ -167,11 +167,28 @@ class HttpClient:
                 raise HashMismatch(f"sha256 mismatch for {url}")
             if sha512 and h512.hexdigest() != sha512.lower():
                 raise HashMismatch(f"sha512 mismatch for {url}")
-            shutil.move(tmp, dest)
+            _replace(tmp, dest)
         except BaseException:
-            Path(tmp).unlink(missing_ok=True)
+            out.close()
+            try:
+                Path(tmp).unlink(missing_ok=True)
+            except OSError:
+                pass  # tidying up mustn't hide why the download failed
             raise
         return dest
+
+
+def _replace(src: str, dest: Path, tries: int = 8) -> None:
+    """Move a finished download into place. On Windows, antivirus often holds a new file
+    open for a moment to scan it ("used by another process"), so wait a little and retry."""
+    for attempt in range(tries):
+        try:
+            os.replace(src, dest)
+            return
+        except PermissionError:
+            if attempt == tries - 1:
+                raise
+            time.sleep(0.25 * (attempt + 1))
 
 
 def sha1_file(path: Path) -> str:
