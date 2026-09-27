@@ -1058,18 +1058,22 @@ class HubApi:
             host, user, port = remoteinstall.check(b.get("host", ""), b.get("user", ""), b.get("port", 22))
         except remoteinstall.RemoteInstallError as e:
             raise ApiError(400, str(e)) from None
-        return {"command": remoteinstall.command_line(host, user, port), "panel": remoteinstall.panel_url(host)}
+        rented = b.get("rented")
+        rented = (not remoteinstall.on_home_network(host)) if rented is None else bool(rented)
+        return {"command": remoteinstall.command_line(host, user, port, rented), "panel": remoteinstall.panel_url(host, rented),
+                "rented": rented, "tunnel_command": remoteinstall.tunnel_command(host, user, port) if rented else None}
 
     def remote_install_open(self, q, b) -> dict:
         """Open a terminal on this computer running that command (OpenSSH asks for the password there)."""
         from . import remoteinstall
         info = self.remote_install(q, b)
         host, user, port = remoteinstall.check(b.get("host", ""), b.get("user", ""), b.get("port", 22))
+        tunnel = b.get("tunnel") is True and info["rented"]
         try:
-            remoteinstall.launch(host, user, port)
+            remoteinstall.launch(host, user, port, rented=info["rented"], tunnel=tunnel)
         except (remoteinstall.RemoteInstallError, OSError) as e:
             raise ApiError(400, str(e)) from None
-        log.info("opened an SSH window to install mcsm on %s@%s", user, host)
+        log.info("opened an SSH window %s %s@%s", "to the control panel of" if tunnel else "to install mcsm on", user, host)
         return {**info, "ok": True}
 
     def stage(self, q, handler) -> dict:

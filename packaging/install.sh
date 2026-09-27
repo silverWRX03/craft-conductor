@@ -50,7 +50,12 @@ echo "Installed $BIN_DIR/mcsm"
 case ":$PATH:" in *":$BIN_DIR:"*) ;; *) echo "(add $BIN_DIR to your PATH to type 'mcsm' directly)" ;; esac
 
 if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
-  "$BIN_DIR/mcsm" service install --panel
+  if [ "${MCSM_PANEL_LOCAL:-}" = "1" ]; then
+    # A rented server on the internet: the control panel stays on this machine; reach it through SSH.
+    "$BIN_DIR/mcsm" service install --panel --local-only
+  else
+    "$BIN_DIR/mcsm" service install --panel
+  fi
 else
   echo
   echo "This system doesn't use systemd, so mcsm can't start itself at boot here."

@@ -2295,8 +2295,36 @@ function openSshInstall() {
   const user = h("input", { placeholder: "minecraft", autocomplete: "off", spellcheck: "false", "aria-label": "User name" });
   const port = h("input", { type: "number", value: 22, min: 1, max: 65535, class: "narrow", "aria-label": "SSH port" });
   const out = h("div", { class: "mt" });
-  const body = () => ({ host: host.value.trim(), user: user.value.trim(), port: Number(port.value) });
-  const after = (r, opened) => fill(out,
+  // A rented server (a VPS) is on the internet: its control panel stays private, reached through SSH.
+  const rented = h("input", { type: "checkbox" });
+  let rentedTouched = false;
+  rented.addEventListener("change", () => { rentedTouched = true; });
+  const homeNetwork = (v) => /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|127\.|169\.254\.|fd|fe80)/i.test(v) || !v.includes(".") || /\.(local|lan|home|internal)\.?$/i.test(v);
+  host.addEventListener("input", () => { if (!rentedTouched) rented.checked = !!host.value.trim() && !homeNetwork(host.value.trim()); });
+  const body = () => ({ host: host.value.trim(), user: user.value.trim(), port: Number(port.value), rented: rented.checked });
+  const openPanel = async (r) => {
+    if (hubInfo && hubInfo.local) {
+      const t = await api("/api/hub/remote-install/open", { method: "POST", body: { ...body(), tunnel: true } }).catch((e) => { toast(e.message, true); return null; });
+      if (t) toast("An SSH window opened: sign in there, keep it open, then open the control panel.");
+    }
+  };
+  const after = (r, opened) => r.rented ? fill(out,
+    opened ? h("div", { class: "notice ok" }, h("strong", {}, "A terminal window opened. "),
+      "Type the server's password there when asked (the first time, answer ", h("code", {}, "yes"), " to trust it). It installs mcsm and shows a one-time password.") : null,
+    h("p", { class: "small mt-s" }, opened ? "The command it runs:" : "Run this in a terminal on this computer (PowerShell on Windows):"),
+    h("pre", { class: "log" }, r.command),
+    h("div", { class: "notice mt-s" }, h("strong", {}, "A rented server's control panel stays private. "),
+      "It isn't open to the internet: you reach it through SSH, an encrypted tunnel to this computer. Press ", h("strong", {}, "Open an SSH tunnel"),
+      " (keep that window open while you use it), then ", h("strong", {}, "Open its control panel"), "."),
+    h("div", { class: "row mt-s" },
+      hubInfo && hubInfo.local ? h("button", { class: "btn small", onclick: () => openPanel(r) }, "🔐 Open an SSH tunnel") : null,
+      h("a", { class: "btn small primary", href: r.panel, target: "_blank", rel: "noopener noreferrer" }, "Open its control panel ↗"),
+      h("button", { class: "btn small ghost", onclick: () => navigator.clipboard.writeText(r.tunnel_command).then(() => toast("Tunnel command copied")) }, "Copy the tunnel command")),
+    h("pre", { class: "log small" }, r.tunnel_command),
+    h("p", { class: "muted small" }, "On the server, let players in through its firewall (and in your provider's firewall, if it has one): ",
+      h("code", {}, "sudo ufw allow OpenSSH && sudo ufw allow 25565/tcp && sudo ufw allow 8766/tcp && sudo ufw enable"),
+      ". Friends join at the server's own address. More in the rented servers guide."))
+    : fill(out,
     opened ? h("div", { class: "notice ok" }, h("strong", {}, "A terminal window opened. "),
       "Type that computer's password there when asked (the first time, answer ", h("code", {}, "yes"),
       " to trust it). When it finishes it shows the control panel's address and a one-time password.") : null,
@@ -2326,8 +2354,8 @@ function openSshInstall() {
   };
   document.body.append(h("div", { class: "modal-backdrop", id: "ssh-install", role: "dialog", "aria-modal": "true", "aria-labelledby": "ssh-title" },
     h("div", { class: "modal remote" },
-      h("div", { class: "row" }, h("h2", { id: "ssh-title", class: "grow" }, "Install on a Linux computer (SSH)"), h("button", { class: "btn ghost small", onclick: close }, "Close")),
-      h("p", { class: "muted small" }, "For a spare PC, home server or Raspberry Pi 4/5 (64-bit) on this network, with SSH turned on. " +
+      h("div", { class: "row" }, h("h2", { id: "ssh-title", class: "grow" }, "Install on a Linux computer or rented server (SSH)"), h("button", { class: "btn ghost small", onclick: close }, "Close")),
+      h("p", { class: "muted small" }, "For a spare PC, home server or Raspberry Pi 4/5 (64-bit) on this network, or a rented Linux server (a VPS), with SSH turned on. " +
         "mcsm opens a terminal that connects to it and installs mcsm there; your password is typed into SSH, never into mcsm. " +
         "Use a normal user on that computer (not root), e.g. one made with ", h("code", {}, "sudo adduser minecraft"), "."),
       h("form", { onsubmit: submit },
@@ -2335,6 +2363,7 @@ function openSshInstall() {
           h("label", {}, "Its address or name", host, h("span", { class: "muted small" }, "Your router's list of devices shows it, or run hostname -I on it.")),
           h("label", {}, "User name on it", user, h("span", { class: "muted small" }, "A normal user (not root). SSH asks for its password.")),
           h("label", {}, "SSH port", port)),
+        h("label", { class: "row mt-s" }, rented, h("span", {}, "It's a rented server on the internet (a VPS): keep its control panel private, reached through SSH")),
         h("div", { class: "row mt" }, openBtn)),
       out,
       h("p", { class: "muted small mt" }, "More in ",

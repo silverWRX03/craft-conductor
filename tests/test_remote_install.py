@@ -55,8 +55,40 @@ def test_install_over_ssh_from_the_panel(hub_env, monkeypatch):
     assert r["panel"] == "http://192.168.1.50:8765/" and "minecraft@192.168.1.50" in r["command"]
     assert c.post("/api/hub/remote-install", {**body, "host": "x;y"})[0] == 400
     launched = []
-    monkeypatch.setattr(ri, "launch", lambda *a: launched.append(a))
-    assert c.post("/api/hub/remote-install/open", body)[0] == 200 and launched == [("192.168.1.50", "minecraft", 22)]
+    monkeypatch.setattr(ri, "launch", lambda *a, **kw: launched.append((*a, kw)))
+    assert c.post("/api/hub/remote-install/open", body)[0] == 200
+    assert launched == [("192.168.1.50", "minecraft", 22, {"rented": False, "tunnel": False})]
     # A terminal opens on the server's own screen: never for a browser elsewhere.
     status, _, _ = c.call("POST", "/api/hub/remote-install/open", body, headers=AWAY)
     assert status in (401, 403) and len(launched) == 1
+
+
+def test_a_rented_server_keeps_its_panel_private(hub_env, monkeypatch):
+    """A server on the internet (a VPS): the installer keeps its control panel on the server
+    (MCSM_PANEL_LOCAL=1 -> --local-only), and it's reached through an SSH tunnel."""
+    from mcsm import remoteinstall
+    assert remoteinstall.on_home_network("192.168.1.50") and remoteinstall.on_home_network("raspberrypi.local")
+    assert not remoteinstall.on_home_network("203.0.113.7") and not remoteinstall.on_home_network("mc.example.com")
+    hub, c = hub_env
+    login(c)
+    r = c.post("/api/hub/remote-install", {"host": "203.0.113.7", "user": "minecraft", "port": 22})[1]
+    assert r["rented"] and "MCSM_PANEL_LOCAL=1 sh" in r["command"] and r["panel"] == "http://localhost:8775/"
+    assert "-L 8775:127.0.0.1:8765" in r["tunnel_command"] and "minecraft@203.0.113.7" in r["tunnel_command"]
+    home = c.post("/api/hub/remote-install", {"host": "203.0.113.7", "user": "minecraft", "port": 22, "rented": False})[1]
+    assert not home["rented"] and "MCSM_PANEL_LOCAL" not in home["command"] and home["tunnel_command"] is None
+    opened = []
+    monkeypatch.setattr(remoteinstall, "launch", lambda *a, **kw: opened.append(kw))
+    assert c.post("/api/hub/remote-install/open", {"host": "203.0.113.7", "user": "minecraft", "port": 22, "tunnel": True})[0] == 200
+    assert opened[-1] == {"rented": True, "tunnel": True}
+
+
+def test_the_panel_service_can_stay_local(tmp_path, monkeypatch, capsys):
+    from mcsm import cli, service
+    monkeypatch.setattr(cli, "default_home", lambda: tmp_path)
+    monkeypatch.setattr(service, "install", lambda home, panel: ["installed (pretend)"])
+    args = cli.build_parser().parse_args(["service", "install", "--panel", "--local-only"])
+    assert cli._panel_service(args) == 0
+    out = capsys.readouterr().out
+    assert "ssh -N -L 8775:127.0.0.1:" in out and "0.0.0.0" not in out
+    from mcsm.hub import Hub
+    assert Hub(tmp_path).web.host == "127.0.0.1"

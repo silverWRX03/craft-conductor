@@ -82,6 +82,8 @@ ready to update to Minecraft 1.21.4 with fabric 0.16.14:
   between servers as files.
 - **World tools.** Game rules with explanations, a world border, and pre-generating terrain with
   Chunky so exploring doesn't lag.
+- **Rented servers too.** Install on a VPS over SSH; its control panel stays private, reached
+  through an SSH tunnel ([guide](docs/rented-server.md)).
 - **Paper plugins from Modrinth and Hangar,** updated with Minecraft like mods; switch hand-added
   plugins off and on.
 - **No port forwarding? playit.gg.** Friends join through a playit.gg tunnel, and the Dashboard shows

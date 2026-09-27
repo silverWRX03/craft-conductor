@@ -7,6 +7,7 @@ its fix will say which version it's in.
 ## 0.9.3 (not released yet)
 
 **Added**
+- **Rented servers (a VPS):** **Install on a Linux computer** works for a server on the internet too, keeping its control panel private and reached through an SSH tunnel (**Open an SSH tunnel**), with a [guide](docs/rented-server.md).
 - **Paper plugins from Hangar** (PaperMC's plugin site) next to Modrinth, kept updated like mods; plugins and mods you added yourself can be switched off, on or removed.
 - **playit.gg tunnels** for when you can't forward ports: a tunnel address per server and for friends' downloads, and a **playit.gg tunnel** card on the Dashboard that checks it's working (through the tunnel, the way a friend's game connects) and says when it stops. playit.gg is an outside service: disruptions on its side are out of mcsm's control.
 - **The friends' download** (`mcsm-join-...`): the same mcsm under its own name, opening straight into joining a server (even on a computer that runs servers). Invite links offer it.
