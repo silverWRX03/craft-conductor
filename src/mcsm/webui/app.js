@@ -1245,6 +1245,53 @@ views.java = () => {
   return { onJobDone: load };
 };
 
+// A schedule as simple choices (off, every day at…, every week on…, every few hours), stored as a
+// cron expression; "Custom" shows the expression itself, for anything else.
+function schedulePicker(label, expr, kind, next) {
+  expr = (expr || "").trim().replace(/\s+/g, " ");
+  let mode = "off", time = kind === "restart" ? "04:00" : "03:00", day = "0", hours = "6", custom = expr;
+  let m;
+  const hm = (mi, hr) => `${String(hr).padStart(2, "0")}:${String(mi).padStart(2, "0")}`;
+  if (!expr) mode = "off";
+  else if ((m = /^(\d+) (\d+) \* \* \*$/.exec(expr))) { mode = "daily"; time = hm(m[1], m[2]); }
+  else if ((m = /^(\d+) (\d+) \* \* ([0-7])$/.exec(expr))) { mode = "weekly"; time = hm(m[1], m[2]); day = String(Number(m[3]) % 7); }
+  else if ((m = /^0 \*\/(\d+) \* \* \*$/.exec(expr)) && ["2", "3", "6", "12"].includes(m[1])) { mode = "hours"; hours = m[1]; }
+  else if (expr === "0 * * * *") { mode = "hours"; hours = "1"; }
+  else mode = "custom";
+  const modeSel = h("select", {}, [["off", "Off"], ["daily", "Every day at…"], ["weekly", "Every week on…"],
+    ...(kind === "backup" ? [["hours", "Every few hours"]] : []), ["custom", "Custom (cron)"]].map(([v, t]) => h("option", { value: v }, t)));
+  modeSel.value = mode;
+  const timeIn = h("input", { type: "time", value: time, "aria-label": `${label}: time` });
+  const daySel = h("select", { "aria-label": `${label}: day` }, ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    .map((d, i) => h("option", { value: String(i) }, d)));
+  daySel.value = day;
+  const hoursSel = h("select", { "aria-label": `${label}: how often` }, ["1", "2", "3", "6", "12"].map((n) => h("option", { value: n }, n === "1" ? "every hour" : `every ${n} hours`)));
+  hoursSel.value = hours;
+  const cronIn = h("input", { value: custom, placeholder: "minute hour day month weekday, e.g. 30 5 * * 1-5", class: "mono", "aria-label": `${label}: cron expression` });
+  const hint = h("span", { class: "muted small" });
+  const extra = h("div", { class: "row" });
+  const value = () => {
+    const [hr, mi] = (timeIn.value || "04:00").split(":").map(Number);
+    switch (modeSel.value) {
+      case "daily": return `${mi} ${hr} * * *`;
+      case "weekly": return `${mi} ${hr} * * ${daySel.value}`;
+      case "hours": return hoursSel.value === "1" ? "0 * * * *" : `0 */${hoursSel.value} * * *`;
+      case "custom": return cronIn.value.trim();
+      default: return "";
+    }
+  };
+  const render = () => {
+    const mo = modeSel.value;
+    fill(extra, mo === "weekly" ? daySel : null, mo === "daily" || mo === "weekly" ? timeIn : null, mo === "hours" ? hoursSel : null, mo === "custom" ? cronIn : null);
+    hint.textContent = mo === "custom" ? "Five parts: minute, hour, day of the month, month, day of the week (0 or 7 is Sunday). * means every; */6 every 6th; 1-5 a range."
+      : mo === "off" ? "" : value() === expr && next ? `Next: ${fmtTime(next)}` : "";
+  };
+  for (const el of [modeSel, timeIn, daySel, hoursSel, cronIn]) el.addEventListener("input", render);
+  modeSel.addEventListener("change", render);
+  render();
+  return { el: h("label", {}, label, modeSel, extra, hint), value };
+}
+
 views.settings = () => {
   const form = h("form", { class: "card" });
   let edited = false;  // changes not saved yet
@@ -1258,6 +1305,7 @@ views.settings = () => {
     const sel = (k, opts) => (f[k] = h("select", {}, opts.map((o) => h("option", { value: o }, o))), f[k].value = s[k], f[k]);
     const txt = (k, extra = {}) => (f[k] = h("input", { value: s[k], ...extra }));
     const chk = (k, text) => h("label", { class: "row" }, (f[k] = h("input", { type: "checkbox", checked: s[k] })), h("span", {}, text));
+    const sched = {};
     const advanced = { ...s.properties };
     const advancedEl = h("details", { class: "advanced mt-l" },
       h("summary", {}, "Advanced server settings"),
@@ -1283,6 +1331,19 @@ views.settings = () => {
       h("div", { class: "grid mt-s" }, chk("restart_on_crash", "Restart after crashes"),
         h("label", { class: "row", title: "Garbage-collection settings that avoid lag spikes with lots of memory" },
           (f.aikar_flags = h("input", { type: "checkbox", checked: s.aikar_flags })), h("span", {}, "Use Aikar's flags (smoother with 16 GB+)"))),
+      h("h3", { class: "mt-l" }, "Schedule"),
+      h("p", { class: "muted small" }, "Times are this computer's. A scheduled restart gives players the in-game countdown first."),
+      h("div", { class: "grid" },
+        (sched.restart = schedulePicker("Restart the server", s.schedule_restart, "restart", s.schedule_restart_next)).el,
+        (sched.backup = schedulePicker("Make a backup", s.schedule_backup, "backup", s.schedule_backup_next)).el),
+      chk("restart_when_empty", "Skip a scheduled restart while players are online"),
+      h("h3", { class: "mt-l" }, "Backup copies"),
+      h("div", { class: "grid" },
+        h("label", {}, "Also copy every backup to", txt("backup_copy_to", { placeholder: "e.g. E:\\mcsm-backups, or a OneDrive / Google Drive folder" }),
+          h("span", { class: s.backup_copy_ok ? "muted small" : "small bad-text" }, s.backup_copy_ok
+            ? "A USB drive or a folder that syncs to the cloud, so a broken disk doesn't take the backups with it. Empty: no copies."
+            : "That folder isn't there right now (is the drive plugged in?). Copies are skipped until it is.")),
+        h("label", { class: "self-start" }, "Copies to keep there", txt("backup_copy_keep", { type: "number", min: 1 }))),
       advancedEl,
       h("div", { class: "row mt" }, h("button", { class: "btn primary", type: "submit" }, "Save settings"),
         h("span", { class: "muted small" }, "Memory, port and advanced changes apply at the next restart.")),
@@ -1296,6 +1357,9 @@ views.settings = () => {
         memory: f.memory.value.trim(), backups_keep: Number(f.backups_keep.value), discord_webhook: f.discord_webhook.value.trim(),
         port: Number(f.port.value),
         restart_on_crash: f.restart_on_crash.checked, aikar_flags: f.aikar_flags.checked,
+        schedule_restart: sched.restart.value(), schedule_backup: sched.backup.value(),
+        restart_when_empty: f.restart_when_empty.checked,
+        backup_copy_to: f.backup_copy_to.value.trim(), backup_copy_keep: Number(f.backup_copy_keep.value) || 10,
         properties: changedProps(advanced, s.properties),
       };
       const gb = memoryGb(body.memory);

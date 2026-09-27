@@ -610,3 +610,4 @@ body.picking main.join { opacity: .35; transform: translateX(-30px); transition:
 .doctor-item.warn .doctor-icon { color: var(--warn-fg); background: var(--warn-bg); }
 .doctor-item.bad .doctor-icon { color: var(--bad-fg); background: var(--bad-bg); }
 .doctor-item.info .doctor-icon { color: var(--info); background: var(--code-bg, transparent); }
+.self-start { align-self: start; }

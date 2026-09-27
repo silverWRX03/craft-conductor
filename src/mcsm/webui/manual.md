@@ -122,7 +122,9 @@ mcsm checks for updates by itself and applies them when it's safe:
 
 ## Backups
 
-**Create backup** saves the server (worlds, mods, configs) as a `.tar.gz`, even while it runs. mcsm also backs up before every update. **Restore** puts a backup back (the server stops first). The newest 10 are kept.
+**Create backup** saves the server (worlds, mods, configs) as a `.tar.gz`, even while it runs. mcsm also backs up before every update. **Restore** puts a backup back (the server stops first). The newest 10 are kept (change it in Settings).
+
+To back up by itself, set **Make a backup** under Settings → Schedule. To keep backups safe from a broken disk, set **Also copy every backup to** under Settings → Backup copies: a USB drive, or a folder OneDrive, Dropbox or Google Drive syncs. Each backup is copied there too, in a folder named after the server, keeping the newest few. If the drive isn't plugged in, the backup is still made and the copy is skipped.
 
 ## Java
 
@@ -130,7 +132,11 @@ mcsm downloads the right Java (Eclipse Temurin) for each Minecraft version and k
 
 ## Settings
 
-The server's version and upgrade choices, memory (with Aikar's flags above 16 GB), port, name and Minecraft's settings. **Export server** saves everything (worlds, mods, configs, settings, player lists, and optionally backups) in one `.zip` to move to another computer: install mcsm there, then **Servers → Import a server...**.
+The server's version and upgrade choices, memory (with Aikar's flags above 16 GB), port, name and Minecraft's settings.
+
+**Schedule:** restart the server and make backups at set times: **Every day at…**, **Every week on…**, **Every few hours** (backups), or **Custom (cron)** for anything else (five parts: minute, hour, day of the month, month, day of the week; for example `30 5 * * 1-5` is 5:30 on weekdays). Times are this computer's; the next run is shown. A scheduled restart gives players the in-game countdown first, and **Skip a scheduled restart while players are online** leaves them be. The same settings are `[schedule]` in `mcsm.toml`.
+
+**Backup copies:** see Backups. **Export server** saves everything (worlds, mods, configs, settings, player lists, and optionally backups) in one `.zip` to move to another computer: install mcsm there, then **Servers → Import a server...**.
 
 ## Friends: playing with friends
 

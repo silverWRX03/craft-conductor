@@ -52,6 +52,30 @@ def prune(backups_dir: Path, keep: int) -> list[Path]:
     return removed
 
 
+def copy_out(archive: Path, folder: Path | None, name: str, keep: int = 10) -> Path | None:
+    """Copy a backup to another place too (a USB drive, a OneDrive/Dropbox/Google Drive folder),
+    in a folder named after the server, keeping the newest ``keep`` there. A copy that can't
+    be made (the drive is unplugged) is logged, never an error: the backup itself is made."""
+    if folder is None:
+        return None
+    safe = re.sub(r"[^A-Za-z0-9._ -]+", "_", name).strip() or "server"
+    dest_dir = folder / safe
+    try:
+        if not folder.exists():
+            raise OSError(f"{folder} isn't there (is the drive plugged in?)")
+        dest_dir.mkdir(exist_ok=True)
+        tmp = dest_dir / (archive.name + ".part")
+        shutil.copyfile(archive, tmp)
+        dest = dest_dir / archive.name
+        tmp.replace(dest)
+        prune(dest_dir, keep)
+        log.info("copied the backup to %s", dest)
+        return dest
+    except OSError as e:
+        log.warning("couldn't copy the backup to %s: %s", dest_dir, e)
+        return None
+
+
 def restore(archive: Path, server_dir: Path) -> None:
     """Replace ``server_dir`` with the archive's contents.
 

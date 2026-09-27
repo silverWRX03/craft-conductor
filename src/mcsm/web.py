@@ -1819,21 +1819,7 @@ class Api:
 
     def create_backup(self, q, b) -> dict:
         label = re.sub(r"[^A-Za-z0-9_-]", "_", str(b.get("label") or "manual"))[:40]
-
-        def run():
-            if self.d.proc and self.d.proc.running:
-                self.d.proc.send("save-off")
-                self.d.proc.send("save-all flush")
-                time.sleep(5)
-            try:
-                path = backup.create(self.m.server_dir, self.m.config.backups.dir, label,
-                                     self.m.config.backups.exclude)
-            finally:
-                if self.d.proc and self.d.proc.running:
-                    self.d.proc.send("save-on")
-            backup.prune(self.m.config.backups.dir, self.m.config.backups.keep)
-            return f"created {path.name}"
-        return self._job("backup", run)
+        return self._job("backup", self.d.backup_now, label)
 
     # ---------------------------------------------------------- open folder
     FOLDERS = ("server", "files", "world", "mods", "config", "logs", "crash", "backups", "exports", "manual", "java")
@@ -2060,6 +2046,11 @@ class Api:
         "verify_boot": ("updates", "verify_boot", bool),
         "backups_keep": ("backups", "keep", int),
         "discord_webhook": ("notify", "discord_webhook", str),
+        "schedule_restart": ("schedule", "restart", str),
+        "schedule_backup": ("schedule", "backup", str),
+        "restart_when_empty": ("schedule", "restart_when_empty", bool),
+        "backup_copy_to": ("backups", "copy_to", str),
+        "backup_copy_keep": ("backups", "copy_keep", int),
     }
 
     def settings(self, q, b) -> dict:
@@ -2073,11 +2064,27 @@ class Api:
             "warn_minutes": c.updates.warn_minutes, "wait_for_empty": c.updates.wait_for_empty,
             "verify_boot": c.updates.verify_boot, "backups_keep": c.backups.keep,
             "discord_webhook": c.discord_webhook,
+            **self._schedule_info(),
             "port": int(read_properties(self.m.server_dir / "server.properties").get("server-port", "25565") or 25565),
             "properties": serverprops.current(read_properties(self.m.server_dir / "server.properties")),
             "properties_schema": serverprops.schema(),
             "choices": {"strategy": configmod.STRATEGIES, "mod_channel": configmod.CHANNELS},
         }
+
+    def _schedule_info(self) -> dict:
+        import datetime as dt
+        from . import schedule
+        c = self.m.config
+        out = {"schedule_restart": c.schedule.restart, "schedule_backup": c.schedule.backup,
+               "restart_when_empty": c.schedule.restart_when_empty,
+               "backup_copy_to": str(c.backups.copy_to or ""), "backup_copy_keep": c.backups.copy_keep,
+               "backup_copy_ok": c.backups.copy_to is None or c.backups.copy_to.is_dir()}
+        for name in ("restart", "backup"):
+            expr = getattr(c.schedule, name)
+            nxt = schedule.parse(expr).next_after(dt.datetime.now()) if expr else None
+            out[f"schedule_{name}_words"] = schedule.describe(expr)
+            out[f"schedule_{name}_next"] = nxt.timestamp() if nxt else None
+        return out
 
     def save_settings(self, q, b) -> dict:
         b = dict(b)

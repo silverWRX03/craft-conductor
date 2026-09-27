@@ -9,6 +9,8 @@ its fix will say which version it's in.
 **Added**
 - **The friends' download** (`mcsm-join-...`): the same mcsm under its own name, opening straight into joining a server (even on a computer that runs servers). Invite links offer it.
 - Windows code signing through SignPath Foundation is ready in the release workflow; it switches on once the project is accepted ([code signing policy](docs/code-signing.md)).
+- **Schedules** (Settings → Schedule): restart the server every day or week, back up every few hours or daily, or any cron expression; scheduled restarts give players the countdown and can skip while people are online.
+- **Backup copies** (Settings → Backup copies): every backup is also copied to a USB drive or a cloud-synced folder, keeping the newest few.
 - **🩺 Check my setup** on the Dashboard: Java, memory, disk space, the port, accounts, the friends' port and public address, the firewall and mcsm updates, each with what to do. **Test from the internet** checks friends outside can connect (asks ifconfig.co, only when pressed). **Report for a bug report** downloads the logs and settings with secrets taken out.
 - **Play on this computer** on a server's Dashboard: sets up this computer's Minecraft for the server (on the server's own computer), after saying what running both on one computer needs: memory and CPU with this computer's numbers, lag spikes, and heavy modpacks.
 

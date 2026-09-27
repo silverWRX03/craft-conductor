@@ -74,6 +74,9 @@ ready to update to Minecraft 1.21.4 with fabric 0.16.14:
 
 ## Features
 
+- **Schedules and backup copies.** Restart every night, back up every few hours, and copy every
+  backup to a USB drive or a cloud-synced folder. Simple choices on the Settings page, or any
+  cron expression.
 - **Check my setup.** One button checks Java, memory, disk space, the port, the firewall and
   friends' access, says what to fix in plain words, and can test that friends outside your home
   can connect. It also downloads a report for bug reports, with secrets taken out.
@@ -705,6 +708,15 @@ wait_for_empty = false
 verify_boot = true
 wait_for_all_mods = true         # a new Minecraft only once every mod supports it
 remind_days = 30                 # then remind you monthly about the mods still behind
+
+[backups]
+keep = 10
+copy_to = "/media/usb/mcsm-backups"   # also copy every backup here (optional)
+
+[schedule]                       # cron: minute hour day month weekday (local time); "" = off
+restart = "0 4 * * *"            # every day at 4:00, after the in-game countdown
+backup = "0 */6 * * *"           # every 6 hours
+restart_when_empty = false       # skip a scheduled restart while players are online
 
 [java]
 version = "auto"                 # or force a major version, e.g. 21
