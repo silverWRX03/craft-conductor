@@ -215,6 +215,8 @@ Friends playing Minecraft on a phone, a tablet, Windows (the Microsoft Store ver
 
 mcsm never asks for your Microsoft password: your launcher signs you in.
 
+**Another language?** The invite page and mcsm's joining page follow your browser's language; pick another at the bottom of either page (English, Español, Português, Français, Deutsch, हिन्दी, 中文, Tiếng Việt, العربية, 한국어).
+
 ## Remote access and phones
 
 By default only the server's own computer can open the control panel. **mcsm settings → Remote access & phones** (also a button on the New server page) lets other devices in:
@@ -234,6 +236,7 @@ By default only the server's own computer can open the control panel. **mcsm set
 - **CurseForge:** searching CurseForge needs an API key (free, from console.curseforge.com); release builds of mcsm can include one.
 - **Discord:** add a bot to post invites to a channel. **Live status message:** pick a Discord server and channel, and **Keep a status message there**: one message that always shows whether each server is online, how many are playing and its Minecraft version (and your public address, if set). mcsm edits it as things change and says when mcsm is closed; **Stop** ends it. The bot never reads the channel.
 - **Notifications:** **Notify me in this browser** shows a notification when a server stops unexpectedly, an update is ready, someone joins (off by default) or something mcsm was doing fails, while mcsm's tab is in the background. The browser asks first. It works when the address is localhost (or HTTPS).
+- **Language:** mcsm's pages in English, Español, Português, Français, Deutsch, हिन्दी, 中文, Tiếng Việt, العربية (right to left) or 한국어. **Automatic** follows your browser's language. The choice is kept in this browser; the buttons, menus and short messages are translated by machine (so they may have mistakes), and this manual stays in English.
 - **Warnings:** how many warnings you've hidden with "Don't ask me again", and **Show all warnings again**.
 - **About mcsm:** the version, **Check for mcsm updates**, the mcsm folder, the notice and open-source licenses. mcsm also checks by itself: when a new version is out, a message offers to install it (it stops your servers cleanly and restarts).
 - The sun/moon button in the top corner switches between day and night.

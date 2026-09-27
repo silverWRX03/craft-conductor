@@ -13,11 +13,11 @@ function h(tag, attrs = {}, ...children) {
     else if (k === "class") el.className = v;
     else if (k === "value") el.value = v;
     else if (k === "checked") el.checked = !!v;
-    else el.setAttribute(k, v === true ? "" : v);
+    else el.setAttribute(k, v === true ? "" : k === "placeholder" || k === "title" || k === "aria-label" ? t(String(v)) : v);
   }
   for (const c of children.flat(Infinity)) {
     if (c === null || c === undefined || c === false) continue;
-    el.append(c instanceof Node ? c : document.createTextNode(String(c)));
+    el.append(c instanceof Node ? c : document.createTextNode(typeof c === "string" ? t(c) : String(c)));  // (i18n.js)
   }
   return el;
 }
@@ -35,7 +35,7 @@ function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
   for (const b of document.querySelectorAll("[data-theme-toggle]")) {
     b.setAttribute("aria-pressed", String(theme === "day"));
-    b.title = theme === "day" ? "Switch to night" : "Switch to day";
+    b.title = t(theme === "day" ? "Switch to night" : "Switch to day");
   }
 }
 applyTheme(currentTheme());
@@ -142,7 +142,7 @@ function ask(message, { id = null, ok = "OK", danger = false } = {}) {
       resolve(yes);
     };
     document.addEventListener("keydown", onKey, true);
-    const [title, ...more] = String(message).split("\n\n");
+    const [title, ...more] = String(message).split("\n\n").map(t);
     stickyToast(boxId, [
       h("strong", { class: "pre-line" }, title),
       more.map((t) => h("p", { class: "small pre-line" }, t)),
@@ -157,7 +157,7 @@ function ask(message, { id = null, ok = "OK", danger = false } = {}) {
 // getting in the way. Click one to dismiss it; errors stay longer.
 function toast(message, bad = false) {
   const el = h("div", { class: "toast" + (bad ? " bad" : ""), role: bad ? "alert" : "status", title: "Click to dismiss",
-    onclick: () => el.remove() }, h("span", { class: "toast-icon", "aria-hidden": "true" }, bad ? "⚠" : "✓"), h("span", {}, message));
+    onclick: () => el.remove() }, h("span", { class: "toast-icon", "aria-hidden": "true" }, bad ? "⚠" : "✓"), h("span", {}, t(message)));
   $("#toasts").append(el);
   setTimeout(() => el.remove(), bad ? 12000 : 5000);
 }
@@ -230,7 +230,7 @@ async function showLogin() {
   try { a = await (await fetch("/api/auth", { credentials: "same-origin" })).json(); } catch (_) { /* offline */ }
   const input = $("#login-password");
   const pin = a && a.mode === "pin";
-  $("#login-label").textContent = pin ? "PIN" : "Password";
+  $("#login-label").textContent = t(pin ? "PIN" : "Password");
   input.setAttribute("inputmode", pin ? "numeric" : "text");
   input.setAttribute("autocomplete", pin ? "off" : "current-password");
   const reset = h("button", { type: "button", class: "link-btn", onclick: async () => {
@@ -258,7 +258,7 @@ function eyeToggle(input, button) {
     input.type = show ? "text" : "password";
     button.setAttribute("aria-pressed", String(show));
     button.setAttribute("aria-label", show ? "Hide password" : "Show password");
-    button.title = show ? "Hide password" : "Show password";
+    button.title = t(show ? "Hide password" : "Show password");
     button.querySelector(".eye-open").classList.toggle("hidden", show);
     button.querySelector(".eye-shut").classList.toggle("hidden", !show);
     input.focus();
@@ -420,12 +420,12 @@ function offerSelfUpdate(u, force = false) {
 // ------------------------------------------------------------------- status
 async function refreshStatus() {
   try { hubInfo = await api("/api/hub"); } catch (e) {
-    if (!(e instanceof Unauthorized)) { $("#state-pill").textContent = "reconnecting"; $("#state-pill").className = "pill"; }
+    if (!(e instanceof Unauthorized)) { $("#state-pill").textContent = t("reconnecting"); $("#state-pill").className = "pill"; }
     return;
   }
   const hb = hubInfo;
   $("#version").textContent = "v" + hb.version + " beta";
-  $("#version").title = "mcsm is in beta: expect some rough edges, and keep backups.";
+  $("#version").title = t("mcsm is in beta: expect some rough edges, and keep backups.");
   $("#quit").classList.toggle("hidden", !!hb.single || (hb.role && hb.role !== "owner"));
   document.body.classList.toggle("viewer", hb.role === "viewer");  // look-only sign-in: no buttons that change things
   if (!hb.notice_accepted) { showNotice(); return; }
@@ -447,7 +447,7 @@ async function refreshStatus() {
   if (want !== server) return;  // switched servers meanwhile
   status = s;
   const pill = $("#state-pill");
-  pill.textContent = s.state;
+  pill.textContent = t(s.state);
   pill.className = "pill " + s.state;
   $("#server-title").textContent = (s.motd || s.id) + (s.minecraft
     ? ` · Minecraft ${s.minecraft} · ${s.loader}` : " · not installed yet");
@@ -555,8 +555,8 @@ function meter(label) {
   return {
     el,
     set(pct, text, sub) {
-      value.textContent = text;
-      note.textContent = sub || "";
+      value.textContent = t(text);
+      note.textContent = t(sub || "");
       const p = pct === null || pct === undefined ? 0 : Math.max(0, Math.min(100, pct));
       fillBar.style.width = p + "%";  // CSSOM, allowed by the CSP (unlike style attributes)
       fillBar.className = "bar-fill" + (p >= 90 ? " bad" : p >= 75 ? " warn" : "");
@@ -3029,7 +3029,7 @@ views.servers = () => {
     try {
       const staged = await upload(`/api/hub/stage?filename=${encodeURIComponent(f.name.replace(/[^A-Za-z0-9 ()\[\]+_.,'-]/g, "_"))}`, f,
         (done) => { importNote.textContent = `Uploading ${f.name}: ${Math.round(done * 100)}%`; });
-      importNote.textContent = "Unpacking…";
+      importNote.textContent = t("Unpacking…");
       const r = await api("/api/hub/import", { method: "POST", body: { id: staged.id } });
       toast("Imported. Press Start when you're ready.");
       await refreshStatus();
@@ -3135,6 +3135,16 @@ function notificationsCard() {
 }
 
 // Questions answered with "Don't ask me again" (kept in this browser): bring them back here.
+// The language of mcsm's pages (this browser): automatic (the browser's) or one picked here.
+function languageCard() {
+  const sel = h("select", { "aria-label": "Language" }, h("option", { value: "" }, "Automatic (this browser's language)"),
+    Object.entries(LANGS).map(([code, name]) => h("option", { value: code }, name)));
+  sel.value = savedLanguage();
+  sel.addEventListener("change", () => setLanguage(sel.value));
+  return card("Language", h("div", { class: "row" }, sel),
+    h("p", { class: "muted small" }, "Translations are machine-made and may have mistakes; the user manual is in English."));
+}
+
 function warningsCard() {
   const box = h("div");
   const render = () => {
@@ -3236,6 +3246,7 @@ views.mcsm = () => {
             closeToast("self-update");
             await act(() => api("/api/self-update/check", { method: "POST", body: {} }), "Checking for a new mcsm version…");
           } }, "Check for mcsm updates"), s.single ? null : folderBtn("home", "mcsm folder", null, "btn"))),
+      h("div", { class: "mt" }, languageCard()),
       h("div", { class: "mt" }, warningsCard()),
       h("div", { class: "mt" }, notificationsCard()),
       h("div", { class: "mt" }, card("What mcsm does and doesn't do",
@@ -3603,7 +3614,7 @@ views.setup = () => {
       let timer;
       const check = async () => {
         const port = Number(input.value);
-        if (!Number.isInteger(port) || port < 1024 || port > 65535) { note.className = "small bad-text"; note.textContent = "Pick a number between 1024 and 65535."; return; }
+        if (!Number.isInteger(port) || port < 1024 || port > 65535) { note.className = "small bad-text"; note.textContent = t("Pick a number between 1024 and 65535."); return; }
         if (opts.network_option) return;  // `mcsm run`: a single server, nothing to compare with
         const r = await api(`/api/hub/port?port=${port}${isNew ? "" : "&exclude=" + encodeURIComponent(server)}`).catch(() => null);
         if (!r || Number(input.value) !== port) return;
@@ -3859,7 +3870,7 @@ function renderNav() {
   $(".server-id").classList.toggle("hidden", !inServer);
   $(".actions").classList.toggle("hidden", !inServer);
   $("#page-title").classList.toggle("hidden", inServer);
-  $("#page-title").textContent = { servers: "Your servers", new: "New server", mcsm: "mcsm settings", help: "Help", manual: "User manual" }[currentName] || "";
+  $("#page-title").textContent = t({ servers: "Your servers", new: "New server", mcsm: "mcsm settings", help: "Help", manual: "User manual" }[currentName] || "");
   if (!inServer) $("#job").classList.add("hidden");
 }
 
@@ -3894,6 +3905,7 @@ function route() {
 window.addEventListener("hashchange", () => { if (!$("#app").classList.contains("hidden")) route(); });
 
 async function start() {
+  await loadLanguage("/");  // (i18n.js: the chosen language's words, before anything is drawn)
   if (/^#pair=/.test(location.hash)) { showPairing(location.hash.slice(6)); return; }
   if ($("#pairing")) $("#pairing").remove();
   try { hubInfo = await api("/api/hub"); } catch (_) { return; }

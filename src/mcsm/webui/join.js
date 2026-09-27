@@ -8,11 +8,11 @@ function h(tag, attrs = {}, ...children) {
     if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
     else if (k === "class") el.className = v;
     else if (k === "checked") el.checked = !!v;
-    else el.setAttribute(k, v === true ? "" : v);
+    else el.setAttribute(k, v === true ? "" : k === "placeholder" || k === "title" || k === "aria-label" ? t(String(v)) : v);
   }
   for (const c of children.flat(Infinity)) {
     if (c === null || c === undefined || c === false) continue;
-    el.append(c instanceof Node ? c : document.createTextNode(String(c)));
+    el.append(c instanceof Node ? c : document.createTextNode(typeof c === "string" ? t(c) : String(c)));  // (i18n.js)
   }
   return el;
 }
@@ -435,4 +435,12 @@ async function load() {
 // (Opening mcsm again, or "Open in mcsm" on the invite page, brings this page back.)
 window.addEventListener("beforeunload", (e) => { if (setupRunning) { e.preventDefault(); e.returnValue = ""; } });
 setInterval(() => fetch(`api/progress?since=${seen}`).catch(() => null), 30000);  // "still open"
-load();
+// The page's language: the browser's, or one picked here (kept in this browser). See i18n.js.
+function languagePicker() {
+  const sel = h("select", { "aria-label": "Language" }, h("option", { value: "" }, "Automatic (this browser's language)"),
+    Object.entries(LANGS).map(([code, name]) => h("option", { value: code }, name)));
+  sel.value = savedLanguage();
+  sel.addEventListener("change", () => setLanguage(sel.value));
+  return h("p", { class: "muted small center lang-picker" }, "🌐 ", sel);
+}
+loadLanguage().then(() => { document.body.append(languagePicker()); load(); });

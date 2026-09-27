@@ -74,6 +74,8 @@ ready to update to Minecraft 1.21.4 with fabric 0.16.14:
 
 ## Features
 
+- **In your language.** The control panel, the friends' page and the invite page in English, Spanish,
+  Portuguese, French, German, Hindi, Chinese, Vietnamese, Arabic and Korean (machine-translated).
 - **Co-admins.** Pair a friend's phone or computer as a helper (everyday controls) or a viewer
   (look only).
 - **A live status message on Discord.** One message that always shows which servers are up and

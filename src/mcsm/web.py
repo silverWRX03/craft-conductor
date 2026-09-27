@@ -71,6 +71,7 @@ def device_allowed(method: str, path: str, role: str = "helper") -> bool:
 MAX_JSON = 1 << 20
 MAX_UPLOAD = 512 << 20
 MAX_ARCHIVE = 64 << 30
+LANGUAGES = ("es", "pt", "fr", "de", "hi", "zh", "vi", "ar", "ko")  # besides English: src/mcsm/webui/i18n/<code>.json
 LOCAL_ONLY = {"/api/open", "/api/hub/open", "/api/hub/remote-install/open", "/api/play-here"}  # they act on this computer's screen  # a whole server (worlds and all), for importing
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/app.js": ("app.js", "text/javascript; charset=utf-8"),
@@ -80,7 +81,10 @@ STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/icon.png": ("icon.png", "image/png"),
           "/manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json"),
           "/help-network.svg": ("help-network.svg", "image/svg+xml"),
-          "/help-router.svg": ("help-router.svg", "image/svg+xml")}
+          "/help-router.svg": ("help-router.svg", "image/svg+xml"),
+          "/i18n.js": ("i18n.js", "text/javascript; charset=utf-8"),
+          # the page's words in other languages (see i18n.js)
+          **{f"/i18n/{code}.json": (f"i18n/{code}.json", "application/json; charset=utf-8") for code in LANGUAGES}}
 SECURITY_HEADERS = {
     "Content-Security-Policy": "default-src 'self'; img-src 'self' https: data:; style-src 'self'; "
                                "script-src 'self'; connect-src 'self'; frame-ancestors 'none'",

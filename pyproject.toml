@@ -25,7 +25,7 @@ where = ["src"]
 version = { attr = "mcsm.__version__" }
 
 [tool.setuptools.package-data]
-mcsm = ["webui/*"]
+mcsm = ["webui/*", "webui/i18n/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

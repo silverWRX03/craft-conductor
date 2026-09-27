@@ -19,15 +19,48 @@ const OPEN_TIP = {
   "linux-arm64": ["Make the file runnable (chmod +x) and run it."],
 };
 
+// Languages: the friend's browser language, or the one picked at the bottom of the page.
+const LANG_NAMES = { en: "English", es: "Español", pt: "Português", fr: "Français", de: "Deutsch", hi: "हिन्दी",
+  zh: "中文（简体）", vi: "Tiếng Việt", ar: "العربية", ko: "한국어" };
+const LANG_KEY = "mcsm-lang";
+function pickLanguage() {
+  let saved = "";
+  try { saved = localStorage.getItem(LANG_KEY) || ""; } catch (_) { /* private mode */ }
+  if (LANG_NAMES[saved]) return saved;
+  for (const l of navigator.languages || [navigator.language || "en"]) {
+    const base = String(l).toLowerCase().split("-")[0];
+    if (LANG_NAMES[base]) return base;
+  }
+  return "en";
+}
+const LANG = pickLanguage();
+const TR = (typeof SITE_I18N === "object" && SITE_I18N[LANG]) || {};
+// The translation of a piece of text; {name} placeholders are filled in afterwards.
+function t(text, vars) {
+  if (typeof text !== "string") return text;
+  const trimmed = text.trim();
+  let out = TR[text] || (TR[trimmed] ? text.replace(trimmed, TR[trimmed]) : text);
+  for (const [k, v] of Object.entries(vars || {})) out = out.replace(`{${k}}`, () => v);
+  return out;
+}
+
+function languagePicker() {
+  const sel = h("select", { "aria-label": "Language", onchange: () => {
+    try { localStorage.setItem(LANG_KEY, sel.value); } catch (_) { /* private mode */ }
+    location.reload();
+  } }, Object.entries(LANG_NAMES).map(([code, name]) => h("option", { value: code, selected: code === LANG }, name)));
+  return h("p", { class: "muted small center" }, "🌐 ", sel);
+}
+
 function h(tag, attrs, ...children) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {
     if (v === null || v === undefined || v === false) continue;
     if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
     else if (k === "class") el.className = v;
-    else el.setAttribute(k, v === true ? "" : v);
+    else el.setAttribute(k, v === true ? "" : ["placeholder", "aria-label", "title"].includes(k) ? t(v) : v);
   }
-  for (const c of children.flat(Infinity)) if (c !== null && c !== undefined && c !== false) el.append(c);
+  for (const c of children.flat(Infinity)) if (c !== null && c !== undefined && c !== false) el.append(typeof c === "string" ? t(c) : c);
   return el;
 }
 
@@ -64,7 +97,8 @@ function render() {
     return;
   }
   const os = detectOS();
-  const title = invite.name ? `You're invited to play on ${invite.name}` : "You're invited to a Minecraft server";
+  // (the server's name goes in after translating, so it's never translated itself)
+  const title = invite.name ? t("You're invited to play on {name}", { name: invite.name }) : "You're invited to a Minecraft server";
   const steps = h("div", { class: "card hidden", id: "next" });
   const codeBox = h("input", { readonly: true, value: invite.code, "aria-label": "Invite code", class: "code" });
   const openHelp = h("div", { class: "notice hidden", role: "status" },
@@ -85,7 +119,7 @@ function render() {
   };
   const link = (key) => h("a", { href: `${RELEASES}/download/${DOWNLOADS[key][1]}`, onclick: download(key) }, DOWNLOADS[key][0]);
   const main = os ? h("a", { class: "btn big", href: `${RELEASES}/download/${DOWNLOADS[os][1]}`, onclick: download(os) },
-    `⬇ Download mcsm for ${DOWNLOADS[os][0]}`) : null;
+    t("⬇ Download mcsm for {os}", { os: t(DOWNLOADS[os][0]) })) : null;
 
   root.replaceChildren(
     h("div", { class: "card" },
@@ -107,7 +141,8 @@ function render() {
       h("details", { class: "muted small" }, h("summary", {}, "For power users"),
         h("p", {}, "Run ", h("code", {}, "mcsm join"), " with this invite code, or paste it into mcsm:"), codeBox.cloneNode())),
     h("p", { class: "muted small center" }, "mcsm checks it's really your friend's server before connecting, and downloads mods only from Modrinth and CurseForge. ",
-      h("a", { href: "https://github.com/silverWRX03/mc-server-management" }, "About mcsm")));
+      h("a", { href: "https://github.com/silverWRX03/mc-server-management" }, "About mcsm")),
+    languagePicker());
   root.querySelectorAll("input.code").forEach((el) => { el.value = invite.code; });
 }
 
@@ -138,7 +173,8 @@ function pasteCard() {
       "Copy the whole link (or the invite code) you were sent and paste it here:"),
     h("div", { class: "row" }, box, h("button", { class: "btn", onclick: go }, "Open invite")),
     err,
-    h("p", { class: "muted small" }, "Tip: in Discord, right-click the link and choose Copy Link. Nothing you paste leaves this page."));
+    h("p", { class: "muted small" }, "Tip: in Discord, right-click the link and choose Copy Link. Nothing you paste leaves this page."),
+    languagePicker());
 }
 
 function toast(text) {
@@ -147,5 +183,8 @@ function toast(text) {
   setTimeout(() => el.remove(), 3000);
 }
 
+document.documentElement.lang = LANG;
+document.documentElement.dir = LANG === "ar" ? "rtl" : "ltr";
+document.title = `${t("You're invited to a Minecraft server")} · mcsm`;
 window.addEventListener("hashchange", render);
 render();

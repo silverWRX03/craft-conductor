@@ -39,7 +39,10 @@ HEADERS = {
 }
 STATIC = {"": ("join.html", "text/html; charset=utf-8"), "join.js": ("join.js", "text/javascript; charset=utf-8"),
           "rich.js": ("rich.js", "text/javascript; charset=utf-8"),
-          "style.css": ("style.css", "text/css; charset=utf-8"), "icon.png": ("icon.png", "image/png")}
+          "style.css": ("style.css", "text/css; charset=utf-8"), "icon.png": ("icon.png", "image/png"),
+          "i18n.js": ("i18n.js", "text/javascript; charset=utf-8"),
+          **{f"i18n/{code}.json": (f"i18n/{code}.json", "application/json; charset=utf-8")
+             for code in ("es", "pt", "fr", "de", "hi", "zh", "vi", "ar", "ko")}}
 ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
 START_SERVER = -1  # run() result: the person chose to run their own server instead
 IDLE_SECONDS = 180  # the page pings while it's open; stop a while after it's closed
