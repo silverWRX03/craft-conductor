@@ -79,6 +79,10 @@ Questions you'll meet again and again ("Stop the server?", "Quit mcsm?", "Update
 
 **Start**, **Restart** and **Stop** are at the top of every server page. The Dashboard shows CPU and memory use, who's online, the console, the server's details and whether an update is ready. Stopping warns players and saves the world first.
 
+### Performance
+
+While the server runs, **Performance** on the Dashboard shows how well it keeps up: **TPS** (ticks per second; 20 is smooth, under about 17 players feel lag) and, where the server reports it, **ms per tick** (under 50 keeps up), with a small graph of the last hour. mcsm asks the server now and then while the Dashboard is open (Minecraft 1.20.3 and newer, Paper, Forge and NeoForge can tell). When it's behind, **What slows a server down** lists the usual causes. With the **spark** mod installed, **Profile 30 s with spark** makes a detailed report of what the server spends its time on, and a link to it appears there.
+
 ### Check my setup
 
 **🩺 Check my setup** (in the Server box on the Dashboard) checks what most often stops a server or keeps friends out, and says what to do about each: the server is installed and the EULA accepted, Java is there, the server's memory fits this computer, there's disk space, the port is free (or another program has it), accounts (online-mode), the friends' download port and public address, Windows Firewall, and whether mcsm has an update.
@@ -191,6 +195,7 @@ By default only the server's own computer can open the control panel. **mcsm set
 - **Sharing with friends:** the friends' port and your public address.
 - **CurseForge:** searching CurseForge needs an API key (free, from console.curseforge.com); release builds of mcsm can include one.
 - **Discord:** add a bot to post invites to a channel.
+- **Notifications:** **Notify me in this browser** shows a notification when a server stops unexpectedly, an update is ready, someone joins (off by default) or something mcsm was doing fails, while mcsm's tab is in the background. The browser asks first. It works when the address is localhost (or HTTPS).
 - **Warnings:** how many warnings you've hidden with "Don't ask me again", and **Show all warnings again**.
 - **About mcsm:** the version, **Check for mcsm updates**, the mcsm folder, the notice and open-source licenses. mcsm also checks by itself: when a new version is out, a message offers to install it (it stops your servers cleanly and restarts).
 - The sun/moon button in the top corner switches between day and night.

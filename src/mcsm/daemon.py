@@ -186,6 +186,8 @@ class Daemon:
         self.events = LogBuffer(500)
         self.players: set[str] = set()
         self._sched_last = None  # the last time schedules were looked at
+        self.meter = None        # recent TPS samples (perf.Meter), made when first asked for
+        self.crashed_at = None   # when the server last stopped unexpectedly
         self.started_at: float | None = None
         self.last_check: dict | None = None
         self.ops = threading.Lock()     # one job at a time
@@ -475,6 +477,7 @@ class Daemon:
             return None
 
     def _handle_crash(self) -> None:
+        self.crashed_at = time.time()
         now = time.monotonic()
         self.crashes.append(now)
         while self.crashes and now - self.crashes[0] > CRASH_WINDOW:

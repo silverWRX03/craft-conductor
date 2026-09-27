@@ -114,6 +114,24 @@ class ServerProcess:
                 self._line_cond.wait(timeout=0.5)
         return None
 
+    def ask(self, command: str, parse, timeout: float = 5):
+        """Send a console command and return ``parse(lines)`` for the lines it printed, as soon
+        as that isn't None (None if the server doesn't answer in time)."""
+        if not self.running:
+            return None
+        with self._line_cond:
+            start = self.line_count
+            self.send(command)
+            deadline = time.monotonic() + timeout
+            while time.monotonic() < deadline:
+                new = min(self.line_count - start, len(self.lines))
+                if new:
+                    result = parse(list(self.lines)[len(self.lines) - new:])
+                    if result is not None:
+                        return result
+                self._line_cond.wait(timeout=0.5)
+        return None
+
     def stop(self, timeout: float = 120) -> int | None:
         """Stop gracefully with ``stop``; terminate, then kill, if it hangs."""
         if not self.proc:

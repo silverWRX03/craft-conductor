@@ -1162,6 +1162,8 @@ class Api:
         post("/api/open", self.open_folder)
         get("/api/play-here", self.play_here_info)
         get("/api/doctor", self.doctor)
+        get("/api/performance", self.performance)
+        post("/api/performance/spark", self.spark_profile)
         post("/api/doctor/internet", self.doctor_internet)
         get("/api/doctor/report", lambda q, b: None)  # sent by the request handler (a zip)
         post("/api/play-here", self.play_here)
@@ -1658,6 +1660,33 @@ class Api:
         hub.remember_discord_channel(guild, channel)
         log.info("posted the friends' invite to Discord")
         return {"ok": True, **r}
+
+    # ------------------------------------------------------ performance
+    def performance(self, q, b) -> dict:
+        """How fast the server keeps up (TPS/MSPT), measured now and then while someone looks."""
+        from . import perf
+        d, lk = self.d, self.m.lock
+        if getattr(d, "meter", None) is None:
+            d.meter = perf.Meter()
+        loader = lk.loader or self.m.config.server.loader
+        command = perf.command_for(loader, lk.minecraft or "")
+        current = d.meter.sample(d.proc, loader, lk.minecraft or "") if d.state == "running" and command else None
+        status, words = perf.verdict(current["tps"] if current else None)
+        spark = any("spark" in (x.name or "").lower() for x in lk.mods)
+        urls = [u for line in (d.proc.tail(300) if d.proc else []) for u in perf.SPARK_URL.findall(line)]
+        return {"supported": bool(command), "running": d.state == "running", "current": current,
+                "status": status, "words": words, "samples": list(d.meter.samples),
+                "spark": spark, "spark_url": urls[-1] if urls else None}
+
+    def spark_profile(self, q, b) -> dict:
+        """Profile the server for 30 seconds with the spark mod (power users): the report's link
+        appears in the console and on the Dashboard."""
+        if not any("spark" in (x.name or "").lower() for x in self.m.lock.mods):
+            raise ApiError(400, "add the spark mod first (Mods → Download mods → spark)")
+        if not (self.d.proc and self.d.proc.running):
+            raise ApiError(409, "start the server first")
+        self.d.proc.send("spark profiler start --timeout 30")
+        return {"ok": True, "message": "profiling for 30 seconds; the report's link appears here and in the console"}
 
     # ------------------------------------------------------ Check my setup
     def _doctor_checks(self):

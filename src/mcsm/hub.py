@@ -648,6 +648,7 @@ class Hub:
                 "max_players": int(props.get("max-players", "20") or 20),
                 "port": props.get("server-port", "25565"), "folder": str(d.m.config.root),
                 "update": bool(d.last_check and not d.last_check.get("up_to_date") and d.last_check.get("target")),
+                "crashed_at": d.crashed_at, "last_job": d.last_job,
             })
         for sid, p in self.problems.items():
             out.append({"id": sid, "name": p.get("name") or sid, "state": "unavailable", "problem": p["problem"],

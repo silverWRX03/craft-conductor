@@ -563,6 +563,53 @@ function meter(label) {
   };
 }
 
+// Performance: ticks per second (20 = smooth), measured now and then while the Dashboard is
+// open, with a small graph of the last hour, what to try when it's behind, and (with the spark
+// mod) a 30-second profile for power users.
+function perfCard() {
+  const body = h("div", {}, h("p", { class: "muted small" }, "Measuring…"));
+  const el = card("Performance", body);
+  const spark = (samples) => {
+    const pts = samples.filter((x) => x.tps !== null).slice(-60);
+    if (pts.length < 2) return null;
+    const NS = "http://www.w3.org/2000/svg", W = 240, H = 40;
+    const svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("class", "tps-graph"); svg.setAttribute("aria-hidden", "true");
+    const t0 = pts[0].time, span = Math.max(1, pts[pts.length - 1].time - t0);
+    const d = pts.map((x, i) => `${i ? "L" : "M"}${(W * (x.time - t0) / span).toFixed(1)},${(H - 2 - (H - 4) * Math.max(0, Math.min(20, x.tps)) / 20).toFixed(1)}`).join(" ");
+    const line = document.createElementNS(NS, "path");
+    line.setAttribute("d", d); line.setAttribute("fill", "none"); line.setAttribute("class", "tps-line");
+    const ref = document.createElementNS(NS, "line");
+    for (const [k, v] of [["x1", 0], ["x2", W], ["y1", 2], ["y2", 2]]) ref.setAttribute(k, v);
+    ref.setAttribute("class", "tps-ref");
+    svg.append(ref, line);
+    return svg;
+  };
+  const load = async () => {
+    const r = await api("/api/performance").catch(() => null);
+    if (!r) return;
+    if (!r.supported) { fill(body, h("p", { class: "muted small" }, "This Minecraft version can't report its speed (it needs Minecraft 1.20.3 or newer, or Paper, Forge or NeoForge).")); return; }
+    if (!r.running) { fill(body, h("p", { class: "muted small" }, "Start the server to see how well it keeps up.")); return; }
+    const c = r.current;
+    const tips = r.status === "bad" || r.status === "warn" ? h("details", { class: "small mt-s" }, h("summary", {}, "What slows a server down"),
+      h("ul", {},
+        h("li", {}, "Exploring new terrain: pre-generate the world (the Chunky mod) so it's ready before people get there."),
+        h("li", {}, "Lots of mobs, item farms or redstone clocks in loaded areas."),
+        h("li", {}, "Too little memory: see Check my setup; or too much, without Aikar's flags (Settings)."),
+        h("li", {}, "A heavy mod: a profile with spark shows which one."))) : null;
+    fill(body,
+      h("div", { class: "row" },
+        h("strong", { class: `tps-value ${r.status}` }, c ? `${c.tps.toFixed(1)} TPS` : "…"),
+        h("span", { class: "grow small" }, r.words, c && c.mspt !== null ? ` · ${c.mspt.toFixed(1)} ms per tick (under 50 keeps up)` : ""),
+        spark(r.samples)),
+      tips,
+      r.spark ? h("div", { class: "row mt-s small" },
+        h("button", { class: "btn small", onclick: () => act(() => api("/api/performance/spark", { method: "POST", body: {} })).then((x) => x && toast(x.message)) }, "Profile 30 s with spark"),
+        r.spark_url ? h("a", { href: r.spark_url, target: "_blank", rel: "noopener noreferrer" }, "Latest spark report ↗") : null) : null);
+  };
+  return { el, load };
+}
+
 // Check my setup: what most often stops a server or friends, each with what to do. Testing from
 // the internet asks an outside service, so it only runs when asked; the report (for a bug
 // report) leaves secrets out.
@@ -654,6 +701,7 @@ views.dashboard = () => {
   const onlineCount = h("span", { class: "muted" });
   const playerCard = h("div", { class: "card" }, h("h3", {}, "Online now ", onlineCount), online);
   const cpu = meter("CPU"), mem = meter("Memory");
+  const perf = perfCard();
   const con = consolePanel({ compact: true });
   const lagBanner = h("div");
   let evSeq = 0;
@@ -761,6 +809,7 @@ views.dashboard = () => {
     h("h2", { class: "view-title" }, "Dashboard"),
     lagBanner,
     h("div", { class: "meters" }, cpu.el, mem.el),
+    h("div", { class: "mt" }, perf.el),
     h("div", { class: "mt" }, playerCard),
     hubInfo && hubInfo.local ? h("div", { class: "mt" }, playHereCard()) : null,
     h("div", { class: "card mt" }, h("h3", {}, "Console"), con.el),
@@ -771,6 +820,7 @@ views.dashboard = () => {
   );
   if (status) render(status);
   every(3000, pollEvents);
+  every(30000, perf.load);
   every(1000, con.poll);
   every(5000, loadPlayers);
   return { onStatus: render };
@@ -2756,6 +2806,67 @@ function closingTip() {
   return tip;
 }
 
+// Notifications from this browser while mcsm's tab is in the background (a crash, an update,
+// someone joining, a job that failed). Kept per browser; checks every 20 seconds while on.
+const NOTIFY_KEY = "mcsm-notify";
+const NOTIFY_KINDS = [["crash", "A server stops unexpectedly", true], ["update", "An update is ready", true],
+  ["join", "Someone joins a server", false], ["job", "Something mcsm was doing fails", true]];
+function notifyPrefs() { try { return JSON.parse(localStorage.getItem(NOTIFY_KEY) || "null"); } catch (_) { return null; } }
+function saveNotifyPrefs(p) { try { localStorage.setItem(NOTIFY_KEY, JSON.stringify(p)); } catch (_) { /* private mode */ } }
+let notifySeen = null;
+async function notifyWatch() {
+  const prefs = notifyPrefs();
+  if (!prefs || !prefs.on || !("Notification" in window) || Notification.permission !== "granted") return;
+  const r = await api("/api/hub").catch(() => null);
+  if (!r || !r.servers) return;
+  const now = new Map(r.servers.map((s) => [s.id, s]));
+  if (notifySeen && document.hidden) {
+    const say = (title, body) => { try { new Notification(title, { body, icon: "/icon.png", tag: `${title}|${body}` }); } catch (_) { /* not allowed */ } };
+    for (const [id, s] of now) {
+      const before = notifySeen.get(id);
+      if (!before) continue;
+      if (prefs.crash && s.crashed_at && s.crashed_at !== before.crashed_at) say(`${s.name} stopped unexpectedly`, "mcsm restarts it if it can. Open mcsm to see why.");
+      if (prefs.update && s.update && !before.update) say(`Update ready for ${s.name}`, "Open mcsm's Updates page to see it.");
+      if (prefs.join && s.players > before.players) say(`Someone joined ${s.name}`, `${s.players} online now.`);
+      const j = s.last_job, bj = before.last_job;
+      if (prefs.job && j && j.ok === false && (!bj || bj.finished !== j.finished)) say(`${s.name}: ${j.name} failed`, j.message || "");
+    }
+  }
+  notifySeen = now;
+}
+setInterval(notifyWatch, 20000);
+
+function notificationsCard() {
+  const box = h("div");
+  const render = () => {
+    const supported = "Notification" in window && window.isSecureContext;
+    const prefs = notifyPrefs() || { on: false, ...Object.fromEntries(NOTIFY_KINDS.map(([k, , d]) => [k, d])) };
+    const perm = supported ? Notification.permission : "unsupported";
+    const on = h("input", { type: "checkbox", checked: !!prefs.on && perm === "granted", disabled: !supported || perm === "denied" });
+    on.addEventListener("change", async () => {
+      if (on.checked && Notification.permission !== "granted") {
+        const answer = await Notification.requestPermission().catch(() => "denied");
+        if (answer !== "granted") { toast("The browser didn't allow notifications for this page.", true); render(); return; }
+      }
+      saveNotifyPrefs({ ...prefs, on: on.checked });
+      if (on.checked) { notifySeen = null; notifyWatch(); toast("Notifications on for this browser"); }
+      render();
+    });
+    fill(box, card("Notifications",
+      h("p", { class: "muted small" }, "Get a notification from this browser when something happens while mcsm's tab is in the background."),
+      !supported ? h("p", { class: "small" }, "This browser can't show notifications for this page (they need the address to be localhost, or HTTPS).")
+        : perm === "denied" ? h("p", { class: "small bad-text" }, "Notifications are blocked for this page in the browser's site settings.") : null,
+      h("label", { class: "row" }, on, h("span", {}, "Notify me in this browser")),
+      prefs.on && perm === "granted" ? h("div", { class: "grid mt-s" }, NOTIFY_KINDS.map(([k, label]) => {
+        const c = h("input", { type: "checkbox", checked: !!prefs[k] });
+        c.addEventListener("change", () => saveNotifyPrefs({ ...(notifyPrefs() || prefs), [k]: c.checked }));
+        return h("label", { class: "row" }, c, h("span", {}, label));
+      })) : null));
+  };
+  render();
+  return box;
+}
+
 // Questions answered with "Don't ask me again" (kept in this browser): bring them back here.
 function warningsCard() {
   const box = h("div");
@@ -2832,6 +2943,7 @@ views.mcsm = () => {
             await act(() => api("/api/self-update/check", { method: "POST", body: {} }), "Checking for a new mcsm version…");
           } }, "Check for mcsm updates"), s.single ? null : folderBtn("home", "mcsm folder", null, "btn"))),
       h("div", { class: "mt" }, warningsCard()),
+      h("div", { class: "mt" }, notificationsCard()),
       h("div", { class: "mt" }, card("What mcsm does and doesn't do",
         h("ul", { class: "notice-points" }, n.points.map((p) => h("li", {}, p))))),
       h("div", { class: "mt" }, card("Open-source licenses",

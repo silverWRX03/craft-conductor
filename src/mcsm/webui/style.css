@@ -611,3 +611,10 @@ body.picking main.join { opacity: .35; transform: translateX(-30px); transition:
 .doctor-item.bad .doctor-icon { color: var(--bad-fg); background: var(--bad-bg); }
 .doctor-item.info .doctor-icon { color: var(--info); background: var(--code-bg, transparent); }
 .self-start { align-self: start; }
+
+/* Performance */
+.tps-value { font-size: 22px; }
+.tps-value.ok { color: var(--ok-fg); } .tps-value.warn { color: var(--warn-fg); } .tps-value.bad { color: var(--bad-fg); }
+.tps-graph { width: 240px; height: 40px; flex: none; }
+.tps-line { stroke: var(--info); stroke-width: 2; }
+.tps-ref { stroke: var(--border); stroke-dasharray: 3 3; }

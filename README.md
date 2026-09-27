@@ -74,6 +74,8 @@ ready to update to Minecraft 1.21.4 with fabric 0.16.14:
 
 ## Features
 
+- **Performance and notifications.** See the server's ticks per second with a graph, profile it
+  with spark, and get browser notifications when a server crashes or an update is ready.
 - **Schedules and backup copies.** Restart every night, back up every few hours, and copy every
   backup to a USB drive or a cloud-synced folder. Simple choices on the Settings page, or any
   cron expression.
