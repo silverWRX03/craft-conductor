@@ -7,6 +7,7 @@ its fix will say which version it's in.
 ## 0.9.2 (not released yet)
 
 **Fixed**
+- Closing mcsm's page (a friend setting up their game) and then pressing **Open in mcsm** or opening mcsm again didn't bring it back. It now shows the page again, with the progress or results, and the browser asks before the tab is closed while Minecraft is being set up.
 - An invite link that lost its invite on the way (some apps cut links short) ended at "This invite link isn't complete"; the invite page now has a box to paste the link or invite code.
 
 ## 0.9.1 (2026-09-27)

@@ -137,6 +137,8 @@ For power users, **Advanced: invite codes and security** shows the raw invite co
 
 **The page says "Paste your invite" or "This invite link isn't complete"?** The app you opened the link in cut it short (the invite is the long part after the `#`). Copy the whole link again (in Discord: right-click it → **Copy Link**) or the invite code, paste it into the box and press **Open invite**.
 
+**Closed mcsm's page by mistake?** mcsm keeps going. Open mcsm again (or press **Open in mcsm** on the invite page) and its page comes back, with the progress or results. While it's setting Minecraft up, your browser asks before closing the tab.
+
 **Already have mcsm?** On the invite page, press **Open in mcsm** (Windows and Linux; on a Mac, press **Copy the invite** and open mcsm).
 
 **When the server updates**, click the invite link again and press **Open in mcsm**, or open mcsm and press **Update** next to it under **Servers you've joined**. If some of your extras don't work on the new Minecraft yet, mcsm tells you first: **Continue** removes those mods and switches those shaders/resource packs off (you can switch them back on, but the game may crash), or **Cancel** keeps everything as it is (you can't join the updated server until you continue).

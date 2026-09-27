@@ -159,3 +159,26 @@ def test_join_opens_the_page_or_falls_back(monkeypatch, capsys):
     assert cli.main(["join", join.Invite("mc.example.com", 8766, code, "F" * 43).code, "--launcher", "prism,modrinth"]) == 0
     assert calls == [["prism", "modrinth"]]
     assert cli.main(["join", join.Invite("mc.example.com", 8766, code, "F" * 43).code, "--launcher", "tlauncher"]) == 2
+
+
+def test_opening_mcsm_again_brings_its_page_back(tmp_path, http):
+    """A friend closes the tab by mistake, then opens mcsm again (or "Open in mcsm" on an invite
+    page): the mcsm that's still running shows its page again, with the new invite."""
+    mc = tmp_path / ".minecraft"
+    ui = joinui.JoinUI(None, mc_dir=mc, http=http)
+    opened = []
+    ui.open_browser = opened.append
+    url = ui.start()
+    try:
+        note = mc / "mcsm" / "join-running.json"
+        assert json.loads(note.read_text())["token"] == ui.token
+        invite = join.Invite("mc.example.com", 8766, "C" * 24, "F" * 43)
+        assert joinui.hand_over(mc, invite)
+        wait_for(lambda: opened)
+        assert opened == [url] and ui.invite == invite
+        assert joinui.hand_over(mc, None) and ui.invite == invite  # no invite: just the page again
+    finally:
+        ui.stop()
+    assert not note.exists()
+    note.write_text(json.dumps({"port": 1, "token": "D" * 24}))  # left over from a crash
+    assert not joinui.hand_over(mc, None)

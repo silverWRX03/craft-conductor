@@ -67,6 +67,9 @@ function render() {
   const title = invite.name ? `You're invited to play on ${invite.name}` : "You're invited to a Minecraft server";
   const steps = h("div", { class: "card hidden", id: "next" });
   const codeBox = h("input", { readonly: true, value: invite.code, "aria-label": "Invite code", class: "code" });
+  const openHelp = h("div", { class: "notice hidden", role: "status" },
+    h("strong", {}, "Opening mcsm…"), " If your browser asks, choose Open. mcsm brings back its page even if you closed that tab.",
+    h("br"), "Nothing happened? mcsm isn't set up to open links on this computer yet (Macs, or mcsm never run): download it above and open it; the invite is already copied for it.");
 
   const download = (key) => async () => {
     const copied = await copy(invite.code);  // mcsm finds it when it opens
@@ -95,8 +98,12 @@ function render() {
     steps,
     h("div", { class: "card" }, h("h2", {}, "Already have mcsm?"),
       h("div", { class: "row" },
-        h("a", { class: "btn", href: `mcsm://join/${invite.code}` }, "Open in mcsm"),
+        h("a", { class: "btn", href: `mcsm://join/${invite.code}`, onclick: () => {
+          copy(invite.code);  // so mcsm finds it even if the link can't open it
+          openHelp.classList.remove("hidden");
+        } }, "Open in mcsm"),
         h("button", { class: "btn ghost", onclick: () => copy(invite.code).then((ok) => toast(ok ? "Invite copied: open mcsm" : "Couldn't copy; select the code below")) }, "Copy the invite")),
+      openHelp,
       h("details", { class: "muted small" }, h("summary", {}, "For power users"),
         h("p", {}, "Run ", h("code", {}, "mcsm join"), " with this invite code, or paste it into mcsm:"), codeBox.cloneNode())),
     h("p", { class: "muted small center" }, "mcsm checks it's really your friend's server before connecting, and downloads mods only from Modrinth and CurseForge. ",

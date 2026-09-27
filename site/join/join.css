@@ -31,3 +31,4 @@ code { background: var(--code); padding: 1px 5px; border-radius: 4px; }
   padding: 10px 16px; border-radius: 8px; font-size: 14px; }
 .error { color: #d9534f; font-weight: 600; }
 .row .code { margin-top: 0; }
+.card > .notice { margin-top: 12px; }

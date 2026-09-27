@@ -347,6 +347,7 @@ function render() {
   );
 }
 
+let setupRunning = false;
 async function poll() {
   $("#progress").classList.remove("hidden");
   const r = await api(`api/progress?since=${seen}`).catch(() => null);
@@ -355,6 +356,7 @@ async function poll() {
     const log = $("#log");
     log.textContent += r.lines.map((x) => x + "\n").join("");
     log.scrollTop = log.scrollHeight;
+    setupRunning = r.running;
     if (!r.running) { showResults(r.results); return; }
   }
   setTimeout(poll, 800);
@@ -387,6 +389,15 @@ async function load() {
   try { info = await api("api/info"); } catch (e) { info = { pack: null, error: e.message, launchers: [] }; }
   if (info.pack) extras = await api("api/extras").catch(() => extras);
   render();
+  if (info.pack && (info.running || info.finished)) {  // the tab was closed and mcsm opened it again
+    const go = document.querySelector("form button[type=submit]");
+    if (go && info.running) go.disabled = true;
+    poll();
+    $("#progress").scrollIntoView({ block: "start" });
+  }
 }
+// Closing the tab doesn't stop mcsm, but while it's setting up Minecraft, check first.
+// (Opening mcsm again, or "Open in mcsm" on the invite page, brings this page back.)
+window.addEventListener("beforeunload", (e) => { if (setupRunning) { e.preventDefault(); e.returnValue = ""; } });
 setInterval(() => fetch(`api/progress?since=${seen}`).catch(() => null), 30000);  // "still open"
 load();
