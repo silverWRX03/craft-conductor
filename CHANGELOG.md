@@ -4,6 +4,11 @@ What changed in each version of mcsm, newest first. Bugs are listed the way you'
 them. Found a new one? [Report it](https://github.com/silverWRX03/mc-server-management/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.9.3 (not released yet)
+
+**Added**
+- **Play on this computer** on a server's Dashboard: sets up this computer's Minecraft for the server (on the server's own computer), after saying what running both on one computer needs: memory and CPU with this computer's numbers, lag spikes, and heavy modpacks.
+
 ## 0.9.2 (2026-09-27)
 
 **Added**

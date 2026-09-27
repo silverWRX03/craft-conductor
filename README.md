@@ -316,7 +316,9 @@ Minecraft port (25565 for the first server) and the download port (8766), and en
 your public address under **mcsm settings → Sharing with friends**. The download port
 only answers friends' mcsm (HTTPS only): the mod list and your own mod files, never the
 control panel.
-To play on the server from this computer too: `mcsm join --from-server <server folder>`.
+To play on the server from this computer too, press **Play on this computer** on the server's
+Dashboard (it warns first when this computer is short of memory for both, or the server is heavy),
+or run `mcsm join --from-server <server folder>`.
 
 ![Picking launchers](docs/web-friend-setup.png)
 

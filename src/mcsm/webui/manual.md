@@ -79,6 +79,18 @@ Questions you'll meet again and again ("Stop the server?", "Quit mcsm?", "Update
 
 **Start**, **Restart** and **Stop** are at the top of every server page. The Dashboard shows CPU and memory use, who's online, the console, the server's details and whether an update is ready. Stopping warns players and saves the world first.
 
+### Playing on the same computer
+
+**Play on this computer** (on the Dashboard, in a browser on the server's own computer) sets up this computer's Minecraft for the server, the same way friends' mcsm does: the right version, mod loader and mods, added to the launchers you pick, joining at `localhost`. Press it again after the server updates.
+
+Before it starts, mcsm says what running both on one computer means, with this computer's numbers:
+
+- **Resource heavy:** the game and the server both take a lot of memory (RAM) and CPU. mcsm adds up the server's memory, Minecraft's and about 3 GB for everything else; if that's more than the computer has, it says so, and both would lag or crash. Give the server less memory (Settings), choose less for Minecraft, or play on another computer.
+- **Lag spikes:** when players join or the server loads new terrain while you're in an intense moment, the game can drop frames and the server can lag (TPS).
+- **Heavy modpacks:** a heavy modpack (100+ mods) or a large public server (15+ players) strains a personal computer heavily and isn't recommended; mcsm says how many mods the server has and how many players it allows, and flags 100+ mods.
+
+The general warning has **Don't ask me again**; a memory shortage or a heavy server is always pointed out.
+
 ## Console
 
 Minecraft's live output. Type a server command (without the `/`, e.g. `say hello`) and press **Send**; the up/down arrows recall earlier commands. **Logs folder** and **Crash reports** open those folders (on the server's own computer).

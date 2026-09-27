@@ -27,6 +27,7 @@ import threading
 import time
 import tomllib
 import urllib.parse
+import webbrowser
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
@@ -66,7 +67,7 @@ def device_allowed(method: str, path: str) -> bool:
 MAX_JSON = 1 << 20
 MAX_UPLOAD = 512 << 20
 MAX_ARCHIVE = 64 << 30
-LOCAL_ONLY = {"/api/open", "/api/hub/open", "/api/hub/remote-install/open"}  # they act on this computer's screen  # a whole server (worlds and all), for importing
+LOCAL_ONLY = {"/api/open", "/api/hub/open", "/api/hub/remote-install/open", "/api/play-here"}  # they act on this computer's screen  # a whole server (worlds and all), for importing
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/app.js": ("app.js", "text/javascript; charset=utf-8"),
           "/rich.js": ("rich.js", "text/javascript; charset=utf-8"),
@@ -492,7 +493,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                                   {"Set-Cookie": f"{SESSION_COOKIE}=; Max-Age=0; Path=/; SameSite=Strict"})
             q = {k: v[-1] for k, v in query.items()}
             if path in LOCAL_ONLY and not local:
-                raise ApiError(403, "opening folders only works in a browser on the server's own computer")
+                raise ApiError(403, "that only works in a browser on the server's own computer")
             handler = self.web.hub_api.routes.get((method, path))
             if handler is not None:
                 if device and not device_allowed(method, path):
@@ -514,7 +515,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             if path not in NOTICE_EXEMPT and not notice.accepted(self.web.hub.root):
                 raise ApiError(428, "accept the notice first")
             if path in LOCAL_ONLY and not local:
-                raise ApiError(403, "opening folders only works in a browser on the server's own computer")
+                raise ApiError(403, "that only works in a browser on the server's own computer")
             if device and not device_allowed(method, path):
                 raise ApiError(403, "a paired phone can't do that; use the server's computer")
             api = self.web.api_for(sid)
@@ -1155,6 +1156,8 @@ class Api:
         post("/api/backups/create", self.create_backup)
         post("/api/backups/restore", self.restore_backup)
         post("/api/open", self.open_folder)
+        get("/api/play-here", self.play_here_info)
+        post("/api/play-here", self.play_here)
         post("/api/world/replace", self.replace_world)
         post("/api/updates/remove-and-upgrade", self.remove_and_upgrade)
         post("/api/mods/check", lambda q, b: self._check(b, client=False))
@@ -1648,6 +1651,48 @@ class Api:
         hub.remember_discord_channel(guild, channel)
         log.info("posted the friends' invite to Discord")
         return {"ok": True, **r}
+
+    # ------------------------------------------- playing on this computer too
+    def play_here_info(self, q, b) -> dict:
+        """What running the server and the game on one computer needs (the page warns first)."""
+        from .setup import suggested_memory_gb, total_ram_gb
+        cfg = self.m.config
+        mem = cfg.server.memory
+        server_gb = suggested_memory_gb() if mem == "auto" else int(mem[:-1]) / (1024 if mem.endswith("M") else 1)
+        props = read_properties(self.m.server_dir / "server.properties")
+        total = total_ram_gb()
+        return {"installed": self.m.lock.installed, "system_gb": round(total, 1) if total else None,
+                "cpus": os.cpu_count() or 1, "server_gb": round(server_gb, 1), "game_gb": cfg.client.memory_gb,
+                "mods": len(self.m.lock.mods), "max_players": int(props.get("max-players", "20") or 20)}
+
+    def play_here(self, q, b) -> dict:
+        """Set up this computer's Minecraft for this server (the friends' page, pointed at
+        localhost), and open it. Only from a browser on this computer (LOCAL_ONLY)."""
+        from .clientpack import PackBuilder
+        from . import joinui
+        if not self.m.lock.installed:
+            raise ApiError(400, "the server isn't installed yet")
+        old = getattr(self.web.hub, "_play_ui", None)
+        if old is not None and not old.done.is_set():
+            old.reopen("")  # already open: show it again
+            return {"ok": True, "url": old.url}
+        port = read_properties(self.m.server_dir / "server.properties").get("server-port", "25565") or "25565"
+        try:
+            pack = PackBuilder(self.m).build("localhost" if port == "25565" else f"localhost:{port}")
+        except ModError as e:
+            raise ApiError(400, str(e))
+        ui = joinui.JoinUI(None, pack=pack, http=self.m.http)
+        url = ui.start()
+        self.web.hub._play_ui = ui
+
+        def run():
+            try:
+                ui.wait()
+            finally:
+                ui.stop()
+        threading.Thread(target=run, daemon=True, name="play-here").start()
+        threading.Thread(target=webbrowser.open, args=(url,), daemon=True).start()
+        return {"ok": True, "url": url}
 
     def _invite_link(self) -> str | None:
         links = self._invite_links()

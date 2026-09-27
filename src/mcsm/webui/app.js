@@ -563,6 +563,45 @@ function meter(label) {
   };
 }
 
+// Playing on this computer too (offered in a browser on the server's own computer): mcsm sets
+// up this computer's Minecraft for the server, the way it does for friends, after saying what
+// running both on one computer costs.
+function playHereCard() {
+  const btn = h("button", { class: "btn primary", onclick: () => playHere(btn) }, "🎮 Play on this computer");
+  return card("Play on this computer",
+    h("p", { class: "muted small" }, "Set up Minecraft on this computer with this server's version and mods, and add the server to your launcher. " +
+      "Fine for a small server with a few friends: the game and the server share this computer's memory and CPU."),
+    btn);
+}
+async function playHere(btn) {
+  btn.disabled = true;
+  try {
+    const i = await api("/api/play-here");
+    if (!i.installed) { toast("Finish setting up the server first.", true); return; }
+    const need = i.server_gb + i.game_gb + 3;  // the server, the game, and the system with everything else
+    const short = !!i.system_gb && need > i.system_gb;
+    const heavy = i.mods >= 100;  // (20 players is Minecraft's default, so the player limit is said, not flagged)
+    const text = [
+      "Play on this computer too?",
+      `${short ? "⚠ " : ""}Resource heavy: running both the game and the server takes a lot of memory (RAM) and CPU. ` +
+        (i.system_gb ? `This computer has ${i.system_gb} GB: the server uses ${i.server_gb} GB, Minecraft about ${i.game_gb} GB, and the system and your other programs about 3 GB. ` : "") +
+        (short ? "That's more than this computer has, so both the game and the server will lag, or crash. Give the server less memory (Settings), choose less for Minecraft, or play on another computer."
+          : "If memory runs out, both the game and the server lag."),
+      "Lag spikes: when players join or the server loads new terrain while you're in an intense moment, you may get severe frame drops in the game, or tick (TPS) lag on the server.",
+      `${heavy ? "⚠ " : ""}Heavy modpacks: a heavy modpack or a large public server (15+ players) strains a personal computer heavily and is generally not recommended.` +
+        ` This server has ${i.mods} mod${i.mods === 1 ? "" : "s"} and allows ${i.max_players} players at once.`,
+    ].join("\n\n");
+    // The general warning can be hidden; a problem with this computer or server is always said.
+    if (!(await ask(text, { id: short || heavy ? null : "play-here", ok: "Set up Minecraft here" }))) return;
+    await api("/api/play-here", { method: "POST", body: {} });
+    toast("Minecraft setup opened in a new tab: pick your launcher and press the button.");
+  } catch (e) {
+    if (!(e instanceof Unauthorized)) toast(e.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 views.dashboard = () => {
   const statusBody = h("dl", { class: "kv" });
   const update = h("div");
@@ -679,6 +718,7 @@ views.dashboard = () => {
     lagBanner,
     h("div", { class: "meters" }, cpu.el, mem.el),
     h("div", { class: "mt" }, playerCard),
+    hubInfo && hubInfo.local ? h("div", { class: "mt" }, playHereCard()) : null,
     h("div", { class: "card mt" }, h("h3", {}, "Console"), con.el),
     h("div", { class: "grid mt" }, card("Server", statusBody,
       h("div", { class: "row mt-s" }, folderBtn("server", "Server folder"), folderBtn("world", "World folder"))), card("Updates", update)),
@@ -1772,6 +1812,8 @@ const HELP = [
       ": pick the server type (Fabric, NeoForge, Forge, Quilt, Paper or plain Minecraft), the Minecraft version and your mods, then press ",
       h("strong", {}, "Create my server"), ". mcsm downloads Java, Minecraft, the mod loader and the mods, and checks that the server starts."),
     h("p", {}, "Press ", h("strong", {}, "Start"), " when you want to play. In Minecraft, choose Multiplayer → Add Server and use this computer's address."),
+    h("p", {}, "To play on this computer too, press ", h("strong", {}, "Play on this computer"), " on the server's Dashboard: mcsm sets up Minecraft here ",
+      "with the server's mods (it says first whether this computer has the memory for both)."),
     h("p", {}, "Closing this browser tab doesn't stop mcsm: servers keep running and jobs carry on. Open mcsm again from its icon to come back; ",
       h("strong", {}, "Quit"), " (bottom left) stops everything.")]],
   ["friends", "Letting friends join", () => [

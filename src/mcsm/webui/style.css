@@ -600,3 +600,4 @@ body.picking main.join { opacity: .35; transform: translateX(-30px); transition:
 .pre-line { white-space: pre-line; }
 .modal label.dont-ask, label.dont-ask { display: flex; flex-direction: row; align-items: center; gap: 8px; color: var(--muted); cursor: pointer; font-size: 13px; }
 .dont-ask input { margin: 0; }
+.toast-dialog p { margin: 0; }
