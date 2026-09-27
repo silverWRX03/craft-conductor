@@ -66,7 +66,7 @@ def device_allowed(method: str, path: str) -> bool:
 MAX_JSON = 1 << 20
 MAX_UPLOAD = 512 << 20
 MAX_ARCHIVE = 64 << 30
-LOCAL_ONLY = {"/api/open", "/api/hub/open"}  # they act on this computer's screen  # a whole server (worlds and all), for importing
+LOCAL_ONLY = {"/api/open", "/api/hub/open", "/api/hub/remote-install/open"}  # they act on this computer's screen  # a whole server (worlds and all), for importing
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/app.js": ("app.js", "text/javascript; charset=utf-8"),
           "/rich.js": ("rich.js", "text/javascript; charset=utf-8"),
@@ -751,6 +751,8 @@ class HubApi:
         r[("GET", "/api/hub/mods/requires")] = lambda q, b: requirements_query(ModrinthProvider(self.hub.http), q)
         r[("GET", "/api/hub/mods/search")] = lambda q, b: search_mods(ModrinthProvider(self.hub.http), q, set(), "fabric")
         r[("POST", "/api/hub/create")] = self.create
+        r[("POST", "/api/hub/remote-install")] = self.remote_install
+        r[("POST", "/api/hub/remote-install/open")] = self.remote_install_open
         r[("POST", "/api/hub/network")] = self.network
         r[("POST", "/api/hub/share")] = self.save_share
         r[("GET", "/api/hub/port")] = self.port_check
@@ -1019,6 +1021,28 @@ class HubApi:
         if not opener.open_path(where):
             raise ApiError(500, f"couldn't open a file manager; the folder is {where}")
         return {"ok": True, "path": str(where)}
+
+    # ------------------------------------------- a server on another computer (SSH)
+    def remote_install(self, q, b) -> dict:
+        """The SSH command that installs mcsm on a Linux computer, and where its panel will be."""
+        from . import remoteinstall
+        try:
+            host, user, port = remoteinstall.check(b.get("host", ""), b.get("user", ""), b.get("port", 22))
+        except remoteinstall.RemoteInstallError as e:
+            raise ApiError(400, str(e)) from None
+        return {"command": remoteinstall.command_line(host, user, port), "panel": remoteinstall.panel_url(host)}
+
+    def remote_install_open(self, q, b) -> dict:
+        """Open a terminal on this computer running that command (OpenSSH asks for the password there)."""
+        from . import remoteinstall
+        info = self.remote_install(q, b)
+        host, user, port = remoteinstall.check(b.get("host", ""), b.get("user", ""), b.get("port", 22))
+        try:
+            remoteinstall.launch(host, user, port)
+        except (remoteinstall.RemoteInstallError, OSError) as e:
+            raise ApiError(400, str(e)) from None
+        log.info("opened an SSH window to install mcsm on %s@%s", user, host)
+        return {**info, "ok": True}
 
     def stage(self, q, handler) -> dict:
         if handler.headers.get("X-MCSM") != "1":

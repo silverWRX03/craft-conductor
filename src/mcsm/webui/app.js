@@ -1745,6 +1745,61 @@ function passwordChecklist(input) {
   update();
   return list;
 }
+// A server on another computer: a Linux PC without a screen on this network, set up over SSH.
+function openSshInstall() {
+  if ($("#ssh-install")) return;
+  const close = () => $("#ssh-install").remove();
+  const host = h("input", { placeholder: "192.168.1.50", autocomplete: "off", spellcheck: "false", "aria-label": "Address" });
+  const user = h("input", { placeholder: "minecraft", autocomplete: "off", spellcheck: "false", "aria-label": "User name" });
+  const port = h("input", { type: "number", value: 22, min: 1, max: 65535, class: "narrow", "aria-label": "SSH port" });
+  const out = h("div", { class: "mt" });
+  const body = () => ({ host: host.value.trim(), user: user.value.trim(), port: Number(port.value) });
+  const after = (r, opened) => fill(out,
+    opened ? h("div", { class: "notice ok" }, h("strong", {}, "A terminal window opened. "),
+      "Type that computer's password there when asked (the first time, answer ", h("code", {}, "yes"),
+      " to trust it). When it finishes it shows the control panel's address and a one-time password.") : null,
+    h("p", { class: "small mt-s" }, opened ? "The command it runs:" : "Run this in a terminal on this computer (PowerShell on Windows):"),
+    h("pre", { class: "log" }, r.command),
+    h("div", { class: "row mt-s" },
+      h("button", { class: "btn small", onclick: () => navigator.clipboard.writeText(r.command).then(() => toast("Command copied")) }, "Copy command"),
+      h("a", { class: "btn small primary", href: r.panel, target: "_blank", rel: "noopener noreferrer" }, "Open its control panel ↗")),
+    h("p", { class: "muted small" }, "Sign in there with the one-time password from the terminal; it asks you to choose your own. " +
+      "Keep that address: that computer's servers are managed from its own control panel."));
+  const openBtn = h("button", { class: "btn primary", type: "submit" }, "🔐 Connect with SSH");
+  const submit = async (e) => {
+    e.preventDefault();
+    openBtn.disabled = true;
+    const local = hubInfo && hubInfo.local;
+    try {
+      const r = await api(local ? "/api/hub/remote-install/open" : "/api/hub/remote-install", { method: "POST", body: body() });
+      after(r, local);
+    } catch (err) {
+      if (!(err instanceof Unauthorized)) {
+        // No terminal could be opened: still show the command to run by hand.
+        const r = await api("/api/hub/remote-install", { method: "POST", body: body() }).catch(() => null);
+        if (r) { toast(err.message, true); after(r, false); } else fill(out, h("div", { class: "notice bad" }, err.message));
+      }
+    }
+    openBtn.disabled = false;
+  };
+  document.body.append(h("div", { class: "modal-backdrop", id: "ssh-install", role: "dialog", "aria-modal": "true", "aria-labelledby": "ssh-title" },
+    h("div", { class: "modal remote" },
+      h("div", { class: "row" }, h("h2", { id: "ssh-title", class: "grow" }, "Install on a Linux computer (SSH)"), h("button", { class: "btn ghost small", onclick: close }, "Close")),
+      h("p", { class: "muted small" }, "For a spare PC, home server or Raspberry Pi 4/5 (64-bit) on this network, with SSH turned on. " +
+        "mcsm opens a terminal that connects to it and installs mcsm there; your password is typed into SSH, never into mcsm. " +
+        "Use a normal user on that computer (not root), e.g. one made with ", h("code", {}, "sudo adduser minecraft"), "."),
+      h("form", { onsubmit: submit },
+        h("div", { class: "grid" },
+          h("label", {}, "Its address or name", host, h("span", { class: "muted small" }, "Your router's list of devices shows it, or run hostname -I on it.")),
+          h("label", {}, "User name on it", user, h("span", { class: "muted small" }, "A normal user (not root). SSH asks for its password.")),
+          h("label", {}, "SSH port", port)),
+        h("div", { class: "row mt" }, openBtn)),
+      out,
+      h("p", { class: "muted small mt" }, "More in ",
+        h("a", { href: "https://github.com/silverWRX03/mc-server-management/blob/main/docs/headless.md", target: "_blank", rel: "noopener noreferrer" }, "the headless guide ↗"), "."))));
+  host.focus();
+}
+
 function openRemoteAccess() {
   if ($("#remote")) return;
   const body = h("div", {});
@@ -2702,9 +2757,15 @@ views.setup = () => {
       error ? h("div", { class: "notice bad" }, h("strong", {}, "Setup didn't finish: "), failureText(error, server),
         h("div", { class: "small mt-s" }, "Change your choices below and try again.")) : null,
     ];
+    // Or on another computer: a Linux PC without a screen, installed over SSH.
+    const elsewhere = isNew && !opts.network_option ? h("div", { class: "mt" }, card("Or on another computer",
+      h("div", { class: "row" },
+        h("span", { class: "grow small" }, "Run the server on a Linux PC without a screen on this network (a spare PC, a home server, a Raspberry Pi): mcsm installs itself there over SSH."),
+        h("button", { type: "button", class: "btn", onclick: openSshInstall }, "🐧 Install on a Linux computer…")))) : null;
     if (!st.loader) {  // one step at a time: the rest depends on the server type
       fill(main, intro, card("1. Server type", loaderCards,
-        h("p", { class: "muted small mt-s" }, "Pick a server type to continue. Fabric, NeoForge, Forge and Quilt run mods; Vanilla is plain Minecraft.")));
+        h("p", { class: "muted small mt-s" }, "Pick a server type to continue. Fabric, NeoForge, Forge and Quilt run mods; Vanilla is plain Minecraft.")),
+        elsewhere);
       return;
     }
 

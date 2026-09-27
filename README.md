@@ -126,7 +126,8 @@ ready to update to Minecraft 1.21.4 with fabric 0.16.14:
   [Remote access and phones](#remote-access-and-phones).
 - **Help built in,** including a router port-forwarding guide with pictures.
 - **Runs anywhere:** a Windows, macOS or Linux app, a [Docker image](docs/docker.md), or on a
-  [Linux computer without a screen](docs/headless.md) that you manage from another one.
+  [Linux computer without a screen](docs/headless.md) that you manage from another one
+  (New server → **Install on a Linux computer** sets it up over SSH).
 - **Day and night themes**, switched with the sun/moon button.
 - **Try beta Minecraft versions** (snapshots and pre-releases) on a new server, or on a
   copy of an existing one so your real world is never touched.
