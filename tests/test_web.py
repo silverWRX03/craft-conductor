@@ -258,7 +258,10 @@ def test_default_password_and_changing_it(running_default):
     assert other.post("/api/login", {"password": "PASSWORD"})[0] == 401
     assert other.post("/api/login", {"password": "4821"})[0] == 200
     stored = (cfg.state_dir / "web-auth.json").read_text()
-    assert "4821" not in stored and "PASSWORD" not in stored  # only a salted hash
+    # Only a salted hash: the PIN isn't stored as a value anywhere (a hex salt can contain "4821" by chance).
+    import json as _json
+    values = [str(v) for v in _json.loads(stored).values()] if stored.lstrip().startswith("{") else [stored]
+    assert "4821" not in values and "PASSWORD" not in stored
 
     # There's no "no password" option: even this computer signs in.
     assert c.post("/api/auth/change", {"mode": "none"})[0] == 400
