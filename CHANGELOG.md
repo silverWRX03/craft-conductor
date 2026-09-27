@@ -4,7 +4,7 @@ What changed in each version of mcsm, newest first. Bugs are listed the way you'
 them. Found a new one? [Report it](https://github.com/silverWRX03/mc-server-management/issues/new/choose);
 its fix will say which version it's in.
 
-## 0.9.3 (not released yet)
+## 0.10.0 (2026-09-27)
 
 **Added**
 - **Languages:** mcsm's pages, the friends' joining page and the invite page in Spanish, Portuguese, French, German, Hindi, Chinese (Simplified), Vietnamese, Arabic (right to left) and Korean, besides English: **mcsm settings → Language**, or automatically in your browser's language. The translations are machine-made; the user manual stays in English.

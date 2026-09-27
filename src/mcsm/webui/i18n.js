@@ -29,7 +29,7 @@ function t(text) {
   const hit = I18N[text];
   if (hit) return hit;
   const trimmed = text.trim();  // (text written with spaces around it, to sit next to other text)
-  return trimmed !== text && I18N[trimmed] ? text.replace(trimmed, I18N[trimmed]) : text;
+  return trimmed !== text && I18N[trimmed] ? text.replace(trimmed, () => I18N[trimmed]) : text;
 }
 
 // Translate what's already on the page (text and the attributes people read).

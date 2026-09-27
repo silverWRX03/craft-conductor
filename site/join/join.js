@@ -39,7 +39,7 @@ const TR = (typeof SITE_I18N === "object" && SITE_I18N[LANG]) || {};
 function t(text, vars) {
   if (typeof text !== "string") return text;
   const trimmed = text.trim();
-  let out = TR[text] || (TR[trimmed] ? text.replace(trimmed, TR[trimmed]) : text);
+  let out = TR[text] || (TR[trimmed] ? text.replace(trimmed, () => TR[trimmed]) : text);
   for (const [k, v] of Object.entries(vars || {})) out = out.replace(`{${k}}`, () => v);
   return out;
 }
