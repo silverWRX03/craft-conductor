@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import secrets
 import threading
 import time
@@ -22,20 +23,23 @@ from urllib.parse import parse_qs, urlparse
 
 from . import launchers
 from .http import HttpError
+from .mods.base import ModError
 from .friendextras import ExtrasError
 from .join import Invite, Joiner, JoinError, _supports_quick_play, validate_pack
 
 log = logging.getLogger(__name__)
 
 HEADERS = {
-    "Content-Security-Policy": "default-src 'self'; img-src 'self' data:; style-src 'self'; "
+    "Content-Security-Policy": "default-src 'self'; img-src 'self' https: data:; style-src 'self'; "
                                "frame-ancestors 'none'; form-action 'none'; base-uri 'none'",
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",
     "Cache-Control": "no-store",
 }
 STATIC = {"": ("join.html", "text/html; charset=utf-8"), "join.js": ("join.js", "text/javascript; charset=utf-8"),
+          "rich.js": ("rich.js", "text/javascript; charset=utf-8"),
           "style.css": ("style.css", "text/css; charset=utf-8"), "icon.png": ("icon.png", "image/png")}
+ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
 IDLE_SECONDS = 180  # the page pings while it's open; stop a while after it's closed
 
 
@@ -106,7 +110,7 @@ class JoinUI:
         from .friendextras import MOD_LOADERS, SHADER_LOADERS
         data = self.store().load()
         loader = self.pack["loader"]
-        return {"items": data["items"], "minecraft": self.pack["minecraft"],
+        return {"items": data["items"], "deps": data.get("deps", []), "minecraft": self.pack["minecraft"],
                 "kinds": {"shader": loader in SHADER_LOADERS, "resourcepack": True, "mod": loader in MOD_LOADERS}}
 
     def _resolve(self, data: dict):
@@ -120,7 +124,10 @@ class JoinUI:
         store = self.store()
         data = store.load()
         entries, problems = self._resolve(data)
-        return {"adds": [{"name": e["name"], "needed_by": e.get("needed_by")} for e in entries if e.get("needed_by")],
+        adds = [{"name": e["name"], "needed_by": e.get("needed_by")} for e in entries if e.get("needed_by")]
+        if data.get("deps") != adds:  # remembered, so the list can show what each extra brings along
+            store.save({**store.load(), "deps": adds})
+        return {"adds": adds,
                 "changes": changes_for(data, self.pack, problems), "previous": data.get("minecraft"),
                 "minecraft": self.pack["minecraft"]}
 
@@ -241,10 +248,35 @@ class JoinUI:
                                 raise ValueError(ui.pack_error or "the server's details haven't loaded")
                             self._json(200, {"results": search(ui.joiner.http, (q.get("kind") or [""])[0],
                                                                (q.get("q") or [""])[0], ui.pack,
-                                                               int((q.get("offset") or ["0"])[0] or 0))})
+                                                               int((q.get("offset") or ["0"])[0] or 0),
+                                                               (q.get("sort") or [""])[0], (q.get("category") or [""])[0])})
+                        elif rest == "api/extras/project":  # the details pane
+                            from .browse import Browser
+                            pid = (parse_qs(urlparse(self.path).query).get("id") or [""])[0]
+                            if not ID_RE.fullmatch(pid):
+                                raise ValueError("bad project id")
+                            self._json(200, Browser(ui.joiner.http).project("modrinth", pid))
+                        elif rest == "api/extras/requires":  # what a mod brings along, before adding it
+                            from .friendextras import MOD_LOADERS
+                            from .mods.modrinth import ModrinthProvider
+                            from .web import mod_requirements
+                            pid = (parse_qs(urlparse(self.path).query).get("id") or [""])[0]
+                            if not ID_RE.fullmatch(pid):
+                                raise ValueError("bad project id")
+                            if ui.pack is None or ui.pack["loader"] not in MOD_LOADERS:
+                                raise ValueError("this server can't run mods")
+                            self._json(200, mod_requirements(ModrinthProvider(ui.joiner.http), pid,
+                                                             MOD_LOADERS[ui.pack["loader"]], ui.pack["minecraft"]))
+                        elif rest == "api/extras/categories":
+                            from .browse import Browser
+                            from .friendextras import KINDS
+                            kind = (parse_qs(urlparse(self.path).query).get("kind") or [""])[0]
+                            if kind not in KINDS:
+                                raise ValueError("unknown kind")
+                            self._json(200, {"categories": Browser(ui.joiner.http).categories("modrinth", KINDS[kind][1])})
                         else:
                             self._json(404, {"error": "not found"})
-                    except (ValueError, ExtrasError) as e:
+                    except (ValueError, ExtrasError, ModError) as e:
                         self._json(400, {"error": str(e)})
                     except HttpError as e:
                         self._json(502, {"error": e.friendly})
@@ -275,9 +307,14 @@ class JoinUI:
                     elif rest == "api/extras/add":
                         ui.store().add(str(body.get("kind", "")), str(body.get("id", "")), str(body.get("slug", "")),
                                        str(body.get("name", "")))
-                        self._json(200, {**ui.extras(), **ui.check_extras()})
+                        check = ui.check_extras()  # first: it remembers what comes along
+                        self._json(200, {**ui.extras(), **check})
                     elif rest == "api/extras/remove":
                         ui.store().remove(str(body.get("id", "")))
+                        try:
+                            ui.check_extras()  # what's still brought along
+                        except HttpError:
+                            pass  # offline: the list catches up next time
                         self._json(200, ui.extras())
                     elif rest == "api/extras/enable":
                         ui.store().set_enabled(str(body.get("id", "")), body.get("enabled") is True)

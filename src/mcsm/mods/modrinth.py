@@ -106,8 +106,7 @@ class ModrinthProvider(ModProvider):
         if not files:
             raise Unavailable(f"{project.name} {version['version_number']} has no files")
         f = next((f for f in files if f.get("primary")), files[0])
-        deps = [d["project_id"] for d in version.get("dependencies", [])
-                if d.get("dependency_type") == "required" and d.get("project_id")]
+        deps = self.required_projects(version)
         return ModFile(
             key=project.key, source=self.source, project_id=project.id, name=project.name,
             version_id=version["id"], version_number=version["version_number"],
@@ -115,6 +114,23 @@ class ModrinthProvider(ModProvider):
             sha1=f.get("hashes", {}).get("sha1"), sha512=f.get("hashes", {}).get("sha512"),
             dependencies=deps, required=spec.required, dependency_of=spec.dependency_of,
         )
+
+    def required_projects(self, version: dict) -> list[str]:
+        """The projects a version requires. Some mods name a dependency by one of its versions
+        only (no project id); those are looked up, so the dependency isn't missed."""
+        out = []
+        for d in version.get("dependencies", []):
+            if d.get("dependency_type") != "required":
+                continue
+            pid = d.get("project_id")
+            if not pid and d.get("version_id"):
+                try:
+                    pid = self.http.get_json(f"{API}/version/{d['version_id']}").get("project_id")
+                except HttpError:
+                    pid = None  # can't tell which mod it is
+            if pid and pid not in out:
+                out.append(pid)
+        return out
 
     def identify(self, sha1_hashes: list[str]) -> dict[str, dict]:
         """Map jar sha1 -> Modrinth version (used to import an existing mods folder)."""

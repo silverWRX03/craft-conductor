@@ -1,6 +1,7 @@
 """Picking a mod brings the mods it needs; they're shown and removed together."""
 
-from mcsm.mods.modrinth import ModrinthProvider
+from mcsm.config import ModSpec
+from mcsm.mods.modrinth import API, ModrinthProvider
 from mcsm.web import mod_requirements
 
 from test_hub import login
@@ -95,3 +96,17 @@ def test_shared_dependency_is_listed_under_each_mod_and_stays(hub_env, modrinth)
     assert update(alpha.m).ok
     names = {m.name for m in alpha.m.lock.mods}
     assert {"Sib Mod", "Dep Lib"} <= names and not {"Top Mod", "Mid Lib"} & names
+
+
+def test_a_dependency_named_by_version_only(http, modrinth):
+    # Some mods list a required mod by one of its versions, with no project id (Iris → Sodium, say).
+    modrinth.project("SOD", "sodium", "Sodium", server_side="unsupported")
+    modrinth.version("SOD", "0.6", ["1.21.1"])
+    modrinth.project("IRI", "iris", "Iris", server_side="unsupported")
+    modrinth.version("IRI", "1.8", ["1.21.1"])
+    modrinth.versions["IRI"][0]["dependencies"] = [{"project_id": None, "version_id": "SOD-0.6", "dependency_type": "required"}]
+    http.json[f"{API}/version/SOD-0.6"] = {"id": "SOD-0.6", "project_id": "SOD"}
+    p = ModrinthProvider(http)
+    f = p.resolve(ModSpec("modrinth", "iris"), "1.21.1", ("fabric",), "release", side="client")
+    assert f.dependencies == ["SOD"]
+    assert [c["name"] for c in mod_requirements(p, "iris", ("fabric",), "1.21.1")["companions"]] == ["Sodium"]

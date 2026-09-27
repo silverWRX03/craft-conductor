@@ -85,8 +85,29 @@ def test_friend_page_extras(tmp_path, http, modrinth):
         assert c.get("/api/extras")[1]["kinds"] == {"shader": True, "resourcepack": True, "mod": True}
         assert c.get("/api/extras/search?kind=shader&q=bsl")[1]["results"][0]["name"] == "BSL Shaders"
         assert c.get("/api/extras/search?kind=nope")[0] == 400
+        # Sorting and categories, and the details pane (like mcsm's mod browser).
+        seen, orig = [], http.get_json
+        http.get_json = lambda u, params=None, headers=None: seen.append(params) or orig(u, params, headers)
+        assert c.get("/api/extras/search?kind=shader&sort=downloads&category=realistic")[0] == 200
+        http.get_json = orig
+        assert seen[-1]["index"] == "downloads" and ["categories:realistic"] in json.loads(seen[-1]["facets"])
+        assert c.get("/api/extras/search?kind=shader&sort=random")[0] == 400
+        assert c.get("/api/extras/search?kind=shader&category=../x")[0] == 400
+        details = c.get("/api/extras/project?id=BSL")[1]
+        assert details["name"] == "BSL Shaders" and details["body_format"] == "markdown"
+        assert c.get("/api/extras/project?id=../x")[0] == 400
+        http.json[f"{API}/tag/category"] = [{"name": "realistic", "project_type": "shader", "header": "categories"},
+                                            {"name": "magic", "project_type": "mod", "header": "categories"}]
+        assert c.get("/api/extras/categories?kind=shader")[1]["categories"] == [{"id": "realistic", "name": "Realistic"}]
+        # Thumbnails come from Modrinth's servers.
+        status, _, headers = c.get("/rich.js")
+        assert status == 200 and "img-src 'self' https: data:" in headers["Content-Security-Policy"]
         r = c.post("/api/extras/add", {"kind": "shader", "id": "BSL", "slug": "bsl", "name": "BSL Shaders"})[1]
         assert {a["name"] for a in r["adds"]} == {"Iris", "Sodium"}
+        # remembered, so the page can list them under what needs them
+        assert {(d["name"], d["needed_by"]) for d in c.get("/api/extras")[1]["deps"]} == {("Iris", "your shaders"), ("Sodium", "Iris")}
+        # before adding a mod: what it brings along
+        assert [x["name"] for x in c.get("/api/extras/requires?id=iris")[1]["companions"]] == ["Sodium"]
         assert c.post("/api/extras/add", {"kind": "mod", "id": "MAP", "slug": "minimap", "name": "Mini Map"})[0] == 200
         # Mini Map has no build for 1.21.2: ask first.
         status, body, _ = c.post("/api/setup", {"launchers": ["prism"]})

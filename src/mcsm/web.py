@@ -68,6 +68,7 @@ MAX_ARCHIVE = 64 << 30
 LOCAL_ONLY = {"/api/open", "/api/hub/open"}  # they act on this computer's screen  # a whole server (worlds and all), for importing
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/app.js": ("app.js", "text/javascript; charset=utf-8"),
+          "/rich.js": ("rich.js", "text/javascript; charset=utf-8"),
           "/style.css": ("style.css", "text/css; charset=utf-8"),
           "/icon.png": ("icon.png", "image/png"),
           "/manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json"),
@@ -599,9 +600,7 @@ def mod_requirements(provider: ModrinthProvider, mod_id: str, loaders: tuple[str
               and (minecraft is None or minecraft in v.get("game_versions", []))]
         return max(ok, key=lambda v: v.get("date_published", "")) if ok else None
 
-    def required(version) -> list[str]:
-        return [d["project_id"] for d in version.get("dependencies", [])
-                if d.get("dependency_type") == "required" and d.get("project_id")]
+    required = provider.required_projects
 
     project = provider.project(mod_id)
     info = {"id": project.id, "slug": project.slug, "name": project.name}
