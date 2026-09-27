@@ -904,7 +904,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.set_defaults(fn=cmd_start)
 
     s = sub.add_parser("join", help="set up this computer's Minecraft to play on a friend's mcsm server")
-    s.add_argument("invite", nargs="?", help="the invite link (http://.../join/...)")
+    s.add_argument("invite", nargs="?", help="the invite link or code (mcsm-...)")
     s.add_argument("-y", "--yes", action="store_true", help="don't ask before setting things up")
     s.add_argument("--no-launcher", action="store_true", help="don't open the Minecraft Launcher afterwards")
     s.add_argument("--from-server", type=Path, metavar="DIR",

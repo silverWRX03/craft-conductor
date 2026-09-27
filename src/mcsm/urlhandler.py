@@ -49,7 +49,7 @@ def _windows(exe: str) -> bool:
         winreg.SetValueEx(key, None, 0, winreg.REG_SZ, "URL:mcsm invite")
         winreg.SetValueEx(key, "URL Protocol", 0, winreg.REG_SZ, "")
     with winreg.CreateKey(winreg.HKEY_CURRENT_USER, base + r"\shell\open\command") as key:
-        winreg.SetValueEx(key, None, 0, winreg.REG_SZ, f'"{exe}" join "%1"')
+        winreg.SetValueEx(key, None, 0, winreg.REG_SZ, f'"{exe}" join -- "%1"')  # "--": a link is only ever the invite
     return True
 
 
@@ -60,7 +60,7 @@ def _linux(exe: str) -> bool:
     folder.mkdir(parents=True, exist_ok=True)
     (folder / DESKTOP_FILE).write_text(
         "[Desktop Entry]\nType=Application\nName=mcsm (join a Minecraft server)\n"
-        f'Exec="{exe}" join %u\nMimeType=x-scheme-handler/{SCHEME};\nNoDisplay=true\nTerminal=false\n')
+        f'Exec="{exe}" join -- %u\nMimeType=x-scheme-handler/{SCHEME};\nNoDisplay=true\nTerminal=false\n')
     if shutil.which("xdg-mime"):
         subprocess.run(["xdg-mime", "default", DESKTOP_FILE, f"x-scheme-handler/{SCHEME}"],
                        capture_output=True, timeout=10)

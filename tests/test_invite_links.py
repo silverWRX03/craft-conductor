@@ -26,7 +26,7 @@ def test_mcsm_links_open_this_mcsm_on_linux(tmp_path, monkeypatch):
     monkeypatch.setattr(urlhandler.subprocess, "run", lambda args, **kw: ran.append(args))
     assert urlhandler.register("/home/me/mcsm-linux-x64")
     entry = (tmp_path / "applications" / urlhandler.DESKTOP_FILE).read_text()
-    assert 'Exec="/home/me/mcsm-linux-x64" join %u' in entry and "x-scheme-handler/mcsm;" in entry
+    assert 'Exec="/home/me/mcsm-linux-x64" join -- %u' in entry and "x-scheme-handler/mcsm;" in entry
     assert ran == [["xdg-mime", "default", urlhandler.DESKTOP_FILE, "x-scheme-handler/mcsm"]]
     assert not urlhandler.register('/home/me/odd"name')  # never anything that could break the Exec line
 

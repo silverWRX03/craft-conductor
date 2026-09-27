@@ -4,7 +4,7 @@ What changed in each version of mcsm, newest first. Bugs are listed the way you'
 them. Found a new one? [Report it](https://github.com/silverWRX03/mc-server-management/issues/new/choose);
 its fix will say which version it's in.
 
-## 0.9.1 (not released yet)
+## 0.9.1 (2026-09-27)
 
 **Added**
 - A **user manual** in the app (**User manual** in the menu, and on Help), with contents, print and "Open on GitHub".
@@ -16,6 +16,9 @@ its fix will say which version it's in.
 
 **Fixed**
 - New server kept the previous server's type and mods after a server was created, and skipped the first step (where "install on a Linux computer" was). "Or on another computer" is now at every step.
+
+**Fixed (security review)**
+- An "Open in mcsm" link could pass extra options to mcsm; it now only ever carries the invite.
 
 ## 0.9.0 (2026-09-27)
 
