@@ -4,6 +4,11 @@ What changed in each version of mcsm, newest first. Bugs are listed the way you'
 them. Found a new one? [Report it](https://github.com/silverWRX03/mc-server-management/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.9.2 (not released yet)
+
+**Fixed**
+- An invite link that lost its invite on the way (some apps cut links short) ended at "This invite link isn't complete"; the invite page now has a box to paste the link or invite code.
+
 ## 0.9.1 (2026-09-27)
 
 **Added**
