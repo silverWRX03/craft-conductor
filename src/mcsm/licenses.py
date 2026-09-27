@@ -44,6 +44,8 @@ DOWNLOADED = [
     ("Paper", "the paper server", "GPL-3.0 (with MIT parts)", "https://github.com/PaperMC/Paper"),
     ("Eclipse Temurin (OpenJDK)", "the Java runtime, when mcsm manages Java", "GPL-2.0 with Classpath Exception",
      "https://adoptium.net/about/"),
+    ("Chunky", "generates the world for map previews (downloaded into a throwaway server)", "GPL-3.0",
+     "https://github.com/pop4959/Chunky"),
     ("Mods", "whatever you add; each is downloaded from its author's page", "each mod's own license",
      "https://modrinth.com/"),
 ]

@@ -164,6 +164,8 @@ ready to update to Minecraft 1.21.4 with fabric 0.16.14:
   kept up to date), an in-page **mod browser** (search Modrinth and CurseForge with
   filters and sorting, read each mod's page, tick as many as you like), or a whole
   **Modrinth modpack**.
+- **See a seed's map before you create the server,** with world-generation mods from Modrinth
+  (Terralith, Tectonic, …): mcsm generates the area in a private test server and draws it.
 - **Worlds:** pick the seed, world type, structures and hardcore when you create a
   server, or **import any world**: a `.zip`, or a singleplayer world from the Minecraft
   Launcher, Prism, the Modrinth App or CurseForge.
@@ -844,7 +846,9 @@ The test suite runs the full install → upgrade → crash → rollback cycle ag
 
 ### Roadmap ideas
 
-- Purpur servers, and plugins from Hangar (Paper with Modrinth plugins is supported)
+- Purpur servers (Paper with plugins from Modrinth and Hangar is supported)
+- **Seed gallery:** one button makes maps of 10 different seeds side by side, to pick the one with the
+  features you're after (a warning first says how long it takes and how hard it works the computer)
 - A native phone app (today the control panel works as a web app on your phone's home screen)
 
 ## License

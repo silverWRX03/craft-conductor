@@ -1903,6 +1903,214 @@ views.browse = (params) => {  // a direct #browse link: the browser on its own
   return {};
 };
 
+// ------------------------------------------------------------ world generation
+// The World card's "World generation & map preview": world-generation mods (ticking one adds it
+// to the new server) and a map of the seed, made by a private throwaway server with those mods.
+const WORLD_TYPES = [["minecraft:normal", "Normal", "The usual Minecraft world."], ["minecraft:large_biomes", "Large biomes", "Biomes 4× bigger."],
+  ["minecraft:amplified", "Amplified", "Huge mountains (needs a fast computer)."], ["minecraft:flat", "Flat", "Superflat, for building."],
+  ["minecraft:single_biome_surface", "Single biome", "One biome everywhere."]];
+const MAP_SIZES = [[128, "256 × 256 (quick)"], [256, "512 × 512"], [512, "1024 × 1024 (slow)"]];
+const biomeLabel = (id) => {
+  const [ns, name] = id.includes(":") ? id.split(":") : ["minecraft", id];
+  const words = name.replace(/[_/]/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1) + (ns === "minecraft" ? "" : ` (${ns})`);
+};
+function randomSeed() {
+  const b = new Uint32Array(2);
+  crypto.getRandomValues(b);
+  return String((BigInt(b[0] & 0x7fffffff) << 32n | BigInt(b[1])) * (b[0] & 0x80000000 ? -1n : 1n));
+}
+
+function openWorldPanel() {
+  const refresh = () => { if (current && current.refresh) current.refresh(); };
+  const p = worldPanel({ close: () => { closeBrowser(); refresh(); }, changed: refresh });
+  openSidePane(p.el, "World generation");
+  p.start();
+}
+
+function worldPanel(host) {
+  const st = setupState;
+  const P = st.properties;
+  st.previews = st.previews || [];
+  const moddable = !!(st.loader && st.loader !== "vanilla");
+  const plugins = st.loader === "paper";
+  let poll = null, shown = null;
+
+  // --- the world's settings (the same ones as on the World card)
+  const seed = h("input", { value: P["level-seed"] || "", maxlength: 64, placeholder: "Random", "aria-label": "Seed",
+    oninput: (e) => { P["level-seed"] = e.target.value; }, onchange: () => host.changed() });
+  const dice = h("button", { type: "button", class: "btn", title: "A random seed", "aria-label": "A random seed",
+    onclick: () => { seed.value = P["level-seed"] = randomSeed(); host.changed(); } }, "🎲");
+  const type = h("select", { "aria-label": "World type", onchange: () => { P["level-type"] = type.value; host.changed(); } },
+    WORLD_TYPES.map(([v, label]) => h("option", { value: v }, label)));
+  type.value = P["level-type"] || "minecraft:normal";
+  const structures = h("input", { type: "checkbox", checked: P["generate-structures"] !== "false",
+    onchange: () => { P["generate-structures"] = String(structures.checked); host.changed(); } });
+  const size = h("select", { "aria-label": "Map size" }, MAP_SIZES.map(([v, label]) => h("option", { value: String(v) }, label)));
+  size.value = String(st.previewSize || 128);
+  size.addEventListener("change", () => { st.previewSize = Number(size.value); });
+  const go = h("button", { type: "button", class: "btn primary" }, "🗺️ Preview map");
+
+  // --- world-generation mods
+  const list = h("div", { class: "browse-results" });
+  const q = h("input", { type: "search", placeholder: plugins ? "Search world generation plugins…" : "Search world generation mods…", "aria-label": "Search" });
+  const inServer = h("span", { class: "grow muted small" });
+  let results = [], seq = 0, timer;
+  const countMods = () => {
+    const n = [...st.mods.values()].filter((m) => m.explicit).length;
+    inServer.textContent = n ? `The map is made with all ${n} of the server's ${plugins ? "plugins" : "mods"}.` : "No mods yet: the map shows plain Minecraft.";
+  };
+  const search = async () => {
+    if (!moddable) {
+      fill(list, h("p", { class: "empty" }, "Vanilla servers don't run mods. Pick Fabric, NeoForge, Forge, Quilt or Paper under 1. Server type to add world generation mods."));
+      return;
+    }
+    const mine = ++seq;
+    const params = new URLSearchParams({ type: "mod", q: q.value.trim(), source: "modrinth", sort: q.value.trim() ? "relevance" : "downloads",
+      offset: "0", category: "worldgen", version: setupModVersion(), loader: st.loader });
+    fill(list, h("p", { class: "empty" }, "Searching…"));
+    const r = await api(`/api/hub/browse/search?${params}`).catch((e) => { if (!(e instanceof Unauthorized)) fill(list, h("div", { class: "notice bad" }, e.message)); return null; });
+    if (!r || mine !== seq) return;
+    results = r.results;
+    renderList();
+  };
+  const renderList = () => {
+    countMods();
+    fill(list, results.length ? results.map((m) => {
+      const key = setupModKey(m);
+      const box = h("input", { type: "checkbox", checked: st.mods.has(key), "aria-label": `Use ${m.name}`, onchange: async (e) => {
+        if (e.target.checked) {
+          if (!(await confirmEarly([m]))) { e.target.checked = false; return; }
+          await setupAddMod(key, m.name, m.channel && m.channel !== "release" ? m.channel : null);
+        } else await setupRemoveMod(key);
+        renderList();
+        host.changed();
+      } });
+      return h("label", { class: "result" }, box,
+        m.icon ? h("img", { src: m.icon, alt: "", loading: "lazy", referrerpolicy: "no-referrer" }) : h("div", { class: "noicon" }),
+        h("div", { class: "info" }, h("div", { class: "name" }, m.name, " ", channelTag(m.channel)), h("div", { class: "desc" }, m.summary),
+          h("a", { class: "small", href: m.url || `https://modrinth.com/mod/${m.slug || m.id}`, target: "_blank", rel: "noopener noreferrer",
+            onclick: (e) => e.stopPropagation() }, "About it ↗")));
+    }) : [h("p", { class: "empty" }, "Nothing found for this Minecraft version. Try other words.")]);
+  };
+  q.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(search, 350); });
+
+  // --- the map
+  const right = h("div", { class: "browse-right world-map-pane" });
+  const empty = () => h("div", { class: "empty-map" },
+    h("h2", {}, "See the world before you make it"),
+    h("p", {}, "Pick a seed (or leave it empty for a random one) and press Preview map. mcsm makes the world in a private server on this computer, with the server's mods, then draws it from above."),
+    h("p", { class: "muted small" }, "It takes a minute or two, longer with many mods or a bigger map. Nothing is installed for the server yet: that happens when you create it."));
+  const strip = () => st.previews.length > 1 ? h("div", { class: "mt" }, h("h3", {}, "Earlier maps"),
+    h("div", { class: "map-strip" }, st.previews.map((m) => h("button", { type: "button", class: "map-thumb" + (shown === m.id ? " selected" : ""),
+      title: `Seed ${m.seed}`, onclick: () => showMap(m) },
+      h("img", { src: `/api/hub/preview/map?id=${m.id}`, alt: "" }), h("span", { class: "small" }, m.seed))))) : null;
+  const showMap = (m) => {
+    shown = m.id;
+    const meta = m.map;
+    const readout = h("div", { class: "map-readout small" }, "Point at the map to see where it is.");
+    const img = h("img", { src: `/api/hub/preview/map?id=${m.id}`, alt: `Map of seed ${m.seed}`, class: "world-map" });
+    const pct = (v) => `${Math.max(0, Math.min(100, v * 100))}%`;
+    const spawn = h("span", { class: "map-spawn", title: "Spawn" });
+    spawn.style.left = pct((meta.spawn.x - meta.x) / meta.size);  // (styles set here: the page's CSP allows no inline ones)
+    spawn.style.top = pct((meta.spawn.z - meta.z) / meta.size);
+    const frame = h("div", { class: "map-frame" }, img, spawn);
+    frame.addEventListener("mousemove", (e) => {
+      const r = img.getBoundingClientRect();
+      const bx = Math.floor(meta.x + (e.clientX - r.left) / r.width * meta.size);
+      const bz = Math.floor(meta.z + (e.clientY - r.top) / r.height * meta.size);
+      const b = meta.biomes, row = b.grid[(bz >> 4) - b.chunk_z];
+      const i = row ? row[(bx >> 4) - b.chunk_x] : -1;
+      readout.textContent = `x ${bx}, z ${bz}` + (i >= 0 ? ` · ${biomeLabel(b.names[i])}` : "");
+    });
+    const same = (P["level-seed"] || "") === m.seed && (P["level-type"] || "minecraft:normal") === m.level_type;
+    const typeName = (WORLD_TYPES.find(([v]) => v === m.level_type) || [, m.level_type])[1];
+    const biomes = meta.biomes.names.length;
+    fill(right,
+      h("div", { class: "row" }, h("div", { class: "grow" }, h("h2", {}, `Seed ${m.seed}`),
+        h("div", { class: "muted small" }, `${t(typeName)} · ${m.mods.length ? `${m.mods.length} mod(s)` : "no mods"} · ${biomes} biome(s) in view`)),
+        same ? h("span", { class: "tag" }, "✓ The server's seed") : h("button", { type: "button", class: "btn primary", onclick: () => {
+          seed.value = P["level-seed"] = m.seed; type.value = P["level-type"] = m.level_type;
+          P["generate-structures"] = String(m.structures); structures.checked = m.structures;
+          host.changed(); toast(`The server will use seed ${m.seed}`); showMap(m);
+        } }, "Use this seed")),
+      frame, readout,
+      h("p", { class: "muted small" }, "North is up; one pixel is one block, around the spawn point (★). Villages and other structures are too small to see at this size."),
+      strip());
+  };
+  const showJob = (job) => {
+    const bar = h("div", { class: "bar" + (job.progress === null ? " indeterminate" : "") }, h("span", { class: "bar-fill" }));
+    if (job.progress !== null) bar.firstChild.style.width = `${Math.round(job.progress * 100)}%`;
+    fill(right, h("h2", {}, `Seed ${job.seed}`),
+      h("div", { class: "row mt-s" }, h("span", { class: "grow" }, job.step, job.progress !== null ? ` ${Math.round(job.progress * 100)}%` : ""),
+        h("span", { class: "muted small" }, `${Math.floor(job.elapsed / 60)}:${String(job.elapsed % 60).padStart(2, "0")}`)),
+      bar, h("p", { class: "muted small" }, "You can close this and keep setting up the server: the map carries on, and it's here when you come back."),
+      strip());
+  };
+  const running = () => {
+    go.textContent = t("Stop");
+    go.classList.remove("primary");
+    go.onclick = async () => { if (st.previewJob) await api("/api/hub/preview/cancel", { method: "POST", body: { id: st.previewJob } }).catch(() => null); };
+  };
+  const idle = () => {
+    go.textContent = t("🗺️ Preview map");
+    go.classList.add("primary");
+    go.onclick = start;
+  };
+  const watch = () => {
+    clearInterval(poll);
+    running();
+    const tick = async () => {
+      if (!el.isConnected) { clearInterval(poll); return; }  // (the panel was closed; the map carries on)
+      const job = await api(`/api/hub/preview?id=${st.previewJob}`).catch(() => null);
+      if (!job) { clearInterval(poll); st.previewJob = null; idle(); return; }
+      if (job.state === "running") { showJob(job); return; }
+      clearInterval(poll);
+      st.previewJob = null;
+      idle();
+      if (job.state === "done") { st.previews = [job, ...st.previews.filter((m) => m.id !== job.id)].slice(0, 12); showMap(job); }
+      else if (job.state === "failed") fill(right, h("div", { class: "notice bad" }, h("strong", {}, "The map couldn't be made"), h("div", {}, job.error)), strip());
+      else fill(right, empty(), strip());
+    };
+    tick();
+    poll = setInterval(tick, 1000);
+  };
+  async function start() {
+    const body = { loader: st.loader, minecraft: st.minecraft, seed: seed.value.trim(), level_type: type.value, structures: structures.checked,
+      radius: Number(size.value), mods: [...st.mods].filter(([, m]) => m.explicit).map(([k]) => k), channels: earlyChannels() };
+    const r = await act(() => api("/api/hub/preview", { method: "POST", body }), null);
+    if (!r) return;
+    st.previewJob = r.id;
+    if (!seed.value.trim()) toast(`A random seed: ${r.seed}`);
+    watch();
+  }
+  idle();
+
+  const el = h("div", { class: "browse" },
+    h("div", { class: "browse-left" },
+      h("div", { class: "browse-filters" },
+        h("div", { class: "row" }, h("strong", { class: "grow" }, "World generation"),
+          st.loader ? h("span", { class: "tag" }, st.loader) : null,
+          h("button", { class: "btn ghost small", onclick: () => host.close() }, "Close")),
+        h("label", {}, "Seed", h("div", { class: "row" }, seed, dice)),
+        h("div", { class: "row" }, type, size),
+        h("label", { class: "row small" }, structures, h("span", {}, "Villages, temples and other structures")),
+        h("div", { class: "row" }, go),
+        h("h3", { class: "mt-s" }, plugins ? "World generation plugins" : "World generation mods"),
+        moddable ? q : null),
+      list,
+      h("div", { class: "browse-footer" }, inServer)),
+    right);
+  return { el, start: () => {
+    if (!st.loader) { fill(right, h("div", { class: "notice warn" }, "Pick a server type first (1. Server type)."));  go.disabled = true; }
+    else if (st.previewJob) watch();
+    else if (st.previews.length) showMap(st.previews[0]);
+    else fill(right, empty());
+    search();
+    countMods();
+  } };
+}
+
 function browserPanel(params, host) {
   const kind = params.get("type") === "modpack" ? "modpack" : "mod";
   const target = params.get("target") || "setup";
@@ -3630,9 +3838,7 @@ views.setup = () => {
 
     // World: a new one (seed, type, structures, hardcore) or one you already have.
     const P = st.properties;
-    const worldTypes = [["minecraft:normal", "Normal", "The usual Minecraft world."], ["minecraft:large_biomes", "Large biomes", "Biomes 4× bigger."],
-      ["minecraft:amplified", "Amplified", "Huge mountains (needs a fast computer)."], ["minecraft:flat", "Flat", "Superflat, for building."],
-      ["minecraft:single_biome_surface", "Single biome", "One biome everywhere."]];
+    const worldTypes = WORLD_TYPES;
     const seed = h("input", { value: P["level-seed"] || "", maxlength: 64, placeholder: "Random",
       oninput: (e) => { P["level-seed"] = e.target.value; } });
     const flag = (key, text) => h("label", { class: "row" }, h("input", { type: "checkbox", checked: P[key] === "true",
@@ -3657,7 +3863,12 @@ views.setup = () => {
           class: "choice" + ((P["level-type"] || "minecraft:normal") === v ? " selected" : ""),
           onclick: () => { P["level-type"] = v; renderForm(); } }, h("strong", {}, label), h("span", { class: "small muted" }, desc)))),
         h("div", { class: "grid mt-s" }, flag("generate-structures", "Villages, temples and other structures"),
-          flag("hardcore", "Hardcore: one life, locked to hard"))));
+          flag("hardcore", "Hardcore: one life, locked to hard")),
+        st.modpack ? null : h("div", { class: "source-buttons mt-s" },
+          h("button", { type: "button", class: "btn", onclick: () => openWorldPanel() }, "🗺️ World generation & map preview",
+            h("span", { class: "small muted" }, "Mods that change how the world is made, and a map of your seed before you create the server"))),
+        st.previews && st.previews.length && st.previews.some((m) => m.seed === (P["level-seed"] || "")) ?
+          h("p", { class: "muted small" }, "✓ You've seen this seed's map.") : null));
 
     const eula = h("input", { type: "checkbox", checked: st.accept_eula, onchange: (e) => { st.accept_eula = e.target.checked; } });
     const lan = h("input", { type: "checkbox", checked: st.network_access, onchange: (e) => { st.network_access = e.target.checked; } });

@@ -53,6 +53,14 @@ Go to **New server**. One step at a time:
 
 **4. World.** A new world (seed, type, structures, hardcore), or **Import a world**: a singleplayer save or a world `.zip` from any Java version.
 
+**World generation & map preview** (under the new world's settings) slides open beside the form:
+
+- **World generation mods** lists Modrinth's world-generation mods (or plugins) that work with your server type and Minecraft version. Ticking one adds it to the server's mods (with what it needs); unticking removes it.
+- Type a **seed** (or press 🎲 for a random one), pick the world type and a map size, and press **Preview map**. mcsm makes the world in a private server on this computer (nobody can join it), with all the mods you've picked and the Chunky mod to generate the area, then draws it from above: north is up, one pixel is one block, and ★ is the spawn point. Point at the map to see the coordinates and the biome there.
+- It takes a minute or two the first time (Minecraft and the mods are downloaded) and less for the next seeds with the same mods. Bigger maps and heavy mods take longer; **Stop** cancels it. You can close the panel and carry on: the map is there when you come back.
+- **Earlier maps** keeps the seeds you've looked at; **Use this seed** makes one the server's seed.
+- Maps need Minecraft 1.18 or newer, and aren't available for modpacks or imported worlds. Vanilla servers are previewed with Fabric, which makes exactly the same worlds.
+
 **5. Settings.** The server's name (shown in the multiplayer list), max players, difficulty, game mode, memory and port. Above 16 GB of memory, mcsm offers **Aikar's flags** (tuned garbage collection that avoids lag spikes). **Advanced settings** has the rest of Minecraft's server settings. The whitelist starts **off** (anyone with the address can join) until you turn it on.
 
 **Friends (optional).** Tick "Make a download for my friends" to get an invite for them. **Set up now** opens the mod browser for mods for players' computers (a minimap, JEI...), and **Local files** adds your own. Mods your server's mods need on players' computers are added by themselves.
