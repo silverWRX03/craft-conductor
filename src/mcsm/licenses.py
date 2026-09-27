@@ -61,6 +61,7 @@ SERVICES = [
     ("GitHub API (mcsm's own releases)", "https://docs.github.com/en/site-policy/github-terms/github-terms-of-service"),
     ("Discord webhooks and bot API (only if you set them up)", "https://discord.com/terms"),
     ("Public IP lookups and the internet port test (ipify, ifconfig.co; only when you ask)", "https://www.ipify.org/"),
+    ("playit.gg tunnels (only if you set one up; its own service and terms)", "https://playit.gg/"),
 ]
 
 

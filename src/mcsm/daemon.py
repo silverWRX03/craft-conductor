@@ -188,6 +188,7 @@ class Daemon:
         self._sched_last = None  # the last time schedules were looked at
         self.meter = None        # recent TPS samples (perf.Meter), made when first asked for
         self.crashed_at = None   # when the server last stopped unexpectedly
+        self.tunnel_status = None  # the last playit.gg tunnel check (tunnel.check)
         self.started_at: float | None = None
         self.last_check: dict | None = None
         self.ops = threading.Lock()     # one job at a time
@@ -309,6 +310,31 @@ class Daemon:
         backup.prune(cfg.backups.dir, cfg.backups.keep)
         copied = backup.copy_out(path, cfg.backups.copy_to, cfg.root.name, cfg.backups.copy_keep)
         return f"created {path.name}" + (f" (copied to {copied.parent})" if copied else "")
+
+    # --------------------------------------------------- playit.gg tunnel
+    TUNNEL_FRESH = 60  # seconds a check is reused for (however many pages ask)
+
+    def tunnel_check(self, force: bool = False) -> dict | None:
+        from . import tunnel
+        from .properties import read_properties
+        address = self.m.config.tunnel_address
+        if not address:
+            self.tunnel_status = None
+            return None
+        old = self.tunnel_status
+        if old and not force and time.time() - old["checked"] < self.TUNNEL_FRESH and old.get("address") == address:
+            return old
+        motd = read_properties(self.m.server_dir / "server.properties").get("motd", "")
+        new = {**tunnel.check(address, motd, self.state == "running"), "address": address}
+        if old and old.get("address") == address and old["status"] != new["status"]:
+            if new["status"] in ("down", "wrong") and old["status"] == "ok":
+                log.warning("playit.gg tunnel stopped working: %s", new["words"])
+                self.m.notifier.send(f"playit.gg tunnel stopped working ({address}). {new['words']}")
+            elif new["status"] == "ok" and old["status"] in ("down", "wrong"):
+                log.info("playit.gg tunnel works again")
+                self.m.notifier.send(f"playit.gg tunnel works again ({address}).")
+        self.tunnel_status = new
+        return new
 
     # -------------------------------------------------------- schedules
     def _run_schedules(self) -> None:

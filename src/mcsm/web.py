@@ -1101,8 +1101,17 @@ class HubApi:
         address = str(b.get("address", "")).strip()
         if address and not re.fullmatch(r"[A-Za-z0-9.-]{1,253}|\[[0-9A-Fa-f:]{2,45}\]|[0-9A-Fa-f:]{2,45}", address):
             raise ApiError(400, "the address should be a host name or IP address, without http:// or a port")
-        self.hub.save_share(port, address)
-        log.info("friend download settings: port %s, address %s", port, address or "(automatic)")
+        tunnel_text = b.get("tunnel")
+        if tunnel_text is not None:
+            from .tunnel import TunnelError, parse_address
+            tunnel_text = str(tunnel_text).strip()
+            try:
+                parse_address(tunnel_text, default_port=0)
+            except TunnelError as e:
+                raise ApiError(400, str(e)) from None
+        self.hub.save_share(port, address, tunnel_text)
+        log.info("friend download settings: port %s, address %s%s", port, address or "(automatic)",
+                 f", playit.gg tunnel {tunnel_text}" if tunnel_text else "")
         return {"ok": True, "share": self.hub.share_status()}
 
     def new_server_options(self, q, b) -> dict:
@@ -1187,6 +1196,7 @@ class Api:
         get("/api/performance", self.performance)
         get("/api/join-requests", self.join_requests)
         get("/api/bedrock", self.bedrock)
+        get("/api/tunnel", self.tunnel)
         get("/api/world/tools", self.world_tools)
         get("/api/modsets", self.modsets)
         post("/api/modsets/save", self.modset_save)
@@ -1724,6 +1734,14 @@ class Api:
         log.info("%s", message)
         return {"ok": True, "message": message}
 
+    # ------------------------------------------------- playit.gg tunnel
+    def tunnel(self, q, b) -> dict:
+        from . import tunnel
+        status = self.d.tunnel_check(force=q.get("now") == "1")
+        return {"address": self.m.config.tunnel_address, "status": status,
+                "agent": tunnel.agent_running() if status else None,
+                "status_page": tunnel.STATUS_PAGE, "download": tunnel.DOWNLOAD}
+
     # ------------------------------------------- Bedrock players (Geyser)
     BEDROCK_LOADERS = ("fabric", "quilt", "neoforge", "paper")
     GEYSER_CONFIGS = ("config/Geyser-Fabric/config.yml", "config/Geyser-NeoForge/config.yml", "plugins/Geyser-Spigot/config.yml")
@@ -1786,7 +1804,9 @@ class Api:
         name = read_properties(self.m.server_dir / "server.properties").get("motd", "")
         lan = lan_ip()
         out = {"local": Invite(lan, share["port"], c.token, fp).page_link(name) if lan else None, "internet": None}
-        if share["address"]:
+        if (tunnel := hub.share_tunnel()) is not None:  # friends outside reach the downloads through playit.gg
+            out["internet"] = Invite(tunnel[0], tunnel[1], c.token, fp).page_link(name)
+        elif share["address"]:
             out["internet"] = Invite(share["address"].strip("[]"), share["port"], c.token, fp).page_link(name)
         return out
 
@@ -1880,7 +1900,12 @@ class Api:
 
     def doctor(self, q, b) -> dict:
         from dataclasses import asdict
-        return {"checks": [asdict(c) for c in self._doctor_checks()]}
+        from .doctor import BAD, OK, Check
+        checks = self._doctor_checks()
+        if (st := self.d.tunnel_check()) and st["status"] != "stopped":
+            checks.append(Check("tunnel", "playit.gg tunnel", OK if st["status"] == "ok" else BAD, st["words"],
+                                "" if st["status"] == "ok" else "playit.gg is an outside service: check its program runs here and status.playit.gg."))
+        return {"checks": [asdict(c) for c in checks]}
 
     def doctor_internet(self, q, b) -> dict:
         """Ask an outside service to connect to the server's port (only when asked to)."""
@@ -2262,6 +2287,7 @@ class Api:
         "restart_when_empty": ("schedule", "restart_when_empty", bool),
         "backup_copy_to": ("backups", "copy_to", str),
         "backup_copy_keep": ("backups", "copy_keep", int),
+        "tunnel_address": ("tunnel", "address", str),
     }
 
     def settings(self, q, b) -> dict:
@@ -2276,6 +2302,7 @@ class Api:
             "verify_boot": c.updates.verify_boot, "backups_keep": c.backups.keep,
             "discord_webhook": c.discord_webhook,
             **self._schedule_info(),
+            "tunnel_address": c.tunnel_address,
             "port": int(read_properties(self.m.server_dir / "server.properties").get("server-port", "25565") or 25565),
             "properties": serverprops.current(read_properties(self.m.server_dir / "server.properties")),
             "properties_schema": serverprops.schema(),

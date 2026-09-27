@@ -82,6 +82,8 @@ ready to update to Minecraft 1.21.4 with fabric 0.16.14:
   between servers as files.
 - **World tools.** Game rules with explanations, a world border, and pre-generating terrain with
   Chunky so exploring doesn't lag.
+- **No port forwarding? playit.gg.** Friends join through a playit.gg tunnel, and the Dashboard shows
+  whether it's working (playit.gg is an outside service, so its disruptions are out of mcsm's control).
 - **Bedrock players too.** One button adds Geyser and Floodgate, so friends on phones, tablets and
   consoles can join a Java server.
 - **Friends ask to be let in.** With the whitelist on, a friend's mcsm sends their Minecraft name;

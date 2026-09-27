@@ -564,6 +564,37 @@ function meter(label) {
   };
 }
 
+// playit.gg: friends join through its tunnels instead of port forwarding. It's an outside
+// service, so say so wherever it's set up, and check it's working (on the Dashboard).
+function playitNote() {
+  return h("div", { class: "notice warn small" }, h("strong", {}, "playit.gg is an outside service. "),
+    "It's run by its own company, not by mcsm: when it has problems, or its program isn't running on this computer, friends can't connect through it, and mcsm can't fix that. ",
+    "mcsm checks the tunnel and shows on the Dashboard whether it's working. ",
+    h("a", { href: "https://playit.gg/download", target: "_blank", rel: "noopener noreferrer" }, "Get playit ↗"), " · ",
+    h("a", { href: "https://status.playit.gg", target: "_blank", rel: "noopener noreferrer" }, "playit.gg status ↗"));
+}
+const TUNNEL_ICON = { ok: "✓", wrong: "⚠", down: "✗", stopped: "•", off: "•" };
+function tunnelCard() {
+  const box = h("div");
+  const load = async (now = false) => {
+    const r = await api(`/api/tunnel${now ? "?now=1" : ""}`).catch(() => null);
+    if (!r || !r.address) { fill(box); return; }
+    const st = r.status || { status: "stopped", words: "" };
+    fill(box, h("div", { class: "card mt" }, h("h3", {}, "playit.gg tunnel"),
+      h("div", { class: `row doctor-item ${st.status === "ok" ? "ok" : st.status === "stopped" ? "info" : "bad"}` },
+        h("span", { class: "doctor-icon", "aria-hidden": "true" }, TUNNEL_ICON[st.status] || "•"),
+        h("div", { class: "grow" }, h("strong", {}, r.address), h("div", { class: "small" }, st.words),
+          r.agent === false ? h("div", { class: "small bad-text" }, "The playit program isn't running on this computer: start it, and the tunnel comes back.") : null,
+          st.checked ? h("div", { class: "muted small" }, `Checked ${ago(st.checked)}`) : null),
+        h("button", { class: "btn small", onclick: () => load(true) }, "Check now")),
+      st.status === "down" || st.status === "wrong" ? h("p", { class: "small mt-s" }, "Is it playit.gg? See ",
+        h("a", { href: r.status_page, target: "_blank", rel: "noopener noreferrer" }, "their status page ↗"),
+        ". Friends on your own network can still join with the Local link.") : null,
+      h("p", { class: "muted small mt-s" }, "playit.gg is an outside service: disruptions on its side are out of mcsm's control.")));
+  };
+  return { el: box, load };
+}
+
 // A friend asked to be let in: say so on the Dashboard, with the way to the Players page.
 function askingNotice() {
   const me = hubInfo && hubInfo.servers ? hubInfo.servers.find((x) => x.id === server) : null;
@@ -711,6 +742,7 @@ views.dashboard = () => {
   const playerCard = h("div", { class: "card" }, h("h3", {}, "Online now ", onlineCount), online);
   const cpu = meter("CPU"), mem = meter("Memory");
   const perf = perfCard();
+  const tun = tunnelCard();
   const con = consolePanel({ compact: true });
   const lagBanner = h("div");
   let evSeq = 0;
@@ -819,6 +851,7 @@ views.dashboard = () => {
     lagBanner,
     h("div", { class: "meters" }, cpu.el, mem.el),
     h("div", { class: "mt" }, perf.el),
+    tun.el,
     h("div", { class: "mt" }, playerCard),
     askingNotice(),
     hubInfo && hubInfo.local ? h("div", { class: "mt" }, playHereCard()) : null,
@@ -831,6 +864,7 @@ views.dashboard = () => {
   if (status) render(status);
   every(3000, pollEvents);
   every(30000, perf.load);
+  every(60000, () => tun.load());
   every(1000, con.poll);
   every(5000, loadPlayers);
   return { onStatus: render };
@@ -1526,6 +1560,11 @@ views.settings = () => {
         (sched.restart = schedulePicker("Restart the server", s.schedule_restart, "restart", s.schedule_restart_next)).el,
         (sched.backup = schedulePicker("Make a backup", s.schedule_backup, "backup", s.schedule_backup_next)).el),
       chk("restart_when_empty", "Skip a scheduled restart while players are online"),
+      h("h3", { class: "mt-l" }, "playit.gg tunnel"),
+      h("div", { class: "grid" },
+        h("label", {}, "This server's playit.gg address (a Minecraft Java tunnel)", txt("tunnel_address", { placeholder: "e.g. name.gl.joinmc.link (optional)", class: "mono" }),
+          h("span", { class: "muted small" }, "For friends outside your home when you can't forward ports: their game joins through this address. Leave empty to use your own address."))),
+      playitNote(),
       h("h3", { class: "mt-l" }, "Backup copies"),
       h("div", { class: "grid" },
         h("label", {}, "Also copy every backup to", txt("backup_copy_to", { placeholder: "e.g. E:\\mcsm-backups, or a OneDrive / Google Drive folder" }),
@@ -1549,6 +1588,7 @@ views.settings = () => {
         schedule_restart: sched.restart.value(), schedule_backup: sched.backup.value(),
         restart_when_empty: f.restart_when_empty.checked,
         backup_copy_to: f.backup_copy_to.value.trim(), backup_copy_keep: Number(f.backup_copy_keep.value) || 10,
+        tunnel_address: f.tunnel_address.value.trim(),
         properties: changedProps(advanced, s.properties),
       };
       const gb = memoryGb(body.memory);
@@ -3106,14 +3146,19 @@ views.mcsm = () => {
     const s = hb.share;
     const address = h("input", { value: s.address, placeholder: s.lan_ip ? `automatic (${s.lan_ip} on your network)` : "automatic" });
     const port = h("input", { type: "number", min: 1024, max: 65535, value: s.port });
+    const tunnelIn = h("input", { value: s.tunnel || "", placeholder: "e.g. name.gl.joinmc.link:12345 (optional)", class: "mono" });
     fill(sharing, card("Sharing with friends",
       h("p", { class: "muted small" }, "Used by servers whose friend download is switched on (see each server's Friends page)."),
       h("div", { class: "grid" },
         h("label", {}, "Your public address (host name or IP)", address,
           h("span", { class: "muted small" }, "What friends outside your home network use to reach you. Leave empty to use the address in the link they opened.")),
         h("label", {}, "Download port", port, h("span", { class: "muted small" }, "Forward this TCP port on your router, too."))),
+      h("details", { class: "mt-s", open: !!s.tunnel }, h("summary", {}, "No port forwarding? Use playit.gg"),
+        playitNote(),
+        h("label", { class: "mt-s" }, "playit.gg tunnel for friends' downloads (a TCP tunnel to port " + s.port + ")", tunnelIn,
+          h("span", { class: "muted small" }, "When set, internet invites use it instead of your public address. Each server's own Minecraft tunnel goes in its Settings."))),
       h("div", { class: "row mt-s" }, h("button", { class: "btn primary", onclick: async () => {
-        const r = await act(() => api("/api/hub/share", { method: "POST", body: { address: address.value.trim(), port: Number(port.value) } }), "Saved");
+        const r = await act(() => api("/api/hub/share", { method: "POST", body: { address: address.value.trim(), port: Number(port.value), tunnel: tunnelIn.value.trim() } }), "Saved");
         if (r && r.share.error) toast(r.share.error, true);
       } }, "Save"),
       h("span", { class: "muted small" }, s.running ? `Sharing is on (port ${s.port}).` : s.error || "Sharing is off: no server has a friend download switched on."))));

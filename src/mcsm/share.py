@@ -102,6 +102,9 @@ class ShareServer:
         """host:port players connect Minecraft to."""
         # A friend who reached this server through its local address is on the same
         # network, so they join through it too; everyone else uses the public address.
+        tunnel = getattr(getattr(d.m, "config", None), "tunnel_address", "")
+        if tunnel and not _is_local(request_host):
+            return tunnel  # friends outside join through the playit.gg tunnel
         public = request_host if _is_local(request_host) else \
             (self.hub.share_settings().get("address") or "").strip() or request_host
         port = read_properties(d.m.server_dir / "server.properties").get("server-port", "25565")

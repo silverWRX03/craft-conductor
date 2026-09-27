@@ -341,11 +341,21 @@ class Hub:
         address they opened the invite with)."""
         from .share import DEFAULT_PORT
         s = self._hub_file().get("share", {}) if not self.is_single else {}
-        return {"port": int(s.get("port", DEFAULT_PORT)), "address": str(s.get("address", ""))}
+        return {"port": int(s.get("port", DEFAULT_PORT)), "address": str(s.get("address", "")),
+                "tunnel": str(s.get("tunnel", ""))}
 
-    def save_share(self, port: int, address: str) -> None:
+    def share_tunnel(self) -> tuple[str, int] | None:
+        """The playit.gg tunnel friends' mcsm reaches the downloads through, if one is set."""
+        from .tunnel import TunnelError, parse_address
+        try:
+            return parse_address(self.share_settings().get("tunnel", ""), default_port=0) or None
+        except TunnelError:
+            return None
+
+    def save_share(self, port: int, address: str, tunnel: str | None = None) -> None:
         data = self._hub_file()
-        data["share"] = {"port": port, "address": address}
+        data["share"] = {"port": port, "address": address,
+                         "tunnel": tunnel if tunnel is not None else data.get("share", {}).get("tunnel", "")}
         self._save_hub_file(data)
         self.update_share(restart=True)
 
@@ -691,6 +701,14 @@ class Hub:
         log.info("deleted server %s and all of its files (%s)", sid, root)
         return "deleted, with its world, mods and backups"
 
+    # ---------------------------------------------------- playit.gg tunnels
+    def check_tunnels(self) -> None:
+        """Check each server's playit.gg tunnel (every 5 minutes), and say when one stops or
+        starts working again (in its activity, and to Discord if set up)."""
+        for d in list(self.daemons.values()):
+            if d.m.config.tunnel_address:
+                d.tunnel_check(force=True)
+
     # -------------------------------------------------- friends asking to join
     JOIN_REQUESTS_KEPT = 20
 
@@ -822,6 +840,7 @@ class Hub:
                 threading.Timer(1.0, webbrowser.open, args=(ui.url,)).start()
             next_scan, next_self_check = 0.0, time.monotonic() + 30
             next_status = time.monotonic() + 20
+            next_tunnels = time.monotonic() + 60
             while not self.stop_requested.is_set():
                 if hub_stop_path(self.home).exists():
                     hub_stop_path(self.home).unlink(missing_ok=True)
@@ -835,6 +854,9 @@ class Hub:
                 if now >= next_self_check:
                     next_self_check = now + SELF_CHECK_INTERVAL
                     self.run_job("mcsm update check", self.check_self_update)
+                if now >= next_tunnels:
+                    next_tunnels = now + 300
+                    threading.Thread(target=self.check_tunnels, daemon=True, name="tunnels").start()
                 if now >= next_status:
                     next_status = now + 30
                     threading.Thread(target=self.discord_status, daemon=True, name="discord-status").start()

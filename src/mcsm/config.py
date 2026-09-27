@@ -117,6 +117,7 @@ class Config:
     restart_on_crash: bool = True
     client: ClientConfig = field(default_factory=ClientConfig)
     schedule: ScheduleConfig = field(default_factory=ScheduleConfig)
+    tunnel_address: str = ""   # a playit.gg tunnel friends join through ("host" or "host:port")
 
     @property
     def path(self) -> Path:
@@ -176,6 +177,15 @@ def _copy_folder(value) -> Path | None:
     if not path.is_absolute():
         raise ConfigError("backups.copy_to must be a full path, e.g. D:\\mcsm-backups or /media/usb/mcsm")
     return path
+
+
+def _tunnel(value) -> str:
+    from .tunnel import TunnelError, parse_address
+    try:
+        parse_address(str(value or ""))
+    except TunnelError as e:
+        raise ConfigError(f"tunnel.address: {e}") from None
+    return str(value or "").strip()
 
 
 def _schedule(c: dict) -> ScheduleConfig:
@@ -294,6 +304,7 @@ def parse(root: Path, data: dict) -> Config:
         restart_on_crash=bool(s.get("restart_on_crash", True)),
         client=_client(data.get("client", {})),
         schedule=_schedule(data.get("schedule", {})),
+        tunnel_address=_tunnel(data.get("tunnel", {}).get("address", "")),
     )
 
 

@@ -169,6 +169,18 @@ For power users, **Advanced: invite codes and security** shows the raw invite co
 
 **Security:** the link opens mcsm's invite page on GitHub, and the invite itself is after the `#`, which browsers never send anywhere. Friends' mcsm connects to your computer only over HTTPS, and only to your computer: the invite carries the fingerprint of your mcsm's certificate, and anything else is refused. The mcsm program itself always comes from GitHub, never from your server. The friends' port never gives access to the control panel.
 
+### No port forwarding? playit.gg
+
+If your router or internet provider doesn't let you forward ports, [playit.gg](https://playit.gg) can: its program runs on this computer and gives your server an address on the internet that friends join through.
+
+**playit.gg is an outside service**, run by its own company, not by mcsm. When playit.gg has problems, or its program isn't running on this computer, friends can't connect through it, however healthy your server is, and mcsm can't fix that. Friends on your own network can still join with the Local link.
+
+1. Download playit from playit.gg, run it, and claim it in your playit.gg account (it shows a link).
+2. In playit.gg, add a **Minecraft Java** tunnel to this server's port (25565 unless you changed it). Put the address it gives you in the server's **Settings → playit.gg tunnel**.
+3. For friends' downloads (the invite) from outside, add a **TCP** tunnel to the friends' download port (8766 unless changed) and put its address, with the port, in **mcsm settings → Sharing with friends → No port forwarding? Use playit.gg**. Internet invites then use it.
+
+With a tunnel set, the Dashboard shows **playit.gg tunnel**: mcsm asks the server for its status through the tunnel, the way a friend's game does, and says whether it's **working**, whether it answers with a **different server** (point the tunnel at this server's port), or can't be reached. It also says if the playit program isn't running here, and links to playit.gg's status page. mcsm checks every 5 minutes and notes in the activity (and on Discord, if set up) when the tunnel stops or starts working. **Check my setup** includes it too.
+
 ### Bedrock players (phones, tablets, consoles)
 
 Friends playing Minecraft on a phone, a tablet, Windows (the Microsoft Store version) or a console can join a Fabric, Quilt, NeoForge or Paper server through [Geyser](https://geysermc.org). On the Friends page, press **Let Bedrock players join**: mcsm adds the Geyser and Floodgate mods from Modrinth and offers to install them now (the server restarts after the countdown). Bedrock players then use **Play → Servers → Add Server** with your address and the Bedrock port (19132 unless Geyser's config says otherwise), and sign in with their own Microsoft account; they don't need Java Edition.
