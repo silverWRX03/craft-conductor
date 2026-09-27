@@ -4,7 +4,7 @@ What changed in each version of mcsm, newest first. Bugs are listed the way you'
 them. Found a new one? [Report it](https://github.com/silverWRX03/mc-server-management/issues/new/choose);
 its fix will say which version it's in.
 
-## 0.11.0 (not released yet)
+## 0.11.0 (2026-09-27)
 
 **Added**
 - **World generation & map preview** (New server → World): pick world-generation mods from Modrinth, and see a map of a seed before you create the server. mcsm makes the world in a private test server with the server's mods and draws it from above, with the biome under the pointer; earlier maps stay listed so you can compare seeds and **Use this seed**.
