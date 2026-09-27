@@ -116,21 +116,19 @@ def main(exe: str) -> None:
                 except subprocess.TimeoutExpired:
                     proc.kill()
             log.close()
-        # A copy named like a friend download switches to `mcsm join` by itself (here the invite
-        # points at a closed port, so it has to say it can't reach the server). Built executables only.
+        # A friend's mcsm with an invite (here pointing at a closed port): it connects over pinned
+        # HTTPS, so it has to say it can't reach the server. Built executables only.
         if Path(exe).read_bytes()[:2] == b"#!":
-            print("smoke test passed (not a built executable: skipped the friend-download check)")
+            print("smoke test passed (not a built executable: skipped the friend check)")
             return
         sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-        from mcsm.join import Invite, download_name
-        invite = Invite("127.0.0.1", free_port(), "A" * 24)
-        named = tmp / download_name("Smoke Test", invite, Path(exe).name)
-        shutil.copy2(exe, named)
-        out = subprocess.run([str(named)], env=fresh_env, cwd=tmp, capture_output=True, text=True, timeout=120,
-                             stdin=subprocess.DEVNULL)
+        from mcsm.join import Invite
+        invite = Invite("127.0.0.1", free_port(), "A" * 24, "F" * 43)
+        out = subprocess.run([exe, "join", invite.code, "--console", "--yes", "--no-launcher"], env=fresh_env, cwd=tmp,
+                             capture_output=True, text=True, timeout=120, stdin=subprocess.DEVNULL)
         text = out.stdout + out.stderr
-        assert out.returncode == 1 and "reach the server" in text, text
-        print("a friend download starts `mcsm join` on its own")
+        assert out.returncode == 1 and "reach" in text, text
+        print("a friend's mcsm joins with an invite code")
     print("smoke test passed")
 
 

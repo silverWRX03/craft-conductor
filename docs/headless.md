@@ -11,7 +11,15 @@ command, you never need to touch that machine again.
   `hostname -I` on it);
 - a user on it that isn't root, e.g. `minecraft` (`sudo adduser minecraft`).
 
-## 1. Install it (one command from your computer)
+## 1. Install it
+
+**The easy way:** in mcsm on your own computer, go to **New server → Or on another computer →
+Install on a Linux computer**, type its address and user name, and press **Connect with SSH**.
+A terminal window opens; type that computer's password when SSH asks (the first time, answer
+`yes` to trust it). mcsm never sees the password. When it finishes, the window shows the
+control panel's address and a one-time password.
+
+**Or type the command yourself** (it's what that button runs):
 
 The command connects to the Linux computer over SSH and runs mcsm's installer there. The
 installer:

@@ -4,6 +4,7 @@ import hashlib
 import json
 import socket
 import threading
+import urllib.error
 import urllib.request
 
 import pytest
@@ -11,6 +12,7 @@ import pytest
 from mcsm import config as configmod, join, nbt, selfupdate, setup as setupmod
 from mcsm.clientpack import PackBuilder, allowed_url
 from mcsm.config import ModSpec
+from mcsm.http import HttpClient, HttpError
 from mcsm.hub import Hub
 from mcsm.loaders.fabric import FABRIC_META
 
@@ -44,20 +46,36 @@ def test_servers_dat_round_trip():
         nbt.loads(b"\x0a\x00")
 
 
+FP = "F" * 43  # a certificate fingerprint (43 URL-safe characters)
+
+
 def test_invites():
-    inv = join.Invite("mc.example.com", 8766, "A" * 24)
-    assert join.parse_invite(inv.url) == inv
-    assert join.parse_invite(inv.code) == inv
-    name = join.download_name("Weekend Survival! <3", inv, "mcsm-windows-x64.exe")
-    assert name.endswith(").exe") and "Weekend Survival" in name and "<" not in name
-    assert join.invite_from_name(name) == inv
-    assert join.invite_from_name(name.replace(".exe", " (1).exe")) == inv  # browsers add " (1)"
-    assert join.invite_from_name("mcsm-windows-x64.exe") is None
-    ipv6 = join.Invite("2001:db8::1", 8766, "B" * 24)
-    assert join.parse_invite(ipv6.url) == ipv6 and join.parse_invite(ipv6.code) == ipv6
-    for bad in ("hello", "http://x/other/abc", "http://x:8766/join/short", "ftp://x/join/" + "A" * 24):
+    inv = join.Invite("mc.example.com", 8766, "A" * 24, FP)
+    assert inv.url == "https://mc.example.com:8766/join/" + "A" * 24
+    assert join.parse_invite(inv.link) == inv and join.parse_invite(inv.code) == inv
+    assert inv.code.startswith("mcsm-")
+    ipv6 = join.Invite("2001:db8::1", 8766, "B" * 24, FP)
+    assert join.parse_invite(ipv6.link) == ipv6 and join.parse_invite(ipv6.code) == ipv6
+    # Invites from before HTTPS (no fingerprint, or http://) are refused, with a way forward.
+    import base64
+    old_code = base64.urlsafe_b64encode(f"mc.example.com|8766|{'A' * 24}".encode()).decode().rstrip("=")
+    for old in (f"http://mc.example.com:8766/join/{'A' * 24}", old_code, f"https://mc.example.com:8766/join/{'A' * 24}"):
+        with pytest.raises(join.JoinError, match="older mcsm"):
+            join.parse_invite(old)
+    assert join.invite_from_name(f"Join X (mcsm-{old_code}).exe") is None
+    for bad in ("hello", "https://x/other/abc", "https://x:8766/join/short#" + FP, "ftp://x/join/" + "A" * 24,
+                "https://x:8766/join/" + "A" * 24 + "#tooshort"):
         with pytest.raises(join.JoinError):
             join.parse_invite(bad)
+
+
+def test_invite_found_in_copied_text():
+    from mcsm import clipboard
+    inv = join.Invite("mc.example.com", 8766, "A" * 24, FP)
+    message = f"Weekend Survival\n1. Get mcsm: https://github.com/...\n2. Copy your invite: `{inv.code}` thanks!"
+    assert clipboard.find_invite(message) == inv
+    assert clipboard.find_invite(f"see {inv.link} ok") == inv
+    assert clipboard.find_invite("nothing to see") is None and clipboard.find_invite("") is None
 
 
 def pack(**over):
@@ -200,11 +218,6 @@ def test_friends_page_and_download(tmp_path, http, modrinth, fake_template, monk
     hub.web.port = 0
     share_port = free_port()
     hub._save_hub_file({"share": {"port": share_port, "address": ""}})
-    # A download of mcsm for this computer (normally the running executable or GitHub's).
-    asset = selfupdate.asset_name()
-    fake_exe = hub.state_dir / "downloads" / f"{selfupdate.__version__}-{asset}"
-    fake_exe.parent.mkdir(parents=True, exist_ok=True)
-    fake_exe.write_bytes(b"MZ fake mcsm")
     t = threading.Thread(target=hub.run, daemon=True)
     t.start()
     try:
@@ -212,51 +225,59 @@ def test_friends_page_and_download(tmp_path, http, modrinth, fake_template, monk
         c = Client(hub.ui.url.rstrip("/"))
         login(c)
         info = c.get("/api/servers/survival/client")[1]
-        assert info["enabled"] and info["share"]["running"] and info["link"].endswith(configmod.load(root).client.token)
+        token, fp = configmod.load(root).client.token, hub.share.fingerprint
+        invite = join.parse_invite(info["link"])  # an invite code, with the certificate's fingerprint
+        assert info["enabled"] and info["share"]["running"] and (invite.token, invite.fp) == (token, fp)
         assert {m["name"] for m in info["pack"]["mods"]} == {"Fabric API", "Good Mod"}
 
-        token = configmod.load(root).client.token
-        base = f"http://127.0.0.1:{share_port}/join/{token}"
-        with urllib.request.urlopen(base) as r:
-            page = r.read().decode()
-            assert "Weekend Survival" in page and r.headers["Content-Security-Policy"].startswith("default-src 'none'")
-        with urllib.request.urlopen(base + "/pack.json") as r:
-            p = json.loads(r.read())
-        assert p["address"] == "127.0.0.1:25570" and len(p["mods"]) == 2
-        os_key = {"mcsm-windows-x64.exe": "windows", "mcsm-macos-arm64": "macos",
-                  "mcsm-linux-x64": "linux", "mcsm-linux-arm64": "linux-arm64"}[asset]
-        with urllib.request.urlopen(f"{base}/download/{os_key}") as r:
-            assert r.read() == b"MZ fake mcsm"
-            disposition = r.headers["Content-Disposition"]
-        filename = disposition.split('filename="')[1].split('"')[0]
-        assert join.invite_from_name(filename) == join.Invite("127.0.0.1", share_port, token)
+        inv = join.Invite("127.0.0.1", share_port, token, fp)
+        base = inv.url
+        pinned = HttpClient(cache_ttl=0, retries=1)
+        pinned.pin(inv.netloc, fp)
 
-        # A friend's copy fetches the same pack through the invite.
-        assert join.Joiner(join.Invite("127.0.0.1", share_port, token), mc_dir=tmp_path / "x").fetch_pack()["name"] \
-            == "Weekend Survival"
-        for bad in (f"http://127.0.0.1:{share_port}/join/{'Z' * 24}", f"http://127.0.0.1:{share_port}/",
-                    f"{base}/download/solaris"):
-            with pytest.raises(urllib.error.HTTPError) as e:
-                urllib.request.urlopen(bad)
-            assert e.value.code == 404
+        def get(url):
+            with pinned._open(urllib.request.Request(url)) as r:
+                return r.read(), r.headers
+        # HTTPS only: plain HTTP (a browser, an old mcsm) gets an explanation and nothing else.
+        with pytest.raises(urllib.error.HTTPError) as e:
+            urllib.request.urlopen(f"http://127.0.0.1:{share_port}/join/{token}/pack.json")
+        assert e.value.code == 400 and b"secure invite port" in e.value.read()
+        page, headers = get(base)  # the invite opened in a browser: where to get mcsm
+        assert b"github.com" in page and headers["Content-Security-Policy"].startswith("default-src 'none'")
+        body, _ = get(base + "/pack.json")
+        p = json.loads(body)
+        assert p["address"] == "127.0.0.1:25570" and len(p["mods"]) == 2
+        # Anyone else's certificate (someone in the middle) is refused, straight away.
+        imposter = HttpClient(cache_ttl=0, retries=3)
+        imposter.pin(inv.netloc, "A" * 43)
+        with pytest.raises(HttpError) as e:
+            imposter.get_json(base + "/pack.json")
+        assert "doesn't match" in e.value.friendly
+        with pytest.raises(HttpError):  # and a pinned server is never reached over plain HTTP
+            pinned.get_json(f"http://127.0.0.1:{share_port}/join/{token}/pack.json")
+
+        # A friend's copy fetches the same pack through the invite (pinned by the Joiner).
+        assert join.Joiner(inv, mc_dir=tmp_path / "x").fetch_pack()["name"] == "Weekend Survival"
+        for bad in (f"https://127.0.0.1:{share_port}/join/{'Z' * 24}/pack.json", f"https://127.0.0.1:{share_port}/"):
+            with pytest.raises(HttpError) as e:
+                get(bad)
+            assert e.value.status == 404
 
         # Your own files for players come from the share server, and only from there.
         from mcsm.clientpack import client_dir
         client_dir(configmod.load(root)).mkdir()
         (client_dir(configmod.load(root)) / "My Tweaks-1.0.jar").write_bytes(b"homemade")
         assert c.get("/api/servers/survival/client")[1]["local_mods"] == ["My Tweaks-1.0.jar"]
-        with urllib.request.urlopen(base + "/pack.json") as r:
-            local = next(m for m in json.loads(r.read())["mods"] if m.get("local"))
+        local = next(m for m in json.loads(get(base + "/pack.json")[0])["mods"] if m.get("local"))
         assert local["url"] == f"{base}/mods/My%20Tweaks-1.0.jar"
-        with urllib.request.urlopen(local["url"]) as r:
-            assert r.read() == b"homemade"
-        fetched = join.Joiner(join.Invite("127.0.0.1", share_port, token), mc_dir=tmp_path / "y").fetch_pack()
+        assert get(local["url"])[0] == b"homemade"
+        fetched = join.Joiner(inv, mc_dir=tmp_path / "y").fetch_pack()
         assert any(m.get("local") for m in fetched["mods"])
         with pytest.raises(join.JoinError):  # someone else's address for "your own" file: refused
             join.validate_pack({**fetched, "mods": [{**local, "url": "http://evil.example/x.jar"}]}, base)
         assert c.post("/api/servers/survival/client/local/remove", {"name": "My Tweaks-1.0.jar"})[0] == 200
-        with pytest.raises(urllib.error.HTTPError):
-            urllib.request.urlopen(local["url"])
+        with pytest.raises(HttpError):
+            get(local["url"])
 
         # Client-only mods and a new link, from the Friends page.
         modrinth.project("MAP", "minimap", "Mini Map", server_side="unsupported")
@@ -265,8 +286,8 @@ def test_friends_page_and_download(tmp_path, http, modrinth, fake_template, monk
         assert {m["name"] for m in info["pack"]["mods"]} == {"Fabric API", "Good Mod", "Mini Map"}
         assert info["pack"]["memory_gb"] == 6
         c.post("/api/servers/survival/client/new-link", {})
-        with pytest.raises(urllib.error.HTTPError):
-            urllib.request.urlopen(base + "/pack.json")  # the old link stops working
+        with pytest.raises(HttpError):
+            get(base + "/pack.json")  # the old invite stops working
         assert c.post("/api/hub/share", {"port": 80})[0] == 400
 
         # Switching it off stops sharing.
@@ -278,13 +299,16 @@ def test_friends_page_and_download(tmp_path, http, modrinth, fake_template, monk
 
 
 def test_join_command_line(monkeypatch, capsys, launcher, http):
-    from mcsm import cli
+    from mcsm import cli, clipboard
     got = []
     monkeypatch.setattr(join, "run_interactive", lambda invite, confirm, open_launcher, **kw: got.append(invite) or 0)
-    code = "A" * 24
-    assert cli.main(["join", f"http://mc.example.com:8766/join/{code}", "--yes"]) == 0
-    assert got[0] == join.Invite("mc.example.com", 8766, code)
+    inv = join.Invite("mc.example.com", 8766, "A" * 24, FP)
+    assert cli.main(["join", inv.code, "--yes"]) == 0
+    assert got[-1] == inv
     assert cli.main(["join", "not an invite", "--yes"]) == 2
+    # No invite given: one that was copied is used.
+    monkeypatch.setattr(clipboard, "read_text", lambda: f"here: {inv.code}")
+    assert cli.main(["join", "--yes"]) == 0 and got[-1] == inv
 
 
 def test_client_side_companions_of_server_mods_are_included(make_config, http, modrinth):
@@ -327,3 +351,28 @@ def test_new_server_form_takes_friends_mods_and_files(tmp_path):
     for bad in ({"client_mods": ["curseforge:123"]}, {"client_mods": ["../x"]}, {"client_local": ["nope"]}):
         with pytest.raises(configmod.ConfigError):
             setupmod.SetupSpec.from_dict({"loader": "fabric", "accept_eula": True, **bad})
+
+
+def test_manual_links_from_a_pack_must_be_https():
+    from mcsm.join import validate_pack
+    p = validate_pack({"format": 1, "name": "S", "minecraft": "1.21.1", "loader": "vanilla", "address": "a.example",
+                       "mods": [], "manual": [{"name": "Good", "url": "https://www.curseforge.com/x"},
+                                              {"name": "Bad", "url": "javascript:alert(1)"}, "junk"]})
+    assert [m["name"] for m in p["manual"]] == ["Good"]
+
+
+def test_new_servers_start_without_a_whitelist(tmp_path):
+    from mcsm.properties import read_properties
+    root = tmp_path / "srv"
+    cfg = setupmod.configure(root, setupmod.SetupSpec.from_dict({"loader": "vanilla", "accept_eula": True}))
+    props = read_properties(cfg.server.dir / "server.properties")
+    assert props["white-list"] == "false" and props["enforce-whitelist"] == "false"
+    # a modpack's server.properties turned it on: back to what was picked (off)
+    (cfg.server.dir / "server.properties").write_text("white-list=true\nenforce-whitelist=true\nmotd=Pack\n")
+    setupmod.whitelist_as_chosen(cfg.server.dir, setupmod.SetupSpec.from_dict({"loader": "vanilla", "accept_eula": True}))
+    props = read_properties(cfg.server.dir / "server.properties")
+    assert props["white-list"] == "false" and props["enforce-whitelist"] == "false" and props["motd"] == "Pack"
+    # ticked on the setup page: kept
+    spec = setupmod.SetupSpec.from_dict({"loader": "vanilla", "accept_eula": True, "properties": {"white-list": True}})
+    setupmod.whitelist_as_chosen(cfg.server.dir, spec)
+    assert read_properties(cfg.server.dir / "server.properties")["white-list"] == "true"

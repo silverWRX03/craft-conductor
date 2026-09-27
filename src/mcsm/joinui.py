@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import secrets
 import threading
@@ -40,6 +41,7 @@ STATIC = {"": ("join.html", "text/html; charset=utf-8"), "join.js": ("join.js", 
           "rich.js": ("rich.js", "text/javascript; charset=utf-8"),
           "style.css": ("style.css", "text/css; charset=utf-8"), "icon.png": ("icon.png", "image/png")}
 ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
+START_SERVER = -1  # run() result: the person chose to run their own server instead
 IDLE_SECONDS = 180  # the page pings while it's open; stop a while after it's closed
 
 
@@ -51,6 +53,31 @@ class ExtrasChanges(Exception):
         self.changes = changes
 
 
+def _invites_file(mc_dir: Path) -> Path:
+    return mc_dir / "mcsm" / "invites.json"
+
+
+def remembered(mc_dir: Path) -> list[dict]:
+    """Servers this computer has joined: open mcsm again to update one, no invite needed."""
+    try:
+        data = json.loads(_invites_file(mc_dir).read_text())
+        return [x for x in data if isinstance(x, dict) and isinstance(x.get("code"), str) and isinstance(x.get("name"), str)]
+    except (OSError, ValueError, TypeError):
+        return []
+
+
+def remember(mc_dir: Path, name: str, code: str) -> None:
+    items = [x for x in remembered(mc_dir) if x["name"] != name and x["code"] != code]
+    items.insert(0, {"name": name[:100], "code": code, "at": time.time()})
+    path = _invites_file(mc_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)  # the invites hold each server's secret
+    with os.fdopen(fd, "w") as f:
+        f.write(json.dumps(items[:20], indent=2))
+    tmp.replace(path)
+
+
 class JoinUI:
     def __init__(self, invite: Invite | None, pack: dict | None = None, mc_dir: Path | None = None,
                  prism_dir: Path | None = None, out_dir: Path | None = None, http=None):
@@ -60,8 +87,10 @@ class JoinUI:
         self.prism_dir = prism_dir
         self.out_dir = out_dir
         self.lines: list[str] = []
+        self._mc_dir, self._http = mc_dir, http
         self.joiner = Joiner(invite or Invite("localhost", 1, "local-" + "0" * 16), mc_dir=mc_dir, http=http,
                              say=self._say)
+        self.wants_server = False  # "I want to run my own server instead" (no invite)
         self.token = secrets.token_urlsafe(18)
         self.results: list[dict] = []
         self.running = False
@@ -85,10 +114,30 @@ class JoinUI:
         except JoinError as e:
             self.pack_error = str(e)
 
+    def use_invite(self, text: str) -> None:
+        """An invite pasted on the page (mcsm was opened without one)."""
+        from .join import parse_invite
+        invite = parse_invite(text)
+        with self._lock:
+            self.invite, self.pack, self.pack_error = invite, None, ""
+            self.joiner = Joiner(invite, mc_dir=self._mc_dir, http=self._http, say=self._say)
+        self.load_pack()
+        if self.pack is None:
+            raise ValueError(self.pack_error or "couldn't reach the server")
+
     def info(self) -> dict:
         self.load_pack()
         p = self.pack
+        need = self.invite is None and p is None
+        copied = None
+        if need:  # an invite the friend copied: filled in for them
+            from . import clipboard
+            found = clipboard.invite()
+            copied = found.code if found else None
         return {
+            "need_invite": need,
+            "copied_invite": copied,
+            "remembered": remembered(self.joiner.mc) if need else [],
             "pack": None if p is None else {
                 "name": p["name"], "address": p["address"], "minecraft": p["minecraft"], "loader": p["loader"],
                 "loader_version": p.get("loader_version"), "mods": [m["name"] for m in p.get("mods", [])],
@@ -169,6 +218,8 @@ class JoinUI:
                 for note in notes:
                     self._say(note)
                 self.results = self.joiner.run_targets(install_pack, targets, prism_dir=self.prism_dir, out_dir=self.out_dir)
+                if self.invite and self.invite.fp and any(r.get("ok") for r in self.results):
+                    remember(self.joiner.mc, self.pack["name"], self.invite.code)  # to update it next time
             except HttpError as e:
                 self._say(f"A download failed: {e}. Check your internet connection and try again.")
             except Exception as e:  # keep the page informed whatever happens
@@ -299,7 +350,14 @@ class JoinUI:
                 try:
                     length = min(int(self.headers.get("Content-Length") or 0), 64 * 1024)
                     body = json.loads(self.rfile.read(length) or b"{}")
-                    if rest == "api/setup":
+                    if rest == "api/invite":
+                        ui.use_invite(str(body.get("invite", ""))[:2000])
+                        self._json(200, ui.info())
+                    elif rest == "api/own-server":  # not joining after all: open mcsm's control panel
+                        ui.wants_server = True
+                        ui.done.set()
+                        self._json(200, {"ok": True})
+                    elif rest == "api/setup":
                         mem = body.get("memory_gb")
                         ui.setup([str(x) for x in body.get("launchers", [])],
                                  int(mem) if isinstance(mem, (int, float)) else None, body.get("accept_changes") is True)
@@ -328,7 +386,7 @@ class JoinUI:
                         self._json(404, {"error": "not found"})
                 except ExtrasChanges as e:
                     self._json(409, {"error": "some of your extras don't fit this Minecraft version", "changes": e.changes})
-                except (ValueError, RuntimeError, ExtrasError) as e:
+                except (ValueError, RuntimeError, ExtrasError, JoinError) as e:
                     self._json(400, {"error": str(e)})
                 except HttpError as e:
                     self._json(502, {"error": e.friendly})
@@ -372,6 +430,8 @@ def run(invite: Invite | None, pack: dict | None = None, mc_dir: Path | None = N
         print(f"If it didn't appear, open {url}")
         print("Keep this window open until you're done there.", flush=True)
         ui.wait()
+        if ui.wants_server:
+            return START_SERVER
         return 0 if any(r.get("ok") for r in ui.results) else 1
     finally:
         ui.stop()

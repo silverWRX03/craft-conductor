@@ -7,6 +7,7 @@ nothing is downloaded or started until the person submits it.
 
 from __future__ import annotations
 
+import functools
 import json
 import os
 import re
@@ -20,6 +21,9 @@ from . import serverprops
 from .properties import write_properties
 
 PENDING = "setup-pending"
+# A new server is open to anyone with the address until you turn the whitelist on yourself,
+# whatever a modpack or Minecraft's own defaults say.
+OPEN_BY_DEFAULT = {"white-list": "false", "enforce-whitelist": "false"}
 NAME_LIMIT = 59  # server.properties motd is shown in the server list; keep it short
 
 LOADER_INFO = [
@@ -52,6 +56,7 @@ def clear_pending(root: Path) -> None:
     pending_path(root).unlink(missing_ok=True)
 
 
+@functools.lru_cache(maxsize=1)  # it doesn't change, and on macOS finding out runs a program
 def total_ram_gb() -> float | None:
     try:
         if os.name == "nt":
@@ -196,6 +201,12 @@ def _mod_spec(item: str, required: bool, channel: str | None = None) -> ModSpec:
     return ModSpec("modrinth", item, required=required, channel=channel)
 
 
+def whitelist_as_chosen(server_dir: Path, spec: SetupSpec) -> None:
+    """Put the whitelist back to what was picked on the setup page (off unless ticked), after a
+    modpack's files may have changed server.properties."""
+    write_properties(server_dir / "server.properties", {k: spec.properties.get(k, v) for k, v in OPEN_BY_DEFAULT.items()})
+
+
 def configure(root: Path, spec: SetupSpec) -> configmod.Config:
     """Write mcsm.toml, server.properties and eula.txt for a new server (downloads nothing)."""
     path = root / configmod.CONFIG_NAME
@@ -225,6 +236,7 @@ def configure(root: Path, spec: SetupSpec) -> configmod.Config:
     cfg = configmod.load(root)
     cfg.server.dir.mkdir(parents=True, exist_ok=True)
     write_properties(cfg.server.dir / "server.properties", {
+        **OPEN_BY_DEFAULT,
         **spec.properties,
         "motd": spec.motd, "max-players": str(spec.max_players), "difficulty": spec.difficulty,
         "gamemode": spec.gamemode, "server-port": str(spec.port),

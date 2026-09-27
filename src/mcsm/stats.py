@@ -88,13 +88,17 @@ class Sampler:
         self._lock = threading.Lock()
         self._last: tuple[int, float, float] | None = None   # pid, wall time, cpu seconds
         self._percent: float | None = None
+        self._recent: tuple[int, float, dict] | None = None  # pid, when, the answer: shared by pages polling at once
         self.cpus = os.cpu_count() or 1
 
     def read(self, pid: int | None) -> dict | None:
         if pid is None:
             with self._lock:
-                self._last = self._percent = None
+                self._last = self._percent = self._recent = None
             return None
+        with self._lock:
+            if self._recent and self._recent[0] == pid and time.monotonic() - self._recent[1] < 0.45:
+                return self._recent[2]
         try:
             rss, cpu = sample(pid)
         except (OSError, ValueError, IndexError, subprocess.SubprocessError):
@@ -106,4 +110,6 @@ class Sampler:
                 self._percent = round(max(0.0, min(100.0, used)), 1)
             if not self._last or self._last[0] != pid or now - self._last[1] >= 0.5:
                 self._last = (pid, now, cpu)
-            return {"memory_bytes": rss, "cpu_percent": self._percent, "cpus": self.cpus}
+            out = {"memory_bytes": rss, "cpu_percent": self._percent, "cpus": self.cpus}
+            self._recent = (pid, now, out)
+            return out

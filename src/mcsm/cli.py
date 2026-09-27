@@ -469,12 +469,9 @@ def cmd_web_password(args) -> int:
                 return 1
             store.set(mode, secret)
             print(f"{what} changed")
-        elif args.none:
-            store.set("none")
-            print("no password: the control panel opens without signing in, but only on this computer")
         else:
             print(f"web UI sign-in: {webauth.describe(store.get())}")
-            print("change it with --set (password), --pin, --none, or --reset (back to PASSWORD)")
+            print("change it with --set (password), --pin, or --reset (back to PASSWORD)")
     except ConfigError as e:
         print(f"error: {e}")
         return 1
@@ -492,14 +489,17 @@ def cmd_join(args) -> int:
         port = read_properties(m.server_dir / "server.properties").get("server-port", "25565")
         pack = PackBuilder(m).build("localhost" if port == "25565" else f"localhost:{port}")
         return _join(args, None, pack, mc_dir)
+    from . import clipboard, desktop
     if args.invite:
         text = args.invite
-    elif invite := join.invite_from_name(sys.executable if selfupdate.frozen() else sys.argv[0]):
-        text = invite.url
+    elif invite := join.invite_from_name(sys.executable if selfupdate.frozen() else sys.argv[0]) or clipboard.invite():
+        text = invite.code
+    elif desktop.windowless() or (interactive() and not args.console and not args.yes):
+        return _join(args, None, None, mc_dir)  # the page asks for the invite
     elif interactive():
-        text = input("Paste the invite link from the server's owner: ")
+        text = input("Paste the invite from the server's owner: ")
     else:
-        print("usage: mcsm join <invite link>")
+        print("usage: mcsm join <invite>")
         return 2
     try:
         invite = join.parse_invite(text)
@@ -520,6 +520,8 @@ def _join(args, invite, pack, mc_dir) -> int:
     if not (args.yes or args.console or targets or args.no_launcher) and (interactive() or desktop.windowless()):
         from . import joinui
         code = joinui.run(invite, pack=pack, mc_dir=mc_dir)
+        if code == joinui.START_SERVER:  # they'd rather run a server of their own
+            return _main(build_parser().parse_args(["start"]))
         if code is not None:
             return code
         print("Couldn't open a browser; continuing here.\n")
@@ -982,7 +984,6 @@ def build_parser() -> argparse.ArgumentParser:
     g = s.add_mutually_exclusive_group()
     g.add_argument("--set", action="store_true", help="choose a new password")
     g.add_argument("--pin", action="store_true", help="use a 4-8 digit PIN instead")
-    g.add_argument("--none", action="store_true", help="no password (only from this computer)")
     g.add_argument("--reset", action="store_true", help="go back to the default password, PASSWORD")
     s.set_defaults(fn=cmd_web_password)
 
@@ -1070,10 +1071,7 @@ def _entry(argv: list[str] | None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.fn is None:  # no command, e.g. the executable was double-clicked
-        from .join import invite_from_name
-        # A download from a server's invite page is named after it: set up Minecraft to join.
-        joining = selfupdate.frozen() and invite_from_name(sys.executable) is not None
-        args = parser.parse_args([*argv, "join" if joining else "start"])
+        args = parser.parse_args([*argv, "join" if _first_run_joining() else "start"])
     selfupdate.cleanup_after_update()
     try:
         return _main(args)
@@ -1086,6 +1084,18 @@ def _entry(argv: list[str] | None) -> int:
                 input("\nPress Enter to close this window...")
             except EOFError:
                 pass
+
+
+def _first_run_joining() -> bool:
+    """Double-clicked with no command: set up Minecraft to join a friend's server when an
+    invite was copied (or is in the file's name), or when mcsm has never run a server here."""
+    from .join import invite_from_name
+    if not selfupdate.frozen():
+        return False
+    if invite_from_name(sys.executable) is not None:
+        return True
+    home = default_home()  # someone who runs servers here gets their control panel
+    return not (home / "servers").exists() and not (home / configmod.CONFIG_NAME).exists()
 
 
 def _main(args) -> int:

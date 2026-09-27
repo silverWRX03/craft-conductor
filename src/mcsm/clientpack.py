@@ -66,7 +66,7 @@ def _entry(m: ModFile, side: str) -> dict:
 class PackBuilder:
     def __init__(self, manager):
         self.m = manager
-        self._cache: tuple[tuple, float, dict] | None = None
+        self._cache: dict[str, tuple[tuple, float, dict]] = {}  # by address: local and internet friends differ
 
     def build(self, address: str) -> dict:
         m = self.m
@@ -75,10 +75,13 @@ class PackBuilder:
             raise ModError("the server isn't installed yet")
         key = (lk.updated_at, lk.minecraft, tuple(cfg.client.mods), cfg.client.memory_gb, address,
                cfg.server.dir, tuple((p.name, p.stat().st_mtime) for p in local_jars(cfg)))
-        if self._cache and self._cache[0] == key and time.monotonic() - self._cache[1] < CACHE_SECONDS:
-            return self._cache[2]
+        cached = self._cache.get(address)
+        if cached and cached[0] == key and time.monotonic() - cached[1] < CACHE_SECONDS:
+            return cached[2]
         pack = self._build(address)
-        self._cache = (key, time.monotonic(), pack)
+        if len(self._cache) >= 8:  # addresses come from requests: keep only a few
+            self._cache.clear()
+        self._cache[address] = (key, time.monotonic(), pack)
         return pack
 
     def _build(self, address: str) -> dict:

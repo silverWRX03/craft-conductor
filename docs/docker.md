@@ -20,7 +20,7 @@ Or use [`docker-compose.yml`](../docker-compose.yml): `docker compose up -d`.
 |---|---|
 | 8765 | the control panel. Open `http://<this computer>:8765`. **Don't forward this one on your router.** |
 | 25565 | Minecraft. Each extra server needs its own port: map a range, e.g. `-p 25565-25570:25565-25570`. |
-| 8798 | friends' downloads (the invite links), only needed if you use them |
+| 8798 | friends' downloads (HTTPS; the invites), only needed if you use them |
 
 `MCSM_LAN_IP` is the Docker host's address on your network. Inside a container mcsm can't
 see it, and it goes into invite links and the phone-pairing QR code.

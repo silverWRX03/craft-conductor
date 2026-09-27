@@ -5,13 +5,14 @@ needs a session cookie obtained with the password or PIN (see webauth.py); the
 cookie is HttpOnly and SameSite=Strict, and state-changing requests must also carry
 an ``X-MCSM`` header, which cross-site pages cannot add without a CORS preflight we
 never allow. Requests must name this machine in their Host header, so a web page
-can't reach the panel through DNS rebinding. "No password" only works for browsers
-on this computer. Put it behind an HTTPS reverse proxy before exposing it beyond
-your machine.
+can't reach the panel through DNS rebinding. PINs only work for browsers on this
+computer.
 """
 
 from __future__ import annotations
 
+import functools
+import hashlib
 import ipaddress
 import json
 import os
@@ -65,7 +66,7 @@ def device_allowed(method: str, path: str) -> bool:
 MAX_JSON = 1 << 20
 MAX_UPLOAD = 512 << 20
 MAX_ARCHIVE = 64 << 30
-LOCAL_ONLY = {"/api/open", "/api/hub/open"}  # they act on this computer's screen  # a whole server (worlds and all), for importing
+LOCAL_ONLY = {"/api/open", "/api/hub/open", "/api/hub/remote-install/open"}  # they act on this computer's screen  # a whole server (worlds and all), for importing
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/app.js": ("app.js", "text/javascript; charset=utf-8"),
           "/rich.js": ("rich.js", "text/javascript; charset=utf-8"),
@@ -89,7 +90,19 @@ FIRST_SIGN_IN_OK = {"/api/auth/change", "/api/logout", "/api/hub", "/api/notice"
 NOTICE_EXEMPT = {"/api/notice", "/api/notice/accept", "/api/status", "/api/licenses", "/api/auth/change", "/api/hub"}
 # Routes whose request body is a file, streamed to disk rather than parsed as JSON.
 RAW_UPLOADS = {"/api/hub/stage", "/api/mods/local", "/api/client/local"}
+# Headers a reverse proxy or tunnel adds: a request carrying any of them didn't come straight
+# from a browser on this computer.
+PROXY_HEADERS = ("X-Forwarded-For", "Forwarded", "X-Real-IP", "X-Forwarded-Host", "X-Forwarded-Proto", "Via",
+                 "Tailscale-User-Login", "CF-Connecting-IP", "True-Client-IP")
 SERVER_PATH = re.compile(r"^/api/servers/([a-z0-9][a-z0-9-]{0,63})(/.*)$")
+
+
+@functools.lru_cache(maxsize=None)
+def static_file(name: str) -> tuple[bytes, str]:
+    """The page's own files: read once (they're part of mcsm), with an ETag so browsers can
+    keep their copy and just ask whether it changed."""
+    body = resources.files("mcsm").joinpath("webui", name).read_bytes()
+    return body, '"' + hashlib.sha256(body).hexdigest()[:20] + '"'
 
 
 class ApiError(Exception):
@@ -207,10 +220,12 @@ class WebUI:
             raise ApiError(403, "signing in from another device needs a strong password "
                                 f"({webauth.STRONG_RULES}); set one in mcsm settings on the server's own computer")
         with self.lock:
+            if len(self.failures) > 1000:  # forget old attempts, so the table can't grow without end
+                self.failures = {k: v for k, v in self.failures.items() if v and now - v[-1] < 300}
             recent = [t for t in self.failures.get(client, []) if now - t < 300]
             if len(recent) >= 5:
                 raise ApiError(429, "too many attempts; wait a few minutes")
-        if auth.mode == "none" or not auth.check(password):  # "none" never needs (or accepts) a login
+        if not auth.check(password):
             with self.lock:
                 self.failures[client] = recent + [now]
             raise ApiError(401, "wrong PIN" if auth.mode == "pin" else "wrong password")
@@ -230,9 +245,6 @@ class WebUI:
     def change(self, mode: str, secret: str, local: bool) -> str:
         """Change how the panel is protected; signs out everyone else (paired phones too) and
         returns a new session."""
-        if mode == "none" and not local:
-            raise ApiError(400, "\"No password\" only works on the server's own computer; "
-                                "turn it on from there (or pick a PIN)")
         if self.remote_on() and not (mode == "password" and webauth.strong_password(secret)):
             raise ApiError(400, "remote access is on, so the password must be strong: " + webauth.STRONG_RULES
                            + ". PINs can't be used then")
@@ -242,7 +254,7 @@ class WebUI:
         removed = self.devices.remove(None)
         if removed:
             log.info("signed out %d paired phone(s) because the password changed", removed)
-        log.info("web UI sign-in changed to %s", {"none": "no password"}.get(mode, mode))
+        log.info("web UI sign-in changed to %s", mode)
         with self.lock:
             self.sessions.clear()
             self.first_sign_in.clear()
@@ -261,8 +273,6 @@ class WebUI:
             self.failures.clear()
 
     def valid(self, token: str | None, local: bool = False) -> bool:
-        if local and self.auth.mode == "none":
-            return True
         if not token:
             return False
         with self.lock:
@@ -275,7 +285,31 @@ class WebUI:
 
 
 class _Server(ThreadingHTTPServer):
+    """One thread per connection, with a cap: connections past MAX_CONNECTIONS are closed at
+    once, so a flood of idle connections can't use up threads and memory. (Each handler also
+    times out a connection that goes quiet; see REQUEST_TIMEOUT.)"""
     daemon_threads = True
+    MAX_CONNECTIONS = 64
+
+    def __init__(self, *args, **kwargs):
+        self._slots = threading.BoundedSemaphore(self.MAX_CONNECTIONS)
+        super().__init__(*args, **kwargs)
+
+    def process_request(self, request, client_address):
+        if not self._slots.acquire(blocking=False):
+            self.shutdown_request(request)  # too busy: drop it rather than queue it
+            return
+        try:
+            super().process_request(request, client_address)
+        except BaseException:
+            self._slots.release()
+            raise
+
+    def process_request_thread(self, request, client_address):
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._slots.release()
 
     def server_bind(self):
         # HTTPServer.server_bind() looks up the host's full DNS name, which can take
@@ -284,9 +318,13 @@ class _Server(ThreadingHTTPServer):
         self.server_name, self.server_port = self.server_address[:2]
 
 
+REQUEST_TIMEOUT = 60  # seconds a connection may sit silent before it's closed
+
+
 class RequestHandler(BaseHTTPRequestHandler):
     web: WebUI
     server_version = f"mcsm/{__version__}"
+    timeout = REQUEST_TIMEOUT
 
     def log_message(self, fmt, *args):  # keep the server console clean
         log.debug("web: " + fmt, *args)
@@ -368,9 +406,16 @@ class RequestHandler(BaseHTTPRequestHandler):
                           {"Set-Cookie": self._cookie(token, DEVICE_COOKIE, webauth.DEVICE_DAYS * 86400)})
 
     def _local(self) -> bool:
-        """A browser on this computer, talking to us directly (not through a proxy)."""
-        return is_loopback(self.client_address[0]) and not (
-            self.headers.get("X-Forwarded-For") or self.headers.get("Forwarded") or self.headers.get("X-Real-IP"))
+        """A browser on this computer, talking to us directly (not through a proxy).
+
+        "Local" unlocks the PIN and no-password modes and the forgotten-password reset, so
+        anything that looks like a proxy on this computer (nginx, Caddy, `tailscale serve`,
+        a tunnel) counts as remote, and so does a Host that isn't this computer's loopback name."""
+        if not is_loopback(self.client_address[0]) or any(self.headers.get(h) for h in PROXY_HEADERS):
+            return False
+        host = (self.headers.get("Host") or "localhost").strip().lower()
+        host = host[1:host.find("]")] if host.startswith("[") and "]" in host else host.rsplit(":", 1)[0]
+        return host in ("localhost", "127.0.0.1", "::1")
 
     def _host_ok(self) -> bool:
         if host_allowed(self.headers.get("Host"), self.web.hub.web.allowed_hosts):
@@ -386,8 +431,13 @@ class RequestHandler(BaseHTTPRequestHandler):
         path, _, qs = self.path.partition("?")
         if path in STATIC:
             name, ctype = STATIC[path]
-            body = resources.files("mcsm").joinpath("webui", name).read_bytes()
-            return self._send(200, body, ctype)
+            body, etag = static_file(name)
+            if self.headers.get("If-None-Match") == etag:  # the browser's copy is current
+                self.send_response(304)
+                self.send_header("ETag", etag)
+                self.end_headers()
+                return None
+            return self._send(200, body, ctype, {"ETag": etag, "Cache-Control": "no-cache"})
         self._dispatch("GET", path, urllib.parse.parse_qs(qs))
 
     def do_POST(self):
@@ -701,6 +751,8 @@ class HubApi:
         r[("GET", "/api/hub/mods/requires")] = lambda q, b: requirements_query(ModrinthProvider(self.hub.http), q)
         r[("GET", "/api/hub/mods/search")] = lambda q, b: search_mods(ModrinthProvider(self.hub.http), q, set(), "fabric")
         r[("POST", "/api/hub/create")] = self.create
+        r[("POST", "/api/hub/remote-install")] = self.remote_install
+        r[("POST", "/api/hub/remote-install/open")] = self.remote_install_open
         r[("POST", "/api/hub/network")] = self.network
         r[("POST", "/api/hub/share")] = self.save_share
         r[("GET", "/api/hub/port")] = self.port_check
@@ -970,6 +1022,28 @@ class HubApi:
             raise ApiError(500, f"couldn't open a file manager; the folder is {where}")
         return {"ok": True, "path": str(where)}
 
+    # ------------------------------------------- a server on another computer (SSH)
+    def remote_install(self, q, b) -> dict:
+        """The SSH command that installs mcsm on a Linux computer, and where its panel will be."""
+        from . import remoteinstall
+        try:
+            host, user, port = remoteinstall.check(b.get("host", ""), b.get("user", ""), b.get("port", 22))
+        except remoteinstall.RemoteInstallError as e:
+            raise ApiError(400, str(e)) from None
+        return {"command": remoteinstall.command_line(host, user, port), "panel": remoteinstall.panel_url(host)}
+
+    def remote_install_open(self, q, b) -> dict:
+        """Open a terminal on this computer running that command (OpenSSH asks for the password there)."""
+        from . import remoteinstall
+        info = self.remote_install(q, b)
+        host, user, port = remoteinstall.check(b.get("host", ""), b.get("user", ""), b.get("port", 22))
+        try:
+            remoteinstall.launch(host, user, port)
+        except (remoteinstall.RemoteInstallError, OSError) as e:
+            raise ApiError(400, str(e)) from None
+        log.info("opened an SSH window to install mcsm on %s@%s", user, host)
+        return {**info, "ok": True}
+
     def stage(self, q, handler) -> dict:
         if handler.headers.get("X-MCSM") != "1":
             raise ApiError(403, "missing X-MCSM header")
@@ -1020,7 +1094,7 @@ class HubApi:
         enabled = b.get("enabled") is True
         if enabled and not self.web.auth.remote_ready:
             raise ApiError(400, "first set a strong password (" + webauth.STRONG_RULES + "); "
-                                "PINs and \"no password\" can't be used for access from other devices")
+                                "PINs can't be used for access from other devices")
         self.hub.save_web(host="0.0.0.0" if enabled else "127.0.0.1")
         log.info("network access to the control panel turned %s (applies when mcsm restarts)", "on" if enabled else "off")
         return {"ok": True, "restart_needed": enabled != (self.web.host in ("0.0.0.0", "::"))}
@@ -1504,17 +1578,20 @@ class Api:
 
     # ------------------------------------------------------------- friends
     def _invite_links(self) -> dict:
-        """The invite for friends on this network (local) and for everyone else (internet)."""
+        """The invite codes for friends on this network (local) and for everyone else (internet).
+        Each carries the share certificate's fingerprint, so friends' mcsm only ever talks to
+        this computer (over HTTPS)."""
         c = self.m.config.client
         if not c.token:
             return {}
         from .cli import lan_ip
         from .join import Invite
-        share = self.web.hub.share_settings()
+        hub = self.web.hub
+        share, fp = hub.share_settings(), hub.share_fingerprint()
         lan = lan_ip()
-        out = {"local": Invite(lan, share["port"], c.token).url if lan else None, "internet": None}
+        out = {"local": Invite(lan, share["port"], c.token, fp).code if lan else None, "internet": None}
         if share["address"]:
-            out["internet"] = Invite(share["address"].strip("[]"), share["port"], c.token).url
+            out["internet"] = Invite(share["address"].strip("[]"), share["port"], c.token, fp).code
         return out
 
     def upload_client_jar(self, q, handler) -> dict:

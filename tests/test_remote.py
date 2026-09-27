@@ -119,3 +119,46 @@ def test_headless_first_sign_in_from_another_device(hub_env, monkeypatch):
     store._auth = None
     monkeypatch.setenv("MCSM_INITIAL_PASSWORD", "Another-Strong-7")
     assert store.first_run_password() is None and store.get().remote_ready
+
+
+@pytest.mark.parametrize("header", [{"Via": "1.1 nginx"}, {"Tailscale-User-Login": "someone@example.com"},
+                                    {"X-Forwarded-Host": "mc.example.com"}, {"Host": "mc.example.com"}])
+def test_a_proxy_on_this_computer_isnt_local(hub_env, header):
+    """Through a reverse proxy or tunnel, visitors aren't at the server's computer: no PIN
+    sign-in for them, and no password reset."""
+    hub, c = hub_env
+    hub.web.allowed_hosts = ["mc.example.com"]
+    login(c)
+    assert c.post("/api/auth/change", {"mode": "pin", "secret": "1234"})[0] == 200
+    proxied = Client(c.base)
+    assert proxied.call("GET", "/api/auth", headers=header)[1]["local"] is False
+    assert proxied.call("POST", "/api/login", {"password": "1234"}, headers=header)[0] == 403
+    assert proxied.call("POST", "/api/auth/reset-local", {}, headers=header)[0] == 403
+    assert c.get("/api/auth")[1]["local"] is True  # a browser on this computer still is
+
+
+def test_idle_and_excess_connections_are_dropped(hub_env, monkeypatch):
+    import socket
+    import time
+    from mcsm import web
+    hub, c = hub_env
+    host, port = c.base.split("//")[1].split(":")
+    server = hub.ui.httpd
+    monkeypatch.setattr(server, "_slots", __import__("threading").BoundedSemaphore(2))
+    idle = [socket.create_connection((host, int(port))) for _ in range(2)]  # say nothing
+    time.sleep(0.3)
+    extra = socket.create_connection((host, int(port)))
+    extra.settimeout(3)
+    assert extra.recv(1) == b""  # closed straight away: no free slot
+    for s in idle + [extra]:
+        s.close()
+    assert web.RequestHandler.timeout == web.REQUEST_TIMEOUT > 0
+
+
+def test_page_files_are_cached_by_the_browser(hub_env):
+    hub, c = hub_env
+    status, _, headers = c.get("/app.js")
+    etag = headers["ETag"]
+    assert status == 200 and etag and headers["Cache-Control"] == "no-cache"
+    status, body, _ = c.call("GET", "/app.js", headers={"If-None-Match": etag})
+    assert status == 304 and not body  # unchanged: nothing sent again

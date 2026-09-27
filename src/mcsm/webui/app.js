@@ -50,6 +50,7 @@ document.addEventListener("click", (e) => {
 });
 
 // With several servers, a server's calls go to /api/servers/<id>/...; these are about mcsm itself.
+const RELEASES_URL = "https://github.com/silverWRX03/mc-server-management/releases/latest";
 const GLOBAL_API = /^\/api\/(login|logout|auth|notice|licenses|self-update|hub|servers)(\/|\?|$)/;
 let server = null;            // the server being looked at (null on the server list)
 const scoped = (path) => server && path.startsWith("/api/") && !GLOBAL_API.test(path)
@@ -148,8 +149,12 @@ let lastJobSeen = null;
 let current = null;           // current view
 let timers = [];
 
-function every(ms, fn) { fn(); timers.push(setInterval(fn, ms)); }
-function clearTimers() { timers.forEach(clearInterval); timers = []; }
+// Polling pauses while the page can't be seen (another tab, a phone's screen off) and
+// catches up at once when it's back: no work for the server, battery or data meanwhile.
+let polls = [];
+function every(ms, fn) { fn(); polls.push(fn); timers.push(setInterval(() => { if (!document.hidden) fn(); }, ms)); }
+function clearTimers() { timers.forEach(clearInterval); timers = []; polls = []; }
+document.addEventListener("visibilitychange", () => { if (!document.hidden) polls.forEach((fn) => fn()); });
 
 // -------------------------------------------------------------------- login
 const PROMPT_KEY = "mcsm-password-prompt-dismissed";
@@ -164,7 +169,6 @@ async function showLogin() {
   $("#login-label").textContent = pin ? "PIN" : "Password";
   input.setAttribute("inputmode", pin ? "numeric" : "text");
   input.setAttribute("autocomplete", pin ? "off" : "current-password");
-  $("#login-fields").classList.toggle("hidden", !!(a && a.mode === "none"));
   const reset = h("button", { type: "button", class: "link-btn", onclick: async () => {
     if (!confirm("Go back to the default password, PASSWORD? Anyone signed in elsewhere is signed out, and you'll choose a new one after signing in.")) return;
     try {
@@ -175,7 +179,6 @@ async function showLogin() {
   } }, "Reset it to PASSWORD");
   $("#login-hint").replaceChildren(...(
     !a ? [] :
-    a.mode === "none" ? ["This control panel has no password, so it only opens on the server's own computer. To use it from here, set a PIN or password there (mcsm settings → Sign-in)."] :
     a.managed ? ["The password is set in mcsm.toml under ", h("code", {}, "[web] password"), "."] :
     a.default ? ["First time? The password is ", h("strong", {}, "PASSWORD"), " (in capitals). You'll choose your own next."] :
     a.local ? ["Forgot it? ", reset, " (this works on the server's own computer)."] :
@@ -277,7 +280,6 @@ async function showNotice() {
 const AUTH_MODES = [
   ["password", "Password", "At least 4 characters."],
   ["pin", "PIN", "4 to 8 digits. Quick to type on a phone."],
-  ["none", "No password", "Opens without signing in, but only on the server's own computer."],
 ];
 async function showSecurity(firstTime = false) {
   if ($("#security")) return;
@@ -285,7 +287,7 @@ async function showSecurity(firstTime = false) {
   try { local = !!(await (await fetch("/api/auth", { credentials: "same-origin" })).json()).local; } catch (_) {}
   if ($("#security")) return;
   let mode = hubInfo && hubInfo.auth && !hubInfo.auth.default ? hubInfo.auth.mode : "password";
-  if (mode === "none" && !local) mode = "pin";
+  if (mode === "pin" && !local) mode = "password";  // PINs only work on the server's own computer
   const close = () => { const m = $("#security"); if (m) m.remove(); };
   const box = h("div", { class: "modal compact" });
   const render = (error) => {
@@ -296,11 +298,11 @@ async function showSecurity(firstTime = false) {
     const again = h("input", { type: "password", ...extra });
     const save = async (e) => {
       e.preventDefault();
-      if (mode !== "none" && secret.value !== again.value) return render(`The two ${kind}s don't match.`);
+      if (secret.value !== again.value) return render(`The two ${kind}s don't match.`);
       try {
-        await api("/api/auth/change", { method: "POST", body: { mode, secret: mode === "none" ? "" : secret.value } });
+        await api("/api/auth/change", { method: "POST", body: { mode, secret: secret.value } });
         close();
-        toast(mode === "none" ? "Password turned off for this computer" : `Your new ${kind} is saved`);
+        toast(`Your new ${kind} is saved`);
         refreshStatus();
       } catch (err) { if (!(err instanceof Unauthorized)) render(err.message); }
     };
@@ -308,13 +310,11 @@ async function showSecurity(firstTime = false) {
       h("h2", { id: "security-title" }, firstTime ? "Choose your own password" : "Sign-in"),
       firstTime ? h("p", {}, "You're signed in with the default password, PASSWORD, which anyone could guess. Pick how you'd like to protect this control panel.") : null,
       h("div", { class: "choices" }, AUTH_MODES.map(([m, label, desc]) => h("button", {
-        type: "button", class: "choice" + (mode === m ? " selected" : ""), disabled: m === "none" && !local,
+        type: "button", class: "choice" + (mode === m ? " selected" : ""), disabled: m === "pin" && !local,
         onclick: () => { mode = m; render(); },
-      }, h("strong", {}, label), h("span", { class: "small muted" }, m === "none" && !local ? "Only available on the server's own computer." : desc)))),
+      }, h("strong", {}, label), h("span", { class: "small muted" }, m === "pin" && !local ? "Only available on the server's own computer." : desc)))),
       h("form", { class: "mt", onsubmit: save },
-        mode === "none"
-          ? h("p", { class: "muted" }, "Anyone using this computer can open the panel. Other devices won't be able to use it at all until you set a password or PIN again.")
-          : h("div", { class: "grid" }, h("label", {}, `New ${kind}`, pwField(secret)), h("label", {}, `Type it again`, pwField(again))),
+        h("div", { class: "grid" }, h("label", {}, `New ${kind}`, pwField(secret)), h("label", {}, `Type it again`, pwField(again))),
         h("p", { class: "error" }, error || ""),
         h("div", { class: "row" },
           h("button", { class: "btn primary", type: "submit" }, "Save"),
@@ -362,7 +362,6 @@ async function refreshStatus() {
   const hb = hubInfo;
   $("#version").textContent = "v" + hb.version + " beta";
   $("#version").title = "mcsm is in beta: expect some rough edges, and keep backups.";
-  $("#logout").classList.toggle("hidden", hb.auth.mode === "none");
   $("#quit").classList.toggle("hidden", !!hb.single);
   if (!hb.notice_accepted) { showNotice(); return; }
   offerSelfUpdate(hb.self_update);
@@ -1247,8 +1246,9 @@ views.friends = () => {
     const toggle = h("input", { type: "checkbox", checked: d.enabled, onchange: (e) => save({ enabled: e.target.checked },
       e.target.checked ? "Friend download switched on" : "Friend download switched off") });
     const intro = card("Let friends set up their Minecraft",
-      h("p", {}, "Share a link. Your friends download a small file that adds a ", h("strong", {}, (status && status.motd) || "server"),
+      h("p", {}, "Share an invite. Your friends get mcsm from GitHub, copy the invite and open mcsm: it adds a ", h("strong", {}, (status && status.motd) || "server"),
         " instance to their launcher (Minecraft Launcher, Prism Launcher, Modrinth App or CurseForge: they choose) with the right Minecraft version, mod loader and mods, and puts this server in their multiplayer list. They sign in with their own Minecraft account as usual."),
+      h("p", { class: "muted small" }, "🔒 Friends' mcsm connects to this computer over HTTPS, and only to this computer: the invite carries its security fingerprint."),
       h("label", { class: "row mt-s" }, toggle, h("span", {}, "Make a download for friends")));
     if (!d.enabled) { fill(body, intro); return; }
     const s = d.share || {};
@@ -1272,22 +1272,25 @@ views.friends = () => {
     const sideTag = (m) => h("span", { class: "tag" }, m.side === "client" ? "players only" : "server + players");
     fill(body,
       intro,
-      h("div", { class: "mt" }, card("Invite links",
-        links.local ? linkRow("Local link", `For friends on the same Wi-Fi or network as this computer (${s.lan_ip}).`, links.local) : null,
-        links.internet ? linkRow("Internet link", `For friends anywhere else, through your public address (${s.address}).`, links.internet)
-          : h("div", { class: "invite" }, h("strong", {}, "Internet link"),
+      h("div", { class: "mt" }, card("Invites",
+        h("ol", { class: "small steps" },
+          h("li", {}, "Friends get mcsm (Windows, Mac or Linux) from ", h("a", { href: RELEASES_URL, target: "_blank", rel: "noopener noreferrer" }, "GitHub ↗"), "."),
+          h("li", {}, "They copy their invite from below (you send it to them), then open mcsm. It finds the invite by itself.")),
+        links.local ? linkRow("Local invite", `For friends on the same Wi-Fi or network as this computer (${s.lan_ip}).`, links.local) : null,
+        links.internet ? linkRow("Internet invite", `For friends anywhere else, through your public address (${s.address}).`, links.internet)
+          : h("div", { class: "invite" }, h("strong", {}, "Internet invite"),
             h("div", { class: "muted small" }, "For friends elsewhere, mcsm needs your public address. It can find it for you.")),
         h("div", { class: "row mt-s" }, findIp,
           links.internet || links.local ? h("button", { class: "btn", onclick: () => openDiscord(links) }, "💬 Post to Discord") : null,
           h("button", { class: "btn ghost", onclick: () => {
-            if (confirm("Make a new link? The old one stops working (friends who already set up keep playing, but can't update until they get the new link).")) {
-              act(() => api("/api/client/new-link", { method: "POST", body: {} }), "New link made").then((r) => { if (r) { data = r; render(); } });
+            if (confirm("Make a new invite? The old one stops working (friends who already set up keep playing, but can't update until they get the new invite).")) {
+              act(() => api("/api/client/new-link", { method: "POST", body: {} }), "New invite made").then((r) => { if (r) { data = r; render(); } });
             }
-          } }, "New link")),
+          } }, "New invite")),
         s.error ? h("div", { class: "notice bad mt-s" }, s.error)
           : h("p", { class: "muted small" }, s.running ? `Sharing on port ${s.port}.` : "Sharing starts in a few seconds."),
         h("p", { class: "muted small" },
-          "For the internet link to work, forward two TCP ports on your router to this computer: ", h("strong", {}, String(s.port)),
+          "For the internet invite to work, forward two TCP ports on your router to this computer: ", h("strong", {}, String(s.port)),
           " (the download) and ", h("strong", {}, String((status && status.port) || 25565)), " (Minecraft). Your public address can change; ",
           "press the button again if friends can't connect. You can also type an address (e.g. a domain) under ",
           h("a", { href: "#mcsm" }, "mcsm settings → Sharing"), "."))),
@@ -1742,6 +1745,61 @@ function passwordChecklist(input) {
   update();
   return list;
 }
+// A server on another computer: a Linux PC without a screen on this network, set up over SSH.
+function openSshInstall() {
+  if ($("#ssh-install")) return;
+  const close = () => $("#ssh-install").remove();
+  const host = h("input", { placeholder: "192.168.1.50", autocomplete: "off", spellcheck: "false", "aria-label": "Address" });
+  const user = h("input", { placeholder: "minecraft", autocomplete: "off", spellcheck: "false", "aria-label": "User name" });
+  const port = h("input", { type: "number", value: 22, min: 1, max: 65535, class: "narrow", "aria-label": "SSH port" });
+  const out = h("div", { class: "mt" });
+  const body = () => ({ host: host.value.trim(), user: user.value.trim(), port: Number(port.value) });
+  const after = (r, opened) => fill(out,
+    opened ? h("div", { class: "notice ok" }, h("strong", {}, "A terminal window opened. "),
+      "Type that computer's password there when asked (the first time, answer ", h("code", {}, "yes"),
+      " to trust it). When it finishes it shows the control panel's address and a one-time password.") : null,
+    h("p", { class: "small mt-s" }, opened ? "The command it runs:" : "Run this in a terminal on this computer (PowerShell on Windows):"),
+    h("pre", { class: "log" }, r.command),
+    h("div", { class: "row mt-s" },
+      h("button", { class: "btn small", onclick: () => navigator.clipboard.writeText(r.command).then(() => toast("Command copied")) }, "Copy command"),
+      h("a", { class: "btn small primary", href: r.panel, target: "_blank", rel: "noopener noreferrer" }, "Open its control panel ↗")),
+    h("p", { class: "muted small" }, "Sign in there with the one-time password from the terminal; it asks you to choose your own. " +
+      "Keep that address: that computer's servers are managed from its own control panel."));
+  const openBtn = h("button", { class: "btn primary", type: "submit" }, "🔐 Connect with SSH");
+  const submit = async (e) => {
+    e.preventDefault();
+    openBtn.disabled = true;
+    const local = hubInfo && hubInfo.local;
+    try {
+      const r = await api(local ? "/api/hub/remote-install/open" : "/api/hub/remote-install", { method: "POST", body: body() });
+      after(r, local);
+    } catch (err) {
+      if (!(err instanceof Unauthorized)) {
+        // No terminal could be opened: still show the command to run by hand.
+        const r = await api("/api/hub/remote-install", { method: "POST", body: body() }).catch(() => null);
+        if (r) { toast(err.message, true); after(r, false); } else fill(out, h("div", { class: "notice bad" }, err.message));
+      }
+    }
+    openBtn.disabled = false;
+  };
+  document.body.append(h("div", { class: "modal-backdrop", id: "ssh-install", role: "dialog", "aria-modal": "true", "aria-labelledby": "ssh-title" },
+    h("div", { class: "modal remote" },
+      h("div", { class: "row" }, h("h2", { id: "ssh-title", class: "grow" }, "Install on a Linux computer (SSH)"), h("button", { class: "btn ghost small", onclick: close }, "Close")),
+      h("p", { class: "muted small" }, "For a spare PC, home server or Raspberry Pi 4/5 (64-bit) on this network, with SSH turned on. " +
+        "mcsm opens a terminal that connects to it and installs mcsm there; your password is typed into SSH, never into mcsm. " +
+        "Use a normal user on that computer (not root), e.g. one made with ", h("code", {}, "sudo adduser minecraft"), "."),
+      h("form", { onsubmit: submit },
+        h("div", { class: "grid" },
+          h("label", {}, "Its address or name", host, h("span", { class: "muted small" }, "Your router's list of devices shows it, or run hostname -I on it.")),
+          h("label", {}, "User name on it", user, h("span", { class: "muted small" }, "A normal user (not root). SSH asks for its password.")),
+          h("label", {}, "SSH port", port)),
+        h("div", { class: "row mt" }, openBtn)),
+      out,
+      h("p", { class: "muted small mt" }, "More in ",
+        h("a", { href: "https://github.com/silverWRX03/mc-server-management/blob/main/docs/headless.md", target: "_blank", rel: "noopener noreferrer" }, "the headless guide ↗"), "."))));
+  host.focus();
+}
+
 function openRemoteAccess() {
   if ($("#remote")) return;
   const body = h("div", {});
@@ -1934,8 +1992,8 @@ function openDiscord(links) {
       h("div", { class: "grid" }, h("label", {}, "Discord server", guildSel), h("label", {}, "Channel", chanSel)),
       h("label", { class: "mt-s" }, "Message", message),
       h("div", { class: "mt-s" },
-        h("label", { class: "row" }, useInternet, h("span", {}, "Internet link", links.internet ? "" : " (use your public IP on the Friends page first)")),
-        h("label", { class: "row" }, useLocal, h("span", {}, "Local link (only works on this computer's network)"))),
+        h("label", { class: "row" }, useInternet, h("span", {}, "Internet invite", links.internet ? "" : " (use your public IP on the Friends page first)")),
+        h("label", { class: "row" }, useLocal, h("span", {}, "Local invite (only works on this computer's network)"))),
       h("div", { class: "row mt" }, post, h("span", { class: "muted small grow" }, `Posting as ${info.bot.name}.`)),
       addBot);
     loadChannels();
@@ -2442,7 +2500,7 @@ views.mcsm = () => {
   };
   const renderSecurity = (hb) => {
     const a = (hb && hb.auth) || {};
-    const label = { password: "Password", pin: "PIN", none: "No password (this computer only)" }[a.mode] || "…";
+    const label = { password: "Password", pin: "PIN" }[a.mode] || "…";
     fill(security, card("Sign-in",
       h("div", { class: "row" },
         h("span", { class: "grow" }, a.managed ? "Password set in mcsm.toml ([web] password)" : a.default ? "Default password (PASSWORD) — please change it" : label),
@@ -2699,9 +2757,15 @@ views.setup = () => {
       error ? h("div", { class: "notice bad" }, h("strong", {}, "Setup didn't finish: "), failureText(error, server),
         h("div", { class: "small mt-s" }, "Change your choices below and try again.")) : null,
     ];
+    // Or on another computer: a Linux PC without a screen, installed over SSH.
+    const elsewhere = isNew && !opts.network_option ? h("div", { class: "mt" }, card("Or on another computer",
+      h("div", { class: "row" },
+        h("span", { class: "grow small" }, "Run the server on a Linux PC without a screen on this network (a spare PC, a home server, a Raspberry Pi): mcsm installs itself there over SSH."),
+        h("button", { type: "button", class: "btn", onclick: openSshInstall }, "🐧 Install on a Linux computer…")))) : null;
     if (!st.loader) {  // one step at a time: the rest depends on the server type
       fill(main, intro, card("1. Server type", loaderCards,
-        h("p", { class: "muted small mt-s" }, "Pick a server type to continue. Fabric, NeoForge, Forge and Quilt run mods; Vanilla is plain Minecraft.")));
+        h("p", { class: "muted small mt-s" }, "Pick a server type to continue. Fabric, NeoForge, Forge and Quilt run mods; Vanilla is plain Minecraft.")),
+        elsewhere);
       return;
     }
 

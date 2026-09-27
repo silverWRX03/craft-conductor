@@ -189,7 +189,14 @@ def test_web_auth_store(tmp_path):
                          ("magic", "x")):
         with pytest.raises(ConfigError):
             store.set(mode, secret)
-    assert store.get().mode == "none" or store.get().check("0042")  # failed changes keep the old one
+    assert store.get().check("0042")  # failed changes keep the old one
+    with pytest.raises(ConfigError):
+        store.set("none")  # there's always a password or PIN
+    # A sign-in file from before "no password" was removed: back to the default PASSWORD.
+    store.path.write_text('{"format": 2, "mode": "none"}')
+    fresh = webauth.AuthStore(cfg).get()
+    assert fresh.mode == "password" and fresh.default and fresh.check("PASSWORD")
+    store.set("pin", "0042")
 
     # mcsm 0.1's generated plain-text password is replaced by the default PASSWORD.
     legacy = tmp_path / "old"

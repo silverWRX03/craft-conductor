@@ -45,6 +45,9 @@ class FakeHttp:
         self.posts: dict[str, object] = {}
         self.downloads: list[str] = []
 
+    def pin(self, netloc, fp):  # the real client checks the certificate; nothing to connect to here
+        self.pins = {**getattr(self, "pins", {}), netloc: fp}
+
     def get_json(self, url, params=None, headers=None, cache=True):
         full = url + ("?" + urllib.parse.urlencode(params) if params else "")
         for key in (full, url):
