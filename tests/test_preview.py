@@ -158,8 +158,11 @@ def test_the_preview_job_from_the_page(hub_env, modrinth, monkeypatch):
     modrinth.project("TER", "terralith", "Terralith")
     modrinth.version("TER", "1.0", ["1.21.1"])
     made = []
+    import threading
+    hold = threading.Event()  # (keeps the first map "being made" until the one-at-a-time check)
 
     def generate(self, m):  # the fake server can't make worlds: write one where it would be
+        hold.wait(30)
         world = m.server_dir / "world"
         assert "level-seed=12345" in (m.server_dir / "server.properties").read_text()
         assert "server-ip=127.0.0.1" in (m.server_dir / "server.properties").read_text()
@@ -174,6 +177,7 @@ def test_the_preview_job_from_the_page(hub_env, modrinth, monkeypatch):
     status, r, _ = c.post("/api/hub/preview", body)
     assert status == 200, r
     assert c.post("/api/hub/preview", body)[0] == 409  # one at a time
+    hold.set()
     wait_for(lambda: c.get(f"/api/hub/preview?id={r['id']}")[1]["state"] != "running", timeout=60)
     job = c.get(f"/api/hub/preview?id={r['id']}")[1]
     assert job["state"] == "done", job
