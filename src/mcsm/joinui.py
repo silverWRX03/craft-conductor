@@ -57,6 +57,34 @@ def _invites_file(mc_dir: Path) -> Path:
     return mc_dir / "mcsm" / "invites.json"
 
 
+def _running_file(mc_dir: Path) -> Path:
+    """Where the open setup page is noted (its port and secret), so opening mcsm again, or an
+    invite page's "Open in mcsm", brings that page back instead of starting a second copy."""
+    return mc_dir / "mcsm" / "join-running.json"
+
+
+def hand_over(mc_dir: Path, invite: Invite | None) -> bool:
+    """Ask an mcsm that's already setting up Minecraft to show its page again (with this invite,
+    if one came along). True when it did, so this copy can simply exit."""
+    try:
+        data = json.loads(_running_file(mc_dir).read_text())
+        port, token = int(data["port"]), str(data["token"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+    if not re.fullmatch(r"[A-Za-z0-9_-]{16,64}", token) or not 0 < port < 65536:
+        return False
+    import urllib.request
+    req = urllib.request.Request(f"http://127.0.0.1:{port}/{token}/api/reopen", method="POST",
+                                 data=json.dumps({"invite": invite.code if invite else ""}).encode(),
+                                 headers={"Content-Type": "application/json", "X-MCSM": "1"})
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # this computer only, never a proxy
+    try:
+        with opener.open(req, timeout=5) as r:
+            return json.loads(r.read() or b"{}").get("ok") is True
+    except (OSError, ValueError):
+        return False  # not running any more (a leftover note)
+
+
 def remembered(mc_dir: Path) -> list[dict]:
     """Servers this computer has joined: open mcsm again to update one, no invite needed."""
     try:
@@ -98,6 +126,8 @@ class JoinUI:
         self.last_seen = time.monotonic()
         self._lock = threading.Lock()
         self.httpd: ThreadingHTTPServer | None = None
+        self.url = ""
+        self.open_browser = webbrowser.open
 
     # ------------------------------------------------------------ state
     def _say(self, line: str) -> None:
@@ -136,6 +166,7 @@ class JoinUI:
             copied = found.code if found else None
         return {
             "need_invite": need,
+            "running": self.running, "finished": bool(self.results),
             "copied_invite": copied,
             "remembered": remembered(self.joiner.mc) if need else [],
             "pack": None if p is None else {
@@ -353,6 +384,9 @@ class JoinUI:
                     if rest == "api/invite":
                         ui.use_invite(str(body.get("invite", ""))[:2000])
                         self._json(200, ui.info())
+                    elif rest == "api/reopen":  # mcsm was opened again: show this page again
+                        ui.reopen(str(body.get("invite", ""))[:2000])
+                        self._json(200, {"ok": True})
                     elif rest == "api/own-server":  # not joining after all: open mcsm's control panel
                         ui.wants_server = True
                         ui.done.set()
@@ -394,10 +428,44 @@ class JoinUI:
         self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         self.httpd.daemon_threads = True
         threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
-        return f"http://127.0.0.1:{self.httpd.server_address[1]}/{self.token}/"
+        self.url = f"http://127.0.0.1:{self.httpd.server_address[1]}/{self.token}/"
+        self._note_running()
+        return self.url
+
+    def _note_running(self) -> None:
+        path = _running_file(self.joiner.mc)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)  # holds the page's secret
+            with os.fdopen(fd, "w") as f:
+                f.write(json.dumps({"port": self.httpd.server_address[1], "token": self.token, "pid": os.getpid()}))
+        except OSError as e:
+            log.debug("couldn't note the open page: %s", e)
+
+    def reopen(self, invite_text: str) -> None:
+        """Show the page again (someone closed the tab, then opened mcsm again). A new invite
+        replaces the current one unless Minecraft is being set up right now."""
+        if invite_text and not self.running:
+            from .join import parse_invite
+            try:
+                new = parse_invite(invite_text)
+                if self.invite is None or new.code != self.invite.code:
+                    with self._lock:
+                        self.invite, self.pack, self.pack_error, self.results = new, None, "", []
+                        self.joiner = Joiner(new, mc_dir=self._mc_dir, http=self._http, say=self._say)
+            except JoinError as e:
+                log.debug("ignored an invite handed over: %s", e)
+        self.last_seen = time.monotonic()
+        threading.Thread(target=self.open_browser, args=(self.url,), daemon=True).start()
 
     def stop(self) -> None:
         if self.httpd:
+            try:
+                path = _running_file(self.joiner.mc)
+                if json.loads(path.read_text()).get("token") == self.token:
+                    path.unlink()
+            except (OSError, ValueError, AttributeError):
+                pass
             self.httpd.shutdown()
             self.httpd.server_close()
 
@@ -422,6 +490,10 @@ def run(invite: Invite | None, pack: dict | None = None, mc_dir: Path | None = N
         open_browser=webbrowser.open) -> int | None:
     """Show the page; ``None`` when no browser could be opened (use the console instead)."""
     ui = JoinUI(invite, pack=pack, mc_dir=mc_dir)
+    if pack is None and hand_over(ui.joiner.mc, invite):
+        print("mcsm is already setting up Minecraft: its page is open in your browser again.")
+        return 0
+    ui.open_browser = open_browser
     url = ui.start()
     try:
         if not open_browser(url):

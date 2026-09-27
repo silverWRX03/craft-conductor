@@ -4,6 +4,20 @@ What changed in each version of mcsm, newest first. Bugs are listed the way you'
 them. Found a new one? [Report it](https://github.com/silverWRX03/mc-server-management/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.9.2 (2026-09-27)
+
+**Added**
+- **Don't ask me again** on questions you meet often (Stop the server?, Quit mcsm?, Update to Minecraft…?, beta-only mods, Aikar's flags), and **Don't show again** on notices you've read. **mcsm settings → Warnings** brings them back.
+- Closing the browser tab no longer loses work silently: the browser asks first while a file is uploading, settings or a config file aren't saved, a New server form is started, picked mods aren't added, or a mod test is running.
+
+**Changed**
+- Questions ("Stop the server?", "Delete …?") appear in mcsm's own dialog in the middle of the screen, with clear button names, instead of the browser's.
+- The Servers page says once that closing the tab doesn't stop mcsm (**Got it** hides it), and the New server progress says you can close the page while it installs.
+
+**Fixed**
+- Closing mcsm's page (a friend setting up their game) and then pressing **Open in mcsm** or opening mcsm again didn't bring it back. It now shows the page again, with the progress or results, and the browser asks before the tab is closed while Minecraft is being set up.
+- An invite link that lost its invite on the way (some apps cut links short) ended at "This invite link isn't complete"; the invite page now has a box to paste the link or invite code.
+
 ## 0.9.1 (2026-09-27)
 
 **Added**

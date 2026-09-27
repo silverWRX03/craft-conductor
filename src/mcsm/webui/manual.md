@@ -28,7 +28,9 @@ This manual is also inside mcsm: open **User manual** (or **Help**) in the contr
 3. The control panel opens in your browser. Read and accept the notice (what mcsm does and doesn't do).
 4. Sign in with the password `PASSWORD` (in capitals). mcsm asks you to choose your own right away: a password, or a 4–8 digit PIN. A PIN only works in a browser on the server's own computer.
 
-Keep mcsm open while you play: servers run while mcsm runs. Closing it (or **Quit** at the bottom of the menu) stops them cleanly.
+Servers run while mcsm runs. **Closing the browser tab doesn't stop mcsm**: your servers keep running, and anything mcsm is doing (creating a server, an update) carries on. Open mcsm again from its icon to come back to the control panel. **Quit** (at the bottom of the menu) stops everything cleanly.
+
+If closing the tab would lose something that only lives in the page (an upload on its way, settings or a config file you haven't saved, a New server form you've started, mods picked but not added, a mod test's report), your browser asks first ("Leave site?").
 
 > Joining a friend's server rather than running your own? See **For friends: joining a server** below.
 
@@ -66,6 +68,8 @@ A spare PC, a home server or a Raspberry Pi 4/5 (64-bit) can run your servers wi
 ## Messages
 
 Everyday messages ("Saved", or what went wrong) appear at the **top of the screen** for a few seconds; click one to dismiss it. When mcsm needs an answer (use Aikar's flags? install an mcsm update? a mod test finished), it asks in the **middle of the screen** with the page blurred behind, and waits until you choose. A long mod test shows its progress at the top while you keep working.
+
+Questions you'll meet again and again ("Stop the server?", "Quit mcsm?", "Update to Minecraft …?", mods with only beta builds, Aikar's flags) have a **Don't ask me again** box, and notices you've read (online-mode is off, a mod test takes a while, closing the tab doesn't stop mcsm) have **Don't show again** or **Got it**. mcsm remembers that in this browser; **mcsm settings → Warnings → Show all warnings again** brings them all back. Questions about deleting or replacing things always ask.
 
 ## Your servers
 
@@ -135,6 +139,10 @@ For power users, **Advanced: invite codes and security** shows the raw invite co
 5. Press the button to set it up. Each launcher gets its own copy, in a folder of its own: your other worlds and installations aren't touched. The Modrinth App gets a `.mrpack` to import, and CurseForge a `.zip` (Create Custom Profile → Import).
 6. In your launcher, pick the server's name and press Play. On Minecraft 1.20 and newer it joins straight away; otherwise it's in your multiplayer list.
 
+**The page says "Paste your invite" or "This invite link isn't complete"?** The app you opened the link in cut it short (the invite is the long part after the `#`). Copy the whole link again (in Discord: right-click it → **Copy Link**) or the invite code, paste it into the box and press **Open invite**.
+
+**Closed mcsm's page by mistake?** mcsm keeps going. Open mcsm again (or press **Open in mcsm** on the invite page) and its page comes back, with the progress or results. While it's setting Minecraft up, your browser asks before closing the tab.
+
 **Already have mcsm?** On the invite page, press **Open in mcsm** (Windows and Linux; on a Mac, press **Copy the invite** and open mcsm).
 
 **When the server updates**, click the invite link again and press **Open in mcsm**, or open mcsm and press **Update** next to it under **Servers you've joined**. If some of your extras don't work on the new Minecraft yet, mcsm tells you first: **Continue** removes those mods and switches those shaders/resource packs off (you can switch them back on, but the game may crash), or **Cancel** keeps everything as it is (you can't join the updated server until you continue).
@@ -158,6 +166,7 @@ By default only the server's own computer can open the control panel. **mcsm set
 - **Sharing with friends:** the friends' port and your public address.
 - **CurseForge:** searching CurseForge needs an API key (free, from console.curseforge.com); release builds of mcsm can include one.
 - **Discord:** add a bot to post invites to a channel.
+- **Warnings:** how many warnings you've hidden with "Don't ask me again", and **Show all warnings again**.
 - **About mcsm:** the version, **Check for mcsm updates**, the mcsm folder, the notice and open-source licenses. mcsm also checks by itself: when a new version is out, a message offers to install it (it stops your servers cleanly and restarts).
 - The sun/moon button in the top corner switches between day and night.
 
@@ -172,6 +181,8 @@ By default only the server's own computer can open the control panel. **mcsm set
 **"That invite is from an older mcsm."** Invites changed in mcsm 0.9 (to HTTPS). Update mcsm on the server, then send friends the new invite from the Friends page.
 
 **"The server's security certificate doesn't match the invite."** mcsm refused to connect because the server isn't the one the invite is for. Ask for a new invite; if it happens again, someone may be interfering with the connection (on public Wi-Fi, say).
+
+**I closed the browser tab.** mcsm and your servers are still running. Open mcsm again from its icon (or go to the same address in your browser): you're back where you were, and a server being created shows **See progress** on the Servers page.
 
 **Forgot the password.** In a browser on the server's own computer, choose "Reset it to PASSWORD" on the sign-in page, or run `mcsm web-password --reset` there.
 

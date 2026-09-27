@@ -31,8 +31,10 @@ function h(tag, attrs, ...children) {
   return el;
 }
 
-function readInvite() {
-  const [code, ...rest] = decodeURIComponent(location.hash.slice(1)).split("/");
+function readInvite(hash = location.hash.slice(1)) {
+  let text;
+  try { text = decodeURIComponent(hash); } catch (_) { return null; }
+  const [code, ...rest] = text.split("/");
   if (!/^mcsm-[A-Za-z0-9_-]{40,400}$/.test(code)) return null;
   try {  // check it's a complete invite: host|port|secret|fingerprint
     const b64 = code.slice(5).replace(/-/g, "+").replace(/_/g, "/");
@@ -58,14 +60,16 @@ function render() {
   const root = document.getElementById("join");
   const invite = readInvite();
   if (!invite) {
-    root.replaceChildren(h("div", { class: "card" }, h("h1", {}, "This invite link isn't complete"),
-      h("p", {}, "Part of it may have been cut off. Ask the server's owner to send it again (copy the whole link).")));
+    root.replaceChildren(pasteCard());
     return;
   }
   const os = detectOS();
   const title = invite.name ? `You're invited to play on ${invite.name}` : "You're invited to a Minecraft server";
   const steps = h("div", { class: "card hidden", id: "next" });
   const codeBox = h("input", { readonly: true, value: invite.code, "aria-label": "Invite code", class: "code" });
+  const openHelp = h("div", { class: "notice hidden", role: "status" },
+    h("strong", {}, "Opening mcsm…"), " If your browser asks, choose Open. mcsm brings back its page even if you closed that tab.",
+    h("br"), "Nothing happened? mcsm isn't set up to open links on this computer yet (Macs, or mcsm never run): download it above and open it; the invite is already copied for it.");
 
   const download = (key) => async () => {
     const copied = await copy(invite.code);  // mcsm finds it when it opens
@@ -94,13 +98,47 @@ function render() {
     steps,
     h("div", { class: "card" }, h("h2", {}, "Already have mcsm?"),
       h("div", { class: "row" },
-        h("a", { class: "btn", href: `mcsm://join/${invite.code}` }, "Open in mcsm"),
+        h("a", { class: "btn", href: `mcsm://join/${invite.code}`, onclick: () => {
+          copy(invite.code);  // so mcsm finds it even if the link can't open it
+          openHelp.classList.remove("hidden");
+        } }, "Open in mcsm"),
         h("button", { class: "btn ghost", onclick: () => copy(invite.code).then((ok) => toast(ok ? "Invite copied: open mcsm" : "Couldn't copy; select the code below")) }, "Copy the invite")),
+      openHelp,
       h("details", { class: "muted small" }, h("summary", {}, "For power users"),
         h("p", {}, "Run ", h("code", {}, "mcsm join"), " with this invite code, or paste it into mcsm:"), codeBox.cloneNode())),
     h("p", { class: "muted small center" }, "mcsm checks it's really your friend's server before connecting, and downloads mods only from Modrinth and CurseForge. ",
       h("a", { href: "https://github.com/silverWRX03/mc-server-management" }, "About mcsm")));
   root.querySelectorAll("input.code").forEach((el) => { el.value = invite.code; });
+}
+
+// The link arrived without its invite (some apps cut links short at the #): let the friend
+// paste what they were sent. It's only read here, like a link's invite.
+function fromPasted(text) {
+  text = text.trim();
+  const hash = text.includes("#") ? text.slice(text.indexOf("#") + 1) : text;
+  if (readInvite(hash)) return hash;
+  const m = text.match(/mcsm-[A-Za-z0-9_-]{40,400}/);
+  return m && readInvite(m[0]) ? m[0] : null;
+}
+
+function pasteCard() {
+  const box = h("input", { class: "code", placeholder: "Paste the link or invite here", "aria-label": "Invite link or code", autocomplete: "off" });
+  const err = h("p", { class: "error hidden" }, "That isn't a complete mcsm invite. Ask the server's owner to send it again.");
+  const go = () => {
+    const hash = fromPasted(box.value);
+    if (!hash) { err.classList.remove("hidden"); return; }
+    location.hash = hash;  // shows the invite (render runs on hashchange)
+  };
+  box.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
+  box.addEventListener("input", () => { err.classList.add("hidden"); if (fromPasted(box.value)) go(); });
+  const hadSomething = location.hash.length > 1;
+  return h("div", { class: "card" },
+    h("h1", {}, hadSomething ? "This invite link isn't complete" : "Paste your invite"),
+    h("p", {}, hadSomething ? "Part of it was cut off on the way. " : "The link you opened didn't bring its invite with it (some apps cut links short). ",
+      "Copy the whole link (or the invite code) you were sent and paste it here:"),
+    h("div", { class: "row" }, box, h("button", { class: "btn", onclick: go }, "Open invite")),
+    err,
+    h("p", { class: "muted small" }, "Tip: in Discord, right-click the link and choose Copy Link. Nothing you paste leaves this page."));
 }
 
 function toast(text) {

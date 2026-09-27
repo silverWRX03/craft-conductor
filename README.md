@@ -193,8 +193,8 @@ right Java by itself).
 
 **Windows:** put `mcsm-windows-x64.exe` in a folder of its own (for example
 `Documents\mcsm`) and double-click it. There's no command window: mcsm opens in your
-browser, and **Quit** (bottom left) closes it. Double-clicking it again while it runs
-just opens the page again. Its log is in `mcsm\.mcsm\mcsm.log` in your user folder.
+browser, and **Quit** (bottom left) closes it. Closing the browser tab doesn't stop mcsm
+or your servers; double-clicking it again while it runs just opens the page again. Its log is in `mcsm\.mcsm\mcsm.log` in your user folder.
 - The first time, Windows SmartScreen may say *"Windows protected your PC"*, because
   the app isn't code-signed yet. Click **More info → Run anyway**.
 - When the server first starts, allow it through Windows Firewall so friends can connect.
