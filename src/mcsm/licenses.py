@@ -60,7 +60,7 @@ SERVICES = [
     ("Adoptium API", "https://adoptium.net/"),
     ("GitHub API (mcsm's own releases)", "https://docs.github.com/en/site-policy/github-terms/github-terms-of-service"),
     ("Discord webhooks and bot API (only if you set them up)", "https://discord.com/terms"),
-    ("Public IP lookups (ipify, ifconfig.co; only when you ask)", "https://www.ipify.org/"),
+    ("Public IP lookups and the internet port test (ipify, ifconfig.co; only when you ask)", "https://www.ipify.org/"),
 ]
 
 

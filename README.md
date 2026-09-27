@@ -74,6 +74,9 @@ ready to update to Minecraft 1.21.4 with fabric 0.16.14:
 
 ## Features
 
+- **Check my setup.** One button checks Java, memory, disk space, the port, the firewall and
+  friends' access, says what to fix in plain words, and can test that friends outside your home
+  can connect. It also downloads a report for bug reports, with secrets taken out.
 - **Upgrades only when your mods are ready.** Every release newer than the one you run is
   checked against the loader and each mod, and you move to the newest one where
   every mod is available (optional ones too; client-only mods don't count). Nothing is

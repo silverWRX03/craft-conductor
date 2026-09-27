@@ -563,6 +563,50 @@ function meter(label) {
   };
 }
 
+// Check my setup: what most often stops a server or friends, each with what to do. Testing from
+// the internet asks an outside service, so it only runs when asked; the report (for a bug
+// report) leaves secrets out.
+const DOCTOR_ICON = { ok: "✓", warn: "⚠", bad: "✗", info: "ℹ" };
+function openDoctor() {
+  if ($("#doctor")) return;
+  const list = h("ul", { class: "list doctor-list" }, h("li", { class: "muted" }, h("span", { class: "spinner" }), " Checking…"));
+  const internet = h("div");
+  const row = (c) => h("li", { class: `doctor-item ${c.status}` },
+    h("span", { class: "doctor-icon", "aria-hidden": "true" }, DOCTOR_ICON[c.status] || "•"),
+    h("div", { class: "grow" }, h("strong", {}, c.title), h("div", { class: "small" }, c.detail),
+      c.fix ? h("div", { class: "small muted" }, "→ ", c.fix) : null));
+  const load = async () => {
+    try {
+      const r = await api("/api/doctor");
+      const order = { bad: 0, warn: 1, info: 2, ok: 3 };
+      fill(list, [...r.checks].sort((a, b) => order[a.status] - order[b.status]).map(row));
+    } catch (e) { if (!(e instanceof Unauthorized)) fill(list, h("li", { class: "bad-text" }, e.message)); }
+  };
+  const testBtn = h("button", { class: "btn", onclick: async () => {
+    testBtn.disabled = true;
+    fill(internet, h("p", { class: "muted small" }, h("span", { class: "spinner" }), " Asking ifconfig.co to connect to your server…"));
+    try { fill(internet, h("ul", { class: "list doctor-list" }, row(await api("/api/doctor/internet", { method: "POST", body: {} })))); }
+    catch (e) { if (!(e instanceof Unauthorized)) fill(internet, h("p", { class: "bad-text small" }, e.message)); }
+    testBtn.disabled = false;
+  } }, "🌐 Test from the internet");
+  const close = () => { $("#doctor").remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  document.addEventListener("keydown", onKey);
+  const box = h("div", { class: "modal doctor" },
+    h("div", { class: "row" }, h("h2", { id: "doctor-title", class: "grow" }, "Check my setup"),
+      h("button", { class: "btn ghost small", onclick: close }, "Close")),
+    list,
+    h("h3", { class: "mt" }, "Can friends outside your home connect?"),
+    h("p", { class: "muted small" }, "With the server running, this asks ifconfig.co (an outside service) to connect to your public address on the server's port. Nothing else is sent."),
+    h("div", { class: "row" }, testBtn), internet,
+    h("div", { class: "row mt" },
+      h("button", { class: "btn small", onclick: load }, "Check again"),
+      h("a", { class: "btn small ghost", href: scoped("/api/doctor/report"), download: "" }, "⬇ Report for a bug report"),
+      h("span", { class: "muted small grow" }, "Logs and settings, with passwords, keys and invite secrets taken out.")));
+  document.body.append(h("div", { class: "modal-backdrop", id: "doctor", role: "dialog", "aria-modal": "true", "aria-labelledby": "doctor-title" }, box));
+  load();
+}
+
 // Playing on this computer too (offered in a browser on the server's own computer): mcsm sets
 // up this computer's Minecraft for the server, the way it does for friends, after saying what
 // running both on one computer costs.
@@ -721,7 +765,8 @@ views.dashboard = () => {
     hubInfo && hubInfo.local ? h("div", { class: "mt" }, playHereCard()) : null,
     h("div", { class: "card mt" }, h("h3", {}, "Console"), con.el),
     h("div", { class: "grid mt" }, card("Server", statusBody,
-      h("div", { class: "row mt-s" }, folderBtn("server", "Server folder"), folderBtn("world", "World folder"))), card("Updates", update)),
+      h("div", { class: "row mt-s" }, h("button", { class: "btn small", onclick: openDoctor }, "🩺 Check my setup"),
+        folderBtn("server", "Server folder"), folderBtn("world", "World folder"))), card("Updates", update)),
     h("div", { class: "card mt" }, h("h3", {}, "Activity"), events),
   );
   if (status) render(status);
@@ -1812,6 +1857,8 @@ const HELP = [
       ": pick the server type (Fabric, NeoForge, Forge, Quilt, Paper or plain Minecraft), the Minecraft version and your mods, then press ",
       h("strong", {}, "Create my server"), ". mcsm downloads Java, Minecraft, the mod loader and the mods, and checks that the server starts."),
     h("p", {}, "Press ", h("strong", {}, "Start"), " when you want to play. In Minecraft, choose Multiplayer → Add Server and use this computer's address."),
+    h("p", {}, "Something not working? Press ", h("strong", {}, "🩺 Check my setup"), " on the server's Dashboard: it checks the usual causes ",
+      "(Java, memory, disk space, the port, the firewall) and says what to do. ", h("strong", {}, "Test from the internet"), " there checks friends outside your home can connect."),
     h("p", {}, "To play on this computer too, press ", h("strong", {}, "Play on this computer"), " on the server's Dashboard: mcsm sets up Minecraft here ",
       "with the server's mods (it says first whether this computer has the memory for both)."),
     h("p", {}, "Closing this browser tab doesn't stop mcsm: servers keep running and jobs carry on. Open mcsm again from its icon to come back; ",

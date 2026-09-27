@@ -59,7 +59,7 @@ DEVICE_POSTS = {"/api/server/start", "/api/server/stop", "/api/server/restart", 
                 "/api/updates/check", "/api/updates/apply", "/api/players/action", "/api/logout"}
 DEVICE_HIDDEN_GETS = {"/api/configs/file", "/api/export/download", "/api/settings", "/api/hub/curseforge",
                       "/api/hub/discord", "/api/hub/discord/guilds", "/api/hub/discord/channels",
-                      "/api/hub/remote", "/api/hub/saves"}
+                      "/api/hub/remote", "/api/hub/saves", "/api/doctor/report"}
 
 
 def device_allowed(method: str, path: str) -> bool:
@@ -531,6 +531,10 @@ class RequestHandler(BaseHTTPRequestHandler):
                 return self._json(200, handler(q, self))
             if path == "/api/export/download":
                 return self._send_file(api.export_file(q.get("name", "")))
+            if path == "/api/doctor/report":
+                name = f"mcsm-report-{time.strftime('%Y%m%d-%H%M%S')}.zip"
+                return self._send(200, api.doctor_report(), "application/zip",
+                                  {"Content-Disposition": f'attachment; filename="{name}"'})
             if path == "/api/players/skin":
                 try:
                     png = api.skins.png(q.get("name", ""))
@@ -1157,6 +1161,9 @@ class Api:
         post("/api/backups/restore", self.restore_backup)
         post("/api/open", self.open_folder)
         get("/api/play-here", self.play_here_info)
+        get("/api/doctor", self.doctor)
+        post("/api/doctor/internet", self.doctor_internet)
+        get("/api/doctor/report", lambda q, b: None)  # sent by the request handler (a zip)
         post("/api/play-here", self.play_here)
         post("/api/world/replace", self.replace_world)
         post("/api/updates/remove-and-upgrade", self.remove_and_upgrade)
@@ -1651,6 +1658,30 @@ class Api:
         hub.remember_discord_channel(guild, channel)
         log.info("posted the friends' invite to Discord")
         return {"ok": True, **r}
+
+    # ------------------------------------------------------ Check my setup
+    def _doctor_checks(self):
+        from . import doctor
+        hub = self.web.hub
+        info = hub.self_update_info()
+        return doctor.run(self.m, self.d.state, share=None if hub.is_single else hub.share_status(),
+                          self_update={"available": True, **info} if info else None)
+
+    def doctor(self, q, b) -> dict:
+        from dataclasses import asdict
+        return {"checks": [asdict(c) for c in self._doctor_checks()]}
+
+    def doctor_internet(self, q, b) -> dict:
+        """Ask an outside service to connect to the server's port (only when asked to)."""
+        from dataclasses import asdict
+        from . import doctor
+        port = int(read_properties(self.m.server_dir / "server.properties").get("server-port", "25565") or 25565)
+        return asdict(doctor.internet_check(self.m.http, port, self.d.state == "running"))
+
+    def doctor_report(self) -> bytes:
+        from . import doctor
+        from .desktop import log_path
+        return doctor.report_zip(self.m, self._doctor_checks(), log_path())
 
     # ------------------------------------------- playing on this computer too
     def play_here_info(self, q, b) -> dict:

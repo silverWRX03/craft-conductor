@@ -601,3 +601,12 @@ body.picking main.join { opacity: .35; transform: translateX(-30px); transition:
 .modal label.dont-ask, label.dont-ask { display: flex; flex-direction: row; align-items: center; gap: 8px; color: var(--muted); cursor: pointer; font-size: 13px; }
 .dont-ask input { margin: 0; }
 .toast-dialog p { margin: 0; }
+
+/* Check my setup */
+.modal.doctor { max-width: 720px; }
+.doctor-list li { align-items: flex-start; }
+.doctor-icon { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; flex: none; font-size: 13px; }
+.doctor-item.ok .doctor-icon { color: var(--ok-fg); background: var(--ok-bg); }
+.doctor-item.warn .doctor-icon { color: var(--warn-fg); background: var(--warn-bg); }
+.doctor-item.bad .doctor-icon { color: var(--bad-fg); background: var(--bad-bg); }
+.doctor-item.info .doctor-icon { color: var(--info); background: var(--code-bg, transparent); }

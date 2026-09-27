@@ -79,6 +79,13 @@ Questions you'll meet again and again ("Stop the server?", "Quit mcsm?", "Update
 
 **Start**, **Restart** and **Stop** are at the top of every server page. The Dashboard shows CPU and memory use, who's online, the console, the server's details and whether an update is ready. Stopping warns players and saves the world first.
 
+### Check my setup
+
+**🩺 Check my setup** (in the Server box on the Dashboard) checks what most often stops a server or keeps friends out, and says what to do about each: the server is installed and the EULA accepted, Java is there, the server's memory fits this computer, there's disk space, the port is free (or another program has it), accounts (online-mode), the friends' download port and public address, Windows Firewall, and whether mcsm has an update.
+
+- **Test from the internet** (with the server running) asks ifconfig.co, an outside service, to connect to your public address on the server's port: the surest way to know friends outside your home can join. It runs only when you press it.
+- **Report for a bug report** downloads a zip with the checks, versions, the server's settings and the ends of the logs, with passwords, keys, webhooks, invite secrets and players' IP addresses taken out. Look through it, then attach it to a [bug report](https://github.com/silverWRX03/mc-server-management/issues/new/choose).
+
 ### Playing on the same computer
 
 **Play on this computer** (on the Dashboard, in a browser on the server's own computer) sets up this computer's Minecraft for the server, the same way friends' mcsm does: the right version, mod loader and mods, added to the launchers you pick, joining at `localhost`. Press it again after the server updates.
@@ -193,6 +200,8 @@ By default only the server's own computer can open the control panel. **mcsm set
 **"That invite is from an older mcsm."** Invites changed in mcsm 0.9 (to HTTPS). Update mcsm on the server, then send friends the new invite from the Friends page.
 
 **"The server's security certificate doesn't match the invite."** mcsm refused to connect because the server isn't the one the invite is for. Ask for a new invite; if it happens again, someone may be interfering with the connection (on public Wi-Fi, say).
+
+**Something's wrong and I don't know what.** Open the server's Dashboard and press **🩺 Check my setup**: it goes through the usual causes and says what to do. For friends who can't connect from outside, press **Test from the internet** there.
 
 **I closed the browser tab.** mcsm and your servers are still running. Open mcsm again from its icon (or go to the same address in your browser): you're back where you were, and a server being created shows **See progress** on the Servers page.
 
