@@ -63,6 +63,7 @@ own license.
 | [NeoForge](https://github.com/neoforged/NeoForge) | LGPL-2.1 | `loader = "neoforge"` |
 | [Minecraft Forge](https://github.com/MinecraftForge/MinecraftForge) | LGPL-2.1 | `loader = "forge"` |
 | [Eclipse Temurin](https://adoptium.net/about/) (OpenJDK) | GPL-2.0 with Classpath Exception | when mcsm manages Java |
+| [Chunky](https://github.com/pop4959/Chunky) | GPL-3.0 | generating the world for map previews (in a throwaway server) |
 | Mods from Modrinth or CurseForge | each mod's own license, shown on its project page | the mods you add |
 
 ## Online services mcsm talks to

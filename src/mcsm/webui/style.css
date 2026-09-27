@@ -629,3 +629,20 @@ body.viewer #btn-start, body.viewer #btn-stop, body.viewer #btn-restart, body.vi
 
 /* Right-to-left languages (Arabic): code, logs, addresses and commands stay left to right. */
 [dir=rtl] pre, [dir=rtl] code, [dir=rtl] textarea, [dir=rtl] .code-wrap, [dir=rtl] .code-editor, [dir=rtl] .log, [dir=rtl] .console, [dir=rtl] .console-input input, [dir=rtl] input.code { direction: ltr; text-align: left; }
+/* World generation & map preview (New server → World) */
+.world-map-pane h2 { margin: 0 0 4px; }
+.empty-map { max-width: 560px; margin: 12vh auto 0; text-align: center; }
+.map-frame { position: relative; margin-top: 14px; width: min(100%, 720px, 70vh); aspect-ratio: 1; background: var(--panel-2);
+  border: 1px solid var(--border); border-radius: 8px; overflow: hidden; cursor: crosshair; }
+.world-map { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+.map-spawn { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; pointer-events: none; }
+.map-spawn::after { content: "★"; position: absolute; inset: -4px 0 0 0; font-size: 16px; line-height: 1; color: #ffd84a;
+  text-shadow: 0 0 2px #000, 0 0 4px #000; text-align: center; }
+.map-readout { margin-top: 6px; font-variant-numeric: tabular-nums; min-height: 1.4em; }
+.map-strip { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; }
+.map-thumb { flex: 0 0 auto; display: grid; gap: 4px; justify-items: center; padding: 6px; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--panel); color: var(--text); cursor: pointer; max-width: 120px; }
+.map-thumb img { width: 96px; height: 96px; image-rendering: pixelated; border-radius: 4px; }
+.map-thumb span { max-width: 104px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.map-thumb.selected { border-color: var(--accent); }
+[dir=rtl] .map-readout { direction: ltr; text-align: end; }

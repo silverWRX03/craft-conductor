@@ -111,6 +111,7 @@ class Hub:
         self.http = http or HttpClient()
         self.make_manager = make_manager or (lambda cfg: Manager(cfg, http=self.http, echo=False))
         self.trials: dict = {}  # test boots (trial.Trial) by id
+        self.previews: dict = {}  # map previews (preview.Preview) by id
         self.join_requests: dict[str, list[dict]] = {}  # friends asking to be let in, by server
         self._status_lock = threading.Lock()  # the Discord status message
         self._status_sent, self._status_at = None, 0.0
@@ -148,6 +149,7 @@ class Hub:
         hub.share = None
         hub.share_error = None
         hub.trials = {}
+        hub.previews = {}
         hub.make_manager = lambda cfg: Manager(cfg, http=hub.http, echo=False)
         return hub
 
@@ -826,6 +828,8 @@ class Hub:
             return 1
         hub_pid_path(self.home).write_text(str(os.getpid()))
         hub_stop_path(self.home).unlink(missing_ok=True)
+        from . import preview
+        threading.Thread(target=preview.clean, args=(self,), daemon=True, name="preview-clean").start()  # last time's maps
         if threading.current_thread() is threading.main_thread():
             for sig in (signal.SIGTERM, signal.SIGINT):
                 signal.signal(sig, lambda *_: self.stop_requested.set())

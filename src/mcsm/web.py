@@ -510,6 +510,8 @@ class RequestHandler(BaseHTTPRequestHandler):
                     raise ApiError(428, "accept the notice first")
                 if path in RAW_UPLOADS:
                     return self._json(200, handler(q, self))
+                if path == "/api/hub/preview/map":  # a map preview's picture
+                    return self._send(200, handler(q, {}), "image/png", {"Cache-Control": "private, max-age=86400"})
                 result = handler(q, self._body() if method == "POST" else {})
                 if path == "/api/hub":  # whether "Open folder" buttons can work; who's signed in
                     result = {**result, "local": local, "device": device["name"] if device else None,
@@ -796,6 +798,10 @@ class HubApi:
         r[("POST", "/api/hub/trial")] = self.start_trial
         r[("GET", "/api/hub/trial")] = self.trial_status
         r[("POST", "/api/hub/trial/cancel")] = self.cancel_trial
+        r[("POST", "/api/hub/preview")] = self.start_preview
+        r[("GET", "/api/hub/preview")] = self.preview_status
+        r[("GET", "/api/hub/preview/map")] = self.preview_map
+        r[("POST", "/api/hub/preview/cancel")] = self.cancel_preview
         r[("GET", "/api/hub/saves")] = self.saves
         r[("POST", "/api/hub/import")] = lambda q, b: {"ok": True, "id": self.hub.import_server(str(b.get("id", "")))}
         r[("GET", "/api/hub/browse/search")] = lambda q, b: browse_search(self.browser(), q)
@@ -899,6 +905,61 @@ class HubApi:
         if t is None:
             raise ApiError(404, "that test isn't running any more")
         t.cancel.set()
+        return {"ok": True}
+
+    # ---------------------------------------------------- map previews
+    def start_preview(self, q, b) -> dict:
+        """A map of a seed with these mods: a throwaway server makes the world (see preview.py)."""
+        from . import preview
+        if any(p.state == "running" for p in self.hub.previews.values()):
+            raise ApiError(409, "a map is already being made; wait for it or stop it")
+        if any(t.state == "running" for t in self.hub.trials.values()):
+            raise ApiError(409, "a mod test is running; try again when it's finished")
+        loader = str(b.get("loader", ""))
+        if loader not in configmod.LOADERS:
+            raise ApiError(400, "pick a server type")
+        items = b.get("mods") or []
+        if not isinstance(items, list) or len(items) > 200:
+            raise ApiError(400, "pick up to 200 mods")
+        mods = []
+        for item in items:
+            source, _, mod_id = str(item).partition(":") if ":" in str(item) else ("modrinth", "", str(item))
+            if source not in configmod.MOD_SOURCES or not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", mod_id):
+                raise ApiError(400, f"{item!r} isn't a mod id")
+            mods.append(ModSpec(source, mod_id, channel=early_channel(b, str(item))))
+        if loader == "vanilla" and mods:
+            raise ApiError(400, "pick a server type that runs mods")
+        java_from = next((dd.m.config.state_dir / "java" for dd in self.hub.daemons.values()
+                          if (dd.m.config.state_dir / "java").is_dir()), None)
+        try:
+            radius = int(b.get("radius", 256))
+            p = preview.Preview(self.hub, loader, str(b.get("minecraft") or "latest"), mods, str(b.get("seed") or ""),
+                                str(b.get("level_type") or "minecraft:normal"), bool(b.get("structures", True)), radius,
+                                java_from=java_from)
+        except (TypeError, ValueError) as e:
+            raise ApiError(400, str(e) or "check the map settings") from None
+        keep = {k: v for k, v in self.hub.previews.items() if v.state == "done"}
+        self.hub.previews = {**dict(list(keep.items())[-preview.KEEP:]), p.id: p.start()}
+        return {"ok": True, "id": p.id, "seed": p.seed}
+
+    def _preview(self, preview_id) -> object:
+        p = self.hub.previews.get(str(preview_id or ""))
+        if p is None:
+            raise ApiError(404, "that map isn't here any more")
+        return p
+
+    def preview_status(self, q, b) -> dict:
+        return self._preview(q.get("id")).to_dict()
+
+    def preview_map(self, q, b) -> bytes:
+        from . import preview
+        try:
+            return preview.image(self.hub, q.get("id", ""))
+        except preview.PreviewError as e:
+            raise ApiError(404, str(e)) from None
+
+    def cancel_preview(self, q, b) -> dict:
+        self._preview(b.get("id")).cancel.set()
         return {"ok": True}
 
     # ---------------------------------------------------- remote access
