@@ -101,6 +101,10 @@ main { padding: 24px; overflow: auto; flex: 1; }
 .tag.ok { color: var(--ok-fg); border-color: var(--ok-border); }
 .tag.warn { color: var(--warn-fg); border-color: var(--warn-border); }
 .tag.bad { color: var(--bad-fg); border-color: var(--bad-border); }
+/* Modrinth environment tags: where a mod runs */
+.tag.env-server { color: var(--info-fg); border-color: var(--info); }
+.tag.env-client { color: var(--warn-fg); border-color: var(--warn-border); }
+.tag.env-both { color: var(--ok-fg); border-color: var(--ok-border); }
 
 /* job */
 .job { display: flex; align-items: center; gap: 8px; color: var(--warn); font-size: 13px; }

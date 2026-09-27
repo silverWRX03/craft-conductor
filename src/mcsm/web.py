@@ -663,7 +663,7 @@ def browse_search(browser, q: dict, manager=None) -> dict:
         return browser.search(q.get("source", "modrinth"), kind, q.get("q", "").strip()[:100], loader or None,
                               version or None, q.get("category") or None, q.get("sort", "relevance"),
                               int(q.get("offset", 0) or 0), early=q.get("early") == "1",
-                              side="client" if q.get("side") == "client" else "server")
+                              side="client" if q.get("side") == "client" else "server", env=q.get("env", ""))
     except BrowseError as e:
         raise ApiError(400, str(e)) from None
 

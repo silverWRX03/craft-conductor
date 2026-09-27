@@ -1491,7 +1491,7 @@ function browserPanel(params, host) {
   const noun = loader === "paper" ? "plugin" : kind;  // Paper runs plugins (from Modrinth)
   const forPlayers = params.get("side") === "client";  // the Friends page: mods for players' computers
   const base = target === "setup" ? "/api/hub/browse" : `/api/servers/${encodeURIComponent(target)}/browse`;
-  const st = { q: "", source: "modrinth", sort: "relevance", category: "", version: params.get("version") || "",
+  const st = { q: "", source: "modrinth", sort: "relevance", category: "", env: "", version: params.get("version") || "",
     offset: 0, total: 0, results: [], selected: new Map(), active: null, early: false, hidden: 0, earlyHidden: 0 };
   const earlyBox = h("input", { type: "checkbox", onchange: (e) => { st.early = e.target.checked; search(); } });
   const earlyRow = kind === "mod" && !forPlayers ? h("label", { class: "row small early-opt", title: EARLY_WARNING }, earlyBox,
@@ -1505,6 +1505,13 @@ function browserPanel(params, host) {
     ["follows", "Most followed"], ["newest", "Newest"], ["updated", "Recently updated"]].map(([v, l]) => h("option", { value: v }, l)));
   const source = h("select", { "aria-label": "Source" }, h("option", { value: "modrinth" }, "Modrinth"),
     kind === "mod" && noun !== "plugin" && !forPlayers ? h("option", { value: "curseforge" }, "CurseForge") : null);
+  // Modrinth's environment tags: where each mod runs. Server pages list server-side and both,
+  // players' pages client-side and both; this narrows it to one of the two.
+  const envSel = kind === "mod" && noun !== "plugin" ? h("select", { "aria-label": "Runs on", title: "Where the mods run (Modrinth's environment tags)" },
+    forPlayers ? [["", "Client-side and both"], ["only", "Client-side only"], ["both", "Both (client and server)"]].map(([v, l]) => h("option", { value: v }, l))
+      : [["", "Server-side and both"], ["only", "Server-side only"], ["both", "Both (server and client)"]].map(([v, l]) => h("option", { value: v }, l))) : null;
+  const envTag = (m) => m.environment ? h("span", { class: "tag env-" + m.environment },
+    { server: "server-side", client: "client-side", both: "server + client" }[m.environment]) : null;
   let cfKey = null;  // whether a CurseForge API key is set (asked once)
   const category = h("select", { "aria-label": "Category" }, h("option", { value: "" }, "All categories"));
   const version = h("input", { value: st.version, placeholder: "Any version", "aria-label": "Minecraft version", class: "narrow" });
@@ -1568,6 +1575,7 @@ function browserPanel(params, host) {
     if (st.category) p.set("category", st.category);
     if (st.early) p.set("early", "1");
     if (forPlayers) p.set("side", "client");
+    if (st.env && st.source === "modrinth") p.set("env", st.env);
     p.set("version", st.version);
     if (loader) p.set("loader", loader);
     if (!more) fill(list, h("p", { class: "empty" }, "Searching…"));
@@ -1596,7 +1604,7 @@ function browserPanel(params, host) {
         box || h("span"),
         m.icon ? h("img", { src: m.icon, alt: "", loading: "lazy", referrerpolicy: "no-referrer" }) : h("div", { class: "noicon" }),
         h("div", { class: "info" },
-          h("div", { class: "name" }, m.name, m.author ? h("span", { class: "muted small" }, ` by ${m.author}`) : null, " ", channelTag(m.channel)),
+          h("div", { class: "name" }, m.name, m.author ? h("span", { class: "muted small" }, ` by ${m.author}`) : null, " ", channelTag(m.channel), " ", envTag(m)),
           h("div", { class: "desc" }, m.summary),
           h("div", { class: "muted small" }, `⬇ ${fmtNum(m.downloads)}`, m.follows ? ` · ♥ ${fmtNum(m.follows)}` : "",
             m.updated ? ` · updated ${new Date(m.updated).toLocaleDateString()}` : "")));
@@ -1677,8 +1685,13 @@ function browserPanel(params, host) {
   });
   q.addEventListener("input", () => { st.q = q.value.trim(); clearTimeout(timer); timer = setTimeout(() => search(), 350); });
   sort.addEventListener("change", () => { st.sort = sort.value; search(); });
-  source.addEventListener("change", () => { st.source = source.value; st.category = ""; loadCategories(); search(); });
+  source.addEventListener("change", () => {
+    st.source = source.value; st.category = "";
+    if (envSel) envSel.classList.toggle("hidden", st.source !== "modrinth");  // CurseForge has no such tags
+    loadCategories(); search();
+  });
   category.addEventListener("change", () => { st.category = category.value; search(); });
+  if (envSel) envSel.addEventListener("change", () => { st.env = envSel.value; search(); });
   version.addEventListener("change", () => { st.version = version.value.trim(); search(); });
   const loadCategories = async () => {
     const r = await api(`${base}/categories?type=${kind}&source=${st.source}`).catch(() => null);
@@ -1693,6 +1706,7 @@ function browserPanel(params, host) {
           host ? h("button", { class: "btn ghost small", onclick: () => host.close() }, "Close") : h("a", { class: "btn ghost small", href: target === "setup" ? "#new" : `#s/${target}/mods` }, "Back")),
         q,
         h("div", { class: "row" }, source, sort),
+        envSel ? h("div", { class: "row" }, envSel) : null,
         h("div", { class: "row" }, category, version),
         earlyRow),
       list,
