@@ -2132,8 +2132,11 @@ function worldPanel(host) {
     const img = h("img", { src: `/api/hub/preview/map?id=${m.id}`, alt: `Map of seed ${m.seed}`, class: "world-map" });
     const pct = (v) => `${Math.max(0, Math.min(100, v * 100))}%`;
     const spawn = h("span", { class: "map-spawn", title: "Spawn" });
-    spawn.style.left = pct((meta.spawn.x - meta.x) / meta.size);  // (styles set here: the page's CSP allows no inline ones)
-    spawn.style.top = pct((meta.spawn.z - meta.z) / meta.size);
+    const inside = (v, o) => v >= o && v < o + meta.size;
+    if (meta.spawn && inside(meta.spawn.x, meta.x) && inside(meta.spawn.z, meta.z)) {
+      spawn.style.left = pct((meta.spawn.x - meta.x) / meta.size);  // (styles set here: the page's CSP allows no inline ones)
+      spawn.style.top = pct((meta.spawn.z - meta.z) / meta.size);
+    } else spawn.classList.add("hidden");
     const frame = h("div", { class: "map-frame" }, img, spawn);
     frame.addEventListener("mousemove", (e) => {
       const r = img.getBoundingClientRect();
@@ -3499,6 +3502,27 @@ function routerBox() {
   return box;
 }
 
+// Size: automatic (bigger on big screens) or chosen, kept in this browser (see style.css).
+const SIZE_KEY = "mcsm-size";
+const SIZES = [["", "Automatic (bigger on big screens)"], ["smaller", "Smaller"], ["normal", "Normal"], ["larger", "Larger"], ["largest", "Largest"]];
+function applySize() {
+  let v = "";
+  try { v = localStorage.getItem(SIZE_KEY) || ""; } catch (_) { /* private mode */ }
+  if (SIZES.some(([k]) => k === v) && v) document.documentElement.dataset.size = v;
+  else delete document.documentElement.dataset.size;
+}
+applySize();
+function sizeCard() {
+  const sel = h("select", { "aria-label": "Size" }, SIZES.map(([v, l]) => h("option", { value: v }, l)));
+  try { sel.value = localStorage.getItem(SIZE_KEY) || ""; } catch (_) { /* private mode */ }
+  sel.addEventListener("change", () => {
+    try { if (sel.value) localStorage.setItem(SIZE_KEY, sel.value); else localStorage.removeItem(SIZE_KEY); } catch (_) { /* private mode */ }
+    applySize();
+  });
+  return card("Size", h("div", { class: "row" }, sel),
+    h("p", { class: "muted small" }, "How big text and buttons are in this browser. Automatic makes everything bigger on big screens."));
+}
+
 function languageCard() {
   const sel = h("select", { "aria-label": "Language" }, h("option", { value: "" }, "Automatic (this browser's language)"),
     Object.entries(LANGS).map(([code, name]) => h("option", { value: code }, name)));
@@ -3611,6 +3635,7 @@ views.mcsm = () => {
             await act(() => api("/api/self-update/check", { method: "POST", body: {} }), "Checking for a new mcsm version…");
           } }, "Check for mcsm updates"), s.single ? null : folderBtn("home", "mcsm folder", null, "btn"))),
       h("div", { class: "mt" }, languageCard()),
+      h("div", { class: "mt" }, sizeCard()),
       h("div", { class: "mt" }, warningsCard()),
       h("div", { class: "mt" }, notificationsCard()),
       h("div", { class: "mt" }, card("What mcsm does and doesn't do",

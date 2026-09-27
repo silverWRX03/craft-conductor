@@ -16,6 +16,8 @@ from test_web import wait_for
 def nbt(root: dict) -> bytes:
     """Uncompressed NBT for plain Python values; ("L", [...]) is a long array."""
     def conv(v):
+        if isinstance(v, tuple) and v and v[0] == "I":
+            return mcsm_nbt.Tagged(mcsm_nbt.INT_ARRAY, list(v[1]))
         if isinstance(v, tuple) and v and v[0] == "L":
             return mcsm_nbt.Tagged(mcsm_nbt.LONG_ARRAY, [x - (1 << 64) if x >= 1 << 63 else x for x in v[1]])
         if isinstance(v, dict):
@@ -110,7 +112,8 @@ def test_a_world_becomes_a_map(tmp_path):
     chunks[(-1, 1)] = chunk(-1, 1, status="minecraft:noise")  # not finished: left out
     write_world(world, chunks, spawn=(8, 8))
     assert preview.spawn_point(world) == (8, 8)
-    image, meta = preview.render(world, (0, 0), 32)
+    assert preview.map_center(world, 32) == ((8, 8), (8, 8))
+    image, meta = preview.render(world, (0, 0), 32, (8, 8))
     w, h, rows = read_png(image)
     assert (w, h) == (64, 64) and meta["size"] == 64 and (meta["x"], meta["z"]) == (-32, -32)
     assert meta["spawn"] == {"x": 8, "z": 8}
@@ -127,6 +130,28 @@ def test_a_world_becomes_a_map(tmp_path):
     assert b["grid"][1 + 2][-1 + 2] == -1
     # A cliff shows as relief: the edge going up is lighter than the flat ground behind it.
     assert at(20, 16)[:3] > at(20, 20)[:3]
+
+
+def test_the_map_follows_the_land_when_the_spawn_cant_be_read(tmp_path):
+    """The land Chunky made can be far from 0,0 (Terralith often moves the spawn), and some
+    Minecraft versions keep the spawn where mcsm can't read it: the map goes where the land is."""
+    import gzip as _gzip
+    world = tmp_path / "world"
+    write_world(world, {(cx, cz): chunk(cx, cz) for cx in range(60, 70) for cz in range(-40, -30)})
+    (world / "level.dat").write_bytes(_gzip.compress(nbt({"Data": {"somethingNew": 1}})))
+    assert preview.spawn_point(world) is None
+    center, spawn = preview.map_center(world, 64)
+    assert spawn is None and 60 * 16 <= center[0] < 70 * 16 and -40 * 16 <= center[1] < -30 * 16
+    image, meta = preview.render(world, center, 64, spawn)
+    assert meta["spawn"] is None and read_png(image)[2][64][64][3] == 255  # land in the middle
+    # 1.21.9+: the spawn is {pos: [x, y, z]}
+    (world / "level.dat").write_bytes(_gzip.compress(nbt({"Data": {"spawn": {"pos": ("I", [1000, 64, -600])}}})))
+    assert preview.spawn_point(world) == (1000, -600)
+    # Nothing to draw: said plainly, rather than a blank map
+    with pytest.raises(preview.PreviewError, match="nothing could be drawn"):
+        preview.render(world, (0, 0), 64)
+    with pytest.raises(preview.PreviewError, match="no region files"):
+        preview.map_center(tmp_path / "empty", 64)
 
 
 def test_colours_for_unknown_blocks_are_steady():

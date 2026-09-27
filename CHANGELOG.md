@@ -4,6 +4,17 @@ What changed in each version of mcsm, newest first. Bugs are listed the way you'
 them. Found a new one? [Report it](https://github.com/silverWRX03/mc-server-management/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.12.1 (2026-09-27)
+
+**Added**
+- **Size** (mcsm settings): how big text and buttons are in this browser. **Automatic** (the default) makes mcsm's pages bigger on big screens, so they fill a large monitor instead of sitting small in a corner.
+
+**Changed**
+- mcsm has a new icon: the stone "MCSM" letters on lava-cracked bricks in a metal frame.
+
+**Fixed**
+- **Preview map** finished but showed an empty map ("0 biome(s) in view"): the map was drawn around 0,0 when the world's spawn couldn't be read, while the land had been made around the real spawn elsewhere. It's now drawn where the land is, and if there's nothing to draw it says why instead of showing a blank map.
+
 ## 0.12.0 (2026-09-27)
 
 **Added**
