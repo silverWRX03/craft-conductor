@@ -112,6 +112,9 @@ class Hub:
         self.make_manager = make_manager or (lambda cfg: Manager(cfg, http=self.http, echo=False))
         self.trials: dict = {}  # test boots (trial.Trial) by id
         self.previews: dict = {}  # map previews (preview.Preview) by id
+        self._upnp_lock = threading.Lock()
+        self._upnp_status: dict | None = None
+        self._gateway, self._gateway_at = None, 0.0
         self.join_requests: dict[str, list[dict]] = {}  # friends asking to be let in, by server
         self._status_lock = threading.Lock()  # the Discord status message
         self._status_sent, self._status_at = None, 0.0
@@ -150,6 +153,9 @@ class Hub:
         hub.share_error = None
         hub.trials = {}
         hub.previews = {}
+        hub._upnp_lock = threading.Lock()
+        hub._upnp_status = None
+        hub._gateway, hub._gateway_at = None, 0.0
         hub.make_manager = lambda cfg: Manager(cfg, http=hub.http, echo=False)
         return hub
 
@@ -703,6 +709,100 @@ class Hub:
         log.info("deleted server %s and all of its files (%s)", sid, root)
         return "deleted, with its world, mods and backups"
 
+    # ----------------------------------------------- router port forwarding
+    UPNP_EVERY = 30 * 60  # renew the forwards (they're asked for with a 2-hour limit)
+
+    def upnp_settings(self) -> dict:
+        u = self._hub_file().get("upnp", {}) if not self.is_single else {}
+        return {"enabled": bool(u.get("enabled")), "mapped": [tuple(x) for x in u.get("mapped", [])
+                                                              if isinstance(x, list) and len(x) == 2]}
+
+    def upnp_wanted(self) -> list[tuple[int, str, str]]:
+        """(port, protocol, label) mcsm forwards: each server's Minecraft port and friends' downloads."""
+        from .properties import read_properties
+        out = []
+        for sid, d in sorted(self.daemons.items()):
+            try:
+                port = int(read_properties(d.m.server_dir / "server.properties").get("server-port", "25565") or 25565)
+            except (OSError, ValueError):
+                continue
+            out.append((port, "TCP", f"mcsm {sid}"[:60]))
+        if self.share:
+            out.append((self.share_settings()["port"], "TCP", "mcsm friends' downloads"))
+        seen, unique = set(), []
+        for port, proto, label in out:
+            if (port, proto) not in seen:
+                seen.add((port, proto))
+                unique.append((port, proto, label))
+        return unique
+
+    def upnp_sync(self, enabled: bool | None = None) -> dict:
+        """Forward the wanted ports (or, switched off, take back the ones mcsm forwarded)."""
+        from . import upnp
+        with self._upnp_lock:
+            data = self._hub_file()
+            settings = self.upnp_settings()
+            if enabled is not None:
+                settings["enabled"] = enabled
+            wanted = self.upnp_wanted() if settings["enabled"] else []
+            status = {"enabled": settings["enabled"], "checked": time.time(), "ports": [], "router": "", "external_ip": "",
+                      "error": "", "warning": ""}
+            mapped = set(settings["mapped"])
+            if settings["enabled"] or mapped:
+                try:
+                    gw = self._gateway if self._gateway and time.time() - self._gateway_at < 600 else None
+                    if gw is None:
+                        gw = upnp.find()
+                        self._gateway, self._gateway_at = gw, time.time()
+                    status["router"] = gw.name
+                    for port, proto in sorted(mapped - {(p, pr) for p, pr, _ in wanted}):
+                        try:
+                            upnp.remove(gw, port, proto)
+                            mapped.discard((port, proto))
+                        except upnp.UpnpError as e:
+                            log.warning("couldn't take back port %s on the router: %s", port, e)
+                    for port, proto, label in wanted:
+                        try:
+                            upnp.add(gw, port, proto, label)
+                            mapped.add((port, proto))
+                            status["ports"].append({"port": port, "protocol": proto, "label": label, "ok": True})
+                        except upnp.UpnpError as e:
+                            status["ports"].append({"port": port, "protocol": proto, "label": label, "ok": False, "error": str(e)})
+                    if wanted:
+                        try:
+                            status["external_ip"] = upnp.external_ip(gw)
+                            status["warning"] = upnp.shared_address(status["external_ip"]) or ""
+                        except upnp.UpnpError:
+                            pass
+                except upnp.UpnpError as e:
+                    self._gateway = None
+                    status["error"] = str(e)
+                except OSError as e:
+                    self._gateway = None
+                    status["error"] = f"couldn't look for the router ({e.strerror or e})"
+            data["upnp"] = {"enabled": settings["enabled"], "mapped": [list(x) for x in sorted(mapped)]}
+            self._save_hub_file(data)
+            self._upnp_status = status
+            if status["error"] and settings["enabled"]:
+                log.warning("automatic port forwarding: %s", status["error"])
+            return status
+
+    def _upnp_close(self) -> None:
+        from . import upnp
+        mapped = self.upnp_settings()["mapped"]
+        gw = self._gateway or upnp.find(timeout=2)
+        for port, proto in mapped:
+            try:
+                upnp.remove(gw, port, proto)
+            except upnp.UpnpError as e:
+                log.warning("couldn't take back port %s on the router: %s", port, e)
+        data = self._hub_file()
+        data["upnp"] = {**data.get("upnp", {}), "mapped": []}
+        self._save_hub_file(data)
+
+    def upnp_status(self) -> dict:
+        return self._upnp_status or {**self.upnp_settings(), "ports": [], "checked": None, "error": "", "warning": ""}
+
     # ---------------------------------------------------- playit.gg tunnels
     def check_tunnels(self) -> None:
         """Check each server's playit.gg tunnel (every 5 minutes), and say when one stops or
@@ -845,6 +945,7 @@ class Hub:
             next_scan, next_self_check = 0.0, time.monotonic() + 30
             next_status = time.monotonic() + 20
             next_tunnels = time.monotonic() + 60
+            next_upnp = time.monotonic() + 15
             while not self.stop_requested.is_set():
                 if hub_stop_path(self.home).exists():
                     hub_stop_path(self.home).unlink(missing_ok=True)
@@ -861,6 +962,10 @@ class Hub:
                 if now >= next_tunnels:
                     next_tunnels = now + 300
                     threading.Thread(target=self.check_tunnels, daemon=True, name="tunnels").start()
+                if now >= next_upnp:
+                    next_upnp = now + self.UPNP_EVERY
+                    if self.upnp_settings()["enabled"]:
+                        threading.Thread(target=self.upnp_sync, daemon=True, name="upnp").start()
                 if now >= next_status:
                     next_status = now + 30
                     threading.Thread(target=self.discord_status, daemon=True, name="discord-status").start()
@@ -873,6 +978,11 @@ class Hub:
                 self.share.stop()
             if self._hub_file().get("discord", {}).get("status_channel"):
                 self.discord_status(off=True)  # say mcsm is closed, rather than leave "online" up
+            if self.upnp_settings()["mapped"]:  # the servers stop: close the ports on the router too
+                try:
+                    self._upnp_close()
+                except Exception:
+                    log.exception("couldn't take the ports back on the router")
             self._stop_all()
             hub_pid_path(self.home).unlink(missing_ok=True)
 

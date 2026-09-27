@@ -4,6 +4,15 @@ What changed in each version of mcsm, newest first. Bugs are listed the way you'
 them. Found a new one? [Report it](https://github.com/silverWRX03/mc-server-management/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.12.0 (2026-09-27)
+
+**Added**
+- **Router set up by itself** (mcsm settings → Sharing with friends → Router): with UPnP, mcsm forwards each server's port and the friends' download port on your router, and takes them back when switched off or on quit. It says when forwarding can't help (CGNAT, two routers).
+- **Fix buttons in Check my setup:** accept the EULA, download Java, use memory that fits, delete old backups when the disk is full, use a free port, turn account checks back on, use your public IP, ask the router to forward the port.
+- **What went wrong** on the Dashboard: when a server crashes or won't start, the cause in plain words with buttons to fix it (remove or switch off the mod to blame, add a missing mod, more memory, the right Java, a free port).
+- **Quick start** on New server: ready-made starting points (vanilla Minecraft with friends, smooth survival, new lands to explore, plugins, a modpack).
+- **Backups are checked** right after they're made (and on request), and **Put back an area…** restores one part of the world from a backup, keeping the rest.
+
 ## 0.11.0 (2026-09-27)
 
 **Added**

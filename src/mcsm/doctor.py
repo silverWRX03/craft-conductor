@@ -24,6 +24,8 @@ from . import __version__
 from .properties import read_properties
 
 OK, WARN, BAD, INFO = "ok", "warn", "bad", "info"
+KEEP_WHEN_FULL = 3  # backups kept by "Delete old backups"
+FIXES = ("eula", "java", "memory", "prune-backups", "port", "online-mode", "public-ip", "upnp")
 PORT_CHECK = "https://ifconfig.co/port/{port}"
 
 
@@ -34,6 +36,8 @@ class Check:
     status: str          # ok | warn | bad | info
     detail: str
     fix: str = ""        # what to do, when there's something to do
+    action: str = ""     # a fix mcsm can do itself (POST /api/doctor/fix), and its button
+    action_label: str = ""
 
 
 def _gb(n: float) -> str:
@@ -57,7 +61,7 @@ def port_in_use(port: int, host: str = "127.0.0.1") -> bool:
 
 
 def run(m, state: str, *, total_gb: float | None = None, share: dict | None = None,
-        self_update: dict | None = None) -> list[Check]:
+        self_update: dict | None = None, upnp: dict | None = None) -> list[Check]:
     """The checks for one server. ``state`` is the daemon's (running, stopped, ...)."""
     from .setup import total_ram_gb
     checks: list[Check] = []
@@ -73,7 +77,8 @@ def run(m, state: str, *, total_gb: float | None = None, share: dict | None = No
     eula = m.server_dir / "eula.txt"
     if lk.installed and not (eula.exists() and "eula=true" in eula.read_text(errors="replace").lower()):
         checks.append(Check("eula", "Minecraft EULA", BAD, "The Minecraft EULA hasn't been accepted, so the server won't start.",
-                            "Accept it in the server's setup, or set eula=true in eula.txt in the server folder."))
+                            "Accept it in the server's setup, or set eula=true in eula.txt in the server folder.",
+                            "eula", "Read and accept the EULA"))
 
     # Java
     if lk.installed:
@@ -83,16 +88,19 @@ def run(m, state: str, *, total_gb: float | None = None, share: dict | None = No
             checks.append(Check("java", "Java", OK, f"Java {lk.java_major or 8} is ready ({java})."))
         except (JavaError, OSError) as e:
             checks.append(Check("java", "Java", WARN, f"Java {lk.java_major or 8} isn't on this computer yet ({e}).",
-                                "mcsm downloads it when the server starts; if that fails, see the Java page."))
+                                "mcsm downloads it when the server starts; if that fails, see the Java page.",
+                                "java", f"Download Java {lk.java_major or 8} now"))
 
     # Memory
     total = total_gb if total_gb is not None else total_ram_gb()
     want = server_memory_gb(cfg.server.memory)
     if total:
         spare = total - want
+        fit = max(1, int(total - 3))
         if spare < 1.5:
             checks.append(Check("memory", "Memory", BAD, f"The server is set to use {_gb(want)}, and this computer has {_gb(total)}.",
-                                "Give the server less memory (Settings → Memory), leaving at least 2 GB for the rest of the computer."))
+                                "Give the server less memory (Settings → Memory), leaving at least 2 GB for the rest of the computer.",
+                                "memory" if fit < want else "", f"Use {fit} GB (from the next start)"))
         elif spare < 3:
             checks.append(Check("memory", "Memory", WARN, f"The server uses {_gb(want)} of this computer's {_gb(total)}: little is left for anything else.",
                                 "Fine on a computer that only runs the server; playing on it too will be slow."))
@@ -102,9 +110,12 @@ def run(m, state: str, *, total_gb: float | None = None, share: dict | None = No
     # Disk space
     try:
         free = shutil.disk_usage(m.server_dir if m.server_dir.exists() else cfg.root).free / 1024 ** 3
+        from . import backup
+        many = len(backup.list_backups(cfg.backups.dir)) > KEEP_WHEN_FULL
         if free < 2:
             checks.append(Check("disk", "Disk space", BAD, f"Only {_gb(free)} free where the server is.",
-                                "Free some space: worlds, backups and updates need room (Backups keeps the newest; lower how many it keeps in Settings)."))
+                                "Free some space: worlds, backups and updates need room (Backups keeps the newest; lower how many it keeps in Settings).",
+                                "prune-backups" if many else "", "Delete old backups (keep the newest 3)"))  # (KEEP_WHEN_FULL)
         elif free < 10:
             checks.append(Check("disk", "Disk space", WARN, f"{_gb(free)} free where the server is.", "Backups and updates need room; keep an eye on it."))
         else:
@@ -121,14 +132,36 @@ def run(m, state: str, *, total_gb: float | None = None, share: dict | None = No
                             "" if listening else "Wait for it to finish starting; if it stays like this, look at the Console."))
     elif listening:
         checks.append(Check("port", f"Port {port}", BAD, f"Another program is using port {port}, so this server can't start.",
-                            "Stop the other program (or the other server), or pick another port on the Settings page."))
+                            "Stop the other program (or the other server), or pick another port on the Settings page.",
+                            "port", "Use a free port"))
     else:
         checks.append(Check("port", f"Port {port}", OK, f"Port {port} is free for the server."))
+
+    # The router
+    if upnp is not None:
+        mine = next((p for p in upnp.get("ports", []) if p.get("port") == port), None)
+        title = "Router port forwarding"
+        if not upnp.get("enabled"):
+            checks.append(Check("router", title, INFO, "Friends outside your home need the port forwarded on your router.",
+                                "Turn on Open ports on my router by itself (mcsm settings → Sharing with friends), or forward it by hand (Help → Router setup).",
+                                "upnp", "Ask my router (UPnP)"))
+        elif upnp.get("error"):
+            checks.append(Check("router", title, WARN, f"Automatic port forwarding didn't work: {upnp['error']}.",
+                                "Switch UPnP on in your router's settings, or forward the port by hand (Help → Router setup).",
+                                "upnp", "Try again"))
+        elif mine and mine.get("ok"):
+            checks.append(Check("router", title, WARN if upnp.get("warning") else OK,
+                                f"{upnp.get('router') or 'The router'} forwards port {port} to this computer." +
+                                (f" But {upnp['warning']}." if upnp.get("warning") else "")))
+        elif mine:
+            checks.append(Check("router", title, WARN, f"The router didn't forward port {port}: {mine.get('error', '')}.",
+                                "Forward it by hand (Help → Router setup), or pick another port."))
 
     # Online mode and the whitelist
     if props.get("online-mode", "true").lower() == "false":
         checks.append(Check("online-mode", "Accounts", WARN, "online-mode is off: anyone can join with any name.",
-                            "Turn it on (Settings → Advanced server settings) unless you know you need it off."))
+                            "Turn it on (Settings → Advanced server settings) unless you know you need it off.",
+                            "online-mode", "Turn it on (from the next start)"))
 
     # Friends' downloads
     if cfg.client.enabled and share is not None:
@@ -138,7 +171,8 @@ def run(m, state: str, *, total_gb: float | None = None, share: dict | None = No
                                 "mcsm settings → Sharing with friends: pick another port if it's busy, then reopen mcsm."))
         elif not share.get("address"):
             checks.append(Check("share", "Friends' downloads", INFO, f"Running on port {share.get('port')}. No public address is set.",
-                                "Friends outside your home need one: press Use my public IP on the Friends page."))
+                                "Friends outside your home need one: press Use my public IP on the Friends page.",
+                                "public-ip", "Use my public IP"))
         else:
             checks.append(Check("share", "Friends' downloads", OK, f"Running on port {share.get('port')}, for {share['address']}."))
 

@@ -70,3 +70,39 @@ def test_secrets_are_taken_out():
     for secret in ("abcdefghijklmnopqrstuv", "webhooks/123/abc", "Abcdefghijklmnop", "Q" * 60, "203.0.113.44", "2001:db8::7"):
         assert secret not in out
     assert 'motd = "My server"' in out and "enabled = true" in out and "127.0.0.1:8765" in out
+
+
+def test_fix_buttons(hub_env, monkeypatch):
+    from mcsm.properties import read_properties, write_properties
+    hub, c = hub_env
+    login(c)
+    d = hub.get("alpha")
+    props = d.m.server_dir / "server.properties"
+    fix = lambda action, **kw: c.post("/api/servers/alpha/doctor/fix", {"action": action, **kw})  # noqa: E731
+    assert fix("rm -rf")[0] == 400
+    assert fix("online-mode")[0] == 409  # nothing to fix
+    # accounts not checked -> turned on
+    write_properties(props, {"online-mode": "false"})
+    checks = {x["id"]: x for x in c.get("/api/servers/alpha/doctor")[1]["checks"]}
+    assert checks["online-mode"]["action"] == "online-mode" and checks["online-mode"]["action_label"]
+    assert fix("online-mode")[0] == 200 and read_properties(props)["online-mode"] == "true"
+    # a busy port -> the next free one
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        s.listen()
+        busy = s.getsockname()[1]
+        write_properties(props, {"server-port": str(busy)})
+        status, r, _ = fix("port")
+        assert status == 200, r
+    assert int(read_properties(props)["server-port"]) > busy
+    # the EULA needs saying yes to
+    (d.m.server_dir / "eula.txt").write_text("eula=false\n")
+    assert fix("eula")[0] == 400
+    assert fix("eula", accept=True)[0] == 200 and "eula=true" in (d.m.server_dir / "eula.txt").read_text()
+    # too much memory for this computer
+    monkeypatch.setattr("mcsm.setup.total_ram_gb", lambda: 4.5)
+    checks = {x["id"]: x for x in c.get("/api/servers/alpha/doctor")[1]["checks"]}
+    if checks["memory"]["action"]:
+        assert fix("memory")[0] == 200 and hub.get("alpha").m.config.server.memory == "1G"
+    from mcsm.web import device_allowed
+    assert not device_allowed("POST", "/api/doctor/fix")

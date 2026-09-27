@@ -16,7 +16,7 @@ This manual is also inside mcsm: open **User manual** (or **Help**) in the contr
 
 **It can't:**
 
-- make your computer reachable from the internet by itself: friends outside your home need **port forwarding** on your router (the Help page shows how);
+- make your computer reachable from the internet on every network: friends outside your home need **port forwarding** on your router. mcsm can ask the router to do it (UPnP) when the router allows it; otherwise the Help page shows how;
 - make mods work together when their authors haven't; it can only tell you and wait for updates;
 - download CurseForge mods whose authors block downloads by other apps (you download those yourself; mcsm gives you the link);
 - run your server while your computer is off; it isn't a hosting service. Bedrock Edition isn't supported.
@@ -37,6 +37,16 @@ If closing the tab would lose something that only lives in the page (an upload o
 ## Creating a server
 
 Go to **New server**. One step at a time:
+
+**Quick start (optional).** Ready-made starting points fill the form in for you; change anything afterwards:
+
+- **Vanilla Minecraft with friends:** Vanilla, the newest version, and a download for your friends.
+- **Smooth survival:** Fabric with performance mods (Lithium, FerriteCore, Krypton): less lag, the same game.
+- **New lands to explore:** Fabric with Terralith (new biomes made of vanilla blocks) and performance mods.
+- **Plugins (Paper):** a Paper server to add plugins to.
+- **A modpack:** opens Modrinth's modpacks.
+
+The mods in these run on the server only, so friends join with plain Minecraft. Memory is set for the kind of server, within what this computer has.
 
 **1. Server type.** Fabric, NeoForge, Forge and Quilt run mods; Paper runs plugins (Spigot/Bukkit ones too); Vanilla is plain Minecraft.
 
@@ -89,14 +99,17 @@ Questions you'll meet again and again ("Stop the server?", "Quit mcsm?", "Update
 
 **Start**, **Restart** and **Stop** are at the top of every server page. The Dashboard shows CPU and memory use, who's online, the console, the server's details and whether an update is ready. Stopping warns players and saves the world first.
 
+**When something goes wrong** (the server crashed, or didn't start), the Dashboard says what happened in plain words, shows what Minecraft said, and offers the fixes mcsm can do: **Remove** or **Switch off** the mod to blame, **Add** a mod that another one needs, **Give it more memory** when it ran out, **Let mcsm pick the Java version**, **Use a free port**, **Accept the EULA**, or **Open Backups** when the world looks damaged. After a fix, **Start the server**; **Dismiss** hides the message.
+
 ### Performance
 
 While the server runs, **Performance** on the Dashboard shows how well it keeps up: **TPS** (ticks per second; 20 is smooth, under about 17 players feel lag) and, where the server reports it, **ms per tick** (under 50 keeps up), with a small graph of the last hour. mcsm asks the server now and then while the Dashboard is open (Minecraft 1.20.3 and newer, Paper, Forge and NeoForge can tell). When it's behind, **What slows a server down** lists the usual causes. With the **spark** mod installed, **Profile 30 s with spark** makes a detailed report of what the server spends its time on, and a link to it appears there.
 
 ### Check my setup
 
-**🩺 Check my setup** (in the Server box on the Dashboard) checks what most often stops a server or keeps friends out, and says what to do about each: the server is installed and the EULA accepted, Java is there, the server's memory fits this computer, there's disk space, the port is free (or another program has it), accounts (online-mode), the friends' download port and public address, Windows Firewall, and whether mcsm has an update.
+**🩺 Check my setup** (in the Server box on the Dashboard) checks what most often stops a server or keeps friends out, and says what to do about each: the server is installed and the EULA accepted, Java is there, the server's memory fits this computer, there's disk space, the port is free (or another program has it), accounts (online-mode), the friends' download port and public address, the router's port forwarding, Windows Firewall, and whether mcsm has an update.
 
+- **Fix buttons:** where mcsm can put something right itself, the check has a button: **Read and accept the EULA**, **Download Java now**, **Use N GB** (memory that fits this computer), **Delete old backups** (keeps the newest 3) when the disk is nearly full, **Use a free port** when another program has the server's, **Turn it on** for account checks, **Use my public IP** for friends' downloads and **Ask my router (UPnP)** to forward the port. Changes to memory, the port and accounts apply at the server's next start. The checks run again afterwards.
 - **Test from the internet** (with the server running) asks ifconfig.co, an outside service, to connect to your public address on the server's port: the surest way to know friends outside your home can join. It runs only when you press it.
 - **Report for a bug report** downloads a zip with the checks, versions, the server's settings and the ends of the logs, with passwords, keys, webhooks, invite secrets and players' IP addresses taken out. Look through it, then attach it to a [bug report](https://github.com/silverWRX03/mc-server-management/issues/new/choose).
 
@@ -144,6 +157,9 @@ mcsm checks for updates by itself and applies them when it's safe:
 
 **Create backup** saves the server (worlds, mods, configs) as a `.tar.gz`, even while it runs. mcsm also backs up before every update. **Restore** puts a backup back (the server stops first). The newest 10 are kept (change it in Settings).
 
+- **Can be restored:** each backup is read back right after it's made (every file, and the world's `level.dat`), and marked **✓ checked**, or says what's wrong with it (a message tells you too). **Check** reads an older one.
+- **Put back an area…** (with the server stopped) undoes damage in one place, like griefing or a creeper crater, and keeps everything else in the world as it is now. Type two opposite corners (the x and z numbers F3 shows in the game) and pick the Overworld, the Nether or the End. The chunks there go back to how they were in that backup: blocks, chests, animals and villagers; players' inventories don't change. mcsm backs up the world first, so you can undo it.
+
 To back up by itself, set **Make a backup** under Settings → Schedule. To keep backups safe from a broken disk, set **Also copy every backup to** under Settings → Backup copies: a USB drive, or a folder OneDrive, Dropbox or Google Drive syncs. Each backup is copied there too, in a folder named after the server, keeping the newest few. If the drive isn't plugged in, the backup is still made and the copy is skipped.
 
 ## Java
@@ -173,7 +189,10 @@ On the server's **Friends** page, switch on "Make a download for friends". Then:
 
 For power users, **Advanced: invite codes and security** shows the raw invite codes (for `mcsm join <code>`).
 
-**For friends outside your home:** press **Use my public IP** (or type your address under mcsm settings → Sharing with friends), and forward two TCP ports on your router to this computer: the Minecraft port (25565 for the first server) and the friends' port (8766 unless you changed it). The Help page has pictures; every router is different, so check its manual if you get stuck.
+**For friends outside your home:** press **Use my public IP** (or type your address under mcsm settings → Sharing with friends), and forward two TCP ports on your router to this computer: the Minecraft port (25565 for the first server) and the friends' port (8766 unless you changed it).
+
+- **Let mcsm do it:** **mcsm settings → Sharing with friends → Open the ports on my router by itself (UPnP)**. mcsm asks the router to forward each server's Minecraft port and the friends' port to this computer, renews that while it runs, and takes the ports back when you switch it off or quit mcsm. It shows which ports worked, your router's internet address, and warns when forwarding can't help (your provider shares one address between homes, called CGNAT, or there are two routers). **Check my setup** shows it too.
+- **By hand:** many routers have UPnP switched off. The Help page has pictures; every router is different, so check its manual if you get stuck.
 
 **What friends get:** the Minecraft version, mod loader and every mod that runs on players' computers (server-only mods are left out), plus the mods you add under **Mods for players**, and the memory you choose for their Minecraft. Mods that server mods need on players' computers are added by themselves (a message says which and why).
 
@@ -240,7 +259,7 @@ By default only the server's own computer can open the control panel. **mcsm set
 
 - **Sign-in:** change your password or PIN. There's always one.
 - **Remote access & phones:** see above.
-- **Sharing with friends:** the friends' port and your public address.
+- **Sharing with friends:** the friends' port and your public address, a playit.gg tunnel, and **Router**: open the ports on your router by itself (UPnP).
 - **CurseForge:** searching CurseForge needs an API key (free, from console.curseforge.com); release builds of mcsm can include one.
 - **Discord:** add a bot to post invites to a channel. **Live status message:** pick a Discord server and channel, and **Keep a status message there**: one message that always shows whether each server is online, how many are playing and its Minecraft version (and your public address, if set). mcsm edits it as things change and says when mcsm is closed; **Stop** ends it. The bot never reads the channel.
 - **Notifications:** **Notify me in this browser** shows a notification when a server stops unexpectedly, an update is ready, someone joins (off by default) or something mcsm was doing fails, while mcsm's tab is in the background. The browser asks first. It works when the address is localhost (or HTTPS).
