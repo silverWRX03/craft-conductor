@@ -79,7 +79,7 @@ def test_live_status_message(hub_env):
     hub.http.patches = {msg_url: lambda body: edits.append(body) or {}}
     assert c.post("/api/hub/discord/status", {"channel": "not a channel"})[0] == 400
     assert c.post("/api/hub/discord/status", {"channel": CHANNEL})[1]["status_channel"] == CHANNEL
-    wait_for(lambda: sent)
+    wait_for(lambda: sent and not hub._status_lock.locked())  # the first post, all done
     embed = sent[-1]["embeds"][0]
     assert embed["title"] == "Minecraft servers" and "offline" in embed["description"] and sent[-1]["allowed_mentions"] == {"parse": []}
     hub.discord_status()  # nothing changed: nothing sent
