@@ -120,6 +120,7 @@ class ShareServer:
 class ShareHandler(BaseHTTPRequestHandler):
     server_ref: ShareServer
     server_version = f"mcsm/{__version__}"
+    timeout = 30  # reachable from the internet: don't hold on to connections that go quiet
 
     def log_message(self, fmt, *args):
         log.debug("share: " + fmt, *args)
@@ -161,7 +162,7 @@ class ShareHandler(BaseHTTPRequestHandler):
             pack = self.server_ref.builder(sid, d).build(self.server_ref.address(d, host))
         except Exception as e:
             log.warning("couldn't build the friend download for %s: %s", sid, e)
-            return self._text(503, f"The server isn't ready for players yet ({e}). Try again later.")
+            return self._text(503, "The server isn't ready for players yet. Try again later.")  # details stay in the log
         invite = Invite(host, port, token)
         if m.group(2) == "/pack.json":
             # Your own files come from here: point them at this address, as the friend reached it.
@@ -190,7 +191,7 @@ class ShareHandler(BaseHTTPRequestHandler):
                 path = self.server_ref.binary(asset)
             except Exception as e:
                 log.warning("couldn't provide %s: %s", asset, e)
-                return self._text(503, f"That download isn't available right now ({e}).")
+                return self._text(503, "That download isn't available right now. Try again later.")
             name = download_name(pack["name"], invite, asset)
             self.send_response(200)
             for k, v in {**HEADERS, "Content-Type": "application/octet-stream",

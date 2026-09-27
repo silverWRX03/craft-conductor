@@ -327,3 +327,11 @@ def test_new_server_form_takes_friends_mods_and_files(tmp_path):
     for bad in ({"client_mods": ["curseforge:123"]}, {"client_mods": ["../x"]}, {"client_local": ["nope"]}):
         with pytest.raises(configmod.ConfigError):
             setupmod.SetupSpec.from_dict({"loader": "fabric", "accept_eula": True, **bad})
+
+
+def test_manual_links_from_a_pack_must_be_https():
+    from mcsm.join import validate_pack
+    p = validate_pack({"format": 1, "name": "S", "minecraft": "1.21.1", "loader": "vanilla", "address": "a.example",
+                       "mods": [], "manual": [{"name": "Good", "url": "https://www.curseforge.com/x"},
+                                              {"name": "Bad", "url": "javascript:alert(1)"}, "junk"]})
+    assert [m["name"] for m in p["manual"]] == ["Good"]

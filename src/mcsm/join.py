@@ -173,6 +173,9 @@ def validate_pack(pack: object, base: str | None = None) -> dict:
         raise JoinError("the server's mod loader version is missing")
     if not isinstance(pack.get("address"), str) or not re.fullmatch(r"[A-Za-z0-9.:\[\]-]{1,260}", pack["address"]):
         raise JoinError("the server's address is missing")
+    # Mods to download by hand: shown as links on the friend's page, so https ones only.
+    pack["manual"] = [m for m in pack.get("manual", []) if isinstance(m, dict) and isinstance(m.get("url"), str)
+                      and m["url"].startswith("https://") and isinstance(m.get("name"), str)]
     own = f"{base}/mods/" if base else None
     if not own:  # no invite (a server folder on this computer): its own files can't be fetched
         pack["mods"] = [m for m in pack.get("mods", []) if not (isinstance(m, dict) and m.get("local"))]

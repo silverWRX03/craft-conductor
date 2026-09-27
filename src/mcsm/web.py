@@ -89,6 +89,10 @@ FIRST_SIGN_IN_OK = {"/api/auth/change", "/api/logout", "/api/hub", "/api/notice"
 NOTICE_EXEMPT = {"/api/notice", "/api/notice/accept", "/api/status", "/api/licenses", "/api/auth/change", "/api/hub"}
 # Routes whose request body is a file, streamed to disk rather than parsed as JSON.
 RAW_UPLOADS = {"/api/hub/stage", "/api/mods/local", "/api/client/local"}
+# Headers a reverse proxy or tunnel adds: a request carrying any of them didn't come straight
+# from a browser on this computer.
+PROXY_HEADERS = ("X-Forwarded-For", "Forwarded", "X-Real-IP", "X-Forwarded-Host", "X-Forwarded-Proto", "Via",
+                 "Tailscale-User-Login", "CF-Connecting-IP", "True-Client-IP")
 SERVER_PATH = re.compile(r"^/api/servers/([a-z0-9][a-z0-9-]{0,63})(/.*)$")
 
 
@@ -207,6 +211,8 @@ class WebUI:
             raise ApiError(403, "signing in from another device needs a strong password "
                                 f"({webauth.STRONG_RULES}); set one in mcsm settings on the server's own computer")
         with self.lock:
+            if len(self.failures) > 1000:  # forget old attempts, so the table can't grow without end
+                self.failures = {k: v for k, v in self.failures.items() if v and now - v[-1] < 300}
             recent = [t for t in self.failures.get(client, []) if now - t < 300]
             if len(recent) >= 5:
                 raise ApiError(429, "too many attempts; wait a few minutes")
@@ -275,7 +281,31 @@ class WebUI:
 
 
 class _Server(ThreadingHTTPServer):
+    """One thread per connection, with a cap: connections past MAX_CONNECTIONS are closed at
+    once, so a flood of idle connections can't use up threads and memory. (Each handler also
+    times out a connection that goes quiet; see REQUEST_TIMEOUT.)"""
     daemon_threads = True
+    MAX_CONNECTIONS = 64
+
+    def __init__(self, *args, **kwargs):
+        self._slots = threading.BoundedSemaphore(self.MAX_CONNECTIONS)
+        super().__init__(*args, **kwargs)
+
+    def process_request(self, request, client_address):
+        if not self._slots.acquire(blocking=False):
+            self.shutdown_request(request)  # too busy: drop it rather than queue it
+            return
+        try:
+            super().process_request(request, client_address)
+        except BaseException:
+            self._slots.release()
+            raise
+
+    def process_request_thread(self, request, client_address):
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._slots.release()
 
     def server_bind(self):
         # HTTPServer.server_bind() looks up the host's full DNS name, which can take
@@ -284,9 +314,13 @@ class _Server(ThreadingHTTPServer):
         self.server_name, self.server_port = self.server_address[:2]
 
 
+REQUEST_TIMEOUT = 60  # seconds a connection may sit silent before it's closed
+
+
 class RequestHandler(BaseHTTPRequestHandler):
     web: WebUI
     server_version = f"mcsm/{__version__}"
+    timeout = REQUEST_TIMEOUT
 
     def log_message(self, fmt, *args):  # keep the server console clean
         log.debug("web: " + fmt, *args)
@@ -368,9 +402,16 @@ class RequestHandler(BaseHTTPRequestHandler):
                           {"Set-Cookie": self._cookie(token, DEVICE_COOKIE, webauth.DEVICE_DAYS * 86400)})
 
     def _local(self) -> bool:
-        """A browser on this computer, talking to us directly (not through a proxy)."""
-        return is_loopback(self.client_address[0]) and not (
-            self.headers.get("X-Forwarded-For") or self.headers.get("Forwarded") or self.headers.get("X-Real-IP"))
+        """A browser on this computer, talking to us directly (not through a proxy).
+
+        "Local" unlocks the PIN and no-password modes and the forgotten-password reset, so
+        anything that looks like a proxy on this computer (nginx, Caddy, `tailscale serve`,
+        a tunnel) counts as remote, and so does a Host that isn't this computer's loopback name."""
+        if not is_loopback(self.client_address[0]) or any(self.headers.get(h) for h in PROXY_HEADERS):
+            return False
+        host = (self.headers.get("Host") or "localhost").strip().lower()
+        host = host[1:host.find("]")] if host.startswith("[") and "]" in host else host.rsplit(":", 1)[0]
+        return host in ("localhost", "127.0.0.1", "::1")
 
     def _host_ok(self) -> bool:
         if host_allowed(self.headers.get("Host"), self.web.hub.web.allowed_hosts):
