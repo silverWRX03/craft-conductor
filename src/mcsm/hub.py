@@ -111,6 +111,9 @@ class Hub:
         self.http = http or HttpClient()
         self.make_manager = make_manager or (lambda cfg: Manager(cfg, http=self.http, echo=False))
         self.trials: dict = {}  # test boots (trial.Trial) by id
+        self.join_requests: dict[str, list[dict]] = {}  # friends asking to be let in, by server
+        self._request_times: dict[str, float] = {}
+        self._requests_lock = threading.Lock()
         self.checks: dict = {}  # quick mod checks running in the background (trial.CheckJob) by id
         self.tick = tick
         self._single: Daemon | None = None
@@ -635,6 +638,40 @@ class Hub:
         log.info("deleted server %s and all of its files (%s)", sid, root)
         return "deleted, with its world, mods and backups"
 
+    # -------------------------------------------------- friends asking to join
+    JOIN_REQUESTS_KEPT = 20
+
+    def add_join_request(self, sid: str, name: str, ip: str) -> str:
+        """A friend (with the invite) asks to be let in: kept for the owner to Allow or Ignore
+        on the Players page. One ask per address every 10 seconds; at most 20 waiting."""
+        now = time.time()
+        with self._requests_lock:
+            last = self._request_times.get(ip, 0)
+            if now - last < 10:
+                return "slow down"
+            self._request_times[ip] = now
+            if len(self._request_times) > 500:  # forget old addresses
+                self._request_times = {k: v for k, v in self._request_times.items() if now - v < 60}
+            d = self.daemons.get(sid)
+            if d is not None:
+                from .players import Players
+                try:
+                    if any(str(p.get("name", "")).lower() == name.lower() for p in Players(d.m.server_dir)._read("whitelist")):
+                        return "already allowed"
+                except Exception:  # an unreadable whitelist: ask the owner anyway
+                    pass
+            waiting = [r for r in self.join_requests.get(sid, []) if r["name"].lower() != name.lower()]
+            waiting.append({"name": name, "time": now})
+            self.join_requests[sid] = waiting[-self.JOIN_REQUESTS_KEPT:]
+        log.info("%s asks to join %s", name, sid)
+        if d is not None:
+            d.m.notifier.send(f"{name} asks to join: allow them on the Players page in mcsm.")
+        return "asked"
+
+    def answer_join_request(self, sid: str, name: str) -> None:
+        with self._requests_lock:
+            self.join_requests[sid] = [r for r in self.join_requests.get(sid, []) if r["name"].lower() != name.lower()]
+
     def summary(self) -> list[dict]:
         out = []
         for sid, d in list(self.daemons.items()):
@@ -649,6 +686,7 @@ class Hub:
                 "port": props.get("server-port", "25565"), "folder": str(d.m.config.root),
                 "update": bool(d.last_check and not d.last_check.get("up_to_date") and d.last_check.get("target")),
                 "crashed_at": d.crashed_at, "last_job": d.last_job,
+                "join_requests": len(self.join_requests.get(sid, [])),
             })
         for sid, p in self.problems.items():
             out.append({"id": sid, "name": p.get("name") or sid, "state": "unavailable", "problem": p["problem"],

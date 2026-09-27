@@ -182,3 +182,19 @@ def test_opening_mcsm_again_brings_its_page_back(tmp_path, http):
     assert not note.exists()
     note.write_text(json.dumps({"port": 1, "token": "D" * 24}))  # left over from a crash
     assert not joinui.hand_over(mc, None)
+
+
+def test_servers_joined_before_say_when_they_changed(tmp_path, http):
+    """A friend's mcsm remembers each server's setup, and says which changed since."""
+    mc = tmp_path / ".minecraft"
+    invite = join.Invite("mc.example.com", 8766, "E" * 24, "F" * 43)
+    url = f"https://mc.example.com:8766/join/{'E' * 24}/pack.json"
+    http.json[url] = pack(mods=mods())
+    joinui.remember(mc, "Weekend Survival", invite.code, joinui.pack_digest(join.validate_pack(pack(mods=mods()), invite.url)))
+    ui = joinui.JoinUI(None, mc_dir=mc, http=http)
+    assert [s["changed"] for s in ui.check_remembered()] == [False]
+    http.json[url] = pack(mods=mods()[:1])  # the server dropped a mod
+    [s] = ui.check_remembered()
+    assert s["changed"] is True and s["minecraft"] == "1.21.1"
+    del http.json[url]  # away
+    assert ui.check_remembered()[0]["error"]

@@ -66,7 +66,8 @@ def test_friend_page_asks_for_an_invite_and_remembers_servers(tmp_path, http, mo
         ui.stop()
     joinui.remember(tmp_path / ".minecraft", "Weekend Server", inv.code)
     assert joinui.remembered(tmp_path / ".minecraft") == [{"name": "Weekend Server", "code": inv.code,
-                                                             "at": pytest.approx(joinui.remembered(tmp_path / ".minecraft")[0]["at"])}]
+                                                             "at": pytest.approx(joinui.remembered(tmp_path / ".minecraft")[0]["at"]),
+                                                             "digest": ""}]
     # Running your own server instead.
     ui = joinui.JoinUI(None, mc_dir=tmp_path / ".minecraft", http=http)
     url = ui.start()

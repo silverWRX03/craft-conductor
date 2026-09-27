@@ -563,6 +563,14 @@ function meter(label) {
   };
 }
 
+// A friend asked to be let in: say so on the Dashboard, with the way to the Players page.
+function askingNotice() {
+  const me = hubInfo && hubInfo.servers ? hubInfo.servers.find((x) => x.id === server) : null;
+  const n = me ? me.join_requests || 0 : 0;
+  return n ? h("div", { class: "notice mt row" }, h("span", { class: "grow" }, `${n} friend${n === 1 ? " asks" : "s ask"} to be let in.`),
+    h("a", { class: "btn small primary", href: link("players") }, "See who")) : null;
+}
+
 // Performance: ticks per second (20 = smooth), measured now and then while the Dashboard is
 // open, with a small graph of the last hour, what to try when it's behind, and (with the spark
 // mod) a 30-second profile for power users.
@@ -811,6 +819,7 @@ views.dashboard = () => {
     h("div", { class: "meters" }, cpu.el, mem.el),
     h("div", { class: "mt" }, perf.el),
     h("div", { class: "mt" }, playerCard),
+    askingNotice(),
     hubInfo && hubInfo.local ? h("div", { class: "mt" }, playHereCard()) : null,
     h("div", { class: "card mt" }, h("h3", {}, "Console"), con.el),
     h("div", { class: "grid mt" }, card("Server", statusBody,
@@ -1080,11 +1089,32 @@ views.players = () => {
           h("button", { class: "btn danger", onclick: () => name.value.trim() && run("ban", name.value.trim()) }, "Ban"),
           h("button", { class: "btn danger", title: "Enter an IP address, or the name of an online player",
                         onclick: () => name.value.trim() && run("ban-ip", name.value.trim()) }, "Ban IP")));
-  fill($("#main"), h("h2", { class: "view-title" }, "Players"), manage, h("div", { class: "mt" }, body));
+  const requests = joinRequestsCard(() => load());
+  fill($("#main"), h("h2", { class: "view-title" }, "Players"), requests.el, manage, h("div", { class: "mt" }, body));
   load();
   every(5000, load);
+  every(10000, requests.load);
   return {};
 };
+
+// Friends asking to be let in (their mcsm sends their Minecraft name with the invite).
+function joinRequestsCard(after = () => {}) {
+  const el = h("div");
+  const load = async () => {
+    const r = await api("/api/join-requests").catch(() => null);
+    if (!r || !r.requests.length) { fill(el); return; }
+    const answer = (name, allow) => act(() => api("/api/join-requests/answer", { method: "POST", body: { name, allow } }),
+      allow ? `${name} can join now` : `Ignored ${name}`).then(() => { load(); after(); });
+    fill(el, h("div", { class: "card mb" }, h("h3", {}, "Asking to join"),
+      h("p", { class: "muted small" }, r.whitelist_on ? "These friends used your invite and asked to be let in. Allow adds them to the whitelist."
+        : "These friends asked to be let in. The whitelist is off, so anyone can join anyway; Allow adds them for when it's on."),
+      h("ul", { class: "list" }, r.requests.map((x) => h("li", {},
+        h("strong", { class: "grow" }, x.name, h("span", { class: "muted small" }, ` · ${ago(x.time)}`)),
+        h("button", { class: "btn small primary", onclick: () => answer(x.name, true) }, "Allow"),
+        h("button", { class: "btn small ghost", onclick: () => answer(x.name, false) }, "Ignore"))))));
+  };
+  return { el, load };
+}
 
 views.mods = () => {
   const me = hubInfo && hubInfo.servers ? hubInfo.servers.find((x) => x.id === server) : null;
@@ -2810,6 +2840,7 @@ function closingTip() {
 // someone joining, a job that failed). Kept per browser; checks every 20 seconds while on.
 const NOTIFY_KEY = "mcsm-notify";
 const NOTIFY_KINDS = [["crash", "A server stops unexpectedly", true], ["update", "An update is ready", true],
+  ["request", "A friend asks to be let in", true],
   ["join", "Someone joins a server", false], ["job", "Something mcsm was doing fails", true]];
 function notifyPrefs() { try { return JSON.parse(localStorage.getItem(NOTIFY_KEY) || "null"); } catch (_) { return null; } }
 function saveNotifyPrefs(p) { try { localStorage.setItem(NOTIFY_KEY, JSON.stringify(p)); } catch (_) { /* private mode */ } }
@@ -2828,6 +2859,7 @@ async function notifyWatch() {
       if (prefs.crash && s.crashed_at && s.crashed_at !== before.crashed_at) say(`${s.name} stopped unexpectedly`, "mcsm restarts it if it can. Open mcsm to see why.");
       if (prefs.update && s.update && !before.update) say(`Update ready for ${s.name}`, "Open mcsm's Updates page to see it.");
       if (prefs.join && s.players > before.players) say(`Someone joined ${s.name}`, `${s.players} online now.`);
+      if (prefs.request && (s.join_requests || 0) > (before.join_requests || 0)) say(`A friend asks to join ${s.name}`, "Allow them on the Players page.");
       const j = s.last_job, bj = before.last_job;
       if (prefs.job && j && j.ok === false && (!bj || bj.finished !== j.finished)) say(`${s.name}: ${j.name} failed`, j.message || "");
     }

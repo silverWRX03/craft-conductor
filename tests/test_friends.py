@@ -258,6 +258,24 @@ def test_friends_page_and_download(tmp_path, http, modrinth, fake_template, monk
 
         # A friend's copy fetches the same pack through the invite (pinned by the Joiner).
         assert join.Joiner(inv, mc_dir=tmp_path / "x").fetch_pack()["name"] == "Weekend Survival"
+
+        # A friend asks to be let in; the owner sees it (Players page, mcsm's list) and allows them.
+        assert json.loads(get(base + "/pack.json")[0])["whitelist"] is False
+        http.json["https://api.mojang.com/users/profiles/minecraft/Friendly_1"] = {"id": "1" * 32, "name": "Friendly_1"}
+        friend = join.Joiner(inv, mc_dir=tmp_path / "z")
+        assert friend.ask_to_join("Friendly_1") == "asked"
+        assert friend.ask_to_join("Friendly_1") == "slow down"  # the same address, straight away
+        with pytest.raises(join.JoinError):
+            friend.ask_to_join("not a name!")
+        waiting = c.get("/api/servers/survival/join-requests")[1]
+        assert [r["name"] for r in waiting["requests"]] == ["Friendly_1"] and waiting["whitelist_on"] is False
+        assert next(s for s in c.get("/api/hub")[1]["servers"] if s["id"] == "survival")["join_requests"] == 1
+        assert c.post("/api/servers/survival/join-requests/answer", {"name": "Friendly_1", "allow": True})[0] == 200
+        assert c.get("/api/servers/survival/join-requests")[1]["requests"] == []
+        assert "Friendly_1" in (root / "server" / "whitelist.json").read_text()
+        with pytest.raises((urllib.error.HTTPError, HttpError)):  # a big body is refused before it's read
+            pinned._open(urllib.request.Request(base + "/request", data=b"x" * 5000, method="POST"))
+        assert c.get("/api/servers/survival/join-requests")[1]["requests"] == []
         for bad in (f"https://127.0.0.1:{share_port}/join/{'Z' * 24}/pack.json", f"https://127.0.0.1:{share_port}/"):
             with pytest.raises(HttpError) as e:
                 get(bad)

@@ -74,6 +74,8 @@ ready to update to Minecraft 1.21.4 with fabric 0.16.14:
 
 ## Features
 
+- **Friends ask to be let in.** With the whitelist on, a friend's mcsm sends their Minecraft name;
+  you press Allow. Their mcsm also says when a server they joined changed, so they update in time.
 - **Performance and notifications.** See the server's ticks per second with a graph, profile it
   with spark, and get browser notifications when a server crashes or an update is ready.
 - **Schedules and backup copies.** Restart every night, back up every few hours, and copy every

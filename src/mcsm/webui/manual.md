@@ -110,6 +110,8 @@ Minecraft's live output. Type a server command (without the `/`, e.g. `say hello
 
 Players online and players who have joined before, with **Op/De-op**, **Kick**, **Ban/Pardon** and **Whitelist**. The **Whitelist** card turns it on (only listed players can join) or off. **Add or manage a player** works for people who haven't joined yet.
 
+**Asking to join:** when the whitelist is on, friends setting up with your invite can send their Minecraft name. They appear at the top of the Players page (and the Dashboard says so): **Allow** adds them to the whitelist, **Ignore** drops the request. A browser notification can tell you too (mcsm settings → Notifications). Only someone with your invite can ask, and requests are limited.
+
 ## Mods
 
 Installed mods with their versions: **Download mods** (the mod browser), **Local files**, mark a mod required or optional, **Remove** it (with the mods it needed, if nothing else needs them), and **Mod config files** to edit a mod's settings in the page (with colours for TOML, JSON, YAML and more). **Test these mods** checks a set of mods in a throwaway server, so your world is never touched; if they don't start together, **Find the culprits** adds them back a group at a time until it knows which ones clash. Changes apply at the next restart.
@@ -174,7 +176,9 @@ For power users, **Advanced: invite codes and security** shows the raw invite co
 
 **Already have mcsm?** On the invite page, press **Open in mcsm** (Windows and Linux; on a Mac, press **Copy the invite** and open mcsm).
 
-**When the server updates**, click the invite link again and press **Open in mcsm**, or open mcsm and press **Update** next to it under **Servers you've joined**. If some of your extras don't work on the new Minecraft yet, mcsm tells you first: **Continue** removes those mods and switches those shaders/resource packs off (you can switch them back on, but the game may crash), or **Cancel** keeps everything as it is (you can't join the updated server until you continue).
+**When the server updates**, click the invite link again and press **Open in mcsm**, or open mcsm and press **Update** next to it under **Servers you've joined**. mcsm checks each one when it opens and marks those that **changed** since you set up (a new Minecraft or different mods), so you know when to update.
+
+**The server has a whitelist?** The setup page shows **Ask to be let in**: type your Minecraft name (the one you play with) and press it. The owner lets you in with one click. If some of your extras don't work on the new Minecraft yet, mcsm tells you first: **Continue** removes those mods and switches those shaders/resource packs off (you can switch them back on, but the game may crash), or **Cancel** keeps everything as it is (you can't join the updated server until you continue).
 
 mcsm never asks for your Microsoft password: your launcher signs you in.
 

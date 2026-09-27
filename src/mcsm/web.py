@@ -56,7 +56,8 @@ DEVICE_COOKIE = "mcsm_device"
 # What a paired phone may do: look at things, and the everyday controls. Not uploads, config
 # files, the console, settings, Java, mods, exports or the sign-in itself.
 DEVICE_POSTS = {"/api/server/start", "/api/server/stop", "/api/server/restart", "/api/backups/create",
-                "/api/updates/check", "/api/updates/apply", "/api/players/action", "/api/logout"}
+                "/api/updates/check", "/api/updates/apply", "/api/players/action", "/api/logout",
+                "/api/join-requests/answer"}
 DEVICE_HIDDEN_GETS = {"/api/configs/file", "/api/export/download", "/api/settings", "/api/hub/curseforge",
                       "/api/hub/discord", "/api/hub/discord/guilds", "/api/hub/discord/channels",
                       "/api/hub/remote", "/api/hub/saves", "/api/doctor/report"}
@@ -1163,6 +1164,8 @@ class Api:
         get("/api/play-here", self.play_here_info)
         get("/api/doctor", self.doctor)
         get("/api/performance", self.performance)
+        get("/api/join-requests", self.join_requests)
+        post("/api/join-requests/answer", self.answer_join_request)
         post("/api/performance/spark", self.spark_profile)
         post("/api/doctor/internet", self.doctor_internet)
         get("/api/doctor/report", lambda q, b: None)  # sent by the request handler (a zip)
@@ -1579,6 +1582,23 @@ class Api:
 
     def players(self, q, b) -> dict:
         return self._players().summary(self.d.players)
+
+    # ------------------------------------------- friends asking to join
+    def join_requests(self, q, b) -> dict:
+        props = read_properties(self.m.server_dir / "server.properties")
+        return {"requests": list(self.web.hub.join_requests.get(self.sid, [])),
+                "whitelist_on": props.get("white-list", "false") == "true"}
+
+    def answer_join_request(self, q, b) -> dict:
+        name = str(b.get("name", "")).strip()
+        if not re.fullmatch(r"[A-Za-z0-9_]{3,16}", name):
+            raise ApiError(400, "that isn't a Minecraft name")
+        message = f"ignored {name}"
+        if b.get("allow") is True:
+            message = self._players().act("whitelist-add", name)
+            log.info("let %s in (whitelist)", name)
+        self.web.hub.answer_join_request(self.sid, name)
+        return {"ok": True, "message": message}
 
     def player_action(self, q, b) -> dict:
         if self.d.state == "starting" or (self.d.state == "stopped" and self.d.job):

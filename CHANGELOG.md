@@ -9,6 +9,8 @@ its fix will say which version it's in.
 **Added**
 - **The friends' download** (`mcsm-join-...`): the same mcsm under its own name, opening straight into joining a server (even on a computer that runs servers). Invite links offer it.
 - Windows code signing through SignPath Foundation is ready in the release workflow; it switches on once the project is accepted ([code signing policy](docs/code-signing.md)).
+- **Ask to be let in:** friends joining a server with a whitelist send their Minecraft name from their mcsm; it shows on the Players page with **Allow** / **Ignore** (and as a notification).
+- **Servers you've joined** (friends' mcsm) marks the servers that changed since you set up, so you know when to press **Update**.
 - **Performance** on the Dashboard: ticks per second and ms per tick with a graph of the last hour, what slows a server down, and (with the spark mod) a 30-second profile.
 - **Notifications** from the browser (mcsm settings → Notifications): a server stopping unexpectedly, an update being ready, someone joining, a job failing, while the tab is in the background.
 - **Schedules** (Settings → Schedule): restart the server every day or week, back up every few hours or daily, or any cron expression; scheduled restarts give players the countdown and can skip while people are online.

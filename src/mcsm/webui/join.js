@@ -261,7 +261,8 @@ function renderAskInvite(error) {
       h("ul", { class: "list" }, info.remembered.map((r) => {
         const b = h("button", { class: "btn small" }, "Update");
         b.addEventListener("click", () => use(r.code, b));
-        return h("li", {}, h("strong", { class: "grow" }, r.name), b);
+        const state = h("span", { class: "small muted", "data-code": r.code }, "checking…");
+        return h("li", {}, h("div", { class: "grow" }, h("strong", {}, r.name), " ", state), b);
       }))) : null,
     h("div", { class: "card" }, h("h2", {}, "Or run a Minecraft server of your own"),
       h("p", { class: "muted small" }, "mcsm sets one up on this computer and keeps it and its mods up to date."),
@@ -273,6 +274,39 @@ function renderAskInvite(error) {
     h("p", { class: "muted small center" }, "Need help? ", h("a", { href: "https://github.com/silverWRX03/mc-server-management/blob/main/src/mcsm/webui/manual.md#for-friends-joining-a-server",
       target: "_blank", rel: "noopener noreferrer" }, "The user manual: joining a server ↗")));
   input.focus();
+  if (info.remembered.length) checkRemembered();
+}
+
+// Has each server joined before changed since this computer was set up for it?
+async function checkRemembered() {
+  const r = await api("api/remembered/check").catch(() => null);
+  for (const s of (r && r.servers) || []) {
+    const el = document.querySelector(`[data-code="${CSS.escape(s.code)}"]`);
+    if (!el) continue;
+    el.className = "tag " + (s.error ? "" : s.changed ? "warn" : "ok");
+    el.textContent = s.error ? "can't reach it right now" : s.changed ? `changed: update (Minecraft ${s.minecraft})` : "up to date";
+    const btn = el.closest("li") && el.closest("li").querySelector("button");
+    if (btn && s.changed) btn.classList.add("primary");
+  }
+}
+
+// A server with a whitelist: ask its owner to let this Minecraft name in.
+function askToJoinCard() {
+  const name = h("input", { placeholder: "Your Minecraft name", maxlength: 16, autocomplete: "off", "aria-label": "Your Minecraft name" });
+  const btn = h("button", { class: "btn", onclick: async () => {
+    const v = name.value.trim();
+    if (!/^[A-Za-z0-9_]{3,16}$/.test(v)) { toast("Type your Minecraft name (3 to 16 letters, numbers or _).", true); return; }
+    btn.disabled = true;
+    try {
+      const r = await api("api/ask-to-join", { name: v });
+      toast({ asked: `Asked. When the owner allows ${v} in their mcsm, you can join.`, "already allowed": `${v} is already allowed in.`,
+        "slow down": "Wait a few seconds and try again." }[r.result] || "Asked.", r.result === "slow down");
+    } catch (e) { toast(e.message, true); }
+    btn.disabled = false;
+  } }, "Ask to be let in");
+  return h("div", { class: "card" }, h("h2", {}, "This server only lets in players its owner allows"),
+    h("p", { class: "muted small" }, "Send your Minecraft name (the one you play with, not your email) and the owner can let you in with one click."),
+    h("div", { class: "row" }, name, btn));
 }
 
 function render() {
@@ -322,6 +356,7 @@ function render() {
         "and keeps them in a folder of their own: your other worlds and installations aren't touched. It never asks for your " +
         "Microsoft password; your launcher signs you in.")),
     extrasCard(),
+    p.whitelist ? askToJoinCard() : null,
     h("form", { class: "card", onsubmit: async (e) => {
       e.preventDefault();
       const launchers = [...document.querySelectorAll("input[name=launcher]:checked")].map((x) => x.value);

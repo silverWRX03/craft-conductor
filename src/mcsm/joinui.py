@@ -94,9 +94,19 @@ def remembered(mc_dir: Path) -> list[dict]:
         return []
 
 
-def remember(mc_dir: Path, name: str, code: str) -> None:
+def pack_digest(pack: dict) -> str:
+    """A short fingerprint of what a server asks players to have (Minecraft, loader, mods), to
+    tell later whether the server changed since this computer was set up for it."""
+    import hashlib
+    key = {"minecraft": pack.get("minecraft"), "loader": pack.get("loader"), "loader_version": pack.get("loader_version"),
+           "mods": sorted(f"{m.get('filename')}|{m.get('sha1') or m.get('sha512')}" for m in pack.get("mods", [])),
+           "manual": sorted(str(m.get("name")) for m in pack.get("manual", []))}
+    return hashlib.sha256(json.dumps(key, sort_keys=True).encode()).hexdigest()[:20]
+
+
+def remember(mc_dir: Path, name: str, code: str, digest: str = "") -> None:
     items = [x for x in remembered(mc_dir) if x["name"] != name and x["code"] != code]
-    items.insert(0, {"name": name[:100], "code": code, "at": time.time()})
+    items.insert(0, {"name": name[:100], "code": code, "at": time.time(), "digest": digest})
     path = _invites_file(mc_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")
@@ -155,6 +165,34 @@ class JoinUI:
         if self.pack is None:
             raise ValueError(self.pack_error or "couldn't reach the server")
 
+    def check_remembered(self) -> list[dict]:
+        """Whether each server joined before has changed (Minecraft or mods) since: asked of each
+        server at once, briefly, over its pinned HTTPS."""
+        from concurrent.futures import ThreadPoolExecutor
+        from .http import HttpClient
+        from .join import parse_invite
+
+        def one(entry: dict) -> dict:
+            out = {"code": entry["code"], "changed": None, "minecraft": None, "error": None}
+            try:
+                http = self._http or HttpClient(retries=1, timeout=8, cache_ttl=0)
+                pack = Joiner(parse_invite(entry["code"]), mc_dir=self._mc_dir, http=http, say=lambda _: None).fetch_pack()
+                out["minecraft"] = pack.get("minecraft")
+                out["changed"] = bool(entry.get("digest")) and pack_digest(pack) != entry["digest"]
+            except (JoinError, HttpError, OSError, ValueError) as e:
+                out["error"] = str(e)
+            return out
+        items = remembered(self.joiner.mc)[:10]
+        if not items:
+            return []
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            return list(pool.map(one, items))
+
+    def ask_to_join(self, name: str) -> str:
+        if self.invite is None:
+            raise ValueError("there's no invite to ask with")
+        return self.joiner.ask_to_join(name)
+
     def info(self) -> dict:
         self.load_pack()
         p = self.pack
@@ -173,7 +211,8 @@ class JoinUI:
                 "name": p["name"], "address": p["address"], "minecraft": p["minecraft"], "loader": p["loader"],
                 "loader_version": p.get("loader_version"), "mods": [m["name"] for m in p.get("mods", [])],
                 "manual": p.get("manual", []), "icon": p.get("icon") if str(p.get("icon") or "").startswith("data:image/png;base64,") else None,
-                "quick_play": _supports_quick_play(p["minecraft"]), "memory_gb": int(p.get("memory_gb") or 4)},
+                "quick_play": _supports_quick_play(p["minecraft"]), "memory_gb": int(p.get("memory_gb") or 4),
+                "whitelist": bool(p.get("whitelist")) and self.invite is not None},
             "error": self.pack_error,
             "system_gb": _system_gb(),
             "launchers": [f.to_dict() for f in launchers.detect(self.joiner.mc, self.prism_dir)],
@@ -250,7 +289,7 @@ class JoinUI:
                     self._say(note)
                 self.results = self.joiner.run_targets(install_pack, targets, prism_dir=self.prism_dir, out_dir=self.out_dir)
                 if self.invite and self.invite.fp and any(r.get("ok") for r in self.results):
-                    remember(self.joiner.mc, self.pack["name"], self.invite.code)  # to update it next time
+                    remember(self.joiner.mc, self.pack["name"], self.invite.code, pack_digest(self.pack))  # to update it next time
             except HttpError as e:
                 self._say(f"A download failed: {e}. Check your internet connection and try again.")
             except Exception as e:  # keep the page informed whatever happens
@@ -362,6 +401,8 @@ class JoinUI:
                         self._json(400, {"error": str(e)})
                     except HttpError as e:
                         self._json(502, {"error": e.friendly})
+                elif rest == "api/remembered/check":
+                    self._json(200, {"servers": ui.check_remembered()})
                 elif rest == "api/progress":
                     since = int((parse_qs(urlparse(self.path).query).get("since") or ["0"])[0] or 0)
                     with ui._lock:
@@ -387,6 +428,9 @@ class JoinUI:
                     elif rest == "api/reopen":  # mcsm was opened again: show this page again
                         ui.reopen(str(body.get("invite", ""))[:2000])
                         self._json(200, {"ok": True})
+                    elif rest == "api/ask-to-join":
+                        result = ui.ask_to_join(str(body.get("name", "")).strip()[:16])
+                        self._json(200, {"ok": result != "slow down", "result": result})
                     elif rest == "api/own-server":  # not joining after all: open mcsm's control panel
                         ui.wants_server = True
                         ui.done.set()
