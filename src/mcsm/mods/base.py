@@ -39,6 +39,7 @@ class ModFile:
     url: str
     sha1: str | None = None
     sha512: str | None = None
+    sha256: str | None = None   # (Hangar gives SHA-256)
     #: project ids (same source) this file requires
     dependencies: list[str] = field(default_factory=list)
     required: bool = True

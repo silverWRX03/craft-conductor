@@ -74,6 +74,34 @@ ready to update to Minecraft 1.21.4 with fabric 0.16.14:
 
 ## Features
 
+- **In your language.** The control panel, the friends' page and the invite page in English, Spanish,
+  Portuguese, French, German, Hindi, Chinese, Vietnamese, Arabic and Korean (machine-translated).
+- **Co-admins.** Pair a friend's phone or computer as a helper (everyday controls) or a viewer
+  (look only).
+- **A live status message on Discord.** One message that always shows which servers are up and
+  who's playing, edited as things change.
+- **Saved mod lists.** Keep a mod list under a name, switch to another and back, and move lists
+  between servers as files.
+- **World tools.** Game rules with explanations, a world border, and pre-generating terrain with
+  Chunky so exploring doesn't lag.
+- **Rented servers too.** Install on a VPS over SSH; its control panel stays private, reached
+  through an SSH tunnel ([guide](docs/rented-server.md)).
+- **Paper plugins from Modrinth and Hangar,** updated with Minecraft like mods; switch hand-added
+  plugins off and on.
+- **No port forwarding? playit.gg.** Friends join through a playit.gg tunnel, and the Dashboard shows
+  whether it's working (playit.gg is an outside service, so its disruptions are out of mcsm's control).
+- **Bedrock players too.** One button adds Geyser and Floodgate, so friends on phones, tablets and
+  consoles can join a Java server.
+- **Friends ask to be let in.** With the whitelist on, a friend's mcsm sends their Minecraft name;
+  you press Allow. Their mcsm also says when a server they joined changed, so they update in time.
+- **Performance and notifications.** See the server's ticks per second with a graph, profile it
+  with spark, and get browser notifications when a server crashes or an update is ready.
+- **Schedules and backup copies.** Restart every night, back up every few hours, and copy every
+  backup to a USB drive or a cloud-synced folder. Simple choices on the Settings page, or any
+  cron expression.
+- **Check my setup.** One button checks Java, memory, disk space, the port, the firewall and
+  friends' access, says what to fix in plain words, and can test that friends outside your home
+  can connect. It also downloads a report for bug reports, with secrets taken out.
 - **Upgrades only when your mods are ready.** Every release newer than the one you run is
   checked against the loader and each mod, and you move to the newest one where
   every mod is available (optional ones too; client-only mods don't count). Nothing is
@@ -190,6 +218,10 @@ right Java by itself).
 | Mac with Apple silicon (M1 or newer) | [`mcsm-macos-arm64`](https://github.com/silverWRX03/mc-server-management/releases/latest/download/mcsm-macos-arm64) |
 | Linux, 64-bit Intel/AMD | [`mcsm-linux-x64`](https://github.com/silverWRX03/mc-server-management/releases/latest/download/mcsm-linux-x64) |
 | Linux on ARM (Raspberry Pi 4/5 with a 64-bit OS) | [`mcsm-linux-arm64`](https://github.com/silverWRX03/mc-server-management/releases/latest/download/mcsm-linux-arm64) |
+
+**Joining a friend's server?** Open the invite link they sent: it offers the friends' download
+(`mcsm-join-...`), the same mcsm under its own name, which opens straight into setting up
+Minecraft for their server.
 
 **Windows:** put `mcsm-windows-x64.exe` in a folder of its own (for example
 `Documents\mcsm`) and double-click it. There's no command window: mcsm opens in your
@@ -316,7 +348,9 @@ Minecraft port (25565 for the first server) and the download port (8766), and en
 your public address under **mcsm settings → Sharing with friends**. The download port
 only answers friends' mcsm (HTTPS only): the mod list and your own mod files, never the
 control panel.
-To play on the server from this computer too: `mcsm join --from-server <server folder>`.
+To play on the server from this computer too, press **Play on this computer** on the server's
+Dashboard (it warns first when this computer is short of memory for both, or the server is heavy),
+or run `mcsm join --from-server <server folder>`.
 
 ![Picking launchers](docs/web-friend-setup.png)
 
@@ -697,6 +731,15 @@ verify_boot = true
 wait_for_all_mods = true         # a new Minecraft only once every mod supports it
 remind_days = 30                 # then remind you monthly about the mods still behind
 
+[backups]
+keep = 10
+copy_to = "/media/usb/mcsm-backups"   # also copy every backup here (optional)
+
+[schedule]                       # cron: minute hour day month weekday (local time); "" = off
+restart = "0 4 * * *"            # every day at 4:00, after the in-game countdown
+backup = "0 */6 * * *"           # every 6 hours
+restart_when_empty = false       # skip a scheduled restart while players are online
+
 [java]
 version = "auto"                 # or force a major version, e.g. 21
 auto_install = true              # download Temurin when the needed version is missing
@@ -771,7 +814,8 @@ required = true
 3. The [release workflow](.github/workflows/release.yml) tests the code and builds the
    Windows, macOS and Linux executables with [PyInstaller](https://pyinstaller.org). It
    smoke-tests each one on its own OS, then publishes a GitHub release with the
-   executables, the Python wheel, and `SHA256SUMS.txt`.
+   executables, the friends' `mcsm-join-...` copies of them, the Python wheel, and
+   `SHA256SUMS.txt`, then publishes the invite page (it links to those downloads).
 4. Running copies of mcsm notice the release within a day and offer to update.
 
 To build an executable yourself:
@@ -784,8 +828,9 @@ To build an executable yourself:
 - Then run `python packaging/smoke_test.py dist/mcsm` (or `dist/mcsm.exe`).
 
 The executables aren't code-signed yet, which is why Windows and macOS show warnings.
-Signing needs a Windows code-signing certificate and an Apple Developer ID
-($99/year); both can be added to the release workflow later.
+Windows signing through SignPath Foundation (free for open source) is ready in the release
+workflow and switches on once the project is accepted: see [docs/code-signing.md](docs/code-signing.md).
+macOS needs an Apple Developer ID ($99/year) and notarization.
 
 ## Development
 

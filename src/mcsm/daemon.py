@@ -185,6 +185,10 @@ class Daemon:
         self.console = LogBuffer(3000)
         self.events = LogBuffer(500)
         self.players: set[str] = set()
+        self._sched_last = None  # the last time schedules were looked at
+        self.meter = None        # recent TPS samples (perf.Meter), made when first asked for
+        self.crashed_at = None   # when the server last stopped unexpectedly
+        self.tunnel_status = None  # the last playit.gg tunnel check (tunnel.check)
         self.started_at: float | None = None
         self.last_check: dict | None = None
         self.ops = threading.Lock()     # one job at a time
@@ -288,6 +292,78 @@ class Daemon:
         self.stop_server()
         return self.start_server()
 
+    def backup_now(self, label: str = "manual") -> str:
+        """A backup of the server folder, taken safely while it runs (saving paused), then pruned
+        and copied to the backup copy folder if one is set."""
+        from . import backup
+        cfg = self.m.config
+        running = self.proc is not None and self.proc.running
+        if running:
+            self.proc.send("save-off")
+            self.proc.send("save-all flush")
+            time.sleep(5)
+        try:
+            path = backup.create(self.m.server_dir, cfg.backups.dir, label, cfg.backups.exclude)
+        finally:
+            if running and self.proc.running:
+                self.proc.send("save-on")
+        backup.prune(cfg.backups.dir, cfg.backups.keep)
+        copied = backup.copy_out(path, cfg.backups.copy_to, cfg.root.name, cfg.backups.copy_keep)
+        return f"created {path.name}" + (f" (copied to {copied.parent})" if copied else "")
+
+    # --------------------------------------------------- playit.gg tunnel
+    TUNNEL_FRESH = 60  # seconds a check is reused for (however many pages ask)
+
+    def tunnel_check(self, force: bool = False) -> dict | None:
+        from . import tunnel
+        from .properties import read_properties
+        address = self.m.config.tunnel_address
+        if not address:
+            self.tunnel_status = None
+            return None
+        old = self.tunnel_status
+        if old and not force and time.time() - old["checked"] < self.TUNNEL_FRESH and old.get("address") == address:
+            return old
+        motd = read_properties(self.m.server_dir / "server.properties").get("motd", "")
+        new = {**tunnel.check(address, motd, self.state == "running"), "address": address}
+        if old and old.get("address") == address and old["status"] != new["status"]:
+            if new["status"] in ("down", "wrong") and old["status"] == "ok":
+                log.warning("playit.gg tunnel stopped working: %s", new["words"])
+                self.m.notifier.send(f"playit.gg tunnel stopped working ({address}). {new['words']}")
+            elif new["status"] == "ok" and old["status"] in ("down", "wrong"):
+                log.info("playit.gg tunnel works again")
+                self.m.notifier.send(f"playit.gg tunnel works again ({address}).")
+        self.tunnel_status = new
+        return new
+
+    # -------------------------------------------------------- schedules
+    def _run_schedules(self) -> None:
+        """Scheduled restarts and backups (mcsm.toml [schedule], set on the Settings page)."""
+        import datetime as dt
+        from . import schedule
+        now = dt.datetime.now()
+        last, self._sched_last = self._sched_last, now
+        sch = self.m.config.schedule
+        try:
+            restart = schedule.due(sch.restart, last, now)
+            backup_due = schedule.due(sch.backup, last, now)
+        except schedule.CronError as e:  # (checked when saved; a hand-edited file could still be wrong)
+            log.warning("schedule: %s", e)
+            return
+        if backup_due:
+            self.submit("scheduled backup", self.backup_now, "scheduled")
+        elif restart:
+            if not (self.want_running and self.proc is not None and self.proc.running):
+                return  # nothing to restart
+            if sch.restart_when_empty and self.players:
+                log.info("scheduled restart skipped: %d player(s) online", len(self.players))
+                return
+
+            def scheduled_restart():
+                self.m.countdown(self.proc, "Scheduled restart")
+                return self.restart_server()
+            self.submit("scheduled restart", scheduled_restart)
+
     # -------------------------------------------------------- lifecycle
     def run(self, web: bool = False) -> int:
         set_current_server(self.server_id)
@@ -355,6 +431,8 @@ class Daemon:
             self.submit("start", self._boot)
         # Let the first start finish before the first scheduled update check.
         self.next_check = time.monotonic() + 60
+        import datetime as _dt
+        self._sched_last = _dt.datetime.now()  # schedules count from now, not from a missed past
 
         while not self.stop_requested.is_set():
             if stop_request_path(self.m).exists():
@@ -375,6 +453,8 @@ class Daemon:
                 target = (req.read_text().strip() or None) if requested else None
                 req.unlink(missing_ok=True)
                 self.submit("update check", self.check_for_updates, requested, target)
+            if idle:
+                self._run_schedules()
             sreq = self_update_request_path(self.m)
             if self.hub_managed:  # the hub checks for and installs mcsm updates
                 self.stop_requested.wait(self.tick)
@@ -423,6 +503,7 @@ class Daemon:
             return None
 
     def _handle_crash(self) -> None:
+        self.crashed_at = time.time()
         now = time.monotonic()
         self.crashes.append(now)
         while self.crashes and now - self.crashes[0] > CRASH_WINDOW:

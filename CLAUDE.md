@@ -33,7 +33,8 @@ vanilla-JS web UI under a strict Content-Security-Policy (`src/mcsm/webui/`).
 1. In `CHANGELOG.md`, turn "(not released yet)" into the release date; bump
    `src/mcsm/__init__.py`.
 2. Merge the pull request with the expected head SHA, then run `release.yml` on `main` with
-   the new version. The release notes link the changelog.
+   the new version. The release notes link the changelog. The release also publishes the invite page
+   (`site/join/`, GitHub Pages), after the downloads it links to exist.
 3. Comment on the issues fixed in it: "Fixed in <version>".
 
 The in-app manual ships inside the release, so updating mcsm updates its help too.

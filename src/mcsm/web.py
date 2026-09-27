@@ -27,6 +27,7 @@ import threading
 import time
 import tomllib
 import urllib.parse
+import webbrowser
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
@@ -55,18 +56,23 @@ DEVICE_COOKIE = "mcsm_device"
 # What a paired phone may do: look at things, and the everyday controls. Not uploads, config
 # files, the console, settings, Java, mods, exports or the sign-in itself.
 DEVICE_POSTS = {"/api/server/start", "/api/server/stop", "/api/server/restart", "/api/backups/create",
-                "/api/updates/check", "/api/updates/apply", "/api/players/action", "/api/logout"}
+                "/api/updates/check", "/api/updates/apply", "/api/players/action", "/api/logout",
+                "/api/join-requests/answer"}
 DEVICE_HIDDEN_GETS = {"/api/configs/file", "/api/export/download", "/api/settings", "/api/hub/curseforge",
                       "/api/hub/discord", "/api/hub/discord/guilds", "/api/hub/discord/channels",
-                      "/api/hub/remote", "/api/hub/saves"}
+                      "/api/hub/remote", "/api/hub/saves", "/api/doctor/report"}
 
 
-def device_allowed(method: str, path: str) -> bool:
-    return path in DEVICE_POSTS if method == "POST" else path not in DEVICE_HIDDEN_GETS
+def device_allowed(method: str, path: str, role: str = "helper") -> bool:
+    """What a paired device may do: viewers only look (and can sign out)."""
+    if method == "POST":
+        return path == "/api/logout" if role == "viewer" else path in DEVICE_POSTS
+    return path not in DEVICE_HIDDEN_GETS
 MAX_JSON = 1 << 20
 MAX_UPLOAD = 512 << 20
 MAX_ARCHIVE = 64 << 30
-LOCAL_ONLY = {"/api/open", "/api/hub/open", "/api/hub/remote-install/open"}  # they act on this computer's screen  # a whole server (worlds and all), for importing
+LANGUAGES = ("es", "pt", "fr", "de", "hi", "zh", "vi", "ar", "ko")  # besides English: src/mcsm/webui/i18n/<code>.json
+LOCAL_ONLY = {"/api/open", "/api/hub/open", "/api/hub/remote-install/open", "/api/play-here"}  # they act on this computer's screen  # a whole server (worlds and all), for importing
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/app.js": ("app.js", "text/javascript; charset=utf-8"),
           "/rich.js": ("rich.js", "text/javascript; charset=utf-8"),
@@ -75,7 +81,10 @@ STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/icon.png": ("icon.png", "image/png"),
           "/manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json"),
           "/help-network.svg": ("help-network.svg", "image/svg+xml"),
-          "/help-router.svg": ("help-router.svg", "image/svg+xml")}
+          "/help-router.svg": ("help-router.svg", "image/svg+xml"),
+          "/i18n.js": ("i18n.js", "text/javascript; charset=utf-8"),
+          # the page's words in other languages (see i18n.js)
+          **{f"/i18n/{code}.json": (f"i18n/{code}.json", "application/json; charset=utf-8") for code in LANGUAGES}}
 SECURITY_HEADERS = {
     "Content-Security-Policy": "default-src 'self'; img-src 'self' https: data:; style-src 'self'; "
                                "script-src 'self'; connect-src 'self'; frame-ancestors 'none'",
@@ -402,7 +411,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             with self.web.lock:
                 self.web.failures["pair:" + client] = recent + [now]
             raise ApiError(400, str(e)) from None
-        log.info("paired a phone: %s (from %s)", device["name"], client)
+        log.info("paired %s as a %s (from %s)", device["name"], device["role"], client)
         return self._json(200, {"ok": True, "name": device["name"]},
                           {"Set-Cookie": self._cookie(token, DEVICE_COOKIE, webauth.DEVICE_DAYS * 86400)})
 
@@ -492,10 +501,10 @@ class RequestHandler(BaseHTTPRequestHandler):
                                   {"Set-Cookie": f"{SESSION_COOKIE}=; Max-Age=0; Path=/; SameSite=Strict"})
             q = {k: v[-1] for k, v in query.items()}
             if path in LOCAL_ONLY and not local:
-                raise ApiError(403, "opening folders only works in a browser on the server's own computer")
+                raise ApiError(403, "that only works in a browser on the server's own computer")
             handler = self.web.hub_api.routes.get((method, path))
             if handler is not None:
-                if device and not device_allowed(method, path):
+                if device and not device_allowed(method, path, device.get("role") or "helper"):
                     raise ApiError(403, "a paired phone can't do that; use the server's computer")
                 if path not in NOTICE_EXEMPT and not notice.accepted(self.web.hub.root):
                     raise ApiError(428, "accept the notice first")
@@ -503,7 +512,8 @@ class RequestHandler(BaseHTTPRequestHandler):
                     return self._json(200, handler(q, self))
                 result = handler(q, self._body() if method == "POST" else {})
                 if path == "/api/hub":  # whether "Open folder" buttons can work; who's signed in
-                    result = {**result, "local": local, "device": device["name"] if device else None}
+                    result = {**result, "local": local, "device": device["name"] if device else None,
+                              "role": (device.get("role") or "helper") if device else "owner"}
                 return self._json(200, result)
             if m := SERVER_PATH.match(path):
                 sid, path = m.group(1), "/api" + m.group(2)
@@ -514,8 +524,8 @@ class RequestHandler(BaseHTTPRequestHandler):
             if path not in NOTICE_EXEMPT and not notice.accepted(self.web.hub.root):
                 raise ApiError(428, "accept the notice first")
             if path in LOCAL_ONLY and not local:
-                raise ApiError(403, "opening folders only works in a browser on the server's own computer")
-            if device and not device_allowed(method, path):
+                raise ApiError(403, "that only works in a browser on the server's own computer")
+            if device and not device_allowed(method, path, device.get("role") or "helper"):
                 raise ApiError(403, "a paired phone can't do that; use the server's computer")
             api = self.web.api_for(sid)
             set_current_server(api.d.server_id)  # so this server's activity feed shows what happens
@@ -530,6 +540,15 @@ class RequestHandler(BaseHTTPRequestHandler):
                 return self._json(200, handler(q, self))
             if path == "/api/export/download":
                 return self._send_file(api.export_file(q.get("name", "")))
+            if path == "/api/modsets/export":
+                entry = api.modset_export(q.get("name", ""))
+                safe = re.sub(r"[^A-Za-z0-9._ -]+", "_", entry["name"]).strip() or "mods"
+                return self._send(200, json.dumps(entry, indent=2).encode(), "application/json",
+                                  {"Content-Disposition": f'attachment; filename="mcsm-mods-{safe}.json"'})
+            if path == "/api/doctor/report":
+                name = f"mcsm-report-{time.strftime('%Y%m%d-%H%M%S')}.zip"
+                return self._send(200, api.doctor_report(), "application/zip",
+                                  {"Content-Disposition": f'attachment; filename="{name}"'})
             if path == "/api/players/skin":
                 try:
                     png = api.skins.png(q.get("name", ""))
@@ -771,6 +790,7 @@ class HubApi:
         r[("POST", "/api/hub/discord")] = self.save_discord
         r[("GET", "/api/hub/discord/guilds")] = lambda q, b: {"guilds": self._discord().guilds()}
         r[("GET", "/api/hub/discord/channels")] = lambda q, b: {"channels": self._discord().channels(q.get("guild", ""))}
+        r[("POST", "/api/hub/discord/status")] = self.discord_status
         r[("POST", "/api/hub/mods/check")] = self.check_mods
         r[("GET", "/api/hub/mods/check")] = self.check_status
         r[("POST", "/api/hub/trial")] = self.start_trial
@@ -939,11 +959,14 @@ class HubApi:
         host = str(b.get("host", ""))
         if host not in {a["host"] for a in self._addresses()}:
             raise ApiError(400, "pick one of the addresses listed")
-        code = self.web.devices.new_code(time.time())
+        role = str(b.get("role") or "helper")
+        if role not in webauth.ROLES:
+            raise ApiError(400, "pick helper or viewer")
+        code = self.web.devices.new_code(time.time(), role)
         port = self.web.httpd.server_address[1] if self.web.httpd else self.web.port
         shown = f"[{host}]" if ":" in host else host
         url = f"{'https' if self.web.tls else 'http'}://{shown}:{port}/#pair={code}"
-        log.info("made a phone pairing code (valid for five minutes)")
+        log.info("made a pairing code for a %s (valid for five minutes)", role)
         return {"url": url, "qr": qr.svg(url), "expires_in": webauth.PAIR_SECONDS}
 
     def remove_device(self, q, b) -> dict:
@@ -1013,6 +1036,14 @@ class HubApi:
         from . import world
         return {"worlds": world.list_saves()}
 
+    def discord_status(self, q, b) -> dict:
+        """Keep a live status message in a channel ("" stops it)."""
+        try:
+            self.hub.set_discord_status(str(b.get("channel", "")).strip())
+        except ValueError as e:
+            raise ApiError(400, str(e)) from None
+        return {"ok": True, **self.hub.discord_settings()}
+
     def open_folder(self, q, b) -> dict:
         from . import opener
         where = {"home": self.hub.home, "exports": self.hub.exports_dir}.get(str(b.get("what", "")))
@@ -1031,18 +1062,22 @@ class HubApi:
             host, user, port = remoteinstall.check(b.get("host", ""), b.get("user", ""), b.get("port", 22))
         except remoteinstall.RemoteInstallError as e:
             raise ApiError(400, str(e)) from None
-        return {"command": remoteinstall.command_line(host, user, port), "panel": remoteinstall.panel_url(host)}
+        rented = b.get("rented")
+        rented = (not remoteinstall.on_home_network(host)) if rented is None else bool(rented)
+        return {"command": remoteinstall.command_line(host, user, port, rented), "panel": remoteinstall.panel_url(host, rented),
+                "rented": rented, "tunnel_command": remoteinstall.tunnel_command(host, user, port) if rented else None}
 
     def remote_install_open(self, q, b) -> dict:
         """Open a terminal on this computer running that command (OpenSSH asks for the password there)."""
         from . import remoteinstall
         info = self.remote_install(q, b)
         host, user, port = remoteinstall.check(b.get("host", ""), b.get("user", ""), b.get("port", 22))
+        tunnel = b.get("tunnel") is True and info["rented"]
         try:
-            remoteinstall.launch(host, user, port)
+            remoteinstall.launch(host, user, port, rented=info["rented"], tunnel=tunnel)
         except (remoteinstall.RemoteInstallError, OSError) as e:
             raise ApiError(400, str(e)) from None
-        log.info("opened an SSH window to install mcsm on %s@%s", user, host)
+        log.info("opened an SSH window %s %s@%s", "to the control panel of" if tunnel else "to install mcsm on", user, host)
         return {**info, "ok": True}
 
     def stage(self, q, handler) -> dict:
@@ -1074,8 +1109,17 @@ class HubApi:
         address = str(b.get("address", "")).strip()
         if address and not re.fullmatch(r"[A-Za-z0-9.-]{1,253}|\[[0-9A-Fa-f:]{2,45}\]|[0-9A-Fa-f:]{2,45}", address):
             raise ApiError(400, "the address should be a host name or IP address, without http:// or a port")
-        self.hub.save_share(port, address)
-        log.info("friend download settings: port %s, address %s", port, address or "(automatic)")
+        tunnel_text = b.get("tunnel")
+        if tunnel_text is not None:
+            from .tunnel import TunnelError, parse_address
+            tunnel_text = str(tunnel_text).strip()
+            try:
+                parse_address(tunnel_text, default_port=0)
+            except TunnelError as e:
+                raise ApiError(400, str(e)) from None
+        self.hub.save_share(port, address, tunnel_text)
+        log.info("friend download settings: port %s, address %s%s", port, address or "(automatic)",
+                 f", playit.gg tunnel {tunnel_text}" if tunnel_text else "")
         return {"ok": True, "share": self.hub.share_status()}
 
     def new_server_options(self, q, b) -> dict:
@@ -1148,6 +1192,7 @@ class Api:
         get("/api/mods/search", self.search)
         post("/api/mods/add", self.add_mod)
         post("/api/mods/remove", self.remove_mod)
+        post("/api/mods/jar", self.set_jar)
         post("/api/mods/required", self.set_required)
         post("/api/manual/upload", lambda q, b: None)  # handled specially (raw body)
         get("/api/players/skin", lambda q, b: None)    # handled specially (an image)
@@ -1155,6 +1200,27 @@ class Api:
         post("/api/backups/create", self.create_backup)
         post("/api/backups/restore", self.restore_backup)
         post("/api/open", self.open_folder)
+        get("/api/play-here", self.play_here_info)
+        get("/api/doctor", self.doctor)
+        get("/api/performance", self.performance)
+        get("/api/join-requests", self.join_requests)
+        get("/api/bedrock", self.bedrock)
+        get("/api/tunnel", self.tunnel)
+        get("/api/world/tools", self.world_tools)
+        get("/api/modsets", self.modsets)
+        post("/api/modsets/save", self.modset_save)
+        post("/api/modsets/restore", self.modset_restore)
+        post("/api/modsets/delete", self.modset_delete)
+        post("/api/modsets/import", self.modset_import)
+        get("/api/modsets/export", lambda q, b: None)  # sent by the request handler (a .json file)
+        post("/api/world/rule", self.world_rule)
+        post("/api/world/border", self.world_border)
+        post("/api/world/chunky", self.world_chunky)
+        post("/api/join-requests/answer", self.answer_join_request)
+        post("/api/performance/spark", self.spark_profile)
+        post("/api/doctor/internet", self.doctor_internet)
+        get("/api/doctor/report", lambda q, b: None)  # sent by the request handler (a zip)
+        post("/api/play-here", self.play_here)
         post("/api/world/replace", self.replace_world)
         post("/api/updates/remove-and-upgrade", self.remove_and_upgrade)
         post("/api/mods/check", lambda q, b: self._check(b, client=False))
@@ -1365,7 +1431,20 @@ class Api:
             "configured": self._configured_with_deps(),
             "skipped": [{"key": k, "reason": v} for k, v in lk.skipped.items()],
             "unmanaged": self.m.unmanaged_jars(),
+            "disabled": self.m.disabled_jars(),
         }
+
+    def set_jar(self, q, b) -> dict:
+        from .manager import UpgradeError
+        action = str(b.get("action", ""))
+        if action not in ("enable", "disable", "remove"):
+            raise ApiError(400, "unknown action")
+        try:
+            message = self.m.set_jar(str(b.get("name", "")), action)
+        except UpgradeError as e:
+            raise ApiError(400, str(e)) from None
+        log.info("%s", message)
+        return {"ok": True, "message": message}
 
     def _modrinth(self) -> ModrinthProvider:
         return self.m.providers.get("modrinth") or ModrinthProvider(self.m.http)
@@ -1426,8 +1505,11 @@ class Api:
         mod_id = str(b.get("id", "")).strip()
         if not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", mod_id):
             raise ApiError(400, "invalid mod id")
-        if source != "modrinth" and self.m.loader.mods_folder != "mods":
-            raise ApiError(400, "Paper plugins come from Modrinth")
+        plugins = self.m.loader.mods_folder != "mods"
+        if source == "curseforge" and plugins:
+            raise ApiError(400, "Paper plugins come from Modrinth or Hangar")
+        if source == "hangar" and not plugins:
+            raise ApiError(400, "Hangar has Paper plugins, not mods")
         project = self.m.providers[source].project(mod_id)
         if project.server_side == "unsupported":
             raise ApiError(400, f"{project.name} is client-side only")
@@ -1568,6 +1650,161 @@ class Api:
     def players(self, q, b) -> dict:
         return self._players().summary(self.d.players)
 
+    # ------------------------------------------------------ saved mod lists
+    def modsets(self, q, b) -> dict:
+        from . import modsets
+        return {"sets": [{"name": x["name"], "saved": x.get("saved"), "minecraft": x.get("minecraft"),
+                          "mods": [m["id"] for m in x["mods"]], "client_mods": x.get("client_mods", [])}
+                         for x in modsets.load(self.m.config)]}
+
+    def _modset(self, fn, *args):
+        from . import modsets
+        try:
+            return fn(self.m.config, *args)
+        except modsets.ModSetError as e:
+            raise ApiError(400, str(e)) from None
+
+    def modset_save(self, q, b) -> dict:
+        from . import modsets
+        entry = self._modset(modsets.save, str(b.get("name", "")), self.m.lock.minecraft)
+        return {"ok": True, "message": f"saved {entry['name']!r} ({len(entry['mods'])} mods)"}
+
+    def modset_restore(self, q, b) -> dict:
+        from . import modsets
+        if self.d.job:
+            raise ApiError(409, f"busy: {self.d.job['name']} is running")
+        message = self._modset(modsets.restore, str(b.get("name", "")), self.m.lock.minecraft)
+        self.m.reload_config()
+        log.info("mod list %s", message)
+        return {"ok": True, "message": message}
+
+    def modset_delete(self, q, b) -> dict:
+        from . import modsets
+        if not self._modset(modsets.delete, str(b.get("name", ""))):
+            raise ApiError(404, "no such list")
+        return {"ok": True}
+
+    def modset_import(self, q, b) -> dict:
+        from . import modsets
+        entry = b.get("set")
+        if not isinstance(entry, dict):
+            raise ApiError(400, "choose a mod list file saved from mcsm")
+        entry = self._modset(modsets.add, entry)
+        return {"ok": True, "message": f"loaded {entry['name']!r} ({len(entry['mods'])} mods)"}
+
+    def modset_export(self, name: str) -> dict:
+        from . import modsets
+        entry = next((x for x in modsets.load(self.m.config) if x["name"] == name), None)
+        if entry is None:
+            raise ApiError(404, "no such list")
+        return entry
+
+    # ------------------------------------------------------ world tools
+    def _running_proc(self):
+        if not (self.d.proc and self.d.proc.running and self.d.state == "running"):
+            raise ApiError(409, "start the server first: these use the server's own commands")
+        return self.d.proc
+
+    def world_tools(self, q, b) -> dict:
+        from . import worldtools
+        chunky = any("chunky" in (x.name or "").lower() for x in self.m.lock.mods)
+        if self.d.state != "running" or not self.d.proc:
+            return {"running": False, "chunky": chunky}
+        proc = self.d.proc
+        return {"running": True, "rules": worldtools.read_rules(proc), "border": worldtools.border_size(proc),
+                "chunky": chunky, "progress": worldtools.chunky_progress(proc.tail(300)) if chunky else None}
+
+    def world_rule(self, q, b) -> dict:
+        from . import worldtools
+        try:
+            message = worldtools.set_rule(self._running_proc(), str(b.get("rule", "")), str(b.get("value", "")).lower())
+        except ValueError as e:
+            raise ApiError(400, str(e))
+        log.info("game rule: %s", message)
+        return {"ok": True, "message": message}
+
+    def world_border(self, q, b) -> dict:
+        from . import worldtools
+        try:
+            diameter, x, z = int(b.get("diameter", 0)), int(b.get("x", 0)), int(b.get("z", 0))
+        except (TypeError, ValueError):
+            raise ApiError(400, "use whole numbers") from None
+        try:
+            message = worldtools.set_border(self._running_proc(), diameter, x, z)
+        except ValueError as e:
+            raise ApiError(400, str(e)) from None
+        log.info("%s", message)
+        return {"ok": True, "message": message}
+
+    def world_chunky(self, q, b) -> dict:
+        from . import worldtools
+        if not any("chunky" in (x.name or "").lower() for x in self.m.lock.mods):
+            raise ApiError(400, "add the Chunky mod first")
+        proc = self._running_proc()
+        action = str(b.get("action", ""))
+        try:
+            if action == "start":
+                try:
+                    radius, x, z = int(b.get("radius", 0)), int(b.get("x", 0)), int(b.get("z", 0))
+                except (TypeError, ValueError):
+                    raise ValueError("use whole numbers") from None
+                message = worldtools.chunky_start(proc, radius, x, z)
+            elif action in worldtools.CHUNKY_ACTIONS:
+                proc.send(worldtools.CHUNKY_ACTIONS[action])
+                message = f"pre-generation: {action}"
+            else:
+                raise ApiError(400, "unknown action")
+        except ValueError as e:
+            raise ApiError(400, str(e)) from None
+        log.info("%s", message)
+        return {"ok": True, "message": message}
+
+    # ------------------------------------------------- playit.gg tunnel
+    def tunnel(self, q, b) -> dict:
+        from . import tunnel
+        status = self.d.tunnel_check(force=q.get("now") == "1")
+        return {"address": self.m.config.tunnel_address, "status": status,
+                "agent": tunnel.agent_running() if status else None,
+                "status_page": tunnel.STATUS_PAGE, "download": tunnel.DOWNLOAD}
+
+    # ------------------------------------------- Bedrock players (Geyser)
+    BEDROCK_LOADERS = ("fabric", "quilt", "neoforge", "paper")
+    GEYSER_CONFIGS = ("config/Geyser-Fabric/config.yml", "config/Geyser-NeoForge/config.yml", "plugins/Geyser-Spigot/config.yml")
+
+    def bedrock(self, q, b) -> dict:
+        """Whether Bedrock players (phones, tablets, consoles, Windows) can join through Geyser, and
+        the port they use (UDP; Geyser's config says, 19132 until it's written)."""
+        loader = self.m.lock.loader or self.m.config.server.loader
+        ids = {s.id.lower() for s in self.m.config.mods}
+        port = 19132
+        for rel in self.GEYSER_CONFIGS:
+            path = self.m.server_dir / rel
+            if path.exists():
+                m = re.search(r"^bedrock:\s*$.*?^\s+port:\s*(\d{2,5})", path.read_text(errors="replace"), re.M | re.S)
+                if m:
+                    port = int(m.group(1))
+                break
+        return {"supported": loader in self.BEDROCK_LOADERS, "geyser": "geyser" in ids, "floodgate": "floodgate" in ids,
+                "installed": any(x.name.lower().startswith("geyser") for x in self.m.lock.mods), "port": port,
+                "minecraft": self.m.lock.minecraft}
+
+    # ------------------------------------------- friends asking to join
+    def join_requests(self, q, b) -> dict:
+        props = read_properties(self.m.server_dir / "server.properties")
+        return {"requests": list(self.web.hub.join_requests.get(self.sid, [])),
+                "whitelist_on": props.get("white-list", "false") == "true"}
+
+    def answer_join_request(self, q, b) -> dict:
+        name = str(b.get("name", "")).strip()
+        if not re.fullmatch(r"[A-Za-z0-9_]{3,16}", name):
+            raise ApiError(400, "that isn't a Minecraft name")
+        message = f"ignored {name}"
+        if b.get("allow") is True:
+            message = self._players().act("whitelist-add", name)
+            log.info("let %s in (whitelist)", name)
+        self.web.hub.answer_join_request(self.sid, name)
+        return {"ok": True, "message": message}
+
     def player_action(self, q, b) -> dict:
         if self.d.state == "starting" or (self.d.state == "stopped" and self.d.job):
             # Editing the JSON files now could race with the server starting up.
@@ -1592,7 +1829,9 @@ class Api:
         name = read_properties(self.m.server_dir / "server.properties").get("motd", "")
         lan = lan_ip()
         out = {"local": Invite(lan, share["port"], c.token, fp).page_link(name) if lan else None, "internet": None}
-        if share["address"]:
+        if (tunnel := hub.share_tunnel()) is not None:  # friends outside reach the downloads through playit.gg
+            out["internet"] = Invite(tunnel[0], tunnel[1], c.token, fp).page_link(name)
+        elif share["address"]:
             out["internet"] = Invite(share["address"].strip("[]"), share["port"], c.token, fp).page_link(name)
         return out
 
@@ -1648,6 +1887,104 @@ class Api:
         hub.remember_discord_channel(guild, channel)
         log.info("posted the friends' invite to Discord")
         return {"ok": True, **r}
+
+    # ------------------------------------------------------ performance
+    def performance(self, q, b) -> dict:
+        """How fast the server keeps up (TPS/MSPT), measured now and then while someone looks."""
+        from . import perf
+        d, lk = self.d, self.m.lock
+        if getattr(d, "meter", None) is None:
+            d.meter = perf.Meter()
+        loader = lk.loader or self.m.config.server.loader
+        command = perf.command_for(loader, lk.minecraft or "")
+        current = d.meter.sample(d.proc, loader, lk.minecraft or "") if d.state == "running" and command else None
+        status, words = perf.verdict(current["tps"] if current else None)
+        spark = any("spark" in (x.name or "").lower() for x in lk.mods)
+        urls = [u for line in (d.proc.tail(300) if d.proc else []) for u in perf.SPARK_URL.findall(line)]
+        return {"supported": bool(command), "running": d.state == "running", "current": current,
+                "status": status, "words": words, "samples": list(d.meter.samples),
+                "spark": spark, "spark_url": urls[-1] if urls else None}
+
+    def spark_profile(self, q, b) -> dict:
+        """Profile the server for 30 seconds with the spark mod (power users): the report's link
+        appears in the console and on the Dashboard."""
+        if not any("spark" in (x.name or "").lower() for x in self.m.lock.mods):
+            raise ApiError(400, "add the spark mod first (Mods → Download mods → spark)")
+        if not (self.d.proc and self.d.proc.running):
+            raise ApiError(409, "start the server first")
+        self.d.proc.send("spark profiler start --timeout 30")
+        return {"ok": True, "message": "profiling for 30 seconds; the report's link appears here and in the console"}
+
+    # ------------------------------------------------------ Check my setup
+    def _doctor_checks(self):
+        from . import doctor
+        hub = self.web.hub
+        info = hub.self_update_info()
+        return doctor.run(self.m, self.d.state, share=None if hub.is_single else hub.share_status(),
+                          self_update={"available": True, **info} if info else None)
+
+    def doctor(self, q, b) -> dict:
+        from dataclasses import asdict
+        from .doctor import BAD, OK, Check
+        checks = self._doctor_checks()
+        if (st := self.d.tunnel_check()) and st["status"] != "stopped":
+            checks.append(Check("tunnel", "playit.gg tunnel", OK if st["status"] == "ok" else BAD, st["words"],
+                                "" if st["status"] == "ok" else "playit.gg is an outside service: check its program runs here and status.playit.gg."))
+        return {"checks": [asdict(c) for c in checks]}
+
+    def doctor_internet(self, q, b) -> dict:
+        """Ask an outside service to connect to the server's port (only when asked to)."""
+        from dataclasses import asdict
+        from . import doctor
+        port = int(read_properties(self.m.server_dir / "server.properties").get("server-port", "25565") or 25565)
+        return asdict(doctor.internet_check(self.m.http, port, self.d.state == "running"))
+
+    def doctor_report(self) -> bytes:
+        from . import doctor
+        from .desktop import log_path
+        return doctor.report_zip(self.m, self._doctor_checks(), log_path())
+
+    # ------------------------------------------- playing on this computer too
+    def play_here_info(self, q, b) -> dict:
+        """What running the server and the game on one computer needs (the page warns first)."""
+        from .setup import suggested_memory_gb, total_ram_gb
+        cfg = self.m.config
+        mem = cfg.server.memory
+        server_gb = suggested_memory_gb() if mem == "auto" else int(mem[:-1]) / (1024 if mem.endswith("M") else 1)
+        props = read_properties(self.m.server_dir / "server.properties")
+        total = total_ram_gb()
+        return {"installed": self.m.lock.installed, "system_gb": round(total, 1) if total else None,
+                "cpus": os.cpu_count() or 1, "server_gb": round(server_gb, 1), "game_gb": cfg.client.memory_gb,
+                "mods": len(self.m.lock.mods), "max_players": int(props.get("max-players", "20") or 20)}
+
+    def play_here(self, q, b) -> dict:
+        """Set up this computer's Minecraft for this server (the friends' page, pointed at
+        localhost), and open it. Only from a browser on this computer (LOCAL_ONLY)."""
+        from .clientpack import PackBuilder
+        from . import joinui
+        if not self.m.lock.installed:
+            raise ApiError(400, "the server isn't installed yet")
+        old = getattr(self.web.hub, "_play_ui", None)
+        if old is not None and not old.done.is_set():
+            old.reopen("")  # already open: show it again
+            return {"ok": True, "url": old.url}
+        port = read_properties(self.m.server_dir / "server.properties").get("server-port", "25565") or "25565"
+        try:
+            pack = PackBuilder(self.m).build("localhost" if port == "25565" else f"localhost:{port}")
+        except ModError as e:
+            raise ApiError(400, str(e))
+        ui = joinui.JoinUI(None, pack=pack, http=self.m.http)
+        url = ui.start()
+        self.web.hub._play_ui = ui
+
+        def run():
+            try:
+                ui.wait()
+            finally:
+                ui.stop()
+        threading.Thread(target=run, daemon=True, name="play-here").start()
+        threading.Thread(target=webbrowser.open, args=(url,), daemon=True).start()
+        return {"ok": True, "url": url}
 
     def _invite_link(self) -> str | None:
         links = self._invite_links()
@@ -1743,21 +2080,7 @@ class Api:
 
     def create_backup(self, q, b) -> dict:
         label = re.sub(r"[^A-Za-z0-9_-]", "_", str(b.get("label") or "manual"))[:40]
-
-        def run():
-            if self.d.proc and self.d.proc.running:
-                self.d.proc.send("save-off")
-                self.d.proc.send("save-all flush")
-                time.sleep(5)
-            try:
-                path = backup.create(self.m.server_dir, self.m.config.backups.dir, label,
-                                     self.m.config.backups.exclude)
-            finally:
-                if self.d.proc and self.d.proc.running:
-                    self.d.proc.send("save-on")
-            backup.prune(self.m.config.backups.dir, self.m.config.backups.keep)
-            return f"created {path.name}"
-        return self._job("backup", run)
+        return self._job("backup", self.d.backup_now, label)
 
     # ---------------------------------------------------------- open folder
     FOLDERS = ("server", "files", "world", "mods", "config", "logs", "crash", "backups", "exports", "manual", "java")
@@ -1984,6 +2307,12 @@ class Api:
         "verify_boot": ("updates", "verify_boot", bool),
         "backups_keep": ("backups", "keep", int),
         "discord_webhook": ("notify", "discord_webhook", str),
+        "schedule_restart": ("schedule", "restart", str),
+        "schedule_backup": ("schedule", "backup", str),
+        "restart_when_empty": ("schedule", "restart_when_empty", bool),
+        "backup_copy_to": ("backups", "copy_to", str),
+        "backup_copy_keep": ("backups", "copy_keep", int),
+        "tunnel_address": ("tunnel", "address", str),
     }
 
     def settings(self, q, b) -> dict:
@@ -1997,11 +2326,28 @@ class Api:
             "warn_minutes": c.updates.warn_minutes, "wait_for_empty": c.updates.wait_for_empty,
             "verify_boot": c.updates.verify_boot, "backups_keep": c.backups.keep,
             "discord_webhook": c.discord_webhook,
+            **self._schedule_info(),
+            "tunnel_address": c.tunnel_address,
             "port": int(read_properties(self.m.server_dir / "server.properties").get("server-port", "25565") or 25565),
             "properties": serverprops.current(read_properties(self.m.server_dir / "server.properties")),
             "properties_schema": serverprops.schema(),
             "choices": {"strategy": configmod.STRATEGIES, "mod_channel": configmod.CHANNELS},
         }
+
+    def _schedule_info(self) -> dict:
+        import datetime as dt
+        from . import schedule
+        c = self.m.config
+        out = {"schedule_restart": c.schedule.restart, "schedule_backup": c.schedule.backup,
+               "restart_when_empty": c.schedule.restart_when_empty,
+               "backup_copy_to": str(c.backups.copy_to or ""), "backup_copy_keep": c.backups.copy_keep,
+               "backup_copy_ok": c.backups.copy_to is None or c.backups.copy_to.is_dir()}
+        for name in ("restart", "backup"):
+            expr = getattr(c.schedule, name)
+            nxt = schedule.parse(expr).next_after(dt.datetime.now()) if expr else None
+            out[f"schedule_{name}_words"] = schedule.describe(expr)
+            out[f"schedule_{name}_next"] = nxt.timestamp() if nxt else None
+        return out
 
     def save_settings(self, q, b) -> dict:
         b = dict(b)

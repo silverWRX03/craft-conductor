@@ -92,6 +92,43 @@ class Discord:
         return {"id": str(msg.get("id", "")), "channel": channel_id}
 
 
+    def edit(self, channel_id: str, message_id: str, content: str, embed: dict | None = None) -> dict:
+        """Change a message the bot posted (the live status message)."""
+        if not (SNOWFLAKE.fullmatch(channel_id) and SNOWFLAKE.fullmatch(message_id)):
+            raise DiscordError("that isn't a Discord message")
+        body = {"content": content[:2000], "allowed_mentions": {"parse": []}, "embeds": [embed] if embed else []}
+        try:
+            self.http.patch_json(f"{API}/channels/{channel_id}/messages/{message_id}", body, headers=self._headers)
+        except HttpError as e:
+            if e.status == 404:
+                raise MessageGone() from None
+            raise self._explain(e) from None
+        return {"id": message_id, "channel": channel_id}
+
+
+class MessageGone(DiscordError):
+    """The status message was deleted: post a new one."""
+
+
+def status_embed(servers: list[dict], address: str = "", off: bool = False) -> dict:
+    """The live status message: each server's state, players and version (no one is mentioned)."""
+    lines = []
+    for s in servers:
+        name = str(s.get("name") or s.get("id"))[:60].replace("*", "").replace("_", "\\_")
+        if off:
+            lines.append(f"⚫ **{name}**: mcsm is closed")
+        elif s.get("state") == "running":
+            where = f" · `{address}{'' if str(s.get('port')) == '25565' else ':' + str(s.get('port'))}`" if address else ""
+            lines.append(f"🟢 **{name}**: {s.get('players', 0)}/{s.get('max_players', 20)} playing · Minecraft {s.get('minecraft') or '?'}{where}")
+        elif s.get("state") == "starting":
+            lines.append(f"🟡 **{name}**: starting…")
+        else:
+            lines.append(f"🔴 **{name}**: offline")
+    return {"title": "Minecraft servers", "description": "\n".join(lines)[:3500] or "No servers.",
+            "color": 0x3BA55C if any(s.get("state") == "running" for s in servers) and not off else 0x747F8D,
+            "footer": {"text": "Kept up to date by mcsm"}}
+
+
 def check_token(token: str) -> str:
     token = token.strip()
     if token.lower().startswith("bot "):

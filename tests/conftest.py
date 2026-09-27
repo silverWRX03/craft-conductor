@@ -66,6 +66,12 @@ class FakeHttp:
             return {}
         return handler(body) if callable(handler) else handler
 
+    def patch_json(self, url, body, headers=None):
+        handler = getattr(self, "patches", {}).get(url)
+        if handler is None:
+            raise HttpError(url, 404, "HTTP 404")
+        return handler(body) if callable(handler) else handler
+
     def download(self, url, dest: Path, sha1=None, sha512=None, headers=None, sha256=None):
         if url not in self.files:
             raise HttpError(url, 404, "HTTP 404")

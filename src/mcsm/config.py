@@ -11,7 +11,7 @@ from pathlib import Path
 STATE_DIR = ".mcsm"
 CONFIG_NAME = "mcsm.toml"
 LOADERS = ("fabric", "quilt", "neoforge", "forge", "paper", "vanilla")
-MOD_SOURCES = ("modrinth", "curseforge")
+MOD_SOURCES = ("modrinth", "curseforge", "hangar")  # Hangar: Paper plugins
 STRATEGIES = ("latest-compatible", "latest", "mods-only")
 CHANNELS = ("release", "beta", "alpha")
 
@@ -65,6 +65,16 @@ class BackupConfig:
     dir: Path
     keep: int = 10
     exclude: list[str] = field(default_factory=lambda: ["logs", "crash-reports"])
+    copy_to: Path | None = None      # also copy each backup here (a USB drive, a synced folder)
+    copy_keep: int = 10              # how many copies to keep there
+
+
+@dataclass
+class ScheduleConfig:
+    """Cron expressions (minute hour day-of-month month day-of-week), "" = off."""
+    restart: str = ""
+    backup: str = ""
+    restart_when_empty: bool = False  # skip a scheduled restart while players are online
 
 
 @dataclass
@@ -106,6 +116,8 @@ class Config:
     curseforge_api_key: str = ""
     restart_on_crash: bool = True
     client: ClientConfig = field(default_factory=ClientConfig)
+    schedule: ScheduleConfig = field(default_factory=ScheduleConfig)
+    tunnel_address: str = ""   # a playit.gg tunnel friends join through ("host" or "host:port")
 
     @property
     def path(self) -> Path:
@@ -157,6 +169,37 @@ def _memory(value) -> str:
     raise ConfigError(f"server.memory is {value!r}; use something like 4G, 4096M, or auto")
 
 
+def _copy_folder(value) -> Path | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    path = Path(text).expanduser()
+    if not path.is_absolute():
+        raise ConfigError("backups.copy_to must be a full path, e.g. D:\\mcsm-backups or /media/usb/mcsm")
+    return path
+
+
+def _tunnel(value) -> str:
+    from .tunnel import TunnelError, parse_address
+    try:
+        parse_address(str(value or ""))
+    except TunnelError as e:
+        raise ConfigError(f"tunnel.address: {e}") from None
+    return str(value or "").strip()
+
+
+def _schedule(c: dict) -> ScheduleConfig:
+    from .schedule import CronError, parse
+    out = ScheduleConfig(restart=str(c.get("restart", "")).strip(), backup=str(c.get("backup", "")).strip(),
+                         restart_when_empty=bool(c.get("restart_when_empty", False)))
+    for name in ("restart", "backup"):
+        try:
+            parse(getattr(out, name))
+        except CronError as e:
+            raise ConfigError(f"schedule.{name}: {e}") from None
+    return out
+
+
 def _client(c: dict) -> ClientConfig:
     mods = c.get("mods", [])
     if not isinstance(mods, list) or not all(isinstance(m, str) and re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", m)
@@ -204,6 +247,8 @@ def parse(root: Path, data: dict) -> Config:
         dir=(root / b.get("dir", "backups")).resolve(),
         keep=int(b.get("keep", 10)),
         exclude=list(b.get("exclude", ["logs", "crash-reports"])),
+        copy_to=_copy_folder(b.get("copy_to", "")),
+        copy_keep=max(1, int(b.get("copy_keep", 10))),
     )
 
     mods = []
@@ -258,6 +303,8 @@ def parse(root: Path, data: dict) -> Config:
                             or os.environ.get("MCSM_CURSEFORGE_API_KEY", "")),
         restart_on_crash=bool(s.get("restart_on_crash", True)),
         client=_client(data.get("client", {})),
+        schedule=_schedule(data.get("schedule", {})),
+        tunnel_address=_tunnel(data.get("tunnel", {}).get("address", "")),
     )
 
 
@@ -293,6 +340,13 @@ remind_days = 30               # a month after a new version is out (and every m
 dir = "backups"
 keep = 10
 exclude = ["logs", "crash-reports"]
+# copy_to = "/media/usb/mcsm-backups"   # also copy every backup here (a USB drive, a synced folder)
+# copy_keep = 10
+
+[schedule]                     # cron: minute hour day-of-month month day-of-week, local time; "" = off
+restart = ""                   # e.g. "0 4 * * *" = every day at 4:00 (players get the countdown first)
+backup = ""                    # e.g. "0 */6 * * *" = every 6 hours
+restart_when_empty = false     # skip a scheduled restart while players are online
 
 [java]
 version = "auto"               # "auto" = whatever the Minecraft version needs, or force one, e.g. 21
@@ -368,6 +422,20 @@ def remove_mod(path: Path, source: str, mod_id: str) -> bool:
     if removed:
         path.write_text("".join(line for chunk in kept for line in chunk))
     return removed
+
+
+def set_mods(path: Path, specs: list[ModSpec]) -> None:
+    """Replace every ``[[mods]]`` block with ``specs``, keeping the rest of the file as it is."""
+    lines = path.read_text().splitlines(keepends=True)
+    chunks: list[list[str]] = [[]]
+    for line in lines:
+        if re.match(r"^\s*\[", line):
+            chunks.append([])
+        chunks[-1].append(line)
+    kept = "".join(line for chunk in chunks if not (chunk and chunk[0].strip() == "[[mods]]") for line in chunk)
+    if kept and not kept.endswith("\n"):
+        kept += "\n"
+    path.write_text(kept + "".join(mod_block(spec) for spec in specs))
 
 
 def set_value(path: Path, table: str, key: str, literal: str) -> None:

@@ -111,6 +111,11 @@ class Hub:
         self.http = http or HttpClient()
         self.make_manager = make_manager or (lambda cfg: Manager(cfg, http=self.http, echo=False))
         self.trials: dict = {}  # test boots (trial.Trial) by id
+        self.join_requests: dict[str, list[dict]] = {}  # friends asking to be let in, by server
+        self._status_lock = threading.Lock()  # the Discord status message
+        self._status_sent, self._status_at = None, 0.0
+        self._request_times: dict[str, float] = {}
+        self._requests_lock = threading.Lock()
         self.checks: dict = {}  # quick mod checks running in the background (trial.CheckJob) by id
         self.tick = tick
         self._single: Daemon | None = None
@@ -257,7 +262,58 @@ class Hub:
 
     def discord_settings(self) -> dict:
         d = self._hub_file().get("discord", {})
-        return {"set": bool(d.get("token")), "bot": d.get("bot"), "guild": d.get("guild", ""), "channel": d.get("channel", "")}
+        return {"set": bool(d.get("token")), "bot": d.get("bot"), "guild": d.get("guild", ""), "channel": d.get("channel", ""),
+                "status_channel": d.get("status_channel", "")}
+
+    def set_discord_status(self, channel: str) -> None:
+        """Keep a live status message in this channel ("" stops it)."""
+        from .discord import SNOWFLAKE
+        if channel and not SNOWFLAKE.fullmatch(channel):
+            raise ValueError("that isn't a Discord channel")
+        data = self._hub_file()
+        if "discord" not in data:
+            raise ValueError("add a Discord bot first")
+        data["discord"]["status_channel"] = channel
+        data["discord"].pop("status_message", None)
+        self._save_hub_file(data)
+        self._status_sent = None
+        if channel:
+            threading.Thread(target=self.discord_status, daemon=True, name="discord-status").start()
+
+    STATUS_REFRESH = 600  # post the same status again at most this often (the "updated" time)
+
+    def discord_status(self, off: bool = False) -> None:
+        """Bring the live status message up to date: edit it when something changed (state,
+        players), post a new one if it was deleted. Quietly does nothing without a bot or channel."""
+        from .discord import DiscordError, MessageGone, status_embed
+        if not (self._status_lock.acquire(timeout=10) if off else self._status_lock.acquire(blocking=False)):
+            return  # (one update at a time; the closing one waits for a running one)
+        try:
+            data = self._hub_file()
+            d = data.get("discord", {})
+            channel, bot = d.get("status_channel"), self.discord()
+            if not channel or bot is None:
+                return
+            embed = status_embed(self.summary(), (self.share_settings().get("address") or "").strip(), off=off)
+            sig = json.dumps(embed, sort_keys=True)
+            if sig == self._status_sent and time.monotonic() - self._status_at < self.STATUS_REFRESH and not off:
+                return
+            embed["timestamp"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            try:
+                if d.get("status_message"):
+                    bot.edit(channel, d["status_message"], "", embed)
+                else:
+                    raise MessageGone()
+            except MessageGone:
+                msg = bot.post(channel, "", embed)
+                data = self._hub_file()
+                data.setdefault("discord", {})["status_message"] = msg["id"]
+                self._save_hub_file(data)
+            self._status_sent, self._status_at = sig, time.monotonic()
+        except (DiscordError, OSError) as e:
+            log.warning("couldn't update the Discord status message: %s", e)
+        finally:
+            self._status_lock.release()
 
     def save_discord_token(self, token: str) -> dict | None:
         """Check a bot token with Discord and keep it (empty removes it). Returns the bot."""
@@ -285,11 +341,21 @@ class Hub:
         address they opened the invite with)."""
         from .share import DEFAULT_PORT
         s = self._hub_file().get("share", {}) if not self.is_single else {}
-        return {"port": int(s.get("port", DEFAULT_PORT)), "address": str(s.get("address", ""))}
+        return {"port": int(s.get("port", DEFAULT_PORT)), "address": str(s.get("address", "")),
+                "tunnel": str(s.get("tunnel", ""))}
 
-    def save_share(self, port: int, address: str) -> None:
+    def share_tunnel(self) -> tuple[str, int] | None:
+        """The playit.gg tunnel friends' mcsm reaches the downloads through, if one is set."""
+        from .tunnel import TunnelError, parse_address
+        try:
+            return parse_address(self.share_settings().get("tunnel", ""), default_port=0) or None
+        except TunnelError:
+            return None
+
+    def save_share(self, port: int, address: str, tunnel: str | None = None) -> None:
         data = self._hub_file()
-        data["share"] = {"port": port, "address": address}
+        data["share"] = {"port": port, "address": address,
+                         "tunnel": tunnel if tunnel is not None else data.get("share", {}).get("tunnel", "")}
         self._save_hub_file(data)
         self.update_share(restart=True)
 
@@ -635,6 +701,48 @@ class Hub:
         log.info("deleted server %s and all of its files (%s)", sid, root)
         return "deleted, with its world, mods and backups"
 
+    # ---------------------------------------------------- playit.gg tunnels
+    def check_tunnels(self) -> None:
+        """Check each server's playit.gg tunnel (every 5 minutes), and say when one stops or
+        starts working again (in its activity, and to Discord if set up)."""
+        for d in list(self.daemons.values()):
+            if d.m.config.tunnel_address:
+                d.tunnel_check(force=True)
+
+    # -------------------------------------------------- friends asking to join
+    JOIN_REQUESTS_KEPT = 20
+
+    def add_join_request(self, sid: str, name: str, ip: str) -> str:
+        """A friend (with the invite) asks to be let in: kept for the owner to Allow or Ignore
+        on the Players page. One ask per address every 10 seconds; at most 20 waiting."""
+        now = time.time()
+        with self._requests_lock:
+            last = self._request_times.get(ip, 0)
+            if now - last < 10:
+                return "slow down"
+            self._request_times[ip] = now
+            if len(self._request_times) > 500:  # forget old addresses
+                self._request_times = {k: v for k, v in self._request_times.items() if now - v < 60}
+            d = self.daemons.get(sid)
+            if d is not None:
+                from .players import Players
+                try:
+                    if any(str(p.get("name", "")).lower() == name.lower() for p in Players(d.m.server_dir)._read("whitelist")):
+                        return "already allowed"
+                except Exception:  # an unreadable whitelist: ask the owner anyway
+                    pass
+            waiting = [r for r in self.join_requests.get(sid, []) if r["name"].lower() != name.lower()]
+            waiting.append({"name": name, "time": now})
+            self.join_requests[sid] = waiting[-self.JOIN_REQUESTS_KEPT:]
+        log.info("%s asks to join %s", name, sid)
+        if d is not None:
+            d.m.notifier.send(f"{name} asks to join: allow them on the Players page in mcsm.")
+        return "asked"
+
+    def answer_join_request(self, sid: str, name: str) -> None:
+        with self._requests_lock:
+            self.join_requests[sid] = [r for r in self.join_requests.get(sid, []) if r["name"].lower() != name.lower()]
+
     def summary(self) -> list[dict]:
         out = []
         for sid, d in list(self.daemons.items()):
@@ -648,6 +756,8 @@ class Hub:
                 "max_players": int(props.get("max-players", "20") or 20),
                 "port": props.get("server-port", "25565"), "folder": str(d.m.config.root),
                 "update": bool(d.last_check and not d.last_check.get("up_to_date") and d.last_check.get("target")),
+                "crashed_at": d.crashed_at, "last_job": d.last_job,
+                "join_requests": len(self.join_requests.get(sid, [])),
             })
         for sid, p in self.problems.items():
             out.append({"id": sid, "name": p.get("name") or sid, "state": "unavailable", "problem": p["problem"],
@@ -729,6 +839,8 @@ class Hub:
                 import webbrowser
                 threading.Timer(1.0, webbrowser.open, args=(ui.url,)).start()
             next_scan, next_self_check = 0.0, time.monotonic() + 30
+            next_status = time.monotonic() + 20
+            next_tunnels = time.monotonic() + 60
             while not self.stop_requested.is_set():
                 if hub_stop_path(self.home).exists():
                     hub_stop_path(self.home).unlink(missing_ok=True)
@@ -742,6 +854,12 @@ class Hub:
                 if now >= next_self_check:
                     next_self_check = now + SELF_CHECK_INTERVAL
                     self.run_job("mcsm update check", self.check_self_update)
+                if now >= next_tunnels:
+                    next_tunnels = now + 300
+                    threading.Thread(target=self.check_tunnels, daemon=True, name="tunnels").start()
+                if now >= next_status:
+                    next_status = now + 30
+                    threading.Thread(target=self.discord_status, daemon=True, name="discord-status").start()
                 self.stop_requested.wait(self.tick)
             return 0
         finally:
@@ -749,6 +867,8 @@ class Hub:
                 ui.stop()
             if self.share:
                 self.share.stop()
+            if self._hub_file().get("discord", {}).get("status_channel"):
+                self.discord_status(off=True)  # say mcsm is closed, rather than leave "online" up
             self._stop_all()
             hub_pid_path(self.home).unlink(missing_ok=True)
 

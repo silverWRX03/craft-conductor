@@ -4,6 +4,29 @@ What changed in each version of mcsm, newest first. Bugs are listed the way you'
 them. Found a new one? [Report it](https://github.com/silverWRX03/mc-server-management/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.10.0 (2026-09-27)
+
+**Added**
+- **Languages:** mcsm's pages, the friends' joining page and the invite page in Spanish, Portuguese, French, German, Hindi, Chinese (Simplified), Vietnamese, Arabic (right to left) and Korean, besides English: **mcsm settings → Language**, or automatically in your browser's language. The translations are machine-made; the user manual stays in English.
+- **Rented servers (a VPS):** **Install on a Linux computer** works for a server on the internet too, keeping its control panel private and reached through an SSH tunnel (**Open an SSH tunnel**), with a [guide](docs/rented-server.md).
+- **Paper plugins from Hangar** (PaperMC's plugin site) next to Modrinth, kept updated like mods; plugins and mods you added yourself can be switched off, on or removed.
+- **playit.gg tunnels** for when you can't forward ports: a tunnel address per server and for friends' downloads, and a **playit.gg tunnel** card on the Dashboard that checks it's working (through the tunnel, the way a friend's game connects) and says when it stops. playit.gg is an outside service: disruptions on its side are out of mcsm's control.
+- **The friends' download** (`mcsm-join-...`): the same mcsm under its own name, opening straight into joining a server (even on a computer that runs servers). Invite links offer it.
+- Windows code signing through SignPath Foundation is ready in the release workflow; it switches on once the project is accepted ([code signing policy](docs/code-signing.md)).
+- **Co-admins:** pair a device as a **Helper** (everyday controls) or a **Viewer** (look only), for a friend who helps run the server; what they do shows in the activity.
+- **Discord live status message** (mcsm settings → Discord): one message in a channel showing each server's state, players and version, kept up to date.
+- **Saved mod lists** (Mods page): save the mods under a name, switch lists and switch back (the current list is saved first), and download or load a list as a file.
+- **World tools** (Settings): game rules with what they do, a world border, and pre-generating terrain with Chunky (added in one click), with progress.
+- **Bedrock players** (phones, tablets, consoles, Windows): **Let Bedrock players join** on the Friends page adds Geyser and Floodgate and says which port to use and forward.
+- **Ask to be let in:** friends joining a server with a whitelist send their Minecraft name from their mcsm; it shows on the Players page with **Allow** / **Ignore** (and as a notification).
+- **Servers you've joined** (friends' mcsm) marks the servers that changed since you set up, so you know when to press **Update**.
+- **Performance** on the Dashboard: ticks per second and ms per tick with a graph of the last hour, what slows a server down, and (with the spark mod) a 30-second profile.
+- **Notifications** from the browser (mcsm settings → Notifications): a server stopping unexpectedly, an update being ready, someone joining, a job failing, while the tab is in the background.
+- **Schedules** (Settings → Schedule): restart the server every day or week, back up every few hours or daily, or any cron expression; scheduled restarts give players the countdown and can skip while people are online.
+- **Backup copies** (Settings → Backup copies): every backup is also copied to a USB drive or a cloud-synced folder, keeping the newest few.
+- **🩺 Check my setup** on the Dashboard: Java, memory, disk space, the port, accounts, the friends' port and public address, the firewall and mcsm updates, each with what to do. **Test from the internet** checks friends outside can connect (asks ifconfig.co, only when pressed). **Report for a bug report** downloads the logs and settings with secrets taken out.
+- **Play on this computer** on a server's Dashboard: sets up this computer's Minecraft for the server (on the server's own computer), after saying what running both on one computer needs: memory and CPU with this computer's numbers, lag spikes, and heavy modpacks.
+
 ## 0.9.2 (2026-09-27)
 
 **Added**

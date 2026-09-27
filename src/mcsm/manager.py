@@ -134,6 +134,32 @@ class Manager:
         managed = {m.filename for m in self.lock.mods}
         return sorted(p.name for p in mods_dir.glob("*.jar") if p.name not in managed)
 
+    def disabled_jars(self) -> list[str]:
+        """Jars switched off by hand (``.jar.disabled``): the server doesn't load them."""
+        mods_dir = self.mods_dir
+        return sorted(p.name[:-len(".disabled")] for p in mods_dir.glob("*.jar.disabled")) if mods_dir.is_dir() else []
+
+    def set_jar(self, name: str, action: str) -> str:
+        """Switch a jar added by hand off (renamed to .jar.disabled) or on, or remove it. Only
+        jars actually in the folder, and not ones mcsm manages, can be named."""
+        managed = {m.filename for m in self.lock.mods}
+        on, off = set(self.unmanaged_jars()), set(self.disabled_jars())
+        if name in managed:
+            raise UpgradeError(f"{name} is managed by mcsm: remove it from the list instead")
+        if name not in on | off:
+            raise UpgradeError(f"there's no {name} in the {self.mods_dir.name} folder")
+        path, disabled = self.mods_dir / name, self.mods_dir / (name + ".disabled")
+        if action == "disable" and name in on:
+            path.rename(disabled)
+            return f"{name} switched off (from the next restart)"
+        if action == "enable" and name in off:
+            disabled.rename(path)
+            return f"{name} switched on (from the next restart)"
+        if action == "remove":
+            (path if name in on else disabled).unlink()
+            return f"{name} removed"
+        raise UpgradeError("nothing to do")
+
     # --------------------------------------------------------------- running
     def eula_accepted(self) -> bool:
         eula = self.server_dir / "eula.txt"
@@ -230,7 +256,7 @@ class Manager:
                 shutil.copy2(local, mods_out / mod.filename)
             else:
                 log.info("downloading %s %s", mod.name, mod.version_number)
-                self.http.download(mod.url, mods_out / mod.filename, sha1=mod.sha1, sha512=mod.sha512)
+                self.http.download(mod.url, mods_out / mod.filename, sha1=mod.sha1, sha512=mod.sha512, sha256=mod.sha256)
 
         runtime = None
         if changes.runtime:
@@ -303,6 +329,7 @@ class Manager:
         if self.server_dir.exists() and any(self.server_dir.iterdir()):
             archive = backup.create(self.server_dir, self.config.backups.dir,
                                     f"before-{old_mc or 'install'}-to-{plan.minecraft}", self.config.backups.exclude)
+            backup.copy_out(archive, self.config.backups.copy_to, self.config.root.name, self.config.backups.copy_keep)
 
         proc = None
         try:

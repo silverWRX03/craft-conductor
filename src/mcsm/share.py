@@ -102,6 +102,9 @@ class ShareServer:
         """host:port players connect Minecraft to."""
         # A friend who reached this server through its local address is on the same
         # network, so they join through it too; everyone else uses the public address.
+        tunnel = getattr(getattr(d.m, "config", None), "tunnel_address", "")
+        if tunnel and not _is_local(request_host):
+            return tunnel  # friends outside join through the playit.gg tunnel
         public = request_host if _is_local(request_host) else \
             (self.hub.share_settings().get("address") or "").strip() or request_host
         port = read_properties(d.m.server_dir / "server.properties").get("server-port", "25565")
@@ -183,6 +186,32 @@ class ShareHandler(BaseHTTPRequestHandler):
     def do_HEAD(self):
         self.do_GET()
 
+    def do_POST(self):
+        """``/join/<secret>/request``: a friend with the invite asks to be let in (their Minecraft
+        name, for the whitelist). Small, checked, and limited: the owner decides in mcsm."""
+        m = re.fullmatch(r"/join/([A-Za-z0-9_-]{16,64})/request/?", self.path.split("?")[0])
+        if not m:
+            return self._text(404, "Nothing here.")
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            length = -1
+        if not 0 < length <= 1024:
+            return self._text(413 if length > 1024 else 400, "Send a short JSON body.")
+        sid, d = self.server_ref.server_for(m.group(1))
+        if d is None:
+            self.rfile.read(length)
+            return self._text(404, "This invite isn't valid any more. Ask the server's owner for a new one.")
+        try:
+            name = str(json.loads(self.rfile.read(length) or b"{}").get("name", "")).strip()
+        except (ValueError, AttributeError):
+            name = ""
+        if not re.fullmatch(r"[A-Za-z0-9_]{3,16}", name):
+            return self._text(400, "That isn't a Minecraft name (3 to 16 letters, numbers or _).")
+        result = self.server_ref.hub.add_join_request(sid, name, self.client_address[0])
+        # (a plain 200 even for "slow down": HTTP 429 would make the friend's mcsm wait and retry)
+        return self._send(200, json.dumps({"ok": result != "slow down", "result": result}).encode(), "application/json")
+
     def do_GET(self):
         m = re.fullmatch(r"/join/([A-Za-z0-9_-]{16,64})(/pack\.json|/mods/([^/]{1,400}))?/?", self.path.split("?")[0])
         if not m:
@@ -205,7 +234,8 @@ class ShareHandler(BaseHTTPRequestHandler):
             base = Invite(host, port, token).url
             mods = [{**x, "url": f"{base}/mods/{quote(x['filename'])}"} if x.get("local") else x
                     for x in pack.get("mods", [])]
-            return self._send(200, json.dumps({**pack, "mods": mods}).encode(), "application/json")
+            whitelist = read_properties(d.m.server_dir / "server.properties").get("white-list", "false") == "true"
+            return self._send(200, json.dumps({**pack, "mods": mods, "whitelist": whitelist}).encode(), "application/json")
         from .clientpack import JAR_NAME, local_jars
         name = unquote(m.group(3))
         jar = next((p for p in local_jars(d.m.config) if p.name == name), None) if JAR_NAME.fullmatch(name) else None

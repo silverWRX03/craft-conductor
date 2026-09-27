@@ -114,12 +114,23 @@ def frozen() -> bool:
     return bool(getattr(sys, "frozen", False))
 
 
-def asset_name() -> str:
-    """The release file for this computer, e.g. ``mcsm-windows-x64.exe``."""
+FRIEND_PREFIX = "mcsm-join"  # the friends' download: the same mcsm, opening straight into joining
+
+
+def friend_build() -> bool:
+    """True for the friends' download (``mcsm-join-...``, also when a browser renamed it
+    ``mcsm-join-windows-x64 (1).exe``): it sets up Minecraft to join a server."""
+    return frozen() and Path(sys.executable).name.lower().startswith(FRIEND_PREFIX)
+
+
+def asset_name(friend: bool | None = None) -> str:
+    """The release file for this computer, e.g. ``mcsm-windows-x64.exe`` (``mcsm-join-...``
+    for the friends' download, which updates to the same)."""
     system = {"Windows": "windows", "Darwin": "macos"}.get(platform.system(), "linux")
     machine = platform.machine().lower()
     arch = "arm64" if machine in ("arm64", "aarch64") else "x64"
-    return f"mcsm-{system}-{arch}{'.exe' if system == 'windows' else ''}"
+    prefix = FRIEND_PREFIX if (friend_build() if friend is None else friend) else "mcsm"
+    return f"{prefix}-{system}-{arch}{'.exe' if system == 'windows' else ''}"
 
 
 def install_method(release: Release | None = None) -> tuple[bool, str]:

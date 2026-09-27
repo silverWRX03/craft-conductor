@@ -71,7 +71,7 @@ def test_test_boot_finds_the_culprit(hub_env, modrinth):
     assert sorted(res["working"]) == ["goodmod", "othermod"]
     assert [o["id"] for o in res["outliers"]] == ["crashmod"] and "Crash Mod" in res["outliers"][0]["reason"]
     assert "Crash Mod" in (res["diagnosis"] or {}).get("summary", "")
-    assert not (hub.state_dir / "trials" / r["id"]).exists()  # cleaned up
+    wait_for(lambda: not (hub.state_dir / "trials" / r["id"]).exists(), timeout=15)  # cleaned up (just after "done")
 
     # Without bisect: just the verdict. And a quick test of an existing server's mods.
     status, r, _ = c.post("/api/hub/trial", {"server": "alpha"})

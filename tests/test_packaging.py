@@ -198,3 +198,18 @@ def test_panel_service_for_a_computer_without_a_screen(tmp_path, monkeypatch, ca
     assert ["systemctl", "--user", "enable", "--now", "mcsm.service"] in calls
     import json
     assert json.loads((home / ".mcsm" / "hub.json").read_text())["web"]["host"] == "0.0.0.0"
+
+
+def test_the_friends_download_opens_into_joining_and_updates_as_itself(monkeypatch, tmp_path):
+    """mcsm-join-... is the same mcsm under a friendly name: it always opens into joining a
+    server (even where servers run), and updates itself to the mcsm-join file."""
+    monkeypatch.setattr(selfupdate.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(selfupdate.sys, "executable", str(tmp_path / "mcsm-join-windows-x64 (1).exe"))
+    assert selfupdate.friend_build()
+    assert selfupdate.asset_name().startswith("mcsm-join-")
+    assert selfupdate.asset_name(friend=False).startswith("mcsm-") and "join" not in selfupdate.asset_name(friend=False)
+    monkeypatch.setattr(cli, "default_home", lambda: tmp_path)
+    (tmp_path / "servers").mkdir()  # this computer runs servers too
+    assert cli._first_run_joining()
+    monkeypatch.setattr(selfupdate.sys, "executable", str(tmp_path / "mcsm-windows-x64.exe"))
+    assert not selfupdate.friend_build() and not cli._first_run_joining()

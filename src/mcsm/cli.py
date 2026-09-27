@@ -743,16 +743,28 @@ def _panel_service(args) -> int:
                 return 1
             home.mkdir(parents=True, exist_ok=True)
             hub = Hub(home)
-            if hub.web.host in ("127.0.0.1", "localhost", "::1"):
+            local_only = getattr(args, "local_only", False)
+            if local_only:
+                hub.save_web(host="127.0.0.1")  # a rented server: the panel is reached through SSH, never the internet
+            elif hub.web.host in ("127.0.0.1", "localhost", "::1"):
                 hub.save_web(host="0.0.0.0")  # managed from other computers
             first = webauth.AuthStore(hub).first_run_password()
             for line in service.install(home, panel=True):
                 print(line)
-            ip = lan_ip()
-            print(f"\ncontrol panel: http://{ip or '<this computer>'}:{hub.web.port}/  (open it on your own computer)")
+            if local_only:
+                from .remoteinstall import LOCAL_PORT
+                print("\nThe control panel only listens on this server itself (not on the internet).")
+                print(f"On your own computer, reach it through SSH:  ssh -N -L {LOCAL_PORT}:127.0.0.1:{hub.web.port} <you>@<this server>")
+                print(f"then open http://localhost:{LOCAL_PORT}/  (mcsm's \"Open the control panel\" button does both)")
+            else:
+                ip = lan_ip()
+                print(f"\ncontrol panel: http://{ip or '<this computer>'}:{hub.web.port}/  (open it on your own computer)")
             if first:
                 print(f"first sign-in password: {first}   (one-time: you'll choose your own; also in {home / '.mcsm' / 'first-password.txt'})")
-            print(f"allow it through the firewall if you use one, e.g.: sudo ufw allow {hub.web.port}/tcp && sudo ufw allow 25565/tcp")
+            if local_only:
+                print("let players in through the firewall, e.g.: sudo ufw allow OpenSSH && sudo ufw allow 25565/tcp && sudo ufw allow 8766/tcp && sudo ufw enable")
+            else:
+                print(f"allow it through the firewall if you use one, e.g.: sudo ufw allow {hub.web.port}/tcp && sudo ufw allow 25565/tcp")
         elif args.action == "uninstall":
             print(service.uninstall(home, panel=True))
         else:
@@ -1027,6 +1039,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("service", help="Linux: run mcsm in the background at boot with systemd")
     s.add_argument("action", choices=["install", "uninstall", "status"])
+    s.add_argument("--local-only", action="store_true",
+                   help="with --panel: keep the control panel on this machine (127.0.0.1), for a rented server "
+                        "you reach over SSH (ssh -L), rather than open to the network")
     s.add_argument("--panel", action="store_true",
                    help="the whole control panel with all your servers (mcsm start), reachable from other "
                         "computers on your network; without it, just the server in this folder")
@@ -1093,7 +1108,7 @@ def _first_run_joining() -> bool:
     from .join import invite_from_name
     if not selfupdate.frozen():
         return False
-    if invite_from_name(sys.executable) is not None:
+    if selfupdate.friend_build() or invite_from_name(sys.executable) is not None:
         return True
     home = default_home()  # someone who runs servers here gets their control panel
     return not (home / "servers").exists() and not (home / configmod.CONFIG_NAME).exists()

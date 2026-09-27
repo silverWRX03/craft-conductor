@@ -193,3 +193,26 @@ def test_the_changelog_has_the_version_being_built():
     from mcsm import __version__
     changelog = (Path(__file__).resolve().parents[1] / "CHANGELOG.md").read_text(encoding="utf-8")
     assert f"## {__version__} " in changelog, f"CHANGELOG.md has no section for {__version__}"
+
+
+def test_paired_devices_have_a_role(tmp_path):
+    """The owner picks what a paired device may do when making the code: a helper gets the
+    everyday controls, a viewer only looks. Phones paired before roles existed are helpers."""
+    import time as _time
+    from mcsm import webauth
+    from mcsm.web import device_allowed
+    devices = webauth.Devices(tmp_path)
+    now = _time.time()
+    token, viewer = devices.pair(devices.new_code(now, "viewer"), "Sam's laptop", "10.0.0.5", now)
+    assert viewer["role"] == "viewer" and devices.find(token, now)["role"] == "viewer"
+    _, helper = devices.pair(devices.new_code(now), "Phone", "10.0.0.6", now)
+    assert helper["role"] == "helper"
+    with pytest.raises(webauth.ConfigError):
+        devices.new_code(now, "owner")  # not a role a code can give
+    assert not device_allowed("POST", "/api/server/stop", "viewer") and device_allowed("POST", "/api/logout", "viewer")
+    assert device_allowed("GET", "/api/status", "viewer") and not device_allowed("GET", "/api/settings", "viewer")
+    assert device_allowed("POST", "/api/server/stop", "helper") and not device_allowed("POST", "/api/settings", "helper")
+    old = devices._read()
+    old[0].pop("role")  # paired with an older mcsm
+    devices._write(old)
+    assert devices.list()[0]["role"] == "helper"

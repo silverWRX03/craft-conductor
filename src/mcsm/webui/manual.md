@@ -65,6 +65,8 @@ If setup fails, the page says why and where the detailed report is saved; change
 
 A spare PC, a home server or a Raspberry Pi 4/5 (64-bit) can run your servers without a screen. On **New server**, under **Or on another computer** (at the bottom of the page, at any step), choose **Install on a Linux computer**, type its address (e.g. `192.168.1.50`) and a normal user name on it (not root), and press **Connect with SSH**. A terminal opens: type that computer's password when SSH asks (the first time, answer `yes` to trust it). mcsm never sees the password. When it finishes, it shows that computer's control panel address and a one-time password; open it and choose your own password. See also the [headless guide](https://github.com/silverWRX03/mc-server-management/blob/main/docs/headless.md) and [Docker](https://github.com/silverWRX03/mc-server-management/blob/main/docs/docker.md).
 
+**A rented server (a VPS)** works the same way: type its internet address, and mcsm ticks **It's a rented server on the internet**. Its control panel then stays private (on the server only) and you reach it through SSH: **🔐 Open an SSH tunnel** (keep the window open), then **Open its control panel** (`http://localhost:8775/`). Open the Minecraft port in the server's firewall (the page shows the command). The [rented servers guide](https://github.com/silverWRX03/mc-server-management/blob/main/docs/rented-server.md) covers what to rent, firewalls and keeping it safe.
+
 ## Messages
 
 Everyday messages ("Saved", or what went wrong) appear at the **top of the screen** for a few seconds; click one to dismiss it. When mcsm needs an answer (use Aikar's flags? install an mcsm update? a mod test finished), it asks in the **middle of the screen** with the page blurred behind, and waits until you choose. A long mod test shows its progress at the top while you keep working.
@@ -79,6 +81,29 @@ Questions you'll meet again and again ("Stop the server?", "Quit mcsm?", "Update
 
 **Start**, **Restart** and **Stop** are at the top of every server page. The Dashboard shows CPU and memory use, who's online, the console, the server's details and whether an update is ready. Stopping warns players and saves the world first.
 
+### Performance
+
+While the server runs, **Performance** on the Dashboard shows how well it keeps up: **TPS** (ticks per second; 20 is smooth, under about 17 players feel lag) and, where the server reports it, **ms per tick** (under 50 keeps up), with a small graph of the last hour. mcsm asks the server now and then while the Dashboard is open (Minecraft 1.20.3 and newer, Paper, Forge and NeoForge can tell). When it's behind, **What slows a server down** lists the usual causes. With the **spark** mod installed, **Profile 30 s with spark** makes a detailed report of what the server spends its time on, and a link to it appears there.
+
+### Check my setup
+
+**🩺 Check my setup** (in the Server box on the Dashboard) checks what most often stops a server or keeps friends out, and says what to do about each: the server is installed and the EULA accepted, Java is there, the server's memory fits this computer, there's disk space, the port is free (or another program has it), accounts (online-mode), the friends' download port and public address, Windows Firewall, and whether mcsm has an update.
+
+- **Test from the internet** (with the server running) asks ifconfig.co, an outside service, to connect to your public address on the server's port: the surest way to know friends outside your home can join. It runs only when you press it.
+- **Report for a bug report** downloads a zip with the checks, versions, the server's settings and the ends of the logs, with passwords, keys, webhooks, invite secrets and players' IP addresses taken out. Look through it, then attach it to a [bug report](https://github.com/silverWRX03/mc-server-management/issues/new/choose).
+
+### Playing on the same computer
+
+**Play on this computer** (on the Dashboard, in a browser on the server's own computer) sets up this computer's Minecraft for the server, the same way friends' mcsm does: the right version, mod loader and mods, added to the launchers you pick, joining at `localhost`. Press it again after the server updates.
+
+Before it starts, mcsm says what running both on one computer means, with this computer's numbers:
+
+- **Resource heavy:** the game and the server both take a lot of memory (RAM) and CPU. mcsm adds up the server's memory, Minecraft's and about 3 GB for everything else; if that's more than the computer has, it says so, and both would lag or crash. Give the server less memory (Settings), choose less for Minecraft, or play on another computer.
+- **Lag spikes:** when players join or the server loads new terrain while you're in an intense moment, the game can drop frames and the server can lag (TPS).
+- **Heavy modpacks:** a heavy modpack (100+ mods) or a large public server (15+ players) strains a personal computer heavily and isn't recommended; mcsm says how many mods the server has and how many players it allows, and flags 100+ mods.
+
+The general warning has **Don't ask me again**; a memory shortage or a heavy server is always pointed out.
+
 ## Console
 
 Minecraft's live output. Type a server command (without the `/`, e.g. `say hello`) and press **Send**; the up/down arrows recall earlier commands. **Logs folder** and **Crash reports** open those folders (on the server's own computer).
@@ -87,9 +112,15 @@ Minecraft's live output. Type a server command (without the `/`, e.g. `say hello
 
 Players online and players who have joined before, with **Op/De-op**, **Kick**, **Ban/Pardon** and **Whitelist**. The **Whitelist** card turns it on (only listed players can join) or off. **Add or manage a player** works for people who haven't joined yet.
 
+**Asking to join:** when the whitelist is on, friends setting up with your invite can send their Minecraft name. They appear at the top of the Players page (and the Dashboard says so): **Allow** adds them to the whitelist, **Ignore** drops the request. A browser notification can tell you too (mcsm settings → Notifications). Only someone with your invite can ask, and requests are limited.
+
 ## Mods
 
 Installed mods with their versions: **Download mods** (the mod browser), **Local files**, mark a mod required or optional, **Remove** it (with the mods it needed, if nothing else needs them), and **Mod config files** to edit a mod's settings in the page (with colours for TOML, JSON, YAML and more). **Test these mods** checks a set of mods in a throwaway server, so your world is never touched; if they don't start together, **Find the culprits** adds them back a group at a time until it knows which ones clash. Changes apply at the next restart.
+
+**Paper servers (plugins):** the page is called **Plugins**. **Download plugins** searches **Modrinth** and **Hangar** (PaperMC's own plugin site; pick it as the source): tick plugins and press **Add selected**, and mcsm keeps them updated with Minecraft like mods, checking each file (Hangar's SHA-256). A plugin Hangar only links to elsewhere is listed to download yourself. **Plugins you added yourself** (jars dropped into the plugins folder, or uploaded with **Local files**) can be **switched off** (kept as `.jar.disabled`), switched back on, or removed. Plugin settings are under **Mod config files** (the `plugins/<plugin>/` folders).
+
+**Saved mod lists:** **Save the current mods** under a name, and **Switch to it** later: the mods you had are saved first as "Before …", so you can always switch back. mcsm offers to install the switched list right away (the server restarts after the countdown). **⬇** downloads a list as a file, and **Load a list from a file…** adds one, say from another server. The friends' extra mods are part of each list.
 
 ## Updates
 
@@ -103,7 +134,9 @@ mcsm checks for updates by itself and applies them when it's safe:
 
 ## Backups
 
-**Create backup** saves the server (worlds, mods, configs) as a `.tar.gz`, even while it runs. mcsm also backs up before every update. **Restore** puts a backup back (the server stops first). The newest 10 are kept.
+**Create backup** saves the server (worlds, mods, configs) as a `.tar.gz`, even while it runs. mcsm also backs up before every update. **Restore** puts a backup back (the server stops first). The newest 10 are kept (change it in Settings).
+
+To back up by itself, set **Make a backup** under Settings → Schedule. To keep backups safe from a broken disk, set **Also copy every backup to** under Settings → Backup copies: a USB drive, or a folder OneDrive, Dropbox or Google Drive syncs. Each backup is copied there too, in a folder named after the server, keeping the newest few. If the drive isn't plugged in, the backup is still made and the copy is skipped.
 
 ## Java
 
@@ -111,7 +144,17 @@ mcsm downloads the right Java (Eclipse Temurin) for each Minecraft version and k
 
 ## Settings
 
-The server's version and upgrade choices, memory (with Aikar's flags above 16 GB), port, name and Minecraft's settings. **Export server** saves everything (worlds, mods, configs, settings, player lists, and optionally backups) in one `.zip` to move to another computer: install mcsm there, then **Servers → Import a server...**.
+The server's version and upgrade choices, memory (with Aikar's flags above 16 GB), port, name and Minecraft's settings.
+
+**Schedule:** restart the server and make backups at set times: **Every day at…**, **Every week on…**, **Every few hours** (backups), or **Custom (cron)** for anything else (five parts: minute, hour, day of the month, month, day of the week; for example `30 5 * * 1-5` is 5:30 on weekdays). Times are this computer's; the next run is shown. A scheduled restart gives players the in-game countdown first, and **Skip a scheduled restart while players are online** leaves them be. The same settings are `[schedule]` in `mcsm.toml`.
+
+**Backup copies:** see Backups.
+
+**World tools** (while the server runs; they use its own commands):
+
+- **Game rules:** keep inventory, the day and weather cycle, mob griefing, fire spread, phantoms, how many players must sleep, and more, each with what it does. **Another game rule** sets any rule by name, for power users.
+- **World border:** keep the world to a size (blocks wide) around a centre, so it stays manageable and players can find each other.
+- **Pre-generate terrain:** making new terrain is the heaviest thing a server does; generating it ahead of time avoids lag spikes when people explore. It uses the free **Chunky** mod: **Add Chunky** installs it, then pick a radius and **Start** (with **Pause**, **Continue** and **Cancel**) and watch the progress. **Export server** saves everything (worlds, mods, configs, settings, player lists, and optionally backups) in one `.zip` to move to another computer: install mcsm there, then **Servers → Import a server...**.
 
 ## Friends: playing with friends
 
@@ -130,9 +173,30 @@ For power users, **Advanced: invite codes and security** shows the raw invite co
 
 **Security:** the link opens mcsm's invite page on GitHub, and the invite itself is after the `#`, which browsers never send anywhere. Friends' mcsm connects to your computer only over HTTPS, and only to your computer: the invite carries the fingerprint of your mcsm's certificate, and anything else is refused. The mcsm program itself always comes from GitHub, never from your server. The friends' port never gives access to the control panel.
 
+### No port forwarding? playit.gg
+
+If your router or internet provider doesn't let you forward ports, [playit.gg](https://playit.gg) can: its program runs on this computer and gives your server an address on the internet that friends join through.
+
+**playit.gg is an outside service**, run by its own company, not by mcsm. When playit.gg has problems, or its program isn't running on this computer, friends can't connect through it, however healthy your server is, and mcsm can't fix that. Friends on your own network can still join with the Local link.
+
+1. Download playit from playit.gg, run it, and claim it in your playit.gg account (it shows a link).
+2. In playit.gg, add a **Minecraft Java** tunnel to this server's port (25565 unless you changed it). Put the address it gives you in the server's **Settings → playit.gg tunnel**.
+3. For friends' downloads (the invite) from outside, add a **TCP** tunnel to the friends' download port (8766 unless changed) and put its address, with the port, in **mcsm settings → Sharing with friends → No port forwarding? Use playit.gg**. Internet invites then use it.
+
+With a tunnel set, the Dashboard shows **playit.gg tunnel**: mcsm asks the server for its status through the tunnel, the way a friend's game does, and says whether it's **working**, whether it answers with a **different server** (point the tunnel at this server's port), or can't be reached. It also says if the playit program isn't running here, and links to playit.gg's status page. mcsm checks every 5 minutes and notes in the activity (and on Discord, if set up) when the tunnel stops or starts working. **Check my setup** includes it too.
+
+### Bedrock players (phones, tablets, consoles)
+
+Friends playing Minecraft on a phone, a tablet, Windows (the Microsoft Store version) or a console can join a Fabric, Quilt, NeoForge or Paper server through [Geyser](https://geysermc.org). On the Friends page, press **Let Bedrock players join**: mcsm adds the Geyser and Floodgate mods from Modrinth and offers to install them now (the server restarts after the countdown). Bedrock players then use **Play → Servers → Add Server** with your address and the Bedrock port (19132 unless Geyser's config says otherwise), and sign in with their own Microsoft account; they don't need Java Edition.
+
+- For friends outside your home, also forward **UDP** port 19132 on your router (Bedrock uses UDP).
+- Xbox, PlayStation and Switch can't add servers by themselves; GeyserMC's guide shows the workarounds.
+- With the whitelist on, add a Bedrock player with the console command `fwhitelist add <name>`. Their names start with a dot (.) in game.
+- Remove Geyser and Floodgate on the Mods page to turn it off.
+
 ## For friends: joining a server
 
-1. Click the invite link you were sent. It opens a page that says you're invited: press the big **Download mcsm** button (it picks your computer's version).
+1. Click the invite link you were sent. It opens a page that says you're invited: press the big **Download mcsm** button (it picks your computer's version). It downloads the friends' mcsm (`mcsm-join-...`): the same mcsm, which always opens into joining a server, even on a computer that runs servers too.
 2. Open the file you downloaded. (On Windows, if it says it "protected your PC", choose **More info → Run anyway**; on a Mac, right-click it and choose **Open** the first time.) mcsm finds your invite by itself and checks it's really your friend's server. If it asks, press **Copy the invite** on the invite page and paste it into mcsm.
 3. Tick your launchers: the Minecraft Launcher, Prism Launcher, the Modrinth App and/or CurseForge (ones found on your computer are already ticked), and choose how much memory Minecraft gets.
 4. **Make it yours (optional):** add **shaders**, **resource packs** or **more mods** that only run on your computer. Each opens a browser like the server's (search, sort, categories, the item's page on the right); tick what you want and press **Add selected**. Shaders bring their shader loader (Iris, or Oculus on Forge); mods bring what they need, listed under them.
@@ -145,9 +209,13 @@ For power users, **Advanced: invite codes and security** shows the raw invite co
 
 **Already have mcsm?** On the invite page, press **Open in mcsm** (Windows and Linux; on a Mac, press **Copy the invite** and open mcsm).
 
-**When the server updates**, click the invite link again and press **Open in mcsm**, or open mcsm and press **Update** next to it under **Servers you've joined**. If some of your extras don't work on the new Minecraft yet, mcsm tells you first: **Continue** removes those mods and switches those shaders/resource packs off (you can switch them back on, but the game may crash), or **Cancel** keeps everything as it is (you can't join the updated server until you continue).
+**When the server updates**, click the invite link again and press **Open in mcsm**, or open mcsm and press **Update** next to it under **Servers you've joined**. mcsm checks each one when it opens and marks those that **changed** since you set up (a new Minecraft or different mods), so you know when to update.
+
+**The server has a whitelist?** The setup page shows **Ask to be let in**: type your Minecraft name (the one you play with) and press it. The owner lets you in with one click. If some of your extras don't work on the new Minecraft yet, mcsm tells you first: **Continue** removes those mods and switches those shaders/resource packs off (you can switch them back on, but the game may crash), or **Cancel** keeps everything as it is (you can't join the updated server until you continue).
 
 mcsm never asks for your Microsoft password: your launcher signs you in.
+
+**Another language?** The invite page and mcsm's joining page follow your browser's language; pick another at the bottom of either page (English, Español, Português, Français, Deutsch, हिन्दी, 中文, Tiếng Việt, العربية, 한국어).
 
 ## Remote access and phones
 
@@ -155,7 +223,8 @@ By default only the server's own computer can open the control panel. **mcsm set
 
 - It needs a **strong password**: 12+ characters with an uppercase letter, a lowercase letter and a special character. PINs don't work from other devices.
 - **Pair a phone** by scanning the QR code with its camera. The code works once, for five minutes. The phone signs in by itself afterwards, with its own key.
-- A paired phone gets the everyday controls: start, stop, restart, backups, updates and players. It can't change settings, mods or files, use the console or change the password.
+- Before making the code, choose what the device may do: **Helper** gets the everyday controls (start, stop, restart, backups, updates, players, and letting in friends who ask); **Viewer** can only look. Neither can change settings, mods or files, use the console or change the password.
+- **Co-admins:** pair the phone or computer of a friend who helps run the server the same way, as a helper or a viewer. What each device does shows in the activity with its name.
 - Each paired phone is listed with when it was last used, and can be signed out on its own; changing the password signs out every phone.
 - Away from home, use **Tailscale** (free) rather than opening the control panel's port on your router. For HTTPS, give mcsm a certificate (for example from `tailscale cert`).
 
@@ -165,7 +234,9 @@ By default only the server's own computer can open the control panel. **mcsm set
 - **Remote access & phones:** see above.
 - **Sharing with friends:** the friends' port and your public address.
 - **CurseForge:** searching CurseForge needs an API key (free, from console.curseforge.com); release builds of mcsm can include one.
-- **Discord:** add a bot to post invites to a channel.
+- **Discord:** add a bot to post invites to a channel. **Live status message:** pick a Discord server and channel, and **Keep a status message there**: one message that always shows whether each server is online, how many are playing and its Minecraft version (and your public address, if set). mcsm edits it as things change and says when mcsm is closed; **Stop** ends it. The bot never reads the channel.
+- **Notifications:** **Notify me in this browser** shows a notification when a server stops unexpectedly, an update is ready, someone joins (off by default) or something mcsm was doing fails, while mcsm's tab is in the background. The browser asks first. It works when the address is localhost (or HTTPS).
+- **Language:** mcsm's pages in English, Español, Português, Français, Deutsch, हिन्दी, 中文, Tiếng Việt, العربية (right to left) or 한국어. **Automatic** follows your browser's language. The choice is kept in this browser; the buttons, menus and short messages are translated by machine (so they may have mistakes), and this manual stays in English.
 - **Warnings:** how many warnings you've hidden with "Don't ask me again", and **Show all warnings again**.
 - **About mcsm:** the version, **Check for mcsm updates**, the mcsm folder, the notice and open-source licenses. mcsm also checks by itself: when a new version is out, a message offers to install it (it stops your servers cleanly and restarts).
 - The sun/moon button in the top corner switches between day and night.
@@ -181,6 +252,8 @@ By default only the server's own computer can open the control panel. **mcsm set
 **"That invite is from an older mcsm."** Invites changed in mcsm 0.9 (to HTTPS). Update mcsm on the server, then send friends the new invite from the Friends page.
 
 **"The server's security certificate doesn't match the invite."** mcsm refused to connect because the server isn't the one the invite is for. Ask for a new invite; if it happens again, someone may be interfering with the connection (on public Wi-Fi, say).
+
+**Something's wrong and I don't know what.** Open the server's Dashboard and press **🩺 Check my setup**: it goes through the usual causes and says what to do. For friends who can't connect from outside, press **Test from the internet** there.
 
 **I closed the browser tab.** mcsm and your servers are still running. Open mcsm again from its icon (or go to the same address in your browser): you're back where you were, and a server being created shows **See progress** on the Servers page.
 

@@ -85,10 +85,40 @@ jobs:
       - name: Smoke test
         run: python packaging/smoke_test.py "dist/${{ matrix.asset }}"
       - uses: actions/upload-artifact@v4
+        id: upload
         with:
           name: ${{ matrix.asset }}
           path: dist/${{ matrix.asset }}
           if-no-files-found: error
+      # Windows code signing through SignPath Foundation (free for open source), so Windows doesn't
+      # say it "protected your PC". Off until the repository has the SIGNPATH_ORGANIZATION_ID
+      # variable and the SIGNPATH_API_TOKEN secret (see docs/code-signing.md). SignPath checks the
+      # file was built here, from this repository, before it signs it.
+      - name: Code-sign (Windows, SignPath)
+        id: sign
+        if: runner.os == 'Windows' && vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'mc-server-management' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG || 'release-signing' }}
+          github-artifact-id: ${{ steps.upload.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+      - name: Use the signed file
+        if: steps.sign.outcome == 'success'
+        shell: bash
+        run: |
+          mv "signed/${{ matrix.asset }}" "dist/${{ matrix.asset }}"
+          python packaging/smoke_test.py "dist/${{ matrix.asset }}"
+      - uses: actions/upload-artifact@v4
+        if: steps.sign.outcome == 'success'
+        with:
+          name: ${{ matrix.asset }}
+          path: dist/${{ matrix.asset }}
+          if-no-files-found: error
+          overwrite: true
 
   publish:
     needs: build
@@ -108,10 +138,17 @@ jobs:
         with:
           path: release
           merge-multiple: true
+      - name: The friends' downloads
+        # The same mcsm under a name of its own: it opens straight into joining a server (and
+        # updates itself under that name). The invite page offers these.
+        working-directory: release
+        run: |
+          for f in mcsm-windows-* mcsm-macos-* mcsm-linux-*; do cp "$f" "mcsm-join-${f#mcsm-}"; done
+          ls -l
       - name: Checksums
         working-directory: release
         run: |
-          chmod +x mcsm-linux-* mcsm-macos-* || true
+          chmod +x mcsm-linux-* mcsm-macos-* mcsm-join-linux-* mcsm-join-macos-* || true
           sha256sum * > SHA256SUMS.txt
           cat SHA256SUMS.txt
       - uses: softprops/action-gh-release@v2
@@ -138,8 +175,21 @@ jobs:
             | Linux on ARM (e.g. Raspberry Pi 4/5, 64-bit OS) | `mcsm-linux-arm64` |
             | Anything else, with Python 3.11+ | `pipx install` the `.whl` file |
 
+            **Joining a friend's server?** Use their invite link, or the `mcsm-join-...` file for your computer:
+            the same mcsm, opening straight into setting up Minecraft for their server.
+
             No Python needed for the executables. See the README's "Download and run" section.
             `SHA256SUMS.txt` lets you verify your download; mcsm's built-in updater checks it automatically.
+
+  invite-page:
+    # The invite page links to this release's downloads (the friends' mcsm-join files), so it's
+    # published once they exist.
+    needs: publish
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/pages.yml
 
   docker:
     # The container image, on GitHub's registry: ghcr.io/<owner>/mc-server-management

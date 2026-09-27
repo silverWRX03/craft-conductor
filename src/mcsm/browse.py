@@ -71,6 +71,10 @@ class Browser:
             if kind == "modpack":
                 raise BrowseError("CurseForge modpacks aren't supported yet; search Modrinth")
             return self._cf_search(query, loader, version, category, sort, offset, early)
+        if source == "hangar":
+            if not plugins or kind != "mod":
+                raise BrowseError("Hangar has Paper plugins; it's offered for Paper servers")
+            return self._hangar_search(query, version, category, sort, offset)
         if source != "modrinth":
             raise BrowseError("unknown source")
         facets = [[f"project_type:{kind}"], [f"{side}_side:required", f"{side}_side:optional"]]
@@ -153,8 +157,62 @@ class Browser:
             return {**keep_buildable(self._cf_channels([h["id"] for h in hits], loader, version), hits, early), **page}
         return {"results": hits, "hidden": 0, "early_hidden": 0, **page}
 
+    HANGAR_SORTS = {"relevance": "-stars", "downloads": "-downloads", "follows": "-stars", "newest": "-newest",
+                    "updated": "-updated"}
+    HANGAR_CATEGORIES = ("admin_tools", "chat", "dev_tools", "economy", "gameplay", "games", "protection",
+                         "role_playing", "world_management", "misc")
+
+    def _hangar_search(self, query, version, category, sort, offset) -> dict:
+        from .mods.hangar import API as HANGAR, WEBSITE as HANGAR_SITE
+        params = {"q": query or "", "limit": PAGE, "offset": offset, "platform": "PAPER",
+                  "sort": self.HANGAR_SORTS.get(sort, "-stars")}
+        if version:
+            params["version"] = version
+        if category in self.HANGAR_CATEGORIES:
+            params["category"] = category
+        data = self.http.get_json(f"{HANGAR}/projects", params=params)
+        hits = []
+        for p in data.get("result", []):
+            ns = p.get("namespace") or {}
+            slug = str(ns.get("slug") or p.get("name", ""))
+            hits.append({"source": "hangar", "id": slug, "slug": slug, "name": p.get("name", slug),
+                         "summary": p.get("description", ""), "icon": p.get("avatarUrl") or "", "author": ns.get("owner", ""),
+                         "downloads": (p.get("stats") or {}).get("downloads", 0), "follows": (p.get("stats") or {}).get("stars", 0),
+                         "updated": p.get("lastUpdated", ""), "created": p.get("createdAt", ""),
+                         "categories": [p["category"]] if p.get("category") else [], "versions": [], "kind": "mod",
+                         "environment": "", "url": f"{HANGAR_SITE}/{ns.get('owner', '')}/{slug}"})
+        total = int((data.get("pagination") or {}).get("count", len(hits)))
+        return {"results": hits, "hidden": 0, "early_hidden": 0, "total": total, "offset": offset, "page": PAGE}
+
     # ----------------------------------------------------------- details
     def project(self, source: str, project_id: str) -> dict:
+        if source == "hangar":
+            from .mods.hangar import API as HANGAR, WEBSITE as HANGAR_SITE
+            try:
+                p = self.http.get_json(f"{HANGAR}/projects/{project_id}")
+            except HttpError as e:
+                if e.status == 404:
+                    raise ModError("that plugin doesn't exist any more") from e
+                raise
+            ns = p.get("namespace") or {}
+            slug = str(ns.get("slug") or p.get("name", project_id))
+            try:  # the project's own page (markdown)
+                body = self.http.get_text(f"{HANGAR}/pages/main/{slug}")
+            except (HttpError, AttributeError, ValueError):
+                body = p.get("description", "")
+            links = {}
+            for section in (p.get("settings") or {}).get("links", []) or []:
+                for link in section.get("links", []) or []:
+                    if str(link.get("url", "")).startswith("https://") and link.get("name"):
+                        links[str(link["name"])[:30]] = link["url"]
+            return {"source": "hangar", "id": slug, "slug": slug, "name": p.get("name", slug),
+                    "summary": p.get("description", ""), "icon": p.get("avatarUrl") or "", "body": body,
+                    "body_format": "markdown", "downloads": (p.get("stats") or {}).get("downloads", 0),
+                    "follows": (p.get("stats") or {}).get("stars", 0), "updated": p.get("lastUpdated", ""),
+                    "license": ((p.get("settings") or {}).get("license") or {}).get("name", "") or "",
+                    "categories": [p["category"]] if p.get("category") else [], "gallery": [], "links": dict(list(links.items())[:6]),
+                    "url": f"{HANGAR_SITE}/{ns.get('owner', '')}/{slug}", "loaders": ["paper"], "game_versions": [],
+                    "kind": "mod", "versions": []}
         if source == "curseforge":
             m = self._cf(f"/mods/{project_id}")
             try:
@@ -206,7 +264,9 @@ class Browser:
         cached = self._categories.get(key)
         if cached and time.monotonic() - cached[0] < 86400:
             return cached[1]
-        if source == "curseforge":
+        if source == "hangar":
+            out = [{"id": c, "name": c.replace("_", " ").capitalize()} for c in self.HANGAR_CATEGORIES]
+        elif source == "curseforge":
             data = self._cf("/categories", {"gameId": cf.MINECRAFT_GAME_ID, "classId": cf.MODS_CLASS_ID})
             out = sorted(({"id": str(c["id"]), "name": c["name"]} for c in data), key=lambda c: c["name"])
         else:

@@ -246,6 +246,18 @@ class Joiner:
                             "Is mcsm running there, and is the share port forwarded?") from e
         return validate_pack(pack, self.invite.url)
 
+    def ask_to_join(self, name: str) -> str:
+        """Ask the server's owner to let this Minecraft name in (for a server with a whitelist)."""
+        if not re.fullmatch(r"[A-Za-z0-9_]{3,16}", name):
+            raise JoinError("that isn't a Minecraft name (3 to 16 letters, numbers or _)")
+        try:
+            result = str(self.http.post_json(f"{self.invite.url}/request", {"name": name}).get("result", "asked"))
+        except HttpError as e:
+            if e.status == 429:
+                return "slow down"
+            raise JoinError(f"couldn't reach the server to ask ({e.friendly})") from e
+        return result
+
     def profiles(self) -> list[Path]:
         found = [self.mc / f for f in PROFILE_FILES if (self.mc / f).exists()]
         if not found:
