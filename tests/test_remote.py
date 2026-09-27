@@ -153,3 +153,12 @@ def test_idle_and_excess_connections_are_dropped(hub_env, monkeypatch):
     for s in idle + [extra]:
         s.close()
     assert web.RequestHandler.timeout == web.REQUEST_TIMEOUT > 0
+
+
+def test_page_files_are_cached_by_the_browser(hub_env):
+    hub, c = hub_env
+    status, _, headers = c.get("/app.js")
+    etag = headers["ETag"]
+    assert status == 200 and etag and headers["Cache-Control"] == "no-cache"
+    status, body, _ = c.call("GET", "/app.js", headers={"If-None-Match": etag})
+    assert status == 304 and not body  # unchanged: nothing sent again

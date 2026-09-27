@@ -7,6 +7,7 @@ nothing is downloaded or started until the person submits it.
 
 from __future__ import annotations
 
+import functools
 import json
 import os
 import re
@@ -52,6 +53,7 @@ def clear_pending(root: Path) -> None:
     pending_path(root).unlink(missing_ok=True)
 
 
+@functools.lru_cache(maxsize=1)  # it doesn't change, and on macOS finding out runs a program
 def total_ram_gb() -> float | None:
     try:
         if os.name == "nt":

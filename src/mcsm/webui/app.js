@@ -148,8 +148,12 @@ let lastJobSeen = null;
 let current = null;           // current view
 let timers = [];
 
-function every(ms, fn) { fn(); timers.push(setInterval(fn, ms)); }
-function clearTimers() { timers.forEach(clearInterval); timers = []; }
+// Polling pauses while the page can't be seen (another tab, a phone's screen off) and
+// catches up at once when it's back: no work for the server, battery or data meanwhile.
+let polls = [];
+function every(ms, fn) { fn(); polls.push(fn); timers.push(setInterval(() => { if (!document.hidden) fn(); }, ms)); }
+function clearTimers() { timers.forEach(clearInterval); timers = []; polls = []; }
+document.addEventListener("visibilitychange", () => { if (!document.hidden) polls.forEach((fn) => fn()); });
 
 // -------------------------------------------------------------------- login
 const PROMPT_KEY = "mcsm-password-prompt-dismissed";

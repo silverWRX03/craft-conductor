@@ -12,6 +12,8 @@ your machine.
 
 from __future__ import annotations
 
+import functools
+import hashlib
 import ipaddress
 import json
 import os
@@ -94,6 +96,14 @@ RAW_UPLOADS = {"/api/hub/stage", "/api/mods/local", "/api/client/local"}
 PROXY_HEADERS = ("X-Forwarded-For", "Forwarded", "X-Real-IP", "X-Forwarded-Host", "X-Forwarded-Proto", "Via",
                  "Tailscale-User-Login", "CF-Connecting-IP", "True-Client-IP")
 SERVER_PATH = re.compile(r"^/api/servers/([a-z0-9][a-z0-9-]{0,63})(/.*)$")
+
+
+@functools.lru_cache(maxsize=None)
+def static_file(name: str) -> tuple[bytes, str]:
+    """The page's own files: read once (they're part of mcsm), with an ETag so browsers can
+    keep their copy and just ask whether it changed."""
+    body = resources.files("mcsm").joinpath("webui", name).read_bytes()
+    return body, '"' + hashlib.sha256(body).hexdigest()[:20] + '"'
 
 
 class ApiError(Exception):
@@ -427,8 +437,13 @@ class RequestHandler(BaseHTTPRequestHandler):
         path, _, qs = self.path.partition("?")
         if path in STATIC:
             name, ctype = STATIC[path]
-            body = resources.files("mcsm").joinpath("webui", name).read_bytes()
-            return self._send(200, body, ctype)
+            body, etag = static_file(name)
+            if self.headers.get("If-None-Match") == etag:  # the browser's copy is current
+                self.send_response(304)
+                self.send_header("ETag", etag)
+                self.end_headers()
+                return None
+            return self._send(200, body, ctype, {"ETag": etag, "Cache-Control": "no-cache"})
         self._dispatch("GET", path, urllib.parse.parse_qs(qs))
 
     def do_POST(self):
