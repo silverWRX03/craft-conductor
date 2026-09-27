@@ -124,7 +124,9 @@ jobs:
           generate_release_notes: true
           body: |
             > **mcsm is in beta.** It's used and tested, but it's still young: expect rough edges, keep backups
-            > (mcsm makes one before every update), and please report problems in the Issues tab.
+            > (mcsm makes one before every update), and please [report problems](https://github.com/silverWRX03/mc-server-management/issues/new/choose).
+
+            **What's new:** see the [changelog](https://github.com/silverWRX03/mc-server-management/blob/main/CHANGELOG.md).
 
             ## Download
 

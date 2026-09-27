@@ -44,7 +44,7 @@ browser: no command lines, no config files, no hunting for the right mod version
   keep your own copies of anything you can't afford to lose.
 - It isn't affiliated with Mojang, Microsoft, Modrinth or CurseForge.
 
-**New to mcsm? Read the [user manual](src/mcsm/webui/manual.md)** (it's also in the app: Help →
+**New to mcsm? Read the [user manual](src/mcsm/webui/manual.md)** ([what's new](CHANGELOG.md) · [report a bug](https://github.com/silverWRX03/mc-server-management/issues/new/choose)) (it's also in the app: Help →
 User manual). Every section of this README is listed in the [section links](#appendix-section-links) at
 the end.
 

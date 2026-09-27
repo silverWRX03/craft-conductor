@@ -1766,7 +1766,9 @@ views.manual = () => {
 
 views.help = () => {
   fill($("#main"), h("h2", { class: "view-title" }, "Help"),
-    h("div", { class: "notice mb" }, "📖 Everything mcsm does, step by step: ", h("a", { href: "#manual" }, h("strong", {}, "the user manual")), "."),
+    h("div", { class: "notice mb" }, "📖 Everything mcsm does, step by step: ", h("a", { href: "#manual" }, h("strong", {}, "the user manual")), ". ",
+      "Something wrong? ", h("a", { href: "https://github.com/silverWRX03/mc-server-management/issues/new/choose", target: "_blank", rel: "noopener noreferrer" }, "Report a bug ↗"),
+      " · ", h("a", { href: "https://github.com/silverWRX03/mc-server-management/blob/main/CHANGELOG.md", target: "_blank", rel: "noopener noreferrer" }, "What's new ↗")),
     h("nav", { class: "help-toc card" }, h("strong", {}, "Contents"),
       h("ul", {}, HELP.map(([id, title]) => h("li", {}, h("a", { href: "#help", onclick: (e) => { e.preventDefault(); $(`#help-${id}`).scrollIntoView({ behavior: "smooth" }); } }, title))))),
     HELP.map(([id, title, body]) => h("section", { class: "card mt help-section", id: `help-${id}` }, h("h3", {}, title), body())));

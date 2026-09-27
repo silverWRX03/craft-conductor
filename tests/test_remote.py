@@ -185,3 +185,11 @@ def test_the_manual_covers_every_page():
     missing = [p for p in pages + ["Your servers", "mcsm settings", "Remote access and phones"]
                if not any(h.lower().startswith(p.lower()) for h in headings)]
     assert not missing, f"the user manual (src/mcsm/webui/manual.md) has no section for: {missing}"
+
+
+def test_the_changelog_has_the_version_being_built():
+    """Every version gets its changelog entry (see CLAUDE.md)."""
+    from pathlib import Path
+    from mcsm import __version__
+    changelog = (Path(__file__).resolve().parents[1] / "CHANGELOG.md").read_text()
+    assert f"## {__version__} " in changelog, f"CHANGELOG.md has no section for {__version__}"

@@ -1,0 +1,14 @@
+name: Suggest an idea
+description: Something mcsm could do, or do more easily.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like mcsm to do?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why? What would it make easier?

@@ -207,4 +207,4 @@ Run `mcsm --help` (or `mcsm <command> --help`) for everything.
 
 ## Getting help
 
-Found a bug or have an idea? Open an issue on [GitHub](https://github.com/silverWRX03/mc-server-management/issues), with the failure report if there is one (it doesn't contain passwords).
+Found a bug or have an idea? [Report it on GitHub](https://github.com/silverWRX03/mc-server-management/issues/new/choose): a short form asks what happened and your mcsm version (shown at the bottom of the menu). Attach the failure report if there is one (it doesn't contain passwords). What changed in each version, and which version fixed what, is in the [changelog](https://github.com/silverWRX03/mc-server-management/blob/main/CHANGELOG.md).

@@ -20,8 +20,20 @@ vanilla-JS web UI under a strict Content-Security-Policy (`src/mcsm/webui/`).
   (polling, per-request work, caching). Fix what's found before the merge.
 - Never commit secrets (API keys, tokens). Fake tokens in tests must not look like real ones.
 
+## Bugs and the changelog
+
+- Bugs and ideas are GitHub issues (the "Report a bug" / "Suggest an idea" forms). A fix
+  refers to its issue in the pull request ("Fixes #12"), so merging closes it.
+- Every change that users notice gets a line in `CHANGELOG.md` under the upcoming version
+  ("not released yet"): Added / Changed / Fixed, in plain words, bugs described the way
+  users saw them (with the issue number when there is one).
+
 ## Releasing
 
-Merge the pull request with the expected head SHA, then run `release.yml` on `main` with the
-new version (bump `src/mcsm/__init__.py` first). The in-app manual ships inside the release,
-so updating mcsm updates its help too.
+1. In `CHANGELOG.md`, turn "(not released yet)" into the release date; bump
+   `src/mcsm/__init__.py`.
+2. Merge the pull request with the expected head SHA, then run `release.yml` on `main` with
+   the new version. The release notes link the changelog.
+3. Comment on the issues fixed in it: "Fixed in <version>".
+
+The in-app manual ships inside the release, so updating mcsm updates its help too.
