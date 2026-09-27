@@ -1,0 +1,31 @@
+:root { color-scheme: light dark; --bg: #eef4fa; --card: #fff; --text: #1c2630; --muted: #5d6b78; --border: #d5dde5;
+  --accent: #3f9d3f; --accent-2: #2b6d2b; --code: #f1f4f7; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0f1214; --card: #171b1f; --text: #e6e9ec; --muted: #8b949e; --border: #2a3036; --accent: #4a9f4a; --accent-2: #5cb85c; --code: #1e2328; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 640px; margin: 0 auto; padding: 32px 16px 48px; display: grid; gap: 16px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 22px 24px; }
+.head { display: flex; gap: 14px; align-items: center; }
+.head img { border-radius: 10px; image-rendering: pixelated; }
+h1 { margin: 0; font-size: 24px; line-height: 1.25; }
+h2 { margin: 0 0 8px; font-size: 19px; }
+p { margin: 12px 0 0; }
+ol { margin: 8px 0 0; padding-left: 22px; } li { margin: 6px 0; }
+a { color: var(--accent-2); }
+.btn { display: inline-block; border: 1px solid var(--border); background: var(--code); color: var(--text); border-radius: 8px;
+  padding: 9px 16px; font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; }
+.btn.big { display: block; text-align: center; margin-top: 18px; padding: 14px 18px; font-size: 18px; background: var(--accent);
+  border-color: var(--accent); color: #fff; }
+.btn.big:hover { filter: brightness(1.08); }
+.btn.ghost { background: transparent; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+.code { flex: 1; min-width: 0; width: 100%; font: 13px ui-monospace, Menlo, Consolas, monospace; padding: 8px 10px; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--code); color: var(--text); margin-top: 8px; }
+code { background: var(--code); padding: 1px 5px; border-radius: 4px; }
+.muted { color: var(--muted); } .small { font-size: 14px; } .center { text-align: center; }
+.notice { background: var(--code); border-left: 4px solid var(--accent); padding: 10px 14px; border-radius: 6px; }
+.hidden { display: none; }
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--text); color: var(--bg);
+  padding: 10px 16px; border-radius: 8px; font-size: 14px; }

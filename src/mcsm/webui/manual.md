@@ -109,28 +109,31 @@ The server's version and upgrade choices, memory (with Aikar's flags above 16 GB
 
 On the server's **Friends** page, switch on "Make a download for friends". Then:
 
-1. Your friends get mcsm from the [releases page](https://github.com/silverWRX03/mc-server-management/releases/latest).
-2. You send them an invite: a code starting with `mcsm-`. There's a **local** one for friends on your Wi-Fi and an **internet** one for everyone else; **Copy** copies it. **Post to Discord** posts it with the download link.
-3. They copy the invite and open mcsm. It sets up their game (see the next section).
+1. Copy an invite link and send it (by Discord, text or email). There's a **local link** for friends on your Wi-Fi and an **internet link** for everyone else. **Post to Discord** posts it for you.
+2. Your friend clicks it, presses **Download**, and runs the file. mcsm sets up their game (see the next section). Next time, the link opens their mcsm directly.
+
+For power users, **Advanced: invite codes and security** shows the raw invite codes (for `mcsm join <code>`).
 
 **For friends outside your home:** press **Use my public IP** (or type your address under mcsm settings → Sharing with friends), and forward two TCP ports on your router to this computer: the Minecraft port (25565 for the first server) and the friends' port (8766 unless you changed it). The Help page has pictures; every router is different, so check its manual if you get stuck.
 
 **What friends get:** the Minecraft version, mod loader and every mod that runs on players' computers (server-only mods are left out), plus the mods you add under **Mods for players**, and the memory you choose for their Minecraft. Mods that server mods need on players' computers are added by themselves (a toast says which and why).
 
-**New invite** makes a new code; the old one stops working. Friends who already set up keep playing, but need the new invite to update.
+**New links** makes new ones; the old ones stop working. Friends who already set up keep playing, but need a new link to update.
 
-**Security:** friends' mcsm connects to your computer only over HTTPS, and only to your computer: the invite carries the fingerprint of your mcsm's certificate, and anything else is refused. The mcsm program itself always comes from GitHub, never from your server. The friends' port never gives access to the control panel.
+**Security:** the link opens mcsm's invite page on GitHub, and the invite itself is after the `#`, which browsers never send anywhere. Friends' mcsm connects to your computer only over HTTPS, and only to your computer: the invite carries the fingerprint of your mcsm's certificate, and anything else is refused. The mcsm program itself always comes from GitHub, never from your server. The friends' port never gives access to the control panel.
 
 ## For friends: joining a server
 
-1. Get mcsm for your computer from the [releases page](https://github.com/silverWRX03/mc-server-management/releases/latest).
-2. Copy the invite you were sent (it starts with `mcsm-`), then open mcsm. It finds the invite by itself; if not, paste it and press **Continue**. mcsm checks it's really your friend's server.
+1. Click the invite link you were sent. It opens a page that says you're invited: press the big **Download mcsm** button (it picks your computer's version).
+2. Open the file you downloaded. (On Windows, if it says it "protected your PC", choose **More info → Run anyway**; on a Mac, right-click it and choose **Open** the first time.) mcsm finds your invite by itself and checks it's really your friend's server. If it asks, press **Copy the invite** on the invite page and paste it into mcsm.
 3. Tick your launchers: the Minecraft Launcher, Prism Launcher, the Modrinth App and/or CurseForge (ones found on your computer are already ticked), and choose how much memory Minecraft gets.
 4. **Make it yours (optional):** add **shaders**, **resource packs** or **more mods** that only run on your computer. Each opens a browser like the server's (search, sort, categories, the item's page on the right); tick what you want and press **Add selected**. Shaders bring their shader loader (Iris, or Oculus on Forge); mods bring what they need, listed under them.
 5. Press the button to set it up. Each launcher gets its own copy, in a folder of its own: your other worlds and installations aren't touched. The Modrinth App gets a `.mrpack` to import, and CurseForge a `.zip` (Create Custom Profile → Import).
 6. In your launcher, pick the server's name and press Play. On Minecraft 1.20 and newer it joins straight away; otherwise it's in your multiplayer list.
 
-**When the server updates**, open mcsm again and press **Update** next to it under **Servers you've joined**. If some of your extras don't work on the new Minecraft yet, mcsm tells you first: **Continue** removes those mods and switches those shaders/resource packs off (you can switch them back on, but the game may crash), or **Cancel** keeps everything as it is (you can't join the updated server until you continue).
+**Already have mcsm?** On the invite page, press **Open in mcsm** (Windows and Linux; on a Mac, press **Copy the invite** and open mcsm).
+
+**When the server updates**, click the invite link again and press **Open in mcsm**, or open mcsm and press **Update** next to it under **Servers you've joined**. If some of your extras don't work on the new Minecraft yet, mcsm tells you first: **Continue** removes those mods and switches those shaders/resource packs off (you can switch them back on, but the game may crash), or **Cancel** keeps everything as it is (you can't join the updated server until you continue).
 
 mcsm never asks for your Microsoft password: your launcher signs you in.
 

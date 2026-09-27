@@ -50,7 +50,6 @@ document.addEventListener("click", (e) => {
 });
 
 // With several servers, a server's calls go to /api/servers/<id>/...; these are about mcsm itself.
-const RELEASES_URL = "https://github.com/silverWRX03/mc-server-management/releases/latest";
 const GLOBAL_API = /^\/api\/(login|logout|auth|notice|licenses|self-update|hub|servers)(\/|\?|$)/;
 let server = null;            // the server being looked at (null on the server list)
 const scoped = (path) => server && path.startsWith("/api/") && !GLOBAL_API.test(path)
@@ -1246,7 +1245,7 @@ views.friends = () => {
     const toggle = h("input", { type: "checkbox", checked: d.enabled, onchange: (e) => save({ enabled: e.target.checked },
       e.target.checked ? "Friend download switched on" : "Friend download switched off") });
     const intro = card("Let friends set up their Minecraft",
-      h("p", {}, "Share an invite. Your friends get mcsm from GitHub, copy the invite and open mcsm: it adds a ", h("strong", {}, (status && status.motd) || "server"),
+      h("p", {}, "Send your friends a link. They click it, download mcsm and run it: it adds a ", h("strong", {}, (status && status.motd) || "server"),
         " instance to their launcher (Minecraft Launcher, Prism Launcher, Modrinth App or CurseForge: they choose) with the right Minecraft version, mod loader and mods, and puts this server in their multiplayer list. They sign in with their own Minecraft account as usual."),
       h("p", { class: "muted small" }, "🔒 Friends' mcsm connects to this computer over HTTPS, and only to this computer: the invite carries its security fingerprint."),
       h("label", { class: "row mt-s" }, toggle, h("span", {}, "Make a download for friends")));
@@ -1272,25 +1271,31 @@ views.friends = () => {
     const sideTag = (m) => h("span", { class: "tag" }, m.side === "client" ? "players only" : "server + players");
     fill(body,
       intro,
-      h("div", { class: "mt" }, card("Invites",
-        h("ol", { class: "small steps" },
-          h("li", {}, "Friends get mcsm (Windows, Mac or Linux) from ", h("a", { href: RELEASES_URL, target: "_blank", rel: "noopener noreferrer" }, "GitHub ↗"), "."),
-          h("li", {}, "They copy their invite from below (you send it to them), then open mcsm. It finds the invite by itself.")),
-        links.local ? linkRow("Local invite", `For friends on the same Wi-Fi or network as this computer (${s.lan_ip}).`, links.local) : null,
-        links.internet ? linkRow("Internet invite", `For friends anywhere else, through your public address (${s.address}).`, links.internet)
-          : h("div", { class: "invite" }, h("strong", {}, "Internet invite"),
+      h("div", { class: "mt" }, card("Invite links",
+        h("p", { class: "small" }, "Send one of these links (by Discord, text or email). Your friend clicks it, presses ",
+          h("strong", {}, "Download"), " and runs the file: mcsm sets up their game. Next time, the link opens their mcsm directly."),
+        links.local ? linkRow("Local link", `For friends on the same Wi-Fi or network as this computer (${s.lan_ip}).`, links.local) : null,
+        links.internet ? linkRow("Internet link", `For friends anywhere else, through your public address (${s.address}).`, links.internet)
+          : h("div", { class: "invite" }, h("strong", {}, "Internet link"),
             h("div", { class: "muted small" }, "For friends elsewhere, mcsm needs your public address. It can find it for you.")),
         h("div", { class: "row mt-s" }, findIp,
           links.internet || links.local ? h("button", { class: "btn", onclick: () => openDiscord(links) }, "💬 Post to Discord") : null,
           h("button", { class: "btn ghost", onclick: () => {
-            if (confirm("Make a new invite? The old one stops working (friends who already set up keep playing, but can't update until they get the new invite).")) {
-              act(() => api("/api/client/new-link", { method: "POST", body: {} }), "New invite made").then((r) => { if (r) { data = r; render(); } });
+            if (confirm("Make new links? The old ones stop working (friends who already set up keep playing, but can't update until they get a new link).")) {
+              act(() => api("/api/client/new-link", { method: "POST", body: {} }), "New links made").then((r) => { if (r) { data = r; render(); } });
             }
-          } }, "New invite")),
+          } }, "New links")),
+        links.internet || links.local ? h("details", { class: "mt-s small" }, h("summary", {}, "Advanced: invite codes and security"),
+          h("p", { class: "muted" }, "🔒 Friends' mcsm connects to this computer over HTTPS and only to this computer: the invite carries its security fingerprint. " +
+            "The link's invite is after the #, which browsers never send anywhere; the page is mcsm's own, on GitHub."),
+          h("p", { class: "muted" }, "For ", h("code", {}, "mcsm join <code>"), " or pasting into mcsm:"),
+          [["Local", links.local], ["Internet", links.internet]].filter(([, l]) => l).map(([label, l]) =>
+            h("div", { class: "row mt-s" }, h("span", { class: "tag" }, label),
+              h("input", { readonly: true, value: l.split("#")[1].split("/")[0], class: "grow mono", "aria-label": `${label} invite code` })))) : null,
         s.error ? h("div", { class: "notice bad mt-s" }, s.error)
           : h("p", { class: "muted small" }, s.running ? `Sharing on port ${s.port}.` : "Sharing starts in a few seconds."),
         h("p", { class: "muted small" },
-          "For the internet invite to work, forward two TCP ports on your router to this computer: ", h("strong", {}, String(s.port)),
+          "For the internet link to work, forward two TCP ports on your router to this computer: ", h("strong", {}, String(s.port)),
           " (the download) and ", h("strong", {}, String((status && status.port) || 25565)), " (Minecraft). Your public address can change; ",
           "press the button again if friends can't connect. You can also type an address (e.g. a domain) under ",
           h("a", { href: "#mcsm" }, "mcsm settings → Sharing"), "."))),
@@ -2020,8 +2025,8 @@ function openDiscord(links) {
       h("div", { class: "grid" }, h("label", {}, "Discord server", guildSel), h("label", {}, "Channel", chanSel)),
       h("label", { class: "mt-s" }, "Message", message),
       h("div", { class: "mt-s" },
-        h("label", { class: "row" }, useInternet, h("span", {}, "Internet invite", links.internet ? "" : " (use your public IP on the Friends page first)")),
-        h("label", { class: "row" }, useLocal, h("span", {}, "Local invite (only works on this computer's network)"))),
+        h("label", { class: "row" }, useInternet, h("span", {}, "Internet link", links.internet ? "" : " (use your public IP on the Friends page first)")),
+        h("label", { class: "row" }, useLocal, h("span", {}, "Local link (only works on this computer's network)"))),
       h("div", { class: "row mt" }, post, h("span", { class: "muted small grow" }, `Posting as ${info.bot.name}.`)),
       addBot);
     loadChannels();

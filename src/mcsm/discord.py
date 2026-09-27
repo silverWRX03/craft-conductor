@@ -104,13 +104,12 @@ def check_token(token: str) -> str:
 def invite_message(text: str, name: str, minecraft: str, links: dict[str, str]) -> tuple[str, dict]:
     """The message: the user's text, and a card with the server and its download links."""
     text = text.strip()[:MAX_MESSAGE]
-    from .share import RELEASES
-    lines = [f"**1. Get mcsm:** {RELEASES} (Windows, Mac or Linux)", "**2. Copy your invite, then open mcsm:**"]
+    lines = []
     if links.get("internet"):
-        lines.append(f"`{links['internet']}`")
+        lines.append(f"**[Click here to join]({links['internet']})**")
     if links.get("local"):
-        lines.append(f"On the same Wi-Fi/network as the server: `{links['local']}`")
+        lines.append(f"On the same Wi-Fi/network as the server: [join here]({links['local']})")
     embed = {"title": name[:200], "description": "\n".join(lines)[:3500],
-             "footer": {"text": f"Minecraft {minecraft} · mcsm finds the invite you copied and sets up your game"},
+             "footer": {"text": f"Minecraft {minecraft} · open the link, download mcsm and run it: it sets up your game"},
              "color": 0x3BA55C}
     return text, embed

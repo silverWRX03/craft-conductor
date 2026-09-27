@@ -511,7 +511,8 @@ def cmd_join(args) -> int:
 
 def _join(args, invite, pack, mc_dir) -> int:
     """The page in the browser when someone's there to use it; otherwise the console."""
-    from . import join, launchers
+    from . import join, launchers, urlhandler
+    urlhandler.register()  # later invites' "Open in mcsm" opens this mcsm (standalone builds)
     targets = [t.strip() for t in (args.launcher or "").split(",") if t.strip()]
     if any(t not in launchers.KEYS for t in targets):
         print(f"error: --launcher takes {', '.join(launchers.KEYS)}")

@@ -249,8 +249,8 @@ function renderAskInvite(error) {
   const go = h("button", { class: "btn primary", type: "submit" }, "Continue");
   $("#join").replaceChildren(
     h("div", { class: "card" }, h("h1", {}, "Join a friend's Minecraft server"),
-      h("p", { class: "muted" }, "Paste the invite the server's owner sent you (it starts with ", h("code", {}, "mcsm-"), "). " +
-        "mcsm checks it's really their server, then sets up your game."),
+      h("p", { class: "muted" }, "Open the invite link you were sent, press ", h("strong", {}, "Copy the invite"),
+        " there, and paste it here (or paste the whole link). mcsm checks it's really their server, then sets up your game."),
       info.copied_invite ? h("div", { class: "notice mt-s" }, "Found the invite you copied.") : null,
       h("form", { class: "row mt", onsubmit: (e) => { e.preventDefault(); if (input.value.trim()) use(input.value.trim(), go); } },
         h("div", { class: "grow" }, input), go),
