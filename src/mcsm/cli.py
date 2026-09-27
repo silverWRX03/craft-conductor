@@ -469,12 +469,9 @@ def cmd_web_password(args) -> int:
                 return 1
             store.set(mode, secret)
             print(f"{what} changed")
-        elif args.none:
-            store.set("none")
-            print("no password: the control panel opens without signing in, but only on this computer")
         else:
             print(f"web UI sign-in: {webauth.describe(store.get())}")
-            print("change it with --set (password), --pin, --none, or --reset (back to PASSWORD)")
+            print("change it with --set (password), --pin, or --reset (back to PASSWORD)")
     except ConfigError as e:
         print(f"error: {e}")
         return 1
@@ -982,7 +979,6 @@ def build_parser() -> argparse.ArgumentParser:
     g = s.add_mutually_exclusive_group()
     g.add_argument("--set", action="store_true", help="choose a new password")
     g.add_argument("--pin", action="store_true", help="use a 4-8 digit PIN instead")
-    g.add_argument("--none", action="store_true", help="no password (only from this computer)")
     g.add_argument("--reset", action="store_true", help="go back to the default password, PASSWORD")
     s.set_defaults(fn=cmd_web_password)
 

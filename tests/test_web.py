@@ -260,13 +260,9 @@ def test_default_password_and_changing_it(running_default):
     stored = (cfg.state_dir / "web-auth.json").read_text()
     assert "4821" not in stored and "PASSWORD" not in stored  # only a salted hash
 
-    # No password: this computer gets in without signing in...
-    assert c.post("/api/auth/change", {"mode": "none"})[0] == 200
-    assert Client(c.base).get("/api/status")[0] == 200
-    assert Client(c.base).post("/api/login", {"password": ""})[0] == 401
-    # ...but anything arriving through a proxy doesn't count as this computer.
-    assert Client(c.base).call("GET", "/api/status", headers={"X-Forwarded-For": "203.0.113.9"})[0] == 401
-    assert c.call("POST", "/api/auth/change", {"mode": "none"}, headers={"X-Forwarded-For": "203.0.113.9"})[0] == 400
+    # There's no "no password" option: even this computer signs in.
+    assert c.post("/api/auth/change", {"mode": "none"})[0] == 400
+    assert Client(c.base).get("/api/status")[0] == 401
 
     # `mcsm web-password --reset` while running goes back to PASSWORD.
     from mcsm import webauth

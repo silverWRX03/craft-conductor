@@ -5,9 +5,8 @@ needs a session cookie obtained with the password or PIN (see webauth.py); the
 cookie is HttpOnly and SameSite=Strict, and state-changing requests must also carry
 an ``X-MCSM`` header, which cross-site pages cannot add without a CORS preflight we
 never allow. Requests must name this machine in their Host header, so a web page
-can't reach the panel through DNS rebinding. "No password" only works for browsers
-on this computer. Put it behind an HTTPS reverse proxy before exposing it beyond
-your machine.
+can't reach the panel through DNS rebinding. PINs only work for browsers on this
+computer.
 """
 
 from __future__ import annotations
@@ -226,7 +225,7 @@ class WebUI:
             recent = [t for t in self.failures.get(client, []) if now - t < 300]
             if len(recent) >= 5:
                 raise ApiError(429, "too many attempts; wait a few minutes")
-        if auth.mode == "none" or not auth.check(password):  # "none" never needs (or accepts) a login
+        if not auth.check(password):
             with self.lock:
                 self.failures[client] = recent + [now]
             raise ApiError(401, "wrong PIN" if auth.mode == "pin" else "wrong password")
@@ -246,9 +245,6 @@ class WebUI:
     def change(self, mode: str, secret: str, local: bool) -> str:
         """Change how the panel is protected; signs out everyone else (paired phones too) and
         returns a new session."""
-        if mode == "none" and not local:
-            raise ApiError(400, "\"No password\" only works on the server's own computer; "
-                                "turn it on from there (or pick a PIN)")
         if self.remote_on() and not (mode == "password" and webauth.strong_password(secret)):
             raise ApiError(400, "remote access is on, so the password must be strong: " + webauth.STRONG_RULES
                            + ". PINs can't be used then")
@@ -258,7 +254,7 @@ class WebUI:
         removed = self.devices.remove(None)
         if removed:
             log.info("signed out %d paired phone(s) because the password changed", removed)
-        log.info("web UI sign-in changed to %s", {"none": "no password"}.get(mode, mode))
+        log.info("web UI sign-in changed to %s", mode)
         with self.lock:
             self.sessions.clear()
             self.first_sign_in.clear()
@@ -277,8 +273,6 @@ class WebUI:
             self.failures.clear()
 
     def valid(self, token: str | None, local: bool = False) -> bool:
-        if local and self.auth.mode == "none":
-            return True
         if not token:
             return False
         with self.lock:
@@ -1076,7 +1070,7 @@ class HubApi:
         enabled = b.get("enabled") is True
         if enabled and not self.web.auth.remote_ready:
             raise ApiError(400, "first set a strong password (" + webauth.STRONG_RULES + "); "
-                                "PINs and \"no password\" can't be used for access from other devices")
+                                "PINs can't be used for access from other devices")
         self.hub.save_web(host="0.0.0.0" if enabled else "127.0.0.1")
         log.info("network access to the control panel turned %s (applies when mcsm restarts)", "on" if enabled else "off")
         return {"ok": True, "restart_needed": enabled != (self.web.host in ("0.0.0.0", "::"))}

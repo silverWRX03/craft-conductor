@@ -168,7 +168,6 @@ async function showLogin() {
   $("#login-label").textContent = pin ? "PIN" : "Password";
   input.setAttribute("inputmode", pin ? "numeric" : "text");
   input.setAttribute("autocomplete", pin ? "off" : "current-password");
-  $("#login-fields").classList.toggle("hidden", !!(a && a.mode === "none"));
   const reset = h("button", { type: "button", class: "link-btn", onclick: async () => {
     if (!confirm("Go back to the default password, PASSWORD? Anyone signed in elsewhere is signed out, and you'll choose a new one after signing in.")) return;
     try {
@@ -179,7 +178,6 @@ async function showLogin() {
   } }, "Reset it to PASSWORD");
   $("#login-hint").replaceChildren(...(
     !a ? [] :
-    a.mode === "none" ? ["This control panel has no password, so it only opens on the server's own computer. To use it from here, set a PIN or password there (mcsm settings → Sign-in)."] :
     a.managed ? ["The password is set in mcsm.toml under ", h("code", {}, "[web] password"), "."] :
     a.default ? ["First time? The password is ", h("strong", {}, "PASSWORD"), " (in capitals). You'll choose your own next."] :
     a.local ? ["Forgot it? ", reset, " (this works on the server's own computer)."] :
@@ -281,7 +279,6 @@ async function showNotice() {
 const AUTH_MODES = [
   ["password", "Password", "At least 4 characters."],
   ["pin", "PIN", "4 to 8 digits. Quick to type on a phone."],
-  ["none", "No password", "Opens without signing in, but only on the server's own computer."],
 ];
 async function showSecurity(firstTime = false) {
   if ($("#security")) return;
@@ -289,7 +286,7 @@ async function showSecurity(firstTime = false) {
   try { local = !!(await (await fetch("/api/auth", { credentials: "same-origin" })).json()).local; } catch (_) {}
   if ($("#security")) return;
   let mode = hubInfo && hubInfo.auth && !hubInfo.auth.default ? hubInfo.auth.mode : "password";
-  if (mode === "none" && !local) mode = "pin";
+  if (mode === "pin" && !local) mode = "password";  // PINs only work on the server's own computer
   const close = () => { const m = $("#security"); if (m) m.remove(); };
   const box = h("div", { class: "modal compact" });
   const render = (error) => {
@@ -300,11 +297,11 @@ async function showSecurity(firstTime = false) {
     const again = h("input", { type: "password", ...extra });
     const save = async (e) => {
       e.preventDefault();
-      if (mode !== "none" && secret.value !== again.value) return render(`The two ${kind}s don't match.`);
+      if (secret.value !== again.value) return render(`The two ${kind}s don't match.`);
       try {
-        await api("/api/auth/change", { method: "POST", body: { mode, secret: mode === "none" ? "" : secret.value } });
+        await api("/api/auth/change", { method: "POST", body: { mode, secret: secret.value } });
         close();
-        toast(mode === "none" ? "Password turned off for this computer" : `Your new ${kind} is saved`);
+        toast(`Your new ${kind} is saved`);
         refreshStatus();
       } catch (err) { if (!(err instanceof Unauthorized)) render(err.message); }
     };
@@ -312,13 +309,11 @@ async function showSecurity(firstTime = false) {
       h("h2", { id: "security-title" }, firstTime ? "Choose your own password" : "Sign-in"),
       firstTime ? h("p", {}, "You're signed in with the default password, PASSWORD, which anyone could guess. Pick how you'd like to protect this control panel.") : null,
       h("div", { class: "choices" }, AUTH_MODES.map(([m, label, desc]) => h("button", {
-        type: "button", class: "choice" + (mode === m ? " selected" : ""), disabled: m === "none" && !local,
+        type: "button", class: "choice" + (mode === m ? " selected" : ""), disabled: m === "pin" && !local,
         onclick: () => { mode = m; render(); },
-      }, h("strong", {}, label), h("span", { class: "small muted" }, m === "none" && !local ? "Only available on the server's own computer." : desc)))),
+      }, h("strong", {}, label), h("span", { class: "small muted" }, m === "pin" && !local ? "Only available on the server's own computer." : desc)))),
       h("form", { class: "mt", onsubmit: save },
-        mode === "none"
-          ? h("p", { class: "muted" }, "Anyone using this computer can open the panel. Other devices won't be able to use it at all until you set a password or PIN again.")
-          : h("div", { class: "grid" }, h("label", {}, `New ${kind}`, pwField(secret)), h("label", {}, `Type it again`, pwField(again))),
+        h("div", { class: "grid" }, h("label", {}, `New ${kind}`, pwField(secret)), h("label", {}, `Type it again`, pwField(again))),
         h("p", { class: "error" }, error || ""),
         h("div", { class: "row" },
           h("button", { class: "btn primary", type: "submit" }, "Save"),
@@ -366,7 +361,6 @@ async function refreshStatus() {
   const hb = hubInfo;
   $("#version").textContent = "v" + hb.version + " beta";
   $("#version").title = "mcsm is in beta: expect some rough edges, and keep backups.";
-  $("#logout").classList.toggle("hidden", hb.auth.mode === "none");
   $("#quit").classList.toggle("hidden", !!hb.single);
   if (!hb.notice_accepted) { showNotice(); return; }
   offerSelfUpdate(hb.self_update);
@@ -2446,7 +2440,7 @@ views.mcsm = () => {
   };
   const renderSecurity = (hb) => {
     const a = (hb && hb.auth) || {};
-    const label = { password: "Password", pin: "PIN", none: "No password (this computer only)" }[a.mode] || "…";
+    const label = { password: "Password", pin: "PIN" }[a.mode] || "…";
     fill(security, card("Sign-in",
       h("div", { class: "row" },
         h("span", { class: "grow" }, a.managed ? "Password set in mcsm.toml ([web] password)" : a.default ? "Default password (PASSWORD) — please change it" : label),

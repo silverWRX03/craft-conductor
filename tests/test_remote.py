@@ -124,8 +124,8 @@ def test_headless_first_sign_in_from_another_device(hub_env, monkeypatch):
 @pytest.mark.parametrize("header", [{"Via": "1.1 nginx"}, {"Tailscale-User-Login": "someone@example.com"},
                                     {"X-Forwarded-Host": "mc.example.com"}, {"Host": "mc.example.com"}])
 def test_a_proxy_on_this_computer_isnt_local(hub_env, header):
-    """Through a reverse proxy or tunnel, visitors aren't at the server's computer: no PIN or
-    no-password sign-in for them, and no password reset."""
+    """Through a reverse proxy or tunnel, visitors aren't at the server's computer: no PIN
+    sign-in for them, and no password reset."""
     hub, c = hub_env
     hub.web.allowed_hosts = ["mc.example.com"]
     login(c)

@@ -1,4 +1,4 @@
-"""How the web UI is protected: a password, a PIN, or nothing (this computer only).
+"""How the web UI is protected: a password (or a PIN, on the server's own computer).
 
 The choice lives in ``.mcsm/web-auth.json`` as a salted PBKDF2 hash. A new server
 starts with the password ``PASSWORD`` and the web UI asks to change it at the
@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from .config import Config, ConfigError
 
 DEFAULT_PASSWORD = "PASSWORD"
-MODES = ("password", "pin", "none")
+MODES = ("password", "pin")  # (mcsm 0.8 and older also had "none": no password on this computer)
 FILE = "web-auth.json"
 LEGACY_FILE = "web-password"   # mcsm 0.1 kept a generated password here in plain text
 ITERATIONS = 200_000
@@ -69,8 +69,6 @@ class Auth:
         return self.mode == "password" and self.strong and not self.default and not self.temporary
 
     def check(self, secret: str) -> bool:
-        if self.mode == "none":
-            return True
         if not self.hash:
             return False
         if self.default:  # the built-in password is forgiving about case and stray spaces
@@ -83,8 +81,6 @@ class Auth:
 
 
 def _hashed(mode: str, secret: str, default: bool = False) -> Auth:
-    if mode == "none":
-        return Auth(mode="none")
     salt = secrets.token_bytes(16)
     return Auth(mode=mode, salt=salt.hex(), hash=_hash(secret, salt), default=default,
                 strong=mode == "password" and not default and strong_password(secret))
@@ -124,6 +120,11 @@ class AuthStore:
                 if d.get("format") is None and d.get("mode") == "password" and not d.get("default"):
                     # mcsm 0.2.0 turned 0.1's generated password (which nobody chose or saw) into
                     # this file, so PASSWORD never worked afterwards. Start over from the default.
+                    auth = _hashed("password", DEFAULT_PASSWORD, default=True)
+                    self._save(auth)
+                    return auth
+                if d.get("mode") == "none":
+                    # "No password" was removed: back to the default, and the prompt to pick your own.
                     auth = _hashed("password", DEFAULT_PASSWORD, default=True)
                     self._save(auth)
                     return auth
@@ -214,8 +215,6 @@ def describe(auth: Auth) -> str:
         return f"{DEFAULT_PASSWORD}  (you'll be asked to choose your own)"
     if auth.temporary:
         return "the one-time password shown when mcsm first started (you'll be asked to choose your own)"
-    if auth.mode == "none":
-        return "none needed on this computer"
     return ("the PIN you chose" if auth.mode == "pin" else "the password you chose") + \
         "  (forgot it? run `mcsm web-password --reset`)"
 

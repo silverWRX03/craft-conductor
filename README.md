@@ -440,7 +440,7 @@ delete the old jar, or leave it unmanaged if the mod never needs updating.
 
 ```sh
 mcsm run --web          # or set [web] enabled = true in mcsm.toml
-mcsm web-password       # shows how the panel is protected (--set, --pin, --none, --reset)
+mcsm web-password       # shows how the panel is protected (--set, --pin, --reset)
 ```
 
 Then open <http://localhost:8765>.
@@ -479,9 +479,8 @@ exports, manual downloads, Java) appear only in a browser on the server's own
 computer, where mcsm can open your file manager.
 
 **Signing in.** The first password is `PASSWORD`, and the panel asks you to change
-it right after you sign in. You can pick a password, a 4–8 digit PIN, or no password.
-No password only works in a browser on the server's own computer; other devices
-can't use the panel at all until you set a password or PIN again. Change it later
+it right after you sign in. You can pick a password or a 4–8 digit PIN; there's always
+one. A PIN only works in a browser on the server's own computer. Change it later
 under Settings → Sign-in. Forgot it? Run `mcsm web-password --reset` on the server
 to go back to `PASSWORD`. To fix the password in the config instead, set
 `[web] password` in mcsm.toml. Passwords and PINs are stored only as salted hashes.
@@ -502,7 +501,7 @@ Remote access & phones** (also on the new-server screen) lets other devices in, 
 safeguards:
 
 - **A strong password is required:** 12+ characters, with uppercase, lowercase and a special
-  character. PINs and "no password" only ever work on the server's own computer, and the
+  character. PINs only ever work on the server's own computer, and the
   password can't be weakened while remote access is on.
 - **Phones are paired by scanning a QR code.** The code works once, for five minutes. Each
   phone gets its own key (only a hash of it is stored) and signs in by itself afterwards.
