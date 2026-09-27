@@ -1,4 +1,5 @@
 
+from pathlib import Path
 import pytest
 
 from mcsm import backup, config as configmod
@@ -311,3 +312,39 @@ def test_advanced_server_settings():
     current = serverprops.current({"pvp": "false"})
     assert current["pvp"] == "false" and current["view-distance"] == "10"
     assert {p["key"] for p in serverprops.schema()} >= {"level-seed", "online-mode", "spawn-protection"}
+
+
+def test_download_cleans_up_on_windows(tmp_path, monkeypatch):
+    """Windows can't delete or rename a file that's open, or that antivirus is scanning."""
+    import os
+    from mcsm import http as httpmod
+    client = httpmod.HttpClient()
+
+    # The request fails before any data: the .part file is closed first, and the real error shows.
+    closed = []
+    real_unlink = Path.unlink
+    def unlink(self, missing_ok=False):
+        closed.append(self.name)
+        return real_unlink(self, missing_ok=missing_ok)
+    monkeypatch.setattr(Path, "unlink", unlink)
+    def fail(req):
+        raise httpmod.HttpError("https://example.com/a.jar", 403, "HTTP 403")
+    monkeypatch.setattr(client, "_open", fail)
+    with pytest.raises(httpmod.HttpError, match="403"):
+        client.download("https://example.com/a.jar", tmp_path / "mods" / "a.jar")
+    assert closed and not list((tmp_path / "mods").iterdir())
+
+    # Antivirus holds the finished file for a moment: moving it into place waits and retries.
+    src = tmp_path / "src.part"
+    src.write_bytes(b"jar")
+    tries = []
+    real_replace = os.replace
+    def replace(a, b):
+        tries.append(1)
+        if len(tries) < 3:
+            raise PermissionError(32, "The process cannot access the file because it is being used by another process")
+        return real_replace(a, b)
+    monkeypatch.setattr(httpmod.os, "replace", replace)
+    monkeypatch.setattr(httpmod.time, "sleep", lambda s: None)
+    httpmod._replace(str(src), tmp_path / "dest.jar")
+    assert len(tries) == 3 and (tmp_path / "dest.jar").read_bytes() == b"jar"

@@ -91,10 +91,18 @@ class Store:
 
 
 # ------------------------------------------------------------------ search
-def search(http: HttpClient, kind: str, query: str, pack: dict, offset: int = 0) -> list[dict]:
+SORTS = ("relevance", "downloads", "follows", "newest", "updated")
+
+
+def search(http: HttpClient, kind: str, query: str, pack: dict, offset: int = 0, sort: str = "",
+           category: str = "") -> list[dict]:
     """Modrinth projects of this kind for the server's Minecraft (and loader, for mods)."""
     if kind not in KINDS:
         raise ExtrasError("unknown kind")
+    if sort and sort not in SORTS:
+        raise ExtrasError("unknown sort order")
+    if category and not ID.fullmatch(category):
+        raise ExtrasError("unknown category")
     if kind == "mod" and pack["loader"] not in MOD_LOADERS:
         raise ExtrasError("this server runs plain Minecraft, so players can't add mods; resource packs work")
     if kind == "shader" and pack["loader"] not in SHADER_LOADERS:
@@ -104,11 +112,14 @@ def search(http: HttpClient, kind: str, query: str, pack: dict, offset: int = 0)
     if kind == "mod":
         facets.append([f"categories:{x}" for x in MOD_LOADERS[pack["loader"]]])
         facets.append(["client_side:required", "client_side:optional"])
+    if category:
+        facets.append([f"categories:{category}"])
     data = http.get_json(f"{API}/search", params={"query": query[:100], "facets": json.dumps(facets),
-                                                   "index": "relevance" if query else "downloads",
+                                                   "index": sort or ("relevance" if query else "downloads"),
                                                    "limit": 20, "offset": max(0, int(offset))})
     return [{"id": h["project_id"], "slug": h.get("slug", ""), "name": h.get("title", ""),
              "summary": h.get("description", ""), "icon": h.get("icon_url") or "", "downloads": h.get("downloads", 0),
+             "follows": h.get("follows", 0), "author": h.get("author", ""), "updated": h.get("date_modified", ""),
              "kind": kind} for h in data.get("hits", [])]
 
 

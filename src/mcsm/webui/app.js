@@ -1333,94 +1333,6 @@ views.friends = () => {
   return { refresh: reload };
 };
 
-// ---------------------------------------------------------- rich text (mod pages)
-// Modrinth descriptions are Markdown with bits of HTML; CurseForge's are HTML. Both are
-// turned into DOM through an allowlist, so nothing from outside can run script here.
-const RICH_TAGS = new Set(["A", "P", "BR", "HR", "H1", "H2", "H3", "H4", "H5", "H6", "UL", "OL", "LI", "STRONG", "B",
-  "EM", "I", "U", "S", "DEL", "CODE", "PRE", "BLOCKQUOTE", "IMG", "TABLE", "THEAD", "TBODY", "TR", "TH", "TD",
-  "DETAILS", "SUMMARY", "DIV", "SPAN", "CENTER", "SUB", "SUP", "KBD", "FIGURE", "FIGCAPTION"]);
-const RICH_DROP = new Set(["SCRIPT", "STYLE", "IFRAME", "OBJECT", "EMBED", "NOSCRIPT", "TEMPLATE", "SVG", "MATH",
-  "FORM", "INPUT", "BUTTON", "TEXTAREA", "SELECT", "LINK", "META", "BASE", "VIDEO", "AUDIO"]);
-function richFromHtml(html) {
-  const doc = new DOMParser().parseFromString(html, "text/html");  // inert: nothing runs or loads
-  const out = document.createDocumentFragment();
-  const walk = (node, into) => {
-    for (const child of node.childNodes) {
-      if (child.nodeType === 3) { into.append(child.textContent); continue; }
-      if (child.nodeType !== 1) continue;
-      const tag = child.tagName;
-      if (RICH_DROP.has(tag)) continue;
-      if (!RICH_TAGS.has(tag)) { walk(child, into); continue; }
-      const el = document.createElement(tag === "CENTER" ? "div" : tag.toLowerCase());
-      if (tag === "A") {
-        const href = child.getAttribute("href") || "";
-        if (/^https?:\/\//i.test(href)) { el.href = href; el.target = "_blank"; el.rel = "noopener noreferrer"; }
-      } else if (tag === "IMG") {
-        const src = child.getAttribute("src") || "";
-        if (!/^https:\/\//i.test(src)) continue;
-        el.src = src; el.alt = child.getAttribute("alt") || ""; el.loading = "lazy"; el.referrerPolicy = "no-referrer";
-        for (const a of ["width", "height"]) if (/^\d{1,4}$/.test(child.getAttribute(a) || "")) el.setAttribute(a, child.getAttribute(a));
-      } else if (tag === "TD" || tag === "TH") {
-        if (/^\d{1,2}$/.test(child.getAttribute("colspan") || "")) el.setAttribute("colspan", child.getAttribute("colspan"));
-      }
-      walk(child, el);
-      into.append(el);
-    }
-  };
-  walk(doc.body, out);
-  return out;
-}
-function mdToHtml(md) {
-  const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const inline = (s) => s
-    .replace(/`([^`]+)`/g, (_, c) => `<code>${esc(c)}</code>`)
-    .replace(/!\[([^\]]*)\]\((\S+?)(?:\s+"[^"]*")?\)/g, '<img alt="$1" src="$2">')
-    .replace(/\[([^\]]+)\]\((\S+?)(?:\s+"[^"]*")?\)/g, '<a href="$2">$1</a>')
-    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/__([^_]+)__/g, "<strong>$1</strong>")
-    .replace(/(^|[^*])\*([^*\s][^*]*)\*/g, "$1<em>$2</em>")
-    .replace(/~~([^~]+)~~/g, "<del>$1</del>")
-    .replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2">$2</a>');
-  const out = [];
-  let list = null, para = [];
-  const flush = () => {
-    if (para.length) { out.push(`<p>${inline(para.join(" "))}</p>`); para = []; }
-    if (list) { out.push(`</${list}>`); list = null; }
-  };
-  const lines = md.replace(/\r\n?/g, "\n").split("\n");
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (/^\s*```/.test(line)) {
-      flush();
-      const code = [];
-      while (++i < lines.length && !/^\s*```/.test(lines[i])) code.push(lines[i]);
-      out.push(`<pre><code>${esc(code.join("\n"))}</code></pre>`);
-      continue;
-    }
-    let m;
-    if (!line.trim()) { flush(); continue; }
-    if ((m = line.match(/^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/))) { flush(); out.push(`<h${m[1].length}>${inline(m[2])}</h${m[1].length}>`); continue; }
-    if (/^\s{0,3}([-*_])(\s*\1){2,}\s*$/.test(line)) { flush(); out.push("<hr>"); continue; }
-    if ((m = line.match(/^\s*>\s?(.*)$/))) { flush(); out.push(`<blockquote>${inline(m[1])}</blockquote>`); continue; }
-    if ((m = line.match(/^\s*([-*+]|\d+[.)])\s+(.*)$/))) {
-      if (para.length) { out.push(`<p>${inline(para.join(" "))}</p>`); para = []; }
-      const kind = /\d/.test(m[1]) ? "ol" : "ul";
-      if (list !== kind) { if (list) out.push(`</${list}>`); out.push(`<${kind}>`); list = kind; }
-      out.push(`<li>${inline(m[2])}</li>`);
-      continue;
-    }
-    if (/^\s*<\/?[a-zA-Z][^>]*>\s*$/.test(line) || /^\s*<(div|center|p|img|details|summary|table|h\d|br|a)\b/i.test(line)) {
-      flush(); out.push(line); continue;  // raw HTML block (sanitised below)
-    }
-    if (list) { out.push(`</${list}>`); list = null; }
-    para.push(line.trim());
-  }
-  flush();
-  return out.join("\n");
-}
-function richText(text, format) {
-  return h("div", { class: "rich" }, richFromHtml(format === "html" ? text : mdToHtml(text || "")));
-}
-
 // ------------------------------------------------------------------ mod browser
 // Opened from setup, the Mods page and Friends: the page slides left into a narrow rail
 // (click it or press Escape to go back) and the browser takes the screen, with search,
@@ -1491,7 +1403,7 @@ function browserPanel(params, host) {
   const noun = loader === "paper" ? "plugin" : kind;  // Paper runs plugins (from Modrinth)
   const forPlayers = params.get("side") === "client";  // the Friends page: mods for players' computers
   const base = target === "setup" ? "/api/hub/browse" : `/api/servers/${encodeURIComponent(target)}/browse`;
-  const st = { q: "", source: "modrinth", sort: "relevance", category: "", version: params.get("version") || "",
+  const st = { q: "", source: "modrinth", sort: "relevance", category: "", env: "", version: params.get("version") || "",
     offset: 0, total: 0, results: [], selected: new Map(), active: null, early: false, hidden: 0, earlyHidden: 0 };
   const earlyBox = h("input", { type: "checkbox", onchange: (e) => { st.early = e.target.checked; search(); } });
   const earlyRow = kind === "mod" && !forPlayers ? h("label", { class: "row small early-opt", title: EARLY_WARNING }, earlyBox,
@@ -1505,6 +1417,13 @@ function browserPanel(params, host) {
     ["follows", "Most followed"], ["newest", "Newest"], ["updated", "Recently updated"]].map(([v, l]) => h("option", { value: v }, l)));
   const source = h("select", { "aria-label": "Source" }, h("option", { value: "modrinth" }, "Modrinth"),
     kind === "mod" && noun !== "plugin" && !forPlayers ? h("option", { value: "curseforge" }, "CurseForge") : null);
+  // Modrinth's environment tags: where each mod runs. Server pages list server-side and both,
+  // players' pages client-side and both; this narrows it to one of the two.
+  const envSel = kind === "mod" && noun !== "plugin" ? h("select", { "aria-label": "Runs on", title: "Where the mods run (Modrinth's environment tags)" },
+    forPlayers ? [["", "Client-side and both"], ["only", "Client-side only"], ["both", "Both (client and server)"]].map(([v, l]) => h("option", { value: v }, l))
+      : [["", "Server-side and both"], ["only", "Server-side only"], ["both", "Both (server and client)"]].map(([v, l]) => h("option", { value: v }, l))) : null;
+  const envTag = (m) => m.environment ? h("span", { class: "tag env-" + m.environment },
+    { server: "server-side", client: "client-side", both: "server + client" }[m.environment]) : null;
   let cfKey = null;  // whether a CurseForge API key is set (asked once)
   const category = h("select", { "aria-label": "Category" }, h("option", { value: "" }, "All categories"));
   const version = h("input", { value: st.version, placeholder: "Any version", "aria-label": "Minecraft version", class: "narrow" });
@@ -1568,6 +1487,7 @@ function browserPanel(params, host) {
     if (st.category) p.set("category", st.category);
     if (st.early) p.set("early", "1");
     if (forPlayers) p.set("side", "client");
+    if (st.env && st.source === "modrinth") p.set("env", st.env);
     p.set("version", st.version);
     if (loader) p.set("loader", loader);
     if (!more) fill(list, h("p", { class: "empty" }, "Searching…"));
@@ -1596,7 +1516,7 @@ function browserPanel(params, host) {
         box || h("span"),
         m.icon ? h("img", { src: m.icon, alt: "", loading: "lazy", referrerpolicy: "no-referrer" }) : h("div", { class: "noicon" }),
         h("div", { class: "info" },
-          h("div", { class: "name" }, m.name, m.author ? h("span", { class: "muted small" }, ` by ${m.author}`) : null, " ", channelTag(m.channel)),
+          h("div", { class: "name" }, m.name, m.author ? h("span", { class: "muted small" }, ` by ${m.author}`) : null, " ", channelTag(m.channel), " ", envTag(m)),
           h("div", { class: "desc" }, m.summary),
           h("div", { class: "muted small" }, `⬇ ${fmtNum(m.downloads)}`, m.follows ? ` · ♥ ${fmtNum(m.follows)}` : "",
             m.updated ? ` · updated ${new Date(m.updated).toLocaleDateString()}` : "")));
@@ -1677,8 +1597,13 @@ function browserPanel(params, host) {
   });
   q.addEventListener("input", () => { st.q = q.value.trim(); clearTimeout(timer); timer = setTimeout(() => search(), 350); });
   sort.addEventListener("change", () => { st.sort = sort.value; search(); });
-  source.addEventListener("change", () => { st.source = source.value; st.category = ""; loadCategories(); search(); });
+  source.addEventListener("change", () => {
+    st.source = source.value; st.category = "";
+    if (envSel) envSel.classList.toggle("hidden", st.source !== "modrinth");  // CurseForge has no such tags
+    loadCategories(); search();
+  });
   category.addEventListener("change", () => { st.category = category.value; search(); });
+  if (envSel) envSel.addEventListener("change", () => { st.env = envSel.value; search(); });
   version.addEventListener("change", () => { st.version = version.value.trim(); search(); });
   const loadCategories = async () => {
     const r = await api(`${base}/categories?type=${kind}&source=${st.source}`).catch(() => null);
@@ -1693,6 +1618,7 @@ function browserPanel(params, host) {
           host ? h("button", { class: "btn ghost small", onclick: () => host.close() }, "Close") : h("a", { class: "btn ghost small", href: target === "setup" ? "#new" : `#s/${target}/mods` }, "Back")),
         q,
         h("div", { class: "row" }, source, sort),
+        envSel ? h("div", { class: "row" }, envSel) : null,
         h("div", { class: "row" }, category, version),
         earlyRow),
       list,

@@ -36,6 +36,21 @@ def test_search_is_normalised_and_filtered(http):
     assert ["server_side:required", "server_side:optional"] in facets  # no client-only mods
     assert query["index"] == "downloads" and query["offset"] == 20
 
+    # Environment tags: where a mod runs, and narrowing to one side only or both.
+    assert hit["environment"] == ""  # untagged
+    http.json[f"{API}/search"]["hits"][0] |= {"client_side": "required", "server_side": "optional"}
+    assert b.search("modrinth", "mod", "good")["results"][0]["environment"] == "both"
+    def facets_for(**kw):
+        b.search("modrinth", "mod", "good", **kw)
+        return json.loads([p for p in seen if p and "facets" in p][-1]["facets"])
+    assert ["client_side:unsupported"] in facets_for(env="only")  # server-side only
+    assert ["client_side:required", "client_side:optional"] in facets_for(env="both")
+    players = facets_for(side="client", env="only")
+    assert ["client_side:required", "client_side:optional"] in players and ["server_side:unsupported"] in players
+    assert not any("unsupported" in str(f) for f in facets_for())  # default: this side's mods and both
+    with pytest.raises(BrowseError, match="environment"):
+        b.search(env="nowhere")
+
     with pytest.raises(BrowseError):
         b.search(sort="random")
     with pytest.raises(BrowseError, match="API key"):

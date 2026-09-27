@@ -256,6 +256,12 @@ On a Raspberry Pi or another ARM machine, use `mcsm-linux-arm64` instead.
 
 ![The mod browser](docs/web-browse.png)
 
+Each Modrinth result is tagged with where it runs (**server-side**, **client-side** or
+**server + client**, from Modrinth's environment tags). The **Runs on** filter narrows the
+list. For a server, it lists server-side and both; for players (the Friends page and friends
+setup), it lists client-side and both. Either can be narrowed to one side only, or to mods
+for both sides.
+
 ![World options](docs/web-world.png)
 
 Prefer the terminal? `mcsm setup` asks the same questions there.

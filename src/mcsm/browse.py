@@ -21,6 +21,14 @@ SORTS = ("relevance", "downloads", "follows", "newest", "updated")
 CF_SORT = {"relevance": None, "downloads": 6, "follows": 2, "newest": 11, "updated": 3}
 CF_MODPACKS_CLASS_ID = 4471
 PAGE = 20
+ENVS = ("", "only", "both")  # which side(s) a mod runs on: this side's and both (""), this side only, or both
+
+
+def environment(client_side: str | None, server_side: str | None) -> str:
+    """Where a Modrinth mod runs, from its environment tags: "server", "client", "both" or ""."""
+    on_client = client_side in ("required", "optional")
+    on_server = server_side in ("required", "optional")
+    return "both" if on_client and on_server else "server" if on_server else "client" if on_client else ""
 
 
 class BrowseError(Exception):
@@ -40,9 +48,11 @@ class Browser:
     # ------------------------------------------------------------ search
     def search(self, source: str = "modrinth", kind: str = "mod", query: str = "", loader: str | None = None,
                version: str | None = None, category: str | None = None, sort: str = "relevance",
-               offset: int = 0, early: bool = False, side: str = "server") -> dict:
+               offset: int = 0, early: bool = False, side: str = "server", env: str = "") -> dict:
         """One page of results. For mods with a loader and a Minecraft version, only ones that
-        really have a build for both (``early``: including ones with only alpha/beta builds)."""
+        really have a build for both (``early``: including ones with only alpha/beta builds).
+        ``side`` is where the mods go (the server, or players' computers); ``env`` narrows Modrinth
+        mods to ones for that side only, or ones for both sides."""
         if kind not in ("mod", "modpack"):
             raise BrowseError("unknown kind")
         if sort not in SORTS:
@@ -51,6 +61,8 @@ class Browser:
         plugins = loader == "paper"
         if side not in ("server", "client"):
             raise BrowseError("unknown side")
+        if env not in ENVS:
+            raise BrowseError("unknown environment")
         if source == "curseforge":
             if side == "client":
                 raise BrowseError("mods for players come from Modrinth; switch the source to Modrinth")
@@ -62,6 +74,11 @@ class Browser:
         if source != "modrinth":
             raise BrowseError("unknown source")
         facets = [[f"project_type:{kind}"], [f"{side}_side:required", f"{side}_side:optional"]]
+        other = "client" if side == "server" else "server"
+        if env == "only" and kind == "mod":
+            facets.append([f"{other}_side:unsupported"])
+        elif env == "both" and kind == "mod":
+            facets.append([f"{other}_side:required", f"{other}_side:optional"])
         if plugins and kind == "mod":
             facets = [["categories:paper", "categories:spigot", "categories:bukkit"]]
         elif loader and kind == "mod":
@@ -81,6 +98,7 @@ class Browser:
             "updated": h.get("date_modified", ""), "created": h.get("date_created", ""),
             "categories": h.get("display_categories") or h.get("categories", []),
             "versions": h.get("versions", [])[-6:], "kind": kind,
+            "environment": "" if plugins else environment(h.get("client_side"), h.get("server_side")),
             "url": f"https://modrinth.com/{'plugin' if plugins else kind}/{h.get('slug') or h['project_id']}",
         } for h in data.get("hits", [])]
         page = {"total": data.get("total_hits", len(hits)), "offset": offset, "page": PAGE}

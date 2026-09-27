@@ -71,7 +71,7 @@ code { font-family: var(--mono); background: var(--panel-2); padding: 1px 5px; b
 .login-fields { display: grid; gap: 14px; }
 
 /* layout */
-.app { display: grid; grid-template-columns: 210px 1fr; height: 100%; }
+.app { display: grid; grid-template-columns: 210px 1fr; grid-template-rows: minmax(0, 1fr); height: 100%; }  /* the window's height: panes scroll inside it */
 .sidebar { background: var(--panel); border-right: 1px solid var(--border); padding: 18px 12px; display: flex;
   flex-direction: column; gap: 22px; }
 .sidebar nav { display: grid; gap: 2px; }
@@ -81,7 +81,7 @@ code { font-family: var(--mono); background: var(--panel-2); padding: 1px 5px; b
 .sidebar nav a.active { background: var(--panel-2); box-shadow: inset 3px 0 0 var(--accent); }
 .sidebar-foot { margin-top: auto; display: flex; align-items: center; justify-content: space-between; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
-.content { display: flex; flex-direction: column; min-width: 0; height: 100%; }
+.content { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; }
 .topbar { display: flex; align-items: center; gap: 16px; padding: 12px 24px; border-bottom: 1px solid var(--border);
   background: var(--panel); flex-wrap: wrap; }
 .server-id { display: flex; align-items: center; gap: 12px; min-width: 0; }
@@ -101,6 +101,10 @@ main { padding: 24px; overflow: auto; flex: 1; }
 .tag.ok { color: var(--ok-fg); border-color: var(--ok-border); }
 .tag.warn { color: var(--warn-fg); border-color: var(--warn-border); }
 .tag.bad { color: var(--bad-fg); border-color: var(--bad-border); }
+/* Modrinth environment tags: where a mod runs */
+.tag.env-server { color: var(--info-fg); border-color: var(--info); }
+.tag.env-client { color: var(--warn-fg); border-color: var(--warn-border); }
+.tag.env-both { color: var(--ok-fg); border-color: var(--ok-border); }
 
 /* job */
 .job { display: flex; align-items: center; gap: 8px; color: var(--warn); font-size: 13px; }
@@ -563,8 +567,8 @@ body.picking { overflow: hidden; }
 body.picking main.join { opacity: .35; transform: translateX(-30px); transition: opacity .25s ease, transform .25s ease; pointer-events: none; }
 .jrail { position: fixed; left: 0; top: 0; bottom: 0; width: 56px; z-index: 15; border: 0; border-right: 1px solid var(--border);
   background: var(--panel-2); color: var(--muted); font: inherit; font-weight: 600; cursor: pointer; writing-mode: vertical-rl; transform: rotate(180deg); }
-.jpanel { position: fixed; top: 0; right: 0; bottom: 0; left: 56px; z-index: 16; background: var(--panel); overflow: auto;
-  padding: 20px 24px; display: grid; gap: 10px; align-content: start; animation: browser-in .3s ease-out; }
-.jpanel h2 { margin: 0; font-size: 19px; }
-.jresults { display: grid; gap: 6px; }
+.jpanel { position: fixed; top: 0; right: 0; bottom: 0; left: 56px; z-index: 16; background: var(--bg); overflow: hidden;
+  display: flex; animation: browser-in .3s ease-out; }
+.jpanel > .browse { flex: 1; height: 100%; min-height: 0; }
+@media (max-width: 760px) { .jpanel { overflow: auto; } .jpanel > .browse { height: auto; } }
 @media (prefers-reduced-motion: reduce) { .jpanel { animation: none; } body.picking main.join { transition: none; } }
