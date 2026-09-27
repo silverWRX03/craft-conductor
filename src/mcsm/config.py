@@ -413,6 +413,20 @@ def remove_mod(path: Path, source: str, mod_id: str) -> bool:
     return removed
 
 
+def set_mods(path: Path, specs: list[ModSpec]) -> None:
+    """Replace every ``[[mods]]`` block with ``specs``, keeping the rest of the file as it is."""
+    lines = path.read_text().splitlines(keepends=True)
+    chunks: list[list[str]] = [[]]
+    for line in lines:
+        if re.match(r"^\s*\[", line):
+            chunks.append([])
+        chunks[-1].append(line)
+    kept = "".join(line for chunk in chunks if not (chunk and chunk[0].strip() == "[[mods]]") for line in chunk)
+    if kept and not kept.endswith("\n"):
+        kept += "\n"
+    path.write_text(kept + "".join(mod_block(spec) for spec in specs))
+
+
 def set_value(path: Path, table: str, key: str, literal: str) -> None:
     """Set ``key = literal`` inside ``[table]``, keeping every other line (and comment) as is."""
     lines = path.read_text().splitlines(keepends=True)

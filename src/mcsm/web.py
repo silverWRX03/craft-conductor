@@ -532,6 +532,11 @@ class RequestHandler(BaseHTTPRequestHandler):
                 return self._json(200, handler(q, self))
             if path == "/api/export/download":
                 return self._send_file(api.export_file(q.get("name", "")))
+            if path == "/api/modsets/export":
+                entry = api.modset_export(q.get("name", ""))
+                safe = re.sub(r"[^A-Za-z0-9._ -]+", "_", entry["name"]).strip() or "mods"
+                return self._send(200, json.dumps(entry, indent=2).encode(), "application/json",
+                                  {"Content-Disposition": f'attachment; filename="mcsm-mods-{safe}.json"'})
             if path == "/api/doctor/report":
                 name = f"mcsm-report-{time.strftime('%Y%m%d-%H%M%S')}.zip"
                 return self._send(200, api.doctor_report(), "application/zip",
@@ -1167,6 +1172,12 @@ class Api:
         get("/api/join-requests", self.join_requests)
         get("/api/bedrock", self.bedrock)
         get("/api/world/tools", self.world_tools)
+        get("/api/modsets", self.modsets)
+        post("/api/modsets/save", self.modset_save)
+        post("/api/modsets/restore", self.modset_restore)
+        post("/api/modsets/delete", self.modset_delete)
+        post("/api/modsets/import", self.modset_import)
+        get("/api/modsets/export", lambda q, b: None)  # sent by the request handler (a .json file)
         post("/api/world/rule", self.world_rule)
         post("/api/world/border", self.world_border)
         post("/api/world/chunky", self.world_chunky)
@@ -1587,6 +1598,55 @@ class Api:
 
     def players(self, q, b) -> dict:
         return self._players().summary(self.d.players)
+
+    # ------------------------------------------------------ saved mod lists
+    def modsets(self, q, b) -> dict:
+        from . import modsets
+        return {"sets": [{"name": x["name"], "saved": x.get("saved"), "minecraft": x.get("minecraft"),
+                          "mods": [m["id"] for m in x["mods"]], "client_mods": x.get("client_mods", [])}
+                         for x in modsets.load(self.m.config)]}
+
+    def _modset(self, fn, *args):
+        from . import modsets
+        try:
+            return fn(self.m.config, *args)
+        except modsets.ModSetError as e:
+            raise ApiError(400, str(e)) from None
+
+    def modset_save(self, q, b) -> dict:
+        from . import modsets
+        entry = self._modset(modsets.save, str(b.get("name", "")), self.m.lock.minecraft)
+        return {"ok": True, "message": f"saved {entry['name']!r} ({len(entry['mods'])} mods)"}
+
+    def modset_restore(self, q, b) -> dict:
+        from . import modsets
+        if self.d.job:
+            raise ApiError(409, f"busy: {self.d.job['name']} is running")
+        message = self._modset(modsets.restore, str(b.get("name", "")), self.m.lock.minecraft)
+        self.m.reload_config()
+        log.info("mod list %s", message)
+        return {"ok": True, "message": message}
+
+    def modset_delete(self, q, b) -> dict:
+        from . import modsets
+        if not self._modset(modsets.delete, str(b.get("name", ""))):
+            raise ApiError(404, "no such list")
+        return {"ok": True}
+
+    def modset_import(self, q, b) -> dict:
+        from . import modsets
+        entry = b.get("set")
+        if not isinstance(entry, dict):
+            raise ApiError(400, "choose a mod list file saved from mcsm")
+        entry = self._modset(modsets.add, entry)
+        return {"ok": True, "message": f"loaded {entry['name']!r} ({len(entry['mods'])} mods)"}
+
+    def modset_export(self, name: str) -> dict:
+        from . import modsets
+        entry = next((x for x in modsets.load(self.m.config) if x["name"] == name), None)
+        if entry is None:
+            raise ApiError(404, "no such list")
+        return entry
 
     # ------------------------------------------------------ world tools
     def _running_proc(self):

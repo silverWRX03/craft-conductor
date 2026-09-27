@@ -1123,6 +1123,7 @@ views.mods = () => {
   const configured = h("div");
   const installed = h("div");
   const q = h("input", { placeholder: plugins ? "Search Modrinth for plugins…" : "Search Modrinth for server mods…", type: "search" });
+  const sets = modSetsCard(() => load());
   let searchTimer;
 
   let early = false;
@@ -1260,10 +1261,61 @@ views.mods = () => {
         },
       }))),
       card("Installed", hubInfo && hubInfo.local ? h("div", { class: "row mb" }, folderBtn("mods", "Mods folder"), folderBtn("config", "Config folder")) : null, installed)),
+    h("div", { class: "mt" }, sets.el),
   );
   load();
-  return { onJobDone: load, refresh: load };
+  sets.load();
+  return { onJobDone: () => { load(); sets.load(); }, refresh: load };
 };
+
+// Saved mod lists: keep the mods under a name, switch lists, and go back ("Before …" is saved
+// by itself on every switch). Power users can download a list and load it on another server.
+function modSetsCard(after) {
+  const list = h("div");
+  const name = h("input", { placeholder: "e.g. Survival with tech mods", maxlength: 60 });
+  const file = h("input", { type: "file", accept: ".json,application/json", class: "hidden" });
+  const load = async () => {
+    const r = await api("/api/modsets").catch(() => null);
+    if (!r) return;
+    fill(list, r.sets.length ? h("ul", { class: "list" }, r.sets.map((x) => h("li", {},
+      h("div", { class: "grow" }, h("strong", {}, x.name),
+        h("div", { class: "muted small" }, `${x.mods.length} mod${x.mods.length === 1 ? "" : "s"}` + (x.minecraft ? ` · Minecraft ${x.minecraft}` : "") +
+          (x.saved ? ` · saved ${ago(x.saved)}` : ""), x.mods.length ? h("span", { title: x.mods.join(", ") }, " ⓘ") : null)),
+      h("button", { class: "btn small", onclick: async () => {
+        if (!(await ask(`Switch to "${x.name}"?\n\nThe mods you have now are saved first as "Before ${x.name}", so you can switch back. The new list is installed with the next update.`, { ok: "Switch" }))) return;
+        const res = await act(() => api("/api/modsets/restore", { method: "POST", body: { name: x.name } }));
+        if (!res) return;
+        toast(res.message);
+        const mc = status && status.minecraft;
+        if (mc && await ask(`Install the mods from "${x.name}" now?\n\nThe server updates its mods for Minecraft ${mc} and restarts (players get the countdown first).`, { ok: "Install now" }))
+          await act(() => api("/api/updates/apply", { method: "POST", body: { target: mc } }), "Installing…");
+        load(); after();
+      } }, "Switch to it"),
+      h("a", { class: "btn small ghost", href: scoped(`/api/modsets/export?name=${encodeURIComponent(x.name)}`), download: "", title: "Download as a file" }, "⬇"),
+      h("button", { class: "btn small ghost", title: "Delete", onclick: async () => (await ask(`Delete the saved list "${x.name}"? The server's mods don't change.`, { ok: "Delete", danger: true })) &&
+        act(() => api("/api/modsets/delete", { method: "POST", body: { name: x.name } }), "Deleted").then(load) }, "✕"))))
+      : h("p", { class: "muted small" }, "No saved lists yet."));
+  };
+  file.addEventListener("change", async () => {
+    const f = file.files[0];
+    file.value = "";
+    if (!f) return;
+    let set;
+    try { set = JSON.parse(await f.text()); } catch (_) { toast("That file isn't a mod list saved from mcsm.", true); return; }
+    const r = await act(() => api("/api/modsets/import", { method: "POST", body: { set } }));
+    if (r) { toast(r.message); load(); }
+  });
+  const el = card("Saved mod lists",
+    h("p", { class: "muted small" }, "Save the mods you have now under a name, switch to another list, and switch back. Switching saves the current mods first."),
+    h("div", { class: "row" }, name, h("button", { class: "btn", onclick: async () => {
+      if (!name.value.trim()) { toast("Give the list a name.", true); return; }
+      const r = await act(() => api("/api/modsets/save", { method: "POST", body: { name: name.value.trim() } }));
+      if (r) { toast(r.message); name.value = ""; load(); }
+    } }, "Save the current mods")),
+    list,
+    h("div", { class: "row mt-s small" }, h("button", { class: "btn small ghost", onclick: () => file.click() }, "Load a list from a file…"), file));
+  return { el, load };
+}
 
 views.backups = () => {
   const list = h("div");

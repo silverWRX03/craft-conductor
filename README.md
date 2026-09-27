@@ -74,6 +74,8 @@ ready to update to Minecraft 1.21.4 with fabric 0.16.14:
 
 ## Features
 
+- **Saved mod lists.** Keep a mod list under a name, switch to another and back, and move lists
+  between servers as files.
 - **World tools.** Game rules with explanations, a world border, and pre-generating terrain with
   Chunky so exploring doesn't lag.
 - **Bedrock players too.** One button adds Geyser and Floodgate, so friends on phones, tablets and

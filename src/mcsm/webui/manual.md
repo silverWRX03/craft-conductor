@@ -116,6 +116,8 @@ Players online and players who have joined before, with **Op/De-op**, **Kick**, 
 
 Installed mods with their versions: **Download mods** (the mod browser), **Local files**, mark a mod required or optional, **Remove** it (with the mods it needed, if nothing else needs them), and **Mod config files** to edit a mod's settings in the page (with colours for TOML, JSON, YAML and more). **Test these mods** checks a set of mods in a throwaway server, so your world is never touched; if they don't start together, **Find the culprits** adds them back a group at a time until it knows which ones clash. Changes apply at the next restart.
 
+**Saved mod lists:** **Save the current mods** under a name, and **Switch to it** later: the mods you had are saved first as "Before …", so you can always switch back. mcsm offers to install the switched list right away (the server restarts after the countdown). **⬇** downloads a list as a file, and **Load a list from a file…** adds one, say from another server. The friends' extra mods are part of each list.
+
 ## Updates
 
 mcsm checks for updates by itself and applies them when it's safe:
