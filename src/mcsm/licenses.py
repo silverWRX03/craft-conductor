@@ -42,6 +42,7 @@ DOWNLOADED = [
     ("NeoForge", "the neoforge loader", "LGPL-2.1", "https://github.com/neoforged/NeoForge"),
     ("Minecraft Forge", "the forge loader", "LGPL-2.1", "https://github.com/MinecraftForge/MinecraftForge"),
     ("Paper", "the paper server", "GPL-3.0 (with MIT parts)", "https://github.com/PaperMC/Paper"),
+    ("Purpur", "the purpur server", "MIT (built on Paper: GPL-3.0)", "https://github.com/PurpurMC/Purpur"),
     ("Eclipse Temurin (OpenJDK)", "the Java runtime, when Craft Conductor manages Java", "GPL-2.0 with Classpath Exception",
      "https://adoptium.net/about/"),
     ("Chunky", "generates the world for map previews (downloaded into a throwaway server)", "GPL-3.0",

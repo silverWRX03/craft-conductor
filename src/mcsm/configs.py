@@ -36,6 +36,11 @@ class ConfigFileError(ValueError):
     pass
 
 
+# Settings files at the top of the server folder: Purpur's own, and the Bukkit/Spigot ones that
+# Paper and Purpur read too.
+SERVER_FILES = ("purpur.yml", "bukkit.yml", "spigot.yml")
+
+
 def roots(server_dir: Path) -> list[Path]:
     level = read_properties(server_dir / "server.properties").get("level-name") or "world"
     return [server_dir / "config", server_dir / "defaultconfigs", server_dir / level / "serverconfig",
@@ -112,7 +117,7 @@ def _stem(rel: str) -> str:
 
 def list_files(server_dir: Path) -> list[str]:
     """Editable config files, as paths relative to the server folder."""
-    out = []
+    out = [name for name in SERVER_FILES if (server_dir / name).is_file()]
     for root in roots(server_dir):
         if not root.is_dir():
             continue
@@ -163,6 +168,8 @@ def resolve(server_dir: Path, rel: str) -> Path:
     if path.suffix.lower() not in EXTENSIONS:
         raise ConfigFileError("only text config files can be edited here")
     real = path.resolve()
+    if rel in SERVER_FILES and real.parent == server_dir.resolve():
+        return path
     if not any(real.is_relative_to(r.resolve()) for r in roots(server_dir)):
         raise ConfigFileError("that file isn't in a config folder")
     return path

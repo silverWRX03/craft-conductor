@@ -100,6 +100,19 @@ def test_neoforge_versions(http):
     assert loader.latest_version("1.21.4") is None
 
 
+def test_neoforge_falls_back_to_maven_metadata(http):
+    from mcsm.http import HttpError
+    from mcsm.loaders.forge import NEOFORGE_MAVEN
+    http.json[NEOFORGE_VERSIONS] = HttpError(NEOFORGE_VERSIONS, 403, "Forbidden")
+    texts = {f"{NEOFORGE_MAVEN}/maven-metadata.xml":
+             "<metadata><versioning><versions><version>21.1.9</version><version>21.1.77</version>"
+             "<version>21.1.100-beta</version></versions></versioning></metadata>"}
+    http.texts = texts
+    assert NeoForgeLoader(http, FakeMojang(http, ["1.21.1"])).latest_version("1.21.1") == "21.1.77"
+    http.json[NEOFORGE_VERSIONS] = {"versions": ["26.1.1", "26.1.2"]}  # (the API leaving older builds out)
+    assert NeoForgeLoader(http, FakeMojang(http, ["1.21.1"])).latest_version("1.21.1") == "21.1.77"
+
+
 def test_fabric_latest_version(http):
     http.json[f"{FABRIC_META}/versions/loader/1.21.1"] = [
         {"loader": {"version": "0.17.0-beta", "stable": False}},

@@ -77,6 +77,7 @@ No account or usage data is sent to any of them. Their terms apply to your use.
 | CurseForge API | CurseForge mods (with mcsm's built-in key in release builds, or your own) | [CurseForge API terms](https://support.curseforge.com/en/support/solutions/articles/9000207405) |
 | Fabric, Quilt, NeoForge and Forge metadata and maven servers | loader versions and installers | see each project |
 | PaperMC API (Fill) | Paper server builds | [papermc.io](https://papermc.io/) |
+| Purpur API | Purpur server builds | [purpurmc.org](https://purpurmc.org/) |
 | Adoptium API | Java downloads | [adoptium.net](https://adoptium.net/) |
 | GitHub API | checking for new mcsm releases | [GitHub terms](https://docs.github.com/en/site-policy/github-terms/github-terms-of-service) |
 | Discord webhooks and bot API | notifications and posting invites, only if you set them up | [Discord terms](https://discord.com/terms) |

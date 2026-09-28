@@ -421,6 +421,23 @@ class Hub:
             self._save_hub_file(data)
 
     # ---------------------------------------------------------- sharing
+    # ------------------------------------------------ mod conflict memory
+    def share_conflicts(self) -> bool:
+        """Whether mod conflicts that "Find which mods break it" finds are shared (conflicts.py)."""
+        return bool(self._hub_file().get("share_conflicts")) and not self.is_single
+
+    def set_share_conflicts(self, on: bool) -> None:
+        data = self._hub_file()
+        data["share_conflicts"] = bool(on)
+        self._save_hub_file(data)
+
+    @property
+    def known_conflicts(self):
+        if getattr(self, "_known", None) is None:
+            from .conflicts import Known
+            self._known = Known(self.state_dir, self.http)
+        return self._known
+
     def share_settings(self) -> dict:
         """Friends' downloads: the share server's port, and the address friends use (blank = the
         address they opened the invite with)."""

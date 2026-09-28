@@ -82,20 +82,21 @@ Next:
 13. [x] Limits per server (memory, CPU) and a warning when too many run at once. Also warnings
         about the computer (disk space, CPU, memory) on the page and on phones.
 14. [ ] Other tunnel services next to playit.gg (Cloudflare Tunnel, Tailscale Funnel).
-15. [ ] Purpur servers.
+15. [x] Purpur servers.
 16. [ ] Scripting hooks (a script on start, stop, a player joining, before an update) and API tokens.
-17. [ ] **Mod conflict memory:** mod combinations that failed together in "Find which mods break
+17. [x] **Mod conflict memory:** mod combinations that failed together in "Find which mods break
         it", shared anonymously if you opt in, so mcsm can warn others before they install them
-        (needs somewhere to keep the shared list).
+        (needs somewhere to keep the shared list). Done: a Cloudflare Worker (relay/); it's live
+        once its address is in conflicts.RELAY.
 18. [ ] Proxy networks (Velocity) with several servers behind them.
 19. [ ] Translated user manual for the most used languages; a way for people to fix translations.
 20. [ ] **Servers on hosting sites:** look into controlling servers that run elsewhere. Hosting
         panels with an official API (Pterodactyl, used by many paid hosts) are the realistic
         target. Free hosts (Aternos, Minehut, Minefort) only if they have an official API and their
         terms allow it: Aternos's terms don't allow automating its site.
-21. [ ] **Fingerprint or face sign-in** on the phone app (passkeys, WebAuthn), instead of typing
+21. [x] **Fingerprint or face sign-in** on the phone app (passkeys, WebAuthn), instead of typing
         the password.
-22. [ ] **Sounds:** subtle cues, the same in the web page and the phone app (made in the browser,
+22. [x] **Sounds:** subtle cues, the same in the web page and the phone app (made in the browser,
         no sound files; our own sounds, Minecraft-like but not Mojang's): a tap for ordinary buttons,
         rising notes for Start/Save/Install, a falling note for Stop/Delete, a soft thud when
         something fails, and chimes while the page is open (a server is up, a friend asks to join).

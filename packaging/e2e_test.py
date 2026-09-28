@@ -106,7 +106,7 @@ def main() -> int:
               f"Java {lock['java_major']}, {len(lock['mods'])} mod file(s)")
         if len(lock["mods"]) < len(args.mod):
             raise Failed(f"expected at least {len(args.mod)} mods, got {[m['name'] for m in lock['mods']]}")
-        folder = "plugins" if args.loader == "paper" else "mods"  # Paper runs plugins
+        folder = "plugins" if args.loader in ("paper", "purpur") else "mods"  # Paper and Purpur run plugins
         for m in lock["mods"]:
             if not (root / "server" / folder / m["filename"]).is_file():
                 raise Failed(f"{m['filename']} is missing from {folder}/")
@@ -210,6 +210,17 @@ def main() -> int:
         return 0
     except (Failed, subprocess.TimeoutExpired) as e:
         print(f"\nEND-TO-END TEST FAILED: {e}")
+        if args.loader == "neoforge":  # (what NeoForge's servers answered, for working out why)
+            import urllib.request
+            for url in ("https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge",
+                        "https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml"):
+                try:
+                    req = urllib.request.Request(url, headers={"User-Agent": "mcsm-e2e"})
+                    with urllib.request.urlopen(req, timeout=20) as r:
+                        body = r.read().decode("utf-8", "replace")
+                    print(f"{url}: HTTP {r.status}, {len(body)} bytes, 21.1.x: {body.count('21.1.')}, starts: {body[:160]!r}")
+                except Exception as err:
+                    print(f"{url}: {err!r}")
         return 1
     finally:
         if daemon is not None and daemon.poll() is None:

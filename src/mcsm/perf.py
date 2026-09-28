@@ -20,7 +20,7 @@ _COLOUR = re.compile(r"§.")
 
 def command_for(loader: str, minecraft: str) -> str | None:
     """The console command that reports tick timing, or None for versions that have none."""
-    if loader == "paper":
+    if loader in ("paper", "purpur"):
         return "tps"
     if loader == "forge":
         return "forge tps"

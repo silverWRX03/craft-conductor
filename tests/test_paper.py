@@ -123,3 +123,35 @@ def test_plugin_configs_and_blame(tmp_path):
     assert configs.read(server, "plugins/Chunky/config.yml")["format"] == "yaml"
     d = diagnose.diagnose(["[12:00:00 ERROR]: Error occurred while enabling Chunky v1.4 (Is it up to date?)"], server)
     assert [s.filename for s in d.suspects] == ["Chunky-1.4.jar"]
+
+
+def test_purpur_installs_the_newest_build_that_worked(http, tmp_path):
+    from mcsm.loaders import PurpurLoader, runs_plugins
+    from mcsm.loaders.purpur import API
+    from mcsm.loaders.base import LoaderError
+    jar = b"purpur server jar"
+    http.json[f"{API}/1.21.4"] = {"builds": {"latest": "2402", "all": ["2400", "2401", "2402"]}}
+    http.json[f"{API}/1.21.4/2402"] = {"result": "FAILURE"}
+    http.json[f"{API}/1.21.4/2401"] = {"result": "SUCCESS", "md5": hashlib.md5(jar).hexdigest()}
+    http.json[f"{API}/1.99"] = HttpError("x", 404, "not found")
+    http.files[f"{API}/1.21.4/2401/download"] = jar
+    loader = PurpurLoader(http, FakeMojang(http, ["1.21.4"]))
+    assert loader.latest_version("1.21.4") == "2401"  # 2402 didn't build
+    assert loader.latest_version("1.99") is None
+    rt = loader.install("1.21.4", "2401", tmp_path, "java")
+    assert (tmp_path / "purpur.jar").read_bytes() == jar and rt.launch == ["-jar", "purpur.jar", "--nogui"]
+    http.json[f"{API}/1.21.4/2400"] = {"result": "SUCCESS", "md5": "0" * 32}
+    http.files[f"{API}/1.21.4/2400/download"] = jar
+    with pytest.raises(LoaderError, match="damaged"):
+        loader.install("1.21.4", "2400", tmp_path, "java")
+    assert "purpur" in LOADERS and mods_folder("purpur") == "plugins" and runs_plugins("purpur")
+    assert "purpur" in PurpurLoader.mod_loaders and "paper" in PurpurLoader.mod_loaders
+
+
+def test_purpur_settings_can_be_edited(tmp_path):
+    (tmp_path / "purpur.yml").write_text("settings:\n  use-alternate-keepalive: false\n")
+    (tmp_path / "eula.txt").write_text("eula=true\n")
+    assert "purpur.yml" in configs.list_files(tmp_path) and "eula.txt" not in configs.list_files(tmp_path)
+    assert configs.resolve(tmp_path, "purpur.yml") == tmp_path / "purpur.yml"
+    with pytest.raises(configs.ConfigFileError):
+        configs.resolve(tmp_path, "eula.txt")

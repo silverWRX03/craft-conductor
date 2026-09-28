@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
+from ..http import HttpError
 from .base import Loader, LoaderError, Runtime, args_file_name, run_installer, version_key
 
 NEOFORGE_MAVEN = "https://maven.neoforged.net/releases/net/neoforged/neoforge"
 NEOFORGE_VERSIONS = "https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge"
 FORGE_MAVEN = "https://maven.minecraftforge.net/net/minecraftforge/forge"
 FORGE_PROMOS = "https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json"
+
+log = logging.getLogger(__name__)
 
 # Everything the installers create that belongs to the loader, not the world.
 INSTALLER_FILES = ["libraries", "run.sh", "run.bat"]
@@ -29,12 +33,29 @@ class NeoForgeLoader(Loader):
     name = "neoforge"
     mod_loaders = ("neoforge",)
 
+    def _api_versions(self) -> list[str]:
+        try:
+            return [str(v) for v in self.http.get_json(NEOFORGE_VERSIONS)["versions"]]
+        except (HttpError, KeyError, TypeError, ValueError) as e:
+            log.debug("NeoForge's version list didn't answer (%s)", e)
+            return []
+
+    def _maven_versions(self) -> list[str]:
+        import re
+        text = self.http.get_text(f"{NEOFORGE_MAVEN}/maven-metadata.xml", limit=4 << 20)
+        return re.findall(r"<version>([^<]{1,40})</version>", text)
+
     def latest_version(self, minecraft: str) -> str | None:
+        prefix = neoforge_prefix(minecraft)
+
+        def pick(versions):
+            found = [v for v in versions if v.startswith(prefix) and "-" not in v]
+            return max(found, key=version_key) if found else None
+
         def fetch():
-            prefix = neoforge_prefix(minecraft)
-            versions = [v for v in self.http.get_json(NEOFORGE_VERSIONS)["versions"]
-                        if v.startswith(prefix) and "-" not in v]
-            return max(versions, key=version_key) if versions else None
+            # NeoForge's API, then (when it doesn't answer, or leaves older builds out) the full
+            # list in its maven-metadata.xml.
+            return pick(self._api_versions()) or pick(self._maven_versions())
         return self._safe_latest(fetch)
 
     def install(self, minecraft: str, version: str, dest: Path, java: str) -> Runtime:

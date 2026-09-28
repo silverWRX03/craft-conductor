@@ -254,7 +254,8 @@ class Trial:
                     kept.extend(group)
                 elif len(group) == 1:
                     outliers.append({"id": group[0].id, "source": group[0].source, "reason": why,
-                                     "suspects": [x["name"] for x in (diag or {}).get("suspects", [])]})
+                                     "suspects": [x["name"] for x in (diag or {}).get("suspects", [])],
+                                     "suspect_ids": [x.get("mod_id") for x in (diag or {}).get("suspects", []) if x.get("mod_id")]})
                 else:
                     half = len(group) // 2
                     add(group[:half])
@@ -266,6 +267,11 @@ class Trial:
             self.say(f"Done after {self.tests} tests: {len(kept)} mod(s) work together"
                      + (f"; {len(outliers)} don't: " + ", ".join(o['id'] for o in outliers) if outliers else "."))
             self.state = "done"
+            if outliers and getattr(self.hub, "share_conflicts", lambda: False)():
+                from . import conflicts  # (anonymously, if you opted in: see conflicts.py)
+                reports = conflicts.reports_for(self.loader, self.minecraft, self.result)
+                threading.Thread(target=conflicts.share, args=(self.hub.http, reports), daemon=True, name="share-conflicts").start()
+                self.result["shared"] = len(reports)
         except InterruptedError:
             self.say("Stopped.")
             self.state = "cancelled"

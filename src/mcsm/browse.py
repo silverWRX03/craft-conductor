@@ -58,7 +58,7 @@ class Browser:
         if sort not in SORTS:
             raise BrowseError("unknown sort order")
         offset = max(0, min(int(offset), 10_000))
-        plugins = loader == "paper"
+        plugins = loader in ("paper", "purpur")  # (loaders.PLUGIN_SERVERS)
         if side not in ("server", "client"):
             raise BrowseError("unknown side")
         if env not in ENVS:
