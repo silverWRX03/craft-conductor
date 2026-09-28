@@ -22,6 +22,10 @@ Before continuing or starting a feature, check this list: some features wait on 
 - [ ] **Try the new 0.15 features for real:** Find what's causing lag on a busy server, Compare 10 seeds,
       Roll back to a snapshot, the guided setup, and a modded single-player game in your launcher
       (Install…, then Check for updates after a mod updates). They were tried with pretend servers.
+- [ ] **Try the phone app for real** (Craft Conductor settings → Phone app): install Tailscale on the
+      computer and your phone, press Use Tailscale for the phone app, open the address on the phone, add
+      it to the home screen and turn notifications on; then Send a test, and stop a server by hand to see
+      one arrive. It was only tried in a desktop browser here.
 - [ ] **Try automatic port forwarding at home** (mcsm settings → Sharing with friends → Router):
       switch it on, look at what it says, then **Test from the internet** in Check my setup. It
       was only tested against a pretend router.
@@ -58,6 +62,10 @@ Next:
        ends at "your friend joined".
 6. [x] **Modded single-player worlds:** set up and keep a modded single-player game up to date,
        then load it into the launcher of your choice (no launcher of our own).
+7. [x] **Mobile app (first):** Craft Conductor as an app on the phone's home screen (an installable web
+       app, not a store app) with notifications when it's closed: a crash, a friend asking to join, an update
+       held back, lag. Includes a guided way to reach it over trusted HTTPS (Tailscale, a Cloudflare Tunnel or
+       a domain), which phones need for this. A store app only if this falls short.
 7. [ ] **Accessibility:** everything works with the keyboard, labels for screen readers, and a
        high-contrast theme.
 8. [ ] **Player activity:** who played when, the busiest times, and a suggested restart time when
@@ -66,7 +74,6 @@ Next:
 10. [ ] Web map of the world (BlueMap or Dynmap) with a link to share.
 11. [ ] **Map landmarks:** villages, structures and players' bases pinned on the map preview (and
         on the web map).
-12. [ ] Notifications on phones with the tab closed (installable web app).
 13. [ ] Limits per server (memory, CPU) and a warning when too many run at once.
 14. [ ] Other tunnel services next to playit.gg (Cloudflare Tunnel, Tailscale Funnel).
 15. [ ] Purpur servers.

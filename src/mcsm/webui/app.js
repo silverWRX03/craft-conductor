@@ -4167,6 +4167,140 @@ function discordStatusPicker(r, after) {
 }
 
 // Craft Conductor itself: sign-in, network access, and what Craft Conductor is.
+// ------------------------------------------------------------- the phone app
+// Craft Conductor on a phone's home screen (an installable web app), with notifications when it's
+// closed (push.py). Phones need a secure address for both: Tailscale gives one in a click.
+let installPrompt = null;  // (Chrome and Edge offer "Install app" through this event)
+window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installPrompt = e; });
+function registerWorker() {
+  if (window.isSecureContext && "serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => null);
+}
+function b64uBytes(text) {
+  const s = atob(text.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - text.length % 4) % 4));
+  return Uint8Array.from(s, (c) => c.charCodeAt(0));
+}
+function deviceName() {
+  const ua = navigator.userAgent;
+  return /iPhone/.test(ua) ? "iPhone" : /iPad/.test(ua) ? "iPad" : /Android/.test(ua) ? (/Mobile/.test(ua) ? "Android phone" : "Android tablet")
+    : /Windows/.test(ua) ? "Windows computer" : /Mac/.test(ua) ? "Mac" : /Linux/.test(ua) ? "Linux computer" : "A device";
+}
+function phoneCard() {
+  const body = h("div", {}, h("p", { class: "muted small" }, "Loading…"));
+  const el = card("Phone app", body);
+  const secure = window.isSecureContext && "serviceWorker" in navigator;
+  const pushOk = secure && "PushManager" in window && "Notification" in window;
+  const standalone = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches;
+  const iOS = /iPhone|iPad/.test(navigator.userAgent);
+  let info = null, mine = null, ts = null;
+  const tsOut = h("div", { class: "mt-s" });
+  const subscription = async () => {
+    if (!pushOk) return null;
+    const reg = await navigator.serviceWorker.getRegistration();
+    return reg ? reg.pushManager.getSubscription() : null;
+  };
+  const load = async (checkTailscale = false) => {
+    info = await api(`/api/hub/phone${checkTailscale ? "?tailscale=1" : ""}`).catch(() => null);
+    if (info && info.tailscale) ts = info.tailscale;
+    mine = await subscription().catch(() => null);
+    render();
+  };
+  const enable = async () => {
+    const perm = await Notification.requestPermission();
+    if (perm !== "granted") { toast("Notifications are blocked for this site: allow them in the browser's settings, then try again.", true); return; }
+    const reg = await navigator.serviceWorker.register("/sw.js");
+    await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uBytes(info.public_key) })
+      .catch((e) => { toast(e.message, true); return null; });
+    if (!sub) return;
+    const j = sub.toJSON();
+    const r = await api("/api/hub/phone/subscribe", { method: "POST", body: { endpoint: j.endpoint, keys: j.keys, name: deviceName() } })
+      .catch((e) => { toast(e.message, true); return null; });
+    if (r) toast("Notifications are on for this device");
+    load();
+  };
+  const disable = async () => {
+    const sub = await subscription();
+    if (sub) {
+      await api("/api/hub/phone/unsubscribe", { method: "POST", body: { endpoint: sub.endpoint } }).catch(() => null);
+      await sub.unsubscribe().catch(() => null);
+    }
+    toast("Notifications are off for this device");
+    load();
+  };
+  const test = async () => {
+    const sub = await subscription();
+    if (!sub) return;
+    const r = await api("/api/hub/phone/test", { method: "POST", body: { endpoint: sub.endpoint } }).catch((e) => { toast(e.message, true); return null; });
+    if (r) toast(r.ok ? "Sent: it should appear in a moment" : `It didn't go through: ${(r.results[0] || {}).error || "the push service said no"}`, !r.ok);
+  };
+  const useTailscale = async () => {
+    const r = await api("/api/hub/phone/tailscale", { method: "POST", body: { on: true } }).catch((e) => { toast(e.message, true); return null; });
+    if (!r) return;
+    if (!r.ok) {
+      fill(tsOut, h("div", { class: "notice warn small" }, r.message,
+        r.enable_url ? h("div", {}, "Tailscale needs HTTPS switched on for your account first (one click): ",
+          h("a", { href: r.enable_url, target: "_blank", rel: "noopener noreferrer" }, "switch it on ↗"), ", then press the button again.") : null));
+      return;
+    }
+    toast("Done: your phone can open " + r.url);
+    load(true);
+  };
+  const stopTailscale = async () => {
+    await act(() => api("/api/hub/phone/tailscale", { method: "POST", body: { on: false } }), "Stopped");
+    load(true);
+  };
+  const tailscaleBox = () => {
+    if (!ts) return h("button", { class: "btn small", onclick: () => load(true) }, "Check for Tailscale");
+    if (!ts.installed) return h("p", { class: "small" }, "Tailscale isn't on this computer. It's free for personal use: install it here and on your phone from ",
+      h("a", { href: "https://tailscale.com/download", target: "_blank", rel: "noopener noreferrer" }, "tailscale.com/download ↗"),
+      ", sign in to the same account on both, then ", h("button", { class: "link-btn", onclick: () => load(true) }, "check again"), ".");
+    if (!ts.running || !ts.name) return h("p", { class: "small" }, "Tailscale is installed but isn't signed in and connected on this computer. Open it and sign in, then ",
+      h("button", { class: "link-btn", onclick: () => load(true) }, "check again"), ".");
+    if (ts.serving) return h("div", {},
+      h("div", { class: "notice ok small" }, "Ready. On your phone (with Tailscale on), open ",
+        h("a", { href: `https://${ts.name}/`, target: "_blank", rel: "noopener noreferrer" }, h("strong", {}, `https://${ts.name}`)),
+        ". Sign in with your password, or pair the phone under Access from other devices and pick the \"Tailscale, secure\" address."),
+      h("button", { class: "btn small ghost mt-s", onclick: stopTailscale }, "Stop using Tailscale for this"));
+    return h("div", {},
+      h("p", { class: "small" }, `Tailscale is on (${ts.name}). Craft Conductor can use it to give this computer a secure address that only your own devices can reach.`),
+      h("button", { class: "btn primary small", onclick: useTailscale }, "Use Tailscale for the phone app"), tsOut);
+  };
+  const render = () => {
+    if (!info) { fill(body, h("p", { class: "muted small" }, "Couldn't load the phone app settings.")); return; }
+    const here = !secure
+      ? h("div", { class: "notice small" }, "This page isn't on a secure address, so this device can't install the app or get notifications here. Open Craft Conductor on your phone at a secure address (see below), and turn them on there.")
+      : !pushOk
+        ? h("div", { class: "notice small" }, iOS && !standalone
+          ? "On iPhone and iPad, first add Craft Conductor to the Home Screen: press Share, then Add to Home Screen. Open it from there, and turn notifications on here."
+          : "This browser can't get notifications from web apps.")
+        : h("div", { class: "row wrap" },
+          mine ? [h("span", { class: "ok-text small grow" }, "✓ Notifications are on for this device."),
+            h("button", { class: "btn small", onclick: test }, "Send a test"),
+            h("button", { class: "btn small ghost", onclick: disable }, "Turn off")]
+            : [h("span", { class: "small grow" }, "Get a notification when a server crashes, a friend asks to join, an update is held back or it lags."),
+              h("button", { class: "btn primary small", onclick: enable }, "Turn on notifications here")]);
+    fill(body,
+      h("p", { class: "muted small" }, "Craft Conductor can live on your phone's home screen like an app, and tell you when something needs you, even when it's closed."),
+      h("h4", {}, "This device"), here,
+      installPrompt && !standalone ? h("button", { class: "btn small mt-s", onclick: () => { installPrompt.prompt(); installPrompt = null; render(); } }, "Install the app") : null,
+      info.devices.length ? h("div", { class: "mt-s" }, h("h4", {}, "Devices with notifications on"),
+        h("ul", { class: "list" }, info.devices.map((d) => h("li", {}, h("span", { class: "grow" }, d.name, h("span", { class: "muted small" }, ` · since ${fmtTime(d.created)}`)),
+          h("button", { class: "btn small ghost", onclick: async () => { await act(() => api("/api/hub/phone/remove", { method: "POST", body: { id: d.id } }), "Removed"); load(); } }, "Remove"))))) : null,
+      h("h4", { class: "mt" }, "Reach it from your phone, securely"),
+      h("p", { class: "muted small" }, "Phones only install web apps and deliver their notifications for pages with a real certificate. The easy way is Tailscale: a private network of your own devices."),
+      info.strong ? tailscaleBox() : h("div", { class: "notice warn small" }, "First set a strong password above: the phone signs in from another device."),
+      h("details", { class: "mt-s small" }, h("summary", {}, "Put it on your phone"),
+        h("ol", {},
+          h("li", {}, "On the phone, open the secure address (with Tailscale on)."),
+          h("li", {}, "iPhone or iPad: in Safari press Share → Add to Home Screen, then open Craft Conductor from the Home Screen. Android: in Chrome press ⋮ → Install app (or Add to Home screen)."),
+          h("li", {}, "In the app, go to Craft Conductor settings → Phone app → Turn on notifications here."))),
+      h("details", { class: "small" }, h("summary", {}, "Other ways to get a secure address"),
+        h("p", {}, "A Cloudflare Tunnel, or your own domain with a reverse proxy (Caddy, nginx) that has a real certificate, works too: add its host name to [web] allowed_hosts, and keep a strong password, since that address is on the internet.")));
+  };
+  load();
+  return el;
+}
+
 views.mcsm = () => {
   const security = h("div", { class: "mb" });
   const network = h("div", { class: "mb" });
@@ -4285,7 +4419,8 @@ views.mcsm = () => {
       r.set ? discordStatusPicker(r, renderDc) : null));
   };
   renderDc();
-  fill($("#main"), security, network, sharing, cf, dc, about);
+  const phone = hubInfo && !hubInfo.single ? phoneCard() : null;
+  fill($("#main"), security, network, phone, sharing, cf, dc, about);
   renderSecurity(hubInfo);
   renderSharing(hubInfo);
   loadAbout();
@@ -4907,6 +5042,7 @@ async function start() {
   try { hubInfo = await api("/api/hub"); } catch (_) { return; }
   $("#login").classList.add("hidden");
   $("#app").classList.remove("hidden");
+  registerWorker();
   route();
 }
 start();

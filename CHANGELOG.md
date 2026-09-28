@@ -4,6 +4,11 @@ What changed in each version of mcsm, newest first. Bugs are listed the way you'
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.17.0 (2026-09-28)
+
+**Added**
+- **The phone app** (Craft Conductor settings → **Phone app**): put Craft Conductor on your phone's home screen like an app, and get **notifications** even when it's closed: a server crashed or won't start, a friend asks to join, an update was held back, it's lagging, and everything else that goes to Discord. **Use Tailscale for the phone app** gives the control panel the secure address phones need, reachable only from your own devices. Tap a notification to open that server.
+
 ## 0.16.0 (2026-09-28)
 
 **Changed**

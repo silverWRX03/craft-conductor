@@ -112,6 +112,7 @@ class Hub:
         self.make_manager = make_manager or (lambda cfg: Manager(cfg, http=self.http, echo=False))
         self.trials: dict = {}  # test boots (trial.Trial) by id
         self.previews: dict = {}  # map previews (preview.Preview) by id
+        self._push = None  # phone notifications (the installed app): see the push property
         self.gallery = None  # the last seed gallery (preview.Gallery)
         self.map_session = None  # the last previewed world, to explore (preview.MapSession)
         self._upnp_lock = threading.Lock()
@@ -155,6 +156,7 @@ class Hub:
         hub.share_error = None
         hub.trials = {}
         hub.previews = {}
+        hub._push = None
         hub.gallery = None
         hub.map_session = None
         hub._upnp_lock = threading.Lock()
@@ -482,11 +484,28 @@ class Hub:
         self.problems.pop(sid, None)
         d = Daemon(m, tick=self.tick, autostart=False, server_id=sid, hub_managed=True)
         d.hub = self
+        m.notifier.listeners.append(lambda message, sid=sid: self.phone_notify(sid, message))
         d.web_enabled = True  # problems are shown in the web UI instead of stopping mcsm
         self.daemons[sid] = d
         t = threading.Thread(target=d.run, daemon=True, name=f"server:{sid}")
         self._threads[sid] = t
         t.start()
+
+    @property
+    def push(self):
+        if self._push is None:
+            from .push import Push
+            self._push = Push(self.state_dir)
+        return self._push
+
+    def phone_notify(self, sid: str, message: str) -> None:
+        """A server's message (what goes to Discord), to the phones that turned notifications on."""
+        from .properties import read_properties
+        d = self.daemons.get(sid)
+        name = sid
+        if d is not None:
+            name = read_properties(d.m.server_dir / "server.properties").get("motd") or sid
+        self.push.notify(name, message, url=f"/#s/{sid}/dashboard", tag=sid.replace("-", "_")[:32])
 
     def get(self, sid: str) -> Daemon | None:
         return self.daemons.get(sid)

@@ -283,6 +283,16 @@ By default only the server's own computer can open the control panel. **Craft Co
 - Each paired phone is listed with when it was last used, and can be signed out on its own; changing the password signs out every phone.
 - Away from home, use **Tailscale** (free) rather than opening the control panel's port on your router. For HTTPS, give Craft Conductor a certificate (for example from `tailscale cert`).
 
+### The phone app
+
+Craft Conductor can live on your phone's home screen like an app, and send **notifications** even when it's closed: when a server crashes or won't start, a friend asks to join, an update is held back, the lag finder finds something, and everything else Craft Conductor would post to Discord. It's set up under **Craft Conductor settings → Phone app**:
+
+1. **A secure address.** Phones only install web apps and deliver their notifications for a page with a real certificate. The easy way is **Tailscale** (free for personal use): install it on this computer and your phone, signed in to the same account, then press **Check for Tailscale** and **Use Tailscale for the phone app**. The control panel gets an address like `https://your-computer.your-tailnet.ts.net` that only your own devices can reach; it isn't on the internet. (The first time, Tailscale may ask you to switch HTTPS on for your account: follow the link, then press the button again.) It needs a strong password first, because the phone signs in as another device. A Cloudflare Tunnel or your own domain with a real certificate works too (add its name to `[web] allowed_hosts`).
+2. **Put it on your phone.** Open the secure address on the phone (with Tailscale on) and sign in, or pair the phone under **Remote access & phones** and pick the **Tailscale, secure** address. Then: **iPhone or iPad**: in Safari press **Share → Add to Home Screen**, and open Craft Conductor from the Home Screen (iPhones only allow notifications for apps added this way). **Android**: in Chrome press **⋮ → Install app** (or **Add to Home screen**); some browsers show **Install the app** in the card itself.
+3. **Turn on notifications here**, in the app, under **Craft Conductor settings → Phone app**. **Send a test** checks it works. Each device with notifications on is listed; **Remove** stops them for that device, and **Turn off** does it on the device itself.
+
+Notifications go through your phone's own push service (Apple's, Google's, Mozilla's or Microsoft's), encrypted so that only your phone can read them. A paired phone can turn its own notifications on and off, even as a viewer.
+
 ## Craft Conductor settings
 
 - **Sign-in:** change your password or PIN. There's always one.

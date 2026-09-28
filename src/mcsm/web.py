@@ -63,8 +63,14 @@ DEVICE_HIDDEN_GETS = {"/api/configs/file", "/api/export/download", "/api/setting
                       "/api/hub/remote", "/api/hub/saves", "/api/doctor/report"}
 
 
+# A paired phone turning its own notifications on or off (it names itself by its push address).
+PHONE_POSTS = {"/api/hub/phone/subscribe", "/api/hub/phone/unsubscribe", "/api/hub/phone/test"}
+
+
 def device_allowed(method: str, path: str, role: str = "helper") -> bool:
     """What a paired device may do: viewers only look (and can sign out)."""
+    if method == "POST" and path in PHONE_POSTS:
+        return True
     if method == "POST":
         return path == "/api/logout" if role == "viewer" else path in DEVICE_POSTS
     return path not in DEVICE_HIDDEN_GETS
@@ -79,6 +85,9 @@ STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/manual.md": ("manual.md", "text/markdown; charset=utf-8"),
           "/style.css": ("style.css", "text/css; charset=utf-8"),
           "/icon.png": ("icon.png", "image/png"),
+          "/icon-192.png": ("icon-192.png", "image/png"),
+          "/icon-512.png": ("icon-512.png", "image/png"),
+          "/sw.js": ("sw.js", "text/javascript; charset=utf-8"),  # the installed app's notifications
           "/manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json"),
           "/help-network.svg": ("help-network.svg", "image/svg+xml"),
           "/help-router.svg": ("help-router.svg", "image/svg+xml"),
@@ -825,6 +834,12 @@ class HubApi:
                                                   "title": notice.TITLE, "points": notice.POINTS}
         r[("POST", "/api/notice/accept")] = self.accept_notice
         r[("GET", "/api/hub/guide")] = self.guide_status
+        r[("GET", "/api/hub/phone")] = self.phone_info
+        r[("POST", "/api/hub/phone/subscribe")] = self.phone_subscribe
+        r[("POST", "/api/hub/phone/unsubscribe")] = self.phone_unsubscribe
+        r[("POST", "/api/hub/phone/test")] = self.phone_test
+        r[("POST", "/api/hub/phone/remove")] = self.phone_remove
+        r[("POST", "/api/hub/phone/tailscale")] = self.phone_tailscale
         r[("GET", "/api/hub/singleplayer")] = self.sp_list
         r[("POST", "/api/hub/singleplayer")] = self.sp_create
         r[("POST", "/api/hub/singleplayer/edit")] = self.sp_edit
@@ -948,6 +963,71 @@ class HubApi:
         threading.Thread(target=run, daemon=True, name="singleplayer-install").start()
         threading.Thread(target=webbrowser.open, args=(url,), daemon=True).start()
         return {"ok": True, "url": url}
+
+    # ------------------------------------------------- the phone app (push)
+    def _port(self) -> int:
+        return self.web.httpd.server_address[1] if self.web.httpd else self.web.port
+
+    def phone_info(self, q, b) -> dict:
+        from . import tailscale
+        ts = tailscale.status(self._port()) if q.get("tailscale") == "1" else None
+        return {"public_key": self.hub.push.public_key(), "devices": self.hub.push.subscriptions(),
+                "tailscale": ts, "secure_url": f"https://{ts['name']}/" if ts and ts["serving"] and ts["name"] else None,
+                "strong": self.web.auth.remote_ready}
+
+    def phone_subscribe(self, q, b) -> dict:
+        from .push import PushError
+        keys = b.get("keys") if isinstance(b.get("keys"), dict) else {}
+        try:
+            sub = self.hub.push.subscribe(b.get("endpoint"), keys.get("p256dh", ""), keys.get("auth", ""), b.get("name", ""))
+        except PushError as e:
+            raise ApiError(400, str(e)) from None
+        return {"ok": True, "device": sub}
+
+    def phone_unsubscribe(self, q, b) -> dict:
+        return {"ok": True, "removed": self.hub.push.unsubscribe(endpoint=str(b.get("endpoint", "")))}
+
+    def phone_test(self, q, b) -> dict:
+        """A test notification to this device (it names itself by its push address)."""
+        endpoint = str(b.get("endpoint", ""))
+        with self.hub.push.lock:
+            match = [s["id"] for s in self.hub.push._load().get("subscriptions", []) if s["endpoint"] == endpoint]
+        if not match:
+            raise ApiError(404, "notifications aren't on for this device")
+        results = self.hub.push.send_now({"title": "Craft Conductor", "body": "Notifications work on this device.",
+                                          "url": "/", "tag": "test"}, only=match[0])
+        return {"ok": all(r["ok"] for r in results), "results": results}
+
+    def phone_remove(self, q, b) -> dict:
+        n = self.hub.push.unsubscribe(sub_id=str(b.get("id", "")))
+        if not n:
+            raise ApiError(404, "no such device")
+        return {"ok": True, "devices": self.hub.push.subscriptions()}
+
+    def phone_tailscale(self, q, b) -> dict:
+        """Reach the control panel over trusted HTTPS with Tailscale (the phone app needs it), or stop."""
+        from . import tailscale
+        if self.hub.is_single:
+            raise ApiError(400, "the phone app needs the full Craft Conductor (not `mcsm run`)")
+        port = self._port()
+        if b.get("on") is False:
+            tailscale.unserve()
+            return {"ok": True, "tailscale": tailscale.status(port)}
+        if not self.web.auth.remote_ready:
+            raise ApiError(400, "first set a strong password (" + webauth.STRONG_RULES + "): the phone signs in from another device")
+        st = tailscale.status(port)
+        if not st["installed"]:
+            raise ApiError(400, "Tailscale isn't installed on this computer: get it from tailscale.com/download, sign in, then try again")
+        if not st["running"] or not st["name"]:
+            raise ApiError(400, "Tailscale is installed but not signed in and connected on this computer")
+        r = tailscale.serve(port)
+        if not r["ok"]:
+            return {"ok": False, "message": r["message"], "enable_url": r["enable_url"], "tailscale": st}
+        hosts = sorted(set(self.hub.web.allowed_hosts) | {st["name"]})
+        self.hub.save_web(allowed_hosts=hosts)
+        self.web.hub.web.allowed_hosts = hosts
+        log.info("the control panel is on %s over HTTPS (Tailscale)", st["name"])
+        return {"ok": True, "url": f"https://{st['name']}/", "tailscale": tailscale.status(port)}
 
     def _guide_state(self) -> dict:
         from . import guide
@@ -1232,6 +1312,10 @@ class HubApi:
         lan = lan_ip()
         if lan:
             out.append({"label": f"Home network ({lan})", "host": lan, "kind": "lan"})
+        from . import tailscale
+        st = tailscale.status(self._port())
+        if st["serving"] and st["name"]:  # (HTTPS with a real certificate: the phone app works there)
+            out.append({"label": f"Tailscale, secure ({st['name']}): for the phone app", "host": st["name"], "kind": "tailscale-https"})
         ts = tailscale_ip()
         if ts:
             out.append({"label": f"Tailscale ({ts}), works away from home", "host": ts, "kind": "tailscale"})
@@ -1276,18 +1360,20 @@ class HubApi:
             raise ApiError(400, "phone pairing needs `mcsm start` (the server list)")
         if not self.web.auth.remote_ready:
             raise ApiError(400, "first set a strong password (" + webauth.STRONG_RULES + ")")
-        if not self.web.remote_on() or self.web.host in ("127.0.0.1", "localhost", "::1"):
-            raise ApiError(400, "turn on access from other devices first (and restart Craft Conductor), so the phone can reach this computer")
         host = str(b.get("host", ""))
-        if host not in {a["host"] for a in self._addresses()}:
+        addresses = {a["host"]: a for a in self._addresses()}
+        if host not in addresses:
             raise ApiError(400, "pick one of the addresses listed")
+        secure = addresses[host]["kind"] == "tailscale-https"  # (Tailscale passes it on: no network access needed)
+        if not secure and (not self.web.remote_on() or self.web.host in ("127.0.0.1", "localhost", "::1")):
+            raise ApiError(400, "turn on access from other devices first (and restart Craft Conductor), so the phone can reach this computer")
         role = str(b.get("role") or "helper")
         if role not in webauth.ROLES:
             raise ApiError(400, "pick helper or viewer")
         code = self.web.devices.new_code(time.time(), role)
         port = self.web.httpd.server_address[1] if self.web.httpd else self.web.port
         shown = f"[{host}]" if ":" in host else host
-        url = f"{'https' if self.web.tls else 'http'}://{shown}:{port}/#pair={code}"
+        url = f"https://{host}/#pair={code}" if secure else f"{'https' if self.web.tls else 'http'}://{shown}:{port}/#pair={code}"
         log.info("made a pairing code for a %s (valid for five minutes)", role)
         return {"url": url, "qr": qr.svg(url), "expires_in": webauth.PAIR_SECONDS}
 
