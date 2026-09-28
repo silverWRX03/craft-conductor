@@ -186,6 +186,8 @@ class Daemon:
         self.console = LogBuffer(3000)
         self.events = LogBuffer(500)
         self.players: set[str] = set()
+        from .activity import Activity
+        self.activity = Activity(getattr(getattr(manager, "config", None), "state_dir", None))  # who played when (Players page)
         self._sched_last = None  # the last time schedules were looked at
         self._backup_owed = False  # a scheduled backup that came due while another job ran
         self.meter = None        # recent TPS samples (perf.Meter), made when first asked for
@@ -218,14 +220,17 @@ class Daemon:
     def _on_process(self, proc: ServerProcess) -> None:
         self.proc = proc
         self.players.clear()
+        self.activity.all_left()  # (anyone still counted from before was gone by now)
         self.started_at = None
 
     def _on_line(self, line: str) -> None:
         self.console.append(text=line)
         if m := JOINED.search(line):
             self.players.add(m.group(1))
+            self.activity.joined(m.group(1))
         elif m := LEFT.search(line):
             self.players.discard(m.group(1))
+            self.activity.left(m.group(1))
         elif READY.search(line):
             self.started_at = time.time()
 
@@ -307,6 +312,7 @@ class Daemon:
         if not self.proc or not self.proc.running:
             return "already stopped"
         self.proc.stop(self.m.config.server.stop_timeout)
+        self.activity.all_left()
         log.info("server stopped")
         return "stopped"
 
@@ -436,6 +442,7 @@ class Daemon:
             if self.proc and self.proc.running:
                 log.info("stopping server")
                 self.proc.stop(self.m.config.server.stop_timeout)
+            self.activity.all_left()
             logging.getLogger("mcsm").removeHandler(handler)
             pid_path(self.m).unlink(missing_ok=True)
 
@@ -540,6 +547,7 @@ class Daemon:
 
     def _handle_crash(self) -> None:
         self.crashed_at = time.time()
+        self.activity.all_left(self.crashed_at)
         now = time.monotonic()
         self.crashes.append(now)
         while self.crashes and now - self.crashes[0] > CRASH_WINDOW:

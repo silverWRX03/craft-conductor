@@ -158,6 +158,8 @@ Players online and players who have joined before, with **Op/De-op**, **Kick**, 
 
 **Asking to join:** when the whitelist is on, friends setting up with your invite can send their Minecraft name. They appear at the top of the Players page (and the Dashboard says so): **Allow** adds them to the whitelist, **Ignore** drops the request. A browser notification can tell you too (Craft Conductor settings → Notifications). Only someone with your invite can ask, and requests are limited.
 
+**Player activity** (at the bottom of the Players page): who played over the **Last 7, 30 or 90 days**, with their time played, visits and when they were last seen, and a grid of the week, one square per hour, darker when more people are usually on (your computer's time). After a few days of play it names the **quietest time** (usually nobody on, preferring the early morning) and the busiest, and **Restart every day at this time** makes that the scheduled restart (Settings → Schedule). Craft Conductor notes each visit as players join and leave (in `.mcsm/activity.jsonl`, kept for 90 days); nothing is sent anywhere.
+
 ## Mods
 
 Installed mods with their versions: **Download mods** (the mod browser), **Local files**, mark a mod required or optional, **Remove** it (with the mods it needed, if nothing else needs them), and **Mod config files** to edit a mod's settings in the page (with colours for TOML, JSON, YAML and more). **Test these mods** checks a set of mods in a throwaway server, so your world is never touched; if they don't start together, **Find the culprits** adds them back a group at a time until it knows which ones clash. Changes apply at the next restart.
@@ -301,11 +303,25 @@ Notifications go through your phone's own push service (Apple's, Google's, Mozil
 - **CurseForge:** searching CurseForge needs an API key (free, from console.curseforge.com); release builds of Craft Conductor can include one.
 - **Discord:** add a bot to post invites to a channel. **Live status message:** pick a Discord server and channel, and **Keep a status message there**: one message that always shows whether each server is online, how many are playing and its Minecraft version (and your public address, if set). Craft Conductor edits it as things change and says when Craft Conductor is closed; **Stop** ends it. The bot never reads the channel.
 - **Notifications:** **Notify me in this browser** shows a notification when a server stops unexpectedly, an update is ready, someone joins (off by default) or something Craft Conductor was doing fails, while Craft Conductor's tab is in the background. The browser asks first. It works when the address is localhost (or HTTPS).
-- **Size:** how big text and buttons are in this browser: **Automatic** (bigger on big screens), Smaller, Normal, Larger or Largest.
+- **Display:** kept in this browser.
+  - **Size:** how big text and buttons are: **Automatic** (bigger on big screens), Smaller, Normal, Larger or Largest.
+  - **Contrast:** **High contrast** gives black or white backgrounds, stronger text, borders on every button, underlined links and a thick outline around what the keyboard is on. **Automatic** turns it on when your computer asks for more contrast.
+  - **Motion:** **Less motion** stops the animations (sliding panes, the spinning and drifting). **Automatic** follows your computer's "reduce motion" setting.
 - **Language:** Craft Conductor's pages in English, Español, Português, Français, Deutsch, हिन्दी, 中文, Tiếng Việt, العربية (right to left) or 한국어. **Automatic** follows your browser's language. The choice is kept in this browser; the buttons, menus and short messages are translated by machine (so they may have mistakes), and this manual stays in English.
 - **Warnings:** how many warnings you've hidden with "Don't ask me again", and **Show all warnings again**.
 - **About Craft Conductor:** the version, **Check for Craft Conductor updates**, the Craft Conductor folder, the notice and open-source licenses. Craft Conductor also checks by itself: when a new version is out, a message offers to install it (it stops your servers cleanly and restarts).
 - The sun/moon button in the top corner switches between day and night.
+
+### Keyboard and screen readers
+
+Everything in Craft Conductor works with the keyboard and a screen reader (NVDA, JAWS, VoiceOver, TalkBack, Narrator).
+
+- **Tab** and **Shift+Tab** move between buttons, links and fields; **Enter** or **Space** presses a button. A clear outline shows where you are.
+- The first **Tab** on a page reaches **Skip to main content**, which jumps past the menu. After you pick a page in the menu, the keyboard starts at the top of that page, and the browser tab's title names the page and the server.
+- A window that opens (a question, Check my setup, a mod's config files…) keeps **Tab** inside it until it closes. **Escape** closes it (the same as its Close or Cancel button), and the keyboard goes back to where you were.
+- In the config file editor, **Tab** indents. To leave the editor, press **Escape**, then **Tab**. **Ctrl+S** saves.
+- On the map preview, the arrow keys move the map, and **+** and **-** zoom.
+- Messages (Saved, errors, a server starting or stopping) are read out by screen readers as they appear.
 
 ## Troubleshooting
 

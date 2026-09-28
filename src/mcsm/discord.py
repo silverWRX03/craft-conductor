@@ -63,7 +63,8 @@ class Discord:
     @staticmethod
     def invite_url(bot_id: str) -> str:
         """The page where the user adds the bot to one of their Discord servers."""
-        return f"https://discord.com/oauth2/authorize?client_id={bot_id}&scope=bot&permissions={PERMISSIONS}"
+        # (applications.commands: the /whitelist command, see discordbot.py)
+        return f"https://discord.com/oauth2/authorize?client_id={bot_id}&scope=bot%20applications.commands&permissions={PERMISSIONS}"
 
     def guilds(self) -> list[dict]:
         return sorted(({"id": str(g["id"]), "name": str(g.get("name", ""))} for g in self._get("/users/@me/guilds")),
@@ -78,6 +79,14 @@ class Discord:
                 "category": categories.get(str(c.get("parent_id")), ""), "position": int(c.get("position", 0))}
                for c in items if c.get("type") in TEXT_CHANNELS]
         return sorted(out, key=lambda c: (c["category"].lower(), c["position"]))
+
+    def roles(self, guild_id: str) -> list[dict]:
+        """A Discord server's roles (for "only members with this role"), highest first."""
+        if not SNOWFLAKE.fullmatch(guild_id):
+            raise DiscordError("that isn't a Discord server")
+        items = self._get(f"/guilds/{guild_id}/roles")
+        return [{"id": str(r["id"]), "name": str(r.get("name", ""))} for r in sorted(items, key=lambda r: -int(r.get("position", 0)))
+                if str(r["id"]) != guild_id and not r.get("managed")]  # (not @everyone, nor bots' own roles)
 
     def post(self, channel_id: str, content: str, embed: dict | None = None) -> dict:
         if not SNOWFLAKE.fullmatch(channel_id):

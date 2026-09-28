@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
+  <button type="button" id="skip-link" class="skip-link">Skip to main content</button>
   <div id="login" class="login hidden">
     <button type="button" class="theme-toggle corner" data-theme-toggle aria-label="Switch between day and night" title="Day / night">
           <span class="sun" aria-hidden="true"></span><span class="moon" aria-hidden="true"></span></button>
@@ -37,7 +38,7 @@
   <div id="app" class="app hidden">
     <aside class="sidebar">
       <div class="brand"><span class="logo"></span>Craft Conductor</div>
-      <nav id="nav"></nav>
+      <nav id="nav" aria-label="Main"></nav>
       <div class="sidebar-foot">
         <button id="logout" class="btn ghost small">Sign out</button>
         <button id="quit" class="btn ghost small hidden" title="Stop every server and close Craft Conductor">Quit</button>
@@ -49,10 +50,10 @@
       <header class="topbar">
         <h2 id="page-title" class="page-title hidden"></h2>
         <div class="server-id">
-          <span id="state-pill" class="pill">…</span>
+          <span id="state-pill" class="pill" role="status">…</span>
           <span id="server-title" class="title"></span>
         </div>
-        <div id="job" class="job hidden"><span class="spinner"></span><span id="job-name"></span></div>
+        <div id="job" class="job hidden" role="status"><span class="spinner" aria-hidden="true"></span><span id="job-name"></span></div>
         <div class="actions">
           <button id="btn-start" class="btn primary">Start</button>
           <button id="btn-restart" class="btn">Restart</button>
@@ -61,11 +62,11 @@
         <button type="button" class="theme-toggle" data-theme-toggle aria-label="Switch between day and night" title="Day / night">
           <span class="sun" aria-hidden="true"></span><span class="moon" aria-hidden="true"></span></button>
       </header>
-      <div id="stage" class="stage"><main id="main"></main></div>
+      <div id="stage" class="stage"><main id="main" tabindex="-1"></main></div>
     </div>
   </div>
 
-  <div id="toasts" class="toasts"></div>
+  <div id="toasts" class="toasts" aria-live="polite"></div>
   <script src="/i18n.js"></script>
   <script src="/rich.js"></script>
   <script src="/app.js"></script>

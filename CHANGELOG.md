@@ -4,6 +4,13 @@ What changed in each version of mcsm, newest first. Bugs are listed the way you'
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.18.0 (not released yet)
+
+**Added**
+- **Keyboard and screen readers:** a **Skip to main content** link, a clear outline on whatever the keyboard is on, windows that keep the keyboard inside them and close with Escape, page titles that name the page and server, and messages that screen readers read out. See the user manual's "Keyboard and screen readers".
+- **Display** (Craft Conductor settings, replacing Size): **High contrast** and **Less motion**, next to the size. Both follow your computer's own settings unless you pick one.
+- **Player activity** (Players page): who played and for how long, a week-by-hour grid of when people are on, and the quietest time, which **Restart every day at this time** makes the scheduled restart.
+
 ## 0.17.0 (2026-09-28)
 
 **Added**

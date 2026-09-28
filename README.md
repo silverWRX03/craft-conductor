@@ -124,6 +124,8 @@ ready to update to Minecraft 1.21.4 with fabric 0.16.14:
 - **Schedules and backup copies.** Restart every night, back up every few hours, and copy every
   backup to a USB drive or a cloud-synced folder. Simple choices on the Settings page, or any
   cron expression.
+- **Player activity.** Who played and for how long, a week-by-hour grid of when people are on,
+  and the quietest time, made the nightly restart in one click.
 - **Check my setup.** One button checks Java, memory, disk space, the port, the firewall and
   friends' access, says what to fix in plain words, and can test that friends outside your home
   can connect. It also downloads a report for bug reports, with secrets taken out.
@@ -183,6 +185,8 @@ ready to update to Minecraft 1.21.4 with fabric 0.16.14:
   [Linux computer without a screen](docs/headless.md) that you manage from another one
   (New server → **Install on a Linux computer** sets it up over SSH).
 - **Day and night themes**, switched with the sun/moon button.
+- **Accessible:** works with the keyboard and screen readers, with **High contrast** and
+  **Less motion** options (Craft Conductor settings → Display).
 - **Try beta Minecraft versions** (snapshots and pre-releases) on a new server, or on a
   copy of an existing one so your real world is never touched.
 - **Mods three ways:** `.jar` files from your computer (ones Modrinth recognises are

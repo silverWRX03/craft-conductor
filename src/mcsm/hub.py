@@ -121,6 +121,7 @@ class Hub:
         self.join_requests: dict[str, list[dict]] = {}  # friends asking to be let in, by server
         self._status_lock = threading.Lock()  # the Discord status message
         self._status_sent, self._status_at = None, 0.0
+        self.discord_bot = None  # Whitelist through Discord, while it's on (discordbot.WhitelistBot)
         self._request_times: dict[str, float] = {}
         self._requests_lock = threading.Lock()
         self.checks: dict = {}  # quick mod checks running in the background (trial.CheckJob) by id
@@ -157,6 +158,7 @@ class Hub:
         hub.trials = {}
         hub.previews = {}
         hub._push = None
+        hub.discord_bot = None
         hub.gallery = None
         hub.map_session = None
         hub._upnp_lock = threading.Lock()
@@ -342,6 +344,72 @@ class Hub:
         data["discord"] = {"token": token, "bot": bot}
         self._save_hub_file(data)
         return bot
+
+    # ------------------------------------------- Whitelist through Discord
+    def discord_whitelist(self) -> dict:
+        w = self._hub_file().get("discord", {}).get("whitelist", {})
+        bot = self.discord_bot
+        return {"enabled": bool(w.get("enabled")), "mode": w.get("mode", "ask"), "role": w.get("role", ""),
+                "status": bot.status() if bot else None}
+
+    def set_discord_whitelist(self, enabled: bool, mode: str = "ask", role: str = "") -> None:
+        from .discordbot import check_settings
+        mode, role = check_settings(mode, role)
+        data = self._hub_file()
+        if "discord" not in data:
+            raise ValueError("add a Discord bot first")
+        data["discord"]["whitelist"] = {"enabled": bool(enabled), "mode": mode, "role": role}
+        self._save_hub_file(data)
+        old, self.discord_bot = self.discord_bot, None
+        if old is not None:
+            old.close()
+            if not enabled:
+                threading.Thread(target=old.unregister, daemon=True, name="discord-commands").start()
+        self.sync_discord_bot()
+
+    def sync_discord_bot(self) -> None:
+        """Start or stop the bot to match the settings; keep /whitelist's server list current."""
+        from .discordbot import WhitelistBot
+        d = self._hub_file().get("discord", {})
+        w = d.get("whitelist", {})
+        want = bool(w.get("enabled") and d.get("token")) and not self.is_single
+        bot = self.discord_bot
+        if not want:
+            if bot is not None:
+                bot.close()
+                self.discord_bot = None
+            return
+        if bot is None or bot.token != d["token"] or (bot.state == "stopped" and bot.stop.is_set()):
+            if bot is not None:
+                bot.close()
+            bot = self.discord_bot = WhitelistBot(self, d["token"], w)
+            bot.start()
+        else:
+            bot.settings = w
+            if bot.state == "connected":
+                bot.register()
+
+    def summary_for_discord(self) -> list[dict]:
+        """The Minecraft servers /whitelist can pick from (ones that are set up)."""
+        from .properties import read_properties
+        out = []
+        for sid, d in list(self.daemons.items()):
+            if d.setup_pending:
+                continue
+            motd = read_properties(d.m.server_dir / "server.properties").get("motd") or sid
+            out.append({"id": sid, "name": motd})
+        return out
+
+    def whitelist_from_discord(self, sid: str, name: str, who: str) -> str:
+        """Let in someone who asked with /whitelist (in "Let them in" mode)."""
+        from .players import Players
+        d = self.daemons[sid]
+        running = d.state == "running"
+        message = Players(d.m.server_dir, d.m.http, d.send_command if running else None).act("whitelist-add", name)
+        self.answer_join_request(sid, name)
+        log.info("%s let themselves into %s through Discord (%s)", name, sid, who)
+        d.m.notifier.send(f"{name} was let in through Discord (/whitelist, by {who}).")
+        return message
 
     def remember_discord_channel(self, guild: str, channel: str) -> None:
         data = self._hub_file()
@@ -992,6 +1060,7 @@ class Hub:
                 if now >= next_status:
                     next_status = now + 30
                     threading.Thread(target=self.discord_status, daemon=True, name="discord-status").start()
+                    threading.Thread(target=self.sync_discord_bot, daemon=True, name="discord-whitelist-sync").start()
                 self.stop_requested.wait(self.tick)
             return 0
         finally:
@@ -1001,6 +1070,8 @@ class Hub:
                 self.share.stop()
             if self._hub_file().get("discord", {}).get("status_channel"):
                 self.discord_status(off=True)  # say mcsm is closed, rather than leave "online" up
+            if self.discord_bot is not None:
+                self.discord_bot.close()
             if self.map_session is not None:  # (a map's private server)
                 self.map_session.close()
             for d in list(self.daemons.values()):  # (an update rehearsal's copy of a server)

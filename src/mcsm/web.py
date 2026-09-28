@@ -59,7 +59,7 @@ DEVICE_POSTS = {"/api/server/start", "/api/server/stop", "/api/server/restart", 
                 "/api/updates/check", "/api/updates/apply", "/api/players/action", "/api/logout",
                 "/api/join-requests/answer"}
 DEVICE_HIDDEN_GETS = {"/api/configs/file", "/api/export/download", "/api/settings", "/api/hub/curseforge",
-                      "/api/hub/discord", "/api/hub/discord/guilds", "/api/hub/discord/channels",
+                      "/api/hub/discord", "/api/hub/discord/guilds", "/api/hub/discord/channels", "/api/hub/discord/roles",
                       "/api/hub/remote", "/api/hub/saves", "/api/doctor/report"}
 
 
@@ -804,6 +804,8 @@ class HubApi:
         r[("GET", "/api/hub/discord/guilds")] = lambda q, b: {"guilds": self._discord().guilds()}
         r[("GET", "/api/hub/discord/channels")] = lambda q, b: {"channels": self._discord().channels(q.get("guild", ""))}
         r[("POST", "/api/hub/discord/status")] = self.discord_status
+        r[("GET", "/api/hub/discord/roles")] = lambda q, b: {"roles": self._discord().roles(q.get("guild", ""))}
+        r[("POST", "/api/hub/discord/whitelist")] = self.discord_whitelist
         r[("POST", "/api/hub/mods/check")] = self.check_mods
         r[("GET", "/api/hub/mods/check")] = self.check_status
         r[("POST", "/api/hub/trial")] = self.start_trial
@@ -1398,7 +1400,17 @@ class HubApi:
         from .discord import DEVELOPER_PORTAL, Discord
         s = self.hub.discord_settings() if not self.hub.is_single else {"set": False, "bot": None}
         return {**s, "portal": DEVELOPER_PORTAL,
-                "invite_url": Discord.invite_url(s["bot"]["id"]) if s.get("bot") else None}
+                "invite_url": Discord.invite_url(s["bot"]["id"]) if s.get("bot") else None,
+                "whitelist": self.hub.discord_whitelist() if not self.hub.is_single else None}
+
+    def discord_whitelist(self, q, b) -> dict:
+        """Whitelist through Discord: on or off, ask first or let them in, and an optional role."""
+        self._discord()
+        try:
+            self.hub.set_discord_whitelist(b.get("enabled") is True, str(b.get("mode", "ask")), str(b.get("role", "")))
+        except ValueError as e:
+            raise ApiError(400, str(e)) from None
+        return {"ok": True, "whitelist": self.hub.discord_whitelist()}
 
     def save_discord(self, q, b) -> dict:
         if self.hub.is_single:
@@ -1653,6 +1665,7 @@ class Api:
         post("/api/export/delete", self.delete_export)
         get("/api/export/download", self.exports)  # streamed by the request handler
         get("/api/players", self.players)
+        get("/api/players/activity", self.player_activity)
         post("/api/players/action", self.player_action)
         get("/api/java", self.java)
         post("/api/java/install", self.java_install)
@@ -2069,6 +2082,13 @@ class Api:
 
     def players(self, q, b) -> dict:
         return self._players().summary(self.d.players)
+
+    def player_activity(self, q, b) -> dict:
+        """Who played when (activity.py): the Players page's Player activity."""
+        days = q.get("days", "30")
+        return {**self.d.activity.summary(int(days) if days.isdigit() else 30),
+                "schedule_restart": self.m.config.schedule.restart,
+                "schedule_restart_words": self._schedule_info()["schedule_restart_words"]}
 
     # ------------------------------------------------------ saved mod lists
     def modsets(self, q, b) -> dict:
