@@ -2041,6 +2041,184 @@ async function applyPreset(p, opts) {
   if (current && current.refresh) current.refresh();
 }
 
+// The explorable map: the previewed world in tiles, dragged around and zoomed (from 4 pixels a
+// block out to 32 blocks a pixel). "Make this area" asks the private server for the land in
+// view; "Keep making the map as I move" does that by itself.
+const MAP_LEVELS = [1, 2, 4, 8, 16];  // blocks a pixel the server draws tiles at
+function mapExplorer(m, info, readout) {
+  const id = m.id;
+  const home = info.spawn ? { x: info.spawn.x, z: info.spawn.z }
+    : info.areas.length ? { x: info.areas[0][0], z: info.areas[0][1] } : { x: 0, z: 0 };
+  const view = { x: home.x, z: home.z, bpp: 0.5 };  // the block in the middle; blocks a screen pixel
+  let state = info;
+  const layer = h("div", { class: "map-layer" });
+  const spawn = h("span", { class: "map-spawn", title: "Spawn" });
+  const status = h("div", { class: "map-status small" });
+  const frame = h("div", { class: "map-frame map-live", tabindex: "0", "aria-label": "Map: drag to move, scroll to zoom" }, layer, spawn, status);
+  const tiles = new Map();
+  let regions = new Set(state.regions.map(([x, z]) => `${x},${z}`));
+  const auto = h("input", { type: "checkbox" });
+  const makeBtn = h("button", { type: "button", class: "btn small" }, "Make this area");
+  const size = () => ({ w: frame.clientWidth || 600, hgt: frame.clientHeight || 600 });
+
+  const draw = () => {
+    const { w, hgt } = size();
+    const level = MAP_LEVELS.reduce((best, l) => (l <= Math.max(1, view.bpp) ? l : best), 1);
+    const span = 256 * level;  // blocks a tile covers
+    const left = view.x - (w / 2) * view.bpp, top = view.z - (hgt / 2) * view.bpp;
+    const want = new Set();
+    for (let tx = Math.floor(left / span); tx <= Math.floor((left + w * view.bpp) / span); tx++) {
+      for (let tz = Math.floor(top / span); tz <= Math.floor((top + hgt * view.bpp) / span); tz++) {
+        let any = false;  // only ask for tiles where the world has land files
+        for (let rx = Math.floor(tx * span / 512); rx <= Math.floor(((tx + 1) * span - 1) / 512) && !any; rx++)
+          for (let rz = Math.floor(tz * span / 512); rz <= Math.floor(((tz + 1) * span - 1) / 512) && !any; rz++)
+            any = regions.has(`${rx},${rz}`);
+        if (!any) continue;
+        const key = `${level}:${tx}:${tz}`;
+        want.add(key);
+        let img = tiles.get(key);
+        if (!img) {
+          img = h("img", { alt: "", draggable: "false", class: "map-tile" });
+          img.dataset.v = "";
+          tiles.set(key, img);
+          layer.append(img);
+        }
+        if (img.dataset.v !== String(state.version)) {
+          img.dataset.v = String(state.version);
+          img.src = `/api/hub/map/tile?id=${id}&s=${level}&x=${tx}&z=${tz}&v=${state.version}`;
+        }
+        const px = span / view.bpp;  // (positions set here: the page's CSP allows no inline styles)
+        img.style.left = `${(tx * span - left) / view.bpp}px`;
+        img.style.top = `${(tz * span - top) / view.bpp}px`;
+        img.style.width = img.style.height = `${px}px`;
+      }
+    }
+    for (const [key, img] of tiles) if (!want.has(key)) { img.remove(); tiles.delete(key); }
+    if (state.spawn) {
+      spawn.classList.remove("hidden");
+      spawn.style.left = `${(state.spawn.x - left) / view.bpp}px`;
+      spawn.style.top = `${(state.spawn.z - top) / view.bpp}px`;
+    } else spawn.classList.add("hidden");
+    const r = visibleRadius();
+    makeBtn.disabled = !!(state.job && state.job.state === "running");
+    makeBtn.title = `About ${estimate(r)} for ${Math.round(r * 2)} × ${Math.round(r * 2)} blocks`;
+  };
+  const visibleRadius = () => { const { w, hgt } = size(); return Math.min(1024, Math.max(64, Math.ceil(Math.max(w, hgt) * view.bpp / 2 / 16) * 16)); };
+  const chunksFor = (r) => (2 * r / 16 + 1) ** 2;
+  const estimate = (r) => {
+    const s = Math.round(chunksFor(r) / (state.rate || 60));
+    return s < 90 ? `${Math.max(5, s)} seconds` : `${Math.round(s / 60)} minutes`;
+  };
+  // Whether the land in view has all been made (the squares made so far cover it).
+  const covered = () => {
+    const { w, hgt } = size();
+    const pts = [];
+    for (let i = 0; i <= 4; i++) for (let j = 0; j <= 4; j++)
+      pts.push([view.x + (i / 4 - 0.5) * w * view.bpp, view.z + (j / 4 - 0.5) * hgt * view.bpp]);
+    return pts.every(([x, z]) => state.areas.some(([ax, az, r]) => Math.abs(x - ax) <= r && Math.abs(z - az) <= r));
+  };
+
+  const make = async (quiet = false) => {
+    const r = visibleRadius();
+    const secs = chunksFor(r) / (state.rate || 60);
+    if (!quiet && secs > 60 && !(await ask(`Make ${Math.round(r * 2)} × ${Math.round(r * 2)} blocks of this world? ` +
+      `It takes about ${estimate(r)}, and the computer works hard meanwhile (the fans may spin up).`, { id: "map-make-area", ok: "Make it" }))) return;
+    const res = await api("/api/hub/map/explore", { method: "POST", body: { id, x: Math.round(view.x), z: Math.round(view.z), radius: r } })
+      .catch((e) => { if (!quiet && !(e instanceof Unauthorized)) toast(e.message, true); return null; });
+    if (res) { state = { ...state, job: res }; showStatus(); watch(); }
+  };
+  makeBtn.addEventListener("click", () => make());
+
+  const showStatus = () => {
+    const j = state.job;
+    if (j && j.state === "running") {
+      fill(status, h("span", {}, `${t(j.step)}${j.progress !== null && j.progress !== undefined ? ` ${Math.round(j.progress * 100)}%` : ""}`),
+        h("button", { type: "button", class: "link-btn", onclick: () => api("/api/hub/map/stop", { method: "POST", body: { id } }).catch(() => null) }, "Stop"));
+      status.classList.remove("hidden");
+    } else if (j && j.state === "failed") {
+      fill(status, h("span", { class: "bad-text" }, j.error));
+      status.classList.remove("hidden");
+    } else status.classList.add("hidden");
+  };
+  let polling = null;
+  const watch = () => {
+    if (polling) return;
+    polling = setInterval(async () => {
+      if (!frame.isConnected) { clearInterval(polling); polling = null; return; }
+      const r = await api(`/api/hub/map?id=${id}`).catch(() => null);
+      if (!r) return;
+      const grew = r.version !== state.version;
+      state = r;
+      regions = new Set(r.regions.map(([x, z]) => `${x},${z}`));
+      showStatus();
+      if (grew) draw();
+      if (!r.job || r.job.state !== "running") { clearInterval(polling); polling = null; draw(); }
+    }, 1500);
+  };
+
+  // Moving and zooming
+  let drag = null, autoTimer = null;
+  const moved = () => {
+    draw();
+    clearTimeout(autoTimer);
+    autoTimer = setTimeout(() => { if (auto.checked && !covered() && !(state.job && state.job.state === "running") && view.bpp <= 4) make(true); }, 900);
+  };
+  frame.addEventListener("pointerdown", (e) => { drag = { x: e.clientX, y: e.clientY }; frame.setPointerCapture(e.pointerId); frame.classList.add("dragging"); });
+  frame.addEventListener("pointerup", () => { drag = null; frame.classList.remove("dragging"); });
+  frame.addEventListener("pointermove", (e) => {
+    const r = frame.getBoundingClientRect();
+    const k = frame.clientWidth ? r.width / frame.clientWidth : 1;  // (the page may be zoomed: see Size)
+    if (drag) {
+      view.x -= (e.clientX - drag.x) / k * view.bpp;
+      view.z -= (e.clientY - drag.y) / k * view.bpp;
+      drag = { x: e.clientX, y: e.clientY };
+      moved();
+    }
+    const bx = Math.floor(view.x + ((e.clientX - r.left) / k - frame.clientWidth / 2) * view.bpp);
+    const bz = Math.floor(view.z + ((e.clientY - r.top) / k - frame.clientHeight / 2) * view.bpp);
+    readout.textContent = `x ${bx}, z ${bz}`;
+    clearTimeout(frame.biomeTimer);
+    frame.biomeTimer = setTimeout(async () => {
+      const b = await api(`/api/hub/map/biome?id=${id}&x=${bx}&z=${bz}`).catch(() => null);
+      if (b && readout.textContent === `x ${bx}, z ${bz}`) readout.textContent = `x ${bx}, z ${bz} · ${b.made ? (b.biome ? biomeLabel(b.biome) : "") : t("not made yet")}`;
+    }, 150);
+  });
+  const zoom = (factor, cx = null, cy = null) => {
+    const { w, hgt } = size();
+    const next = Math.min(32, Math.max(0.25, view.bpp * factor));
+    if (cx !== null) {  // keep the block under the pointer where it is
+      view.x += (cx - w / 2) * (view.bpp - next);
+      view.z += (cy - hgt / 2) * (view.bpp - next);
+    }
+    view.bpp = next;
+    moved();
+  };
+  frame.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const r = frame.getBoundingClientRect(), k = frame.clientWidth ? r.width / frame.clientWidth : 1;
+    zoom(e.deltaY > 0 ? 1.25 : 0.8, (e.clientX - r.left) / k, (e.clientY - r.top) / k);
+  }, { passive: false });
+  frame.addEventListener("keydown", (e) => {
+    const step = 64 * view.bpp;
+    const keys = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+    if (keys[e.key]) { e.preventDefault(); view.x += keys[e.key][0]; view.z += keys[e.key][1]; moved(); }
+    else if (e.key === "+" || e.key === "=") zoom(0.8);
+    else if (e.key === "-") zoom(1.25);
+  });
+  new ResizeObserver(() => draw()).observe(frame);
+
+  const tools = h("div", { class: "row map-tools mt-s" },
+    h("button", { type: "button", class: "btn small", title: "Zoom in", "aria-label": "Zoom in", onclick: () => zoom(0.5) }, "+"),
+    h("button", { type: "button", class: "btn small", title: "Zoom out", "aria-label": "Zoom out", onclick: () => zoom(2) }, "−"),
+    h("button", { type: "button", class: "btn small", onclick: () => { view.x = home.x; view.z = home.z; view.bpp = 0.5; moved(); } }, "⌖ Back to spawn"),
+    makeBtn,
+    h("label", { class: "row small" }, auto, h("span", {}, "Keep making the map as I move")));
+  showStatus();
+  if (state.job && state.job.state === "running") watch();
+  setTimeout(draw, 0);
+  return { el: h("div", {}, frame, tools) };
+}
+
 function openWorldPanel() {
   const refresh = () => { if (current && current.refresh) current.refresh(); };
   const p = worldPanel({ close: () => { closeBrowser(); refresh(); }, changed: refresh });
@@ -2158,8 +2336,16 @@ function worldPanel(host) {
           host.changed(); toast(`The server will use seed ${m.seed}`); showMap(m);
         } }, "Use this seed")),
       frame, readout,
-      h("p", { class: "muted small" }, "North is up; one pixel is one block, around the spawn point (★). Villages and other structures are too small to see at this size."),
+      h("p", { class: "muted small", id: "map-note" }, "North is up; one pixel is one block, around the spawn point (★). Villages and other structures are too small to see at this size."),
       strip());
+    // The world is still here (the newest preview): make the map explorable.
+    api(`/api/hub/map?id=${m.id}`).then((info) => {
+      if (shown !== m.id || !frame.isConnected) return;
+      const ex = mapExplorer(m, info, readout);
+      frame.replaceWith(ex.el);
+      const note = document.getElementById("map-note");
+      if (note) note.textContent = t("Drag to move and scroll (or + and −) to zoom. Make this area asks the private server for the land in view; it stops by itself after a few minutes of not being needed.");
+    }).catch(() => null);
   };
   const showJob = (job) => {
     const bar = h("div", { class: "bar" + (job.progress === null ? " indeterminate" : "") }, h("span", { class: "bar-fill" }));
