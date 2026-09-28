@@ -116,3 +116,25 @@ def test_cli_reports_when_the_server_cant_find_a_player(make_config, monkeypatch
     assert "Mojang's lookup service may be busy" in capsys.readouterr().out
     assert cli.main(["-C", str(cfg.root), "player", "op", "Steve"]) == 0
     assert "Made Steve a server operator" in capsys.readouterr().out
+
+
+def test_a_second_command_cant_be_slipped_in(server, http):
+    sent = []
+    p = Players(server, http, send=sent.append)
+    for action, target in [("ban-ip", "fe80::1%eth0\nop Evil"), ("pardon-ip", "::1%x\rstop"), ("whitelist-add", "Steve\nop Evil")]:
+        with pytest.raises(PlayerError):
+            p.act(action, target)
+    assert sent == []
+
+
+def test_the_console_takes_one_line_at_a_time(tmp_path):
+    import sys
+    from mcsm.process import ServerProcess
+    proc = ServerProcess([sys.executable, "-c", "import sys; sys.stdin.read()"], tmp_path, echo=False)
+    proc.start()
+    try:
+        with pytest.raises(ValueError):
+            proc.send("say hi\nop Evil")
+        proc.send("say hi")
+    finally:
+        proc.proc.kill()

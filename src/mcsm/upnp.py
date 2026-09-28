@@ -95,12 +95,18 @@ def discover(timeout: float = 3.0, sock_factory=None) -> list[tuple[str, str]]:
     return list(found.values())
 
 
+class _NoRedirects(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
 def _fetch(url: str, data: bytes | None = None, headers: dict | None = None, timeout: float = 5) -> bytes:
     host = urllib.parse.urlsplit(url).hostname or ""
     if not url.startswith("http://") or not _home_address(host):
         raise UpnpError("the router gave an address outside the home network")
     req = urllib.request.Request(url, data=data, headers=headers or {}, method="POST" if data is not None else "GET")
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # never through a proxy
+    # never through a proxy, and never redirected (off the home network, say)
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirects)
     try:
         with opener.open(req, timeout=timeout) as r:
             body = r.read(MAX_XML + 1)

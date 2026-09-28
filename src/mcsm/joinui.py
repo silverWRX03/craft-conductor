@@ -423,7 +423,7 @@ class JoinUI:
                     self._json(403, {"error": "missing header"})
                     return
                 try:
-                    length = min(int(self.headers.get("Content-Length") or 0), 64 * 1024)
+                    length = max(0, min(int(self.headers.get("Content-Length") or 0), 64 * 1024))
                     body = json.loads(self.rfile.read(length) or b"{}")
                     if rest == "api/invite":
                         ui.use_invite(str(body.get("invite", ""))[:2000])

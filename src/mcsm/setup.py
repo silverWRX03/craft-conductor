@@ -57,6 +57,7 @@ def clear_pending(root: Path) -> None:
 
 
 @functools.lru_cache(maxsize=1)  # it doesn't change, and on macOS finding out runs a program
+@functools.lru_cache(maxsize=1)  # (it doesn't change; on macOS reading it runs a program, and pages ask every few seconds)
 def total_ram_gb() -> float | None:
     try:
         if os.name == "nt":

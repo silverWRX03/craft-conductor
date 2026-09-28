@@ -4,6 +4,21 @@ What changed in each version of mcsm, newest first. Bugs are listed the way you'
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.19.1 (2026-09-28)
+
+A security and speed check of the whole of Craft Conductor.
+
+**Fixed**
+- With HTTPS on (your own certificate), one connection that never finished saying hello could freeze the control panel for everyone until Craft Conductor was restarted.
+- A paired phone set up as a **Helper**, which may ban and unban players but not use the console, could slip a console command of its own into **Ban IP** or **Pardon IP**. Addresses are now checked strictly, and the server never takes more than one command at a time.
+- A request with a broken length could make the control panel (even before signing in) or the friend's join page wait and keep reading.
+- The sign-in limit (5 tries in 5 minutes) could be got round by sending many tries at once.
+- The router set-up (UPnP) could be pointed elsewhere by a device on your network that redirected its answer.
+- Links from mod sites are only ever web addresses.
+
+**Changed**
+- Faster, lighter polling: Craft Conductor reads the computer's memory size once instead of every few seconds (on a Mac that started a program each time), and re-reads a server's settings, the paired phones and the notice only when they change.
+
 ## 0.19.0 (2026-09-28)
 
 **Added**

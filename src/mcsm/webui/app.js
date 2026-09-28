@@ -5,10 +5,17 @@ const $ = (sel) => document.querySelector(sel);
 
 // Build DOM nodes. Text is always inserted as text, never HTML: mod names,
 // descriptions, player names and console output all come from outside.
+// A link or picture address is a web address, one on this page, or (pictures) a data: image;
+// never javascript: or the like, whatever a mod site's details say.
+function safeUrl(u, image = false) {
+  return /^(https?:|mailto:|[/#?.])/i.test(u.trim()) || (image && /^data:image\//i.test(u.trim()));
+}
+
 function h(tag, attrs = {}, ...children) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {
     if (v === null || v === undefined || v === false) continue;
+    if ((k === "href" || k === "src") && !safeUrl(String(v), tag === "img")) continue;  // (links from mod sites: web addresses only)
     if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
     else if (k === "class") el.className = v;
     else if (k === "value") el.value = v;
@@ -4334,7 +4341,8 @@ let notifySeen = null;
 async function notifyWatch() {
   const prefs = notifyPrefs();
   if (!prefs || !prefs.on || !("Notification" in window) || Notification.permission !== "granted") return;
-  const r = await api("/api/hub").catch(() => null);
+  // (while the page shows, the status refresh has just fetched this; it pauses when hidden)
+  const r = document.hidden || !hubInfo ? await api("/api/hub").catch(() => null) : hubInfo;
   if (!r || !r.servers) return;
   const now = new Map(r.servers.map((s) => [s.id, s]));
   if (notifySeen && document.hidden) {

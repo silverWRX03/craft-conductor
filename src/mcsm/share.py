@@ -22,8 +22,6 @@ import json
 import logging
 import re
 import shutil
-import socket
-import ssl
 import threading
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import quote, unquote
@@ -43,7 +41,6 @@ HEADERS = {
     "Referrer-Policy": "no-referrer",
     "Cache-Control": "no-store",
 }
-HANDSHAKE_SECONDS = 15
 # For a browser (or an old mcsm) that talks plain HTTP to this port.
 NOT_HTTPS = (b"HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\n"
              b"This is an mcsm server's secure invite port. To join, get mcsm from GitHub "
@@ -57,22 +54,6 @@ def _is_local(host: str) -> bool:
     except ValueError:
         return host.endswith(".local") or host == "localhost"
     return addr.is_private or addr.is_loopback or addr.is_link_local
-
-
-def _close_gently(sock) -> None:
-    """Finish sending, then read what the client sent (unread): closing with unread data makes
-    macOS and Windows reset the connection, which can lose the answer before it's read."""
-    try:
-        sock.shutdown(socket.SHUT_WR)
-        sock.settimeout(2)
-        received = 0
-        while received < 65536:
-            chunk = sock.recv(4096)
-            if not chunk:
-                break
-            received += len(chunk)
-    except OSError:
-        pass
 
 
 class ShareServer:
@@ -120,31 +101,8 @@ class ShareServer:
         class Handler(ShareHandler):
             server_ref = share
 
-        class Server(_Server):
-            def finish_request(self, request, client_address):
-                """HTTPS only. The handshake happens here, in the connection's own thread, so a
-                slow or silent client can't hold up anyone else."""
-                request.settimeout(HANDSHAKE_SECONDS)
-                try:
-                    first = request.recv(1, socket.MSG_PEEK)
-                    if first != b"\x16":  # not a TLS handshake: plain HTTP (a browser, an old mcsm)
-                        request.sendall(NOT_HTTPS)
-                        _close_gently(request)
-                        return
-                    tls = context.wrap_socket(request, server_side=True)
-                except (OSError, ssl.SSLError) as e:
-                    log.debug("share: connection from %s dropped: %s", client_address[0], e)
-                    return
-                try:
-                    tls.settimeout(Handler.timeout)
-                    Handler(tls, client_address, self)
-                finally:
-                    try:
-                        tls.close()
-                    except OSError:
-                        pass
-
-        self.httpd = Server((self.host, self.port), Handler)
+        self.httpd = _Server((self.host, self.port), Handler)  # (HTTPS only: see _Server.finish_request)
+        self.httpd.tls_context, self.httpd.plain_http_reply = context, NOT_HTTPS
         threading.Thread(target=self.httpd.serve_forever, daemon=True, name="share").start()
         log.info("sharing with friends on port %s (HTTPS)", self.port)
 

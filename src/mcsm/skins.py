@@ -52,7 +52,7 @@ class Skins:
 
     def png(self, name: str) -> bytes:
         """The player's skin PNG (cached on disk)."""
-        if not NAME_RE.match(name):
+        if not NAME_RE.fullmatch(name):
             raise SkinError("not a player name")
         key = name.lower()
         path = self.cache_dir / f"{key}.png"

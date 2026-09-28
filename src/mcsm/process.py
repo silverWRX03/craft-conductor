@@ -100,6 +100,8 @@ class ServerProcess:
     def send(self, command: str) -> None:
         if not self.running or not self.proc or not self.proc.stdin:
             raise RuntimeError("server is not running")
+        if "\n" in command or "\r" in command:  # (a new line would start a second command)
+            raise ValueError("a console command is one line")
         self.proc.stdin.write(command + "\n")
         self.proc.stdin.flush()
 
