@@ -182,7 +182,9 @@ class Manager:
         return [java, f"-Xms{mem}", f"-Xmx{mem}", *gc, *self.config.server.jvm_args, *lock.launch]
 
     def new_process(self, lock: Lock | None = None) -> ServerProcess:
-        return ServerProcess(self.launch_argv(lock), self.server_dir, echo=self.echo, on_line=self.on_line)
+        s = self.config.server
+        return ServerProcess(self.launch_argv(lock), self.server_dir, echo=self.echo, on_line=self.on_line,
+                             cpu_cores=s.cpu_cores, priority=s.priority)
 
     def start_server(self, lock: Lock | None = None) -> ServerProcess:
         if not self.eula_accepted():

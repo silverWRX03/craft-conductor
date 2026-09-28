@@ -35,12 +35,17 @@ function currentTheme() {
 }
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
+  const bar = document.querySelector('meta[name="theme-color"]');  // (the phone's status bar and the app's title bar)
+  if (bar) bar.setAttribute("content", theme === "day" ? "#eef4fa" : "#0f1214");
   for (const b of document.querySelectorAll("[data-theme-toggle]")) {
     b.setAttribute("aria-pressed", String(theme === "day"));
     b.title = t(theme === "day" ? "Switch to night" : "Switch to day");
   }
 }
 applyTheme(currentTheme());
+// Until day or night is picked with the button, follow the computer's (or phone's) own setting,
+// also when it changes while Craft Conductor is open (a phone switching to dark at sunset).
+if (window.matchMedia) window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => applyTheme(currentTheme()));
 document.addEventListener("click", (e) => {
   const b = e.target.closest && e.target.closest("[data-theme-toggle]");
   if (!b) return;
@@ -587,6 +592,23 @@ function showGuide(data) {
   if (!guideTimer) guideTimer = setInterval(poll, 5000);
 }
 
+// Warnings about this computer (health.py): little disk space, the CPU busy for minutes, memory
+// running out. Above every page while they last; Hide hides one until it changes.
+let healthShown = "";
+const healthHidden = new Set();
+function renderHealth(warnings) {
+  const show = warnings.filter((w) => !healthHidden.has(w.id + w.title));
+  const key = JSON.stringify(show);
+  if (key === healthShown) return;
+  healthShown = key;
+  let box = $("#health");
+  if (!show.length) { if (box) box.remove(); return; }
+  if (!box) { box = h("div", { id: "health", class: "health", role: "status" }); $("#stage").before(box); }
+  fill(box, show.map((w) => h("div", { class: `notice small ${w.level === "bad" ? "bad" : "warn"} row` },
+    h("div", { class: "grow" }, h("strong", {}, t(w.title)), " ", h("span", {}, t(w.detail))),
+    h("button", { class: "btn small ghost", onclick: () => { healthHidden.add(w.id + w.title); renderHealth(warnings); } }, "Hide"))));
+}
+
 // ------------------------------------------------------------------- status
 async function refreshStatus() {
   try { hubInfo = await api("/api/hub"); } catch (e) {
@@ -602,6 +624,7 @@ async function refreshStatus() {
   offerSelfUpdate(hb.self_update);
   if (hb.auth.default && !hb.auth.managed && !promptDismissed()) showSecurity(true);
   offerGuide(hb);
+  renderHealth(hb.health || []);
   if (hb.single && !server && hb.servers.length === 1) { location.hash = `#s/${hb.servers[0].id}/dashboard`; return; }
   renderNav();
   if (!server) {
@@ -644,7 +667,20 @@ async function refreshStatus() {
   if (current && current.onStatus) current.onStatus(s);
 }
 
-$("#btn-start").addEventListener("click", () => act(() => api("/api/server/start", { method: "POST" })));
+// Before starting a server: does it fit in this computer's memory next to the running ones?
+// (limits.py) Asks when it doesn't; the server still starts if the person says so.
+async function memoryOkToStart(sid, name) {
+  const plan = await api(`/api/hub/memory?adding=${encodeURIComponent(sid)}`).catch(() => null);
+  if (!plan || plan.fits || !plan.total_gb) return true;
+  return ask(t("Start {name}? The servers would be given {after} GB of memory, and this computer has {total} GB.")
+    .replace("{name}", name).replace("{after}", plan.after_gb).replace("{total}", plan.total_gb)
+    + "\n\n" + t("It may slow right down, or a server may crash. Give servers less memory (Settings → Memory), or stop one first."),
+  { ok: "Start anyway", id: "memory-start" });
+}
+$("#btn-start").addEventListener("click", async () => {
+  if (!server || await memoryOkToStart(server, (status && (status.motd || status.id)) || server))
+    act(() => api("/api/server/start", { method: "POST" }));
+});
 $("#btn-stop").addEventListener("click", async () => {
   if (await ask("Stop the server? Players will be disconnected.", { id: "stop-server", ok: "Stop" })) act(() => api("/api/server/stop", { method: "POST" }));
 });
@@ -2079,6 +2115,14 @@ views.settings = () => {
       h("div", { class: "grid mt-s" }, chk("restart_on_crash", "Restart after crashes"),
         h("label", { class: "row", title: "Garbage-collection settings that avoid lag spikes with lots of memory" },
           (f.aikar_flags = h("input", { type: "checkbox", checked: s.aikar_flags })), h("span", {}, "Use Aikar's flags (smoother with 16 GB+)"))),
+      // Limits (limits.py): CPU cores where the computer allows it, and a lower priority everywhere.
+      h("div", { class: "grid mt-s" },
+        s.can_pin_cores ? h("label", {}, "CPU cores it may use",
+          (f.cpu_cores = h("select", {}, h("option", { value: "0" }, t("All ({n})").replace("{n}", s.cpu_count)),
+            Array.from({ length: Math.max(0, s.cpu_count - 1) }, (_, i) => h("option", { value: String(i + 1), selected: s.cpu_cores === i + 1 }, String(i + 1))))),
+          h("span", { class: "muted small" }, "Leaves the other cores to the rest of this computer (and other servers). Applies at the next start.")) : null,
+        h("label", { class: "row", title: "Other programs on this computer, and other servers, come first when the CPU is busy" },
+          (f.priority = h("input", { type: "checkbox", checked: s.priority === "low" })), h("span", {}, "Lower priority (the rest of this computer comes first)"))),
       h("h3", { class: "mt-l" }, "Schedule"),
       h("p", { class: "muted small" }, "Times are this computer's. A scheduled restart gives players the in-game countdown first."),
       h("div", { class: "grid" },
@@ -2107,7 +2151,8 @@ views.settings = () => {
         strategy: f.strategy.value, mod_channel: f.mod_channel.value, check_interval: f.check_interval.value.trim(),
         warn_minutes: f.warn_minutes.value.split(",").map((x) => x.trim()).filter(Boolean).map(Number),
         auto_upgrade: f.auto_upgrade.checked, wait_for_empty: f.wait_for_empty.checked, verify_boot: f.verify_boot.checked,
-        rehearse: f.rehearse.checked, find_lag: f.find_lag.checked, memory: f.memory.value.trim(), backups_keep: Number(f.backups_keep.value), discord_webhook: f.discord_webhook.value.trim(),
+        rehearse: f.rehearse.checked, find_lag: f.find_lag.checked, memory: f.memory.value.trim(),
+        priority: f.priority.checked ? "low" : "normal", ...(f.cpu_cores ? { cpu_cores: Number(f.cpu_cores.value) } : {}), backups_keep: Number(f.backups_keep.value), discord_webhook: f.discord_webhook.value.trim(),
         port: Number(f.port.value),
         restart_on_crash: f.restart_on_crash.checked, aikar_flags: f.aikar_flags.checked,
         schedule_restart: sched.restart.value(), schedule_backup: sched.backup.value(),
@@ -4066,13 +4111,21 @@ views.servers = () => {
   const busy = new Set();
   const control = async (s, action) => {
     if (action === "stop" && s.players && !(await ask(`Stop ${s.name}? ${s.players} player(s) will be disconnected.`, { id: "stop-server", ok: "Stop" }))) return;
+    if (action === "start" && !(await memoryOkToStart(s.id, s.name))) return;
     busy.add(s.id);
     await act(() => api(`/api/servers/${s.id}/server/${action}`, { method: "POST" }),
       action === "start" ? `Starting ${s.name}…` : `Stopping ${s.name}…`);
     busy.delete(s.id);
   };
+  const memLine = h("p", { class: "muted small" });
+  let memAt = 0;
   const render = (hb) => {
     if (!hb) return;
+    if (Date.now() - memAt > 15000) {  // (the memory given to the running servers; every 15 s is plenty)
+      memAt = Date.now();
+      api("/api/hub/memory").then((m) => { memLine.textContent = m.total_gb ? t("Memory given to the running servers: {used} GB of this computer's {total} GB.")
+        .replace("{used}", m.running_gb).replace("{total}", m.total_gb) : ""; }).catch(() => null);
+    }
     const label = (s) => s.state === "unavailable" ? "unavailable" : s.setup_pending ? "not set up" : s.state;
     fill(list,
       hb.servers.map((s) => h("div", { class: "card server-card" },
@@ -4125,6 +4178,7 @@ views.servers = () => {
       h("p", { class: "muted grow" }, "Servers only run when you start them here, and stop when you press Stop or Quit Craft Conductor."),
       hubInfo && hubInfo.guide ? h("button", { class: "btn ghost", title: "Step by step from making a server to a friend joining it", onclick: startGuide }, "🧭 Guided setup") : null,
       hubInfo && hubInfo.single ? null : h("div", { class: "row" }, importNote, importBtn, picker)),
+    memLine,
     list,
     sp ? sp.el : null);
   render(hubInfo);
@@ -4559,7 +4613,7 @@ function phoneCard({ deviceOnly = false } = {}) {  // deviceOnly: just this phon
   const pushOk = secure && "PushManager" in window && "Notification" in window;
   const standalone = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches;
   const iOS = /iPhone|iPad/.test(navigator.userAgent);
-  let info = null, mine = null, ts = null;
+  let info = null, mine = null, prefs = null, ts = null;
   const tsOut = h("div", { class: "mt-s" });
   const subscription = async () => {
     if (!pushOk) return null;
@@ -4570,7 +4624,20 @@ function phoneCard({ deviceOnly = false } = {}) {  // deviceOnly: just this phon
     info = await api(`/api/hub/phone${checkTailscale ? "?tailscale=1" : ""}`).catch(() => null);
     if (info && info.tailscale) ts = info.tailscale;
     mine = await subscription().catch(() => null);
+    prefs = mine ? await api("/api/hub/phone/prefs", { method: "POST", body: { endpoint: mine.endpoint } }).catch(() => null) : null;
     render();
+  };
+  const choices = () => {  // what this device hears about
+    if (!mine || !prefs) return null;
+    const save = async () => {
+      const kinds = Object.keys(prefs.all).filter((k) => boxes[k].checked);
+      const r = await api("/api/hub/phone/prefs", { method: "POST", body: { endpoint: mine.endpoint, kinds } }).catch((e) => { toast(e.message, true); return null; });
+      if (r) { prefs = r; toast("Saved"); }
+    };
+    const boxes = {};
+    return h("fieldset", { class: "mt-s choices" }, h("legend", { class: "small" }, "Notify this device about"),
+      Object.entries(prefs.all).map(([k, label]) => h("label", { class: "rule small" },
+        boxes[k] = h("input", { type: "checkbox", checked: prefs.kinds.includes(k), onchange: save }), " ", label)));
   };
   const enable = async () => {
     const perm = await Notification.requestPermission();
@@ -4649,7 +4716,7 @@ function phoneCard({ deviceOnly = false } = {}) {  // deviceOnly: just this phon
               h("button", { class: "btn primary small", onclick: enable }, "Turn on notifications here")]);
     fill(body,
       h("p", { class: "muted small" }, "Craft Conductor can live on your phone's home screen like an app, and tell you when something needs you, even when it's closed."),
-      h("h4", {}, "This device"), here,
+      h("h4", {}, "This device"), here, choices(),
       installPrompt && !standalone ? h("button", { class: "btn small mt-s", onclick: () => { installPrompt.prompt(); installPrompt = null; render(); } }, "Install the app") : null,
       info.devices.length && !deviceOnly ? h("div", { class: "mt-s" }, h("h4", {}, "Devices with notifications on"),
         h("ul", { class: "list" }, info.devices.map((d) => h("li", {}, h("span", { class: "grow" }, d.name, h("span", { class: "muted small" }, ` · since ${fmtTime(d.created)}`)),

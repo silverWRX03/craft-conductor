@@ -24,8 +24,9 @@ LEFT = re.compile(r"\]: ([A-Za-z0-9_]{1,16}) left the game$")
 
 class ServerProcess:
     def __init__(self, argv: list[str], cwd: Path, echo: bool = True,
-                 on_line: Callable[[str], None] | None = None):
+                 on_line: Callable[[str], None] | None = None, cpu_cores: int = 0, priority: str = "normal"):
         self.argv = argv
+        self.cpu_cores, self.priority = cpu_cores, priority  # (limits.py)
         self.cwd = cwd
         self.echo = echo
         self.on_line = on_line
@@ -52,9 +53,17 @@ class ServerProcess:
         self.ready.clear()
         self.stopping = False
         self.lines.clear()
+        from . import limits
+        extra = limits.popen_options(self.cpu_cores, self.priority)
+        options = {**NO_WINDOW, **extra}
+        if "creationflags" in extra and "creationflags" in NO_WINDOW:  # (Windows: no window, and the priority)
+            options["creationflags"] = NO_WINDOW["creationflags"] | extra["creationflags"]
         self.proc = subprocess.Popen(
             self.argv, cwd=self.cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT, text=True, bufsize=1, errors="replace", **NO_WINDOW)
+            stderr=subprocess.STDOUT, text=True, bufsize=1, errors="replace", **options)
+        if self.cpu_cores or self.priority != "normal":
+            limits.after_start(self.proc.pid, self.cpu_cores)
+            log.info("limits: %s, %s priority", f"{self.cpu_cores} CPU core(s)" if self.cpu_cores else "all CPU cores", self.priority)
         self._reader = threading.Thread(target=self._read, daemon=True, name="server-output")
         self._reader.start()
 

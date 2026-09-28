@@ -774,3 +774,8 @@ ul.checklist { list-style: none; padding: 0; margin: 4px 0 8px; display: grid; g
 .requirements > p { margin: 6px 0 0; }
 /* On a phone: how to get the app (app.js phoneBanner) */
 .phone-banner { margin: 10px 12px 0; flex: none; }
+/* Warnings about this computer (app.js renderHealth) */
+.health { display: grid; gap: 6px; margin: 10px 12px 0; flex: none; }
+.health .notice { margin: 0; }
+fieldset.choices { border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 12px 10px; margin: 10px 0 0; display: grid; gap: 6px; }
+fieldset.choices legend { padding: 0 4px; color: var(--muted); }

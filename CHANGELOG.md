@@ -4,6 +4,17 @@ What changed in each version of mcsm, newest first. Bugs are listed the way you'
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.19.0 (2026-09-28)
+
+**Added**
+- **Limits per server** (Settings): **CPU cores it may use** keeps a server to some of the computer's cores, and **Lower priority** lets everything else go first when the computer is busy. Handy with several servers on one computer.
+- **Too many servers at once:** the Servers page shows how much memory the running servers are given out of the computer's, and starting one that doesn't fit asks first (**Start anyway**).
+- **Warnings about the computer:** little disk space left where the servers or backups are, the CPU busy for minutes, memory running out. They show at the top of the page, go to the log, and are sent to phones with notifications on.
+- **Choose which notifications each phone gets** (Craft Conductor settings → Phone app → Notify this device about): crashes, friends asking to join, updates, lag, backups, the tunnel, this computer, a server starting, everything else.
+
+**Changed**
+- The phone app follows the phone's light or dark setting as it changes, and colours the status bar to match.
+
 ## 0.18.2 (2026-09-28)
 
 **Fixed**
