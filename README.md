@@ -85,6 +85,9 @@ ready to update to Minecraft 1.21.4 with fabric 0.16.14:
   who's playing, edited as things change.
 - **Saved mod lists.** Keep a mod list under a name, switch to another and back, and move lists
   between servers as files.
+- **Phone app.** Put Craft Conductor on your phone's home screen and get notifications when a server
+  crashes, a friend asks to join or an update is held back, even with the app closed (a secure
+  address in one click with Tailscale).
 - **Lag finder.** When the server lags, Craft Conductor finds out why (mobs, hoppers, new land, a mod) and where,
   by coordinates, in plain words; by itself too when it keeps lagging while people play.
 - **Snapshots with rollback.** Every backup notes the whole server, says what changed since the last
@@ -874,21 +877,20 @@ The test suite runs the full install → upgrade → crash → rollback cycle ag
 
 In priority order (the working list, with what's done, is [TODO.md](TODO.md)):
 
-1. **Mobile app:** Craft Conductor on your phone's home screen, with notifications when it's closed
-2. **Accessibility:** keyboard, screen readers, high contrast
-3. **Player activity:** who played when, and the best time to restart
-4. Whitelist through Discord
-5. Web map of the world (BlueMap or Dynmap)
-6. Landmarks on the map preview
-7. Limits per server (memory, CPU)
-8. Other tunnel services (Cloudflare Tunnel, Tailscale Funnel)
-9. Purpur servers (Paper with plugins from Modrinth and Hangar is supported)
-10. Scripting hooks and API tokens
-11. Shared, opt-in memory of mods that don't work together
-12. Proxy networks (Velocity)
-13. A translated user manual
-14. Servers on hosting sites that have an official API (Pterodactyl)
-15. A native phone app (today the control panel works as a web app on your phone's home screen)
+1. **Accessibility:** keyboard, screen readers, high contrast
+2. **Player activity:** who played when, and the best time to restart
+3. Whitelist through Discord
+4. Web map of the world (BlueMap or Dynmap)
+5. Landmarks on the map preview
+6. Limits per server (memory, CPU)
+7. Other tunnel services (Cloudflare Tunnel, Tailscale Funnel)
+8. Purpur servers (Paper with plugins from Modrinth and Hangar is supported)
+9. Scripting hooks and API tokens
+10. Shared, opt-in memory of mods that don't work together
+11. Proxy networks (Velocity)
+12. A translated user manual
+13. Servers on hosting sites that have an official API (Pterodactyl)
+14. A native phone app (today the control panel works as a web app on your phone's home screen)
 
 ## License
 
