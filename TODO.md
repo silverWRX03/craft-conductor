@@ -16,6 +16,9 @@ Before continuing or starting a feature, check this list: some features wait on 
       world in game, then drag and zoom out and press **Make this area**. It couldn't be run where
       it was built (no Minecraft downloads there).
       *Needed before:* the seed gallery.
+- [ ] **Try an update rehearsal for real** (a server → Updates → **Rehearse it on a copy first**, when an
+      update is ready): check the report matches what you see when you update for real. It was only
+      tried with a pretend server.
 - [ ] **Try automatic port forwarding at home** (mcsm settings → Sharing with friends → Router):
       switch it on, look at what it says, then **Test from the internet** in Check my setup. It
       was only tested against a pretend router.
