@@ -855,12 +855,31 @@ The test suite runs the full install → upgrade → crash → rollback cycle ag
 
 ### Roadmap ideas
 
-- Purpur servers (Paper with plugins from Modrinth and Hangar is supported)
-- **Modded single-player worlds:** set up and keep a modded single-player game up to date (version, loader,
-  mods, updates), then load it into the launcher of your choice; mcsm won't become a launcher itself
-- **Seed gallery:** one button makes maps of 10 different seeds side by side, to pick the one with the
-  features you're after (a warning first says how long it takes and how hard it works the computer)
-- A native phone app (today the control panel works as a web app on your phone's home screen)
+In priority order (the working list, with what's done, is [TODO.md](TODO.md)):
+
+1. **Update rehearsal:** try a Minecraft update on a copy of the server first, then report how it went
+2. **Lag finder:** when the server slows down, find why and say it in plain words
+3. **Seed gallery:** maps of 10 different seeds side by side, to pick the one with the features
+   you're after (a warning first says how long it takes and how hard it works the computer)
+4. **Snapshots** of a whole server (config, mods, world) with what changed, and rollback
+5. **Guided first server** for complete beginners
+6. **Modded single-player worlds:** set up and keep a modded single-player game up to date, then load it
+   into the launcher of your choice; mcsm won't become a launcher itself
+7. **Accessibility:** keyboard, screen readers, high contrast
+8. **Player activity:** who played when, and the best time to restart
+9. Whitelist through Discord
+10. Web map of the world (BlueMap or Dynmap)
+11. Landmarks on the map preview
+12. Phone notifications with the tab closed
+13. Limits per server (memory, CPU)
+14. Other tunnel services (Cloudflare Tunnel, Tailscale Funnel)
+15. Purpur servers (Paper with plugins from Modrinth and Hangar is supported)
+16. Scripting hooks and API tokens
+17. Shared, opt-in memory of mods that don't work together
+18. Proxy networks (Velocity)
+19. A translated user manual
+20. Servers on hosting sites that have an official API (Pterodactyl)
+21. A native phone app (today the control panel works as a web app on your phone's home screen)
 
 ## License
 
