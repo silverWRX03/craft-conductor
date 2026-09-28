@@ -45,6 +45,12 @@ class FakeHttp:
         self.posts: dict[str, object] = {}
         self.downloads: list[str] = []
 
+    def get_text(self, url, headers=None, limit=0):
+        texts = getattr(self, "texts", {})
+        if url not in texts:
+            raise HttpError(url, 404, "HTTP 404")
+        return texts[url]
+
     def pin(self, netloc, fp):  # the real client checks the certificate; nothing to connect to here
         self.pins = {**getattr(self, "pins", {}), netloc: fp}
 

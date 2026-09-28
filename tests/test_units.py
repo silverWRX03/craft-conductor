@@ -107,7 +107,9 @@ def test_neoforge_falls_back_to_maven_metadata(http):
     texts = {f"{NEOFORGE_MAVEN}/maven-metadata.xml":
              "<metadata><versioning><versions><version>21.1.9</version><version>21.1.77</version>"
              "<version>21.1.100-beta</version></versions></versioning></metadata>"}
-    http.get_text = lambda url, headers=None, limit=0: texts[url]
+    http.texts = texts
+    assert NeoForgeLoader(http, FakeMojang(http, ["1.21.1"])).latest_version("1.21.1") == "21.1.77"
+    http.json[NEOFORGE_VERSIONS] = {"versions": ["26.1.1", "26.1.2"]}  # (the API leaving older builds out)
     assert NeoForgeLoader(http, FakeMojang(http, ["1.21.1"])).latest_version("1.21.1") == "21.1.77"
 
 

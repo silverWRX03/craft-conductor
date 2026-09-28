@@ -33,22 +33,29 @@ class NeoForgeLoader(Loader):
     name = "neoforge"
     mod_loaders = ("neoforge",)
 
-    def _all_versions(self) -> list[str]:
-        """Every NeoForge release: from NeoForge's API, or its maven-metadata.xml when the API
-        doesn't answer (it has refused some networks)."""
+    def _api_versions(self) -> list[str]:
         try:
             return [str(v) for v in self.http.get_json(NEOFORGE_VERSIONS)["versions"]]
         except (HttpError, KeyError, TypeError, ValueError) as e:
-            log.debug("NeoForge's version list didn't answer (%s); reading maven-metadata.xml", e)
+            log.debug("NeoForge's version list didn't answer (%s)", e)
+            return []
+
+    def _maven_versions(self) -> list[str]:
         import re
-        text = self.http.get_text(f"{NEOFORGE_MAVEN}/maven-metadata.xml")
+        text = self.http.get_text(f"{NEOFORGE_MAVEN}/maven-metadata.xml", limit=4 << 20)
         return re.findall(r"<version>([^<]{1,40})</version>", text)
 
     def latest_version(self, minecraft: str) -> str | None:
+        prefix = neoforge_prefix(minecraft)
+
+        def pick(versions):
+            found = [v for v in versions if v.startswith(prefix) and "-" not in v]
+            return max(found, key=version_key) if found else None
+
         def fetch():
-            prefix = neoforge_prefix(minecraft)
-            versions = [v for v in self._all_versions() if v.startswith(prefix) and "-" not in v]
-            return max(versions, key=version_key) if versions else None
+            # NeoForge's API, then (when it doesn't answer, or leaves older builds out) the full
+            # list in its maven-metadata.xml.
+            return pick(self._api_versions()) or pick(self._maven_versions())
         return self._safe_latest(fetch)
 
     def install(self, minecraft: str, version: str, dest: Path, java: str) -> Runtime:
