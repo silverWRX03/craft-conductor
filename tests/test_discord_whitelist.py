@@ -3,6 +3,7 @@
 import json
 import socket
 import struct
+import threading
 
 import pytest
 
@@ -31,18 +32,22 @@ def unmask(frame: bytes) -> tuple[int, bytes]:
 
 def test_websocket_frames():
     a, b = socket.socketpair()
+    b.settimeout(10)  # (a mistake here fails the test rather than hanging it)
     ws = WebSocket(a)
     ws.send_json({"op": 1, "d": None})
     op, data = unmask(b.recv(1000))
     assert op == 1 and json.loads(data) == {"op": 1, "d": None}
     big = json.dumps({"x": "y" * 30000}).encode()
     b.sendall(server_frame(b'{"op":10,') + server_frame(b"x", 9))  # a message, then a ping
-    b.sendall(server_frame(big[:10], 1, fin=False) + server_frame(big[10:], 0))
+    # (from another thread: a socket pair's buffer is small on macOS, so a big write waits for the reader)
+    writer = threading.Thread(target=b.sendall, args=(server_frame(big[:10], 1, fin=False) + server_frame(big[10:], 0),))
+    writer.start()
     got = []
     for _ in range(20):
         got += ws.poll(0.2)
         if len(got) == 2:
             break
+    writer.join(5)
     assert got[0] == '{"op":10,' and json.loads(got[1]) == {"x": "y" * 30000}
     op, data = unmask(b.recv(1000))
     assert op == 10 and data == b"x"  # the ping was answered
