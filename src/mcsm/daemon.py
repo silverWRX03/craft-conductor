@@ -326,6 +326,8 @@ class Daemon:
             time.sleep(5)
         try:
             path = backup.create(self.m.server_dir, cfg.backups.dir, label, cfg.backups.exclude)
+            from . import snapshots
+            snapshots.record(path, self.m)
         finally:
             if running and self.proc.running:
                 self.proc.send("save-on")

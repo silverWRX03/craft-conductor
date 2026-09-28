@@ -1386,6 +1386,7 @@ class Api:
         get("/api/backups", self.backups)
         post("/api/backups/create", self.create_backup)
         post("/api/backups/restore", self.restore_backup)
+        get("/api/backups/changes", self.backup_changes)
         post("/api/backups/check", self.check_backup)
         post("/api/backups/area", self.restore_area)
         post("/api/open", self.open_folder)
@@ -2409,10 +2410,21 @@ class Api:
 
     # ------------------------------------------------------------- backups
     def backups(self, q, b) -> dict:
-        from . import areas
+        from . import areas, snapshots
         checks = areas.load_checks(self.m.config.backups.dir)
-        return {"backups": [{"name": p.name, "size": p.stat().st_size, "time": p.stat().st_mtime, "check": checks.get(p.name)}
+        notes = snapshots.listing(self.m.config.backups.dir)
+        return {"backups": [{"name": p.name, "size": p.stat().st_size, "time": p.stat().st_mtime, "check": checks.get(p.name),
+                             **notes.get(p.name, {})}
                             for p in reversed(backup.list_backups(self.m.config.backups.dir))]}
+
+    def backup_changes(self, q, b) -> dict:
+        """What rolling back to a backup would undo (what changed since it was made)."""
+        from . import snapshots
+        path = self._backup_path(q)
+        note = snapshots.load(path)
+        if note is None:
+            return {"snapshot": False, "undo": None}
+        return {"snapshot": True, "undo": snapshots.changes(note, snapshots.describe(self.m))}
 
     def _backup_path(self, b) -> Path:
         name = str(b.get("name", ""))
@@ -2669,9 +2681,9 @@ class Api:
             raise ApiError(409, "stop the server before restoring a backup")
 
         def run():
-            backup.restore(path, self.m.server_dir)
-            return f"restored {name}; run an update check to re-sync mods"
-        return self._job("restore", run)
+            from . import snapshots
+            return snapshots.roll_back(path, self.m)
+        return self._job("roll back", run)
 
     # ----------------------------------------------------------------- java
     def java(self, q, b) -> dict:

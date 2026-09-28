@@ -1577,23 +1577,37 @@ views.backups = () => {
     const checked = (c) => !c ? h("span", { class: "muted small" }, "not checked")
       : c.ok ? h("span", { class: "small ok-text", title: c.detail }, "✓ checked")
         : h("span", { class: "small bad-text", title: c.detail }, `✗ ${c.detail}`);
+    const rollBack = async (b) => {
+      const c = await api(`/api/backups/changes?name=${encodeURIComponent(b.name)}`).catch(() => null);
+      const undo = c && c.undo;
+      const msg = !c || !c.snapshot
+        ? `Replace the server's files with ${b.name}? Anything since then is lost. (An older backup: afterwards, run an update check to put the mod list right.)`
+        : undo.length ? `Roll the whole server back to ${fmtTime(b.time)}? This undoes:\n\n${undo.slice(0, 12).map((x) => "• " + x).join("\n")}${undo.length > 12 ? `\n• …and ${undo.length - 12} more` : ""}\n\nWorld changes since then are lost too.`
+          : `Roll the whole server back to ${fmtTime(b.time)}? Nothing but the world has changed since then; world changes since then are lost.`;
+      if (await ask(msg, { ok: c && c.snapshot ? "Roll back" : "Restore", danger: true }))
+        act(() => api("/api/backups/restore", { method: "POST", body: { name: b.name } }), "Rolling back…");
+    };
+    const changed = (b) => b.changes === null || b.changes === undefined ? null
+      : b.changes.length ? h("details", { class: "small" }, h("summary", {}, `${b.changes.length} change(s) since the one before`),
+        h("ul", { class: "list snapshot-changes" }, b.changes.map((line) => h("li", { class: line.startsWith("+") ? "change-add" : line.startsWith("−") ? "change-rm" : "" }, line))))
+        : h("span", { class: "muted small" }, "Only the world changed since the one before");
     fill(list, r.backups.length ? h("table", {},
       h("thead", {}, h("tr", {}, h("th", {}, "Backup"), h("th", {}, "Created"), h("th", {}, "Size"), h("th", {}, "Can be restored"), h("th", {}))),
       h("tbody", {}, r.backups.map((b) => h("tr", {},
-        h("td", {}, h("code", {}, b.name)), h("td", {}, fmtTime(b.time)), h("td", {}, fmtBytes(b.size)),
+        h("td", {}, h("code", {}, b.name), b.snapshot ? h("div", { class: "small muted" }, `Minecraft ${b.minecraft || "—"} · ${b.mods} mod(s)`) : null, changed(b)),
+        h("td", {}, fmtTime(b.time)), h("td", {}, fmtBytes(b.size)),
         h("td", {}, checked(b.check), " ", h("button", { class: "link-btn small", title: "Read the whole backup to make sure it can be restored",
           onclick: () => act(() => api("/api/backups/check", { method: "POST", body: { name: b.name } }), "Checking the backup…") }, b.check ? "Check again" : "Check")),
         h("td", { class: "row" }, h("button", {
           class: "btn small", disabled: !stopped, title: stopped ? "" : "Stop the server first",
-          onclick: async () => (await ask(`Replace the server directory with ${b.name}? Anything since then is lost.`, { ok: "Restore", danger: true })) &&
-            act(() => api("/api/backups/restore", { method: "POST", body: { name: b.name } }), "Restoring…"),
-        }, "Restore"),
+          onclick: () => rollBack(b),
+        }, b.snapshot ? "Roll back to this" : "Restore"),
         h("button", { class: "btn small", disabled: !stopped, title: stopped ? "Put back only part of the world" : "Stop the server first",
           onclick: () => openAreaRestore(b) }, "Put back an area…")))))) : h("p", { class: "empty" }, "No backups yet."));
   };
   fill($("#main"), 
     h("h2", { class: "view-title" }, "Backups"),
-    card("Create backup", h("p", { class: "muted" }, "A backup is also made automatically before every update."),
+    card("Create backup", h("p", { class: "muted" }, "Each backup is a snapshot of the whole server: the world, the mods, their settings and mcsm's settings for it. One is also made automatically before every update."),
       h("div", { class: "row" }, label, h("button", { class: "btn primary", onclick: () => act(() => api("/api/backups/create", { method: "POST", body: { label: label.value } }), "Backing up…") }, "Back up now"))),
     card("Backups", h("div", { class: "row" }, h("p", { class: "muted small grow" }, "Restoring needs the server to be stopped."), folderBtn("backups", "Backups folder")), list),
   );
