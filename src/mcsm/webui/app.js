@@ -417,6 +417,92 @@ function offerSelfUpdate(u, force = false) {
   ]);
 }
 
+// ------------------------------------------------------------- guided setup
+// A checklist from making the server to a friend joining it; the steps tick themselves. Offered
+// once, the first time (a toast: Guide me or Skip), and started again from Help or Servers.
+const GUIDE_MIN_KEY = "mcsm-guide-min";
+let guideOffered = false, guideTimer = null;
+function offerGuide(hb) {
+  const g = hb.guide;
+  if (!g || (hb.role && hb.role !== "owner")) return;
+  if (g.active) { if (!$("#guide")) showGuide(); return; }
+  if (g.asked || guideOffered) return;
+  if ($("#security") || $("#notice")) { setTimeout(() => hubInfo && offerGuide(hubInfo), 1500); return; }
+  guideOffered = true;
+  const answer = async (action) => {
+    closeToast("guide-offer");
+    const r = await api("/api/hub/guide", { method: "POST", body: { action } }).catch(() => null);
+    if (r && action === "start") showGuide(r);
+    else if (r) toast("You can start the guided setup any time from Help or the Servers page.");
+  };
+  stickyToast("guide-offer", [
+    h("strong", {}, "New to running a Minecraft server?"),
+    h("div", { class: "small" }, "The guided setup takes you step by step, from making the server to a friend joining it."),
+    h("div", { class: "row mt-s" },
+      h("button", { class: "btn primary small", onclick: () => answer("start") }, "Guide me"),
+      h("button", { class: "btn small", onclick: () => answer("skip") }, "Skip")),
+  ], { blocking: false });
+}
+async function startGuide() {
+  const r = await api("/api/hub/guide", { method: "POST", body: { action: "start" } }).catch((e) => { toast(e.message, true); return null; });
+  if (r) { try { sessionStorage.removeItem(GUIDE_MIN_KEY); } catch (_) {} showGuide(r); }
+}
+function showGuide(data) {
+  let box = $("#guide");
+  if (!box) { box = h("aside", { id: "guide", class: "guide", "aria-label": t("Guided setup") }); document.body.append(box); }
+  const minimized = () => { try { return !!sessionStorage.getItem(GUIDE_MIN_KEY); } catch (_) { return false; } };
+  const setMin = (v) => { try { v ? sessionStorage.setItem(GUIDE_MIN_KEY, "1") : sessionStorage.removeItem(GUIDE_MIN_KEY); } catch (_) {} render(last); };
+  let last = data || null;
+  const go = (step, g) => {
+    const sid = g.server;
+    const where = { make: "#new", start: sid ? `#s/${sid}/dashboard` : "#new", join: sid ? `#s/${sid}/dashboard` : "#help",
+      open: "#mcsm", invite: sid ? `#s/${sid}/friends` : "#new", friend: sid ? `#s/${sid}/players` : "#servers" }[step];
+    location.hash = where;
+    if (step === "open") setTimeout(() => { const el = document.getElementById("sharing"); if (el) el.scrollIntoView({ behavior: "smooth" }); }, 400);
+  };
+  const act2 = async (body) => { const r = await api("/api/hub/guide", { method: "POST", body }).catch(() => null); if (r) render(r); return r; };
+  const stop = async () => {
+    if (!(await ask("Stop the guided setup? You can start it again any time from Help or the Servers page.", { ok: "Stop the guide" }))) return;
+    await act2({ action: "stop" });
+    clearInterval(guideTimer); guideTimer = null;
+    box.remove();
+  };
+  function render(g) {
+    if (!g) return;
+    last = g;
+    if (!g.active) { box.remove(); clearInterval(guideTimer); guideTimer = null; return; }
+    const n = g.steps.filter((x) => x.done).length;
+    const all = n === g.steps.length;
+    if (minimized()) {
+      fill(box, h("button", { class: "guide-pill", onclick: () => setMin(false) }, `🧭 ${t("Guided setup")} · ${n}/${g.steps.length}`));
+      box.classList.add("min");
+      return;
+    }
+    box.classList.remove("min");
+    fill(box,
+      h("div", { class: "row guide-head" }, h("strong", { class: "grow" }, `🧭 ${t("Guided setup")}`), h("span", { class: "muted small" }, `${n} / ${g.steps.length}`),
+        h("button", { class: "link-btn", title: t("Hide for now"), "aria-label": t("Hide for now"), onclick: () => setMin(true) }, "–"),
+        h("button", { class: "link-btn", title: t("Stop the guide"), "aria-label": t("Stop the guide"), onclick: stop }, "×")),
+      all ? h("div", { class: "notice ok" }, h("strong", {}, "🎉 You did it!"), h("div", { class: "small" }, "Your server is running and a friend has joined. Have fun!"),
+        h("button", { class: "btn small mt-s", onclick: () => act2({ action: "stop" }) }, "Finish")) : null,
+      h("ol", { class: "guide-steps" }, g.steps.map((x) => h("li", { class: (x.done ? "done" : "") + (x.id === g.next ? " next" : "") },
+        h("span", { class: "guide-tick" }, x.done ? "✓" : ""), h("div", { class: "grow" }, h("div", {}, x.title),
+          x.id === g.next ? h("div", {},
+            h("p", { class: "small muted" }, t(x.how)),
+            h("div", { class: "row" },
+              h("button", { class: "btn small primary", onclick: () => go(x.id, g) }, "Show me"),
+              x.manual ? h("button", { class: "btn small", onclick: () => act2({ action: "tick", step: x.id }) }, "I've done this") : null)) : null)))));
+  }
+  render(last);
+  const poll = async () => {
+    if (!document.body.contains(box)) { clearInterval(guideTimer); guideTimer = null; return; }
+    const r = await api("/api/hub/guide").catch(() => null);
+    if (r) render(r);
+  };
+  if (!last) poll();
+  if (!guideTimer) guideTimer = setInterval(poll, 5000);
+}
+
 // ------------------------------------------------------------------- status
 async function refreshStatus() {
   try { hubInfo = await api("/api/hub"); } catch (e) {
@@ -431,6 +517,7 @@ async function refreshStatus() {
   if (!hb.notice_accepted) { showNotice(); return; }
   offerSelfUpdate(hb.self_update);
   if (hb.auth.default && !hb.auth.managed && !promptDismissed()) showSecurity(true);
+  offerGuide(hb);
   if (hb.single && !server && hb.servers.length === 1) { location.hash = `#s/${hb.servers[0].id}/dashboard`; return; }
   renderNav();
   if (!server) {
@@ -609,7 +696,7 @@ function askingNotice() {
 // The lag finder: 30 seconds of Minecraft's profiler plus the world's files, in plain words.
 function lagBox() {
   const el = h("div", { class: "lag-box mt-s" });
-  let timer = null, running = false;
+  let timer = null, running = false, up = true, lastState = null;
   const findings = (r) => h("ul", { class: "list" }, r.findings.map((f) => h("li", {}, h("div", { class: "grow" },
     h("strong", {}, f.title),
     f.detail ? h("div", { class: "small" }, f.detail) : null,
@@ -617,6 +704,7 @@ function lagBox() {
     f.mods.length ? h("div", { class: "small" }, t("From mods:") + " " + f.mods.join(", ")) : null,
     f.tip ? h("div", { class: "muted small" }, "💡 " + t(f.tip)) : null))));
   const render = (st) => {
+    lastState = st;
     const job = st.finder && st.finder.state === "running" ? st.finder : null;
     const failed = st.finder && st.finder.state === "failed" ? st.finder.result : null;
     const r = st.report;
@@ -625,7 +713,7 @@ function lagBox() {
       job ? h("div", {}, h("div", { class: "row small" }, h("span", { class: "spinner" }), h("span", { class: "grow" }, t(job.step || "Getting ready…")),
         h("button", { class: "link-btn", onclick: () => api("/api/performance/lag/stop", { method: "POST" }).catch(() => null) }, "Stop")))
         : h("div", { class: "row small" },
-          h("button", { class: "btn small", onclick: start }, "Find what's causing lag"),
+          h("button", { class: "btn small", onclick: start, disabled: !up, title: up ? "" : "Start the server first" }, "Find what's causing lag"),
           h("span", { class: "muted" }, "Watches the server for 30 seconds, then looks through the world.")),
       failed ? h("div", { class: "notice bad mt-s small" }, failed.error) : null,
       r && !job ? h("details", { class: "mt-s", open: Date.now() / 1000 - r.finished < 3600 },
@@ -646,7 +734,8 @@ function lagBox() {
     if (r) poll();
   }
   poll();
-  return { el, poll, get running() { return running; } };
+  const setUp = (v) => { if (v !== up) { up = v; if (lastState) render(lastState); } };
+  return { el, poll, setUp, get running() { return running; } };
 }
 
 function perfCard() {
@@ -672,6 +761,7 @@ function perfCard() {
   const load = async () => {
     const r = await api("/api/performance").catch(() => null);
     if (!r) return;
+    lag.setUp(!!r.running);
     if (!r.supported) { fill(body, h("p", { class: "muted small" }, "This Minecraft version can't report its speed (it needs Minecraft 1.20.3 or newer, or Paper, Forge or NeoForge).")); return; }
     if (!r.running) { fill(body, h("p", { class: "muted small" }, "Start the server to see how well it keeps up.")); return; }
     const c = r.current;
@@ -2983,6 +3073,9 @@ views.manual = () => {
 
 views.help = () => {
   fill($("#main"), h("h2", { class: "view-title" }, "Help"),
+    hubInfo && hubInfo.guide ? h("div", { class: "card mb row" }, h("div", { class: "grow" }, h("strong", {}, "🧭 Guided setup"),
+      h("div", { class: "muted small" }, "Step by step from making a server to a friend joining it, with each step ticked as you go.")),
+      h("button", { class: "btn primary", onclick: startGuide }, hubInfo.guide.active ? "Show the guide" : "Start the guided setup")) : null,
     h("div", { class: "notice mb" }, "📖 Everything mcsm does, step by step: ", h("a", { href: "#manual" }, h("strong", {}, "the user manual")), ". ",
       "Something wrong? ", h("a", { href: "https://github.com/silverWRX03/mc-server-management/issues/new/choose", target: "_blank", rel: "noopener noreferrer" }, "Report a bug ↗"),
       " · ", h("a", { href: "https://github.com/silverWRX03/mc-server-management/blob/main/CHANGELOG.md", target: "_blank", rel: "noopener noreferrer" }, "What's new ↗")),
@@ -3765,6 +3858,7 @@ views.servers = () => {
     closingTip(),
     h("div", { class: "row mb" },
       h("p", { class: "muted grow" }, "Servers only run when you start them here, and stop when you press Stop or Quit mcsm."),
+      hubInfo && hubInfo.guide ? h("button", { class: "btn ghost", title: "Step by step from making a server to a friend joining it", onclick: startGuide }, "🧭 Guided setup") : null,
       hubInfo && hubInfo.single ? null : h("div", { class: "row" }, importNote, importBtn, picker)),
     list);
   render(hubInfo);
@@ -3957,7 +4051,7 @@ function discordStatusPicker(r, after) {
 views.mcsm = () => {
   const security = h("div", { class: "mb" });
   const network = h("div", { class: "mb" });
-  const sharing = h("div", { class: "mb" });
+  const sharing = h("div", { class: "mb", id: "sharing" });
   let sharingDrawn = false;
   const renderSharing = (hb) => {
     if (!hb || hb.single || !hb.share) { fill(sharing); return; }

@@ -687,3 +687,21 @@ html { zoom: var(--zoom); }
 .gallery-wait { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; aspect-ratio: 1;
   border: 1px dashed var(--border); border-radius: 8px; color: var(--muted); text-align: center; padding: 6px; }
 .snapshot-changes li { padding: 2px 0; border: 0; }
+
+/* Guided setup */
+.guide { position: fixed; right: 16px; bottom: 16px; z-index: 40; width: min(340px, calc(100vw - 32px)); max-height: calc(80 * var(--vh));
+  overflow: auto; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 12px 36px var(--shadow-strong);
+  padding: 12px 14px; }
+.guide.min { width: auto; padding: 0; border: 0; background: none; box-shadow: none; }
+.guide-pill { border: 1px solid var(--border); background: var(--panel); border-radius: 999px; padding: 8px 14px; cursor: pointer;
+  box-shadow: 0 6px 18px var(--shadow-strong); color: var(--text); font: inherit; }
+.guide-head { margin-bottom: 6px; }
+.guide-steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.guide-steps li { display: flex; gap: 8px; align-items: flex-start; padding: 6px 4px; border-radius: 8px; }
+.guide-steps li.next { background: var(--panel-2); }
+.guide-steps li.done { color: var(--muted); }
+.guide-tick { flex: 0 0 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border); display: grid; place-items: center;
+  font-size: 12px; font-weight: 700; }
+.guide-steps li.done .guide-tick { background: var(--accent); border-color: var(--accent); color: #fff; }
+.guide-steps p { margin: 4px 0 6px; }
+@media (max-width: 600px) { .guide { right: 8px; bottom: 8px; } }

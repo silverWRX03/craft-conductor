@@ -824,6 +824,8 @@ class HubApi:
         r[("GET", "/api/notice")] = lambda q, b: {"accepted": notice.accepted(self.hub.root), "version": notice.NOTICE_VERSION,
                                                   "title": notice.TITLE, "points": notice.POINTS}
         r[("POST", "/api/notice/accept")] = self.accept_notice
+        r[("GET", "/api/hub/guide")] = self.guide_status
+        r[("POST", "/api/hub/guide")] = self.guide_action
         r[("GET", "/api/licenses")] = lambda q, b: licenses.as_dict()
         r[("POST", "/api/self-update/check")] = lambda q, b: {"ok": True, "message": self.hub.check_self_update()}
         r[("POST", "/api/self-update/apply")] = self.apply_self_update
@@ -841,7 +843,37 @@ class HubApi:
             "network_access": hub.web.host in ("0.0.0.0", "::"),
             "servers": hub.summary(),
             "share": hub.share_status() if not hub.is_single else None,
+            "guide": None if hub.is_single else self._guide_state(),
         }
+
+    def _guide_state(self) -> dict:
+        from . import guide
+        g = guide.state(self.hub)
+        return {"asked": g["asked"], "active": g["active"]}
+
+    def guide_status(self, q, b) -> dict:
+        from . import guide
+        if self.hub.is_single:
+            raise ApiError(400, "the guided setup needs the full mcsm (not `mcsm run`)")
+        return guide.steps(self.hub)
+
+    def guide_action(self, q, b) -> dict:
+        """Start, skip or stop the guided setup, or tick a step mcsm can't see by itself."""
+        from . import guide
+        if self.hub.is_single:
+            raise ApiError(400, "the guided setup needs the full mcsm (not `mcsm run`)")
+        action, step = str(b.get("action", "")), str(b.get("step", ""))
+        g = guide.state(self.hub)
+        if action == "start":
+            guide.save(self.hub, asked=True, active=True)
+        elif action in ("skip", "stop"):
+            guide.save(self.hub, asked=True, active=False)
+        elif action in ("tick", "untick") and step in guide.MANUAL:
+            ticked = set(g["ticked"]) | {step} if action == "tick" else set(g["ticked"]) - {step}
+            guide.save(self.hub, ticked=sorted(ticked))
+        else:
+            raise ApiError(400, "start, skip, stop, or tick a step")
+        return guide.steps(self.hub)
 
     def browser(self):
         from .browse import Browser
