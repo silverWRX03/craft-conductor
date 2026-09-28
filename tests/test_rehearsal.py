@@ -85,7 +85,8 @@ def test_automatic_updates_wait_for_a_rehearsal(make_config, http, modrinth, mon
     assert d.check_for_updates().startswith("trying the update")  # a rehearsal starts in the background
     assert d.check_for_updates() == "waiting for the update rehearsal to finish"
     wait_for(lambda: d.rehearsal.state != "running", timeout=30)
-    assert d.next_check == 0.0  # (checked again straight away)
+    # (checked again straight away: once the copy is cleaned up, just after the state changes)
+    wait_for(lambda: d.next_check == 0.0, timeout=30)
     assert d.check_for_updates().startswith("held back")
     assert m.lock.minecraft == "1.21.1"
     assert sum("held back" in x for x in sent) == 1

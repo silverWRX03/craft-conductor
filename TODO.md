@@ -95,3 +95,12 @@ Next:
         terms allow it: Aternos's terms don't allow automating its site.
 21. [ ] **Fingerprint or face sign-in** on the phone app (passkeys, WebAuthn), instead of typing
         the password.
+22. [ ] **Sounds:** subtle cues, the same in the web page and the phone app (made in the browser,
+        no sound files; our own sounds, Minecraft-like but not Mojang's): a tap for ordinary buttons,
+        rising notes for Start/Save/Install, a falling note for Stop/Delete, a soft thud when
+        something fails, and chimes while the page is open (a server is up, a friend asks to join).
+        On at a quiet volume for new users. Each kind can be turned off on its own, plus a volume
+        (Off / Quiet / Normal) and **Vibrate on button presses** (Android; iPhones don't allow it).
+        Each device keeps its own settings, like Display. Never for moving with the keyboard, no
+        stacking on quick presses, and never the only sign something happened. Check the iPhone
+        silent switch on real phones.
