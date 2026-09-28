@@ -39,6 +39,19 @@ Before continuing or starting a feature, check this list: some features wait on 
       and Windows stops warning about mcsm.
 - [ ] **Merged pull requests:** comment "Fixed in <version>" on any issues a release fixed
       (none so far).
+- [ ] **Set up the mod-conflict relay** (steps in [relay/README.md](relay/README.md): a free
+      Cloudflare account, a Worker named `craft-conductor-conflicts`, a KV namespace bound as
+      `CONFLICTS`, a secret `SALT`, then paste `relay/worker.js`). Then tell Claude the Worker's
+      address (`https://craft-conductor-conflicts.<you>.workers.dev`; not secret).
+      *Needed before:* sharing mod conflicts works (Claude puts the address in
+      `RELAY` in `src/mcsm/conflicts.py` and releases).
+- [ ] **Try the 0.20 features for real:** a Purpur server with a plugin; the sounds on a phone
+      (including an iPhone's silent switch, and vibration on Android); adding fingerprint or face
+      sign-in on the phone at the Tailscale address and signing in with it. They were only tried
+      in a desktop browser and with a software "phone".
+- [ ] **NeoForge 1.21.1:** on 2026-09-28 NeoForge's own servers listed only one version
+      (`26.3.0.33-beta`), so no NeoForge 1.21.1 server could be created (the e2e check was red on
+      main too). Check it works again later; if it stays broken, tell Claude.
 
 ## For Claude (next work)
 
@@ -110,3 +123,76 @@ Next:
         Viewer if wanted), list every server on every linked computer on one Servers page, and
         get all their warnings and phone notifications in one place. Easier after 16 (API
         tokens); shares the "servers on another machine" groundwork with 20.
+
+## Plans for the items left (details to start from)
+
+Written down so the work can start without re-deriving it. The house rules in CLAUDE.md apply to
+all of them: manual (and wiki screenshots when a screen changes), CHANGELOG, translations
+(`tr/*.txt` style: English¦es¦pt¦fr¦de¦hi¦zh¦vi¦ar¦ko, built into `webui/i18n/*.json`), tests,
+a security then efficiency review, then PR, CI, merge, release. Small items are grouped into one
+release to pay those costs once.
+
+**14. Other tunnel services (Cloudflare Tunnel, Tailscale Funnel)** — medium.
+- Today: playit.gg only (`tunnel.py`: parse an address, detect the agent running, show status on
+  the Dashboard; Settings → per-server tunnel address; hub share tunnel for friends' downloads).
+- Minecraft is TCP. Cloudflare Tunnel doesn't carry raw TCP for players without their own
+  `cloudflared`, so it suits the **control panel and friends' downloads (HTTPS)**, not the game
+  port; say so plainly. Tailscale Funnel exposes a local port on the internet over TLS (ports
+  443/8443/10000), again good for the panel/downloads, not for Minecraft players.
+- Plan: a "Reach it from outside" chooser: playit.gg (game), Cloudflare Tunnel (panel and friend
+  downloads: guide + `cloudflared tunnel --url` quick tunnel, detect it and show the address),
+  Tailscale Funnel (`tailscale funnel` like the existing `tailscale serve` in `tailscale.py`).
+  Anything on the internet requires the strong password (remote_ready) and keeps passkeys and
+  rate limits; add the host to `[web] allowed_hosts` automatically.
+
+**16. Scripting hooks and API tokens** — medium.
+- Hooks: per server in `mcsm.toml` `[hooks]` (on_start, on_stop, on_join, on_leave, before_update,
+  after_update, on_crash) = a script path inside the server folder (no shell strings; run with
+  `subprocess.run([path], env=...)`, the event as environment variables such as MCSM_EVENT,
+  MCSM_PLAYER; a timeout; output to the log). Owner-only to set (Settings → Hooks), never from a
+  paired phone. Players' names must be validated before they go into env (they already are, by
+  NAME_RE).
+- API tokens: Craft Conductor settings → API tokens: make/revoke named tokens with a role
+  (viewer/helper/owner-lite), stored hashed like paired devices (`webauth.Devices` pattern), sent
+  as `Authorization: Bearer`. Same `device_allowed` rules; rate limit; list last used. Document
+  the API (a Power users wiki page). Needed first by 23.
+
+**18. Proxy networks (Velocity)** — large.
+- A new server type "Velocity proxy" (loader: Velocity from PaperMC's Fill API, like
+  `loaders/paper.py`), with backend servers chosen from the Servers list; write
+  `velocity.toml` (servers, try order, forced hosts) and the modern forwarding secret; set the
+  backends to `online-mode=false` and Paper's `proxies.velocity` (Fabric needs FabricProxy-Lite).
+  Ports: backends on localhost only. Start order: backends then proxy. Players page shows the
+  whole network. Keep the forwarding secret out of logs and the diagnostic report.
+
+**19. Translated user manual** — large (mostly text).
+- `manual.md` split by `## ` sections already (wiki). Add `manual.<lang>.md` for es, pt, fr, de,
+  hi, zh, vi, ar, ko (machine-made, marked as such), served by language like `i18n/*.json`; the
+  in-app manual picks the page language; the wiki gets per-language pages
+  (`packaging/wiki.py`). "A way for people to fix translations": a "Suggest a better
+  translation" link to a GitHub issue form with the section and language filled in.
+
+**20. Servers on hosting sites (Pterodactyl)** — large.
+- Pterodactyl's client API (`/api/client`, a user API key): list servers, power (start/stop/
+  restart), console via its websocket, files for mods. Add "a server on a hosting panel" as a
+  server kind whose actions go through that API instead of a local process; many pages
+  (mods, backups) map to its file API. The key is a secret: keep it like the CurseForge key
+  (hub file, 0600), never in logs or reports. Free hosts (Aternos etc.) only with an official
+  API and terms that allow it (Aternos's don't).
+
+**23. One dashboard for several computers** — large, low priority. After 16.
+- Link: on the other computer, make an API token (16) or a pairing code; the main computer
+  stores it (hashed on the other side, secret on this side) with that computer's address (the
+  secure Tailscale one preferred; HTTPS required off the home network).
+- The main panel lists the other computer's servers (merged into the Servers page, with the
+  computer's name) and proxies that server's pages' API calls with the token; the other computer
+  applies its own role rules. Health warnings and phone notifications from linked computers are
+  forwarded to the main one. Unlink = revoke the token on either side.
+
+**Smaller leftovers**
+- Map landmarks (12): players' bases, and pins on the web map (BlueMap/Dynmap markers).
+- Mod conflict memory (17): put the relay address in `conflicts.RELAY` once it's set up (see
+  For you), and release.
+- Sounds (22): check the iPhone silent switch on a real phone.
+- Store phone app: only if the installable web app falls short.
+
