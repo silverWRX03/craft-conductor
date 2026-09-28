@@ -68,7 +68,7 @@ def main(exe: str) -> None:
                     if proc.poll() is not None or time.time() > deadline:
                         raise SystemExit("web UI never came up:\n" + (tmp / "run.log").read_text())
                     time.sleep(0.5)
-            assert status == 200 and "mcsm" in body, body[:200]
+            assert status == 200 and "Craft Conductor" in body, body[:200]
             assert "use strict" in fetch("/app.js")[1]
             assert fetch("/style.css")[0] == 200
             print("web UI served")

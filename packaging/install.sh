@@ -13,9 +13,9 @@ set -eu
 REPO="silverWRX03/craft-conductor"
 BASE="${MCSM_RELEASE_URL:-https://github.com/$REPO/releases/latest/download}"
 case "$(uname -s)-$(uname -m)" in
-  Linux-x86_64|Linux-amd64) ASSET="mcsm-linux-x64" ;;
-  Linux-aarch64|Linux-arm64) ASSET="mcsm-linux-arm64" ;;
-  *) echo "mcsm: this installer is for 64-bit Linux (x86_64 or arm64); this is $(uname -s) $(uname -m)." >&2
+  Linux-x86_64|Linux-amd64) ASSET="craft-conductor-linux-x64" ;;
+  Linux-aarch64|Linux-arm64) ASSET="craft-conductor-linux-arm64" ;;
+  *) echo "Craft Conductor: this installer is for 64-bit Linux (x86_64 or arm64); this is $(uname -s) $(uname -m)." >&2
      echo "On Windows or macOS, download mcsm from https://github.com/$REPO/releases/latest" >&2
      exit 1 ;;
 esac
