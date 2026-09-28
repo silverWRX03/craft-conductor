@@ -1038,7 +1038,9 @@ class HubApi:
     def _guide_state(self) -> dict:
         from . import guide
         g = guide.state(self.hub)
-        return {"asked": g["asked"], "active": g["active"]}
+        # Someone who already has a server doesn't need to be offered it (Help still starts it).
+        has_server = any(not d.setup_pending for d in list(self.hub.daemons.values()))
+        return {"asked": g["asked"] or has_server, "active": g["active"]}
 
     def guide_status(self, q, b) -> dict:
         from . import guide
@@ -1320,8 +1322,8 @@ class HubApi:
             out.append({"label": f"Home network ({lan})", "host": lan, "kind": "lan"})
         from . import tailscale
         st = tailscale.status(self._port())
-        if st["serving"] and st["name"]:  # (HTTPS with a real certificate: the phone app works there)
-            out.append({"label": f"Tailscale, secure ({st['name']}): for the phone app", "host": st["name"], "kind": "tailscale-https"})
+        if st["serving"] and st["name"]:  # (HTTPS with a real certificate: the phone app works there; listed first)
+            out.insert(0, {"label": f"Tailscale, secure ({st['name']}): for the phone app", "host": st["name"], "kind": "tailscale-https"})
         ts = tailscale_ip()
         if ts:
             out.append({"label": f"Tailscale ({ts}), works away from home", "host": ts, "kind": "tailscale"})
