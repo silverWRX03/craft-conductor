@@ -705,3 +705,9 @@ html { zoom: var(--zoom); }
 .guide-steps li.done .guide-tick { background: var(--accent); border-color: var(--accent); color: #fff; }
 .guide-steps p { margin: 4px 0 6px; }
 @media (max-width: 600px) { .guide { right: 8px; bottom: 8px; } }
+
+/* Modded single-player games */
+.sp-picked { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+.sp-mod { display: inline-flex; align-items: center; gap: 2px; font-size: 12px; }
+.sp-results .result { display: flex; gap: 10px; align-items: center; }
+.sp-check { margin-top: 8px; }

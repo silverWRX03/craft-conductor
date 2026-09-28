@@ -175,19 +175,21 @@ def install_prism(joiner: "Joiner", pack: dict, slug: str, data_dir: Path) -> di
             k, sep, v = line.partition("=")
             if sep and not line.startswith("["):
                 old[k] = v
-    old.update({"ConfigVersion": "1.2", "InstanceType": "OneSix", "name": pack["name"], "JoinServerOnLaunch": "true",
+    old.update({"ConfigVersion": "1.2", "InstanceType": "OneSix", "name": pack["name"],
+                "JoinServerOnLaunch": "true" if pack["address"] else "false",
                 "JoinServerOnLaunchAddress": pack["address"], "OverrideMemory": "true",
                 "MaxMemAlloc": str(memory), "MinMemAlloc": old.get("MinMemAlloc", "512")})
     old.setdefault("iconKey", "default")
     cfg.write_text("[General]\n" + "".join(f"{k}={v}\n" for k, v in old.items()), encoding="utf-8")
     fetched, removed = joiner.sync_mods(pack, game)
-    joiner.add_server(pack, game)
+    if pack["address"]:
+        joiner.add_server(pack, game)
     return {"launcher": "prism", "where": str(inst), "downloaded": fetched, "removed": removed,
-            "message": f"added \"{pack['name']}\" to Prism Launcher; it joins the server when you press Launch"}
+            "message": f"added \"{pack['name']}\" to Prism Launcher" + ("; it joins the server when you press Launch" if pack["address"] else "")}
 
 
 def prism_command(instance_id: str, address: str) -> list[list[str]]:
-    args = ["--launch", instance_id, "--server", address]
+    args = ["--launch", instance_id, *(["--server", address] if address else [])]
     if os.name == "nt":
         cands = []
         for base in (os.environ.get("LOCALAPPDATA"), os.environ.get("ProgramFiles")):
@@ -251,11 +253,12 @@ def build_mrpack(joiner: "Joiner", pack: dict, out_dir: Path) -> Path:
                               "env": {"client": "required", "server": "required" if m.get("side") != "client" else "unsupported"}})
             else:
                 z.writestr(f"overrides/{folder_of(m)}/{m['filename']}", data)
-        z.writestr("overrides/servers.dat", servers_dat(pack))
+        if pack["address"]:
+            z.writestr("overrides/servers.dat", servers_dat(pack))
         _pack_settings(z, pack)
         z.writestr("modrinth.index.json", json.dumps({
             "formatVersion": 1, "game": "minecraft", "versionId": str(pack.get("updated") or "1"),
-            "name": pack["name"], "summary": f"Plays on {pack['address']} (made by mcsm)",
+            "name": pack["name"], "summary": f"Plays on {pack['address']} (made by mcsm)" if pack["address"] else "Made by mcsm",
             "files": files, "dependencies": deps}, indent=2))
     path = _unique(out_dir / f"{_safe_name(pack['name'])}.mrpack")
     path.write_bytes(buf.getvalue())
@@ -287,7 +290,8 @@ def build_curseforge(joiner: "Joiner", pack: dict, out_dir: Path) -> Path:
         from .join import folder_of
         for m, jar in fetch_mods(joiner, pack, Path(tmp)):
             z.write(jar, f"overrides/{folder_of(m)}/{m['filename']}")
-        z.writestr("overrides/servers.dat", servers_dat(pack))
+        if pack["address"]:
+            z.writestr("overrides/servers.dat", servers_dat(pack))
         _pack_settings(z, pack)
         z.writestr("manifest.json", json.dumps({
             "minecraft": {"version": pack["minecraft"], "modLoaders": cf_loader_id(pack)},

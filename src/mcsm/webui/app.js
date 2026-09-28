@@ -3854,16 +3854,135 @@ views.servers = () => {
       importNote.textContent = "";
     }
   });
+  const sp = hubInfo && !hubInfo.single ? singleplayerCard() : null;
   fill($("#main"),
     closingTip(),
     h("div", { class: "row mb" },
       h("p", { class: "muted grow" }, "Servers only run when you start them here, and stop when you press Stop or Quit mcsm."),
       hubInfo && hubInfo.guide ? h("button", { class: "btn ghost", title: "Step by step from making a server to a friend joining it", onclick: startGuide }, "🧭 Guided setup") : null,
       hubInfo && hubInfo.single ? null : h("div", { class: "row" }, importNote, importBtn, picker)),
-    list);
+    list,
+    sp ? sp.el : null);
   render(hubInfo);
   return { onHub: render };
 };
+
+// Modded single-player games: mcsm sets one up in the launcher you use (it isn't a launcher) and
+// keeps it up to date. The worlds stay in that installation when the mods are updated.
+const SP_LOADERS = [["fabric", "Fabric"], ["neoforge", "NeoForge"], ["forge", "Forge"], ["quilt", "Quilt"]];
+function singleplayerCard() {
+  const list = h("div", { class: "sp-list" });
+  const el = h("section", { class: "mt-l" },
+    h("div", { class: "row" }, h("h2", { class: "grow" }, "Modded single-player games"),
+      h("button", { class: "btn", onclick: () => openSpEditor(null, load) }, "+ New single-player game")),
+    h("p", { class: "muted small" }, "Pick a mod loader and mods, and mcsm puts the game into your launcher (the Minecraft Launcher, Prism, the Modrinth App or CurseForge) and keeps it up to date. No server needed; your worlds stay in the game when it's updated."),
+    list);
+  const LAUNCHER = { minecraft: "Minecraft Launcher", prism: "Prism", modrinth: "Modrinth App", curseforge: "CurseForge" };
+  const gameCard = (g) => {
+    const out = h("div", { class: "sp-check" });
+    const inst = g.installed;
+    const check = async () => {
+      fill(out, h("div", { class: "row small" }, h("span", { class: "spinner" }), t("Checking Modrinth…")));
+      const r = await api("/api/hub/singleplayer/check", { method: "POST", body: { id: g.id } }).catch((e) => { fill(out, h("div", { class: "notice bad small" }, e.message)); return null; });
+      if (!r) return;
+      fill(out, r.changes.length ? h("div", { class: inst ? "notice warn small" : "notice small" },
+        h("strong", {}, inst ? "An update is ready:" : "It will install:"),
+        h("ul", { class: "list" }, r.changes.map((c) => h("li", { class: c.startsWith("+") ? "change-add" : c.startsWith("−") ? "change-rm" : "" }, c))),
+        r.skipped.length ? h("div", { class: "muted" }, t("Left out (no build for this Minecraft yet):") + " " + r.skipped.map((x) => x.name).join(", ")) : null,
+        h("button", { class: "btn primary small mt-s", onclick: () => install() }, inst ? "Update it in my launcher" : "Put it in my launcher"))
+        : h("div", { class: "notice ok small" }, `Up to date: Minecraft ${r.minecraft} and every mod are the newest that work together.`));
+    };
+    const install = async () => {
+      const r = await api("/api/hub/singleplayer/install", { method: "POST", body: { id: g.id } }).catch((e) => { toast(e.message, true); return null; });
+      if (r) toast("A new tab opens: pick your launcher there. (No tab? Allow pop-ups, or use the address it shows.)");
+    };
+    return h("div", { class: "card server-card" },
+      h("div", { class: "row" }, h("span", { class: "pill " + (inst ? "running" : "pending") }, inst ? "installed" : "not installed"),
+        h("strong", { class: "grow server-name" }, g.name)),
+      h("div", { class: "muted" }, `${(SP_LOADERS.find(([v]) => v === g.loader) || [, g.loader])[1]} · Minecraft ${inst ? inst.minecraft : g.minecraft === "latest" ? t("newest the mods support") : g.minecraft} · ${g.mods.length} mod(s)`),
+      inst ? h("div", { class: "muted small" }, t("In:") + " " + (g.launchers || []).map((x) => LAUNCHER[x] || x).join(", ") + ` · ${ago(inst.at)}`) : null,
+      h("div", { class: "row mt-s" },
+        h("button", { class: "btn primary", onclick: check }, inst ? "Check for updates" : "Install…"),
+        h("button", { class: "btn", onclick: () => openSpEditor(g, load) }, "Edit"),
+        h("button", { class: "btn ghost", onclick: async () => {
+          if (!(await ask(`Forget "${g.name}"? mcsm stops keeping it up to date. The game and its worlds stay in your launcher; delete them there if you want them gone.`, { ok: "Forget it", danger: true }))) return;
+          await act(() => api("/api/hub/singleplayer/delete", { method: "POST", body: { id: g.id } }), "Forgotten");
+          load();
+        } }, "Delete")),
+      out);
+  };
+  async function load() {
+    const r = await api("/api/hub/singleplayer").catch(() => null);
+    if (!r) return;
+    fill(list, r.games.length ? h("div", { class: "server-list" }, r.games.map(gameCard))
+      : h("p", { class: "empty" }, "No single-player games yet."));
+  }
+  load();
+  return { el };
+}
+
+function openSpEditor(game, done) {
+  const g = game || { name: "", loader: "fabric", minecraft: "latest", mods: [], memory_gb: 6 };
+  const chosen = new Map(g.mods.map((slug) => [slug, slug]));
+  const name = h("input", { value: g.name, maxlength: 60, placeholder: "e.g. Cozy modded survival" });
+  const loader = h("select", { disabled: !!(game && game.installed) }, SP_LOADERS.map(([v, l]) => h("option", { value: v }, l)));
+  loader.value = g.loader;
+  const mc = h("select", {}, h("option", { value: "latest" }, "The newest one all the mods support"));
+  api("/api/hub/setup").then((o) => { for (const v of o.versions || []) mc.append(h("option", { value: v }, `Minecraft ${v}`)); mc.value = g.minecraft; }).catch(() => null);
+  const memory = h("select", {}, [2, 3, 4, 6, 8, 10, 12, 16].map((n) => h("option", { value: n }, `${n} GB`)));
+  memory.value = String(g.memory_gb || 6);
+  const q = h("input", { type: "search", placeholder: "Search Modrinth for mods…", "aria-label": "Search" });
+  const results = h("div", { class: "browse-results sp-results" });
+  const picked = h("div", { class: "sp-picked" });
+  const showPicked = () => fill(picked, chosen.size ? [...chosen].map(([slug, label]) => h("span", { class: "tag sp-mod" }, label, " ",
+    h("button", { type: "button", class: "link-btn", "aria-label": `Remove ${label}`, onclick: () => { chosen.delete(slug); showPicked(); } }, "×")))
+    : h("span", { class: "muted small" }, "No mods yet: search above and press Add."));
+  let seq = 0, timer;
+  const search = async () => {
+    const mine = ++seq;
+    const params = new URLSearchParams({ type: "mod", q: q.value.trim(), source: "modrinth", sort: q.value.trim() ? "relevance" : "downloads",
+      offset: "0", loader: loader.value, version: mc.value === "latest" ? "" : mc.value, side: "client" });
+    const r = await api(`/api/hub/browse/search?${params}`).catch(() => null);
+    if (!r || mine !== seq) return;
+    fill(results, r.results.map((m) => h("div", { class: "result" },
+      m.icon ? h("img", { src: m.icon, alt: "", loading: "lazy", referrerpolicy: "no-referrer" }) : h("div", { class: "noicon" }),
+      h("div", { class: "info grow" }, h("div", { class: "name" }, m.name), h("div", { class: "desc" }, m.summary)),
+      h("button", { type: "button", class: "btn small", disabled: chosen.has(m.slug || m.id), onclick: (e) => {
+        chosen.set(m.slug || m.id, m.name); e.target.disabled = true; showPicked(); } }, chosen.has(m.slug || m.id) ? "Added" : "Add"))));
+  };
+  q.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(search, 350); });
+  loader.addEventListener("change", search);
+  mc.addEventListener("change", search);
+  const error = h("p", { class: "error" });
+  const save = async (e) => {
+    e.preventDefault();
+    const body = { name: name.value.trim(), loader: loader.value, minecraft: mc.value, mods: [...chosen.keys()], memory_gb: Number(memory.value) };
+    try {
+      await api(game ? "/api/hub/singleplayer/edit" : "/api/hub/singleplayer", { method: "POST", body: game ? { id: game.id, ...body } : body });
+      closeBrowser();
+      toast(game ? "Saved. Check for updates to put the changes into your launcher." : "Made. Press Install… to put it into your launcher.");
+      done();
+    } catch (err) { if (!(err instanceof Unauthorized)) error.textContent = err.message; }
+  };
+  openSidePane(h("form", { class: "browse sp-editor", onsubmit: save },
+    h("div", { class: "browse-left" },
+      h("div", { class: "browse-filters" },
+        h("div", { class: "row" }, h("strong", { class: "grow" }, game ? `Edit ${game.name}` : "New single-player game"),
+          h("button", { type: "button", class: "btn ghost small", onclick: () => closeBrowser() }, "Close")),
+        h("label", {}, "Name", name),
+        h("div", { class: "grid" }, h("label", {}, "Mod loader", loader), h("label", {}, "Memory for the game", memory)),
+        h("label", {}, "Minecraft", mc),
+        h("h3", { class: "mt-s" }, "Mods"), picked, q),
+      results,
+      h("div", { class: "browse-footer" }, error, h("button", { class: "btn primary", type: "submit" }, game ? "Save" : "Make the game"))),
+    h("div", { class: "browse-right" }, h("div", { class: "empty-map" },
+      h("h2", {}, "Your own modded Minecraft"),
+      h("p", {}, "mcsm finds a build of every mod (and the mods they need) for the same Minecraft version, then sets the game up in your launcher. When the mods update, Check for updates brings them in; with “the newest one all the mods support”, Minecraft moves up too once every mod is ready."),
+      h("p", { class: "muted small" }, "Only mods that run on players' computers are listed. Shaders and resource packs can be added on the launcher page when you install.")))),
+    game ? "Edit single-player game" : "New single-player game");
+  showPicked();
+  search();
+}
 
 // A notice people see every time, once they know it: "Don't show again" (see mcsm settings → Warnings).
 function dismissible(id, notice) {

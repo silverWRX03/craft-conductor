@@ -72,7 +72,7 @@ MAX_JSON = 1 << 20
 MAX_UPLOAD = 512 << 20
 MAX_ARCHIVE = 64 << 30
 LANGUAGES = ("es", "pt", "fr", "de", "hi", "zh", "vi", "ar", "ko")  # besides English: src/mcsm/webui/i18n/<code>.json
-LOCAL_ONLY = {"/api/open", "/api/hub/open", "/api/hub/remote-install/open", "/api/play-here"}  # they act on this computer's screen  # a whole server (worlds and all), for importing
+LOCAL_ONLY = {"/api/open", "/api/hub/open", "/api/hub/remote-install/open", "/api/play-here", "/api/hub/singleplayer/install"}  # they act on this computer's screen  # a whole server (worlds and all), for importing
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/app.js": ("app.js", "text/javascript; charset=utf-8"),
           "/rich.js": ("rich.js", "text/javascript; charset=utf-8"),
@@ -825,6 +825,12 @@ class HubApi:
                                                   "title": notice.TITLE, "points": notice.POINTS}
         r[("POST", "/api/notice/accept")] = self.accept_notice
         r[("GET", "/api/hub/guide")] = self.guide_status
+        r[("GET", "/api/hub/singleplayer")] = self.sp_list
+        r[("POST", "/api/hub/singleplayer")] = self.sp_create
+        r[("POST", "/api/hub/singleplayer/edit")] = self.sp_edit
+        r[("POST", "/api/hub/singleplayer/delete")] = self.sp_delete
+        r[("POST", "/api/hub/singleplayer/check")] = self.sp_check
+        r[("POST", "/api/hub/singleplayer/install")] = self.sp_install
         r[("POST", "/api/hub/guide")] = self.guide_action
         r[("GET", "/api/licenses")] = lambda q, b: licenses.as_dict()
         r[("POST", "/api/self-update/check")] = lambda q, b: {"ok": True, "message": self.hub.check_self_update()}
@@ -845,6 +851,103 @@ class HubApi:
             "share": hub.share_status() if not hub.is_single else None,
             "guide": None if hub.is_single else self._guide_state(),
         }
+
+    # ------------------------------------------- modded single-player games
+    def _sp(self):
+        from . import singleplayer
+        if self.hub.is_single:
+            raise ApiError(400, "single-player games need the full mcsm (not `mcsm run`)")
+        return singleplayer
+
+    def sp_list(self, q, b) -> dict:
+        sp = self._sp()
+        return {"games": sp.games(self.hub), "loaders": list(sp.LOADERS)}
+
+    def sp_create(self, q, b) -> dict:
+        sp = self._sp()
+        try:
+            return sp.create(self.hub, name=b.get("name"), loader=b.get("loader"), minecraft=b.get("minecraft"),
+                             mods=b.get("mods") or [], memory_gb=b.get("memory_gb"))
+        except sp.SingleplayerError as e:
+            raise ApiError(400, str(e)) from None
+
+    def sp_edit(self, q, b) -> dict:
+        sp = self._sp()
+        try:
+            game = sp.load(self.hub, str(b.get("id", "")))
+            recipe = sp.check_recipe(b.get("name", game["name"]), b.get("loader", game["loader"]),
+                                     b.get("minecraft", game["minecraft"]), b.get("mods", game["mods"]),
+                                     b.get("memory_gb", game["memory_gb"]))
+            if recipe["loader"] != game["loader"] and game.get("installed"):
+                raise sp.SingleplayerError("a game's mod loader can't change once it's installed: make a new game instead")
+            return sp.save(self.hub, {**game, **recipe})
+        except sp.SingleplayerError as e:
+            raise ApiError(400, str(e)) from None
+
+    def sp_delete(self, q, b) -> dict:
+        sp = self._sp()
+        try:
+            sp.load(self.hub, str(b.get("id", "")))
+            sp.delete(self.hub, str(b.get("id", "")))
+        except sp.SingleplayerError as e:
+            raise ApiError(404, str(e)) from None
+        return {"ok": True}
+
+    def _sp_pack(self, game_id: str) -> tuple[dict, dict]:
+        sp = self._sp()
+        try:
+            game = sp.load(self.hub, game_id)
+            return game, sp.resolve(self.hub, game)
+        except sp.SingleplayerError as e:
+            raise ApiError(400, str(e)) from None
+        except HttpError as e:
+            raise ApiError(502, f"couldn't reach Modrinth or Mojang: {e.friendly}") from None
+
+    def sp_check(self, q, b) -> dict:
+        """What installing (or updating) the game now would put in."""
+        sp = self._sp()
+        game, pack = self._sp_pack(str(b.get("id", "")))
+        return {"id": game["id"], "minecraft": pack["minecraft"], "loader_version": pack["loader_version"],
+                "changes": sp.changes(game.get("installed"), pack), "skipped": pack["skipped"], "manual": pack["manual"],
+                "mods": [{"name": m["name"], "needed_by": m.get("needed_by")} for m in pack["mods"]]}
+
+    def sp_install(self, q, b) -> dict:
+        """Put the game into this computer's launchers (the same page friends use to join), and keep
+        a note of what went in. Only from a browser on this computer (LOCAL_ONLY)."""
+        from . import joinui
+        sp = self._sp()
+        game, pack = self._sp_pack(str(b.get("id", "")))
+        old = getattr(self.hub, "_play_ui", None)
+        if old is not None and not old.done.is_set():
+            old.stop()
+        ui = joinui.JoinUI(None, pack=pack, http=self.hub.http)
+        url = ui.start()
+        self.hub._play_ui = ui
+        hub = self.hub
+
+        def run():
+            noted = None
+
+            def note():  # as soon as a launcher has it (the page may stay open a while)
+                nonlocal noted
+                ok = [r for r in ui.results if r.get("ok")]
+                if ok and noted is not ui.results:
+                    noted = ui.results
+                    fresh = sp.load(hub, game["id"])
+                    sp.save(hub, {**fresh, "installed": sp.summary(pack), "launchers": sorted({r["launcher"] for r in ok})})
+            try:
+                while not ui.done.wait(2):
+                    note()
+                    if not ui.running and time.monotonic() - ui.last_seen > joinui.IDLE_SECONDS:
+                        break
+                note()
+            except sp.SingleplayerError:
+                pass  # (the game was deleted meanwhile)
+            finally:
+                ui.stop()
+        threading.Thread(target=run, daemon=True, name="singleplayer-install").start()
+        threading.Thread(target=webbrowser.open, args=(url,), daemon=True).start()
+        return {"ok": True, "url": url}
 
     def _guide_state(self) -> dict:
         from . import guide
