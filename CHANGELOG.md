@@ -4,6 +4,14 @@ What changed in each version of mcsm, newest first. Bugs are listed the way you'
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.20.0 (2026-09-28)
+
+**Added**
+- **Purpur servers:** Paper with many more gameplay settings. Pick it under New server → 1. Server type. It runs the same plugins as Paper (from Modrinth and Hangar), and `purpur.yml` can be edited under Mod config files.
+- **Sounds** (Craft Conductor settings → Sounds): a soft click for buttons, rising notes for Start, Save and Install, falling notes for Stop and Delete, a sound when something goes wrong, and a chime when a server finishes starting or a friend asks to join. They're on at a quiet volume; each kind can be turned off, and Android phones can vibrate too. Each device keeps its own choice.
+- **Fingerprint or face sign-in** (Craft Conductor settings → Fingerprint or face sign-in): add a passkey on your phone (at its secure address) or computer, and sign in with your fingerprint, face or screen lock instead of the password.
+- **Mod conflict memory** (Craft Conductor settings → Mod conflicts): if you opt in, conflicts that "Find which mods break it" finds are shared anonymously (only the loader, the Minecraft version and mod ids). Conflicts three people have reported show as warnings on everyone's Mods page. The warnings start once Craft Conductor's shared list is online.
+
 ## 0.19.1 (2026-09-28)
 
 A security and speed check of the whole of Craft Conductor.

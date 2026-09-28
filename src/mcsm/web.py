@@ -35,7 +35,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Any, Callable
 
-from . import __version__, backup, config as configmod, configs, licenses, limits, notice, serverprops, setup as setupmod, stats, webauth
+from . import __version__, backup, config as configmod, configs, licenses, limits, notice, passkeys, serverprops, setup as setupmod, stats, webauth
 from .config import ConfigError, ModSpec
 from .daemon import Daemon, set_current_server
 from .hub import Hub
@@ -59,7 +59,7 @@ DEVICE_COOKIE = "mcsm_device"
 DEVICE_POSTS = {"/api/server/start", "/api/server/stop", "/api/server/restart", "/api/backups/create",
                 "/api/updates/check", "/api/updates/apply", "/api/players/action", "/api/logout",
                 "/api/join-requests/answer"}
-DEVICE_HIDDEN_GETS = {"/api/configs/file", "/api/export/download", "/api/settings", "/api/hub/curseforge",
+DEVICE_HIDDEN_GETS = {"/api/configs/file", "/api/hub/passkeys", "/api/export/download", "/api/settings", "/api/hub/curseforge",
                       "/api/hub/discord", "/api/hub/discord/guilds", "/api/hub/discord/channels", "/api/hub/discord/roles",
                       "/api/hub/remote", "/api/hub/saves", "/api/doctor/report"}
 
@@ -170,6 +170,7 @@ class WebUI:
         self.first_sign_in: set[str] = set()   # sessions that may only choose a password
         self.failures: dict[str, list[float]] = {}
         self.devices = webauth.Devices(hub.state_dir)
+        self.passkeys = passkeys.Passkeys(hub.state_dir)
         self.lock = threading.Lock()
         self.httpd: ThreadingHTTPServer | None = None
         self._apis: dict[str, Api] = {}
@@ -256,6 +257,27 @@ class WebUI:
                 self.first_sign_in.add(token)
             return token
 
+    def passkey_login(self, rp_id: str, origins: set[str], b: dict, client: str, local: bool) -> str:
+        """Sign in with a fingerprint or face (passkeys.py): the same limits as a password."""
+        now = time.time()
+        auth = self.auth
+        if not local and not auth.remote_ready:
+            raise ApiError(403, "signing in from another device needs a strong password set first")
+        with self.lock:
+            recent = [t for t in self.failures.get(client, []) if now - t < 300]
+            if len(recent) >= 5:
+                raise ApiError(429, "too many attempts; wait a few minutes")
+            self.failures[client] = recent + [now]
+        try:
+            used = self.passkeys.verify(rp_id, origins, str(b.get("id", "")), str(b.get("client_data", "")),
+                                        str(b.get("auth_data", "")), str(b.get("signature", "")))
+        except (passkeys.PasskeyError, ValueError) as e:
+            raise ApiError(401, str(e)) from None
+        log.info("signed in with the passkey %s", used["name"])
+        with self.lock:
+            self.failures.pop(client, None)
+            return self._new_session(now)
+
     def _new_session(self, now: float) -> str:
         token = secrets.token_urlsafe(32)
         self.sessions = {t: exp for t, exp in self.sessions.items() if exp > now}
@@ -274,6 +296,8 @@ class WebUI:
         removed = self.devices.remove(None)
         if removed:
             log.info("signed out %d paired phone(s) because the password changed", removed)
+        if self.passkeys.remove(None):
+            log.info("removed the fingerprint and face sign-ins because the password changed")
         log.info("web UI sign-in changed to %s", mode)
         with self.lock:
             self.sessions.clear()
@@ -287,6 +311,7 @@ class WebUI:
     def reset_to_default(self) -> None:
         self.store.reset()
         self.devices.remove(None)
+        self.passkeys.remove(None)
         log.info("web UI password reset to the default from this computer")
         with self.lock:
             self.sessions.clear()
@@ -494,6 +519,23 @@ class RequestHandler(BaseHTTPRequestHandler):
         host = host[1:host.find("]")] if host.startswith("[") and "]" in host else host.rsplit(":", 1)[0]
         return host in ("localhost", "127.0.0.1", "::1")
 
+    def _rp(self) -> tuple[str, set[str]]:
+        """The passkey "relying party": this address's host name, and the page origins that may
+        use it (passkeys.py). Browsers only allow them on HTTPS or localhost, never an IP address."""
+        raw = (self.headers.get("Host") or "").strip().lower()
+        host = raw[1:raw.find("]")] if raw.startswith("[") and "]" in raw else raw.rsplit(":", 1)[0] if raw.count(":") == 1 else raw
+        try:
+            ipaddress.ip_address(host)
+            raise ApiError(400, "fingerprint and face sign-in needs a host name (like the Tailscale address), not an IP address")
+        except ValueError:
+            pass
+        if not re.fullmatch(r"[a-z0-9.-]{1,253}", host):
+            raise ApiError(400, "that address can't use fingerprint or face sign-in")
+        origins = {f"https://{raw}"}
+        if host == "localhost" or host.endswith(".localhost"):
+            origins.add(f"http://{raw}")
+        return host, origins
+
     def _host_ok(self) -> bool:
         if host_allowed(self.headers.get("Host"), self.web.hub.web.allowed_hosts):
             return True
@@ -532,6 +574,10 @@ class RequestHandler(BaseHTTPRequestHandler):
             local = self._local()
             if path == "/api/auth" and method == "GET":
                 info = self.web.auth.info()
+                try:
+                    info = {**info, "passkeys": self.web.passkeys.count(self._rp()[0]) > 0}
+                except ApiError:
+                    info = {**info, "passkeys": False}
                 # (the sign-in dialog lists what a new password needs: a strong one with remote
                 # access on, or when replacing a one-time password from another device)
                 return self._json(200, {**info, "local": local,
@@ -541,6 +587,15 @@ class RequestHandler(BaseHTTPRequestHandler):
                 return self._json(200, {"ok": True}, {"Set-Cookie": self._cookie(token)})
             if path == "/api/pair" and method == "POST":
                 return self._pair()
+            if path == "/api/passkey/options" and method == "POST":  # signing in with a fingerprint or face
+                rp_id, _ = self._rp()
+                if not self.web.passkeys.count(rp_id):
+                    raise ApiError(404, "no fingerprint or face sign-in has been added at this address")
+                return self._json(200, self.web.passkeys.request_options(rp_id))
+            if path == "/api/passkey/login" and method == "POST":
+                rp_id, origins = self._rp()
+                token = self.web.passkey_login(rp_id, origins, self._body(), self.client_address[0], local)
+                return self._json(200, {"ok": True}, {"Set-Cookie": self._cookie(token)})
             if path == "/api/auth/reset-local" and method == "POST":
                 # Forgot the password? Whoever sits at the server's own computer can go back to
                 # the default (the same as `mcsm web-password --reset`); never over the network.
@@ -585,7 +640,10 @@ class RequestHandler(BaseHTTPRequestHandler):
                     return self._send(200, handler(q, {}), "image/png", {"Cache-Control": "private, max-age=86400"})
                 if path == "/api/hub/map/tile":  # a square of an explorable map (the page adds ?v= when land is added)
                     return self._send(200, handler(q, {}), "image/png", {"Cache-Control": "private, max-age=3600"})
-                result = handler(q, self._body() if method == "POST" else {})
+                body = self._body() if method == "POST" else {}
+                if path in ("/api/hub/passkeys/options", "/api/hub/passkeys/add"):
+                    body = {**body, "__rp": self._rp()}  # (from this request's address, not the page's say-so)
+                result = handler(q, body)
                 if path == "/api/hub":  # whether "Open folder" buttons can work; who's signed in
                     result = {**result, "local": local, "device": device["name"] if device else None,
                               "role": (device.get("role") or "helper") if device else "owner"}
@@ -858,6 +916,12 @@ class HubApi:
         r[("POST", "/api/hub/curseforge")] = self.save_curseforge
         r[("POST", "/api/hub/share/public-ip")] = self.use_public_ip
         r[("GET", "/api/hub/remote")] = self.remote_info
+        r[("GET", "/api/hub/conflicts")] = self.conflicts_info
+        r[("POST", "/api/hub/conflicts")] = self.save_conflicts
+        r[("GET", "/api/hub/passkeys")] = self.passkey_list
+        r[("POST", "/api/hub/passkeys/options")] = self.passkey_options
+        r[("POST", "/api/hub/passkeys/add")] = self.passkey_add
+        r[("POST", "/api/hub/passkeys/remove")] = self.passkey_remove
         r[("POST", "/api/hub/remote/tls")] = self.save_tls
         r[("POST", "/api/hub/devices/pair")] = self.pair_device
         r[("POST", "/api/hub/devices/remove")] = self.remove_device
@@ -1411,6 +1475,49 @@ class HubApi:
             out.append({"label": f"Your address ({custom})", "host": custom, "kind": "custom"})
         return out
 
+    # ------------------------------------------------------ mod conflict memory
+    def conflicts_info(self, q, b) -> dict:
+        from . import conflicts
+        return {"enabled": self.hub.share_conflicts(), "available": bool(conflicts.relay_url()) and not self.hub.is_single,
+                "relay": conflicts.relay_url()}
+
+    def save_conflicts(self, q, b) -> dict:
+        if self.hub.is_single:
+            raise ApiError(400, "sharing mod conflicts needs `mcsm start` (the server list)")
+        self.hub.set_share_conflicts(b.get("enabled") is True)
+        log.info("sharing mod conflicts anonymously: %s", "on" if b.get("enabled") is True else "off")
+        return {"ok": True, **self.conflicts_info(q, b)}
+
+    # ---------------------------------------- fingerprint and face sign-in (passkeys)
+    def passkey_list(self, q, b) -> dict:
+        auth = self.web.auth
+        return {"passkeys": self.web.passkeys.list(), "allowed": not (auth.default or auth.temporary or auth.managed)}
+
+    def _passkey_rp(self, handler_rp) -> tuple[str, set[str]]:
+        auth = self.web.auth
+        if auth.default or auth.temporary:
+            raise ApiError(400, "choose your own password first (Sign-in above)")
+        if auth.managed:
+            raise ApiError(400, "the password is set in mcsm.toml, so fingerprint and face sign-in isn't available")
+        return handler_rp
+
+    def passkey_options(self, q, b) -> dict:
+        rp_id, _ = self._passkey_rp(b["__rp"])
+        return self.web.passkeys.creation_options(rp_id)
+
+    def passkey_add(self, q, b) -> dict:
+        rp_id, origins = self._passkey_rp(b["__rp"])
+        added = self.web.passkeys.add(rp_id, origins, str(b.get("client_data", "")), str(b.get("attestation", "")),
+                                      str(b.get("name", "")))
+        log.info("added the passkey %s (fingerprint or face sign-in at %s)", added["name"], rp_id)
+        return {"ok": True, "passkey": added, "passkeys": self.web.passkeys.list()}
+
+    def passkey_remove(self, q, b) -> dict:
+        if not self.web.passkeys.remove(str(b.get("id", ""))):
+            raise ApiError(404, "no such passkey")
+        log.info("removed a passkey")
+        return {"ok": True, "passkeys": self.web.passkeys.list()}
+
     def remote_info(self, q, b) -> dict:
         auth = self.web.auth
         return {"available": not self.hub.is_single, "network_access": self.web.remote_on(),
@@ -1954,6 +2061,9 @@ class Api:
             "skipped": [{"key": k, "reason": v} for k, v in lk.skipped.items()],
             "unmanaged": self.m.unmanaged_jars(),
             "disabled": self.m.disabled_jars(),
+            # combinations other people found don't work (conflicts.py; empty until the list exists)
+            "known_conflicts": self.web.hub.known_conflicts.matching(
+                lk.loader or self.m.config.server.loader, lk.minecraft or "", [s.id for s in self.m.config.mods]),
         }
 
     def set_jar(self, q, b) -> dict:
@@ -2357,7 +2467,7 @@ class Api:
                 "status_page": tunnel.STATUS_PAGE, "download": tunnel.DOWNLOAD}
 
     # ------------------------------------------- Bedrock players (Geyser)
-    BEDROCK_LOADERS = ("fabric", "quilt", "neoforge", "paper")
+    BEDROCK_LOADERS = ("fabric", "quilt", "neoforge", "paper", "purpur")
     GEYSER_CONFIGS = ("config/Geyser-Fabric/config.yml", "config/Geyser-NeoForge/config.yml", "plugins/Geyser-Spigot/config.yml")
 
     def bedrock(self, q, b) -> dict:

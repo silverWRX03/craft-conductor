@@ -66,7 +66,7 @@ def _tokens(mod) -> set[str]:
     name = mod.name.lower()
     if len(name) >= 4:
         words.add(name)
-    stem = re.split(r"[-_+ ]\d|[-_+](?:fabric|forge|neoforge|quilt|paper|mc)\b", Path(mod.filename).stem.lower())[0]
+    stem = re.split(r"[-_+ ]\d|[-_+](?:fabric|forge|neoforge|quilt|paper|purpur|mc)\b", Path(mod.filename).stem.lower())[0]
     if len(stem) >= 4:
         words.add(stem)
     mod_id = mod.key.partition(":")[2].lower()

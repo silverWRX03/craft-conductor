@@ -11,6 +11,9 @@ function safeUrl(u, image = false) {
   return /^(https?:|mailto:|[/#?.])/i.test(u.trim()) || (image && /^data:image\//i.test(u.trim()));
 }
 
+// Paper and Purpur run server plugins (in plugins/) rather than mods (loaders.PLUGIN_SERVERS).
+const runsPlugins = (loader) => loader === "paper" || loader === "purpur";
+
 function h(tag, attrs = {}, ...children) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {
@@ -142,7 +145,7 @@ async function api(path, { method = "GET", body, raw } = {}) {
   }
   let data = {};
   try { data = await res.json(); } catch (_) { /* empty */ }
-  if (res.status === 401 && path !== "/api/login") { showLogin(); throw new Unauthorized(); }
+  if (res.status === 401 && path !== "/api/login" && path !== "/api/passkey/login") { showLogin(); throw new Unauthorized(); }
   if (res.status === 428) { showNotice(); throw new Unauthorized(); }
   if (!res.ok) throw new Error(data.error || res.statusText);
   return data;
@@ -231,6 +234,76 @@ function toast(message, bad = false) {
     onclick: () => el.remove() }, h("span", { class: "toast-icon", "aria-hidden": "true" }, bad ? "⚠" : "✓"), h("span", {}, t(message)));
   $("#toasts").append(el);
   setTimeout(() => el.remove(), bad ? 12000 : 5000);
+  if (bad) playSound("problem");
+}
+
+// ------------------------------------------------------------------ sounds
+// Short cues made here in the browser (no sound files), the same in the web page and the phone
+// app. On at a quiet volume; each kind can be turned off, and each device keeps its own choice
+// (Craft Conductor settings → Sounds). Never the only sign something happened.
+const SOUND_KEY = "mcsm-sounds";
+const SOUND_KINDS = [["tap", "Button presses"], ["go", "Start, save and install"], ["stop", "Stop and delete"],
+  ["problem", "Something went wrong"], ["chime", "Heads-up: a server is up, a friend asks to join"]];
+const SOUND_NOTES = {  // [frequency Hz, seconds, wave]: our own sounds, a soft wooden click and note blocks
+  tap: [[660, 0.035, "triangle"]],
+  go: [[523, 0.07, "sine"], [784, 0.1, "sine"]],
+  stop: [[494, 0.07, "sine"], [330, 0.11, "sine"]],
+  problem: [[150, 0.18, "sine"]],
+  chime: [[784, 0.12, "sine"], [1047, 0.22, "sine"]],
+};
+function soundPrefs() {
+  const base = { volume: "quiet", vibrate: true, ...Object.fromEntries(SOUND_KINDS.map(([k]) => [k, true])) };
+  try { return { ...base, ...(JSON.parse(localStorage.getItem(SOUND_KEY) || "null") || {}) }; } catch (_) { return base; }
+}
+function saveSoundPrefs(p) { try { localStorage.setItem(SOUND_KEY, JSON.stringify(p)); } catch (_) { /* private mode */ } }
+let audio = null, lastSound = 0;
+function playSound(kind, force = false) {
+  const p = soundPrefs();
+  if (!force && (p.volume === "off" || !p[kind])) return;
+  const now = performance.now();
+  if (now - lastSound < 70) return;  // (quick presses don't stack up)
+  lastSound = now;
+  if (p.vibrate && navigator.vibrate && kind !== "chime") { try { navigator.vibrate(kind === "problem" ? [30, 50, 30] : 12); } catch (_) { /* not allowed */ } }
+  if (p.volume === "off") return;
+  // (iPhone: "ambient" sounds follow the silent switch, like other apps' interface sounds)
+  try { if (navigator.audioSession) navigator.audioSession.type = "ambient"; } catch (_) { /* older Safari */ }
+  try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); } catch (_) { return; }
+  if (audio.state === "suspended") audio.resume().catch(() => null);
+  const peak = p.volume === "normal" ? 0.2 : 0.07;
+  let at = audio.currentTime + 0.01;
+  for (const [freq, secs, wave] of SOUND_NOTES[kind] || []) {
+    const osc = audio.createOscillator(), gain = audio.createGain();
+    osc.type = wave;
+    osc.frequency.setValueAtTime(freq, at);
+    gain.gain.setValueAtTime(0.0001, at);
+    gain.gain.exponentialRampToValueAtTime(peak, at + 0.006);
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + secs);
+    osc.connect(gain).connect(audio.destination);
+    osc.start(at);
+    osc.stop(at + secs + 0.02);
+    at += secs * 0.75;
+  }
+}
+// Pressing a button (by mouse, touch or Enter/Space; moving with Tab makes no sound).
+document.addEventListener("click", (e) => {
+  const b = e.target.closest && e.target.closest("button, a.btn");
+  if (!b || b.disabled || b.closest("[data-silent]")) return;
+  playSound(b.classList.contains("danger") ? "stop" : b.classList.contains("primary") ? "go" : "tap");
+}, true);
+// Heads-up chimes while the page is open: a server finished starting, a friend asks to join.
+let chimeSeen = null;
+function chimeFor(servers) {
+  const now = new Map((servers || []).map((s) => [s.id, s]));
+  if (chimeSeen) {
+    for (const [id, s] of now) {
+      const before = chimeSeen.get(id);
+      if (before && ((s.state === "running" && before.state !== "running") || (s.join_requests || 0) > (before.join_requests || 0))) {
+        playSound("chime");
+        break;
+      }
+    }
+  }
+  chimeSeen = now;
 }
 
 async function act(fn, okMessage) {
@@ -319,7 +392,64 @@ async function showLogin() {
     a.local ? ["Forgot it? ", reset, " (this works on the server's own computer)."] :
     ["Forgot it? On the server's own computer, open this page and choose \"Reset it to PASSWORD\", or run ",
       h("code", {}, "mcsm web-password --reset"), "."]));
+  let box = $("#login-passkey");
+  if (!box) { box = h("div", { id: "login-passkey", class: "login-fields" }); $("#login-hint").before(box); }
+  fill(box, a && a.passkeys && passkeysWork() ? h("button", { type: "button", class: "btn", onclick: signInWithPasskey }, "Sign in with fingerprint or face") : null);
   input.focus();
+}
+
+// ------------------------------------------------------ fingerprint and face sign-in (passkeys.py)
+function passkeysWork() { return window.isSecureContext && !!window.PublicKeyCredential && !!navigator.credentials; }
+function b64uOf(buf) {
+  let s = "";
+  for (const b of new Uint8Array(buf)) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+async function signInWithPasskey() {
+  $("#login-error").textContent = "";
+  try {
+    const o = await api("/api/passkey/options", { method: "POST", body: {} });
+    const cred = await navigator.credentials.get({ publicKey: { challenge: b64uBytes(o.challenge), rpId: o.rpId, timeout: o.timeout,
+      userVerification: o.userVerification, allowCredentials: o.allowCredentials.map((c) => ({ type: c.type, id: b64uBytes(c.id) })) } });
+    await api("/api/passkey/login", { method: "POST", body: { id: b64uOf(cred.rawId), client_data: b64uOf(cred.response.clientDataJSON),
+      auth_data: b64uOf(cred.response.authenticatorData), signature: b64uOf(cred.response.signature) } });
+    start();
+  } catch (err) {
+    $("#login-error").textContent = err.name === "NotAllowedError" ? t("Cancelled, or this device has no passkey for Craft Conductor.") : err.message;
+  }
+}
+function passkeyCard() {
+  const box = h("div", { class: "mb" });
+  const render = (r) => {
+    if (!r) { fill(box); return; }
+    const add = async () => {
+      try {
+        const o = await api("/api/hub/passkeys/options", { method: "POST", body: {} });
+        const cred = await navigator.credentials.create({ publicKey: { ...o, challenge: b64uBytes(o.challenge),
+          user: { ...o.user, id: b64uBytes(o.user.id) }, excludeCredentials: o.excludeCredentials.map((c) => ({ type: c.type, id: b64uBytes(c.id) })) } });
+        const done = await api("/api/hub/passkeys/add", { method: "POST", body: { name: deviceName(),
+          client_data: b64uOf(cred.response.clientDataJSON), attestation: b64uOf(cred.response.attestationObject) } });
+        toast("Fingerprint or face sign-in added on this device");
+        render({ ...r, passkeys: done.passkeys });
+      } catch (err) {
+        if (err.name === "InvalidStateError") toast("This device already has one for Craft Conductor.", true);
+        else if (err.name !== "NotAllowedError") toast(err.message, true);
+      }
+    };
+    fill(box, card("Fingerprint or face sign-in",
+      h("p", { class: "muted small" }, "Sign in with this device's fingerprint, face or screen lock instead of typing the password. It works at the address it was added at (use the secure Tailscale address on phones). A new password removes them."),
+      r.passkeys.length ? h("ul", { class: "list" }, r.passkeys.map((k) => h("li", {},
+        h("span", { class: "grow" }, k.name, h("span", { class: "muted small" }, ` · ${k.rp_id} · ${k.last_used ? `last used ${fmtTime(k.last_used)}` : `added ${fmtTime(k.created)}`}`)),
+        h("button", { class: "btn small ghost", onclick: async () => {
+          const res = await act(() => api("/api/hub/passkeys/remove", { method: "POST", body: { id: k.id } }), "Removed");
+          if (res) render({ ...r, passkeys: res.passkeys });
+        } }, "Remove")))) : null,
+      !r.allowed ? h("p", { class: "small" }, "Choose your own password first (Sign-in above).")
+        : passkeysWork() ? h("button", { class: "btn", onclick: add }, "Add fingerprint or face sign-in on this device")
+          : h("div", { class: "notice small" }, "This page isn't on a secure address, so this browser can't use fingerprint or face sign-in here. Open Craft Conductor at its secure address (Craft Conductor settings → Phone app), or at localhost on this computer.")));
+  };
+  api("/api/hub/passkeys").then(render).catch(() => render(null));
+  return box;
 }
 
 // A show/hide "eye" for password inputs.
@@ -623,6 +753,7 @@ async function refreshStatus() {
     return;
   }
   const hb = hubInfo;
+  chimeFor(hb.servers);
   $("#version").textContent = "v" + hb.version + " beta";
   $("#version").title = t("Craft Conductor is in beta: expect some rough edges, and keep backups.");
   $("#quit").classList.toggle("hidden", !!hb.single || (hb.role && hb.role !== "owner"));
@@ -891,7 +1022,7 @@ function perfCard() {
     const r = await api("/api/performance").catch(() => null);
     if (!r) return;
     lag.setUp(!!r.running);
-    if (!r.supported) { fill(body, h("p", { class: "muted small" }, "This Minecraft version can't report its speed (it needs Minecraft 1.20.3 or newer, or Paper, Forge or NeoForge).")); return; }
+    if (!r.supported) { fill(body, h("p", { class: "muted small" }, "This Minecraft version can't report its speed (it needs Minecraft 1.20.3 or newer, or Paper, Purpur, Forge or NeoForge).")); return; }
     if (!r.running) { fill(body, h("p", { class: "muted small" }, "Start the server to see how well it keeps up.")); return; }
     const c = r.current;
     const tips = r.status === "bad" || r.status === "warn" ? h("details", { class: "small mt-s" }, h("summary", {}, "What slows a server down"),
@@ -1611,7 +1742,7 @@ function joinRequestsCard(after = () => {}) {
 
 views.mods = () => {
   const me = hubInfo && hubInfo.servers ? hubInfo.servers.find((x) => x.id === server) : null;
-  const plugins = !!me && me.loader === "paper";  // Paper runs plugins
+  const plugins = !!me && runsPlugins(me.loader);
   const results = h("div");
   const configured = h("div");
   const installed = h("div");
@@ -1710,10 +1841,14 @@ views.mods = () => {
         h("tbody", {}, r.installed.map((m) => h("tr", {},
           h("td", {}, m.name, m.dependency_of ? h("span", { class: "tag" }, `needed by ${(r.installed.find((x) => x.key === m.dependency_of) || {}).name || "another mod"}`) : null, m.manual ? h("span", { class: "tag warn" }, "manual") : null),
           h("td", {}, m.version), h("td", {}, h("code", {}, m.filename)))))) : h("p", { class: "empty" }, "Nothing installed yet."),
+      (r.known_conflicts || []).length ? h("div", { class: "notice warn mt-s" }, h("strong", {}, "Other people found these don't work together: "),
+        r.known_conflicts.map((x) => h("div", { class: "small" }, (x.with.length ? `${x.mod} + ${x.with.join(" + ")}` : `${x.mod} (on its own)`)
+          + " · " + t("reported by {n} people").replace("{n}", x.reports))),
+        h("div", { class: "small muted" }, "From Craft Conductor's shared list of mod conflicts. If the server starts fine, you can ignore this.")) : null,
       r.skipped.length ? h("div", { class: "notice warn mt-s" }, h("strong", {}, "Not installed: "),
         r.skipped.map((x) => h("div", { class: "small" }, `${x.key}: ${x.reason}`))) : null,
       r.unmanaged.length || (r.disabled || []).length ? h("div", { class: "mt-s" },
-        h("h4", {}, r.loader === "paper" ? "Plugins you added yourself" : "Jars you added yourself"),
+        h("h4", {}, runsPlugins(r.loader) ? "Plugins you added yourself" : "Jars you added yourself"),
         h("p", { class: "muted small" }, "Not updated by Craft Conductor. Switching one off keeps the file (as .jar.disabled) so you can switch it back on; changes apply at the next restart."),
         h("ul", { class: "list" },
           [...r.unmanaged.map((x) => [x, true]), ...(r.disabled || []).map((x) => [x, false])].map(([x, on]) => h("li", {},
@@ -1746,7 +1881,7 @@ views.mods = () => {
   fill($("#main"), 
     h("h2", { class: "view-title" }, plugins ? "Plugins" : "Mods"),
     card(plugins ? "Add plugins" : "Add mods", sources, h("h3", { class: "mt" }, "Quick add"), q, earlyRow, results,
-      plugins ? h("p", { class: "muted small mt-s" }, "Paper runs Paper, Spigot and Bukkit plugins from its plugins folder. Players don't need them.")
+      plugins ? h("p", { class: "muted small mt-s" }, "Paper and Purpur run Paper, Spigot and Bukkit plugins from their plugins folder. Players don't need them.")
         : h("div", { class: "row mt-s" }, cfId,
           h("button", { class: "btn", onclick: () => cfId.value.trim() && add(cfId.value.trim(), true, "curseforge") }, "Add from CurseForge"))),
     h("div", { class: "mt" }, configsCard),
@@ -2241,7 +2376,7 @@ function bedrockCard() {
     if (!r) return;
     if (!r.supported) {
       fill(box, card("Bedrock players (phones, tablets, consoles)",
-        h("p", { class: "muted small" }, "Players on Minecraft Bedrock can join through Geyser, which runs on Fabric, Quilt, NeoForge and Paper servers. This server's type doesn't support it.")));
+        h("p", { class: "muted small" }, "Players on Minecraft Bedrock can join through Geyser, which runs on Fabric, Quilt, NeoForge, Paper and Purpur servers. This server's type doesn't support it.")));
       return;
     }
     const turnOn = h("button", { class: "btn primary", onclick: async () => {
@@ -2384,7 +2519,7 @@ views.friends = () => {
         h("label", { class: "mt" }, "Memory for friends' Minecraft",
           (() => { const sel = h("select", { onchange: (e) => save({ memory_gb: Number(e.target.value) }, "Saved") },
             [2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32].map((g) => h("option", { value: String(g) }, `${g} GB`))); sel.value = String(d.memory_gb); return sel; })()))),
-      d.loader === "vanilla" || d.loader === "paper" ? null : h("div", { class: "mt" }, card("Mods for players",
+      d.loader === "vanilla" || runsPlugins(d.loader) ? null : h("div", { class: "mt" }, card("Mods for players",
         h("p", { class: "muted small" }, "Client-side mods like minimaps, recipe viewers or performance mods. The server's own mods that players need are included automatically, and so are the client-side mods they need."),
         h("div", { class: "source-buttons" },
           h("button", { type: "button", class: "btn", onclick: () => openBrowser({ type: "mod", target: server, side: "client", loader: d.loader, version: d.minecraft || "" }) },
@@ -2747,7 +2882,7 @@ function worldPanel(host) {
   const P = st.properties;
   st.previews = st.previews || [];
   const moddable = !!(st.loader && st.loader !== "vanilla");
-  const plugins = st.loader === "paper";
+  const plugins = runsPlugins(st.loader);
   let poll = null, shown = null;
 
   // --- the world's settings (the same ones as on the World card)
@@ -3011,7 +3146,7 @@ function browserPanel(params, host) {
   const kind = params.get("type") === "modpack" ? "modpack" : "mod";
   const target = params.get("target") || "setup";
   const loader = params.get("loader") || "";
-  const noun = loader === "paper" ? "plugin" : kind;  // Paper runs plugins (from Modrinth)
+  const noun = runsPlugins(loader) ? "plugin" : kind;
   const forPlayers = params.get("side") === "client";  // the Friends page: mods for players' computers
   const base = target === "setup" ? "/api/hub/browse" : `/api/servers/${encodeURIComponent(target)}/browse`;
   const st = { q: "", source: "modrinth", sort: "relevance", category: "", env: "", version: params.get("version") || "",
@@ -4456,6 +4591,39 @@ function displayCard() {
     h("p", { class: "muted small" }, "How big text and buttons are (Automatic makes everything bigger on big screens), stronger colours and outlines for easier reading, and fewer animations. Kept in this browser."));
 }
 
+// Mod conflict memory (conflicts.py): share what "Find which mods break it" finds, anonymously.
+function conflictsCard() {
+  const box = h("div", { class: "mb" });
+  const render = (r) => {
+    if (!r) { fill(box); return; }
+    const on = h("input", { type: "checkbox", checked: r.enabled, disabled: !r.available, onchange: async () => {
+      const res = await act(() => api("/api/hub/conflicts", { method: "POST", body: { enabled: on.checked } }), on.checked ? "Thank you: sharing is on" : "Sharing is off");
+      if (res) render(res);
+    } });
+    fill(box, card("Mod conflicts",
+      h("label", { class: "rule" }, on, " ", "Share mod conflicts anonymously"),
+      h("p", { class: "muted small" }, "When \"Find which mods break it\" finds a mod that doesn't work, Craft Conductor sends only the mod loader, the Minecraft version and the mods' ids: nothing about you or your server. Once several people report the same conflict, everyone's Craft Conductor warns about it on the Mods page."),
+      r.available ? null : h("p", { class: "small" }, "The shared list isn't available in this version yet. The warnings start once it is.")));
+  };
+  api("/api/hub/conflicts").then(render).catch(() => render(null));
+  return box;
+}
+
+function soundsCard() {
+  const p = soundPrefs();
+  const save = () => saveSoundPrefs(p);
+  const volume = h("select", { onchange: () => { p.volume = volume.value; save(); if (p.volume !== "off") playSound("go", true); } },
+    [["off", "Off"], ["quiet", "Quiet"], ["normal", "Normal"]].map(([v, l]) => h("option", { value: v }, l)));
+  volume.value = p.volume;
+  const box = (key, label) => h("label", { class: "rule small" },
+    h("input", { type: "checkbox", checked: !!p[key], onchange: (e) => { p[key] = e.target.checked; save(); if (e.target.checked && key !== "vibrate") playSound(key, true); } }), " ", label);
+  return card("Sounds",
+    h("div", { class: "row wrap" }, h("label", {}, "Volume", volume)),
+    h("fieldset", { class: "mt-s choices" }, h("legend", { class: "small" }, "Play a sound for"), SOUND_KINDS.map(([k, l]) => box(k, l))),
+    "vibrate" in navigator ? h("div", { class: "mt-s" }, box("vibrate", "Vibrate on button presses")) : null,
+    h("p", { class: "muted small" }, "Short sounds, the same on the computer and the phone app. Kept on this device: each device has its own choice."));
+}
+
 function languageCard() {
   const sel = h("select", { "aria-label": "Language" }, h("option", { value: "" }, "Automatic (this browser's language)"),
     Object.entries(LANGS).map(([code, name]) => h("option", { value: code }, name)));
@@ -4812,6 +4980,7 @@ views.mcsm = () => {
           } }, "Check for Craft Conductor updates"), s.single ? null : folderBtn("home", "Craft Conductor folder", null, "btn"))),
       h("div", { class: "mt" }, languageCard()),
       h("div", { class: "mt" }, displayCard()),
+      h("div", { class: "mt" }, soundsCard()),
       h("div", { class: "mt" }, warningsCard()),
       h("div", { class: "mt" }, notificationsCard()),
       h("div", { class: "mt" }, card("What Craft Conductor does and doesn't do",
@@ -4864,7 +5033,8 @@ views.mcsm = () => {
   };
   renderDc();
   const phone = hubInfo && !hubInfo.single ? phoneCard() : null;
-  fill($("#main"), security, network, phone, sharing, cf, dc, about);
+  const owner = !(hubInfo && hubInfo.role && hubInfo.role !== "owner");
+  fill($("#main"), security, owner ? passkeyCard() : null, network, phone, sharing, cf, dc, owner && hubInfo && !hubInfo.single ? conflictsCard() : null, about);
   renderSecurity(hubInfo);
   renderSharing(hubInfo);
   loadAbout();
@@ -5129,7 +5299,7 @@ views.setup = () => {
       : h("p", { class: "empty" }, st.modpack ? "No extra mods. The modpack's own mods are added when the server is created."
         : "Nothing yet. Download mods or add files from this computer above, or leave it empty for an unmodded server."));
     const loaderLabel = (opts.loaders.find((l) => l.name === st.loader) || {}).label || st.loader;
-    const plugins = st.loader === "paper";  // Paper: server plugins rather than mods
+    const plugins = runsPlugins(st.loader);
     renderSelected();
     // Three ways to add mods: files on this computer, the mod browser window, or a whole modpack.
     const picker = h("input", { type: "file", multiple: true, accept: ".jar", class: "hidden" });
@@ -5164,7 +5334,7 @@ views.setup = () => {
         keepWorking: async (res) => { for (const o of res.outliers) await setupRemoveMod(o.source === "curseforge" ? `curseforge:${o.id}` : o.id); },
       }), h("span", { class: "muted small" }, "Check that these mods work together before creating the server.")),
       st.loader === "fabric" || st.loader === "quilt" ? h("p", { class: "muted small" }, "Fabric API is added automatically, since almost every Fabric mod needs it.") : null,
-      plugins ? h("p", { class: "muted small" }, "Paper runs server plugins (Paper, Spigot and Bukkit ones) from its plugins folder. Players join with plain Minecraft: plugins don't need anything on their side.") : null) : null;
+      plugins ? h("p", { class: "muted small" }, "Paper and Purpur run server plugins (Paper, Spigot and Bukkit ones) from their plugins folder. Players join with plain Minecraft: plugins don't need anything on their side.") : null) : null;
 
     // Settings
     const inp = (key, attrs = {}) => h("input", { value: st[key], ...attrs, oninput: (e) => { st[key] = attrs.type === "number" ? Number(e.target.value) : e.target.value; } });
@@ -5305,7 +5475,7 @@ views.setup = () => {
           friendPicker) : null,
         moddable && st.friends ? [h("h3", { class: "mt" }, "Your friends' mods"), list,
           h("p", { class: "muted small" }, "Friends also get the server's mods that players need; server-only mods are left out.")] : null,
-        !moddable ? h("p", { class: "muted small" }, plugins ? "Paper plugins run on the server only: friends join with plain Minecraft." : "Friends join with plain Minecraft.") : null,
+        !moddable ? h("p", { class: "muted small" }, plugins ? "Plugins run on the server only: friends join with plain Minecraft." : "Friends join with plain Minecraft.") : null,
         h("p", { class: "muted small" }, "You get a link to share on the server's Friends page. You can change all this later there."));
     };
 
