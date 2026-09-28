@@ -3,6 +3,7 @@
 import hashlib
 import hmac
 import json
+import os
 import struct
 import urllib.error
 
@@ -47,7 +48,8 @@ def test_only_push_services_are_accepted(tmp_path):
                  "https://wns2-par02p.notify.windows.com/w/?token=x"):
         assert p.subscribe(good, key, auth, "Kyle's <iPhone>")["name"] == "Kyle's iPhone"
     assert len(p.subscriptions()) == 4
-    assert oct((tmp_path / "push.json").stat().st_mode)[-3:] == "600"  # (the private key)
+    if os.name != "nt":  # (Windows has no Unix permissions)
+        assert oct((tmp_path / "push.json").stat().st_mode)[-3:] == "600"  # (the private key)
 
 
 def test_sending_and_forgetting_gone_devices(tmp_path, monkeypatch):
