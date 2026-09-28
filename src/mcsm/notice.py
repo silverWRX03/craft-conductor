@@ -45,11 +45,21 @@ def root_file(root: Path) -> Path:
     return root / ".mcsm" / "notice-accepted.json"
 
 
+_seen: dict[str, tuple[tuple, bool]] = {}  # path -> (its stat, accepted): every web request asks
+
+
 def _accepted_in(path: Path) -> bool:
     try:
-        return json.loads(path.read_text()).get("version", 0) >= NOTICE_VERSION
-    except (FileNotFoundError, ValueError, AttributeError):
+        st = path.stat()
+        stamp = (st.st_mtime_ns, st.st_size, st.st_ino, NOTICE_VERSION)
+        cached = _seen.get(str(path))
+        if cached and cached[0] == stamp:
+            return cached[1]
+        ok = json.loads(path.read_text()).get("version", 0) >= NOTICE_VERSION
+    except (OSError, ValueError, AttributeError):
         return False
+    _seen[str(path)] = (stamp, ok)
+    return ok
 
 
 def accepted(root: Path | None = None) -> bool:

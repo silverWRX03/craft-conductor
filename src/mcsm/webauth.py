@@ -243,11 +243,19 @@ class Devices:
         self.path = state_dir / DEVICES_FILE
         self._lock = threading.Lock()
         self._codes: dict[str, tuple[float, str]] = {}   # digest of a pairing code -> (when it expires, role)
+        self._cache: tuple[tuple, list[dict]] | None = None  # (the file's stat, its devices)
 
     def _read(self) -> list[dict]:
+        """The paired devices (copies: change them and _write). Read again only when the file
+        changes, since a paired phone's every request looks itself up here."""
         try:
-            data = json.loads(self.path.read_text())
-            return [d for d in data.get("devices", []) if isinstance(d, dict)] if isinstance(data, dict) else []
+            st = self.path.stat()
+            stamp = (st.st_mtime_ns, st.st_size, st.st_ino)
+            if self._cache is None or self._cache[0] != stamp:
+                data = json.loads(self.path.read_text())
+                devices = [d for d in data.get("devices", []) if isinstance(d, dict)] if isinstance(data, dict) else []
+                self._cache = (stamp, devices)
+            return [dict(d) for d in self._cache[1]]
         except (OSError, ValueError):
             return []
 

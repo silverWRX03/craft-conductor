@@ -22,6 +22,7 @@ import secrets
 import shutil
 import socket
 import socketserver
+import ssl
 import tempfile
 import threading
 import time
@@ -214,12 +215,12 @@ class WebUI:
         self.httpd = _Server((self.host, self.port), Handler)
         self.httpd.daemon_threads = True
         if self.tls:
-            import ssl
             context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
             context.minimum_version = ssl.TLSVersion.TLSv1_2
             try:
                 context.load_cert_chain(self.hub.web.tls_cert, self.hub.web.tls_key)
-                self.httpd.socket = context.wrap_socket(self.httpd.socket, server_side=True)
+                self.httpd.tls_context = context
+                self.httpd.plain_http_reply = NOT_HTTPS
             except (OSError, ssl.SSLError) as e:
                 log.error("couldn't use the HTTPS certificate (%s); the control panel stays on plain HTTP", e)
                 self.hub.web.tls_cert = ""
@@ -244,9 +245,9 @@ class WebUI:
             recent = [t for t in self.failures.get(client, []) if now - t < 300]
             if len(recent) >= 5:
                 raise ApiError(429, "too many attempts; wait a few minutes")
+            # (counted before the check, not after: tries sent all at once can't slip past the limit)
+            self.failures[client] = recent + [now]
         if not auth.check(password):
-            with self.lock:
-                self.failures[client] = recent + [now]
             raise ApiError(401, "wrong PIN" if auth.mode == "pin" else "wrong password")
         with self.lock:
             self.failures.pop(client, None)
@@ -303,6 +304,25 @@ class WebUI:
             self.sessions.pop(token or "", None)
 
 
+HANDSHAKE_SECONDS = 15
+
+
+def close_gently(sock) -> None:
+    """Finish sending, then read what the client sent (unread): closing with unread data makes
+    macOS and Windows reset the connection, which can lose the answer before it's read."""
+    try:
+        sock.shutdown(socket.SHUT_WR)
+        sock.settimeout(2)
+        received = 0
+        while received < 65536:
+            chunk = sock.recv(4096)
+            if not chunk:
+                break
+            received += len(chunk)
+    except OSError:
+        pass
+
+
 class _Server(ThreadingHTTPServer):
     """One thread per connection, with a cap: connections past MAX_CONNECTIONS are closed at
     once, so a flood of idle connections can't use up threads and memory. (Each handler also
@@ -330,6 +350,36 @@ class _Server(ThreadingHTTPServer):
         finally:
             self._slots.release()
 
+    # HTTPS: the handshake happens in finish_request, in the connection's own thread, so a slow
+    # or silent client can't hold up anyone else (wrapping the listening socket would do it in
+    # the one thread that accepts every connection).
+    tls_context: ssl.SSLContext | None = None
+    plain_http_reply = b""   # for a browser talking plain HTTP to the HTTPS port
+
+    def finish_request(self, request, client_address):
+        if self.tls_context is None:
+            return super().finish_request(request, client_address)
+        request.settimeout(HANDSHAKE_SECONDS)
+        try:
+            first = request.recv(1, socket.MSG_PEEK)
+            if first != b"\x16":  # not a TLS handshake
+                if first:
+                    request.sendall(self.plain_http_reply)
+                    close_gently(request)
+                return
+            tls = self.tls_context.wrap_socket(request, server_side=True)
+        except (OSError, ssl.SSLError) as e:
+            log.debug("connection from %s dropped: %s", client_address[0], e)
+            return
+        try:
+            tls.settimeout(self.RequestHandlerClass.timeout)
+            self.RequestHandlerClass(tls, client_address, self)
+        finally:
+            try:
+                tls.close()
+            except OSError:
+                pass
+
     def server_bind(self):
         # HTTPServer.server_bind() looks up the host's full DNS name, which can take
         # many seconds on macOS. The name isn't needed, so skip the lookup.
@@ -337,6 +387,8 @@ class _Server(ThreadingHTTPServer):
         self.server_name, self.server_port = self.server_address[:2]
 
 
+NOT_HTTPS = (b"HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\n"
+             b"This is Craft Conductor's control panel, on HTTPS: open it with https:// at the start of the address.\n")
 REQUEST_TIMEOUT = 60  # seconds a connection may sit silent before it's closed
 
 
@@ -383,9 +435,14 @@ class RequestHandler(BaseHTTPRequestHandler):
         return cookie[SESSION_COOKIE].value if SESSION_COOKIE in cookie else None
 
     def _body(self) -> dict:
-        length = int(self.headers.get("Content-Length") or 0)
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            raise ApiError(400, "bad Content-Length") from None
         if length > MAX_JSON:
             raise ApiError(413, "request too large")
+        if length < 0:  # (reading -1 bytes would read until the client stops sending)
+            raise ApiError(400, "bad Content-Length")
         raw = self.rfile.read(length) if length else b"{}"
         try:
             data = json.loads(raw or b"{}")
@@ -413,13 +470,14 @@ class RequestHandler(BaseHTTPRequestHandler):
             recent = [t for t in self.web.failures.get("pair:" + client, []) if now - t < 300]
             if len(recent) >= 5:
                 raise ApiError(429, "too many attempts; wait a few minutes")
+            self.web.failures["pair:" + client] = recent + [now]  # (forgotten again if it works)
         b = self._body()
         try:
             token, device = self.web.devices.pair(str(b.get("code", "")), str(b.get("name", "")), client, now)
         except ConfigError as e:
-            with self.web.lock:
-                self.web.failures["pair:" + client] = recent + [now]
             raise ApiError(400, str(e)) from None
+        with self.web.lock:
+            self.web.failures.pop("pair:" + client, None)
         log.info("paired %s as a %s (from %s)", device["name"], device["role"], client)
         return self._json(200, {"ok": True, "name": device["name"]},
                           {"Set-Cookie": self._cookie(token, DEVICE_COOKIE, webauth.DEVICE_DAYS * 86400)})
@@ -1778,7 +1836,7 @@ class Api:
             return None
         total = setupmod.total_ram_gb()
         return {**usage,
-                "memory_max_bytes": stats.heap_bytes(self.m.config.server.memory, setupmod.suggested_memory_gb()),
+                "memory_max_bytes": stats.heap_bytes(self.m.config.server.memory, setupmod.suggested_memory_gb(total)),
                 "system_memory_bytes": int(total * 1024 ** 3) if total else None}
 
     def readiness(self, q, b) -> dict:

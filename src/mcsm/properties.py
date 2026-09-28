@@ -6,14 +6,29 @@ import os
 from pathlib import Path
 
 
+_cache: dict[str, tuple[tuple, dict[str, str]]] = {}  # path -> (its stat when read, what it said)
+
+
 def read_properties(path: Path) -> dict[str, str]:
+    """The file's keys and values (a copy: change it freely). Read again only when the file
+    changes: pages ask for every server's settings every few seconds."""
+    try:
+        st = path.stat()
+    except OSError:
+        return {}
+    stamp = (st.st_mtime_ns, st.st_size, st.st_ino)
+    cached = _cache.get(str(path))
+    if cached and cached[0] == stamp:
+        return dict(cached[1])
     props = {}
-    if path.exists():
-        for line in path.read_text(errors="replace").splitlines():
-            if line and not line.startswith("#") and "=" in line:
-                k, _, v = line.partition("=")
-                props[k.strip()] = v.strip()
-    return props
+    for line in path.read_text(errors="replace").splitlines():
+        if line and not line.startswith("#") and "=" in line:
+            k, _, v = line.partition("=")
+            props[k.strip()] = v.strip()
+    if len(_cache) > 256:  # (one per server folder: this only happens with many copies and tests)
+        _cache.clear()
+    _cache[str(path)] = (stamp, props)
+    return dict(props)
 
 
 def write_properties(path: Path, updates: dict[str, str]) -> None:

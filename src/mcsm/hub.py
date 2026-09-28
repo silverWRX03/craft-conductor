@@ -660,13 +660,12 @@ class Hub:
         computer's, leaving some for the computer itself (limits.py)."""
         from . import limits, stats
         from .setup import suggested_memory_gb, total_ram_gb
-        if getattr(self, "_total_ram", False) is False:  # (it doesn't change; on macOS reading it runs a program)
-            self._total_ram = total_ram_gb()
-        default = suggested_memory_gb(self._total_ram)
+        total = total_ram_gb()
+        default = suggested_memory_gb(total)
         gb = lambda d: stats.heap_bytes(d.m.config.server.memory, default) / 1024 ** 3  # noqa: E731
         running = {sid: d for sid, d in list(self.daemons.items()) if d.proc and d.proc.running and sid != adding}
         extra = self.daemons.get(adding)
-        plan = limits.memory_fits([gb(d) for d in running.values()], gb(extra) if extra else 0.0, self._total_ram)
+        plan = limits.memory_fits([gb(d) for d in running.values()], gb(extra) if extra else 0.0, total)
         plan["running"] = [{"id": sid, "gb": round(gb(d), 1)} for sid, d in running.items()]
         plan["adding_gb"] = round(gb(extra), 1) if extra else 0.0
         return plan

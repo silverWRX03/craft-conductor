@@ -1,10 +1,17 @@
 "use strict";
 // The friend's page ("mcfui"): pick launchers, add the server to them, watch progress.
 const $ = (sel) => document.querySelector(sel);
+// A link or picture address is a web address, one on this page, or (pictures) a data: image;
+// never javascript: or the like, whatever a mod site's details say.
+function safeUrl(u, image = false) {
+  return /^(https?:|mailto:|[/#?.])/i.test(u.trim()) || (image && /^data:image\//i.test(u.trim()));
+}
+
 function h(tag, attrs = {}, ...children) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {
     if (v === null || v === undefined || v === false) continue;
+    if ((k === "href" || k === "src") && !safeUrl(String(v), tag === "img")) continue;  // (links from mod sites: web addresses only)
     if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
     else if (k === "class") el.className = v;
     else if (k === "checked") el.checked = !!v;

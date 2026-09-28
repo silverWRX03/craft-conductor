@@ -69,6 +69,10 @@ def _now() -> str:
 
 
 def _is_ip(value: str) -> bool:
+    """An IP address, and nothing else: it goes into a console command (ipaddress would also take
+    an IPv6 "%scope" of any text, a new line included)."""
+    if not re.fullmatch(r"[0-9A-Fa-f:.]{2,45}", value):
+        return False
     try:
         ipaddress.ip_address(value)
         return True
@@ -150,11 +154,11 @@ class Players:
         name = name.strip()
         if action in IP_ACTIONS:
             # ban-ip also accepts the name of an online player.
-            if not (_is_ip(name) or (action == "ban-ip" and NAME_RE.match(name))):
+            if not (_is_ip(name) or (action == "ban-ip" and NAME_RE.fullmatch(name))):
                 raise PlayerError(f"{name!r} is not a valid IP address or player name")
             if action == "ban-ip" and not _is_ip(name) and self.send is None:
                 raise PlayerError("banning a player's IP by name needs the server running; enter the IP instead")
-        elif action not in NO_TARGET and not NAME_RE.match(name):
+        elif action not in NO_TARGET and not NAME_RE.fullmatch(name):
             raise PlayerError(f"{name!r} is not a valid player name")
         if needs_running and self.send is None:
             raise PlayerError(f"{action} only works while the server is running")
