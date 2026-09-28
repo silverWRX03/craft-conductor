@@ -3297,14 +3297,14 @@ const HELP = [
 
 // The user manual (manual.md, part of Craft Conductor): the same text as on GitHub, shown here with a
 // table of contents. Sections link within the page; printing gives a paper copy.
-const MANUAL_ON_GITHUB = "https://github.com/silverWRX03/craft-conductor/blob/main/src/mcsm/webui/manual.md";
+const MANUAL_ON_GITHUB = "https://github.com/silverWRX03/craft-conductor/wiki/Craft-Conductor-Manual";  // (the same manual, a page a section, with pictures)
 views.manual = () => {
   const body = h("div", { class: "card manual" }, h("p", { class: "empty" }, "Loading the manual…"));
   const toc = h("nav", { class: "help-toc card" }, h("strong", {}, "Contents"));
   fill($("#main"),
     h("div", { class: "row mb" }, h("h2", { class: "view-title grow" }, "User manual"),
       h("button", { class: "btn small", onclick: () => window.print() }, "🖨 Print"),
-      h("a", { class: "btn small ghost", href: MANUAL_ON_GITHUB, target: "_blank", rel: "noopener noreferrer" }, "Open on GitHub ↗")),
+      h("a", { class: "btn small ghost", href: MANUAL_ON_GITHUB, target: "_blank", rel: "noopener noreferrer" }, "On the wiki, with pictures ↗")),
     toc, h("div", { class: "mt" }, body));
   fetch("/manual.md", { credentials: "same-origin" }).then((r) => r.ok ? r.text() : Promise.reject(new Error(r.statusText)))
     .then((md) => {

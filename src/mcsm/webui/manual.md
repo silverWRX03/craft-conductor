@@ -26,9 +26,20 @@ This manual is also inside Craft Conductor: open **User manual** (or **Help**) i
 ## Getting started
 
 1. Download Craft Conductor for your computer from the [releases page](https://github.com/silverWRX03/craft-conductor/releases/latest): Windows, Mac (Apple silicon) or Linux.
-2. Open it. On Windows, if SmartScreen says it "protected your PC", choose **More info → Run anyway** (Craft Conductor isn't code-signed). On a Mac, right-click it and choose **Open** the first time.
+2. Open it. On Windows, if SmartScreen says it "protected your PC", choose **More info → Run anyway** (Craft Conductor isn't code-signed). On a Mac, the first time, see **On a Mac** just below.
 3. The control panel opens in your browser. Read and accept the notice (what Craft Conductor does and doesn't do).
 4. Sign in with the password `PASSWORD` (in capitals). Craft Conductor asks you to choose your own right away: a password, or a 4–8 digit PIN. A PIN only works in a browser on the server's own computer. Under the boxes, **Your password needs** lists what it must have and ticks each one off as you type: a password needs 4 or more characters (and can't be `PASSWORD`), a PIN 4 to 8 digits, and both boxes must match. To use Craft Conductor from your phone or another computer, the password must be **strong**: 12 or more characters, with an uppercase letter, a lowercase letter and a special character (like ! ? # %). With remote access on, that's what the list asks for.
+
+**On a Mac:** macOS blocks apps from the internet that aren't notarized, so the first time, open **Terminal** and run:
+
+```sh
+cd ~/Downloads
+chmod +x craft-conductor-macos-arm64
+xattr -d com.apple.quarantine craft-conductor-macos-arm64
+./craft-conductor-macos-arm64
+```
+
+After that, double-clicking it works.
 
 Servers run while Craft Conductor runs. **Closing the browser tab doesn't stop Craft Conductor**: your servers keep running, and anything Craft Conductor is doing (creating a server, an update) carries on. Open Craft Conductor again from its icon to come back to the control panel. **Quit** (at the bottom of the menu) stops everything cleanly.
 

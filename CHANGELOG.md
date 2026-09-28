@@ -4,9 +4,10 @@ What changed in each version of mcsm, newest first. Bugs are listed the way you'
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
-## 0.18.1 (not released yet)
+## 0.18.1 (2026-09-28)
 
 **Changed**
+- **The user manual is on the [wiki](https://github.com/silverWRX03/craft-conductor/wiki/Craft-Conductor-Manual)** too, a page a section with pictures and a sidebar, plus **Power users** pages (the command line, `mcsm.toml`, running it as a service, and more). **User manual → On the wiki, with pictures** opens it. The README is now short, for getting started.
 - **Choosing a password** now lists what it needs under the boxes (4 or more characters, or a strong one with remote access on; 4 to 8 digits for a PIN; both boxes the same) and ticks each one off as you type, instead of saying only after you press Save.
 
 ## 0.18.0 (2026-09-28)
