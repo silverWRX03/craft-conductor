@@ -4,6 +4,11 @@ What changed in each version of mcsm, newest first. Bugs are listed the way you'
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.18.1 (not released yet)
+
+**Changed**
+- **Choosing a password** now lists what it needs under the boxes (4 or more characters, or a strong one with remote access on; 4 to 8 digits for a PIN; both boxes the same) and ticks each one off as you type, instead of saying only after you press Save.
+
 ## 0.18.0 (2026-09-28)
 
 **Added**

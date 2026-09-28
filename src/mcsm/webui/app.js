@@ -404,13 +404,36 @@ const AUTH_MODES = [
   ["password", "Password", "At least 4 characters."],
   ["pin", "PIN", "4 to 8 digits. Quick to type on a phone."],
 ];
+// What a new password or PIN needs, ticked off as it's typed (webauth.validate and, with remote
+// access on, webauth.STRONG_RULES: the server checks the same).
+function requirements(pin, strongRequired, secret, again) {
+  const rules = pin ? [["4 to 8 digits", (p) => /^\d{4,8}$/.test(p)]]
+    : strongRequired ? [["12 or more characters", (p) => p.length >= 12], ["an uppercase letter", (p) => /[A-Z]/.test(p)],
+      ["a lowercase letter", (p) => /[a-z]/.test(p)], ["a special character (like ! ? # %)", (p) => /[^A-Za-z0-9\s]/.test(p)]]
+      : [["4 or more characters", (p) => p.length >= 4], ["not PASSWORD", (p) => p.length > 0 && p !== "PASSWORD"]];
+  rules.push(["both boxes the same", (p) => p.length > 0 && p === again.value]);
+  const list = h("ul", { class: "checklist small", "aria-live": "polite" });
+  const update = () => fill(list, rules.map(([text, ok]) => {
+    const met = ok(secret.value);
+    return h("li", { class: met ? "ok-text" : "muted" }, h("span", { "aria-hidden": "true" }, met ? "✓ " : "• "), t(text),
+      h("span", { class: "sr-only" }, met ? ` (${t("done")})` : ""));
+  }));
+  secret.addEventListener("input", update);
+  again.addEventListener("input", update);
+  update();
+  return h("div", { class: "requirements" }, h("p", { class: "small" }, t(pin ? "Your PIN needs:" : "Your password needs:")), list,
+    !pin && !strongRequired ? h("p", { class: "muted small" }, t("To use Craft Conductor from your phone or another computer later, it will need to be strong: 12 or more characters with an uppercase letter, a lowercase letter and a special character.")) : null);
+}
 async function showSecurity(firstTime = false) {
   if ($("#security")) return;
-  let local = false;
-  try { local = !!(await (await fetch("/api/auth", { credentials: "same-origin" })).json()).local; } catch (_) {}
+  let local = false, strongRequired = false;
+  try {
+    const a = await (await fetch("/api/auth", { credentials: "same-origin" })).json();
+    local = !!a.local; strongRequired = !!a.strong_required;
+  } catch (_) { /* offline: the server still checks */ }
   if ($("#security")) return;
   let mode = hubInfo && hubInfo.auth && !hubInfo.auth.default ? hubInfo.auth.mode : "password";
-  if (mode === "pin" && !local) mode = "password";  // PINs only work on the server's own computer
+  if (mode === "pin" && (!local || strongRequired)) mode = "password";  // PINs only work on the server's own computer
   const close = () => { const m = $("#security"); if (m) m.remove(); };
   const box = h("div", { class: "modal compact" });
   const render = (error) => {
@@ -433,11 +456,13 @@ async function showSecurity(firstTime = false) {
       h("h2", { id: "security-title" }, firstTime ? "Choose your own password" : "Sign-in"),
       firstTime ? h("p", {}, "You're signed in with the default password, PASSWORD, which anyone could guess. Pick how you'd like to protect this control panel.") : null,
       h("div", { class: "choices" }, AUTH_MODES.map(([m, label, desc]) => h("button", {
-        type: "button", class: "choice" + (mode === m ? " selected" : ""), disabled: m === "pin" && !local,
+        type: "button", class: "choice" + (mode === m ? " selected" : ""), disabled: m === "pin" && (!local || strongRequired),
         onclick: () => { mode = m; render(); },
-      }, h("strong", {}, label), h("span", { class: "small muted" }, m === "pin" && !local ? "Only available on the server's own computer." : desc)))),
+      }, h("strong", {}, label), h("span", { class: "small muted" }, m === "pin" && strongRequired ? "Not with remote access on."
+        : m === "pin" && !local ? "Only available on the server's own computer." : m === "password" && strongRequired ? "A strong one: see below." : desc)))),
       h("form", { class: "mt", onsubmit: save },
         h("div", { class: "grid" }, h("label", {}, `New ${kind}`, pwField(secret)), h("label", {}, `Type it again`, pwField(again))),
+        requirements(pin, strongRequired, secret, again),
         h("p", { class: "error" }, error || ""),
         h("div", { class: "row" },
           h("button", { class: "btn primary", type: "submit" }, "Save"),
@@ -3319,7 +3344,7 @@ function strongPassword(p) {
 function passwordChecklist(input) {
   const rules = [["12 or more characters", (p) => p.length >= 12], ["an uppercase letter", (p) => /[A-Z]/.test(p)],
     ["a lowercase letter", (p) => /[a-z]/.test(p)], ["a special character (like ! ? # %)", (p) => /[^A-Za-z0-9\s]/.test(p)]];
-  const list = h("ul", { class: "rules small" });
+  const list = h("ul", { class: "checklist small" });
   const update = () => fill(list, rules.map(([text, ok]) => h("li", { class: ok(input.value) ? "ok-text" : "muted" }, (ok(input.value) ? "✓ " : "• ") + text)));
   input.addEventListener("input", update);
   update();
