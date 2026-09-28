@@ -769,3 +769,6 @@ textarea:focus-visible, input[type=checkbox]:focus-visible, input[type=radio]:fo
 :root[data-motion="less"] *, :root[data-motion="less"] *::before, :root[data-motion="less"] *::after {
   animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 select.fit { width: auto; flex: none; }
+/* Requirements ticked off as they're met (a new password) */
+ul.checklist { list-style: none; padding: 0; margin: 4px 0 8px; display: grid; gap: 2px; }
+.requirements > p { margin: 6px 0 0; }

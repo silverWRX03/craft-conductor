@@ -7,10 +7,14 @@ vanilla-JS web UI under a strict Content-Security-Policy (`src/mcsm/webui/`).
 
 - **Keep the help current.** When a feature is added, changed or removed, update in the same
   change:
-  - the user manual, `src/mcsm/webui/manual.md` (shown in the app under Help → User manual,
-    and linked from the README);
+  - the user manual, `src/mcsm/webui/manual.md` (shown in the app under Help → User manual).
+    It's also the **wiki**: `packaging/wiki.py` makes a page of each `## ` section, with the
+    screenshots in `wiki/images` (see `IMAGES`), and `.github/workflows/wiki.yml` publishes it on
+    every change to main. Don't edit the wiki on GitHub: edit `manual.md`, or the hand-written
+    pages in `wiki/` (Home, the Power users pages). A new screen or a changed look needs its
+    screenshot retaken;
   - the Help page (`HELP` in `src/mcsm/webui/app.js`) if it covers the feature;
-  - the README;
+  - the README, only for what a newcomer needs (the details live in the wiki);
   - any `docs/*.md` page that describes it.
   Use the button and page names as they appear in the app. A test
   (`test_the_manual_covers_every_page`) fails when a page in the app has no manual section.

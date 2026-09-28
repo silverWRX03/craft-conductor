@@ -473,7 +473,11 @@ class RequestHandler(BaseHTTPRequestHandler):
                 raise ApiError(403, "missing X-MCSM header")
             local = self._local()
             if path == "/api/auth" and method == "GET":
-                return self._json(200, {**self.web.auth.info(), "local": local})
+                info = self.web.auth.info()
+                # (the sign-in dialog lists what a new password needs: a strong one with remote
+                # access on, or when replacing a one-time password from another device)
+                return self._json(200, {**info, "local": local,
+                                        "strong_required": self.web.remote_on() or (bool(info.get("temporary")) and not local)})
             if path == "/api/login" and method == "POST":
                 token = self.web.login(str(self._body().get("password", "")), self.client_address[0], local)
                 return self._json(200, {"ok": True}, {"Set-Cookie": self._cookie(token)})

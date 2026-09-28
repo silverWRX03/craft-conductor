@@ -1,686 +1,78 @@
 # Craft Conductor: Creating and managing  your own modded  Minecraft server should be easy! 
 
-> **Craft Conductor was called mcsm** until version 0.16. It's the same program: the command is still `mcsm`, and
-> your servers, settings (`mcsm.toml`) and backups carry on as they are.
-
 <img src="docs/icon.png" alt="Craft Conductor" width="128" align="right">
 
 ![Status: beta](https://img.shields.io/badge/status-beta-orange)
 
-> **Craft Conductor is in beta.** It's used and tested, but it's still young: expect some rough edges,
-> keep backups (Craft Conductor makes one before every update), and please report problems in
-> [Issues](https://github.com/silverWRX03/craft-conductor/issues).
-
-## Mission
-
 **Running a Minecraft server with friends should be as easy as playing on one.** Craft Conductor
-(Minecraft server manager) sets up a modded or plain Minecraft server on your own computer,
-keeps it running, and keeps it and its mods up to date for as long as you play. It also
-gets your friends' games ready to join. Everything happens in a control panel in your
-browser: no command lines, no config files, no hunting for the right mod versions.
+sets up a modded or plain Minecraft server on your own computer, keeps it running, and keeps it
+and its mods up to date for as long as you play. It also gets your friends' games ready to join.
+Everything happens in a control panel in your browser: no command lines, no config files, no
+hunting for the right mod versions.
 
-**What Craft Conductor can do**
+> **Craft Conductor is in beta.** Keep backups (it makes one before every update), and please report
+> problems in [Issues](https://github.com/silverWRX03/craft-conductor/issues). It was called **mcsm**
+> until version 0.16: the command is still `mcsm`, and your servers and settings carry on as they are.
 
-- Create a server (Fabric, NeoForge, Forge, Quilt, Paper or plain Minecraft) with the right
-  Java, loader and mods, and check that it starts before you play.
-- Keep it on the newest Minecraft **once every mod supports it**, with a backup before each
-  update and an automatic rollback if the new version doesn't start.
-- Find mods and pull in what they need, tell you which mod broke a server, and test a mod
-  list before you commit to it.
-- Give friends one link that sets up their launcher with the right version and mods (plus
-  their own shaders and resource packs), and post it to Discord.
-- Let you manage it from your phone (paired by QR code) or from another computer, and run it
-  on a spare Linux computer or in Docker.
+![Your servers](wiki/images/servers.png)
 
-**What Craft Conductor can't do**
+## What it does
 
-- It can't make your computer reachable from the internet by itself. Friends outside your
-  home need your **router's port forwarding** set up. Craft Conductor shows you how, but every router
-  is different, and some internet providers don't allow it at all.
-- It can't make mods work together when their authors haven't made them compatible. It can
-  only find out, tell you, and wait for updates.
-- It can't download CurseForge mods whose authors don't allow downloads by other apps. You
-  download those yourself; Craft Conductor gives you the link and does the rest.
-- It isn't a hosting service: the server runs on your computer, which has to be on for
-  people to play. It doesn't support Bedrock Edition.
-- It can't bring back a world you didn't back up. Craft Conductor backs up before every update, but
-  keep your own copies of anything you can't afford to lose.
-- It isn't affiliated with Mojang, Microsoft, Modrinth or CurseForge.
+- **Makes a server for you:** Fabric, NeoForge, Forge, Quilt, Paper or plain Minecraft, with the
+  right Java, loader and mods, checked to start before you play.
+- **Keeps it up to date:** it moves to a new Minecraft **once every mod supports it**, with a backup
+  first and an automatic rollback if the new version doesn't start.
+- **Finds mods** on Modrinth and CurseForge, adds what they need, and tells you which mod broke a
+  server.
+- **Gets your friends playing:** one link sets up their launcher with the right version and mods.
+- **Looks after itself:** crash restarts, schedules, backups you can check, and plain-words help when
+  something goes wrong.
+- **Works from your phone,** with notifications, and on a Linux computer without a screen or in Docker.
 
-**New to Craft Conductor? Read the [user manual](src/mcsm/webui/manual.md)** ([what's new](CHANGELOG.md) · [report a bug](https://github.com/silverWRX03/craft-conductor/issues/new/choose)) (it's also in the app: Help →
-User manual). Every section of this README is listed in the [section links](#appendix-section-links) at
-the end.
-
-## How it works
-
-`mcsm` runs your modded Minecraft server and **keeps it on the newest Minecraft
-release once your mods support it**. It watches for new releases and checks
-whether your loader and every mod you depend on (plus their dependencies) have
-builds for them. When they do, it counts down in-game, backs up, swaps
-everything over, boots the new version to make sure it works, and
-**rolls back automatically** if it doesn't.
-
-It's one tool for both jobs: running the server (like autoMCS) and doing the
-fragile upgrade pipeline you'd otherwise do by hand.
-
-```
-$ mcsm check
-installed: Minecraft 1.21.4 / fabric 0.16.10 - latest release is 1.21.5
-
-Minecraft 1.21.5 is blocked by:
-  x Create Fabric: Create Fabric has no fabric build for 1.21.5
-
-ready to update to Minecraft 1.21.4 with fabric 0.16.14:
-  loader 0.16.10 -> 0.16.14
-  ~ Lithium mc1.21.4-0.14.7 -> mc1.21.4-0.14.8
-```
-
-## Features
-
-- **In your language.** The control panel, the friends' page and the invite page in English, Spanish,
-  Portuguese, French, German, Hindi, Chinese, Vietnamese, Arabic and Korean (machine-translated).
-- **Co-admins.** Pair a friend's phone or computer as a helper (everyday controls) or a viewer
-  (look only).
-- **A live status message on Discord.** One message that always shows which servers are up and
-  who's playing, edited as things change.
-- **Whitelist through Discord.** Friends type `/whitelist <their Minecraft name>` in your
-  Discord server; you let them in from the Players page, or let them in straight away
-  (optionally only members with a role).
-- **Saved mod lists.** Keep a mod list under a name, switch to another and back, and move lists
-  between servers as files.
-- **Phone app.** Put Craft Conductor on your phone's home screen and get notifications when a server
-  crashes, a friend asks to join or an update is held back, even with the app closed (a secure
-  address in one click with Tailscale).
-- **Lag finder.** When the server lags, Craft Conductor finds out why (mobs, hoppers, new land, a mod) and where,
-  by coordinates, in plain words; by itself too when it keeps lagging while people play.
-- **Snapshots with rollback.** Every backup notes the whole server, says what changed since the last
-  one, and rolls everything back (world, mods, configs, settings) in one go.
-- **Guided setup.** A checklist from making your first server to a friend joining it (offered once;
-  start it again from Help).
-- **Modded single-player.** Set up a modded game for playing alone in the launcher you use, and keep
-  it up to date.
-- **Update rehearsal.** Try an update on a copy of the server and its world first: it runs for a few
-  minutes where nobody can join, then a report says whether it started, how well it kept up and
-  which mods complained. Automatic updates to a new Minecraft can be rehearsed first too.
-- **World tools.** Game rules with explanations, a world border, and pre-generating terrain with
-  Chunky so exploring doesn't lag.
-- **Rented servers too.** Install on a VPS over SSH; its control panel stays private, reached
-  through an SSH tunnel ([guide](docs/rented-server.md)).
-- **Paper plugins from Modrinth and Hangar,** updated with Minecraft like mods; switch hand-added
-  plugins off and on.
-- **Quick start.** Ready-made starting points on New server (vanilla Minecraft with friends, smooth survival,
-  new lands to explore, plugins, a modpack) fill the form in; everything stays changeable.
-- **Crashes explained, with fix buttons.** "Remove this mod", "Add the mod it needs", "Give it more memory"; and
-  **Check my setup** fixes what it finds in one press.
-- **Backups you can trust.** Each one is read back and checked; **Put back an area** undoes griefing in one place
-  from a backup without losing everyone else's building.
-- **Router set up by itself.** With UPnP switched on, Craft Conductor forwards its own ports on your router
-  (and takes them back when you quit); otherwise a picture guide shows how.
-- **No port forwarding? playit.gg.** Friends join through a playit.gg tunnel, and the Dashboard shows
-  whether it's working (playit.gg is an outside service, so its disruptions are out of Craft Conductor's control).
-- **Bedrock players too.** One button adds Geyser and Floodgate, so friends on phones, tablets and
-  consoles can join a Java server.
-- **Friends ask to be let in.** With the whitelist on, a friend's Craft Conductor sends their Minecraft name;
-  you press Allow. Their Craft Conductor also says when a server they joined changed, so they update in time.
-- **Performance and notifications.** See the server's ticks per second with a graph, profile it
-  with spark, and get browser notifications when a server crashes or an update is ready.
-- **Schedules and backup copies.** Restart every night, back up every few hours, and copy every
-  backup to a USB drive or a cloud-synced folder. Simple choices on the Settings page, or any
-  cron expression.
-- **Web map.** BlueMap (3D) or Dynmap in one click, to see the world and who is where in a
-  browser.
-- **Player activity.** Who played and for how long, a week-by-hour grid of when people are on,
-  and the quietest time, made the nightly restart in one click.
-- **Check my setup.** One button checks Java, memory, disk space, the port, the firewall and
-  friends' access, says what to fix in plain words, and can test that friends outside your home
-  can connect. It also downloads a report for bug reports, with secrets taken out.
-- **Upgrades only when your mods are ready.** Every release newer than the one you run is
-  checked against the loader and each mod, and you move to the newest one where
-  every mod is available (optional ones too; client-only mods don't count). Nothing is
-  removed behind your back.
-- **Monthly reminders about mods that fall behind.** A month after a new Minecraft
-  version comes out, and every month after, Craft Conductor tells you which mods are still
-  holding it back (activity feed, Discord, and a banner in the web UI), and you can
-  choose **Remove them and update** or keep waiting.
-- **Safe upgrades.** All downloads are fetched and hash-checked in a staging area
-  *before* the server is touched. After a backup, the new version gets a verification
-  boot. If it crashes or times out, the backup is restored, the old version is
-  started again, and that exact combination isn't retried until something changes.
-- **Keeps mods updated** within your current Minecraft version too.
-- **Dependency resolution**: required dependencies are pulled in automatically, and
-  client-only mods are skipped.
-- **Loaders:** Fabric, Quilt, NeoForge, Forge (1.17+), Paper (with plugins from Modrinth), and vanilla.
-- **Mod sources:** Modrinth, and CurseForge (release builds can include a CurseForge key; otherwise paste your own free key in Craft Conductor settings).
-- **Server supervisor** (`mcsm run`): restarts after crashes, gives in-game restart
-  countdowns, can wait until nobody is online, passes console input through, and
-  shuts down gracefully on SIGTERM.
-- **Manages Java for you.** Each Minecraft version needs a particular Java version
-  (1.20.5+ needs Java 21, 1.18–1.20.4 needs Java 17). Craft Conductor picks the right one and
-  downloads Eclipse Temurin into `.mcsm/java/` if you don't have it. You can also pin a
-  version or keep runtimes patched with `mcsm java`.
-- **Builds new servers from nothing:** `mcsm create` gives you a complete, test-booted server in one command.
-- **Handles blocked CurseForge downloads.** When an author disallows third-party
-  downloads, Craft Conductor gives you the direct link to the file, then picks up and hash-checks
-  the file once you drop it in `manual-downloads/`.
-- **Player management:** kick, ban/pardon by name or IP, op/de-op and the whitelist,
-  from the web UI or `mcsm player`, whether the server is running or stopped.
-- **Web control panel:** dashboard, live console, players, one-click updates, mod search,
-  uploads for blocked downloads, backups, Java and settings, with **Open folder**
-  buttons for the server, world, mods, config, logs and backups.
-- **Dependencies come along:** picking a mod picks the mods it needs (shown under it),
-  and they're removed together. Mod lists only show mods that have a build for the
-  Minecraft version you chose.
-- **Edit mods' config files** from the Mods page in an editor with IDE-style colours
-  (TOML, JSON, YAML, .properties, .cfg, .ini); the previous version is kept on every save.
-- **Try before you buy:** when a server won't start, Craft Conductor says which mod is to blame.
-  **Test these mods** checks a mod list for known conflicts, can start a throwaway
-  server with it, and if that fails, finds the culprits and tells you which mods work
-  together.
-- **Show why:** the Updates tab lists every mod for the newest Minecraft in green (ready),
-  yellow (only alpha/beta builds) or red (not yet), and says when the loader is the holdup.
-- **Early builds on request:** mods that only have alpha/beta builds can be picked after a
-  warning. They keep their own channel, so everything else stays on releases.
-- **Paper servers** with plugins from Modrinth (players join with plain Minecraft).
-- **Aikar's flags** are offered when a server gets more than 16 GB of memory.
-- **Phones and other computers:** turn on remote access (a strong password is required,
-  never a PIN) and pair your phone by scanning a QR code. See
-  [Remote access and phones](#remote-access-and-phones).
-- **Help built in,** including a router port-forwarding guide with pictures.
-- **Runs anywhere:** a Windows, macOS or Linux app, a [Docker image](docs/docker.md), or on a
-  [Linux computer without a screen](docs/headless.md) that you manage from another one
-  (New server → **Install on a Linux computer** sets it up over SSH).
-- **Day and night themes**, switched with the sun/moon button.
-- **Accessible:** works with the keyboard and screen readers, with **High contrast** and
-  **Less motion** options (Craft Conductor settings → Display).
-- **Try beta Minecraft versions** (snapshots and pre-releases) on a new server, or on a
-  copy of an existing one so your real world is never touched.
-- **Mods three ways:** `.jar` files from your computer (ones Modrinth recognises are
-  kept up to date), an in-page **mod browser** (search Modrinth and CurseForge with
-  filters and sorting, read each mod's page, tick as many as you like), or a whole
-  **Modrinth modpack**.
-- **See a seed's map before you create the server,** with world-generation mods from Modrinth
-  (Terralith, Tectonic, …): Craft Conductor generates the area in a private test server and draws it.
-  Drag and zoom the map to explore, and it makes more of the world as you go. **Compare 10 seeds**
-  puts maps of ten seeds side by side to pick from.
-- **Worlds:** pick the seed, world type, structures and hardcore when you create a
-  server, or **import any world**: a `.zip`, or a singleplayer world from the Minecraft
-  Launcher, Prism, the Modrinth App or CurseForge.
-- **Move a server to another computer:** export it to one file, import it there.
-- **Friend downloads:** friends run one file that adds your server, with the right
-  version and mods, to the Minecraft Launcher, Prism Launcher, the Modrinth App or
-  CurseForge. They can add their own shaders, resource packs and mods, choose how much
-  memory their game gets, and are asked before an update changes anything of theirs.
-  Post the invite to a Discord channel from the Friends page.
-- **Discord notifications** for upgrades, blocked releases, crashes and rollbacks.
-- **Leaves your files alone.** Only files Craft Conductor installed (tracked in `mcsm.lock.json`)
-  are ever replaced. World, configs and hand-added jars are never touched.
-- No dependencies beyond Python 3.11+.
-
-## What Craft Conductor does and doesn't do
-
-The first time you run it, Craft Conductor shows these points and asks you to accept them, in
-the terminal or in the web UI. Nothing runs until you do.
-
-![The first-run notice](docs/web-notice.png)
-
-- Craft Conductor runs your Minecraft server on this computer and keeps it and its mods up to date.
-- It connects to the internet to download Minecraft, mod loaders, mods, Java and its
-  own updates (from Mojang, Modrinth, CurseForge, Fabric, Quilt, NeoForge, Forge, PaperMC, Adoptium and GitHub).
-- It does not collect usage data. There is no analytics, tracking, advertising or account.
-- Your worlds, settings and backups stay on this computer. Nothing is uploaded, except
-  messages to Discord if you set up a webhook or a bot.
-- It changes files in your server folder: it replaces the mods and loader files it
-  installed, and makes a backup first.
-- Moving a world to a newer Minecraft version can't be undone. Restoring a backup is the only way back.
-- Minecraft belongs to Mojang, and each mod belongs to its author. You accept Minecraft's EULA separately.
-- This software was created with the help of AI (Anthropic's Claude). It is tested,
-  but it may still have mistakes.
-- It is free, open-source software (Apache 2.0 license), provided as is, with no warranty.
-- Keep your own copies of anything you can't afford to lose.
-
-For scripts, services and containers, accept it once with `mcsm notice --accept` or
-pass `--accept-notice`. Under systemd, `mcsm run --web` waits and shows the notice in
-the web UI. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) (or run
-`mcsm licenses`) for every license involved.
+The **[user manual on the wiki](https://github.com/silverWRX03/craft-conductor/wiki/Craft-Conductor-Manual)** shows everything, page by page with
+pictures (it's also in the app: Help → User manual).
 
 ## Download and run
 
-Get the file for your computer from the
-[latest release](https://github.com/silverWRX03/craft-conductor/releases/latest).
-It's a single file: no installer, no Python, and no Java to set up (Craft Conductor downloads the
-right Java by itself).
+Get the file for your computer. It's a single file: no installer, no Python, and no Java to set up.
 
 | Your computer | Download |
 |---|---|
 | Windows 10/11 (64-bit) | [`craft-conductor-windows-x64.exe`](https://github.com/silverWRX03/craft-conductor/releases/latest/download/craft-conductor-windows-x64.exe) |
 | Mac with Apple silicon (M1 or newer) | [`craft-conductor-macos-arm64`](https://github.com/silverWRX03/craft-conductor/releases/latest/download/craft-conductor-macos-arm64) |
 | Linux, 64-bit Intel/AMD | [`craft-conductor-linux-x64`](https://github.com/silverWRX03/craft-conductor/releases/latest/download/craft-conductor-linux-x64) |
-| Linux on ARM (Raspberry Pi 4/5 with a 64-bit OS) | [`craft-conductor-linux-arm64`](https://github.com/silverWRX03/craft-conductor/releases/latest/download/craft-conductor-linux-arm64) |
-
-**Joining a friend's server?** Open the invite link they sent: it offers the friends' download
-(`craft-conductor-join-...`), the same Craft Conductor under its own name, which opens straight into setting up
-Minecraft for their server.
-
-**Windows:** put `craft-conductor-windows-x64.exe` in a folder of its own (for example
-`Documents\mcsm`) and double-click it. There's no command window: Craft Conductor opens in your
-browser, and **Quit** (bottom left) closes it. Closing the browser tab doesn't stop Craft Conductor
-or your servers; double-clicking it again while it runs just opens the page again. Its log is in `mcsm\.mcsm\mcsm.log` in your user folder.
-- The first time, Windows SmartScreen may say *"Windows protected your PC"*, because
-  the app isn't code-signed yet. Click **More info → Run anyway**.
-- When the server first starts, allow it through Windows Firewall so friends can connect.
-
-**Mac:** macOS blocks apps downloaded from the internet that aren't notarized, so run
-these once in Terminal:
-
-```sh
-cd ~/Downloads
-chmod +x craft-conductor-macos-arm64
-xattr -d com.apple.quarantine craft-conductor-macos-arm64
-./craft-conductor-macos-arm64
-```
-
-**Linux:** the Linux downloads run on practically any distribution from 2014 onward
-(glibc 2.17 or newer: Ubuntu, Debian, Fedora, Rocky/Alma/RHEL 7+, Arch, openSUSE,
-Raspberry Pi OS 64-bit, and so on). Alpine and other musl-based systems need the
-[Python install](#with-python-instead) instead.
-
-```sh
-curl -LO https://github.com/silverWRX03/craft-conductor/releases/latest/download/craft-conductor-linux-x64
-chmod +x craft-conductor-linux-x64
-sudo mv craft-conductor-linux-x64 /usr/local/bin/mcsm     # optional: makes `mcsm` a command
-mcsm
-```
-
-On a Raspberry Pi or another ARM machine, use `craft-conductor-linux-arm64` instead.
-
-### What happens when you run it
-
-1. Your browser opens Craft Conductor's control panel. Sign in with `PASSWORD` (the eye button
-   shows what you typed); you're then asked to choose your own password, a PIN, or no
-   password (this computer only).
-2. It shows [what Craft Conductor does and doesn't do](#what-mcsm-does-and-doesnt-do) and asks you to accept.
-3. **Your servers** lists every server you've made. Nothing starts by itself: press
-   **Start** on the one you want to play, and **Stop** when you're done (closing Craft Conductor
-   stops them too). Several can run at once, each on its own port.
-4. **New server** asks, one step at a time, for:
-   - the server type: Fabric, NeoForge, Forge, Quilt, Paper or vanilla;
-   - the Minecraft version: "newest" for a server that keeps upgrading itself, or a
-     specific version to stay on;
-   - mods (only for server types that run them): **Local files** (`.jar`s on your
-     computer), **Download mods** (opens the mod browser), **Modpacks** (build the server
-     from a Modrinth modpack), or quick-add from the 20 most popular;
-   - the world: a new one (seed, world type, structures, hardcore) or **Import a world**
-     (a `.zip`, or one of your singleplayer worlds);
-   - the server name, players, difficulty, game mode, memory and port (checked as you
-     type, so two servers never share one);
-   - optionally, **Advanced settings**: PvP, spawn protection, view distance,
-     whitelist, idle kicks, resource pack and the rest of `server.properties` (also on
-     each server's Settings page later);
-   - the Minecraft EULA.
-5. **Create my server** downloads Java, the mod loader, Minecraft and your mods, checks
-   that the server starts, and adds it to the list, ready for you to start. If a
-   choice can't work, for example a mod that doesn't support the chosen version, the
-   page says why so you can change it and try again.
-
-![Your servers](docs/web-servers.png)
-
-![New server](docs/web-setup.png)
-
-![The mod browser](docs/web-browse.png)
-
-Each Modrinth result is tagged with where it runs (**server-side**, **client-side** or
-**server + client**, from Modrinth's environment tags). The **Runs on** filter narrows the
-list. For a server, it lists server-side and both; for players (the Friends page and friends
-setup), it lists client-side and both. Either can be narrowed to one side only, or to mods
-for both sides.
-
-![World options](docs/web-world.png)
-
-Prefer the terminal? `mcsm setup` asks the same questions there.
-
-Craft Conductor keeps running while servers run. To stop them all cleanly and close Craft Conductor, press
-**Quit** at the bottom left of the control panel (or Ctrl+C in the terminal on a Mac or
-Linux).
-
-Servers live in a folder called `mcsm` in your home folder (`C:\Users\<you>\mcsm\servers\`
-on Windows), one folder each. To keep them somewhere else, set the `MCSM_HOME`
-environment variable. A folder that already contains an `mcsm.toml` (for example from
-an older Craft Conductor) shows up in the list too.
-
-### Playing with friends
-
-Switch on **Make a download for friends** when you create a server (or later, on the
-server's **Friends** page) and send your friends the invite link (**Post to Discord**
-sends it for you). Your friends:
-
-1. click the link: Craft Conductor's invite page offers the right download for their computer,
-   straight from GitHub;
-2. run the file they downloaded. Craft Conductor finds the invite by itself (the page handed it
-   over), and a page opens in their browser where they tick their launchers: the
-   **Minecraft Launcher**, **Prism Launcher**, the **Modrinth App** and/or **CurseForge**
-   (ones found on their computer are ticked already). It adds *Your Server* to each,
-   with the right Minecraft version, mod loader (Fabric, Quilt, NeoForge or Forge) and
-   mods, in a folder of its own, with your server in its multiplayer list. Prism gets
-   an instance directly; the Modrinth App gets a `.mrpack` it imports; CurseForge gets
-   a modpack `.zip` to import (Create Custom Profile → Import);
-3. pick it in the launcher and press Play. On Minecraft 1.20 and newer it joins your
-   server straight away.
-
-Mods come straight from Modrinth or CurseForge (every file is checked against its
-checksum); only mods that run on players' computers are included, plus any
-client-only mods you add on the Friends page (a minimap, JEI, Sodium...). When your
-server upgrades, friends click the link again and press **Open in Craft Conductor** (or open Craft Conductor
-and pick your server under "Servers you've joined") to update. Sign-in stays with the Minecraft Launcher, so Craft Conductor never sees anyone's
-Microsoft account.
-
-**Secure by design.** Friends' Craft Conductor talks to your computer only over HTTPS, with a
-certificate your Craft Conductor makes for itself. Its fingerprint is part of the invite, and your
-friends' Craft Conductor refuses anything else, so nobody in between (on café Wi-Fi, say) can read
-or swap the mods. The program itself always comes from GitHub, never from your server. The invite
-page lives on GitHub Pages (a real certificate, so no browser warning), and the invite
-itself is after the `#` in the link, which browsers never send anywhere. Power users can
-still use the raw invite code with `mcsm join <code>`.
-
-For friends outside your home network, forward two TCP ports to this computer: your
-Minecraft port (25565 for the first server) and the download port (8766), and enter
-your public address under **Craft Conductor settings → Sharing with friends**. The download port
-only answers friends' Craft Conductor (HTTPS only): the mod list and your own mod files, never the
-control panel.
-To play on the server from this computer too, press **Play on this computer** on the server's
-Dashboard (it warns first when this computer is short of memory for both, or the server is heavy),
-or run `mcsm join --from-server <server folder>`.
-
-![Picking launchers](docs/web-friend-setup.png)
-
-![Adding shaders on the friend's page](docs/web-friend-extras.png)
-
-For friends outside your home, the Help page (and the screen you see while a new server
-installs) walks you through your router's port forwarding:
-
-![The router guide](docs/web-help.png)
-
-The Friends page has two invites: a **local** one for friends on your Wi-Fi, and an
-**internet** one; **Use my public IP** finds your public address for it. When creating a
-server, the **Friends** section's **Set up now** opens the mod browser for players' mods
-(client-side ones only) and **Local files** adds your own; mods the server's mods need on
-players' computers are added by themselves. Once the server is ready, its Friends page
-opens with the invite.
-
-In a terminal, `mcsm join <invite> --launcher prism,modrinth` (or `--console`) does the
-same without the page.
-
-**Moving a server to another computer:** on its **Settings** page, **Export server**
-saves its worlds, mods, configs, settings and player lists (and optionally backups) in
-one `.zip` (it saves the world first, so the server can keep running). Install Craft Conductor on
-the other computer and choose **Import a server…** on the server list.
-
-**Deleting a server:** use **Delete** on its card, or **Delete server…** at the bottom
-of its Settings. You choose whether to keep its files (it just leaves the list) or
-erase its world, mods, backups and settings too (you type its name to confirm).
-
-**Forgot the password?** On the server's own computer, the sign-in page has a
-**Reset it to PASSWORD** link (or run `mcsm web-password --reset`).
-
-**For friends outside your home network,** forward the server's port (25565 for the
-first one; see its Settings) on your router to this computer.
-
-**Verifying a download (optional):** every release includes `SHA256SUMS.txt`. Compare it with
-`sha256sum craft-conductor-linux-x64` (Linux), `shasum -a 256 craft-conductor-macos-arm64` (Mac), or
-`Get-FileHash craft-conductor-windows-x64.exe` (Windows PowerShell). The built-in updater checks this for you.
-
-### With Python instead
-
-If you have Python 3.11 or newer (for example on an Intel Mac, or anything not listed
-above):
-
-```sh
-pipx install git+https://github.com/silverWRX03/craft-conductor
-mcsm
-```
-
-### Linux servers (headless, over SSH)
-
-The easiest way: one command from your own computer installs Craft Conductor on the Linux computer and
-starts it at boot. See **[docs/headless.md](docs/headless.md)** (Windows, macOS and Linux
-steps). For containers, see **[docs/docker.md](docs/docker.md)**. The details below are for
-doing it by hand.
-
-- **Reaching the control panel from your own PC.** The setup wizard asks whether to
-  allow other devices on your network; on a machine with no desktop the suggested
-  answer is yes. Craft Conductor then prints the address to open, such as
-  `http://192.168.1.50:8765/`. If you'd rather keep it private to the server, answer
-  no and use an SSH tunnel: `ssh -L 8765:localhost:8765 you@server`, then open
-  <http://localhost:8765> on your PC. Craft Conductor prints this command too.
-- **Keeping it running after you log out, and after reboots:**
-
-  ```sh
-  mcsm service install      # sets up a systemd service for this server and starts it
-  mcsm service status
-  journalctl --user -u mcsm-<folder> -f    # the server console (`mcsm service install` prints the exact command)
-  mcsm service uninstall
-  ```
-
-  As a normal user this creates a user service and enables "lingering" so it runs
-  without anyone logged in (if that needs admin rights, Craft Conductor prints the
-  `sudo loginctl enable-linger` command). As root it creates a system service. A good
-  setup is a dedicated `minecraft` user: `sudo -u minecraft mcsm service install`.
-  [`examples/mcsm.service`](examples/mcsm.service) shows a hand-written unit if you prefer.
-- **Firewall:** open the Minecraft port for players (`sudo ufw allow 25565/tcp`, or
-  `sudo firewall-cmd --add-port=25565/tcp --permanent && sudo firewall-cmd --reload`),
-  and port 8765 only if you use the control panel from other devices.
-
-### Windows and macOS in the background
-
-Craft Conductor runs until you press **Quit** in the control panel. To start it automatically, add
-`craft-conductor-windows-x64.exe` to Task Scheduler with the trigger *At log on*. On a Mac, add
-it to *System Settings → General → Login Items*.
-
-## Quick start: build a new server
-
-One command downloads and builds everything: config, mods and their dependencies,
-the loader, Java and `server.properties`. It then test-boots the server:
-
-```sh
-mcsm create ~/minecraft --loader fabric \
-    --mod fabric-api --mod lithium --mod ferrite-core \
-    --optional-mod create-fabric \
-    --memory 6G --motd "Forever server" --rcon --accept-eula   # read https://aka.ms/MinecraftEULA first
-cd ~/minecraft && mcsm run
-```
-
-`--minecraft` defaults to the newest release your mods support. Other options:
-`--port`, `--max-players`, `--difficulty`, `--gamemode`, `--seed`, `--java`, `--curseforge ID`.
-
-Or do the same thing step by step:
-
-```sh
-mkdir ~/minecraft && cd ~/minecraft
-mcsm init --loader fabric --accept-eula     # read https://aka.ms/MinecraftEULA first
-mcsm add fabric-api lithium ferrite-core    # Modrinth slugs
-mcsm add create-fabric --optional           # don't hold upgrades back for this one
-mcsm check                                  # what would be installed, what's blocking newer versions
-mcsm update                                 # install it (and test-boot it)
-mcsm run                                    # run it forever
-```
-
-## Migrating an existing server (e.g. from autoMCS)
-
-Stop the server, then point Craft Conductor at the existing directory and tell it which Minecraft
-version the server currently runs:
-
-```sh
-cd ~/mcsm
-mcsm init --server-dir /path/to/existing/server --loader fabric --minecraft 1.21.1
-mcsm import        # identifies the jars in mods/ via Modrinth and adds them to mcsm.toml
-mcsm check
-mcsm update        # re-installs the loader through mcsm so it can manage it from now on
-```
-
-Jars that Modrinth doesn't recognise stay where they are and are reported as
-*unmanaged*. Add CurseForge mods with `mcsm add --source curseforge <id>` and then
-delete the old jar, or leave it unmanaged if the mod never needs updating.
-
-## Web UI
-
-```sh
-mcsm run --web          # or set [web] enabled = true in mcsm.toml
-mcsm web-password       # shows how the panel is protected (--set, --pin, --reset)
-```
-
-Then open <http://localhost:8765>.
-
-![Dashboard](docs/web-dashboard.png)
-
-![The night theme](docs/web-night.png)
-
-| Page | What you can do |
-|---|---|
-| **Dashboard** | CPU and memory bars; who's online, with head icons and one-click message / op / kick / ban; the server console with a command box; server state, update status, live activity feed; the monthly reminder about mods holding back a new version |
-| **Console** | live server log (warnings and errors highlighted), send commands with history |
-| **Players** | who's online; kick, ban/pardon (by name or IP), op/de-op, whitelist on/off and add/remove; everyone who has joined before |
-| **Updates** | check now, see exactly what would change, which mods block newer versions, apply with one click, or remove the mods holding it back and update; test a beta Minecraft on a copy of the server |
-| **Mods** | add `.jar`s from your computer, open the mod browser (Modrinth and CurseForge), start a new server from a modpack, mark mods required/optional, remove them (with the dependencies nothing else needs), edit their config files |
-| **Backups** | back up now (with a proper `save-all`), restore any backup |
-| **Java** | see which runtime the server uses, download Temurin versions, pin a version |
-| **Settings** | update strategy, schedule, countdowns, memory, port, backups to keep, Discord webhook, all of `server.properties`; replace the world; export the server; delete it |
-
-Mods whose authors block third-party downloads get a **Download** link and an
-**Upload** button right on the Updates page. The uploaded file is checked against
-CurseForge's checksum before it's accepted.
-
-![Updates page](docs/web-updates.png)
-
-![Show why: each mod for the newest Minecraft](docs/web-why.png)
-
-![A monthly reminder](docs/web-reminder.png)
-
-![Editing a mod's config file](docs/web-config-editor.png)
-
-![Testing a mod list](docs/web-mod-test.png)
-
-**Open folder** buttons (server, world, mods, config, logs, crash reports, backups,
-exports, manual downloads, Java) appear only in a browser on the server's own
-computer, where Craft Conductor can open your file manager.
-
-**Signing in.** The first password is `PASSWORD`, and the panel asks you to change
-it right after you sign in. You can pick a password or a 4–8 digit PIN; there's always
-one. A PIN only works in a browser on the server's own computer. Change it later
-under Settings → Sign-in. Forgot it? Run `mcsm web-password --reset` on the server
-to go back to `PASSWORD`. To fix the password in the config instead, set
-`[web] password` in mcsm.toml. Passwords and PINs are stored only as salted hashes.
-
-**Security.** By default it only listens on `127.0.0.1`. Every request needs a
-login (rate limited; sessions are HttpOnly, SameSite=Strict cookies), and
-changes need a CSRF header. Requests must address this machine by IP, `localhost`,
-a `.local` name, or its host name, which blocks DNS-rebinding attacks. If you use a
-reverse proxy with its own domain, add that domain to `[web] allowed_hosts`. The page runs under a strict Content Security Policy
-with no third-party scripts. The console gives full operator control of your
-server, so to reach it from elsewhere, put it behind an HTTPS reverse proxy (Caddy,
-nginx) or a VPN such as Tailscale rather than exposing the port directly.
-
-## Remote access and phones
-
-By default only the computer Craft Conductor runs on can open the control panel. **Craft Conductor settings →
-Remote access & phones** (also on the new-server screen) lets other devices in, with these
-safeguards:
-
-- **A strong password is required:** 12+ characters, with uppercase, lowercase and a special
-  character. PINs only ever work on the server's own computer, and the
-  password can't be weakened while remote access is on.
-- **Phones are paired by scanning a QR code.** The code works once, for five minutes. Each
-  phone gets its own key (only a hash of it is stored) and signs in by itself afterwards.
-- **Phones get the everyday controls only:** start, stop and restart servers, backups,
-  updates and players. They can't change settings, mods or files, use the console or change
-  the password.
-- **You stay in charge of every device:** each paired phone is listed with when and where it
-  was last used, and can be signed out on its own. Changing the password signs out every
-  phone.
-- **Attempts are limited and actions are logged:** repeated wrong passwords or pairing codes
-  are rate-limited, and what a phone does appears in the server's activity feed.
-- **HTTPS** is available with a certificate you provide (for example `tailscale cert`).
-- **Away from home, use a private network app, not your router:** Craft Conductor recommends
-  [Tailscale](https://tailscale.com) (free for personal use), which connects your phone and
-  computer privately and encrypted, and shows its address in the pairing dialog. Don't
-  forward the control panel's port (8765) on your router.
-
-The panel can be added to your phone's home screen, where it opens like an app.
-
-![Pairing a phone](docs/web-remote.png)
-
-On a computer without a screen, or in Docker, Craft Conductor starts with a random **one-time
-password** printed on its console. Signing in with it can only choose your own strong
-password (or set `MCSM_INITIAL_PASSWORD`). See [docs/headless.md](docs/headless.md) and
-[docs/docker.md](docs/docker.md).
-
-## Managing players
-
-From the web UI's **Players** page, or the command line:
-
-```sh
-mcsm player list
-mcsm player op Steve
-mcsm player deop Steve
-mcsm player kick Griefer --reason "cool it"
-mcsm player ban Griefer --reason "griefing spawn"
-mcsm player pardon Griefer
-mcsm player ban-ip 203.0.113.9
-mcsm player whitelist-on
-mcsm player whitelist-add Alex
-```
-
-While the server runs, these are sent as the normal console commands (from the
-command line this goes over RCON; the web UI doesn't need it). While it's stopped,
-Craft Conductor edits `ops.json`, `banned-players.json`, `banned-ips.json`, `whitelist.json`
-and `server.properties` directly, and the changes apply when the server starts. For
-that it looks up player UUIDs from `usercache.json` or Mojang, or computes the
-offline UUID when `online-mode=false`. Kicking, and IP-banning by player name, need
-the server running.
-
-![Players page](docs/web-players.png)
-
-## Updating Craft Conductor itself
-
-Craft Conductor checks its GitHub releases once a day; set `[mcsm] update_check = false` to turn
-this off. When a new version is out:
-
-- **Web UI:** a message in the middle of the screen shows the new version and a link to what's new, with **Update
-  now** and **Later** buttons. **Later** hides it until the next version comes out;
-  **Settings → About → Check for Craft Conductor updates** brings it back. **Update now**
-  installs the release, warns players a minute ahead if anyone is online, stops the
-  server cleanly, and restarts Craft Conductor (and the server) on the new version. Then you
-  sign in again.
-- **Command line:** `mcsm self-update --check` shows what's new, and `mcsm self-update`
-  installs it after asking. If `mcsm run` is managing a server, it hands the update to
-  the daemon, which restarts itself.
-- Nothing is ever installed without you accepting it.
-- It installs with the same Python that runs Craft Conductor (`pip install --upgrade
-  git+https://github.com/silverWRX03/craft-conductor@<tag>`), so pip and pipx
-  installs both work. A source checkout is updated with `git pull` instead.
-
-The downloadable executables update themselves: Craft Conductor downloads the new file for your
-system from the release, checks it against `SHA256SUMS.txt`, and swaps it in. If
-Craft Conductor lives in a folder you can't write to, it tells you to download the new version
-yourself.
-
-## Mods that block third-party downloads
-
-Some CurseForge authors don't allow tools to download their files. Craft Conductor still finds
-the right file for each Minecraft version, but a person has to download it:
-
-```
-$ mcsm check
-...
-manual download needed - these authors block automatic downloads.
-download each file and put it in /home/me/minecraft/manual-downloads:
-  -> Some Mod: somemod-1.21.4-2.3.jar
-     https://www.curseforge.com/minecraft/mc-mods/some-mod/files/5550001
-```
-
-Open the link, download the file, drop it into `manual-downloads/` (or straight into
-the server's `mods/`), and run `mcsm update` again. The file's hash is checked against
-CurseForge, so a wrong or outdated file isn't used. The update never starts until
-every file is present, so the server is never left half-upgraded. With `mcsm run`, the
-same links go to your Discord notifications when a new version needs them.
+| Linux on ARM (Raspberry Pi 4/5, 64-bit) | [`craft-conductor-linux-arm64`](https://github.com/silverWRX03/craft-conductor/releases/latest/download/craft-conductor-linux-arm64) |
+
+1. **Open it.** On Windows, if SmartScreen says it "protected your PC", choose **More info → Run
+   anyway** (Craft Conductor isn't code-signed yet). On a Mac, run it once from Terminal: see
+   [Getting started](https://github.com/silverWRX03/craft-conductor/wiki/Getting-started).
+2. **Your browser opens the control panel.** Accept the notice, sign in with `PASSWORD`, and choose
+   your own password.
+3. **Press New server,** pick the kind of server and your mods, and **Create my server**. Then
+   **Start**, and join it from Minecraft.
+
+**Joining a friend's server?** Open the invite link they sent you: it offers the right download and
+sets up your game. See [Joining a friend's server](https://github.com/silverWRX03/craft-conductor/wiki/Joining-a-friends-server).
+
+## Help
+
+- **[User manual](https://github.com/silverWRX03/craft-conductor/wiki/Craft-Conductor-Manual)**: every page of the app, with pictures.
+- **[Troubleshooting](https://github.com/silverWRX03/craft-conductor/wiki/Troubleshooting)**, and **Check my setup** on a server's Dashboard.
+- **[Power users](https://github.com/silverWRX03/craft-conductor/wiki/Power-Users)**: the command line, `mcsm.toml`, running it as a service, Linux
+  servers, Docker and more.
+- [What's new](CHANGELOG.md) · [Report a bug](https://github.com/silverWRX03/craft-conductor/issues/new/choose)
+
+## What Craft Conductor can't do
+
+- It can't make your computer reachable from the internet by itself: friends outside your home
+  need your **router's port forwarding** (Craft Conductor can set it up by itself with UPnP, or
+  shows you how), or a playit.gg tunnel.
+- It can't make mods work together when their authors haven't made them compatible. It can only
+  find out, tell you, and wait for updates.
+- It isn't a hosting service: the server runs on your computer, which has to be on for people to
+  play.
+- It doesn't collect usage data: no analytics, tracking, advertising or account. It isn't
+  affiliated with Mojang, Microsoft, Modrinth or CurseForge.
 
 ## How Craft Conductor uses the CurseForge API
 
@@ -712,166 +104,6 @@ an API key. It follows CurseForge's
 
 Craft Conductor isn't made or endorsed by CurseForge or Overwolf. Paper plugins come from Modrinth only.
 
-## Java
-
-By default (`[java] version = "auto"`) the server runs on the Java version that its
-Minecraft version asks for. Craft Conductor looks for it in this order:
-
-1. that exact version in `[java.versions]`,
-2. an mcsm-managed runtime in `.mcsm/java/`,
-3. your system `java`, if it's exactly that version,
-4. a fresh download of Eclipse Temurin (turn this off with `auto_install = false`).
-
-| Command | What it does |
-|---|---|
-| `mcsm java list` | managed and configured runtimes, and which one the server uses |
-| `mcsm java install 21 17` | download Temurin runtimes |
-| `mcsm java update` | move managed runtimes to their newest patch release (server stopped) |
-| `mcsm java use 21` | always run on Java 21 (must be at least what Minecraft needs) |
-| `mcsm java use auto` | go back to following the Minecraft version |
-| `mcsm java remove 17` | delete a managed runtime |
-
-When a Minecraft upgrade needs a newer Java, it's downloaded during staging, before
-the server is stopped.
-
-## Running it forever
-
-`mcsm run` is a foreground supervisor, so run it under systemd (see
-[`examples/mcsm.service`](examples/mcsm.service)), tmux or screen. While it's running:
-
-| Command | What it does |
-|---|---|
-| `mcsm update` | ask the running daemon to check and apply updates right now |
-| `mcsm update --to 1.21.4` | ask it to move to one specific version |
-| `mcsm cmd say hello` | send a console command over RCON (enable RCON in `server.properties`) |
-| `mcsm status` | installed versions, mods, anything skipped, failed attempts |
-| `mcsm stop` | stop the server gracefully and exit the daemon |
-| `mcsm run --web` | same, plus the [web UI](#web-ui) |
-
-When the server isn't running, `mcsm update` does the upgrade and a test boot itself.
-
-## Configuration
-
-`mcsm init` writes a commented `mcsm.toml`. The important parts:
-
-```toml
-[server]
-loader = "fabric"
-memory = "6G"
-find_lag = true                  # when it keeps lagging with players on, find out why by itself
-
-[updates]
-strategy = "latest-compatible"   # or "latest" (wait for the newest release) or "mods-only"
-mod_channel = "release"          # accept "beta"/"alpha" mod builds too
-check_interval = "6h"
-warn_minutes = [10, 5, 1]
-wait_for_empty = false
-verify_boot = true
-wait_for_all_mods = true         # a new Minecraft only once every mod supports it
-remind_days = 30                 # then remind you monthly about the mods still behind
-rehearse = false                 # try a new Minecraft on a copy of the server before updating by itself
-
-[backups]
-keep = 10
-copy_to = "/media/usb/mcsm-backups"   # also copy every backup here (optional)
-
-[schedule]                       # cron: minute hour day month weekday (local time); "" = off
-restart = "0 4 * * *"            # every day at 4:00, after the in-game countdown
-backup = "0 */6 * * *"           # every 6 hours
-restart_when_empty = false       # skip a scheduled restart while players are online
-
-[java]
-version = "auto"                 # or force a major version, e.g. 21
-auto_install = true              # download Temurin when the needed version is missing
-
-[downloads]
-manual_dir = "manual-downloads"  # drop blocked CurseForge files here
-
-[notify]
-discord_webhook = "https://discord.com/api/webhooks/..."
-
-[[mods]]
-source = "modrinth"
-id = "lithium"
-required = true
-```
-
-### Strategies
-
-- **`latest-compatible`** (default): move to the newest release that everything supports,
-  even if it isn't the very latest. For example, you might go 1.21.1 → 1.21.3 while
-  a mod still lacks 1.21.4.
-- **`latest`**: only ever jump straight to the newest release, once everything supports it.
-- **`mods-only`**: pin the Minecraft version and just keep mods and the loader updated.
-
-## How an upgrade works
-
-1. **Plan:** for each candidate release, find the newest loader build and the newest
-   acceptable file for every mod and dependency.
-2. **Stage:** make sure any manual downloads are present, get the right Java, download
-   everything into `.mcsm/staging/`, verify hashes, and run the loader installer. If anything fails here, the live server hasn't been touched.
-3. **Warn and stop:** in-game countdown, then a graceful `stop`.
-4. **Back up** the server directory to `backups/` (old backups are pruned).
-5. **Swap:** remove the old managed mod jars and loader files, then move the new ones in.
-6. **Verify:** boot the server and wait for `Done (…)!`.
-7. **Commit or roll back:** on success, record the new state in `mcsm.lock.json`. On
-   failure, restore the backup, restart the old version, and remember the failed
-   combination.
-
-> World upgrades are one-way: once a world has been opened in a newer Minecraft
-> version, older versions can't load it. That's why every upgrade makes a full backup
-> first. `mcsm restore` puts back the latest one (or a named one).
-
-## Testing a build before a release
-
-- **Test builds:** every CI run builds the Windows, macOS and Linux executables. Open
-  the run under the repository's **Actions** tab (workflow **test**), scroll to
-  **Artifacts**, and download `test-build-…` for your system. It's a zip containing the
-  executable; you need to be signed in to GitHub.
-- **CurseForge key in releases (optional):** like Prism Launcher, release builds can carry
-  the project's own CurseForge API key so people don't need one. Add it as the repository
-  secret `CURSEFORGE_API_KEY` (Settings → Secrets and variables → Actions); the release
-  workflow writes it into the executables at build time
-  ([`packaging/write_build_keys.py`](packaging/write_build_keys.py)) and it never goes in the
-  source. A key someone enters in Craft Conductor settings always takes priority. Use a key CurseForge
-  issued for Craft Conductor as an app, since anything inside a program can be dug out of it.
-- **Real end-to-end test:** the **e2e** workflow ([`packaging/e2e_test.py`](packaging/e2e_test.py))
-  uses a built executable against the real services:
-  - it creates real Fabric, NeoForge, Forge, Paper and vanilla servers with real Modrinth
-    mods, downloads Java, and boots Minecraft;
-  - it upgrades the Fabric server to the newest version its mods support;
-  - it drives the web UI, RCON and player commands, then stops cleanly.
-
-  It runs on Linux, plus Fabric on Windows and macOS, on every pull request and every
-  Monday. You can also start it by hand under **Actions → e2e → Run workflow**.
-
-## Releasing (for maintainers)
-
-1. Set `__version__` in `src/mcsm/__init__.py`, e.g. `"0.2.0"`, and merge it to `main`.
-2. Go to **Actions → release → Run workflow**, enter `0.2.0`, and run it. This creates
-   the `v0.2.0` tag for you. Pushing the tag yourself works too:
-   `git tag v0.2.0 && git push origin v0.2.0`.
-3. The [release workflow](.github/workflows/release.yml) tests the code and builds the
-   Windows, macOS and Linux executables with [PyInstaller](https://pyinstaller.org). It
-   smoke-tests each one on its own OS, then publishes a GitHub release with the
-   executables, the friends' `craft-conductor-join-...` copies of them, the Python wheel, and
-   `SHA256SUMS.txt`, then publishes the invite page (it links to those downloads).
-4. Running copies of mcsm notice the release within a day and offer to update.
-
-To build an executable yourself:
-
-- **Linux:** `packaging/build_linux.sh`. It uses a portable Python from
-  [python-build-standalone](https://github.com/astral-sh/python-build-standalone), so
-  the result runs on glibc 2.17+ and not just on your own distribution.
-  `packaging/check_linux_compat.sh dist/mcsm` proves it in a CentOS 7 container.
-- **Windows or macOS:** `pip install pyinstaller && pyinstaller packaging/mcsm.spec`.
-- Then run `python packaging/smoke_test.py dist/mcsm` (or `dist/mcsm.exe`).
-
-The executables aren't code-signed yet, which is why Windows and macOS show warnings.
-Windows signing through SignPath Foundation (free for open source) is ready in the release
-workflow and switches on once the project is accepted: see [docs/code-signing.md](docs/code-signing.md).
-macOS needs an Apple Developer ID ($99/year) and notarization.
-
 ## Development
 
 ```sh
@@ -879,55 +111,11 @@ pip install -e ".[dev]"
 pytest
 ```
 
-The test suite runs the full install → upgrade → crash → rollback cycle against a fake
-`java` and a fake server, so it needs no network and no Minecraft.
-
-### Roadmap ideas
-
-In priority order (the working list, with what's done, is [TODO.md](TODO.md)):
-
-1. Limits per server (memory, CPU)
-2. Other tunnel services (Cloudflare Tunnel, Tailscale Funnel)
-3. Purpur servers (Paper with plugins from Modrinth and Hangar is supported)
-4. Scripting hooks and API tokens
-5. Shared, opt-in memory of mods that don't work together
-6. Proxy networks (Velocity)
-7. A translated user manual
-8. Servers on hosting sites that have an official API (Pterodactyl)
-9. A native phone app (today the control panel works as a web app on your phone's home screen)
+The tests run the full install → upgrade → crash → rollback cycle against a fake `java` and a
+fake server, so they need no network and no Minecraft. See [For maintainers](https://github.com/silverWRX03/craft-conductor/wiki/For-Maintainers)
+for test builds and releases, and [TODO.md](TODO.md) for the roadmap.
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE), and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
-for the licenses of everything Craft Conductor uses or downloads.
-
-## Appendix: section links
-
-- [Mission](#mission)
-- [How it works](#how-it-works)
-- [Features](#features)
-- [What Craft Conductor does and doesn't do](#what-mcsm-does-and-doesnt-do)
-- [Download and run](#download-and-run)
-  - [What happens when you run it](#what-happens-when-you-run-it)
-  - [Playing with friends](#playing-with-friends)
-  - [With Python instead](#with-python-instead)
-  - [Linux servers (headless, over SSH)](#linux-servers-headless-over-ssh)
-  - [Windows and macOS in the background](#windows-and-macos-in-the-background)
-- [Quick start: build a new server](#quick-start-build-a-new-server)
-- [Migrating an existing server (e.g. from autoMCS)](#migrating-an-existing-server-eg-from-automcs)
-- [Web UI](#web-ui)
-- [Remote access and phones](#remote-access-and-phones)
-- [Managing players](#managing-players)
-- [Updating Craft Conductor itself](#updating-mcsm-itself)
-- [Mods that block third-party downloads](#mods-that-block-third-party-downloads)
-- [How Craft Conductor uses the CurseForge API](#how-mcsm-uses-the-curseforge-api)
-- [Java](#java)
-- [Running it forever](#running-it-forever)
-- [Configuration](#configuration)
-  - [Strategies](#strategies)
-- [How an upgrade works](#how-an-upgrade-works)
-- [Testing a build before a release](#testing-a-build-before-a-release)
-- [Releasing (for maintainers)](#releasing-for-maintainers)
-- [Development](#development)
-  - [Roadmap ideas](#roadmap-ideas)
-- [License](#license)
+Apache-2.0. See [LICENSE](LICENSE), and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the
+licenses of everything Craft Conductor uses or downloads.
