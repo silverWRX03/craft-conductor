@@ -209,7 +209,7 @@ def _client(c: dict) -> ClientConfig:
         raise ConfigError("client.mods must be a list of Modrinth project ids or slugs")
     token = str(c.get("token", ""))
     if token and not re.fullmatch(r"[A-Za-z0-9_-]{16,64}", token):
-        raise ConfigError("client.token looks wrong; delete it and mcsm makes a new one")
+        raise ConfigError("client.token looks wrong; delete it and Craft Conductor makes a new one")
     memory = int(c.get("memory_gb", 4))
     if not 1 <= memory <= 32:
         raise ConfigError("client.memory_gb must be between 1 and 32")
@@ -313,7 +313,7 @@ def parse(root: Path, data: dict) -> Config:
 
 
 TEMPLATE = """\
-# mcsm configuration - https://github.com/silverWRX03/mc-server-management
+# Craft Conductor configuration - https://github.com/silverWRX03/craft-conductor
 
 [server]
 dir = "server"                 # server directory (world, config/, mods/, server.properties)
@@ -368,7 +368,7 @@ default = "java"               # a system Java to use if it is exactly the right
 discord_webhook = ""
 
 [mcsm]
-update_check = true            # tell you when a new version of mcsm is out (it never installs without asking)
+update_check = true            # tell you when a new version of Craft Conductor is out (it never installs without asking)
 
 [web]
 enabled = false                # or start with `mcsm run --web`
@@ -378,7 +378,7 @@ password = ""                  # empty = starts as PASSWORD and you choose your 
 # allowed_hosts = ["mc.example.com"]  # host names used to reach the panel through a reverse proxy
 
 [downloads]
-# Some CurseForge authors block third-party downloads. mcsm prints a link for each;
+# Some CurseForge authors block third-party downloads. Craft Conductor prints a link for each;
 # download the file and drop it in this folder (or straight into mods/), then update again.
 manual_dir = "manual-downloads"
 

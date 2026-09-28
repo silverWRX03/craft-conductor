@@ -1,4 +1,4 @@
-"""Makes mcsm's icons from the artwork (packaging/icon-source.jpg: the stone "MCSM" letters on
+"""Makes Craft Conductor's icons from the artwork (packaging/icon-source.jpg, made by icon_letters.py: stone "CC" on
 lava-cracked bricks in a metal frame), with the white around it made transparent.
 
     pip install pillow && python packaging/icon_from_picture.py

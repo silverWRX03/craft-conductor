@@ -23,7 +23,7 @@ async function api(path, body) {
   if (!res.ok) { const e = new Error(data.error || res.statusText); e.data = data; e.status = res.status; throw e; }
   return data;
 }
-function toast(message, bad = false) {  // (top centre, like mcsm's control panel; click to dismiss)
+function toast(message, bad = false) {  // (top centre, like Craft Conductor's control panel; click to dismiss)
   const el = h("div", { class: "toast" + (bad ? " bad" : ""), role: bad ? "alert" : "status", onclick: () => el.remove() },
     h("span", { class: "toast-icon", "aria-hidden": "true" }, bad ? "⚠" : "✓"), h("span", {}, message));
   $("#toasts").append(el);
@@ -38,7 +38,7 @@ let extras = { items: [], kinds: {} };
 
 // ---------------------------------------------------------- your extras
 // Shaders, resource packs and more mods on top of the server's own, picked from Modrinth in a
-// panel that slides in (like mcsm's mod browser); mods bring what they need along.
+// panel that slides in (like Craft Conductor's mod browser); mods bring what they need along.
 const KIND = { shader: ["Shaders", "✨", "shaders"], resourcepack: ["Resource packs", "🎨", "resource packs"], mod: ["More mods", "🧩", "mods"] };
 function extrasCard() {
   const list = h("div", { id: "extras-list" });
@@ -76,7 +76,7 @@ function extrasCard() {
     h("div", { class: "row wrap" }, buttons),
     list);
 }
-// Laid out like mcsm's mod browser: search, sort and category at the top left, the results
+// Laid out like Craft Conductor's mod browser: search, sort and category at the top left, the results
 // (tick the ones you want) below, "Add selected" pinned at the bottom, and the picked
 // project's page on the right; the list scrolls on its own.
 function openPicker(kind) {
@@ -97,7 +97,7 @@ function openPicker(kind) {
   const icon = (src, cls) => src ? h("img", { src, alt: "", loading: "lazy", referrerpolicy: "no-referrer", class: cls })
     : h("div", { class: "noicon" });
 
-  // What a ticked one brings along (shown before adding, like mcsm's mod browser).
+  // What a ticked one brings along (shown before adding, like Craft Conductor's mod browser).
   const needs = async (m) => {
     if (m.deps) return;
     if (kind !== "mod") { m.deps = kind === "shader" && !(extras.deps || []).some((d) => d.needed_by === "your shaders") ? ["a shader loader (Iris)"] : []; updateFooter(); return; }
@@ -251,7 +251,7 @@ function renderAskInvite(error) {
   $("#join").replaceChildren(
     h("div", { class: "card" }, h("h1", {}, "Join a friend's Minecraft server"),
       h("p", { class: "muted" }, "Open the invite link you were sent, press ", h("strong", {}, "Copy the invite"),
-        " there, and paste it here (or paste the whole link). mcsm checks it's really their server, then sets up your game."),
+        " there, and paste it here (or paste the whole link). Craft Conductor checks it's really their server, then sets up your game."),
       info.copied_invite ? h("div", { class: "notice mt-s" }, "Found the invite you copied.") : null,
       h("form", { class: "row mt", onsubmit: (e) => { e.preventDefault(); if (input.value.trim()) use(input.value.trim(), go); } },
         h("div", { class: "grow" }, input), go),
@@ -265,13 +265,13 @@ function renderAskInvite(error) {
         return h("li", {}, h("div", { class: "grow" }, h("strong", {}, r.name), " ", state), b);
       }))) : null,
     h("div", { class: "card" }, h("h2", {}, "Or run a Minecraft server of your own"),
-      h("p", { class: "muted small" }, "mcsm sets one up on this computer and keeps it and its mods up to date."),
+      h("p", { class: "muted small" }, "Craft Conductor sets one up on this computer and keeps it and its mods up to date."),
       h("button", { class: "btn", onclick: async () => {
         await api("api/own-server", {}).catch(() => null);
-        $("#join").replaceChildren(h("div", { class: "card" }, h("h1", {}, "Opening mcsm's control panel…"),
+        $("#join").replaceChildren(h("div", { class: "card" }, h("h1", {}, "Opening Craft Conductor's control panel…"),
           h("p", { class: "muted" }, "It opens in a new tab in a moment. You can close this one.")));
       } }, "Run my own server")),
-    h("p", { class: "muted small center" }, "Need help? ", h("a", { href: "https://github.com/silverWRX03/mc-server-management/blob/main/src/mcsm/webui/manual.md#for-friends-joining-a-server",
+    h("p", { class: "muted small center" }, "Need help? ", h("a", { href: "https://github.com/silverWRX03/craft-conductor/blob/main/src/mcsm/webui/manual.md#for-friends-joining-a-server",
       target: "_blank", rel: "noopener noreferrer" }, "The user manual: joining a server ↗")));
   input.focus();
   if (info.remembered.length) checkRemembered();
@@ -299,7 +299,7 @@ function askToJoinCard() {
     btn.disabled = true;
     try {
       const r = await api("api/ask-to-join", { name: v });
-      toast({ asked: `Asked. When the owner allows ${v} in their mcsm, you can join.`, "already allowed": `${v} is already allowed in.`,
+      toast({ asked: `Asked. When the owner allows ${v} in their Craft Conductor, you can join.`, "already allowed": `${v} is already allowed in.`,
         "slow down": "Wait a few seconds and try again." }[r.result] || "Asked.", r.result === "slow down");
     } catch (e) { toast(e.message, true); }
     btn.disabled = false;
@@ -352,7 +352,7 @@ function render() {
         (p.loader_version && p.loader !== "vanilla" ? ` ${p.loader_version}` : "") +
         (p.mods.length ? ` and ${p.mods.length} mod${p.mods.length === 1 ? "" : "s"} you need too.` : ".")),
       p.mods.length ? h("details", {}, h("summary", {}, "Show the mods"), h("ul", { class: "small" }, p.mods.map((m) => h("li", {}, m)))) : null,
-      h("p", { class: "muted small" }, "mcsm downloads Minecraft's mods straight from Modrinth and CurseForge, checks every file, " +
+      h("p", { class: "muted small" }, "Craft Conductor downloads Minecraft's mods straight from Modrinth and CurseForge, checks every file, " +
         "and keeps them in a folder of their own: your other worlds and installations aren't touched. It never asks for your " +
         "Microsoft password; your launcher signs you in.")),
     extrasCard(),
@@ -412,7 +412,7 @@ function showResults(results) {
     ok.length ? h("div", { class: "notice mt" }, h("strong", {}, "Next: "),
       `pick "${p.name}" in your launcher and press Play. ` +
       (p.quick_play ? "Minecraft joins the server by itself." : `Then choose Multiplayer: ${p.name} is in the list.`) +
-      " If the server updates later, open mcsm again and pick it under “Servers you've joined” to update your mods.") : null,
+      " If the server updates later, open Craft Conductor again and pick it under “Servers you've joined” to update your mods.") : null,
     h("div", { class: "row mt" }, h("button", { class: "btn", onclick: async () => {
       await api("api/quit", {}).catch(() => null);
       document.body.replaceChildren(h("main", { class: "join" }, h("div", { class: "card" }, h("h1", {}, "All done"),
@@ -424,15 +424,15 @@ async function load() {
   try { info = await api("api/info"); } catch (e) { info = { pack: null, error: e.message, launchers: [] }; }
   if (info.pack) extras = await api("api/extras").catch(() => extras);
   render();
-  if (info.pack && (info.running || info.finished)) {  // the tab was closed and mcsm opened it again
+  if (info.pack && (info.running || info.finished)) {  // the tab was closed and Craft Conductor opened it again
     const go = document.querySelector("form button[type=submit]");
     if (go && info.running) go.disabled = true;
     poll();
     $("#progress").scrollIntoView({ block: "start" });
   }
 }
-// Closing the tab doesn't stop mcsm, but while it's setting up Minecraft, check first.
-// (Opening mcsm again, or "Open in mcsm" on the invite page, brings this page back.)
+// Closing the tab doesn't stop Craft Conductor, but while it's setting up Minecraft, check first.
+// (Opening Craft Conductor again, or "Open in Craft Conductor" on the invite page, brings this page back.)
 window.addEventListener("beforeunload", (e) => { if (setupRunning) { e.preventDefault(); e.returnValue = ""; } });
 setInterval(() => fetch(`api/progress?since=${seen}`).catch(() => null), 30000);  // "still open"
 // The page's language: the browser's, or one picked here (kept in this browser). See i18n.js.

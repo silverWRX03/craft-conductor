@@ -138,17 +138,24 @@ jobs:
         with:
           path: release
           merge-multiple: true
-      - name: The friends' downloads
-        # The same mcsm under a name of its own: it opens straight into joining a server (and
-        # updates itself under that name). The invite page offers these.
+      - name: The downloads under Craft Conductor's name, and the friends' downloads
+        # craft-conductor-<system>: the downloads people pick. The mcsm-<system> files (the names
+        # the builds have) stay too, so copies of mcsm from before the rename can still update
+        # themselves. The friends' downloads are the same program under a name of its own: it opens
+        # straight into joining a server (and updates itself under that name); the invite page
+        # offers these.
         working-directory: release
         run: |
-          for f in mcsm-windows-* mcsm-macos-* mcsm-linux-*; do cp "$f" "mcsm-join-${f#mcsm-}"; done
+          for f in mcsm-windows-* mcsm-macos-* mcsm-linux-*; do
+            cp "$f" "craft-conductor-${f#mcsm-}"
+            cp "$f" "craft-conductor-join-${f#mcsm-}"
+            cp "$f" "mcsm-join-${f#mcsm-}"
+          done
           ls -l
       - name: Checksums
         working-directory: release
         run: |
-          chmod +x mcsm-linux-* mcsm-macos-* mcsm-join-linux-* mcsm-join-macos-* || true
+          chmod +x mcsm-linux-* mcsm-macos-* mcsm-join-linux-* mcsm-join-macos-* craft-conductor-*linux-* craft-conductor-*macos-* || true
           sha256sum * > SHA256SUMS.txt
           cat SHA256SUMS.txt
       - uses: softprops/action-gh-release@v2
@@ -156,33 +163,36 @@ jobs:
           # From "Run workflow" this also creates the tag, on the commit that was built.
           tag_name: ${{ env.TAG }}
           target_commitish: ${{ github.sha }}
-          name: mcsm ${{ env.TAG }} (beta)
+          name: Craft Conductor ${{ env.TAG }} (beta)
           files: release/*
           generate_release_notes: true
           body: |
-            > **mcsm is in beta.** It's used and tested, but it's still young: expect rough edges, keep backups
-            > (mcsm makes one before every update), and please [report problems](https://github.com/silverWRX03/mc-server-management/issues/new/choose).
+            > **Craft Conductor (formerly mcsm) is in beta.** It's used and tested, but it's still young: expect rough
+            > edges, keep backups (it makes one before every update), and please [report problems](https://github.com/silverWRX03/craft-conductor/issues/new/choose).
 
-            **What's new:** see the [changelog](https://github.com/silverWRX03/mc-server-management/blob/main/CHANGELOG.md).
+            **What's new:** see the [changelog](https://github.com/silverWRX03/craft-conductor/blob/main/CHANGELOG.md).
 
             ## Download
 
             | Your computer | File |
             |---|---|
-            | Windows 10/11 (64-bit) | `mcsm-windows-x64.exe` |
-            | Mac with Apple silicon (M1 or newer) | `mcsm-macos-arm64` |
-            | Linux (64-bit Intel/AMD) | `mcsm-linux-x64` |
-            | Linux on ARM (e.g. Raspberry Pi 4/5, 64-bit OS) | `mcsm-linux-arm64` |
+            | Windows 10/11 (64-bit) | `craft-conductor-windows-x64.exe` |
+            | Mac with Apple silicon (M1 or newer) | `craft-conductor-macos-arm64` |
+            | Linux (64-bit Intel/AMD) | `craft-conductor-linux-x64` |
+            | Linux on ARM (e.g. Raspberry Pi 4/5, 64-bit OS) | `craft-conductor-linux-arm64` |
             | Anything else, with Python 3.11+ | `pipx install` the `.whl` file |
 
-            **Joining a friend's server?** Use their invite link, or the `mcsm-join-...` file for your computer:
-            the same mcsm, opening straight into setting up Minecraft for their server.
+            **Joining a friend's server?** Use their invite link, or the `craft-conductor-join-...` file for your
+            computer: the same program, opening straight into setting up Minecraft for their server.
+
+            The `mcsm-...` files are the same programs under their old names, for copies of mcsm from before the
+            rename to update themselves: you don't need them.
 
             No Python needed for the executables. See the README's "Download and run" section.
-            `SHA256SUMS.txt` lets you verify your download; mcsm's built-in updater checks it automatically.
+            `SHA256SUMS.txt` lets you verify your download; the built-in updater checks it automatically.
 
   invite-page:
-    # The invite page links to this release's downloads (the friends' mcsm-join files), so it's
+    # The invite page links to this release's downloads (the friends' craft-conductor-join files), so it's
     # published once they exist.
     needs: publish
     permissions:

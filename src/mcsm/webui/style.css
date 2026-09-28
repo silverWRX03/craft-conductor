@@ -711,3 +711,5 @@ html { zoom: var(--zoom); }
 .sp-mod { display: inline-flex; align-items: center; gap: 2px; font-size: 12px; }
 .sp-results .result { display: flex; gap: 10px; align-items: center; }
 .sp-check { margin-top: 8px; }
+.row.wrap { flex-wrap: wrap; }
+.row.wrap > p.grow { min-width: min(100%, 260px); }

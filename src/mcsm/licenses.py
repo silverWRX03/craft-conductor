@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-PROJECT = ("mcsm (mc-server-management)", "Apache-2.0",
-           "https://github.com/silverWRX03/mc-server-management/blob/main/LICENSE")
+PROJECT = ("Craft Conductor (formerly mcsm)", "Apache-2.0",
+           "https://github.com/silverWRX03/craft-conductor/blob/main/LICENSE")
 
 # (name, how mcsm uses it, license, link)
 RUNTIME = [
-    ("Python and its standard library", "runs mcsm; mcsm has no other runtime dependencies",
+    ("Python and its standard library", "runs Craft Conductor; Craft Conductor has no other runtime dependencies",
      "PSF-2.0", "https://docs.python.org/3/license.html"),
 ]
 
@@ -42,7 +42,7 @@ DOWNLOADED = [
     ("NeoForge", "the neoforge loader", "LGPL-2.1", "https://github.com/neoforged/NeoForge"),
     ("Minecraft Forge", "the forge loader", "LGPL-2.1", "https://github.com/MinecraftForge/MinecraftForge"),
     ("Paper", "the paper server", "GPL-3.0 (with MIT parts)", "https://github.com/PaperMC/Paper"),
-    ("Eclipse Temurin (OpenJDK)", "the Java runtime, when mcsm manages Java", "GPL-2.0 with Classpath Exception",
+    ("Eclipse Temurin (OpenJDK)", "the Java runtime, when Craft Conductor manages Java", "GPL-2.0 with Classpath Exception",
      "https://adoptium.net/about/"),
     ("Chunky", "generates the world for map previews (downloaded into a throwaway server)", "GPL-3.0",
      "https://github.com/pop4959/Chunky"),
@@ -61,7 +61,7 @@ SERVICES = [
     ("Fabric / Quilt / NeoForge / Forge metadata and maven servers", "see each project above"),
     ("PaperMC API (Paper servers)", "https://papermc.io/"),
     ("Adoptium API", "https://adoptium.net/"),
-    ("GitHub API (mcsm's own releases)", "https://docs.github.com/en/site-policy/github-terms/github-terms-of-service"),
+    ("GitHub API (Craft Conductor's own releases)", "https://docs.github.com/en/site-policy/github-terms/github-terms-of-service"),
     ("Discord webhooks and bot API (only if you set them up)", "https://discord.com/terms"),
     ("Public IP lookups and the internet port test (ipify, ifconfig.co; only when you ask)", "https://www.ipify.org/"),
     ("playit.gg tunnels (only if you set one up; its own service and terms)", "https://playit.gg/"),
@@ -75,7 +75,7 @@ def as_text() -> str:
     lines += [f"  {n}: {lic}  ({use})  {url}" for n, use, lic, url in BUNDLED]
     lines += ["", "Used only for development:"]
     lines += [f"  {n}: {lic}  ({use})  {url}" for n, use, lic, url in DEVELOPMENT]
-    lines += ["", "Downloaded for you (never bundled or redistributed by mcsm):"]
+    lines += ["", "Downloaded for you (never bundled or redistributed by Craft Conductor):"]
     lines += [f"  {n}: {lic}  ({use})  {url}" for n, use, lic, url in DOWNLOADED]
     lines += ["", "Online services it talks to:"]
     lines += [f"  {n}  {url}" for n, url in SERVICES]

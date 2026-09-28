@@ -88,7 +88,7 @@ def run(m, state: str, *, total_gb: float | None = None, share: dict | None = No
             checks.append(Check("java", "Java", OK, f"Java {lk.java_major or 8} is ready ({java})."))
         except (JavaError, OSError) as e:
             checks.append(Check("java", "Java", WARN, f"Java {lk.java_major or 8} isn't on this computer yet ({e}).",
-                                "mcsm downloads it when the server starts; if that fails, see the Java page.",
+                                "Craft Conductor downloads it when the server starts; if that fails, see the Java page.",
                                 "java", f"Download Java {lk.java_major or 8} now"))
 
     # Memory
@@ -143,7 +143,7 @@ def run(m, state: str, *, total_gb: float | None = None, share: dict | None = No
         title = "Router port forwarding"
         if not upnp.get("enabled"):
             checks.append(Check("router", title, INFO, "Friends outside your home need the port forwarded on your router.",
-                                "Turn on Open ports on my router by itself (mcsm settings → Sharing with friends), or forward it by hand (Help → Router setup).",
+                                "Turn on Open ports on my router by itself (Craft Conductor settings → Sharing with friends), or forward it by hand (Help → Router setup).",
                                 "upnp", "Ask my router (UPnP)"))
         elif upnp.get("error"):
             checks.append(Check("router", title, WARN, f"Automatic port forwarding didn't work: {upnp['error']}.",
@@ -168,7 +168,7 @@ def run(m, state: str, *, total_gb: float | None = None, share: dict | None = No
         if not share.get("running"):
             checks.append(Check("share", "Friends' downloads", BAD, "The friends' download port isn't running" +
                                 (f": {share['error']}" if share.get("error") else "."),
-                                "mcsm settings → Sharing with friends: pick another port if it's busy, then reopen mcsm."))
+                                "Craft Conductor settings → Sharing with friends: pick another port if it's busy, then reopen Craft Conductor."))
         elif not share.get("address"):
             checks.append(Check("share", "Friends' downloads", INFO, f"Running on port {share.get('port')}. No public address is set.",
                                 "Friends outside your home need one: press Use my public IP on the Friends page.",
@@ -183,8 +183,8 @@ def run(m, state: str, *, total_gb: float | None = None, share: dict | None = No
 
     # mcsm itself
     if self_update and self_update.get("available"):
-        checks.append(Check("mcsm", "mcsm", INFO, f"mcsm {self_update.get('version')} is available (you have {__version__}).",
-                            "Update from the message at the top, or mcsm settings → Check for mcsm updates."))
+        checks.append(Check("mcsm", "mcsm", INFO, f"Craft Conductor {self_update.get('version')} is available (you have {__version__}).",
+                            "Update from the message at the top, or Craft Conductor settings → Check for Craft Conductor updates."))
     return checks
 
 
@@ -250,7 +250,7 @@ def report_zip(m, checks: list[Check], log_file) -> bytes:
     from .config import CONFIG_NAME
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr("README.txt", "mcsm diagnostic report. Secrets (invite tokens, keys, passwords, webhooks) were removed.\n"
+        z.writestr("README.txt", "Craft Conductor diagnostic report. Secrets (invite tokens, keys, passwords, webhooks) were removed.\n"
                    "Look through it before sharing it.\n")
         z.writestr("checks.json", json.dumps([asdict(c) for c in checks], indent=2))
         z.writestr("system.json", json.dumps({

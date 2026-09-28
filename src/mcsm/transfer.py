@@ -100,13 +100,13 @@ def read_manifest(archive: Path) -> dict:
     except zipfile.BadZipFile as e:
         raise TransferError("that file isn't a .zip, or it's damaged") from e
     if raw is None:
-        raise TransferError("that file isn't an mcsm server export (made with Export on a server's Settings page)")
+        raise TransferError("that file isn't an Craft Conductor server export (made with Export on a server's Settings page)")
     try:
         data = json.loads(raw)
     except ValueError as e:
         raise TransferError("the export's details are damaged") from e
     if not isinstance(data, dict) or data.get("format") != FORMAT:
-        raise TransferError("that export was made by a newer mcsm; update mcsm first")
+        raise TransferError("that export was made by a newer Craft Conductor; update Craft Conductor first")
     return data
 
 
@@ -138,7 +138,7 @@ def import_into(archive: Path, root: Path, say: Callable[[str], None] = log.info
                     continue
                 target = _member_target(root, member.filename)
                 if target is None:
-                    log.warning("skipped %s in the export (not a place mcsm writes to)", member.filename)
+                    log.warning("skipped %s in the export (not a place Craft Conductor writes to)", member.filename)
                     continue
                 target.parent.mkdir(parents=True, exist_ok=True)
                 with z.open(member) as src, open(target, "wb") as out:

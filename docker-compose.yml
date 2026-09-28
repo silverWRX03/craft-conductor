@@ -1,7 +1,7 @@
 # docker compose up -d   (then open http://<this computer>:8765 and sign in with the password below)
 services:
   mcsm:
-    image: ghcr.io/silverwrx03/mc-server-management:latest
+    image: ghcr.io/silverwrx03/craft-conductor:latest
     # build: .            # or build it from this folder
     container_name: mcsm
     restart: unless-stopped

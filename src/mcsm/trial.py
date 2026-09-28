@@ -169,7 +169,7 @@ class Trial:
     # ------------------------------------------------------------ internals
     def _prepare(self) -> None:
         spec = setupmod.SetupSpec.from_dict({
-            "loader": self.loader, "minecraft": self.minecraft, "motd": "mcsm test", "accept_eula": True,
+            "loader": self.loader, "minecraft": self.minecraft, "motd": "Craft Conductor test", "accept_eula": True,
             "memory_gb": 2, "port": self.hub.free_port(25590),
             "properties": {"level-type": "minecraft:flat", "generate-structures": "false", "view-distance": "3",
                            "simulation-distance": "3", "spawn-protection": "0"}})

@@ -145,7 +145,7 @@ class Manager:
         managed = {m.filename for m in self.lock.mods}
         on, off = set(self.unmanaged_jars()), set(self.disabled_jars())
         if name in managed:
-            raise UpgradeError(f"{name} is managed by mcsm: remove it from the list instead")
+            raise UpgradeError(f"{name} is managed by Craft Conductor: remove it from the list instead")
         if name not in on | off:
             raise UpgradeError(f"there's no {name} in the {self.mods_dir.name} folder")
         path, disabled = self.mods_dir / name, self.mods_dir / (name + ".disabled")

@@ -162,7 +162,7 @@ def check(address: str, motd: str, running: bool, pinger=ping) -> dict:
     except OSError as e:
         return {"status": "down", "checked": now, "detail": str(e),
                 "words": "Friends can't reach the server through playit.gg right now. Check that the playit program is "
-                         "running on this computer, and playit.gg's status page: an outage there is out of mcsm's hands."}
+                         "running on this computer, and playit.gg's status page: an outage there is out of Craft Conductor's hands."}
     if motd and motd.strip() and motd.strip() not in got["motd"]:
         return {"status": "wrong", "checked": now, "answer": got,
                 "words": f"The tunnel answers, but with another server (\"{got['motd'][:60]}\"): in playit.gg, point it at this server's port."}

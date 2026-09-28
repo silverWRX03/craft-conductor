@@ -23,8 +23,9 @@ def publish_binary(http, content: bytes, sums_content: bytes | None = None):
 
 
 def test_asset_names_cover_every_build():
-    assert selfupdate.asset_name() in {"mcsm-linux-x64", "mcsm-linux-arm64", "mcsm-macos-arm64",
-                                       "mcsm-macos-x64", "mcsm-windows-x64.exe", "mcsm-windows-arm64.exe"}
+    assert selfupdate.asset_name() in {"craft-conductor-linux-x64", "craft-conductor-linux-arm64", "craft-conductor-macos-arm64",
+                                       "craft-conductor-macos-x64", "craft-conductor-windows-x64.exe",
+                                       "craft-conductor-windows-arm64.exe"}
 
 
 def test_binary_is_replaced_after_checksum(tmp_path, http):
@@ -33,7 +34,7 @@ def test_binary_is_replaced_after_checksum(tmp_path, http):
     exe = folder / "mcsm"
     exe.write_bytes(b"old version")
     release = publish_binary(http, b"new version")
-    assert selfupdate.install_binary(release, exe, http) == "installed mcsm 0.2.0"
+    assert selfupdate.install_binary(release, exe, http) == "installed Craft Conductor 0.2.0"
     assert exe.read_bytes() == b"new version"
     if os.name != "nt":
         assert os.access(exe, os.X_OK)
@@ -205,9 +206,11 @@ def test_the_friends_download_opens_into_joining_and_updates_as_itself(monkeypat
     server (even where servers run), and updates itself to the mcsm-join file."""
     monkeypatch.setattr(selfupdate.sys, "frozen", True, raising=False)
     monkeypatch.setattr(selfupdate.sys, "executable", str(tmp_path / "mcsm-join-windows-x64 (1).exe"))
+    assert selfupdate.friend_build()  # (its name from before the rename)
+    assert selfupdate.asset_name().startswith("craft-conductor-join-")
+    assert selfupdate.asset_name(friend=False).startswith("craft-conductor-") and "join" not in selfupdate.asset_name(friend=False)
+    monkeypatch.setattr(selfupdate.sys, "executable", str(tmp_path / "craft-conductor-join-windows-x64.exe"))
     assert selfupdate.friend_build()
-    assert selfupdate.asset_name().startswith("mcsm-join-")
-    assert selfupdate.asset_name(friend=False).startswith("mcsm-") and "join" not in selfupdate.asset_name(friend=False)
     monkeypatch.setattr(cli, "default_home", lambda: tmp_path)
     (tmp_path / "servers").mkdir()  # this computer runs servers too
     assert cli._first_run_joining()

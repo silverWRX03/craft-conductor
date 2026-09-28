@@ -120,7 +120,7 @@ def test_login_is_rate_limited(running):
 def test_static_page_and_headers(running):
     _, c, _ = running
     status, body, headers = c.get("/")
-    assert status == 200 and "mcsm" in body
+    assert status == 200 and "Craft Conductor" in body
     assert "default-src 'self'" in headers["Content-Security-Policy"]
     assert headers["X-Frame-Options"] == "DENY"
     assert c.get("/app.js")[0] == 200

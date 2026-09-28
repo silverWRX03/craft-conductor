@@ -37,6 +37,7 @@ Before continuing or starting a feature, check this list: some features wait on 
 In priority order: the top one is next.
 
 Done:
+- [x] Renamed to Craft Conductor, with the new "CC" icon (0.16.0).
 - [x] Release 0.12.0 (router set up by itself, fix buttons, what went wrong, Quick start,
       checked backups and putting back an area).
 - [x] New icon from your picture, without the white around it.

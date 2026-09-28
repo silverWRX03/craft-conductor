@@ -1,7 +1,7 @@
 # mcsm in a container: the control panel and your Minecraft servers.
 #
 #   docker run -d --name mcsm -p 8765:8765 -p 25565:25565 -p 8798:8798 \
-#     -v mcsm-data:/data -e MCSM_LAN_IP=192.168.1.20 ghcr.io/silverwrx03/mc-server-management
+#     -v mcsm-data:/data -e MCSM_LAN_IP=192.168.1.20 ghcr.io/silverwrx03/craft-conductor
 #
 # Everything (servers, worlds, backups, the Java that mcsm downloads) lives in /data, so keep
 # that volume. See docs/docker.md.
