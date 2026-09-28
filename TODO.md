@@ -105,3 +105,8 @@ Next:
         Each device keeps its own settings, like Display. Never for moving with the keyboard, no
         stacking on quick presses, and never the only sign something happened. Check the iPhone
         silent switch on real phones.
+23. [ ] **One dashboard for several computers** (low priority): link other computers' Craft
+        Conductors to one (paired like a phone, with a key they can revoke, limited to Helper or
+        Viewer if wanted), list every server on every linked computer on one Servers page, and
+        get all their warnings and phone notifications in one place. Easier after 16 (API
+        tokens); shares the "servers on another machine" groundwork with 20.
