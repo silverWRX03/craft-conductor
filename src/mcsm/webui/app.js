@@ -1000,6 +1000,83 @@ function openReadiness(versions, installed) {
   load();
 }
 
+// Update rehearsal: the update tried on a copy of the server (world included) that runs for a
+// few minutes where nobody can join; then a report, and "Update for real".
+function rehearsalCard(c, applyNow, applyBtn) {
+  const el = h("div", { class: "card" });
+  const minutes = h("select", { "aria-label": "How long to watch the copy" },
+    [[1, "1 minute"], [3, "3 minutes"], [5, "5 minutes"], [10, "10 minutes"]].map(([n, label]) => h("option", { value: n, selected: n === 3 }, label)));
+  let timer = null;
+  const stat = (label, value, cls = "") => h("div", { class: "rehearsal-stat " + cls }, h("span", { class: "muted small" }, label), h("strong", {}, value));
+  const report = (r) => {
+    const cur = r.fingerprint === c.fingerprint;
+    const cm = r.complaints || { mods: [], other: { warnings: 0, errors: 0, examples: [] }, lag: { count: 0, worst_ms: 0 } };
+    const tps = r.tps_avg === null || r.tps_avg === undefined ? "not measured"
+      : `${r.tps_avg} TPS` + (r.tps_min !== null && r.tps_min < r.tps_avg ? ` (lowest ${r.tps_min})` : "");
+    const cls = { good: "ok", warn: "warn", bad: "bad" }[r.verdict] || "bad";
+    return h("div", {},
+      h("div", { class: "notice " + cls }, h("strong", {}, { good: "✓ ", warn: "⚠ ", bad: "✗ " }[r.verdict] || ""), t(r.summary || r.error || "")),
+      h("p", { class: "muted small" }, `Minecraft ${r.from || "?"} → ${r.to || "?"}, tried ${ago(r.finished)}` +
+        (cur ? "." : ". That was for an earlier version of this update: rehearse again to try this one.")),
+      r.started ? h("div", { class: "rehearsal-stats" },
+        stat("Started in", `${r.start_seconds} s`),
+        stat("Kept up", tps, r.tps_avg !== null && r.tps_avg < 18 ? "bad-text" : ""),
+        stat("Fell behind", cm.lag.count ? `${cm.lag.count} time(s), worst ${Math.round(cm.lag.worst_ms / 50)} ticks` : "never", cm.lag.count >= 3 ? "bad-text" : ""),
+        stat("Ran for", `${r.minutes} min`)) : null,
+      cm.mods.length ? h("div", { class: "mt-s" }, h("strong", {}, "Mods that complained in the log"),
+        h("ul", { class: "list" }, cm.mods.map((m) => h("li", {}, h("details", { class: "grow" },
+          h("summary", {}, h("strong", {}, m.name), " ",
+            m.errors ? h("span", { class: "tag bad" }, `${m.errors} error(s)`) : null, " ",
+            m.warnings ? h("span", { class: "tag" }, `${m.warnings} warning(s)`) : null),
+          h("pre", { class: "rehearsal-lines" }, m.examples.join("\n"))))))) : null,
+      cm.other.warnings + cm.other.errors ? h("details", { class: "mt-s" },
+        h("summary", { class: "muted small" }, `${cm.other.warnings + cm.other.errors} other warning(s) not about a particular mod`),
+        h("pre", { class: "rehearsal-lines" }, cm.other.examples.join("\n"))) : null,
+      r.diagnosis && r.diagnosis.suspects && r.diagnosis.suspects.length ? h("p", { class: "small" }, t("Suspects:") + " " + r.diagnosis.suspects.map((x) => x.name).join(", ")) : null,
+      r.last_lines ? h("details", { class: "mt-s" }, h("summary", { class: "muted small" }, "The copy's last lines"),
+        h("pre", { class: "rehearsal-lines" }, r.last_lines.join("\n"))) : null,
+      r.note ? h("p", { class: "muted small" }, r.note) : null,
+      cur ? h("div", { class: "row mt-s" },
+        h("button", { class: r.verdict === "bad" ? "btn danger" : "btn primary", onclick: applyNow }, r.verdict === "bad" ? "Update anyway" : "Update for real"),
+        h("span", { class: "muted small" }, r.verdict === "bad" ? "Not recommended: fix the problem first (update or remove the mod named)." : "The real update still makes a backup first.")) : null);
+  };
+  const render = (st) => {
+    const job = st.rehearsal && st.rehearsal.state === "running" ? st.rehearsal : null;
+    const last = st.rehearsal && st.rehearsal.state === "failed" ? st.rehearsal : null;
+    if (st.report && st.report.fingerprint === c.fingerprint && ["good", "warn"].includes(st.report.verdict)) {
+      applyBtn.textContent = t("Apply update") + " ✓";
+      applyBtn.title = t("It worked on a copy of the server");
+    }
+    fill(el, h("h3", {}, "Rehearse it on a copy first"),
+      h("p", { class: "muted small" }, "Try this update before it touches your server: mcsm copies the server and its world, installs the update on the copy and runs it for a few minutes where nobody can join. You get a report: did it start, did it keep up, which mods complained. This server keeps running and isn't changed; the copy is deleted afterwards."),
+      job ? h("div", {},
+        h("div", { class: "row" }, h("span", { class: "grow" }, t(job.step || "Getting ready…")),
+          h("button", { class: "link-btn", onclick: () => api("/api/updates/rehearsal/stop", { method: "POST" }).catch(() => null) }, "Stop")),
+        (() => { const bar = h("div", { class: "bar" + (job.progress === null ? " indeterminate" : "") }, h("div", { class: "bar-fill" }));
+          if (job.progress !== null) bar.firstChild.style.width = `${Math.round(job.progress * 100)}%`; return bar; })())
+        : h("div", { class: "row" }, h("label", { class: "row small" }, "Watch it for", minutes),
+          h("button", { class: "btn", onclick: start }, st.report ? "Rehearse again" : "Rehearse the update")),
+      last && last.result ? h("div", { class: "notice bad mt-s" }, t("The rehearsal couldn't be done:") + " " + last.result.error) : null,
+      st.report && !job ? h("div", { class: "mt-s" }, report(st.report)) : null);
+    if (job && !timer) timer = setInterval(poll, 2000);
+    if (!job && timer) { clearInterval(timer); timer = null; }
+  };
+  const poll = async () => {
+    if (timer && !el.isConnected) { clearInterval(timer); timer = null; return; }  // (the page moved on)
+    const st = await api("/api/updates/rehearsal").catch(() => null);
+    if (st) render(st);
+  };
+  async function start() {
+    const n = Number(minutes.value);
+    if (!(await ask(`Rehearse the update to Minecraft ${c.target}? Copying the server takes a moment (longer for a big world), ` +
+      `then the copy runs for ${n} minute(s). The computer works harder meanwhile, and it needs free disk space for the copy.`, { id: "rehearse-update", ok: "Rehearse" }))) return;
+    const r = await api("/api/updates/rehearsal", { method: "POST", body: { target: c.target, minutes: n } }).catch((e) => { toast(e.message, true); return null; });
+    if (r) poll();
+  }
+  poll();
+  return el;
+}
+
 views.updates = () => {
   const body = h("div");
   const load = async () => {
@@ -1026,14 +1103,15 @@ views.updates = () => {
       fill(body, card(null, h("p", {}, "No update check has run yet."), checkBtn), h("div", { class: "mt" }, betaCard));
       return;
     }
+    const applyNow = async () => {
+      const running = s.state === "running";
+      if (await ask(`Update to Minecraft ${c.target}?` + (running ? "\n\nPlayers get an in-game countdown, then the server restarts. A backup is made first and it rolls back automatically if the new version fails to start." : ""), { id: "update-minecraft", ok: "Update" }))
+        act(() => api("/api/updates/apply", { method: "POST", body: { target: c.target } }), "Update started");
+    };
     const applyBtn = h("button", {
-      class: "btn primary", disabled: c.up_to_date || !c.target || c.manual.length > 0,
-      onclick: async () => {
-        const running = s.state === "running";
-        if (await ask(`Update to Minecraft ${c.target}?` + (running ? "\n\nPlayers get an in-game countdown, then the server restarts. A backup is made first and it rolls back automatically if the new version fails to start." : ""), { id: "update-minecraft", ok: "Update" }))
-          act(() => api("/api/updates/apply", { method: "POST", body: { target: c.target } }), "Update started");
-      },
+      class: "btn primary", disabled: c.up_to_date || !c.target || c.manual.length > 0, onclick: applyNow,
     }, c.installed ? "Apply update" : "Install server");
+    const rehearseCard = c.installed && c.target && !c.up_to_date && !c.manual.length ? rehearsalCard(c, applyNow, applyBtn) : null;
 
     // Newer versions to explain, newest first (the blocked ones the check found, and the latest).
     const newer = [...new Set([c.latest, ...c.blocked.map((b) => b.minecraft)].filter((v) => v && v !== c.installed))];
@@ -1088,7 +1166,7 @@ views.updates = () => {
       summary,
       laggingNotice(c.lagging, c.installed, true),
       h("div", { class: "row mb mt-s" }, applyBtn, checkBtn, h("span", { class: "muted small" }, `Last checked ${ago(c.checked_at)}`)),
-      manual, changes, blocked, dropped, h("div", { class: "mt" }, betaCard));
+      manual, rehearseCard, changes, blocked, dropped, h("div", { class: "mt" }, betaCard));
   };
   fill($("#main"), h("h2", { class: "view-title" }, "Updates"), body);
   load();
@@ -1644,7 +1722,8 @@ views.settings = () => {
       h("div", { class: "grid mt-s" },
         chk("auto_upgrade", "Apply updates automatically (a new Minecraft only once every mod supports it)"),
         chk("wait_for_empty", "Wait until nobody is online"),
-        chk("verify_boot", "Test-boot and roll back on failure")),
+        chk("verify_boot", "Test-boot and roll back on failure"),
+        chk("rehearse", "Before a new Minecraft goes in by itself, try it on a copy of the server first")),
       h("h3", { class: "mt-l" }, "Server"),
       h("div", { class: "grid" },
         h("label", {}, "Memory (e.g. 6G)", txt("memory")),
@@ -1682,7 +1761,7 @@ views.settings = () => {
         strategy: f.strategy.value, mod_channel: f.mod_channel.value, check_interval: f.check_interval.value.trim(),
         warn_minutes: f.warn_minutes.value.split(",").map((x) => x.trim()).filter(Boolean).map(Number),
         auto_upgrade: f.auto_upgrade.checked, wait_for_empty: f.wait_for_empty.checked, verify_boot: f.verify_boot.checked,
-        memory: f.memory.value.trim(), backups_keep: Number(f.backups_keep.value), discord_webhook: f.discord_webhook.value.trim(),
+        rehearse: f.rehearse.checked, memory: f.memory.value.trim(), backups_keep: Number(f.backups_keep.value), discord_webhook: f.discord_webhook.value.trim(),
         port: Number(f.port.value),
         restart_on_crash: f.restart_on_crash.checked, aikar_flags: f.aikar_flags.checked,
         schedule_restart: sched.restart.value(), schedule_backup: sched.backup.value(),

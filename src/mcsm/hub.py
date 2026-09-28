@@ -982,6 +982,9 @@ class Hub:
                 self.discord_status(off=True)  # say mcsm is closed, rather than leave "online" up
             if self.map_session is not None:  # (a map's private server)
                 self.map_session.close()
+            for d in list(self.daemons.values()):  # (an update rehearsal's copy of a server)
+                if d.rehearsal is not None:
+                    d.rehearsal.close()
             if self.upnp_settings()["mapped"]:  # the servers stop: close the ports on the router too
                 try:
                     self._upnp_close()

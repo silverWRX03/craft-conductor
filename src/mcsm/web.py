@@ -1360,6 +1360,9 @@ class Api:
         post("/api/play-here", self.play_here)
         post("/api/world/replace", self.replace_world)
         post("/api/updates/remove-and-upgrade", self.remove_and_upgrade)
+        get("/api/updates/rehearsal", self.rehearsal_status)
+        post("/api/updates/rehearsal", self.start_rehearsal)
+        post("/api/updates/rehearsal/stop", self.stop_rehearsal)
         post("/api/mods/check", lambda q, b: self._check(b, client=False))
         post("/api/client/check", lambda q, b: self._check(b, client=True))
         post("/api/beta/test", self.test_beta)
@@ -2474,6 +2477,37 @@ class Api:
             return f"made a copy, \"{name} (beta {version})\", and is installing Minecraft {version} on it"
         return self._job("beta test copy", run)
 
+    def rehearsal_status(self, q, b) -> dict:
+        from . import rehearsal
+        r = self.d.rehearsal
+        return {"rehearsal": r.to_dict() if r else None, "report": rehearsal.load_report(self.m.config)}
+
+    def start_rehearsal(self, q, b) -> dict:
+        """Try the update on a copy of this server first (see rehearsal.py); the server isn't touched."""
+        from . import rehearsal
+        if not self.m.lock.installed:
+            raise ApiError(400, "the server isn't installed yet")
+        target = b.get("target") or None
+        if target is not None and not (isinstance(target, str) and re.fullmatch(r"[A-Za-z0-9._+ -]{1,40}", target)):
+            raise ApiError(400, "that isn't a Minecraft version")
+        minutes = b.get("minutes", rehearsal.WATCH_DEFAULT)
+        if not isinstance(minutes, int) or isinstance(minutes, bool) or not 1 <= minutes <= rehearsal.WATCH_MAX:
+            raise ApiError(400, f"watch the copy for 1 to {rehearsal.WATCH_MAX} minutes")
+        daemons = self.web.hub.daemons.values() if not self.web.hub.is_single else [self.d]
+        if any(d.rehearsal is not None and d.rehearsal.state == "running" for d in daemons):
+            raise ApiError(409, "an update rehearsal is already running; wait for it or stop it")
+        if self.d.job:
+            raise ApiError(409, f"busy: {self.d.job['name']} is running")
+        r = self.d.start_rehearsal(target, minutes)
+        return {"ok": True, "id": r.id}
+
+    def stop_rehearsal(self, q, b) -> dict:
+        r = self.d.rehearsal
+        if r is None or r.state != "running":
+            raise ApiError(404, "no rehearsal is running")
+        r.cancel.set()
+        return {"ok": True}
+
     def remove_and_upgrade(self, q, b) -> dict:
         lag = (self.d.last_check or {}).get("lagging")
         version, mods = str(b.get("version", "")), b.get("mods")
@@ -2610,6 +2644,7 @@ class Api:
         "check_interval": ("updates", "check_interval", str),
         "warn_minutes": ("updates", "warn_minutes", list),
         "wait_for_empty": ("updates", "wait_for_empty", bool),
+        "rehearse": ("updates", "rehearse", bool),
         "verify_boot": ("updates", "verify_boot", bool),
         "backups_keep": ("backups", "keep", int),
         "discord_webhook": ("notify", "discord_webhook", str),
@@ -2630,7 +2665,7 @@ class Api:
             "auto_upgrade": c.updates.auto_upgrade,
             "check_interval": f"{interval // 3600}h" if interval % 3600 == 0 else f"{interval // 60}m",
             "warn_minutes": c.updates.warn_minutes, "wait_for_empty": c.updates.wait_for_empty,
-            "verify_boot": c.updates.verify_boot, "backups_keep": c.backups.keep,
+            "verify_boot": c.updates.verify_boot, "rehearse": c.updates.rehearse, "backups_keep": c.backups.keep,
             "discord_webhook": c.discord_webhook,
             **self._schedule_info(),
             "tunnel_address": c.tunnel_address,

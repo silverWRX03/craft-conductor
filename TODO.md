@@ -37,7 +37,7 @@ Done:
 - [x] Release 0.13.0: explore the map preview (drag, zoom, make more land as you go).
 
 Next:
-1. [ ] **Update rehearsal:** before a Minecraft update, copy the server, update the copy and run
+1. [x] **Update rehearsal:** before a Minecraft update, copy the server, update the copy and run
        it for a few minutes; report whether it started, how laggy it was and which mods
        complained, then offer "Update for real".
 2. [ ] **Lag finder:** when the server slows down, run spark by itself and say what's wrong in

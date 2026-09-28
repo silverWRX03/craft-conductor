@@ -82,6 +82,9 @@ ready to update to Minecraft 1.21.4 with fabric 0.16.14:
   who's playing, edited as things change.
 - **Saved mod lists.** Keep a mod list under a name, switch to another and back, and move lists
   between servers as files.
+- **Update rehearsal.** Try an update on a copy of the server and its world first: it runs for a few
+  minutes where nobody can join, then a report says whether it started, how well it kept up and
+  which mods complained. Automatic updates to a new Minecraft can be rehearsed first too.
 - **World tools.** Game rules with explanations, a world border, and pre-generating terrain with
   Chunky so exploring doesn't lag.
 - **Rented servers too.** Install on a VPS over SSH; its control panel stays private, reached
@@ -741,6 +744,7 @@ wait_for_empty = false
 verify_boot = true
 wait_for_all_mods = true         # a new Minecraft only once every mod supports it
 remind_days = 30                 # then remind you monthly about the mods still behind
+rehearse = false                 # try a new Minecraft on a copy of the server before updating by itself
 
 [backups]
 keep = 10

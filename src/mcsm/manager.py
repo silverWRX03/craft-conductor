@@ -299,8 +299,11 @@ class Manager:
 
     # --------------------------------------------------------------- upgrade
     def apply(self, plan: Plan, server: ServerProcess | None = None, restart: bool = False,
-              verify: bool | None = None) -> Result:
+              verify: bool | None = None, make_backup: bool = True) -> Result:
         """Apply ``plan``. If ``server`` is running it is stopped first.
+
+        Without ``make_backup`` (a throwaway copy of a server, see rehearsal.py) no backup is made, and
+        a failed update isn't put back.
 
         With ``restart`` the upgraded (or rolled back) server is left running and
         returned in :attr:`Result.process`.
@@ -327,7 +330,7 @@ class Manager:
             server.stop(self.config.server.stop_timeout)
 
         archive = None
-        if self.server_dir.exists() and any(self.server_dir.iterdir()):
+        if make_backup and self.server_dir.exists() and any(self.server_dir.iterdir()):
             archive = backup.create(self.server_dir, self.config.backups.dir,
                                     f"before-{old_mc or 'install'}-to-{plan.minecraft}", self.config.backups.exclude)
             backup.copy_out(archive, self.config.backups.copy_to, self.config.root.name, self.config.backups.copy_keep)
@@ -348,7 +351,7 @@ class Manager:
             log.exception("update failed; rolling back")
             if proc is not None and proc.running:
                 proc.stop(self.config.server.stop_timeout)
-            return self._rollback(plan, title, e, archive, restart or was_running)
+            return self._rollback(plan, title, e, archive, (restart or was_running) and make_backup)
         finally:
             shutil.rmtree(self.staging_dir, ignore_errors=True)
 

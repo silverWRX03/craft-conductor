@@ -4,6 +4,12 @@ What changed in each version of mcsm, newest first. Bugs are listed the way you'
 them. Found a new one? [Report it](https://github.com/silverWRX03/mc-server-management/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.14.0 (2026-09-28)
+
+**Added**
+- **Update rehearsal** (Updates → **Rehearse it on a copy first**): an update is tried on a copy of the server and its world, which runs for a few minutes where nobody can join. The report says whether it started, how well it kept up, and which mods wrote warnings or errors; then **Update for real**. The server itself isn't touched.
+- A setting to rehearse automatic updates to a new Minecraft first (Settings → Updates): if the copy doesn't work, the update is held back and you're told.
+
 ## 0.13.0 (2026-09-28)
 
 **Added**

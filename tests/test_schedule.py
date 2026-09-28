@@ -83,3 +83,12 @@ def test_settings_and_the_daemon(hub_env, monkeypatch):
     monkeypatch.setattr(schedule.dt, "datetime", type("FakeNow", (dt.datetime,), {"now": classmethod(lambda cls: T.replace(hour=6))}))
     d._run_schedules()
     assert jobs == ["scheduled backup"]
+    # Due while another job runs (an update, a rehearsal): it's made afterwards, not skipped.
+    busy = [True]
+    monkeypatch.setattr(d, "submit", lambda name, fn, *a: (jobs.append(name), not busy[0])[1])
+    d._sched_last = T.replace(hour=5, minute=59)
+    d._run_schedules()
+    assert d._backup_owed
+    busy[0] = False
+    d._run_schedules()  # (nothing new is due by now)
+    assert not d._backup_owed and jobs == ["scheduled backup"] * 3
