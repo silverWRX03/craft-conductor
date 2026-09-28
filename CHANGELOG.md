@@ -4,6 +4,18 @@ What changed in each version of mcsm, newest first. Bugs are listed the way you'
 them. Found a new one? [Report it](https://github.com/silverWRX03/mc-server-management/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.15.0 (2026-09-28)
+
+**Added**
+- **Lag finder** (Dashboard → Performance → **Find what's causing lag**): 30 seconds of Minecraft's own profiler plus a look through the saved world say, in plain words, what's making the server lag (mobs, hoppers and other machines, making new land, a mod's things), where (by coordinates) and what to do. It also runs by itself when the server keeps falling behind while people play, and tells you (switch it off in Settings → Updates).
+- **Compare 10 seeds** (New server → World generation & map preview): maps of 10 random seeds side by side, to pick the one you like. It asks first, since it takes a while and works the computer hard.
+- **Snapshots:** every backup now notes the whole server (Minecraft version, mods, settings, mod configs, mcsm's settings). The Backups page says what changed since the backup before, and **Roll back to this** shows what it will undo, then puts all of it back, mod list and settings included.
+- **Guided setup:** a checklist from making your first server to a friend joining it, ticking itself as you go. The first time you use mcsm it asks (**Guide me** or **Skip**, asked only once); start it again any time from Help or the Servers page.
+- **Modded single-player games** (Servers page): pick a mod loader and mods, and mcsm puts the game into your launcher (Minecraft Launcher, Prism, Modrinth App or CurseForge) and keeps it up to date. Minecraft moves up once every mod supports the new version; your worlds are kept.
+
+**Fixed**
+- Backups made within the same second could be listed (and pruned) in the wrong order.
+
 ## 0.14.0 (2026-09-28)
 
 **Added**

@@ -333,6 +333,8 @@ class Manager:
         if make_backup and self.server_dir.exists() and any(self.server_dir.iterdir()):
             archive = backup.create(self.server_dir, self.config.backups.dir,
                                     f"before-{old_mc or 'install'}-to-{plan.minecraft}", self.config.backups.exclude)
+            from . import snapshots
+            snapshots.record(archive, self)
             backup.copy_out(archive, self.config.backups.copy_to, self.config.root.name, self.config.backups.copy_keep)
 
         proc = None

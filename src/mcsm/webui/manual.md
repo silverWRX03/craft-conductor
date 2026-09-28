@@ -34,6 +34,14 @@ If closing the tab would lose something that only lives in the page (an upload o
 
 > Joining a friend's server rather than running your own? See **For friends: joining a server** below.
 
+### The guided setup
+
+The first time you use mcsm, a message asks whether you'd like the **guided setup**: **Guide me**, or **Skip** (it isn't asked again). It's a checklist in a corner of the page, from making your first server to a friend joining it:
+
+1. **Make your server**, 2. **Start it**, 3. **Join it yourself**, 4. **Let friends reach it**, 5. **Invite a friend**, 6. **A friend joined**.
+
+Each step ticks itself as it happens (mcsm sees the server running, who has joined, the router or tunnel set up, the friends' download switched on). **Show me** opens the page for the next step; **I've done this** ticks the two steps mcsm can't always see. **–** hides it to a small button (press it to open it again), and **×** stops it. Start it again any time: **Help → Start the guided setup**, or **🧭 Guided setup** on the Servers page.
+
 ## Creating a server
 
 Go to **New server**. One step at a time:
@@ -70,6 +78,7 @@ The mods in these run on the server only, so friends join with plain Minecraft. 
 - **Move around the map:** drag it to move, and scroll (or press **+** and **−**) to zoom, from 4 pixels a block out to 32 blocks a pixel. **⌖ Back to spawn** brings you back. Where the land hasn't been made yet the map is checkered; press **Make this area** and the private server makes the land in view (it asks first when that takes more than a minute), or tick **Keep making the map as I move** and it makes the land as you go. The private server stays on while you explore, and stops by itself after five minutes of not being needed.
 - It takes a minute or two the first time (Minecraft and the mods are downloaded) and less for the next seeds with the same mods. Bigger maps and heavy mods take longer; **Stop** cancels it. You can close the panel and carry on: the map is there when you come back.
 - **Earlier maps** keeps the seeds you've looked at; **Use this seed** makes one the server's seed.
+- **Compare 10 seeds** makes maps of 10 random seeds one after another, with the same mods, so you can pick the one you like (lots of ocean, a big mountain range, a biome you're after). It asks first: it takes a while (each map is a new world) and the computer works hard meanwhile. The maps appear side by side as they're made; press one to look closer and **Use this seed**. **Stop comparing** keeps the maps made so far, and **← Back to the seeds compared** returns to them.
 - Maps need Minecraft 1.18 or newer, and aren't available for modpacks or imported worlds. Vanilla servers are previewed with Fabric, which makes exactly the same worlds.
 
 **5. Settings.** The server's name (shown in the multiplayer list), max players, difficulty, game mode, memory and port. Above 16 GB of memory, mcsm offers **Aikar's flags** (tuned garbage collection that avoids lag spikes). **Advanced settings** has the rest of Minecraft's server settings. The whitelist starts **off** (anyone with the address can join) until you turn it on.
@@ -96,6 +105,15 @@ Questions you'll meet again and again ("Stop the server?", "Quit mcsm?", "Update
 
 **Servers** lists every server with its state, version, players and port: **Start**, **Open**, **Delete**, and **Folder** (on the server's own computer). **Import a server...** adds one exported from another computer.
 
+### Modded single-player games
+
+Below the servers, **Modded single-player games** sets up modded Minecraft for playing on your own, and keeps it up to date. mcsm isn't a launcher: the game goes into the one you use (the Minecraft Launcher, Prism Launcher, the Modrinth App or CurseForge).
+
+- **+ New single-player game:** a name, the mod loader (Fabric, NeoForge, Forge or Quilt), the memory for the game, and the Minecraft version: a fixed one, or **The newest one all the mods support**. Search Modrinth and **Add** mods (only mods that run on players' computers are listed); mods they need are added by themselves. **Make the game**.
+- **Install…** shows what goes in, then **Put it in my launcher** opens the same page friends use to join a server (in a new tab, on this computer): pick your launchers, and add shaders or resource packs if you like.
+- **Check for updates** lists what an update changes (Minecraft, the loader, each mod), and **Update it in my launcher** brings it in. With **the newest one all the mods support**, the game moves to a new Minecraft once every mod is ready for it; until then it stays where it is and the mods still get their updates. Your worlds are kept: only the mods change.
+- **Edit** changes the name, mods, memory or Minecraft version (the mod loader stays once it's installed); **Delete** makes mcsm forget the game. The game and its worlds stay in your launcher.
+
 ## Dashboard
 
 **Start**, **Restart** and **Stop** are at the top of every server page. The Dashboard shows CPU and memory use, who's online, the console, the server's details and whether an update is ready. Stopping warns players and saves the world first.
@@ -105,6 +123,8 @@ Questions you'll meet again and again ("Stop the server?", "Quit mcsm?", "Update
 ### Performance
 
 While the server runs, **Performance** on the Dashboard shows how well it keeps up: **TPS** (ticks per second; 20 is smooth, under about 17 players feel lag) and, where the server reports it, **ms per tick** (under 50 keeps up), with a small graph of the last hour. mcsm asks the server now and then while the Dashboard is open (Minecraft 1.20.3 and newer, Paper, Forge and NeoForge can tell). When it's behind, **What slows a server down** lists the usual causes. With the **spark** mod installed, **Profile 30 s with spark** makes a detailed report of what the server spends its time on, and a link to it appears there.
+
+**Find what's causing lag** (while the server runs) watches the server for 30 seconds with Minecraft's own profiler, then looks through the saved world. The report says, in plain words, where each tick's time goes (mobs and other entities, machines like hoppers and furnaces, loading and making land, ...), which kinds cost most (cows, hoppers, a mod's machine; mods are named), and the busiest places by their coordinates ("around x 1208, z -392 in the Overworld: 410 in all (380 cow, ...)"), each with what to do about it. mcsm also does this by itself when the server keeps falling behind while people play (at most once an hour), and tells you (on Discord too, if set up); switch that off under Settings → Updates.
 
 ### Check my setup
 
@@ -159,7 +179,9 @@ mcsm checks for updates by itself and applies them when it's safe:
 
 ## Backups
 
-**Create backup** saves the server (worlds, mods, configs) as a `.tar.gz`, even while it runs. mcsm also backs up before every update. **Restore** puts a backup back (the server stops first). The newest 10 are kept (change it in Settings).
+**Create backup** saves the server (worlds, mods, configs) as a `.tar.gz`, even while it runs. mcsm also backs up before every update. The newest 10 are kept (change it in Settings).
+
+Each backup is a **snapshot** of the whole server: besides the files, mcsm notes the Minecraft version, the mods, the server's settings, its mod config files and mcsm's own settings for it. So the list says, for each backup, **what changed since the one before** (mods added, removed or updated, a new Minecraft, settings, config files, the world's size), and **Roll back to this** (with the server stopped) first lists exactly what it will undo, then puts all of it back: the world, the mods, the configs, and mcsm's settings and mod list. Backups made by mcsm before 0.15 only hold the files: **Restore** puts those back, and an update check then puts the mod list right.
 
 - **Can be restored:** each backup is read back right after it's made (every file, and the world's `level.dat`), and marked **✓ checked**, or says what's wrong with it (a message tells you too). **Check** reads an older one.
 - **Put back an area…** (with the server stopped) undoes damage in one place, like griefing or a creeper crater, and keeps everything else in the world as it is now. Type two opposite corners (the x and z numbers F3 shows in the game) and pick the Overworld, the Nether or the End. The chunks there go back to how they were in that backup: blocks, chests, animals and villagers; players' inventories don't change. mcsm backs up the world first, so you can undo it.

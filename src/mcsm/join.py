@@ -202,7 +202,9 @@ def validate_pack(pack: object, base: str | None = None) -> dict:
     lv = pack.get("loader_version")
     if loader != "vanilla" and not (isinstance(lv, str) and re.fullmatch(r"[A-Za-z0-9.+_-]{1,64}", lv)):
         raise JoinError("the server's mod loader version is missing")
-    if not isinstance(pack.get("address"), str) or not re.fullmatch(r"[A-Za-z0-9.:\[\]-]{1,260}", pack["address"]):
+    if pack.get("singleplayer") is True and pack.get("address") == "":
+        pass  # a single-player game (singleplayer.py): no server to join
+    elif not isinstance(pack.get("address"), str) or not re.fullmatch(r"[A-Za-z0-9.:\[\]-]{1,260}", pack["address"]):
         raise JoinError("the server's address is missing")
     # Mods to download by hand: shown as links on the friend's page, so https ones only.
     pack["manual"] = [m for m in pack.get("manual", []) if isinstance(m, dict) and isinstance(m.get("url"), str)
@@ -309,7 +311,7 @@ class Joiner:
         vid = f"mcsm-{slug}"
         data = {"id": vid, "inheritsFrom": base, "jar": pack["minecraft"], "type": "release",
                 "time": _now(), "releaseTime": _now()}
-        if _supports_quick_play(pack["minecraft"]):
+        if pack["address"] and _supports_quick_play(pack["minecraft"]):
             data["arguments"] = {"game": ["--quickPlayMultiplayer", pack["address"]]}
         _write_json(self.mc / "versions" / vid / f"{vid}.json", data)
         return vid
@@ -425,12 +427,13 @@ class Joiner:
         base = self.install_loader(pack)
         version = self.write_version(pack, base, slug)
         fetched, removed = self.sync_mods(pack, game_dir)
-        self.add_server(pack, game_dir)
+        if pack["address"]:
+            self.add_server(pack, game_dir)
         self.write_profiles(files, pack, slug, version, game_dir)
         opened = self.open_launcher() if open_launcher else False
         return {"name": pack["name"], "mods": len(pack.get("mods", [])), "downloaded": fetched, "removed": removed,
                 "manual": pack.get("manual", []), "game_dir": str(game_dir), "opened": opened,
-                "quick_play": _supports_quick_play(pack["minecraft"]), "address": pack["address"]}
+                "quick_play": bool(pack["address"]) and _supports_quick_play(pack["minecraft"]), "address": pack["address"]}
 
 
     def run_targets(self, pack: dict, targets: list[str], open_after: bool = True,

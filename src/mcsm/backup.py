@@ -41,7 +41,8 @@ def create(server_dir: Path, backups_dir: Path, label: str, exclude: list[str]) 
 def list_backups(backups_dir: Path) -> list[Path]:
     if not backups_dir.exists():
         return []
-    return sorted(backups_dir.glob(f"*{SUFFIX}"))
+    # Oldest first: by the time in the name, then (for two in the same second) by when it was made.
+    return sorted(backups_dir.glob(f"*{SUFFIX}"), key=lambda p: (p.name[:15], p.stat().st_mtime_ns, p.name))
 
 
 def prune(backups_dir: Path, keep: int) -> list[Path]:
@@ -49,6 +50,7 @@ def prune(backups_dir: Path, keep: int) -> list[Path]:
     removed = backups[:-keep] if keep > 0 else []
     for path in removed:
         path.unlink()
+        path.with_name(path.name + ".json").unlink(missing_ok=True)  # (its snapshot note: snapshots.py)
     return removed
 
 

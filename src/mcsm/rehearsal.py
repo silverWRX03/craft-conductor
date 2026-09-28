@@ -326,6 +326,7 @@ class Rehearsal:
             result["finished"] = time.time()
             result["minutes"] = self.minutes
             self.result = result
+            m.config.state_dir.mkdir(parents=True, exist_ok=True)
             (m.config.state_dir / REPORT_NAME).write_text(json.dumps(result, indent=1))
             self.say(result["summary"])
             self.state = "done"

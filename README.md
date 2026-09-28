@@ -82,6 +82,14 @@ ready to update to Minecraft 1.21.4 with fabric 0.16.14:
   who's playing, edited as things change.
 - **Saved mod lists.** Keep a mod list under a name, switch to another and back, and move lists
   between servers as files.
+- **Lag finder.** When the server lags, mcsm finds out why (mobs, hoppers, new land, a mod) and where,
+  by coordinates, in plain words; by itself too when it keeps lagging while people play.
+- **Snapshots with rollback.** Every backup notes the whole server, says what changed since the last
+  one, and rolls everything back (world, mods, configs, settings) in one go.
+- **Guided setup.** A checklist from making your first server to a friend joining it (offered once;
+  start it again from Help).
+- **Modded single-player.** Set up a modded game for playing alone in the launcher you use, and keep
+  it up to date.
 - **Update rehearsal.** Try an update on a copy of the server and its world first: it runs for a few
   minutes where nobody can join, then a report says whether it started, how well it kept up and
   which mods complained. Automatic updates to a new Minecraft can be rehearsed first too.
@@ -177,7 +185,8 @@ ready to update to Minecraft 1.21.4 with fabric 0.16.14:
   **Modrinth modpack**.
 - **See a seed's map before you create the server,** with world-generation mods from Modrinth
   (Terralith, Tectonic, …): mcsm generates the area in a private test server and draws it.
-  Drag and zoom the map to explore, and it makes more of the world as you go.
+  Drag and zoom the map to explore, and it makes more of the world as you go. **Compare 10 seeds**
+  puts maps of ten seeds side by side to pick from.
 - **Worlds:** pick the seed, world type, structures and hardcore when you create a
   server, or **import any world**: a `.zip`, or a singleplayer world from the Minecraft
   Launcher, Prism, the Modrinth App or CurseForge.
@@ -734,6 +743,7 @@ When the server isn't running, `mcsm update` does the upgrade and a test boot it
 [server]
 loader = "fabric"
 memory = "6G"
+find_lag = true                  # when it keeps lagging with players on, find out why by itself
 
 [updates]
 strategy = "latest-compatible"   # or "latest" (wait for the newest release) or "mods-only"
@@ -861,29 +871,21 @@ The test suite runs the full install → upgrade → crash → rollback cycle ag
 
 In priority order (the working list, with what's done, is [TODO.md](TODO.md)):
 
-1. **Update rehearsal:** try a Minecraft update on a copy of the server first, then report how it went
-2. **Lag finder:** when the server slows down, find why and say it in plain words
-3. **Seed gallery:** maps of 10 different seeds side by side, to pick the one with the features
-   you're after (a warning first says how long it takes and how hard it works the computer)
-4. **Snapshots** of a whole server (config, mods, world) with what changed, and rollback
-5. **Guided first server** for complete beginners
-6. **Modded single-player worlds:** set up and keep a modded single-player game up to date, then load it
-   into the launcher of your choice; mcsm won't become a launcher itself
-7. **Accessibility:** keyboard, screen readers, high contrast
-8. **Player activity:** who played when, and the best time to restart
-9. Whitelist through Discord
-10. Web map of the world (BlueMap or Dynmap)
-11. Landmarks on the map preview
-12. Phone notifications with the tab closed
-13. Limits per server (memory, CPU)
-14. Other tunnel services (Cloudflare Tunnel, Tailscale Funnel)
-15. Purpur servers (Paper with plugins from Modrinth and Hangar is supported)
-16. Scripting hooks and API tokens
-17. Shared, opt-in memory of mods that don't work together
-18. Proxy networks (Velocity)
-19. A translated user manual
-20. Servers on hosting sites that have an official API (Pterodactyl)
-21. A native phone app (today the control panel works as a web app on your phone's home screen)
+1. **Accessibility:** keyboard, screen readers, high contrast
+2. **Player activity:** who played when, and the best time to restart
+3. Whitelist through Discord
+4. Web map of the world (BlueMap or Dynmap)
+5. Landmarks on the map preview
+6. Phone notifications with the tab closed
+7. Limits per server (memory, CPU)
+8. Other tunnel services (Cloudflare Tunnel, Tailscale Funnel)
+9. Purpur servers (Paper with plugins from Modrinth and Hangar is supported)
+10. Scripting hooks and API tokens
+11. Shared, opt-in memory of mods that don't work together
+12. Proxy networks (Velocity)
+13. A translated user manual
+14. Servers on hosting sites that have an official API (Pterodactyl)
+15. A native phone app (today the control panel works as a web app on your phone's home screen)
 
 ## License
 

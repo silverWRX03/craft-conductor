@@ -346,9 +346,9 @@ function render() {
   root.replaceChildren(
     h("div", { class: "join-head" },
       p.icon ? h("img", { src: p.icon, alt: "" }) : h("div", { class: "noicon" }),
-      h("div", {}, h("h1", {}, p.name), h("div", { class: "muted" }, p.address))),
+      h("div", {}, h("h1", {}, p.name), h("div", { class: "muted" }, p.address || t("Single-player game")))),
     h("div", { class: "card" },
-      h("p", {}, `This server runs Minecraft ${p.minecraft} with ${LOADERS[p.loader] || p.loader}` +
+      h("p", {}, `${p.address ? "This server runs" : "This game is"} Minecraft ${p.minecraft} with ${LOADERS[p.loader] || p.loader}` +
         (p.loader_version && p.loader !== "vanilla" ? ` ${p.loader_version}` : "") +
         (p.mods.length ? ` and ${p.mods.length} mod${p.mods.length === 1 ? "" : "s"} you need too.` : ".")),
       p.mods.length ? h("details", {}, h("summary", {}, "Show the mods"), h("ul", { class: "small" }, p.mods.map((m) => h("li", {}, m)))) : null,

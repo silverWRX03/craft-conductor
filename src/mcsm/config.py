@@ -45,6 +45,7 @@ class ServerConfig:
     aikar_flags: bool = False       # Aikar's garbage-collection flags (see jvmflags.py)
     startup_timeout: int = 600
     stop_timeout: int = 120
+    find_lag: bool = True           # when it lags with players on, find out why by itself (lagfinder.py)
 
 
 @dataclass
@@ -226,6 +227,7 @@ def parse(root: Path, data: dict) -> Config:
         memory=_memory(s.get("memory", "4G")),
         jvm_args=list(s.get("jvm_args", [])),
         aikar_flags=bool(s.get("aikar_flags", False)),
+        find_lag=bool(s.get("find_lag", True)),
         startup_timeout=parse_duration(s.get("startup_timeout", 600)),
         stop_timeout=parse_duration(s.get("stop_timeout", 120)),
     )
@@ -320,6 +322,7 @@ minecraft = "{minecraft}"      # version to install on first `mcsm update` ("lat
 memory = "4G"
 jvm_args = []                  # extra JVM flags, e.g. ["-XX:+UseZGC"]
 aikar_flags = false            # Aikar's GC flags: fewer lag spikes with lots of memory (16 GB+)
+find_lag = true                # when it lags with players on, find out why by itself
 startup_timeout = "10m"        # how long a boot may take before it counts as failed
 stop_timeout = "2m"
 restart_on_crash = true

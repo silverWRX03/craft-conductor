@@ -417,6 +417,92 @@ function offerSelfUpdate(u, force = false) {
   ]);
 }
 
+// ------------------------------------------------------------- guided setup
+// A checklist from making the server to a friend joining it; the steps tick themselves. Offered
+// once, the first time (a toast: Guide me or Skip), and started again from Help or Servers.
+const GUIDE_MIN_KEY = "mcsm-guide-min";
+let guideOffered = false, guideTimer = null;
+function offerGuide(hb) {
+  const g = hb.guide;
+  if (!g || (hb.role && hb.role !== "owner")) return;
+  if (g.active) { if (!$("#guide")) showGuide(); return; }
+  if (g.asked || guideOffered) return;
+  if ($("#security") || $("#notice")) { setTimeout(() => hubInfo && offerGuide(hubInfo), 1500); return; }
+  guideOffered = true;
+  const answer = async (action) => {
+    closeToast("guide-offer");
+    const r = await api("/api/hub/guide", { method: "POST", body: { action } }).catch(() => null);
+    if (r && action === "start") showGuide(r);
+    else if (r) toast("You can start the guided setup any time from Help or the Servers page.");
+  };
+  stickyToast("guide-offer", [
+    h("strong", {}, "New to running a Minecraft server?"),
+    h("div", { class: "small" }, "The guided setup takes you step by step, from making the server to a friend joining it."),
+    h("div", { class: "row mt-s" },
+      h("button", { class: "btn primary small", onclick: () => answer("start") }, "Guide me"),
+      h("button", { class: "btn small", onclick: () => answer("skip") }, "Skip")),
+  ], { blocking: false });
+}
+async function startGuide() {
+  const r = await api("/api/hub/guide", { method: "POST", body: { action: "start" } }).catch((e) => { toast(e.message, true); return null; });
+  if (r) { try { sessionStorage.removeItem(GUIDE_MIN_KEY); } catch (_) {} showGuide(r); }
+}
+function showGuide(data) {
+  let box = $("#guide");
+  if (!box) { box = h("aside", { id: "guide", class: "guide", "aria-label": t("Guided setup") }); document.body.append(box); }
+  const minimized = () => { try { return !!sessionStorage.getItem(GUIDE_MIN_KEY); } catch (_) { return false; } };
+  const setMin = (v) => { try { v ? sessionStorage.setItem(GUIDE_MIN_KEY, "1") : sessionStorage.removeItem(GUIDE_MIN_KEY); } catch (_) {} render(last); };
+  let last = data || null;
+  const go = (step, g) => {
+    const sid = g.server;
+    const where = { make: "#new", start: sid ? `#s/${sid}/dashboard` : "#new", join: sid ? `#s/${sid}/dashboard` : "#help",
+      open: "#mcsm", invite: sid ? `#s/${sid}/friends` : "#new", friend: sid ? `#s/${sid}/players` : "#servers" }[step];
+    location.hash = where;
+    if (step === "open") setTimeout(() => { const el = document.getElementById("sharing"); if (el) el.scrollIntoView({ behavior: "smooth" }); }, 400);
+  };
+  const act2 = async (body) => { const r = await api("/api/hub/guide", { method: "POST", body }).catch(() => null); if (r) render(r); return r; };
+  const stop = async () => {
+    if (!(await ask("Stop the guided setup? You can start it again any time from Help or the Servers page.", { ok: "Stop the guide" }))) return;
+    await act2({ action: "stop" });
+    clearInterval(guideTimer); guideTimer = null;
+    box.remove();
+  };
+  function render(g) {
+    if (!g) return;
+    last = g;
+    if (!g.active) { box.remove(); clearInterval(guideTimer); guideTimer = null; return; }
+    const n = g.steps.filter((x) => x.done).length;
+    const all = n === g.steps.length;
+    if (minimized()) {
+      fill(box, h("button", { class: "guide-pill", onclick: () => setMin(false) }, `🧭 ${t("Guided setup")} · ${n}/${g.steps.length}`));
+      box.classList.add("min");
+      return;
+    }
+    box.classList.remove("min");
+    fill(box,
+      h("div", { class: "row guide-head" }, h("strong", { class: "grow" }, `🧭 ${t("Guided setup")}`), h("span", { class: "muted small" }, `${n} / ${g.steps.length}`),
+        h("button", { class: "link-btn", title: t("Hide for now"), "aria-label": t("Hide for now"), onclick: () => setMin(true) }, "–"),
+        h("button", { class: "link-btn", title: t("Stop the guide"), "aria-label": t("Stop the guide"), onclick: stop }, "×")),
+      all ? h("div", { class: "notice ok" }, h("strong", {}, "🎉 You did it!"), h("div", { class: "small" }, "Your server is running and a friend has joined. Have fun!"),
+        h("button", { class: "btn small mt-s", onclick: () => act2({ action: "stop" }) }, "Finish")) : null,
+      h("ol", { class: "guide-steps" }, g.steps.map((x) => h("li", { class: (x.done ? "done" : "") + (x.id === g.next ? " next" : "") },
+        h("span", { class: "guide-tick" }, x.done ? "✓" : ""), h("div", { class: "grow" }, h("div", {}, x.title),
+          x.id === g.next ? h("div", {},
+            h("p", { class: "small muted" }, t(x.how)),
+            h("div", { class: "row" },
+              h("button", { class: "btn small primary", onclick: () => go(x.id, g) }, "Show me"),
+              x.manual ? h("button", { class: "btn small", onclick: () => act2({ action: "tick", step: x.id }) }, "I've done this") : null)) : null)))));
+  }
+  render(last);
+  const poll = async () => {
+    if (!document.body.contains(box)) { clearInterval(guideTimer); guideTimer = null; return; }
+    const r = await api("/api/hub/guide").catch(() => null);
+    if (r) render(r);
+  };
+  if (!last) poll();
+  if (!guideTimer) guideTimer = setInterval(poll, 5000);
+}
+
 // ------------------------------------------------------------------- status
 async function refreshStatus() {
   try { hubInfo = await api("/api/hub"); } catch (e) {
@@ -431,6 +517,7 @@ async function refreshStatus() {
   if (!hb.notice_accepted) { showNotice(); return; }
   offerSelfUpdate(hb.self_update);
   if (hb.auth.default && !hb.auth.managed && !promptDismissed()) showSecurity(true);
+  offerGuide(hb);
   if (hb.single && !server && hb.servers.length === 1) { location.hash = `#s/${hb.servers[0].id}/dashboard`; return; }
   renderNav();
   if (!server) {
@@ -606,9 +693,55 @@ function askingNotice() {
 // Performance: ticks per second (20 = smooth), measured now and then while the Dashboard is
 // open, with a small graph of the last hour, what to try when it's behind, and (with the spark
 // mod) a 30-second profile for power users.
+// The lag finder: 30 seconds of Minecraft's profiler plus the world's files, in plain words.
+function lagBox() {
+  const el = h("div", { class: "lag-box mt-s" });
+  let timer = null, running = false, up = true, lastState = null;
+  const findings = (r) => h("ul", { class: "list" }, r.findings.map((f) => h("li", {}, h("div", { class: "grow" },
+    h("strong", {}, f.title),
+    f.detail ? h("div", { class: "small" }, f.detail) : null,
+    f.places.length ? h("ul", { class: "small lag-places" }, f.places.map((p) => h("li", {}, "📍 " + p))) : null,
+    f.mods.length ? h("div", { class: "small" }, t("From mods:") + " " + f.mods.join(", ")) : null,
+    f.tip ? h("div", { class: "muted small" }, "💡 " + t(f.tip)) : null))));
+  const render = (st) => {
+    lastState = st;
+    const job = st.finder && st.finder.state === "running" ? st.finder : null;
+    const failed = st.finder && st.finder.state === "failed" ? st.finder.result : null;
+    const r = st.report;
+    running = !!job;
+    fill(el,
+      job ? h("div", {}, h("div", { class: "row small" }, h("span", { class: "spinner" }), h("span", { class: "grow" }, t(job.step || "Getting ready…")),
+        h("button", { class: "link-btn", onclick: () => api("/api/performance/lag/stop", { method: "POST" }).catch(() => null) }, "Stop")))
+        : h("div", { class: "row small" },
+          h("button", { class: "btn small", onclick: start, disabled: !up, title: up ? "" : "Start the server first" }, "Find what's causing lag"),
+          h("span", { class: "muted" }, "Watches the server for 30 seconds, then looks through the world.")),
+      failed ? h("div", { class: "notice bad mt-s small" }, failed.error) : null,
+      r && !job ? h("details", { class: "mt-s", open: Date.now() / 1000 - r.finished < 3600 },
+        h("summary", {}, (r.automatic ? t("Looked by itself") : t("Last look")) + ` · ${ago(r.finished)}` + (r.tps ? ` · ${r.tps} TPS` : "")),
+        h("p", { class: "small" }, t(r.summary)),
+        r.findings.length ? findings(r) : null,
+        r.note ? h("p", { class: "muted small" }, r.note) : null) : null);
+    if (job && !timer) timer = setInterval(poll, 2000);
+    if (!job && timer) { clearInterval(timer); timer = null; }
+  };
+  const poll = async () => {
+    if (timer && !el.isConnected) { clearInterval(timer); timer = null; return; }
+    const st = await api("/api/performance/lag").catch(() => null);
+    if (st) render(st);
+  };
+  async function start() {
+    const r = await api("/api/performance/lag", { method: "POST", body: {} }).catch((e) => { toast(e.message, true); return null; });
+    if (r) poll();
+  }
+  poll();
+  const setUp = (v) => { if (v !== up) { up = v; if (lastState) render(lastState); } };
+  return { el, poll, setUp, get running() { return running; } };
+}
+
 function perfCard() {
   const body = h("div", {}, h("p", { class: "muted small" }, "Measuring…"));
-  const el = card("Performance", body);
+  const lag = lagBox();
+  const el = card("Performance", body, lag.el);
   const spark = (samples) => {
     const pts = samples.filter((x) => x.tps !== null).slice(-60);
     if (pts.length < 2) return null;
@@ -628,6 +761,7 @@ function perfCard() {
   const load = async () => {
     const r = await api("/api/performance").catch(() => null);
     if (!r) return;
+    lag.setUp(!!r.running);
     if (!r.supported) { fill(body, h("p", { class: "muted small" }, "This Minecraft version can't report its speed (it needs Minecraft 1.20.3 or newer, or Paper, Forge or NeoForge).")); return; }
     if (!r.running) { fill(body, h("p", { class: "muted small" }, "Start the server to see how well it keeps up.")); return; }
     const c = r.current;
@@ -636,7 +770,7 @@ function perfCard() {
         h("li", {}, "Exploring new terrain: pre-generate the world (the Chunky mod) so it's ready before people get there."),
         h("li", {}, "Lots of mobs, item farms or redstone clocks in loaded areas."),
         h("li", {}, "Too little memory: see Check my setup; or too much, without Aikar's flags (Settings)."),
-        h("li", {}, "A heavy mod: a profile with spark shows which one."))) : null;
+        h("li", {}, "A heavy mod: Find what's causing lag names it, and a profile with spark shows more."))) : null;
     fill(body,
       h("div", { class: "row" },
         h("strong", { class: `tps-value ${r.status}` }, c ? `${c.tps.toFixed(1)} TPS` : "…"),
@@ -1533,23 +1667,37 @@ views.backups = () => {
     const checked = (c) => !c ? h("span", { class: "muted small" }, "not checked")
       : c.ok ? h("span", { class: "small ok-text", title: c.detail }, "✓ checked")
         : h("span", { class: "small bad-text", title: c.detail }, `✗ ${c.detail}`);
+    const rollBack = async (b) => {
+      const c = await api(`/api/backups/changes?name=${encodeURIComponent(b.name)}`).catch(() => null);
+      const undo = c && c.undo;
+      const msg = !c || !c.snapshot
+        ? `Replace the server's files with ${b.name}? Anything since then is lost. (An older backup: afterwards, run an update check to put the mod list right.)`
+        : undo.length ? `Roll the whole server back to ${fmtTime(b.time)}? This undoes:\n\n${undo.slice(0, 12).map((x) => "• " + x).join("\n")}${undo.length > 12 ? `\n• …and ${undo.length - 12} more` : ""}\n\nWorld changes since then are lost too.`
+          : `Roll the whole server back to ${fmtTime(b.time)}? Nothing but the world has changed since then; world changes since then are lost.`;
+      if (await ask(msg, { ok: c && c.snapshot ? "Roll back" : "Restore", danger: true }))
+        act(() => api("/api/backups/restore", { method: "POST", body: { name: b.name } }), "Rolling back…");
+    };
+    const changed = (b) => b.changes === null || b.changes === undefined ? null
+      : b.changes.length ? h("details", { class: "small" }, h("summary", {}, `${b.changes.length} change(s) since the one before`),
+        h("ul", { class: "list snapshot-changes" }, b.changes.map((line) => h("li", { class: line.startsWith("+") ? "change-add" : line.startsWith("−") ? "change-rm" : "" }, line))))
+        : h("span", { class: "muted small" }, "Only the world changed since the one before");
     fill(list, r.backups.length ? h("table", {},
       h("thead", {}, h("tr", {}, h("th", {}, "Backup"), h("th", {}, "Created"), h("th", {}, "Size"), h("th", {}, "Can be restored"), h("th", {}))),
       h("tbody", {}, r.backups.map((b) => h("tr", {},
-        h("td", {}, h("code", {}, b.name)), h("td", {}, fmtTime(b.time)), h("td", {}, fmtBytes(b.size)),
+        h("td", {}, h("code", {}, b.name), b.snapshot ? h("div", { class: "small muted" }, `Minecraft ${b.minecraft || "—"} · ${b.mods} mod(s)`) : null, changed(b)),
+        h("td", {}, fmtTime(b.time)), h("td", {}, fmtBytes(b.size)),
         h("td", {}, checked(b.check), " ", h("button", { class: "link-btn small", title: "Read the whole backup to make sure it can be restored",
           onclick: () => act(() => api("/api/backups/check", { method: "POST", body: { name: b.name } }), "Checking the backup…") }, b.check ? "Check again" : "Check")),
         h("td", { class: "row" }, h("button", {
           class: "btn small", disabled: !stopped, title: stopped ? "" : "Stop the server first",
-          onclick: async () => (await ask(`Replace the server directory with ${b.name}? Anything since then is lost.`, { ok: "Restore", danger: true })) &&
-            act(() => api("/api/backups/restore", { method: "POST", body: { name: b.name } }), "Restoring…"),
-        }, "Restore"),
+          onclick: () => rollBack(b),
+        }, b.snapshot ? "Roll back to this" : "Restore"),
         h("button", { class: "btn small", disabled: !stopped, title: stopped ? "Put back only part of the world" : "Stop the server first",
           onclick: () => openAreaRestore(b) }, "Put back an area…")))))) : h("p", { class: "empty" }, "No backups yet."));
   };
   fill($("#main"), 
     h("h2", { class: "view-title" }, "Backups"),
-    card("Create backup", h("p", { class: "muted" }, "A backup is also made automatically before every update."),
+    card("Create backup", h("p", { class: "muted" }, "Each backup is a snapshot of the whole server: the world, the mods, their settings and mcsm's settings for it. One is also made automatically before every update."),
       h("div", { class: "row" }, label, h("button", { class: "btn primary", onclick: () => act(() => api("/api/backups/create", { method: "POST", body: { label: label.value } }), "Backing up…") }, "Back up now"))),
     card("Backups", h("div", { class: "row" }, h("p", { class: "muted small grow" }, "Restoring needs the server to be stopped."), folderBtn("backups", "Backups folder")), list),
   );
@@ -1724,6 +1872,7 @@ views.settings = () => {
         chk("wait_for_empty", "Wait until nobody is online"),
         chk("verify_boot", "Test-boot and roll back on failure"),
         chk("rehearse", "Before a new Minecraft goes in by itself, try it on a copy of the server first")),
+      h("div", { class: "grid mt-s" }, chk("find_lag", "When it keeps lagging with players on, find out why by itself (and tell me)")),
       h("h3", { class: "mt-l" }, "Server"),
       h("div", { class: "grid" },
         h("label", {}, "Memory (e.g. 6G)", txt("memory")),
@@ -1761,7 +1910,7 @@ views.settings = () => {
         strategy: f.strategy.value, mod_channel: f.mod_channel.value, check_interval: f.check_interval.value.trim(),
         warn_minutes: f.warn_minutes.value.split(",").map((x) => x.trim()).filter(Boolean).map(Number),
         auto_upgrade: f.auto_upgrade.checked, wait_for_empty: f.wait_for_empty.checked, verify_boot: f.verify_boot.checked,
-        rehearse: f.rehearse.checked, memory: f.memory.value.trim(), backups_keep: Number(f.backups_keep.value), discord_webhook: f.discord_webhook.value.trim(),
+        rehearse: f.rehearse.checked, find_lag: f.find_lag.checked, memory: f.memory.value.trim(), backups_keep: Number(f.backups_keep.value), discord_webhook: f.discord_webhook.value.trim(),
         port: Number(f.port.value),
         restart_on_crash: f.restart_on_crash.checked, aikar_flags: f.aikar_flags.checked,
         schedule_restart: sched.restart.value(), schedule_backup: sched.backup.value(),
@@ -2327,6 +2476,7 @@ function worldPanel(host) {
   size.value = String(st.previewSize || 128);
   size.addEventListener("change", () => { st.previewSize = Number(size.value); });
   const go = h("button", { type: "button", class: "btn primary" }, "🗺️ Preview map");
+  const compare = h("button", { type: "button", class: "btn", title: "Maps of 10 random seeds side by side, to pick from" }, "Compare 10 seeds");
 
   // --- world-generation mods
   const list = h("div", { class: "browse-results" });
@@ -2378,7 +2528,9 @@ function worldPanel(host) {
     h("h2", {}, "See the world before you make it"),
     h("p", {}, "Pick a seed (or leave it empty for a random one) and press Preview map. mcsm makes the world in a private server on this computer, with the server's mods, then draws it from above."),
     h("p", { class: "muted small" }, "It takes a minute or two, longer with many mods or a bigger map. Nothing is installed for the server yet: that happens when you create it."));
-  const strip = () => st.previews.length > 1 ? h("div", { class: "mt" }, h("h3", {}, "Earlier maps"),
+  const strip = () => st.galleryDone && st.galleryDone.maps.length && !st.galleryJob ? h("div", { class: "mt" },
+    h("button", { type: "button", class: "btn small", onclick: () => gallery(st.galleryDone) }, "← Back to the seeds compared"))
+    : st.previews.length > 1 ? h("div", { class: "mt" }, h("h3", {}, "Earlier maps"),
     h("div", { class: "map-strip" }, st.previews.map((m) => h("button", { type: "button", class: "map-thumb" + (shown === m.id ? " selected" : ""),
       title: `Seed ${m.seed}`, onclick: () => showMap(m) },
       h("img", { src: `/api/hub/preview/map?id=${m.id}`, alt: "" }), h("span", { class: "small" }, m.seed))))) : null;
@@ -2435,12 +2587,69 @@ function worldPanel(host) {
       bar, h("p", { class: "muted small" }, "You can close this and keep setting up the server: the map carries on, and it's here when you come back."),
       strip());
   };
+  // --- the seed gallery: 10 random seeds, one after another
+  let gpoll = null;
+  const gallery = (g) => {
+    const cur = g.current;
+    const tiles = g.maps.map((m) => h("button", { type: "button", class: "map-thumb gallery-thumb", title: `Seed ${m.seed}`, onclick: () => {
+      st.previews = [m, ...st.previews.filter((x) => x.id !== m.id)].slice(0, 14); showMap(m); } },
+      h("img", { src: `/api/hub/preview/map?id=${m.id}`, alt: `Map of seed ${m.seed}` }),
+      h("span", { class: "small" }, m.seed), h("span", { class: "muted small" }, `${m.map.biomes.names.length} biome(s)`)));
+    for (let i = g.maps.length + (cur ? 1 : 0); i < (g.state === "running" ? g.count : 0); i++) tiles.push(h("div", { class: "gallery-wait" }, "…"));
+    if (cur) tiles.splice(g.maps.length, 0, h("div", { class: "gallery-wait" }, h("span", { class: "spinner" }),
+      h("span", { class: "small" }, `${t(cur.step)}${cur.progress !== null ? ` ${Math.round(cur.progress * 100)}%` : ""}`)));
+    fill(right,
+      h("div", { class: "row" }, h("h2", { class: "grow" }, "Compare seeds"),
+        g.state === "running" ? h("span", { class: "muted small" }, `${Math.min(g.index, g.count)} / ${g.count} · ${Math.floor(g.elapsed / 60)}:${String(g.elapsed % 60).padStart(2, "0")}`) : null),
+      g.state === "running" ? h("p", { class: "muted small" }, "Pick one when you see one you like: press it to look closer and use its seed. You can close this panel meanwhile.")
+        : g.state === "failed" ? h("div", { class: "notice bad" }, h("strong", {}, "The maps couldn't be made"), h("div", {}, g.error))
+          : h("p", { class: "muted small" }, g.maps.length ? "Press a map to look closer and use its seed." : "Stopped before the first map."),
+      h("div", { class: "gallery-grid" }, tiles),
+      g.failed ? h("p", { class: "muted small" }, `${g.failed} map(s) couldn't be made and were skipped.`) : null);
+  };
+  const watchGallery = () => {
+    clearInterval(gpoll);
+    compare.textContent = t("Stop comparing");
+    compare.onclick = () => api("/api/hub/preview/gallery/cancel", { method: "POST", body: { id: st.galleryJob } }).catch(() => null);
+    go.disabled = true;
+    const tick = async () => {
+      if (!el.isConnected) { clearInterval(gpoll); return; }
+      const g = await api(`/api/hub/preview/gallery?id=${st.galleryJob}`).catch(() => null);
+      if (!g) { clearInterval(gpoll); st.galleryJob = null; galleryIdle(); return; }
+      gallery(g);
+      if (g.state !== "running") { clearInterval(gpoll); st.galleryDone = g; st.galleryJob = null; galleryIdle(); }
+    };
+    tick();
+    gpoll = setInterval(tick, 1500);
+  };
+  const galleryIdle = () => {
+    compare.textContent = t("Compare 10 seeds");
+    compare.onclick = startGallery;
+    go.disabled = false;
+  };
+  async function startGallery() {
+    const times = st.previews.map((m) => m.elapsed).filter((x) => x > 0);
+    const each = times.length ? Math.max(30, times.reduce((a, b) => a + b, 0) / times.length) : 90;
+    const mins = Math.max(5, Math.round(each * 10 / 60));
+    if (!(await ask(`Make maps of 10 random seeds? It takes about ${mins} minutes (each map is a fresh world), and the computer works hard the whole time: the fans may spin up and games may run slower. You can keep setting up the server meanwhile.`,
+      { id: "seed-gallery", ok: "Make 10 maps" }))) return;
+    const body = { loader: st.loader, minecraft: st.minecraft, level_type: type.value, structures: structures.checked,
+      radius: Number(size.value), mods: [...st.mods].filter(([, m]) => m.explicit).map(([k]) => k), channels: earlyChannels(), count: 10 };
+    const r = await act(() => api("/api/hub/preview/gallery", { method: "POST", body }), null);
+    if (!r) return;
+    st.galleryJob = r.id;
+    watchGallery();
+  }
+  galleryIdle();
+
   const running = () => {
+    compare.disabled = true;
     go.textContent = t("Stop");
     go.classList.remove("primary");
     go.onclick = async () => { if (st.previewJob) await api("/api/hub/preview/cancel", { method: "POST", body: { id: st.previewJob } }).catch(() => null); };
   };
   const idle = () => {
+    compare.disabled = false;
     go.textContent = t("🗺️ Preview map");
     go.classList.add("primary");
     go.onclick = start;
@@ -2483,7 +2692,7 @@ function worldPanel(host) {
         h("label", {}, "Seed", h("div", { class: "row" }, seed, dice)),
         h("div", { class: "row" }, type, size),
         h("label", { class: "row small" }, structures, h("span", {}, "Villages, temples and other structures")),
-        h("div", { class: "row" }, go),
+        h("div", { class: "row" }, go, compare),
         h("h3", { class: "mt-s" }, plugins ? "World generation plugins" : "World generation mods"),
         moddable ? q : null),
       list,
@@ -2492,6 +2701,8 @@ function worldPanel(host) {
   return { el, start: () => {
     if (!st.loader) { fill(right, h("div", { class: "notice warn" }, "Pick a server type first (1. Server type)."));  go.disabled = true; }
     else if (st.previewJob) watch();
+    else if (st.galleryJob) watchGallery();
+    else if (st.galleryDone && st.galleryDone.maps.length) gallery(st.galleryDone);
     else if (st.previews.length) showMap(st.previews[0]);
     else fill(right, empty());
     search();
@@ -2862,6 +3073,9 @@ views.manual = () => {
 
 views.help = () => {
   fill($("#main"), h("h2", { class: "view-title" }, "Help"),
+    hubInfo && hubInfo.guide ? h("div", { class: "card mb row" }, h("div", { class: "grow" }, h("strong", {}, "🧭 Guided setup"),
+      h("div", { class: "muted small" }, "Step by step from making a server to a friend joining it, with each step ticked as you go.")),
+      h("button", { class: "btn primary", onclick: startGuide }, hubInfo.guide.active ? "Show the guide" : "Start the guided setup")) : null,
     h("div", { class: "notice mb" }, "📖 Everything mcsm does, step by step: ", h("a", { href: "#manual" }, h("strong", {}, "the user manual")), ". ",
       "Something wrong? ", h("a", { href: "https://github.com/silverWRX03/mc-server-management/issues/new/choose", target: "_blank", rel: "noopener noreferrer" }, "Report a bug ↗"),
       " · ", h("a", { href: "https://github.com/silverWRX03/mc-server-management/blob/main/CHANGELOG.md", target: "_blank", rel: "noopener noreferrer" }, "What's new ↗")),
@@ -3640,15 +3854,135 @@ views.servers = () => {
       importNote.textContent = "";
     }
   });
+  const sp = hubInfo && !hubInfo.single ? singleplayerCard() : null;
   fill($("#main"),
     closingTip(),
     h("div", { class: "row mb" },
       h("p", { class: "muted grow" }, "Servers only run when you start them here, and stop when you press Stop or Quit mcsm."),
+      hubInfo && hubInfo.guide ? h("button", { class: "btn ghost", title: "Step by step from making a server to a friend joining it", onclick: startGuide }, "🧭 Guided setup") : null,
       hubInfo && hubInfo.single ? null : h("div", { class: "row" }, importNote, importBtn, picker)),
-    list);
+    list,
+    sp ? sp.el : null);
   render(hubInfo);
   return { onHub: render };
 };
+
+// Modded single-player games: mcsm sets one up in the launcher you use (it isn't a launcher) and
+// keeps it up to date. The worlds stay in that installation when the mods are updated.
+const SP_LOADERS = [["fabric", "Fabric"], ["neoforge", "NeoForge"], ["forge", "Forge"], ["quilt", "Quilt"]];
+function singleplayerCard() {
+  const list = h("div", { class: "sp-list" });
+  const el = h("section", { class: "mt-l" },
+    h("div", { class: "row" }, h("h2", { class: "grow" }, "Modded single-player games"),
+      h("button", { class: "btn", onclick: () => openSpEditor(null, load) }, "+ New single-player game")),
+    h("p", { class: "muted small" }, "Pick a mod loader and mods, and mcsm puts the game into your launcher (the Minecraft Launcher, Prism, the Modrinth App or CurseForge) and keeps it up to date. No server needed; your worlds stay in the game when it's updated."),
+    list);
+  const LAUNCHER = { minecraft: "Minecraft Launcher", prism: "Prism", modrinth: "Modrinth App", curseforge: "CurseForge" };
+  const gameCard = (g) => {
+    const out = h("div", { class: "sp-check" });
+    const inst = g.installed;
+    const check = async () => {
+      fill(out, h("div", { class: "row small" }, h("span", { class: "spinner" }), t("Checking Modrinth…")));
+      const r = await api("/api/hub/singleplayer/check", { method: "POST", body: { id: g.id } }).catch((e) => { fill(out, h("div", { class: "notice bad small" }, e.message)); return null; });
+      if (!r) return;
+      fill(out, r.changes.length ? h("div", { class: inst ? "notice warn small" : "notice small" },
+        h("strong", {}, inst ? "An update is ready:" : "It will install:"),
+        h("ul", { class: "list" }, r.changes.map((c) => h("li", { class: c.startsWith("+") ? "change-add" : c.startsWith("−") ? "change-rm" : "" }, c))),
+        r.skipped.length ? h("div", { class: "muted" }, t("Left out (no build for this Minecraft yet):") + " " + r.skipped.map((x) => x.name).join(", ")) : null,
+        h("button", { class: "btn primary small mt-s", onclick: () => install() }, inst ? "Update it in my launcher" : "Put it in my launcher"))
+        : h("div", { class: "notice ok small" }, `Up to date: Minecraft ${r.minecraft} and every mod are the newest that work together.`));
+    };
+    const install = async () => {
+      const r = await api("/api/hub/singleplayer/install", { method: "POST", body: { id: g.id } }).catch((e) => { toast(e.message, true); return null; });
+      if (r) toast("A new tab opens: pick your launcher there. (No tab? Allow pop-ups, or use the address it shows.)");
+    };
+    return h("div", { class: "card server-card" },
+      h("div", { class: "row" }, h("span", { class: "pill " + (inst ? "running" : "pending") }, inst ? "installed" : "not installed"),
+        h("strong", { class: "grow server-name" }, g.name)),
+      h("div", { class: "muted" }, `${(SP_LOADERS.find(([v]) => v === g.loader) || [, g.loader])[1]} · Minecraft ${inst ? inst.minecraft : g.minecraft === "latest" ? t("newest the mods support") : g.minecraft} · ${g.mods.length} mod(s)`),
+      inst ? h("div", { class: "muted small" }, t("In:") + " " + (g.launchers || []).map((x) => LAUNCHER[x] || x).join(", ") + ` · ${ago(inst.at)}`) : null,
+      h("div", { class: "row mt-s" },
+        h("button", { class: "btn primary", onclick: check }, inst ? "Check for updates" : "Install…"),
+        h("button", { class: "btn", onclick: () => openSpEditor(g, load) }, "Edit"),
+        h("button", { class: "btn ghost", onclick: async () => {
+          if (!(await ask(`Forget "${g.name}"? mcsm stops keeping it up to date. The game and its worlds stay in your launcher; delete them there if you want them gone.`, { ok: "Forget it", danger: true }))) return;
+          await act(() => api("/api/hub/singleplayer/delete", { method: "POST", body: { id: g.id } }), "Forgotten");
+          load();
+        } }, "Delete")),
+      out);
+  };
+  async function load() {
+    const r = await api("/api/hub/singleplayer").catch(() => null);
+    if (!r) return;
+    fill(list, r.games.length ? h("div", { class: "server-list" }, r.games.map(gameCard))
+      : h("p", { class: "empty" }, "No single-player games yet."));
+  }
+  load();
+  return { el };
+}
+
+function openSpEditor(game, done) {
+  const g = game || { name: "", loader: "fabric", minecraft: "latest", mods: [], memory_gb: 6 };
+  const chosen = new Map(g.mods.map((slug) => [slug, slug]));
+  const name = h("input", { value: g.name, maxlength: 60, placeholder: "e.g. Cozy modded survival" });
+  const loader = h("select", { disabled: !!(game && game.installed) }, SP_LOADERS.map(([v, l]) => h("option", { value: v }, l)));
+  loader.value = g.loader;
+  const mc = h("select", {}, h("option", { value: "latest" }, "The newest one all the mods support"));
+  api("/api/hub/setup").then((o) => { for (const v of o.versions || []) mc.append(h("option", { value: v }, `Minecraft ${v}`)); mc.value = g.minecraft; }).catch(() => null);
+  const memory = h("select", {}, [2, 3, 4, 6, 8, 10, 12, 16].map((n) => h("option", { value: n }, `${n} GB`)));
+  memory.value = String(g.memory_gb || 6);
+  const q = h("input", { type: "search", placeholder: "Search Modrinth for mods…", "aria-label": "Search" });
+  const results = h("div", { class: "browse-results sp-results" });
+  const picked = h("div", { class: "sp-picked" });
+  const showPicked = () => fill(picked, chosen.size ? [...chosen].map(([slug, label]) => h("span", { class: "tag sp-mod" }, label, " ",
+    h("button", { type: "button", class: "link-btn", "aria-label": `Remove ${label}`, onclick: () => { chosen.delete(slug); showPicked(); } }, "×")))
+    : h("span", { class: "muted small" }, "No mods yet: search above and press Add."));
+  let seq = 0, timer;
+  const search = async () => {
+    const mine = ++seq;
+    const params = new URLSearchParams({ type: "mod", q: q.value.trim(), source: "modrinth", sort: q.value.trim() ? "relevance" : "downloads",
+      offset: "0", loader: loader.value, version: mc.value === "latest" ? "" : mc.value, side: "client" });
+    const r = await api(`/api/hub/browse/search?${params}`).catch(() => null);
+    if (!r || mine !== seq) return;
+    fill(results, r.results.map((m) => h("div", { class: "result" },
+      m.icon ? h("img", { src: m.icon, alt: "", loading: "lazy", referrerpolicy: "no-referrer" }) : h("div", { class: "noicon" }),
+      h("div", { class: "info grow" }, h("div", { class: "name" }, m.name), h("div", { class: "desc" }, m.summary)),
+      h("button", { type: "button", class: "btn small", disabled: chosen.has(m.slug || m.id), onclick: (e) => {
+        chosen.set(m.slug || m.id, m.name); e.target.disabled = true; showPicked(); } }, chosen.has(m.slug || m.id) ? "Added" : "Add"))));
+  };
+  q.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(search, 350); });
+  loader.addEventListener("change", search);
+  mc.addEventListener("change", search);
+  const error = h("p", { class: "error" });
+  const save = async (e) => {
+    e.preventDefault();
+    const body = { name: name.value.trim(), loader: loader.value, minecraft: mc.value, mods: [...chosen.keys()], memory_gb: Number(memory.value) };
+    try {
+      await api(game ? "/api/hub/singleplayer/edit" : "/api/hub/singleplayer", { method: "POST", body: game ? { id: game.id, ...body } : body });
+      closeBrowser();
+      toast(game ? "Saved. Check for updates to put the changes into your launcher." : "Made. Press Install… to put it into your launcher.");
+      done();
+    } catch (err) { if (!(err instanceof Unauthorized)) error.textContent = err.message; }
+  };
+  openSidePane(h("form", { class: "browse sp-editor", onsubmit: save },
+    h("div", { class: "browse-left" },
+      h("div", { class: "browse-filters" },
+        h("div", { class: "row" }, h("strong", { class: "grow" }, game ? `Edit ${game.name}` : "New single-player game"),
+          h("button", { type: "button", class: "btn ghost small", onclick: () => closeBrowser() }, "Close")),
+        h("label", {}, "Name", name),
+        h("div", { class: "grid" }, h("label", {}, "Mod loader", loader), h("label", {}, "Memory for the game", memory)),
+        h("label", {}, "Minecraft", mc),
+        h("h3", { class: "mt-s" }, "Mods"), picked, q),
+      results,
+      h("div", { class: "browse-footer" }, error, h("button", { class: "btn primary", type: "submit" }, game ? "Save" : "Make the game"))),
+    h("div", { class: "browse-right" }, h("div", { class: "empty-map" },
+      h("h2", {}, "Your own modded Minecraft"),
+      h("p", {}, "mcsm finds a build of every mod (and the mods they need) for the same Minecraft version, then sets the game up in your launcher. When the mods update, Check for updates brings them in; with “the newest one all the mods support”, Minecraft moves up too once every mod is ready."),
+      h("p", { class: "muted small" }, "Only mods that run on players' computers are listed. Shaders and resource packs can be added on the launcher page when you install.")))),
+    game ? "Edit single-player game" : "New single-player game");
+  showPicked();
+  search();
+}
 
 // A notice people see every time, once they know it: "Don't show again" (see mcsm settings → Warnings).
 function dismissible(id, notice) {
@@ -3836,7 +4170,7 @@ function discordStatusPicker(r, after) {
 views.mcsm = () => {
   const security = h("div", { class: "mb" });
   const network = h("div", { class: "mb" });
-  const sharing = h("div", { class: "mb" });
+  const sharing = h("div", { class: "mb", id: "sharing" });
   let sharingDrawn = false;
   const renderSharing = (hb) => {
     if (!hb || hb.single || !hb.share) { fill(sharing); return; }

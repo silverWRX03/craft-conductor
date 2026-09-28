@@ -195,6 +195,10 @@ class Daemon:
         self.started_at: float | None = None
         self.last_check: dict | None = None
         self.rehearsal = None      # the last update rehearsal (rehearsal.Rehearsal), if any
+        self.lag = None            # the last lag finder look (lagfinder.LagFinder), if any
+        self._slow = 0             # readings in a row below lagfinder.LAGGY_TPS
+        self._next_lag_watch = 0.0
+        self._last_lag_look = -1e9
         self.ops = threading.Lock()     # one job at a time
         self.job: dict | None = None
         self.last_job: dict | None = None
@@ -322,6 +326,8 @@ class Daemon:
             time.sleep(5)
         try:
             path = backup.create(self.m.server_dir, cfg.backups.dir, label, cfg.backups.exclude)
+            from . import snapshots
+            snapshots.record(path, self.m)
         finally:
             if running and self.proc.running:
                 self.proc.send("save-on")
@@ -484,6 +490,7 @@ class Daemon:
                 self.submit("update check", self.check_for_updates, requested, target)
             if idle:
                 self._run_schedules()
+                self._watch_lag()
             sreq = self_update_request_path(self.m)
             if self.hub_managed:  # the hub checks for and installs mcsm updates
                 self.stop_requested.wait(self.tick)
@@ -671,6 +678,50 @@ class Daemon:
         if hub is not None:
             return hub.make_manager
         return lambda cfg: Manager(cfg, http=self.m.http, echo=False)
+
+    def find_lag(self, automatic: bool = False):
+        """Look for what's making the server lag (see lagfinder.py), in the background."""
+        from . import lagfinder
+        self.lag = f = lagfinder.LagFinder(self, automatic=automatic)
+
+        def run():
+            set_current_server(self.server_id)
+            result = f.run() or {}
+            if automatic and f.state == "done":
+                tps = result.get("tps")
+                self.m.notifier.send(f"The server kept falling behind with players on{f' ({tps} TPS)' if tps else ''}. "
+                                     f"{result.get('summary', '')} The details are on the Dashboard, under Performance.")
+        threading.Thread(target=run, daemon=True, name="lag-finder").start()
+        return f
+
+    def _watch_lag(self) -> None:
+        """While people play, read the speed every couple of minutes; when it keeps falling
+        behind, find out why by itself (at most once an hour)."""
+        from . import lagfinder, perf
+        now = time.monotonic()
+        if (now < self._next_lag_watch or not self.m.config.server.find_lag or not self.players
+                or not (self.proc and self.proc.running and self.proc.ready.is_set())):
+            return
+        self._next_lag_watch = now + lagfinder.WATCH_EVERY
+        loader = self.m.lock.loader or self.m.config.server.loader
+        minecraft = self.m.lock.minecraft or ""
+        if not perf.command_for(loader, minecraft):
+            return
+        if self.meter is None:
+            self.meter = perf.Meter()
+
+        def sample():
+            got = self.meter.sample(self.proc, loader, minecraft) or {}
+            tps = got.get("tps")
+            self._slow = self._slow + 1 if tps is not None and tps < lagfinder.LAGGY_TPS else 0
+            busy = (self.lag is not None and self.lag.state == "running") or \
+                (self.rehearsal is not None and self.rehearsal.state == "running")
+            if self._slow >= lagfinder.WATCH_SAMPLES and not busy and time.monotonic() - self._last_lag_look >= lagfinder.AUTO_GAP:
+                self._slow = 0
+                self._last_lag_look = time.monotonic()
+                log.info("the server keeps falling behind (%s TPS) with players on: looking for why", tps)
+                self.find_lag(automatic=True)
+        threading.Thread(target=sample, daemon=True, name="lag-watch").start()
 
     def start_rehearsal(self, target: str | None = None, minutes: int | None = None, fingerprint: str | None = None):
         """Try the update on a copy of the server, in the background (it isn't one of the server's
