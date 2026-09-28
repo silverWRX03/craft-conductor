@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 from abc import ABC, abstractmethod
@@ -8,6 +9,8 @@ from pathlib import Path
 
 from ..http import HttpClient, HttpError
 from ..minecraft import Mojang
+
+log = logging.getLogger(__name__)
 
 
 class LoaderError(Exception):
@@ -51,6 +54,8 @@ class Loader(ABC):
             return fn()
         except HttpError as e:
             if e.status is not None and 400 <= e.status < 500:
+                if e.status != 404:  # (404: no build for that version; anything else, say why)
+                    log.warning("%s's download site refused (%s): %s", self.name, e.url, e)
                 return None
             raise
 
