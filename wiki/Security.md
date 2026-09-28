@@ -27,8 +27,9 @@ safeguards:
 - **A strong password is required:** 12+ characters, with uppercase, lowercase and a special
   character. PINs only ever work on the server's own computer, and the
   password can't be weakened while remote access is on.
-- **Phones are paired by scanning a QR code.** The code works once, for five minutes. Each
-  phone gets its own key (only a hash of it is stored) and signs in by itself afterwards.
+- **Phones are paired by scanning a QR code** (or typing its 12-character code). The code
+  works once, for five minutes, and only 5 tries are allowed per 5 minutes. Each phone gets
+  its own key (only a hash of it is stored) and signs in by itself afterwards.
 - **Phones get the everyday controls only:** start, stop and restart servers, backups,
   updates and players. They can't change settings, mods or files, use the console or change
   the password.
