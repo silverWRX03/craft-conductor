@@ -218,3 +218,73 @@ def test_the_preview_job_from_the_page(hub_env, modrinth, monkeypatch):
     assert c.get("/api/hub/preview/map?id=../../etc")[0] == 404
     assert c.post("/api/hub/preview", {**body, "seed": "x" * 65})[0] == 400
     assert c.post("/api/hub/preview", {**body, "mods": ["../x"]})[0] == 400
+
+
+def test_map_tiles(tmp_path):
+    world = tmp_path / "world"
+    write_world(world, {(cx, cz): chunk(cx, cz) for cx in range(0, 4) for cz in range(0, 4)})
+    s = preview.Surfaces(world)
+    w, h, rows = read_png(preview.tile(s, 1, 0, 0))
+    assert (w, h) == (256, 256) and rows[10][10][:3] == preview.COLORS["grass_block"] and rows[200][200][3] == 0
+    w, h, rows = read_png(preview.tile(s, 4, 0, 0))  # zoomed out: 64 blocks of land in 16 pixels
+    assert rows[5][5][3] == 255 and rows[20][20][3] == 0
+    assert read_png(preview.tile(s, 1, 50, 50))[0] == 1  # nowhere near: an empty picture
+    with pytest.raises(preview.PreviewError):
+        preview.tile(s, 3, 0, 0)
+    first = s.region(0, 0)
+    assert s.region(0, 0) is first  # read once, until the file changes
+
+
+def test_exploring_the_map_from_the_page(hub_env, modrinth, monkeypatch):
+    hub, c = hub_env
+    login(c)
+    for pid, slug in (("FAPI", "fabric-api"), ("CHK", "chunky")):
+        modrinth.project(pid, slug, slug)
+        modrinth.version(pid, "1.0", ["1.21.1"])
+    made = []
+
+    def generate(self, center, radius, report=None):  # the fake server can't make land: write it
+        cx0 = (center[0] if center else 0) >> 4
+        cz0 = (center[1] if center else 0) >> 4
+        made.append((center, radius))
+        r = radius >> 4
+        chunks = {(cx, cz): chunk(cx, cz) for cx in range(cx0 - r, cx0 + r) for cz in range(cz0 - r, cz0 + r)}
+        write_world(self.world, chunks) if not (self.world / "region").exists() else _add(self.world, chunks)
+
+    def _add(world, chunks):
+        import shutil
+        other = world.parent / "more"
+        shutil.rmtree(other, ignore_errors=True)
+        write_world(other, chunks)
+        for f in (other / "region").iterdir():
+            (world / "region" / f.name).write_bytes(f.read_bytes())
+
+    monkeypatch.setattr(preview.MapSession, "generate", generate)
+    body = {"loader": "fabric", "minecraft": "1.21.1", "mods": [], "seed": "1", "level_type": "minecraft:normal",
+            "structures": True, "radius": 128}
+    r = c.post("/api/hub/preview", body)[1]
+    wait_for(lambda: c.get(f"/api/hub/preview?id={r['id']}")[1]["state"] != "running", timeout=60)
+    assert c.get(f"/api/hub/preview?id={r['id']}")[1]["state"] == "done"
+    info = c.get(f"/api/hub/map?id={r['id']}")[1]
+    assert info["version"] == 0 and info["regions"] and info["areas"][0][2] == 128
+    status, png, headers = c.get(f"/api/hub/map/tile?id={r['id']}&s=1&x=0&z=0")
+    assert status == 200 and headers["Content-Type"] == "image/png"
+    assert c.get(f"/api/hub/map/biome?id={r['id']}&x=5&z=5")[1] == {"biome": "minecraft:plains", "made": True}
+    assert c.get(f"/api/hub/map/tile?id={r['id']}&s=3&x=0&z=0")[0] == 400
+    assert c.get(f"/api/hub/map/tile?id={r['id']}&s=1&x=a&z=0")[0] == 400
+    # more land, elsewhere
+    status, job, _ = c.post("/api/hub/map/explore", {"id": r["id"], "x": 2000, "z": -1000, "radius": 256})
+    assert status == 200 and job["state"] == "running"
+    wait_for(lambda: c.get(f"/api/hub/map?id={r['id']}")[1]["job"]["state"] != "running", timeout=30)
+    info = c.get(f"/api/hub/map?id={r['id']}")[1]
+    assert info["job"]["state"] == "done" and info["version"] == 1 and made[-1] == ((2000, -1000), 256)
+    assert c.get(f"/api/hub/map/biome?id={r['id']}&x=2000&z=-1000")[1]["made"]
+    assert c.post("/api/hub/map/explore", {"id": r["id"], "x": 0, "z": 0, "radius": 5000})[0] == 400
+    assert c.get("/api/hub/map?id=000000000000")[0] == 404
+    # a new preview replaces the explorable world
+    old = hub.map_session
+    r2 = c.post("/api/hub/preview", body)[1]
+    wait_for(lambda: c.get(f"/api/hub/preview?id={r2['id']}")[1]["state"] != "running", timeout=60)
+    assert old.closed and c.get(f"/api/hub/map?id={r['id']}")[0] == 404
+    from mcsm.web import device_allowed
+    assert not device_allowed("POST", "/api/hub/map/explore")

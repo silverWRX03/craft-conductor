@@ -24,6 +24,7 @@ import struct
 import threading
 import time
 import zlib
+from collections import Counter
 from pathlib import Path
 
 from . import config as configmod, setup as setupmod
@@ -307,101 +308,178 @@ def map_center(world: Path, radius: int) -> tuple[tuple[int, int], tuple[int, in
     return middle, spawn
 
 
-def render(world: Path, center: tuple[int, int], radius: int, spawn: tuple[int, int] | None = None) -> tuple[bytes, dict]:
+class Surface:
+    """The ground of one chunk seen from above: per column, its colour, height and whether it's
+    water (256 columns, z * 16 + x), and the chunk's biome."""
+    __slots__ = ("colors", "heights", "water", "biome")
+
+    def __init__(self):
+        self.colors = bytearray(256 * 3)
+        self.heights = [None] * 256
+        self.water = bytearray(256)
+        self.biome = ""
+
+
+def chunk_surface(root: dict, stats=None) -> Surface | None:
+    """A finished chunk's ground (None for one that isn't finished or can't be read). ``stats``
+    (a Counter) collects why chunks were left out."""
+    def note(why):
+        if stats is not None:
+            stats[why] += 1
+    if "Level" in root and isinstance(root["Level"], dict):  # (the pre-1.18 layout)
+        note("old format")
+        return None
+    status = str(root.get("Status", "")).removeprefix("minecraft:")
+    if status != "full":
+        note(status or "no status")
+        return None
+    maps = root.get("Heightmaps") or {}
+    if "WORLD_SURFACE" not in maps or not isinstance(maps["WORLD_SURFACE"], LongArray):
+        note("full, without a height map")
+        return None
+    note("full")
+    surface = _heightmap(maps["WORLD_SURFACE"].longs())
+    floor = _heightmap(maps["OCEAN_FLOOR"].longs()) if isinstance(maps.get("OCEAN_FLOOR"), LongArray) else surface
+    min_y = int(root.get("yPos", -4)) * 16
+    sections = {int(x.get("Y", 0)): x for x in root.get("sections") or [] if isinstance(x, dict)}
+    out = Surface()
+    middle = sections.get((min_y + surface[8 * 16 + 8] - 1) >> 4)
+    if middle is not None:
+        out.biome = _section_biome(middle)
+    for i in range(256):
+        y = min_y + surface[i] - 1
+        section = sections.get(y >> 4)
+        block = _section_block(section, i & 15, y & 15, i >> 4) if section else "minecraft:air"
+        if block.split(":", 1)[-1] in AIR:
+            continue
+        rgb = color(block)
+        if "water" in block:  # deeper water is darker
+            rgb = _shade(rgb, max(0.45, 1.0 - (y - (min_y + floor[i] - 1)) * 0.035))
+            out.water[i] = 1
+        out.colors[i * 3:i * 3 + 3] = bytes(rgb)
+        out.heights[i] = y
+    return out
+
+
+class Surfaces:
+    """The ground of a world's chunks, read from its region files once and kept until a file
+    changes (the server can add land while the map is open). Safe to use from several threads."""
+
+    def __init__(self, world: Path):
+        self.world = world
+        self.regions: dict[tuple[int, int], tuple[tuple[int, int], dict]] = {}
+        self.stats = Counter()
+        self.problems: list[str] = []
+        self.lock = threading.Lock()
+
+    def region(self, rx: int, rz: int) -> dict:
+        path = self.world / "region" / f"r.{rx}.{rz}.mca"
+        try:
+            st = path.stat()
+        except OSError:
+            return {}
+        stamp = (st.st_mtime_ns, st.st_size)
+        with self.lock:
+            cached = self.regions.get((rx, rz))
+            if cached and cached[0] == stamp:
+                return cached[1]
+            chunks = {}
+            for cx, cz, root in region_chunks(path, self.problems):
+                surface = chunk_surface(root, self.stats)
+                if surface is not None:
+                    chunks[(cx, cz)] = surface
+            del self.problems[20:]
+            self.regions[(rx, rz)] = (stamp, chunks)
+            return chunks
+
+    def chunk(self, cx: int, cz: int) -> Surface | None:
+        return self.region(cx >> 5, cz >> 5).get((cx, cz))
+
+
+def draw(surfaces: Surfaces, x0: int, z0: int, size: int, scale: int = 1) -> tuple[list, int]:
+    """Pixels (rows of RGBA) for ``size`` × ``size`` pixels from block (x0, z0), ``scale`` blocks a
+    pixel, north up, with relief as on a Minecraft map; and how many pixels have ground."""
+    pixels, painted = [], 0
+    above = [None] * size  # the heights of the row to the north
+    last_key, last = None, None
+    regions: dict[tuple[int, int], dict] = {}  # (read once a drawing: zoomed out, every pixel is another chunk)
+    for pz in range(size):
+        bz = z0 + pz * scale
+        row, heights = [], [None] * size
+        for px in range(size):
+            bx = x0 + px * scale
+            key = (bx >> 4, bz >> 4)
+            if key != last_key:
+                rkey = (key[0] >> 5, key[1] >> 5)
+                if rkey not in regions:
+                    regions[rkey] = surfaces.region(*rkey)
+                last_key, last = key, regions[rkey].get(key)
+            i = (bz & 15) * 16 + (bx & 15)
+            if last is None or last.heights[i] is None:
+                row.append(BACKGROUND)
+                continue
+            here = last.heights[i]
+            heights[px] = here
+            rgb = tuple(last.colors[i * 3:i * 3 + 3])
+            north = above[px]
+            if north is not None and not last.water[i]:  # lighter going up, darker going down
+                rgb = _shade(rgb, 1.12 if here > north else 0.84 if here < north else 1.0)
+            row.append((*rgb, 255))
+            painted += 1
+        pixels.append(row)
+        above = heights
+    return pixels, painted
+
+
+def render(world: Path, center: tuple[int, int], radius: int, spawn: tuple[int, int] | None = None,
+           surfaces: Surfaces | None = None) -> tuple[bytes, dict]:
     """A PNG of the ground within ``radius`` blocks of ``center`` (one pixel a block, north up),
     and what the page needs: where it is, the spawn and each chunk's biome. Raises PreviewError
     (saying what was found) when there's nothing to draw."""
-    from collections import Counter
-    problems: list[str] = []
-    statuses: Counter = Counter()
-    drawn = painted = 0
-    sample = ""  # (what the first chunk looked like, for the error when nothing shows)
+    surfaces = surfaces or Surfaces(world)
     x0, z0 = center[0] - radius, center[1] - radius
     size = radius * 2
-    pixels = [[BACKGROUND] * size for _ in range(size)]
-    heights = [[None] * size for _ in range(size)]
-    water = [[False] * size for _ in range(size)]
+    pixels, painted = draw(surfaces, x0, z0, size)
     cx0, cz0, n = x0 >> 4, z0 >> 4, ((x0 + size - 1) >> 4) - (x0 >> 4) + 1
     biome_names: list[str] = []
     biome_grid = [[-1] * n for _ in range(n)]
-    region = world / "region"
-    wanted = {(rx, rz) for rx in range(x0 >> 9, (x0 + size - 1 >> 9) + 1) for rz in range(z0 >> 9, (z0 + size - 1 >> 9) + 1)}
-    for rx, rz in sorted(wanted):
-        path = region / f"r.{rx}.{rz}.mca"
-        if not path.is_file():
-            continue
-        for cx, cz, root in region_chunks(path, problems):
-            if not (cx0 <= cx < cx0 + n and cz0 <= cz < cz0 + n):
-                continue
-            if "Level" in root and isinstance(root["Level"], dict):  # (the pre-1.18 layout)
-                statuses["old format"] += 1
-                continue
-            status = str(root.get("Status", "")).removeprefix("minecraft:")
-            statuses[status or "no status"] += 1
-            if status != "full":
-                continue
-            maps = root.get("Heightmaps") or {}
-            if "WORLD_SURFACE" not in maps or not isinstance(maps["WORLD_SURFACE"], LongArray):
-                statuses["full, without a height map"] += 1
-                continue
-            drawn += 1
-            surface = _heightmap(maps["WORLD_SURFACE"].longs())
-            if not sample:
-                sample = (f"height map of {len(maps['WORLD_SURFACE']) // 8} longs, yPos {root.get('yPos')}, sections "
-                          f"{sorted(int(x.get('Y', 0)) for x in root.get('sections') or [] if isinstance(x, dict))}")
-            floor = _heightmap(maps["OCEAN_FLOOR"].longs()) if "OCEAN_FLOOR" in maps else surface
-            min_y = int(root.get("yPos", -4)) * 16
-            sections = {int(s.get("Y", 0)): s for s in root.get("sections") or [] if isinstance(s, dict)}
-            middle = sections.get((min_y + surface[8 * 16 + 8] - 1) >> 4)
-            if middle is not None:
-                name = _section_biome(middle)
-                if name:
-                    if name not in biome_names:
-                        biome_names.append(name)
-                    biome_grid[cz - cz0][cx - cx0] = biome_names.index(name)
-            for lz in range(16):
-                pz = cz * 16 + lz - z0
-                if not 0 <= pz < size:
-                    continue
-                for lx in range(16):
-                    px = cx * 16 + lx - x0
-                    if not 0 <= px < size:
-                        continue
-                    y = min_y + surface[lz * 16 + lx] - 1
-                    section = sections.get(y >> 4)
-                    block = _section_block(section, lx, y & 15, lz) if section else "minecraft:air"
-                    if block.split(":", 1)[-1] in AIR:
-                        continue
-                    rgb = color(block)
-                    if "water" in block:  # deeper water is darker
-                        depth = y - (min_y + floor[lz * 16 + lx] - 1)
-                        rgb = _shade(rgb, max(0.45, 1.0 - depth * 0.035))
-                        water[pz][px] = True
-                    heights[pz][px] = y
-                    pixels[pz][px] = rgb
-                    painted += 1
-    # Relief, as on a Minecraft map: lighter where the ground rises going south, darker where it falls.
-    for pz in range(size):
-        for px in range(size):
-            here = heights[pz][px]
-            if here is None:
-                continue
-            north = heights[pz - 1][px] if pz else None
-            rgb = pixels[pz][px]
-            if north is not None and not water[pz][px]:
-                factor = 1.12 if here > north else 0.84 if here < north else 1.0
-                rgb = _shade(rgb, factor)
-            pixels[pz][px] = (*rgb, 255)
-    if not drawn:
-        found = ", ".join(f"{k}: {v}" for k, v in statuses.most_common(5)) or "no chunks in that area"
-        raise PreviewError(f"nothing could be drawn around {center[0]}, {center[1]} ({found}"
-                           + (f"; {problems[0]}" if problems else "") + ")")
+    for cz in range(cz0, cz0 + n):
+        for cx in range(cx0, cx0 + n):
+            c = surfaces.chunk(cx, cz)
+            if c is not None and c.biome:
+                if c.biome not in biome_names:
+                    biome_names.append(c.biome)
+                biome_grid[cz - cz0][cx - cx0] = biome_names.index(c.biome)
     if not painted:
-        raise PreviewError(f"the world's {drawn} chunk(s) around {center[0]}, {center[1]} came out empty ({sample})")
-    log.info("map preview: drew %d chunk(s) around %s (spawn %s)", drawn, center, spawn)
+        found = ", ".join(f"{k}: {v}" for k, v in surfaces.stats.most_common(5)) or "no chunks in that area"
+        what = "came out empty" if surfaces.stats.get("full") else "had nothing that could be drawn"
+        raise PreviewError(f"nothing could be drawn around {center[0]}, {center[1]}: the world {what} ({found}"
+                           + (f"; {surfaces.problems[0]}" if surfaces.problems else "") + ")")
+    log.info("map preview: drew %d pixel(s) around %s (spawn %s)", painted, center, spawn)
     meta = {"x": x0, "z": z0, "size": size, "spawn": {"x": spawn[0], "z": spawn[1]} if spawn else None,
             "biomes": {"names": biome_names, "chunk_x": cx0, "chunk_z": cz0, "grid": biome_grid}}
     return png(pixels), meta
+
+
+TILE = 256  # a map tile's pixels each way
+TILE_SCALES = (1, 2, 4, 8, 16)  # blocks a pixel
+EMPTY_PNG = None  # (made on first use)
+
+
+def tile(surfaces: Surfaces, scale: int, tx: int, tz: int) -> bytes:
+    """One square of the explorable map: TILE × TILE pixels at ``scale`` blocks a pixel."""
+    global EMPTY_PNG
+    if scale not in TILE_SCALES:
+        raise PreviewError("that zoom isn't one of the map's")
+    span = TILE * scale
+    x0, z0 = tx * span, tz * span
+    regions = [(rx, rz) for rx in range(x0 >> 9, ((x0 + span - 1) >> 9) + 1)
+               for rz in range(z0 >> 9, ((z0 + span - 1) >> 9) + 1)]
+    if not any((surfaces.world / "region" / f"r.{rx}.{rz}.mca").is_file() for rx, rz in regions):
+        if EMPTY_PNG is None:
+            EMPTY_PNG = png([[BACKGROUND]])
+        return EMPTY_PNG
+    return png(draw(surfaces, x0, z0, TILE, scale)[0])
 
 
 def png(pixels: list[list[tuple[int, int, int, int]]]) -> bytes:
@@ -418,6 +496,140 @@ def png(pixels: list[list[tuple[int, int, int, int]]]) -> bytes:
 
     return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0))
             + chunk(b"IDAT", zlib.compress(bytes(raw), 6)) + chunk(b"IEND", b""))
+
+
+# ----------------------------------------------------------- the live map
+EXPLORE_MAX = 1024     # the widest square made at once (blocks from the middle)
+IDLE_STOP = 5 * 60     # the private server stops after this long without being asked for land
+
+
+def _new_lines(proc, mark: int) -> list[str]:
+    """The server's output since ``mark`` (its line count then)."""
+    lines = list(proc.lines)
+    return lines[len(lines) - min(len(lines), proc.line_count - mark):]
+
+
+class MapSession:
+    """The last previewed world, kept so its map can be explored: moved around, zoomed out, and
+    grown by asking the private server (started again if it stopped) to make more land. The
+    server stops by itself after a few minutes of not being asked; the land made stays."""
+
+    def __init__(self, hub, preview_id: str, m, spawn: tuple[int, int] | None):
+        self.hub, self.id, self.m = hub, preview_id, m
+        self.world = m.server_dir / "world"
+        self.surfaces = Surfaces(self.world)
+        self.spawn = spawn
+        self.proc = None
+        self.version = 0          # goes up whenever land is added (the page reloads its tiles)
+        self.areas: list[list[int]] = []  # squares made: [x, z, radius]
+        self.rate: float | None = None     # chunks a second, measured
+        self.job: dict | None = None       # the land being made: {state, step, progress, ...}
+        self.last_used = time.monotonic()
+        self.cancel = threading.Event()
+        self.lock = threading.Lock()
+        self.closed = False
+        threading.Thread(target=self._watch, daemon=True, name=f"map:{preview_id}").start()
+
+    def to_dict(self) -> dict:
+        return {"id": self.id, "version": self.version, "areas": self.areas, "spawn": self.spawn,
+                "rate": self.rate, "running": bool(self.proc and self.proc.running), "job": self.job,
+                "regions": sorted([int(m.group(1)), int(m.group(2))] for p in (self.world / "region").glob("r.*.mca")
+                                  if (m := re.fullmatch(r"r\.(-?\d+)\.(-?\d+)\.mca", p.name)))
+                if (self.world / "region").is_dir() else []}
+
+    def generate(self, center: tuple[int, int] | None, radius: int, report=None) -> None:
+        """Make the land in a square (``center`` None: around the spawn), waiting until it's saved.
+        ``report(step, progress)`` hears how it's going."""
+        from . import worldtools
+        report = report or (lambda step, progress: None)
+        self.last_used = time.monotonic()
+        if not (self.proc and self.proc.running):
+            report("Starting a private server to make the world…", None)
+            self.proc = self.m.start_server()
+        proc = self.proc
+        report("Making the world…", 0.0)
+        mark = proc.line_count
+        started = time.monotonic()
+        where = "chunky spawn" if center is None else f"chunky center {center[0]} {center[1]}"
+        for command in (where, f"chunky radius {radius}", "chunky start", "chunky confirm"):
+            proc.send(command)
+        deadline = started + GENERATE_TIMEOUT
+        while time.monotonic() < deadline:
+            if self.cancel.is_set():
+                proc.send("chunky cancel")
+                raise InterruptedError
+            if not proc.running:
+                raise PreviewError("the server stopped while making the world: " + " / ".join(proc.tail(3)))
+            lines = _new_lines(proc, mark)
+            if any(worldtools._CHUNKY_DONE.search(line) for line in lines):
+                break
+            p = worldtools.chunky_progress(lines)
+            if p and p.get("percent") is not None:
+                report("Making the world…", min(1.0, float(p["percent"]) / 100))
+            time.sleep(1)
+        else:
+            raise PreviewError("making the world took too long; try a smaller area")
+        report("Saving the world…", None)
+        proc.ask("save-all flush", lambda ls: True if any("Saved the game" in x for x in ls) else None, timeout=60)
+        chunks = (2 * radius // 16 + 1) ** 2
+        took = max(1.0, time.monotonic() - started)
+        self.rate = round(chunks / took, 1)
+        self.last_used = time.monotonic()
+
+    def explore(self, x: int, z: int, radius: int) -> dict:
+        """Make more land around (x, z), in the background; the page polls :meth:`to_dict`."""
+        if not (16 <= radius <= EXPLORE_MAX):
+            raise PreviewError(f"make at most {EXPLORE_MAX} blocks each way from the middle at a time")
+        if max(abs(x), abs(z)) > 29_000_000:
+            raise PreviewError("that's outside the world")
+        with self.lock:
+            if self.closed:
+                raise PreviewError("this map's world is gone; preview it again")
+            if self.job and self.job["state"] == "running":
+                raise PreviewError("the map is already being made bigger; wait for it or stop it")
+            self.cancel.clear()
+            self.job = {"state": "running", "step": "Getting ready…", "progress": None, "x": x, "z": z,
+                        "radius": radius, "started": time.time(), "error": ""}
+
+        def run():
+            def report(step, progress):
+                self.job.update(step=step, progress=progress)
+            try:
+                self.generate((x, z), radius, report)
+                self.areas.append([x, z, radius])
+                self.version += 1
+                self.job.update(state="done", step="Done", progress=None)
+            except InterruptedError:
+                self.job.update(state="cancelled", step="Stopped", progress=None)
+            except Exception as e:
+                if not isinstance(e, (PreviewError, OSError, RuntimeError)):
+                    log.exception("making more of the map failed")
+                self.job.update(state="failed", step="Failed", error=str(e).splitlines()[0][:300] if str(e) else repr(e))
+        threading.Thread(target=run, daemon=True, name=f"map-explore:{self.id}").start()
+        return self.job
+
+    def stop_server(self) -> None:
+        proc, self.proc = self.proc, None
+        if proc and proc.running:
+            try:
+                proc.stop(self.m.config.server.stop_timeout)
+            except Exception:
+                log.exception("couldn't stop the map's server")
+
+    def close(self) -> None:
+        """Stop for good (a new preview replaces this world, or mcsm quits)."""
+        with self.lock:
+            self.closed = True
+        self.cancel.set()
+        self.stop_server()
+
+    def _watch(self) -> None:
+        while not self.closed:
+            time.sleep(15)
+            busy = self.job and self.job["state"] == "running"
+            if self.proc and not busy and time.monotonic() - self.last_used > IDLE_STOP:
+                log.info("the map's private server wasn't needed for a while: stopping it")
+                self.stop_server()
 
 
 # --------------------------------------------------------------------- the job
@@ -528,56 +740,49 @@ class Preview:
         return m
 
     def _generate(self, m) -> Path:
-        """Start the server, have Chunky generate the map's area, save and stop. The world folder."""
-        from . import worldtools
-        self.step = "Starting a private server to make the world…"
-        proc = m.start_server()
-        try:
+        """Make the land around the spawn (the map session keeps the server running). The world folder."""
+        def report(step, progress):
             self._check()
-            self.step, self.progress = "Making the world…", 0.0
-            for command in ("chunky spawn", f"chunky radius {self.radius}", "chunky start", "chunky confirm"):
-                proc.send(command)
-            deadline = time.monotonic() + GENERATE_TIMEOUT
-            while time.monotonic() < deadline:
-                self._check()
-                if not proc.running:
-                    raise PreviewError("the server stopped while making the world: " + " / ".join(proc.tail(3)))
-                lines = proc.tail(80)
-                if any(worldtools._CHUNKY_DONE.search(line) for line in lines):
-                    break
-                p = worldtools.chunky_progress(lines)
-                if p and p.get("percent") is not None:
-                    self.progress = min(1.0, float(p["percent"]) / 100)
-                time.sleep(1)
-            else:
-                raise PreviewError("making the world took too long; try a smaller map")
-            self.step, self.progress = "Saving the world…", None
-            proc.ask("save-all flush", lambda ls: True if any("Saved the game" in x for x in ls) else None, timeout=60)
-        finally:
-            proc.stop(m.config.server.stop_timeout)
+            self.step, self.progress = step, progress
+        self.session = MapSession(self.hub, self.id, m, None)
+        self.session.generate(None, self.radius, report)
         return m.server_dir / "world"
 
     def _run(self) -> None:
+        old = getattr(self.hub, "map_session", None)
+        if old is not None:  # its world is about to be replaced
+            old.close()
+            self.hub.map_session = None
         try:
             m = self._server()
             self._check()
             world = self._generate(m)
             self.step = "Drawing the map…"
             center, spawn = map_center(world, self.radius)
-            image, meta = render(world, center, self.radius, spawn)
+            session = getattr(self, "session", None) or MapSession(self.hub, self.id, m, spawn)
+            session.spawn, session.areas = spawn, [[center[0], center[1], self.radius]]
+            image, meta = render(world, center, self.radius, spawn, session.surfaces)
             self.folder(self.hub).mkdir(parents=True, exist_ok=True)
             self.map_path.write_bytes(image)
             self.meta = meta
+            self.hub.map_session = session
             self.step, self.state = "Done", "done"
             self._forget_old_maps()
         except InterruptedError:
+            self._drop_session()
             self.step, self.state = "Stopped", "cancelled"
         except Exception as e:
+            self._drop_session()
             if not isinstance(e, (PreviewError, OSError, RuntimeError)):
                 log.exception("map preview failed")
             self.error = str(e).splitlines()[0][:400] if str(e) else repr(e)
             self.step, self.state = "Failed", "failed"
             shutil.rmtree(self.folder(self.hub) / "server", ignore_errors=True)  # start clean next time
+
+    def _drop_session(self) -> None:
+        session = getattr(self, "session", None)
+        if session is not None:
+            session.close()
 
     def _forget_old_maps(self) -> None:
         maps = sorted(self.folder(self.hub).glob("*.png"), key=lambda p: p.stat().st_mtime)

@@ -36,6 +36,10 @@ Before continuing or starting a feature, check this list: some features wait on 
 - [ ] **Modded single-player worlds:** set up and keep a modded single-player game up to date,
       then load it into the launcher of your choice (no launcher of our own).
 - [ ] Purpur servers.
+- [ ] **Servers on hosting sites:** look into controlling servers that run elsewhere. Hosting
+      panels with an official API (Pterodactyl, used by many paid hosts) are the realistic
+      target. Free hosts (Aternos, Minehut, Minefort) only if they have an official API and their
+      terms allow it: Aternos's terms don't allow automating its site.
 - [ ] Web map of the world (BlueMap or Dynmap) with a link to share.
 - [ ] Whitelist through Discord (friends ask with a command, the owner approves).
 - [ ] Snapshots of a whole server (config, mods, world) with a list of what changed, and rollback.

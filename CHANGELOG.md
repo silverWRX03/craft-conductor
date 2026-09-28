@@ -4,6 +4,11 @@ What changed in each version of mcsm, newest first. Bugs are listed the way you'
 them. Found a new one? [Report it](https://github.com/silverWRX03/mc-server-management/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.13.0 (2026-09-28)
+
+**Added**
+- **Explore the map preview:** drag the map to move and scroll to zoom out and see much more of the world. **Make this area** has the private server make the land you're looking at, and **Keep making the map as I move** does that by itself as you go. The server stops on its own after a few minutes of not being needed.
+
 ## 0.12.1 (2026-09-27)
 
 **Added**

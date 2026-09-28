@@ -174,6 +174,7 @@ ready to update to Minecraft 1.21.4 with fabric 0.16.14:
   **Modrinth modpack**.
 - **See a seed's map before you create the server,** with world-generation mods from Modrinth
   (Terralith, Tectonic, …): mcsm generates the area in a private test server and draws it.
+  Drag and zoom the map to explore, and it makes more of the world as you go.
 - **Worlds:** pick the seed, world type, structures and hardcore when you create a
   server, or **import any world**: a `.zip`, or a singleplayer world from the Minecraft
   Launcher, Prism, the Modrinth App or CurseForge.

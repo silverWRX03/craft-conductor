@@ -512,6 +512,8 @@ class RequestHandler(BaseHTTPRequestHandler):
                     return self._json(200, handler(q, self))
                 if path == "/api/hub/preview/map":  # a map preview's picture
                     return self._send(200, handler(q, {}), "image/png", {"Cache-Control": "private, max-age=86400"})
+                if path == "/api/hub/map/tile":  # a square of an explorable map (the page adds ?v= when land is added)
+                    return self._send(200, handler(q, {}), "image/png", {"Cache-Control": "private, max-age=3600"})
                 result = handler(q, self._body() if method == "POST" else {})
                 if path == "/api/hub":  # whether "Open folder" buttons can work; who's signed in
                     result = {**result, "local": local, "device": device["name"] if device else None,
@@ -804,6 +806,11 @@ class HubApi:
         r[("GET", "/api/hub/preview")] = self.preview_status
         r[("GET", "/api/hub/preview/map")] = self.preview_map
         r[("POST", "/api/hub/preview/cancel")] = self.cancel_preview
+        r[("GET", "/api/hub/map")] = self.map_info
+        r[("GET", "/api/hub/map/tile")] = self.map_tile
+        r[("GET", "/api/hub/map/biome")] = self.map_biome
+        r[("POST", "/api/hub/map/explore")] = self.map_explore
+        r[("POST", "/api/hub/map/stop")] = self.map_stop
         r[("GET", "/api/hub/saves")] = self.saves
         r[("POST", "/api/hub/import")] = lambda q, b: {"ok": True, "id": self.hub.import_server(str(b.get("id", "")))}
         r[("GET", "/api/hub/browse/search")] = lambda q, b: browse_search(self.browser(), q)
@@ -971,6 +978,57 @@ class HubApi:
             return preview.image(self.hub, q.get("id", ""))
         except preview.PreviewError as e:
             raise ApiError(404, str(e)) from None
+
+    # (the last previewed world, to move around, zoom out and grow)
+    def _map(self, map_id):
+        session = self.hub.map_session
+        if session is None or session.id != str(map_id or ""):
+            raise ApiError(404, "this map's world is gone (a newer preview replaced it); preview it again to explore it")
+        return session
+
+    @staticmethod
+    def _ints(q, *names, limit=30_000_000) -> list[int]:
+        try:
+            values = [int(q.get(n, "")) for n in names]
+        except (TypeError, ValueError):
+            raise ApiError(400, "whole numbers, please") from None
+        if any(abs(v) > limit for v in values):
+            raise ApiError(400, "that's outside the world")
+        return values
+
+    def map_info(self, q, b) -> dict:
+        return self._map(q.get("id")).to_dict()
+
+    def map_tile(self, q, b) -> bytes:
+        from . import preview
+        session = self._map(q.get("id"))
+        scale, tx, tz = self._ints(q, "s", "x", "z", limit=200_000)
+        try:
+            return preview.tile(session.surfaces, scale, tx, tz)
+        except preview.PreviewError as e:
+            raise ApiError(400, str(e)) from None
+
+    def map_biome(self, q, b) -> dict:
+        session = self._map(q.get("id"))
+        x, z = self._ints(q, "x", "z")
+        c = session.surfaces.chunk(x >> 4, z >> 4)
+        return {"biome": c.biome if c else "", "made": c is not None}
+
+    def map_explore(self, q, b) -> dict:
+        from . import preview
+        session = self._map(b.get("id"))
+        x, z, radius = self._ints(b, "x", "z", "radius")
+        if any(p.state == "running" for p in self.hub.previews.values()):
+            raise ApiError(409, "a map is being made; wait for it")
+        try:
+            return session.explore(x, z, radius)
+        except preview.PreviewError as e:
+            raise ApiError(409 if "already" in str(e) else 400, str(e)) from None
+
+    def map_stop(self, q, b) -> dict:
+        session = self._map(b.get("id"))
+        session.cancel.set()
+        return {"ok": True}
 
     def cancel_preview(self, q, b) -> dict:
         self._preview(b.get("id")).cancel.set()

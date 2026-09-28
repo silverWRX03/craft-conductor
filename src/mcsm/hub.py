@@ -112,6 +112,7 @@ class Hub:
         self.make_manager = make_manager or (lambda cfg: Manager(cfg, http=self.http, echo=False))
         self.trials: dict = {}  # test boots (trial.Trial) by id
         self.previews: dict = {}  # map previews (preview.Preview) by id
+        self.map_session = None  # the last previewed world, to explore (preview.MapSession)
         self._upnp_lock = threading.Lock()
         self._upnp_status: dict | None = None
         self._gateway, self._gateway_at = None, 0.0
@@ -153,6 +154,7 @@ class Hub:
         hub.share_error = None
         hub.trials = {}
         hub.previews = {}
+        hub.map_session = None
         hub._upnp_lock = threading.Lock()
         hub._upnp_status = None
         hub._gateway, hub._gateway_at = None, 0.0
@@ -978,6 +980,8 @@ class Hub:
                 self.share.stop()
             if self._hub_file().get("discord", {}).get("status_channel"):
                 self.discord_status(off=True)  # say mcsm is closed, rather than leave "online" up
+            if self.map_session is not None:  # (a map's private server)
+                self.map_session.close()
             if self.upnp_settings()["mapped"]:  # the servers stop: close the ports on the router too
                 try:
                     self._upnp_close()
