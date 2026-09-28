@@ -953,7 +953,12 @@ views.dashboard = () => {
   const events = h("div", { class: "events" });
   const online = h("div", { class: "online" });
   const onlineCount = h("span", { class: "muted" });
-  const playerCard = h("div", { class: "card" }, h("h3", {}, "Online now ", onlineCount), online);
+  const mapLink = h("div");  // the web map, when there is one and it answers (Settings → Web map)
+  const playerCard = h("div", { class: "card" }, h("h3", {}, "Online now ", onlineCount), online, mapLink);
+  api("/api/webmap").then((r) => {
+    if (r.kind && r.answers) fill(mapLink, h("a", { class: "btn small ghost mt-s", href: hubInfo && hubInfo.local ? r.local_url : r.lan_url || r.local_url,
+      target: "_blank", rel: "noopener noreferrer" }, `🗺 ${t("See where everyone is on the map")} ↗`));
+  }).catch(() => null);
   const cpu = meter("CPU"), mem = meter("Memory");
   const perf = perfCard();
   const tun = tunnelCard();
@@ -1482,7 +1487,7 @@ function activityCard() {
   const load = async () => {
     const r = await api(`/api/players/activity?days=${days}`).catch(() => null);
     if (!r) { fill(body, h("p", { class: "muted small" }, "Couldn't load the player activity.")); return; }
-    const periods = h("select", { "aria-label": "Period", onchange: (e) => { days = Number(e.target.value); load(); } },
+    const periods = h("select", { class: "fit", "aria-label": "Period", onchange: (e) => { days = Number(e.target.value); load(); } },
       [[7, "Last 7 days"], [30, "Last 30 days"], [90, "Last 90 days"]].map(([v, l]) => h("option", { value: v }, l)));
     periods.value = String(days);
     if (!r.players.length) {
@@ -1963,6 +1968,51 @@ function worldTools() {
   return { el, load };
 }
 
+// The web map (webmap.py): BlueMap (3D) or Dynmap, a live map of the world in a browser tab.
+function webMapCard() {
+  const body = h("div", {}, h("p", { class: "muted small" }, "Loading…"));
+  const el = h("div", { class: "card mt" }, h("h3", {}, "Web map"), body);
+  const add = async (kind, name) => {
+    const r = await act(() => api("/api/webmap/add", { method: "POST", body: { kind } }));
+    if (!r) return;
+    const st = status || {};
+    if (st.minecraft && await ask(`${name} is added. Install it now?\n\nThe server updates its mods for Minecraft ${st.minecraft} and restarts (players get the countdown first).`, { ok: "Install now" }))
+      await act(() => api("/api/updates/apply", { method: "POST", body: { target: st.minecraft } }), `Installing ${name}…`);
+    else toast(`${name} is added: it's installed with the next update.`);
+    load();
+  };
+  const load = async () => {
+    const r = await api("/api/webmap").catch(() => null);
+    if (!r) return;
+    if (!r.kind) {
+      fill(body,
+        h("p", { class: "muted small" }, "A live map of the world that you and your friends open in a browser: see the terrain, builds and who is where."),
+        r.listed ? h("p", { class: "small" }, `${r.maps[r.listed]} is added and is installed with the next update.`)
+          : h("div", { class: "row" },
+            h("button", { class: "btn", onclick: () => add("bluemap", "BlueMap") }, "Add BlueMap"),
+            h("span", { class: "muted small grow" }, "3D, looks like the game. Needs more disk space and a while to draw the first time."),
+            h("button", { class: "btn", onclick: () => add("dynmap", "Dynmap") }, "Add Dynmap"),
+            h("span", { class: "muted small grow" }, "Flat, like a road map. Lighter.")));
+      return;
+    }
+    const portIn = h("input", { type: "number", min: 1024, max: 65535, value: r.port, class: "narrow", "aria-label": "Map port" });
+    fill(body,
+      r.accepted === false ? h("div", { class: "notice warn small" },
+        h("p", {}, "BlueMap draws the map with Minecraft's own textures, which it downloads from Mojang. It waits for your OK."),
+        h("button", { class: "btn small primary", onclick: () => act(() => api("/api/webmap/accept", { method: "POST", body: {} }), "BlueMap starts drawing the map").then(load) }, "OK, download them")) : null,
+      !r.configured ? h("p", { class: "muted small" }, `${r.name} sets itself up the first time the server starts with it.`)
+        : r.answers ? h("div", { class: "row" }, h("span", { class: "ok-text small grow" }, `✓ ${r.name} is running.`),
+          h("a", { class: "btn small primary", href: hubInfo && hubInfo.local ? r.local_url : r.lan_url || r.local_url, target: "_blank", rel: "noopener noreferrer" }, "Open the map ↗"))
+          : h("p", { class: "muted small" }, r.running ? `${r.name} isn't answering on port ${r.port} yet (it can take a minute after the server starts).` : "Start the server to see the map."),
+      r.lan_url ? h("p", { class: "small" }, "On your network: ", h("code", {}, r.lan_url)) : null,
+      h("p", { class: "muted small" }, "Friends outside your home need the map's port forwarded on the router, like the game's. Anyone with the address can see the map."),
+      r.configured ? h("div", { class: "row" }, h("label", {}, "Port", portIn),
+        h("button", { class: "btn small", onclick: () => act(() => api("/api/webmap/port", { method: "POST", body: { port: Number(portIn.value) } })).then((x) => { if (x) toast(x.message); load(); }) }, "Change port")) : null,
+      h("p", { class: "muted small" }, `Remove ${r.name} on the Mods page to stop it.`));
+  };
+  return { el, load };
+}
+
 views.settings = () => {
   const form = h("form", { class: "card" });
   let edited = false;  // changes not saved yet
@@ -2093,8 +2143,10 @@ views.settings = () => {
       folderBtn("world", "World folder")));
   worldCard.classList.add("mt");
   const tools = worldTools();
-  fill($("#main"), h("h2", { class: "view-title" }, "Server settings"), form, worldCard, tools.el, exportCard, danger);
+  const map = webMapCard();
+  fill($("#main"), h("h2", { class: "view-title" }, "Server settings"), form, worldCard, tools.el, map.el, exportCard, danger);
   tools.load();
+  map.load();
   load();
   loadExports();
   renderDanger();
@@ -2395,6 +2447,30 @@ async function applyPreset(p, opts) {
 // block out to 32 blocks a pixel). "Make this area" asks the private server for the land in
 // view; "Keep making the map as I move" does that by itself.
 const MAP_LEVELS = [1, 2, 4, 8, 16];  // blocks a pixel the server draws tiles at
+// Landmarks (preview.py): the villages, temples and other structures Minecraft placed, as symbols
+// on the map (named for screen readers and on hover), and a list under it.
+const LANDMARKS_KEY = "mcsm-map-landmarks";
+const landmarksShown = () => { try { return localStorage.getItem(LANDMARKS_KEY) !== "off"; } catch (_) { return true; } };
+function landmarkMark(l) {
+  const words = `${t(l.name)}: x ${l.x}, z ${l.z}`;
+  return h("span", { class: "map-mark", title: words, role: "img", "aria-label": words }, l.symbol);
+}
+function landmarkList(marks, onPick) {
+  if (!marks.length) return h("p", { class: "muted small" }, "No landmarks (villages, temples and the like) in the land made so far.");
+  const counts = {};
+  for (const l of marks) counts[l.name] = (counts[l.name] || 0) + 1;
+  const toggle = h("input", { type: "checkbox", checked: landmarksShown() });
+  toggle.addEventListener("change", () => {
+    try { localStorage.setItem(LANDMARKS_KEY, toggle.checked ? "on" : "off"); } catch (_) { /* private mode */ }
+    document.querySelectorAll(".map-marks").forEach((el) => el.classList.toggle("marks-off", !toggle.checked));
+  });
+  return h("details", { class: "small mt-s landmarks" },
+    h("summary", {}, t("Landmarks:") + " " + Object.entries(counts).map(([n, c]) => `${c} × ${t(n)}`).join(", ")),
+    h("label", { class: "row" }, toggle, h("span", {}, "Show them on the map")),
+    h("ul", { class: "list compact" }, marks.slice(0, 60).map((l) => h("li", {}, h("span", { "aria-hidden": "true" }, l.symbol + " "),
+      h("span", { class: "grow" }, t(l.name)),
+      onPick ? h("button", { type: "button", class: "link-btn", onclick: () => onPick(l) }, `x ${l.x}, z ${l.z}`) : h("code", {}, `x ${l.x}, z ${l.z}`)))));
+}
 function mapExplorer(m, info, readout) {
   const id = m.id;
   const home = info.spawn ? { x: info.spawn.x, z: info.spawn.z }
@@ -2404,7 +2480,10 @@ function mapExplorer(m, info, readout) {
   const layer = h("div", { class: "map-layer" });
   const spawn = h("span", { class: "map-spawn", title: "Spawn" });
   const status = h("div", { class: "map-status small" });
-  const frame = h("div", { class: "map-frame map-live", tabindex: "0", "aria-label": "Map: drag to move, scroll to zoom" }, layer, spawn, status);
+  const marksLayer = h("div", { class: "map-layer map-marks" + (landmarksShown() ? "" : " marks-off") });
+  const marksBox = h("div");
+  let marks = [], marksFrom = null;  // the landmark symbols, and the list they were made from
+  const frame = h("div", { class: "map-frame map-live", tabindex: "0", "aria-label": "Map: drag to move, scroll to zoom" }, layer, marksLayer, spawn, status);
   const tiles = new Map();
   let regions = new Set(state.regions.map(([x, z]) => `${x},${z}`));
   const auto = h("input", { type: "checkbox" });
@@ -2449,6 +2528,16 @@ function mapExplorer(m, info, readout) {
       spawn.style.left = `${(state.spawn.x - left) / view.bpp}px`;
       spawn.style.top = `${(state.spawn.z - top) / view.bpp}px`;
     } else spawn.classList.add("hidden");
+    if (marksFrom !== state.landmarks) {  // (new land, new landmarks)
+      marksFrom = state.landmarks || [];
+      marks = marksFrom.map((l) => [l, landmarkMark(l)]);
+      fill(marksLayer, marks.map(([, el]) => el));
+      fill(marksBox, landmarkList(marksFrom, (l) => { view.x = l.x; view.z = l.z; view.bpp = 0.5; moved(); frame.focus(); }));
+    }
+    for (const [l, el] of marks) {
+      el.style.left = `${(l.x - left) / view.bpp}px`;
+      el.style.top = `${(l.z - top) / view.bpp}px`;
+    }
     const r = visibleRadius();
     makeBtn.disabled = !!(state.job && state.job.state === "running");
     makeBtn.title = `About ${estimate(r)} for ${Math.round(r * 2)} × ${Math.round(r * 2)} blocks`;
@@ -2566,7 +2655,7 @@ function mapExplorer(m, info, readout) {
   showStatus();
   if (state.job && state.job.state === "running") watch();
   setTimeout(draw, 0);
-  return { el: h("div", {}, frame, tools) };
+  return { el: h("div", {}, frame, tools, marksBox) };
 }
 
 function openWorldPanel() {
@@ -2668,7 +2757,13 @@ function worldPanel(host) {
       spawn.style.left = pct((meta.spawn.x - meta.x) / meta.size);  // (styles set here: the page's CSP allows no inline ones)
       spawn.style.top = pct((meta.spawn.z - meta.z) / meta.size);
     } else spawn.classList.add("hidden");
-    const frame = h("div", { class: "map-frame" }, img, spawn);
+    const marks = (meta.landmarks || []).map((l) => {
+      const el = landmarkMark(l);
+      el.style.left = pct((l.x - meta.x) / meta.size);
+      el.style.top = pct((l.z - meta.z) / meta.size);
+      return el;
+    });
+    const frame = h("div", { class: "map-frame" }, img, h("div", { class: "map-layer map-marks" + (landmarksShown() ? "" : " marks-off") }, marks), spawn);
     frame.addEventListener("mousemove", (e) => {
       const r = img.getBoundingClientRect();
       const bx = Math.floor(meta.x + (e.clientX - r.left) / r.width * meta.size);
@@ -2689,13 +2784,16 @@ function worldPanel(host) {
           host.changed(); toast(`The server will use seed ${m.seed}`); showMap(m);
         } }, "Use this seed")),
       frame, readout,
-      h("p", { class: "muted small", id: "map-note" }, "North is up; one pixel is one block, around the spawn point (★). Villages and other structures are too small to see at this size."),
+      h("p", { class: "muted small", id: "map-note" }, "North is up; one pixel is one block, around the spawn point (★). Villages, temples and other landmarks are marked."),
+      meta.landmarks ? h("div", { id: "map-landmarks" }, landmarkList(meta.landmarks, null)) : null,
       strip());
     // The world is still here (the newest preview): make the map explorable.
     api(`/api/hub/map?id=${m.id}`).then((info) => {
       if (shown !== m.id || !frame.isConnected) return;
       const ex = mapExplorer(m, info, readout);
       frame.replaceWith(ex.el);
+      const listed = document.getElementById("map-landmarks");
+      if (listed) listed.remove();  // (the explorable map has its own list)
       const note = document.getElementById("map-note");
       if (note) note.textContent = t("Drag to move and scroll (or + and −) to zoom. Make this area asks the private server for the land in view; it stops by itself after a few minutes of not being needed.");
     }).catch(() => null);
@@ -3165,6 +3263,11 @@ const HELP = [
   ["remote", "Using Craft Conductor from your phone", () => [
     h("p", {}, "Open ", h("button", { type: "button", class: "link-btn", onclick: openRemoteAccess }, "Remote access & phones"),
       ": set a strong password, allow other devices, and pair your phone by scanning a QR code. Away from home, use Tailscale rather than opening ports.")]],
+  ["keyboard", "Keyboard, screen readers and display", () => [
+    h("p", {}, "Everything works with the keyboard: Tab moves, Enter or Space presses, Escape closes a window. The first Tab reaches ",
+      h("strong", {}, "Skip to main content"), ". Screen readers read out messages as they appear."),
+    h("p", {}, "Bigger text, ", h("strong", {}, "High contrast"), " and ", h("strong", {}, "Less motion"), " are under ",
+      h("a", { href: "#mcsm" }, "Craft Conductor settings"), " → ", h("strong", {}, "Display"), ".")]],
 ];
 
 // The user manual (manual.md, part of Craft Conductor): the same text as on GitHub, shown here with a

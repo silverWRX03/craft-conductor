@@ -1639,6 +1639,10 @@ class Api:
         post("/api/world/rule", self.world_rule)
         post("/api/world/border", self.world_border)
         post("/api/world/chunky", self.world_chunky)
+        get("/api/webmap", self.webmap)
+        post("/api/webmap/add", self.webmap_add)
+        post("/api/webmap/accept", self.webmap_accept)
+        post("/api/webmap/port", self.webmap_port)
         post("/api/join-requests/answer", self.answer_join_request)
         post("/api/performance/spark", self.spark_profile)
         get("/api/performance/lag", self.lag_status)
@@ -2195,6 +2199,66 @@ class Api:
             else:
                 raise ApiError(400, "unknown action")
         except ValueError as e:
+            raise ApiError(400, str(e)) from None
+        log.info("%s", message)
+        return {"ok": True, "message": message}
+
+    # ------------------------------------------------------- web map
+    def webmap(self, q, b) -> dict:
+        """BlueMap or Dynmap (webmap.py): which one, its port, whether it answers, its address."""
+        from . import webmap
+        from .cli import lan_ip
+        loader = self.m.lock.loader or self.m.config.server.loader
+        kind = webmap.installed(self.m.lock.mods)
+        listed = webmap.installed(self.m.config.mods)
+        out = {"kind": kind, "listed": listed, "maps": {k: v["name"] for k, v in webmap.MAPS.items()},
+               "running": self.d.state == "running"}
+        if kind:
+            port = webmap.port(self.m.server_dir, kind, loader)
+            ip = lan_ip()
+            out.update(name=webmap.MAPS[kind]["name"], port=port, answers=webmap.answers(port),
+                       configured=webmap.config_file(self.m.server_dir, kind, loader).exists(),
+                       local_url=f"http://localhost:{port}/", lan_url=f"http://{ip}:{port}/" if ip else None,
+                       accepted=webmap.download_accepted(self.m.server_dir, loader) if kind == "bluemap" else True)
+        return out
+
+    def webmap_add(self, q, b) -> dict:
+        from . import webmap
+        kind = str(b.get("kind", ""))
+        if kind not in webmap.MAPS:
+            raise ApiError(400, "pick BlueMap or Dynmap")
+        other = webmap.installed(self.m.config.mods)
+        if other and other != kind:
+            raise ApiError(409, f"this server already has {webmap.MAPS[other]['name']}: one web map is enough")
+        return self.add_mod(q, {"source": "modrinth", "id": webmap.MAPS[kind]["project"], "required": False})
+
+    def webmap_accept(self, q, b) -> dict:
+        """The user's OK for BlueMap to download Minecraft's textures from Mojang."""
+        from . import webmap
+        loader = self.m.lock.loader or self.m.config.server.loader
+        try:
+            webmap.accept_download(self.m.server_dir, loader)
+        except webmap.WebMapError as e:
+            raise ApiError(400, str(e)) from None
+        if self.d.state == "running" and self.d.proc:
+            self.d.send_command("bluemap reload")  # (it starts drawing without a restart)
+        log.info("BlueMap may download Minecraft's textures now")
+        return {"ok": True}
+
+    def webmap_port(self, q, b) -> dict:
+        from . import webmap
+        kind = webmap.installed(self.m.lock.mods)
+        if not kind:
+            raise ApiError(400, "add a web map first")
+        try:
+            new = int(b.get("port", 0))
+        except (TypeError, ValueError):
+            raise ApiError(400, "the port must be a number") from None
+        props = read_properties(self.m.server_dir / "server.properties")
+        taken = set(self.web.hub.ports().keys()) | {int(props.get("server-port", "25565") or 25565), self.web.port}
+        try:
+            message = webmap.set_port(self.m.server_dir, kind, self.m.lock.loader or self.m.config.server.loader, new, taken)
+        except webmap.WebMapError as e:
             raise ApiError(400, str(e)) from None
         log.info("%s", message)
         return {"ok": True, "message": message}

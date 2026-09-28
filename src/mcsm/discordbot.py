@@ -196,6 +196,7 @@ class WhitelistBot:
         self.guilds: set[str] = set()
         self.app_id: str | None = None
         self._registered: str | None = None   # the command registered (so it's only sent when it changes)
+        self._answering = threading.BoundedSemaphore(4)  # answers at once (a burst of commands can't pile up threads)
 
     # --------------------------------------------------------------- running
     def start(self) -> None:
@@ -279,7 +280,16 @@ class WhitelistBot:
                 self._registered = None
                 threading.Thread(target=self.register, daemon=True, name="discord-commands").start()
         elif kind == "INTERACTION_CREATE":
-            threading.Thread(target=self.answer, args=(d,), daemon=True, name="discord-interaction").start()
+            if not self._answering.acquire(blocking=False):
+                log.warning("too many /whitelist commands at once; skipping one")
+                return
+
+            def run():
+                try:
+                    self.answer(d)
+                finally:
+                    self._answering.release()
+            threading.Thread(target=run, daemon=True, name="discord-interaction").start()
 
     # ---------------------------------------------------------------- commands
     def register(self, force: bool = False) -> None:
