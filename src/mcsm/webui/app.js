@@ -606,9 +606,53 @@ function askingNotice() {
 // Performance: ticks per second (20 = smooth), measured now and then while the Dashboard is
 // open, with a small graph of the last hour, what to try when it's behind, and (with the spark
 // mod) a 30-second profile for power users.
+// The lag finder: 30 seconds of Minecraft's profiler plus the world's files, in plain words.
+function lagBox() {
+  const el = h("div", { class: "lag-box mt-s" });
+  let timer = null, running = false;
+  const findings = (r) => h("ul", { class: "list" }, r.findings.map((f) => h("li", {}, h("div", { class: "grow" },
+    h("strong", {}, f.title),
+    f.detail ? h("div", { class: "small" }, f.detail) : null,
+    f.places.length ? h("ul", { class: "small lag-places" }, f.places.map((p) => h("li", {}, "📍 " + p))) : null,
+    f.mods.length ? h("div", { class: "small" }, t("From mods:") + " " + f.mods.join(", ")) : null,
+    f.tip ? h("div", { class: "muted small" }, "💡 " + t(f.tip)) : null))));
+  const render = (st) => {
+    const job = st.finder && st.finder.state === "running" ? st.finder : null;
+    const failed = st.finder && st.finder.state === "failed" ? st.finder.result : null;
+    const r = st.report;
+    running = !!job;
+    fill(el,
+      job ? h("div", {}, h("div", { class: "row small" }, h("span", { class: "spinner" }), h("span", { class: "grow" }, t(job.step || "Getting ready…")),
+        h("button", { class: "link-btn", onclick: () => api("/api/performance/lag/stop", { method: "POST" }).catch(() => null) }, "Stop")))
+        : h("div", { class: "row small" },
+          h("button", { class: "btn small", onclick: start }, "Find what's causing lag"),
+          h("span", { class: "muted" }, "Watches the server for 30 seconds, then looks through the world.")),
+      failed ? h("div", { class: "notice bad mt-s small" }, failed.error) : null,
+      r && !job ? h("details", { class: "mt-s", open: Date.now() / 1000 - r.finished < 3600 },
+        h("summary", {}, (r.automatic ? t("Looked by itself") : t("Last look")) + ` · ${ago(r.finished)}` + (r.tps ? ` · ${r.tps} TPS` : "")),
+        h("p", { class: "small" }, t(r.summary)),
+        r.findings.length ? findings(r) : null,
+        r.note ? h("p", { class: "muted small" }, r.note) : null) : null);
+    if (job && !timer) timer = setInterval(poll, 2000);
+    if (!job && timer) { clearInterval(timer); timer = null; }
+  };
+  const poll = async () => {
+    if (timer && !el.isConnected) { clearInterval(timer); timer = null; return; }
+    const st = await api("/api/performance/lag").catch(() => null);
+    if (st) render(st);
+  };
+  async function start() {
+    const r = await api("/api/performance/lag", { method: "POST", body: {} }).catch((e) => { toast(e.message, true); return null; });
+    if (r) poll();
+  }
+  poll();
+  return { el, poll, get running() { return running; } };
+}
+
 function perfCard() {
   const body = h("div", {}, h("p", { class: "muted small" }, "Measuring…"));
-  const el = card("Performance", body);
+  const lag = lagBox();
+  const el = card("Performance", body, lag.el);
   const spark = (samples) => {
     const pts = samples.filter((x) => x.tps !== null).slice(-60);
     if (pts.length < 2) return null;
@@ -636,7 +680,7 @@ function perfCard() {
         h("li", {}, "Exploring new terrain: pre-generate the world (the Chunky mod) so it's ready before people get there."),
         h("li", {}, "Lots of mobs, item farms or redstone clocks in loaded areas."),
         h("li", {}, "Too little memory: see Check my setup; or too much, without Aikar's flags (Settings)."),
-        h("li", {}, "A heavy mod: a profile with spark shows which one."))) : null;
+        h("li", {}, "A heavy mod: Find what's causing lag names it, and a profile with spark shows more."))) : null;
     fill(body,
       h("div", { class: "row" },
         h("strong", { class: `tps-value ${r.status}` }, c ? `${c.tps.toFixed(1)} TPS` : "…"),
@@ -1724,6 +1768,7 @@ views.settings = () => {
         chk("wait_for_empty", "Wait until nobody is online"),
         chk("verify_boot", "Test-boot and roll back on failure"),
         chk("rehearse", "Before a new Minecraft goes in by itself, try it on a copy of the server first")),
+      h("div", { class: "grid mt-s" }, chk("find_lag", "When it keeps lagging with players on, find out why by itself (and tell me)")),
       h("h3", { class: "mt-l" }, "Server"),
       h("div", { class: "grid" },
         h("label", {}, "Memory (e.g. 6G)", txt("memory")),
@@ -1761,7 +1806,7 @@ views.settings = () => {
         strategy: f.strategy.value, mod_channel: f.mod_channel.value, check_interval: f.check_interval.value.trim(),
         warn_minutes: f.warn_minutes.value.split(",").map((x) => x.trim()).filter(Boolean).map(Number),
         auto_upgrade: f.auto_upgrade.checked, wait_for_empty: f.wait_for_empty.checked, verify_boot: f.verify_boot.checked,
-        rehearse: f.rehearse.checked, memory: f.memory.value.trim(), backups_keep: Number(f.backups_keep.value), discord_webhook: f.discord_webhook.value.trim(),
+        rehearse: f.rehearse.checked, find_lag: f.find_lag.checked, memory: f.memory.value.trim(), backups_keep: Number(f.backups_keep.value), discord_webhook: f.discord_webhook.value.trim(),
         port: Number(f.port.value),
         restart_on_crash: f.restart_on_crash.checked, aikar_flags: f.aikar_flags.checked,
         schedule_restart: sched.restart.value(), schedule_backup: sched.backup.value(),

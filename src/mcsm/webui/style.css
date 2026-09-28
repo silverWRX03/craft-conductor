@@ -676,3 +676,5 @@ html { zoom: var(--zoom); }
 .rehearsal-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin: 8px 0; }
 .rehearsal-stat { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; background: var(--panel-2); border-radius: 8px; }
 .rehearsal-lines { max-height: calc(24 * var(--vh)); overflow: auto; white-space: pre-wrap; word-break: break-word; font-size: 12px; }
+.lag-places { list-style: none; padding-left: 0; margin: 4px 0; }
+.lag-box details > summary { cursor: pointer; }

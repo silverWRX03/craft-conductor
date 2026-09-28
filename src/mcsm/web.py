@@ -1353,6 +1353,9 @@ class Api:
         post("/api/world/chunky", self.world_chunky)
         post("/api/join-requests/answer", self.answer_join_request)
         post("/api/performance/spark", self.spark_profile)
+        get("/api/performance/lag", self.lag_status)
+        post("/api/performance/lag", self.start_lag_finder)
+        post("/api/performance/lag/stop", self.stop_lag_finder)
         post("/api/doctor/internet", self.doctor_internet)
         post("/api/doctor/fix", self.doctor_fix)
         post("/api/problem/fix", self.problem_fix)
@@ -2046,6 +2049,27 @@ class Api:
                 "status": status, "words": words, "samples": list(d.meter.samples),
                 "spark": spark, "spark_url": urls[-1] if urls else None}
 
+    def lag_status(self, q, b) -> dict:
+        from . import lagfinder
+        f = self.d.lag
+        return {"finder": f.to_dict() if f else None, "report": lagfinder.load_report(self.m.config)}
+
+    def start_lag_finder(self, q, b) -> dict:
+        """Look for what's making the server lag: 30 seconds of Minecraft's profiler, then the world's files."""
+        if not (self.d.proc and self.d.proc.running):
+            raise ApiError(409, "start the server first")
+        if self.d.lag is not None and self.d.lag.state == "running":
+            raise ApiError(409, "already looking; it takes about half a minute")
+        self.d.find_lag()
+        return {"ok": True}
+
+    def stop_lag_finder(self, q, b) -> dict:
+        f = self.d.lag
+        if f is None or f.state != "running":
+            raise ApiError(404, "nothing is being looked at")
+        f.cancel.set()
+        return {"ok": True}
+
     def spark_profile(self, q, b) -> dict:
         """Profile the server for 30 seconds with the spark mod (power users): the report's link
         appears in the console and on the Dashboard."""
@@ -2637,6 +2661,7 @@ class Api:
         # key: (table, toml key, type)
         "memory": ("server", "memory", str),
         "aikar_flags": ("server", "aikar_flags", bool),
+        "find_lag": ("server", "find_lag", bool),
         "restart_on_crash": ("server", "restart_on_crash", bool),
         "strategy": ("updates", "strategy", str),
         "mod_channel": ("updates", "mod_channel", str),
@@ -2660,7 +2685,8 @@ class Api:
         c = self.m.config
         interval = c.updates.check_interval
         return {
-            "memory": c.server.memory, "aikar_flags": c.server.aikar_flags, "restart_on_crash": c.restart_on_crash,
+            "memory": c.server.memory, "aikar_flags": c.server.aikar_flags, "find_lag": c.server.find_lag,
+            "restart_on_crash": c.restart_on_crash,
             "strategy": c.updates.strategy, "mod_channel": c.updates.mod_channel,
             "auto_upgrade": c.updates.auto_upgrade,
             "check_interval": f"{interval // 3600}h" if interval % 3600 == 0 else f"{interval // 60}m",
