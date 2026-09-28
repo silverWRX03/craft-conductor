@@ -5,10 +5,15 @@ import json
 from test_hub import login
 
 
-def test_the_guided_setup(hub_env):
+def test_the_guided_setup(hub_env, monkeypatch):
     hub, c = hub_env
     login(c)
-    assert c.get("/api/hub")[1]["guide"] == {"asked": False, "active": False}  # (the page offers it)
+    # Offered only while there's no server yet: someone who has one doesn't need it.
+    assert c.get("/api/hub")[1]["guide"] == {"asked": True, "active": False}
+    from mcsm.daemon import Daemon
+    with monkeypatch.context() as m:
+        m.setattr(Daemon, "setup_pending", property(lambda self: True))
+        assert c.get("/api/hub")[1]["guide"] == {"asked": False, "active": False}  # (the page offers it)
     g = c.post("/api/hub/guide", {"action": "skip"})[1]
     assert g["asked"] and not g["active"]
     assert c.get("/api/hub")[1]["guide"] == {"asked": True, "active": False}  # not asked again

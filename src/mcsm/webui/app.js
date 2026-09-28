@@ -3492,7 +3492,16 @@ function openRemoteAccess() {
         "Saved. Close and reopen Craft Conductor to switch to HTTPS.").then(load) }, "Save")));
     // 4. pair a phone
     const pairBox = h("div", { class: "pair-box" });
-    const addr = h("select", { "aria-label": "Address the phone uses" }, r.addresses.map((a) => h("option", { value: a.host }, a.label)));
+    const addr = h("select", { "aria-label": "Address the phone uses" }, r.addresses.map((a) => h("option", { value: a.host, "data-kind": a.kind }, a.label)));
+    // Phones only install the app (and get notifications) from a secure address: say so for the others.
+    const addrNote = h("p", { class: "small muted" });
+    const noteAddr = () => {
+      const secure = (addr.selectedOptions[0] || {}).dataset && addr.selectedOptions[0].dataset.kind === "tailscale-https";
+      addrNote.textContent = secure ? t("A secure address: the phone can install Craft Conductor as an app, with notifications.")
+        : t("At this address Craft Conductor opens in the phone's browser, as a web page. To install it as an app with notifications, use a secure address: Craft Conductor settings → Phone app → Use Tailscale for the phone app.");
+    };
+    addr.addEventListener("change", noteAddr);
+    noteAddr();
     const role = h("select", { "aria-label": "What it may do" },
       h("option", { value: "helper" }, "Helper: everyday controls"), h("option", { value: "viewer" }, "Viewer: look only"));
     const pair = h("button", { class: "btn primary", disabled: !r.strong || !r.running_on_network || !r.addresses.length, onclick: async () => {
@@ -3523,7 +3532,7 @@ function openRemoteAccess() {
         h("p", { class: "small" }, "A paired device signs in by itself. A ", h("strong", {}, "helper"), " can start, stop and restart servers, make backups, run updates and manage players; " +
           "a ", h("strong", {}, "viewer"), " can only look. Neither can change settings, mods or files, or use the console, and what they do shows in the activity with their name. " +
           "Pair a friend who helps run the server the same way, on their own phone or computer. Changing your password signs all devices out."),
-        r.addresses.length ? h("div", { class: "row" }, addr, role, pair) : h("p", { class: "small muted" }, "No network address found for this computer."),
+        r.addresses.length ? [h("div", { class: "row" }, addr, role, pair), addrNote] : h("p", { class: "small muted" }, "No network address found for this computer."),
         !r.running_on_network ? h("p", { class: "small muted" }, "Pairing works once access from other devices is on and Craft Conductor has been reopened.") : null,
         pairBox),
       step(5, "Paired phones", devices,
@@ -4471,7 +4480,11 @@ function discordStatusPicker(r, after) {
 // Craft Conductor on a phone's home screen (an installable web app), with notifications when it's
 // closed (push.py). Phones need a secure address for both: Tailscale gives one in a click.
 let installPrompt = null;  // (Chrome and Edge offer "Install app" through this event)
-window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installPrompt = e; });
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault(); installPrompt = e;
+  const b = $("#phone-banner");  // (it can come after the phone banner was drawn: show its Install button)
+  if (b) { b.remove(); phoneBanner(); }
+});
 function registerWorker() {
   if (window.isSecureContext && "serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => null);
 }
@@ -4484,9 +4497,64 @@ function deviceName() {
   return /iPhone/.test(ua) ? "iPhone" : /iPad/.test(ua) ? "iPad" : /Android/.test(ua) ? (/Mobile/.test(ua) ? "Android phone" : "Android tablet")
     : /Windows/.test(ua) ? "Windows computer" : /Mac/.test(ua) ? "Mac" : /Linux/.test(ua) ? "Linux computer" : "A device";
 }
-function phoneCard() {
+// On a phone, a line at the top says how to get the app: why it's a browser tab on a plain address
+// (phones only install web apps from a secure one), Install the app on a secure one, then
+// notifications once it's installed. Paired phones can't open Craft Conductor settings, so this is
+// how they get there. "Not now" hides it for two weeks.
+const PHONE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+const PHONE_BANNER_KEY = "mcsm-phone-banner";
+async function phoneBanner() {
+  if (!PHONE || $("#phone-banner")) return;
+  const standalone = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches;
+  const secure = window.isSecureContext && "serviceWorker" in navigator;
+  const pushOk = secure && "PushManager" in window && "Notification" in window;
+  let subscribed = false;
+  if (standalone && pushOk) {
+    const reg = await navigator.serviceWorker.getRegistration().catch(() => null);
+    subscribed = !!(reg && await reg.pushManager.getSubscription().catch(() => null));
+    if (subscribed) return;
+  }
+  if (standalone && !pushOk) return;  // (an older phone that can't get notifications from web apps)
+  const kind = !secure ? "plain" : standalone ? "notify" : "install";
+  try { if (Number(localStorage.getItem(`${PHONE_BANNER_KEY}-${kind}`) || 0) > Date.now()) return; } catch (_) { /* private mode */ }
+  const later = () => {
+    try { localStorage.setItem(`${PHONE_BANNER_KEY}-${kind}`, String(Date.now() + 14 * 86400e3)); } catch (_) { /* private mode */ }
+    box.remove();
+  };
+  const iOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  const box = h("div", { class: "notice phone-banner small", id: "phone-banner", role: "region", "aria-label": "Phone app" });
+  const openSettings = () => {
+    const close = () => { const m = $("#phone-dialog"); if (m) m.remove(); };
+    document.body.append(h("div", { class: "modal-backdrop", id: "phone-dialog", role: "dialog", "aria-modal": "true", "aria-labelledby": "phone-dialog-title" },
+      h("div", { class: "modal compact" }, h("div", { class: "row" }, h("h2", { id: "phone-dialog-title", class: "grow" }, "Phone app"),
+        h("button", { class: "btn ghost small", onclick: close }, "Close")), phoneCard({ deviceOnly: true }))));
+  };
+  let secureUrl = null;
+  if (kind === "plain") {
+    const info = await api("/api/hub/phone?tailscale=1").catch(() => null);
+    secureUrl = info && info.secure_url;
+  }
+  const notNow = h("button", { class: "btn small ghost", onclick: later }, "Not now");
+  if (kind === "plain") fill(box, h("strong", {}, "This is Craft Conductor in your browser, not the app yet."), " ",
+    t("Phones only install it as an app (with notifications, even when it's closed) from a secure address."), " ",
+    secureUrl ? h("span", {}, t("Open the secure address with Tailscale on:"), " ", h("a", { href: secureUrl }, secureUrl))
+      : t("On the computer, open Craft Conductor settings → Phone app → Use Tailscale for the phone app, then open the https://….ts.net address it shows here."),
+    h("div", { class: "row mt-s" }, notNow));
+  else if (kind === "install") fill(box, h("strong", {}, "Put Craft Conductor on your home screen."), " ",
+    iOS ? t("Press Share, then Add to Home Screen, and open it from there.")
+      : installPrompt ? t("It opens like an app, and can tell you when a server needs you.")
+        : t("In the browser's menu (⋮), choose Install app or Add to Home screen."),
+    h("div", { class: "row mt-s" },
+      installPrompt ? h("button", { class: "btn small primary", onclick: async () => { installPrompt.prompt(); installPrompt = null; box.remove(); } }, "Install the app") : null,
+      h("button", { class: "btn small", onclick: openSettings }, "Notifications"), notNow));
+  else fill(box, h("strong", {}, "Get a notification when a server needs you."), " ",
+    t("A crash, a friend asking to join, an update held back: even when the app is closed."),
+    h("div", { class: "row mt-s" }, h("button", { class: "btn small primary", onclick: openSettings }, "Turn on notifications"), notNow));
+  $("#stage").before(box);
+}
+function phoneCard({ deviceOnly = false } = {}) {  // deviceOnly: just this phone (the phone banner's window)
   const body = h("div", {}, h("p", { class: "muted small" }, "Loading…"));
-  const el = card("Phone app", body);
+  const el = card(deviceOnly ? null : "Phone app", body);
   const secure = window.isSecureContext && "serviceWorker" in navigator;
   const pushOk = secure && "PushManager" in window && "Notification" in window;
   const standalone = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches;
@@ -4583,10 +4651,10 @@ function phoneCard() {
       h("p", { class: "muted small" }, "Craft Conductor can live on your phone's home screen like an app, and tell you when something needs you, even when it's closed."),
       h("h4", {}, "This device"), here,
       installPrompt && !standalone ? h("button", { class: "btn small mt-s", onclick: () => { installPrompt.prompt(); installPrompt = null; render(); } }, "Install the app") : null,
-      info.devices.length ? h("div", { class: "mt-s" }, h("h4", {}, "Devices with notifications on"),
+      info.devices.length && !deviceOnly ? h("div", { class: "mt-s" }, h("h4", {}, "Devices with notifications on"),
         h("ul", { class: "list" }, info.devices.map((d) => h("li", {}, h("span", { class: "grow" }, d.name, h("span", { class: "muted small" }, ` · since ${fmtTime(d.created)}`)),
           h("button", { class: "btn small ghost", onclick: async () => { await act(() => api("/api/hub/phone/remove", { method: "POST", body: { id: d.id } }), "Removed"); load(); } }, "Remove"))))) : null,
-      h("h4", { class: "mt" }, "Reach it from your phone, securely"),
+      deviceOnly ? null : [h("h4", { class: "mt" }, "Reach it from your phone, securely"),
       h("p", { class: "muted small" }, "Phones only install web apps and deliver their notifications for pages with a real certificate. The easy way is Tailscale: a private network of your own devices."),
       info.strong ? tailscaleBox() : h("div", { class: "notice warn small" }, "First set a strong password above: the phone signs in from another device."),
       h("details", { class: "mt-s small" }, h("summary", {}, "Put it on your phone"),
@@ -4595,7 +4663,7 @@ function phoneCard() {
           h("li", {}, "iPhone or iPad: in Safari press Share → Add to Home Screen, then open Craft Conductor from the Home Screen. Android: in Chrome press ⋮ → Install app (or Add to Home screen)."),
           h("li", {}, "In the app, go to Craft Conductor settings → Phone app → Turn on notifications here."))),
       h("details", { class: "small" }, h("summary", {}, "Other ways to get a secure address"),
-        h("p", {}, "A Cloudflare Tunnel, or your own domain with a reverse proxy (Caddy, nginx) that has a real certificate, works too: add its host name to [web] allowed_hosts, and keep a strong password, since that address is on the internet.")));
+        h("p", {}, "A Cloudflare Tunnel, or your own domain with a reverse proxy (Caddy, nginx) that has a real certificate, works too: add its host name to [web] allowed_hosts, and keep a strong password, since that address is on the internet."))]);
   };
   load();
   return el;
@@ -5351,5 +5419,6 @@ async function start() {
   $("#app").classList.remove("hidden");
   registerWorker();
   route();
+  phoneBanner();
 }
 start();

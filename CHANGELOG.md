@@ -4,6 +4,12 @@ What changed in each version of mcsm, newest first. Bugs are listed the way you'
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.18.2 (2026-09-28)
+
+**Fixed**
+- The guided setup was offered even to people who already had a server. It's now only offered before your first one (Help still starts it).
+- On a phone, Craft Conductor stayed a browser tab with no word why, and a paired phone had no way to turn on notifications. Phones only install it as an app from a secure address: the top of the page now says so on a plain address (with a link to the Tailscale one when there is one), offers **Install the app** on a secure one, and **Turn on notifications** once it's installed. Pairing a phone picks the secure Tailscale address first.
+
 ## 0.18.1 (2026-09-28)
 
 **Changed**

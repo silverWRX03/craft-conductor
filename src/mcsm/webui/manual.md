@@ -49,7 +49,7 @@ If closing the tab would lose something that only lives in the page (an upload o
 
 ### The guided setup
 
-The first time you use Craft Conductor, a message asks whether you'd like the **guided setup**: **Guide me**, or **Skip** (it isn't asked again). It's a checklist in a corner of the page, from making your first server to a friend joining it:
+The first time you use Craft Conductor, before you have a server, a message asks whether you'd like the **guided setup**: **Guide me**, or **Skip** (it isn't asked again). Once you have a server it isn't offered. It's a checklist in a corner of the page, from making your first server to a friend joining it:
 
 1. **Make your server**, 2. **Start it**, 3. **Join it yourself**, 4. **Let friends reach it**, 5. **Invite a friend**, 6. **A friend joined**.
 
@@ -306,6 +306,8 @@ Craft Conductor can live on your phone's home screen like an app, and send **not
 1. **A secure address.** Phones only install web apps and deliver their notifications for a page with a real certificate. The easy way is **Tailscale** (free for personal use): install it on this computer and your phone, signed in to the same account, then press **Check for Tailscale** and **Use Tailscale for the phone app**. The control panel gets an address like `https://your-computer.your-tailnet.ts.net` that only your own devices can reach; it isn't on the internet. (The first time, Tailscale may ask you to switch HTTPS on for your account: follow the link, then press the button again.) It needs a strong password first, because the phone signs in as another device. A Cloudflare Tunnel or your own domain with a real certificate works too (add its name to `[web] allowed_hosts`).
 2. **Put it on your phone.** Open the secure address on the phone (with Tailscale on) and sign in, or pair the phone under **Remote access & phones** and pick the **Tailscale, secure** address. Then: **iPhone or iPad**: in Safari press **Share → Add to Home Screen**, and open Craft Conductor from the Home Screen (iPhones only allow notifications for apps added this way). **Android**: in Chrome press **⋮ → Install app** (or **Add to Home screen**); some browsers show **Install the app** in the card itself.
 3. **Turn on notifications here**, in the app, under **Craft Conductor settings → Phone app**. **Send a test** checks it works. Each device with notifications on is listed; **Remove** stops them for that device, and **Turn off** does it on the device itself.
+
+**On the phone, the top of the page says where you are.** Opened at a plain address (like `http://192.168.1.50:8765`, the home network address, or a pairing code made for it), Craft Conductor is a web page in the browser: phones won't install it as an app from there, and "Add to Home Screen" only makes a bookmark that opens a browser tab. The message says so, and links to the secure Tailscale address when there is one. At the secure address it offers **Install the app** (or says how: Share → Add to Home Screen on an iPhone), and once it's installed, **Turn on notifications**. **Not now** hides it for two weeks. A paired phone, which can't open Craft Conductor settings, turns its notifications on here. When pairing a phone, the **Tailscale, secure** address is picked first, and the dialog says when another address will only open in the browser.
 
 Notifications go through your phone's own push service (Apple's, Google's, Mozilla's or Microsoft's), encrypted so that only your phone can read them. A paired phone can turn its own notifications on and off, even as a viewer.
 
