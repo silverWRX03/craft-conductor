@@ -13,7 +13,8 @@ Before continuing or starting a feature, check this list: some features wait on 
       come through as a file. *Needed before:* the new icon (white background removed).
 - [ ] **Try the map preview for real** (New server → World → World generation & map preview):
       one map on Fabric with Terralith, and one on Paper if you use it. Check the map matches the
-      world in game. It couldn't be run where it was built (no Minecraft downloads there).
+      world in game, then drag and zoom out and press **Make this area**. It couldn't be run where
+      it was built (no Minecraft downloads there).
       *Needed before:* the seed gallery.
 - [ ] **Try automatic port forwarding at home** (mcsm settings → Sharing with friends → Router):
       switch it on, look at what it says, then **Test from the internet** in Check my setup. It
@@ -30,6 +31,7 @@ Before continuing or starting a feature, check this list: some features wait on 
 - [x] Release 0.12.0 (router set up by itself, fix buttons, what went wrong, Quick start,
       checked backups and putting back an area).
 - [x] New icon from your picture, without the white around it (waits on **New icon** above).
+- [x] Release 0.13.0: explore the map preview (drag, zoom, make more land as you go).
 - [ ] **Seed gallery:** one button makes maps of 10 seeds side by side to pick from, with a
       warning first about the time and the load on the computer (waits on **Try the map preview
       for real**).
