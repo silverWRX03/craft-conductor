@@ -37,7 +37,7 @@ LEVEL_TYPES = ("minecraft:normal", "minecraft:large_biomes", "minecraft:amplifie
                "minecraft:single_biome_surface")
 SEED = re.compile(r"[^\x00-\x1f\x7f]{0,64}")
 GENERATE_TIMEOUT = 20 * 60
-KEEP = 12  # maps kept for the page's "earlier previews"
+KEEP = 14  # maps kept for the page's "earlier previews" (a seed gallery's 10 and a few more)
 CHUNKY = ModSpec("modrinth", "chunky")
 
 
@@ -803,3 +803,61 @@ def clean(hub) -> None:
     """At start: nothing from last time is needed (maps and the throwaway server)."""
     shutil.rmtree(Preview.folder(hub), ignore_errors=True)
 
+
+
+# --------------------------------------------------------------- seed gallery
+GALLERY_MAX = 10
+
+
+class Gallery:
+    """Maps of several random seeds, one after another, to pick the one with the features you're
+    after. Each is an ordinary :class:`Preview` (kept in ``hub.previews``, so its map is fetched and
+    explored like any other); the private server with the mods is installed once and reused."""
+
+    def __init__(self, hub, count: int, **params):
+        if not 2 <= count <= GALLERY_MAX:
+            raise PreviewError(f"compare 2 to {GALLERY_MAX} seeds")
+        Preview(hub, seed="", **params)  # (checks the settings now, rather than in the background)
+        self.id = secrets.token_hex(6)
+        self.hub, self.count, self.params = hub, count, params
+        self.state, self.error = "running", ""
+        self.done: list[dict] = []
+        self.failed = 0
+        self.current: Preview | None = None
+        self.cancel = threading.Event()
+        self.started = time.time()
+
+    def start(self) -> "Gallery":
+        threading.Thread(target=self.run, daemon=True, name=f"gallery:{self.id}").start()
+        return self
+
+    def to_dict(self) -> dict:
+        cur = self.current.to_dict() if self.current is not None and self.current.state == "running" else None
+        return {"id": self.id, "state": self.state, "error": self.error, "count": self.count,
+                "index": len(self.done) + self.failed + (1 if cur else 0), "current": cur, "maps": self.done,
+                "failed": self.failed, "elapsed": int(time.time() - self.started)}
+
+    def run(self) -> None:
+        try:
+            for _ in range(self.count):
+                if self.cancel.is_set():
+                    break
+                p = Preview(self.hub, seed="", **self.params)
+                self.current = p
+                self.hub.previews[p.id] = p
+                watcher = threading.Thread(target=lambda: (self.cancel.wait(), p.cancel.set()), daemon=True)
+                watcher.start()
+                p._run()
+                if p.state == "done":
+                    self.done.append(p.to_dict())
+                elif p.state == "failed":
+                    self.failed += 1
+                    if not self.done:  # the first one failing means they all would (the mods, Java...)
+                        raise PreviewError(p.error or "the map couldn't be made")
+            self.state = "cancelled" if self.cancel.is_set() else "done"
+        except Exception as e:
+            self.error = str(e).splitlines()[0][:400] if str(e) else repr(e)
+            self.state = "failed"
+        finally:
+            self.cancel.set()  # (lets the watcher threads end)
+            self.current = None

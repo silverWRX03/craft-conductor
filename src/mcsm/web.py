@@ -806,6 +806,9 @@ class HubApi:
         r[("GET", "/api/hub/preview")] = self.preview_status
         r[("GET", "/api/hub/preview/map")] = self.preview_map
         r[("POST", "/api/hub/preview/cancel")] = self.cancel_preview
+        r[("POST", "/api/hub/preview/gallery")] = self.start_gallery
+        r[("GET", "/api/hub/preview/gallery")] = self.gallery_status
+        r[("POST", "/api/hub/preview/gallery/cancel")] = self.cancel_gallery
         r[("GET", "/api/hub/map")] = self.map_info
         r[("GET", "/api/hub/map/tile")] = self.map_tile
         r[("GET", "/api/hub/map/biome")] = self.map_biome
@@ -932,10 +935,7 @@ class HubApi:
     def start_preview(self, q, b) -> dict:
         """A map of a seed with these mods: a throwaway server makes the world (see preview.py)."""
         from . import preview
-        if any(p.state == "running" for p in self.hub.previews.values()):
-            raise ApiError(409, "a map is already being made; wait for it or stop it")
-        if any(t.state == "running" for t in self.hub.trials.values()):
-            raise ApiError(409, "a mod test is running; try again when it's finished")
+        self._previews_idle()
         loader = str(b.get("loader", ""))
         if loader not in configmod.LOADERS:
             raise ApiError(400, "pick a server type")
@@ -962,6 +962,60 @@ class HubApi:
         keep = {k: v for k, v in self.hub.previews.items() if v.state == "done"}
         self.hub.previews = {**dict(list(keep.items())[-preview.KEEP:]), p.id: p.start()}
         return {"ok": True, "id": p.id, "seed": p.seed}
+
+    def _previews_idle(self) -> None:
+        if any(p.state == "running" for p in self.hub.previews.values()) or \
+                (self.hub.gallery is not None and self.hub.gallery.state == "running"):
+            raise ApiError(409, "a map is already being made; wait for it or stop it")
+        if any(t.state == "running" for t in self.hub.trials.values()):
+            raise ApiError(409, "a mod test is running; try again when it's finished")
+
+    def start_gallery(self, q, b) -> dict:
+        """Maps of several random seeds side by side (see preview.Gallery)."""
+        from . import preview
+        self._previews_idle()
+        loader = str(b.get("loader", ""))
+        if loader not in configmod.LOADERS:
+            raise ApiError(400, "pick a server type")
+        items = b.get("mods") or []
+        if not isinstance(items, list) or len(items) > 200:
+            raise ApiError(400, "pick up to 200 mods")
+        mods = []
+        for item in items:
+            source, _, mod_id = str(item).partition(":") if ":" in str(item) else ("modrinth", "", str(item))
+            if source not in configmod.MOD_SOURCES or not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", mod_id):
+                raise ApiError(400, f"{item!r} isn't a mod id")
+            mods.append(ModSpec(source, mod_id, channel=early_channel(b, str(item))))
+        if loader == "vanilla" and mods:
+            raise ApiError(400, "pick a server type that runs mods")
+        java_from = next((dd.m.config.state_dir / "java" for dd in self.hub.daemons.values()
+                          if (dd.m.config.state_dir / "java").is_dir()), None)
+        count = b.get("count", preview.GALLERY_MAX)
+        if not isinstance(count, int) or isinstance(count, bool):
+            raise ApiError(400, f"compare 2 to {preview.GALLERY_MAX} seeds")
+        try:
+            g = preview.Gallery(self.hub, count, loader=loader, minecraft=str(b.get("minecraft") or "latest"), mods=mods,
+                                level_type=str(b.get("level_type") or "minecraft:normal"),
+                                structures=bool(b.get("structures", True)), radius=int(b.get("radius", 128)),
+                                java_from=java_from)
+        except (TypeError, ValueError) as e:
+            raise ApiError(400, str(e) or "check the map settings") from None
+        self.hub.previews = {k: v for k, v in self.hub.previews.items() if v.state == "done"}
+        self.hub.gallery = g.start()
+        return {"ok": True, "id": g.id}
+
+    def gallery_status(self, q, b) -> dict:
+        g = self.hub.gallery
+        if g is None or g.id != str(q.get("id", "")):
+            raise ApiError(404, "that seed gallery isn't here any more")
+        return g.to_dict()
+
+    def cancel_gallery(self, q, b) -> dict:
+        g = self.hub.gallery
+        if g is None or g.id != str(b.get("id", "")):
+            raise ApiError(404, "that seed gallery isn't here any more")
+        g.cancel.set()
+        return {"ok": True}
 
     def _preview(self, preview_id) -> object:
         p = self.hub.previews.get(str(preview_id or ""))

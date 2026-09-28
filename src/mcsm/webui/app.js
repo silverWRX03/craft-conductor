@@ -2372,6 +2372,7 @@ function worldPanel(host) {
   size.value = String(st.previewSize || 128);
   size.addEventListener("change", () => { st.previewSize = Number(size.value); });
   const go = h("button", { type: "button", class: "btn primary" }, "🗺️ Preview map");
+  const compare = h("button", { type: "button", class: "btn", title: "Maps of 10 random seeds side by side, to pick from" }, "Compare 10 seeds");
 
   // --- world-generation mods
   const list = h("div", { class: "browse-results" });
@@ -2423,7 +2424,9 @@ function worldPanel(host) {
     h("h2", {}, "See the world before you make it"),
     h("p", {}, "Pick a seed (or leave it empty for a random one) and press Preview map. mcsm makes the world in a private server on this computer, with the server's mods, then draws it from above."),
     h("p", { class: "muted small" }, "It takes a minute or two, longer with many mods or a bigger map. Nothing is installed for the server yet: that happens when you create it."));
-  const strip = () => st.previews.length > 1 ? h("div", { class: "mt" }, h("h3", {}, "Earlier maps"),
+  const strip = () => st.galleryDone && st.galleryDone.maps.length && !st.galleryJob ? h("div", { class: "mt" },
+    h("button", { type: "button", class: "btn small", onclick: () => gallery(st.galleryDone) }, "← Back to the seeds compared"))
+    : st.previews.length > 1 ? h("div", { class: "mt" }, h("h3", {}, "Earlier maps"),
     h("div", { class: "map-strip" }, st.previews.map((m) => h("button", { type: "button", class: "map-thumb" + (shown === m.id ? " selected" : ""),
       title: `Seed ${m.seed}`, onclick: () => showMap(m) },
       h("img", { src: `/api/hub/preview/map?id=${m.id}`, alt: "" }), h("span", { class: "small" }, m.seed))))) : null;
@@ -2480,12 +2483,69 @@ function worldPanel(host) {
       bar, h("p", { class: "muted small" }, "You can close this and keep setting up the server: the map carries on, and it's here when you come back."),
       strip());
   };
+  // --- the seed gallery: 10 random seeds, one after another
+  let gpoll = null;
+  const gallery = (g) => {
+    const cur = g.current;
+    const tiles = g.maps.map((m) => h("button", { type: "button", class: "map-thumb gallery-thumb", title: `Seed ${m.seed}`, onclick: () => {
+      st.previews = [m, ...st.previews.filter((x) => x.id !== m.id)].slice(0, 14); showMap(m); } },
+      h("img", { src: `/api/hub/preview/map?id=${m.id}`, alt: `Map of seed ${m.seed}` }),
+      h("span", { class: "small" }, m.seed), h("span", { class: "muted small" }, `${m.map.biomes.names.length} biome(s)`)));
+    for (let i = g.maps.length + (cur ? 1 : 0); i < (g.state === "running" ? g.count : 0); i++) tiles.push(h("div", { class: "gallery-wait" }, "…"));
+    if (cur) tiles.splice(g.maps.length, 0, h("div", { class: "gallery-wait" }, h("span", { class: "spinner" }),
+      h("span", { class: "small" }, `${t(cur.step)}${cur.progress !== null ? ` ${Math.round(cur.progress * 100)}%` : ""}`)));
+    fill(right,
+      h("div", { class: "row" }, h("h2", { class: "grow" }, "Compare seeds"),
+        g.state === "running" ? h("span", { class: "muted small" }, `${Math.min(g.index, g.count)} / ${g.count} · ${Math.floor(g.elapsed / 60)}:${String(g.elapsed % 60).padStart(2, "0")}`) : null),
+      g.state === "running" ? h("p", { class: "muted small" }, "Pick one when you see one you like: press it to look closer and use its seed. You can close this panel meanwhile.")
+        : g.state === "failed" ? h("div", { class: "notice bad" }, h("strong", {}, "The maps couldn't be made"), h("div", {}, g.error))
+          : h("p", { class: "muted small" }, g.maps.length ? "Press a map to look closer and use its seed." : "Stopped before the first map."),
+      h("div", { class: "gallery-grid" }, tiles),
+      g.failed ? h("p", { class: "muted small" }, `${g.failed} map(s) couldn't be made and were skipped.`) : null);
+  };
+  const watchGallery = () => {
+    clearInterval(gpoll);
+    compare.textContent = t("Stop comparing");
+    compare.onclick = () => api("/api/hub/preview/gallery/cancel", { method: "POST", body: { id: st.galleryJob } }).catch(() => null);
+    go.disabled = true;
+    const tick = async () => {
+      if (!el.isConnected) { clearInterval(gpoll); return; }
+      const g = await api(`/api/hub/preview/gallery?id=${st.galleryJob}`).catch(() => null);
+      if (!g) { clearInterval(gpoll); st.galleryJob = null; galleryIdle(); return; }
+      gallery(g);
+      if (g.state !== "running") { clearInterval(gpoll); st.galleryDone = g; st.galleryJob = null; galleryIdle(); }
+    };
+    tick();
+    gpoll = setInterval(tick, 1500);
+  };
+  const galleryIdle = () => {
+    compare.textContent = t("Compare 10 seeds");
+    compare.onclick = startGallery;
+    go.disabled = false;
+  };
+  async function startGallery() {
+    const times = st.previews.map((m) => m.elapsed).filter((x) => x > 0);
+    const each = times.length ? Math.max(30, times.reduce((a, b) => a + b, 0) / times.length) : 90;
+    const mins = Math.max(5, Math.round(each * 10 / 60));
+    if (!(await ask(`Make maps of 10 random seeds? It takes about ${mins} minutes (each map is a fresh world), and the computer works hard the whole time: the fans may spin up and games may run slower. You can keep setting up the server meanwhile.`,
+      { id: "seed-gallery", ok: "Make 10 maps" }))) return;
+    const body = { loader: st.loader, minecraft: st.minecraft, level_type: type.value, structures: structures.checked,
+      radius: Number(size.value), mods: [...st.mods].filter(([, m]) => m.explicit).map(([k]) => k), channels: earlyChannels(), count: 10 };
+    const r = await act(() => api("/api/hub/preview/gallery", { method: "POST", body }), null);
+    if (!r) return;
+    st.galleryJob = r.id;
+    watchGallery();
+  }
+  galleryIdle();
+
   const running = () => {
+    compare.disabled = true;
     go.textContent = t("Stop");
     go.classList.remove("primary");
     go.onclick = async () => { if (st.previewJob) await api("/api/hub/preview/cancel", { method: "POST", body: { id: st.previewJob } }).catch(() => null); };
   };
   const idle = () => {
+    compare.disabled = false;
     go.textContent = t("🗺️ Preview map");
     go.classList.add("primary");
     go.onclick = start;
@@ -2528,7 +2588,7 @@ function worldPanel(host) {
         h("label", {}, "Seed", h("div", { class: "row" }, seed, dice)),
         h("div", { class: "row" }, type, size),
         h("label", { class: "row small" }, structures, h("span", {}, "Villages, temples and other structures")),
-        h("div", { class: "row" }, go),
+        h("div", { class: "row" }, go, compare),
         h("h3", { class: "mt-s" }, plugins ? "World generation plugins" : "World generation mods"),
         moddable ? q : null),
       list,
@@ -2537,6 +2597,8 @@ function worldPanel(host) {
   return { el, start: () => {
     if (!st.loader) { fill(right, h("div", { class: "notice warn" }, "Pick a server type first (1. Server type)."));  go.disabled = true; }
     else if (st.previewJob) watch();
+    else if (st.galleryJob) watchGallery();
+    else if (st.galleryDone && st.galleryDone.maps.length) gallery(st.galleryDone);
     else if (st.previews.length) showMap(st.previews[0]);
     else fill(right, empty());
     search();

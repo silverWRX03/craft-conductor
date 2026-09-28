@@ -288,3 +288,45 @@ def test_exploring_the_map_from_the_page(hub_env, modrinth, monkeypatch):
     assert old.closed and c.get(f"/api/hub/map?id={r['id']}")[0] == 404
     from mcsm.web import device_allowed
     assert not device_allowed("POST", "/api/hub/map/explore")
+
+
+def test_the_seed_gallery(hub_env, modrinth, monkeypatch):
+    hub, c = hub_env
+    login(c)
+    modrinth.project("FAPI", "fabric-api", "Fabric API")
+    modrinth.version("FAPI", "1.0", ["1.21.1"])
+    modrinth.project("CHK", "chunky", "Chunky")
+    modrinth.version("CHK", "1.0", ["1.21.1"])
+    seeds, servers = [], set()
+
+    def generate(self, m):
+        seeds.append(self.seed)
+        servers.add(m.server_dir)
+        world = m.server_dir / "world"
+        write_world(world, {(cx, cz): chunk(cx, cz) for cx in range(-4, 4) for cz in range(-4, 4)})
+        return world
+
+    monkeypatch.setattr(preview.Preview, "_generate", generate)
+    body = {"loader": "fabric", "minecraft": "1.21.1", "mods": [], "level_type": "minecraft:normal", "structures": True,
+            "radius": 128}
+    assert c.post("/api/hub/preview/gallery", {**body, "count": 11})[0] == 400
+    assert c.post("/api/hub/preview/gallery", {**body, "count": 3, "radius": 7})[0] == 400
+    status, r, _ = c.post("/api/hub/preview/gallery", {**body, "count": 3})
+    assert status == 200, r
+    wait_for(lambda: c.get(f"/api/hub/preview/gallery?id={r['id']}")[1]["state"] != "running", timeout=60)
+    g = c.get(f"/api/hub/preview/gallery?id={r['id']}")[1]
+    assert g["state"] == "done" and len(g["maps"]) == 3, g
+    assert len(set(seeds)) == 3 and len(servers) == 1  # three random seeds, one server set up once
+    assert [m["seed"] for m in g["maps"]] == seeds
+    assert c.get(f"/api/hub/preview/map?id={g['maps'][0]['id']}")[0] == 200
+    assert c.get(f"/api/hub/map?id={g['maps'][-1]['id']}")[0] == 200  # the last one can be explored
+    # Stopped part-way: the maps made so far stay.
+    hold = __import__("threading").Event()
+    monkeypatch.setattr(preview.Preview, "_generate", lambda self, m: (hold.wait(30), generate(self, m))[1])
+    r = c.post("/api/hub/preview/gallery", {**body, "count": 5})[1]
+    assert c.post("/api/hub/preview", {**body, "seed": "1"})[0] == 409  # one thing at a time
+    assert c.post("/api/hub/preview/gallery/cancel", {"id": r["id"]})[0] == 200
+    hold.set()
+    wait_for(lambda: c.get(f"/api/hub/preview/gallery?id={r['id']}")[1]["state"] != "running", timeout=60)
+    g = c.get(f"/api/hub/preview/gallery?id={r['id']}")[1]
+    assert g["state"] == "cancelled" and len(g["maps"]) <= 1

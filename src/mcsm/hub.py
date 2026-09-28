@@ -112,6 +112,7 @@ class Hub:
         self.make_manager = make_manager or (lambda cfg: Manager(cfg, http=self.http, echo=False))
         self.trials: dict = {}  # test boots (trial.Trial) by id
         self.previews: dict = {}  # map previews (preview.Preview) by id
+        self.gallery = None  # the last seed gallery (preview.Gallery)
         self.map_session = None  # the last previewed world, to explore (preview.MapSession)
         self._upnp_lock = threading.Lock()
         self._upnp_status: dict | None = None
@@ -154,6 +155,7 @@ class Hub:
         hub.share_error = None
         hub.trials = {}
         hub.previews = {}
+        hub.gallery = None
         hub.map_session = None
         hub._upnp_lock = threading.Lock()
         hub._upnp_status = None
