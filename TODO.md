@@ -123,6 +123,10 @@ Next:
         Viewer if wanted), list every server on every linked computer on one Servers page, and
         get all their warnings and phone notifications in one place. Easier after 16 (API
         tokens); shares the "servers on another machine" groundwork with 20.
+24. [ ] **Friends' mods land on the right side:** in server setup's "Play with friends" part,
+        a mod picked for players that runs on both sides (client and server) is added to the
+        server too, with the mods it requires. When a friend sets up their own copy and opens
+        Download mods (Modrinth), they only see client-side-only mods.
 
 ## Plans for the items left (details to start from)
 
@@ -188,6 +192,23 @@ release to pay those costs once.
   computer's name) and proxies that server's pages' API calls with the token; the other computer
   applies its own role rules. Health warnings and phone notifications from linked computers are
   forwarded to the main one. Unlink = revoke the token on either side.
+
+**24. Friends' mods land on the right side** — small/medium.
+- Today: the mod browser already knows each Modrinth mod's sides (`browse.py`: `side`
+  "server"/"client" picks mods that run there; `env` "only"/"both"/"" narrows further;
+  `environment()` gives "server", "client" or "both" per result), and friends' mods live in the
+  client pack (`clientpack.py`; "Mods for players" on the Friends page, and setup's friends part).
+- Owner side (setup's Play with friends, and the Friends page's "Mods for players"): when a
+  picked mod's environment is "both" (client_side and server_side required/optional), also add
+  it to the server's mods (`ModSpec` in `mcsm.toml`) and resolve its required dependencies the
+  way the server's own mods are (planner/providers). Say so in a toast ("X also runs on the
+  server, so it was added there too, with Y"). Removing it from the players' list asks whether
+  to remove it from the server too.
+- Friend side (the friend's page, `webui/join.js` + `joinui.py` extras): the Download mods search
+  asks with `side=client` and `env=only`, so only client-side-only mods (server_side
+  unsupported) show. Modpacks and resource packs/shaders keep their own filters.
+- Tests: the side/env facets for the friend search; a "both" mod picked for players ends up in
+  `mcsm.toml` with its required dependency; a client-only one doesn't.
 
 **Smaller leftovers**
 - Map landmarks (12): players' bases, and pins on the web map (BlueMap/Dynmap markers).
