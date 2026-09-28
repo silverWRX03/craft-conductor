@@ -53,13 +53,17 @@ def test_guesses_sent_all_at_once_still_count(hub_env):
 
     def guess(i):
         conn = http.client.HTTPConnection("127.0.0.1", port, timeout=30)
-        conn.request("POST", "/api/login", json.dumps({"password": f"wrong-{i}"}),
-                     {"X-MCSM": "1", "Content-Type": "application/json"})
-        statuses.append(conn.getresponse().status)
-        conn.close()
+        try:
+            conn.request("POST", "/api/login", json.dumps({"password": f"wrong-{i}"}),
+                         {"X-MCSM": "1", "Content-Type": "application/json"})
+            statuses.append(conn.getresponse().status)
+        except ConnectionError:  # (a busy computer may turn some away: they don't get to guess either)
+            statuses.append("refused")
+        finally:
+            conn.close()
     threads = [threading.Thread(target=guess, args=(i,)) for i in range(20)]
     for t in threads:
         t.start()
     for t in threads:
         t.join()
-    assert statuses.count(401) == 5 and statuses.count(429) == 15
+    assert statuses.count(401) == 5 and statuses.count(429) + statuses.count("refused") == 15 and statuses.count(429)

@@ -354,6 +354,7 @@ class _Server(ThreadingHTTPServer):
     times out a connection that goes quiet; see REQUEST_TIMEOUT.)"""
     daemon_threads = True
     MAX_CONNECTIONS = 64
+    request_queue_size = 64  # (connections waiting to be accepted: a page opening fires off many at once)
 
     def __init__(self, *args, **kwargs):
         self._slots = threading.BoundedSemaphore(self.MAX_CONNECTIONS)
