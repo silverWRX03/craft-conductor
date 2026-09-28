@@ -874,12 +874,12 @@ The test suite runs the full install → upgrade → crash → rollback cycle ag
 
 In priority order (the working list, with what's done, is [TODO.md](TODO.md)):
 
-1. **Accessibility:** keyboard, screen readers, high contrast
-2. **Player activity:** who played when, and the best time to restart
-3. Whitelist through Discord
-4. Web map of the world (BlueMap or Dynmap)
-5. Landmarks on the map preview
-6. Phone notifications with the tab closed
+1. **Mobile app:** Craft Conductor on your phone's home screen, with notifications when it's closed
+2. **Accessibility:** keyboard, screen readers, high contrast
+3. **Player activity:** who played when, and the best time to restart
+4. Whitelist through Discord
+5. Web map of the world (BlueMap or Dynmap)
+6. Landmarks on the map preview
 7. Limits per server (memory, CPU)
 8. Other tunnel services (Cloudflare Tunnel, Tailscale Funnel)
 9. Purpur servers (Paper with plugins from Modrinth and Hangar is supported)
