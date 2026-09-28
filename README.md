@@ -82,6 +82,9 @@ ready to update to Minecraft 1.21.4 with fabric 0.16.14:
   who's playing, edited as things change.
 - **Saved mod lists.** Keep a mod list under a name, switch to another and back, and move lists
   between servers as files.
+- **Update rehearsal.** Try an update on a copy of the server and its world first: it runs for a few
+  minutes where nobody can join, then a report says whether it started, how well it kept up and
+  which mods complained. Automatic updates to a new Minecraft can be rehearsed first too.
 - **World tools.** Game rules with explanations, a world border, and pre-generating terrain with
   Chunky so exploring doesn't lag.
 - **Rented servers too.** Install on a VPS over SSH; its control panel stays private, reached
@@ -741,6 +744,7 @@ wait_for_empty = false
 verify_boot = true
 wait_for_all_mods = true         # a new Minecraft only once every mod supports it
 remind_days = 30                 # then remind you monthly about the mods still behind
+rehearse = false                 # try a new Minecraft on a copy of the server before updating by itself
 
 [backups]
 keep = 10
@@ -855,12 +859,31 @@ The test suite runs the full install → upgrade → crash → rollback cycle ag
 
 ### Roadmap ideas
 
-- Purpur servers (Paper with plugins from Modrinth and Hangar is supported)
-- **Modded single-player worlds:** set up and keep a modded single-player game up to date (version, loader,
-  mods, updates), then load it into the launcher of your choice; mcsm won't become a launcher itself
-- **Seed gallery:** one button makes maps of 10 different seeds side by side, to pick the one with the
-  features you're after (a warning first says how long it takes and how hard it works the computer)
-- A native phone app (today the control panel works as a web app on your phone's home screen)
+In priority order (the working list, with what's done, is [TODO.md](TODO.md)):
+
+1. **Update rehearsal:** try a Minecraft update on a copy of the server first, then report how it went
+2. **Lag finder:** when the server slows down, find why and say it in plain words
+3. **Seed gallery:** maps of 10 different seeds side by side, to pick the one with the features
+   you're after (a warning first says how long it takes and how hard it works the computer)
+4. **Snapshots** of a whole server (config, mods, world) with what changed, and rollback
+5. **Guided first server** for complete beginners
+6. **Modded single-player worlds:** set up and keep a modded single-player game up to date, then load it
+   into the launcher of your choice; mcsm won't become a launcher itself
+7. **Accessibility:** keyboard, screen readers, high contrast
+8. **Player activity:** who played when, and the best time to restart
+9. Whitelist through Discord
+10. Web map of the world (BlueMap or Dynmap)
+11. Landmarks on the map preview
+12. Phone notifications with the tab closed
+13. Limits per server (memory, CPU)
+14. Other tunnel services (Cloudflare Tunnel, Tailscale Funnel)
+15. Purpur servers (Paper with plugins from Modrinth and Hangar is supported)
+16. Scripting hooks and API tokens
+17. Shared, opt-in memory of mods that don't work together
+18. Proxy networks (Velocity)
+19. A translated user manual
+20. Servers on hosting sites that have an official API (Pterodactyl)
+21. A native phone app (today the control panel works as a web app on your phone's home screen)
 
 ## License
 

@@ -671,3 +671,8 @@ html { zoom: var(--zoom); }
   border-radius: 6px; background: var(--panel); border: 1px solid var(--border); box-shadow: 0 2px 8px var(--shadow, rgba(0,0,0,.2)); }
 .map-tools { flex-wrap: wrap; gap: 8px; }
 .map-tools .btn.small { min-width: 34px; }
+
+/* Update rehearsal report */
+.rehearsal-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin: 8px 0; }
+.rehearsal-stat { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; background: var(--panel-2); border-radius: 8px; }
+.rehearsal-lines { max-height: calc(24 * var(--vh)); overflow: auto; white-space: pre-wrap; word-break: break-word; font-size: 12px; }

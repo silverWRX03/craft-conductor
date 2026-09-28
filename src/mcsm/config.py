@@ -58,6 +58,7 @@ class UpdateConfig:
     verify_boot: bool = True
     wait_for_all_mods: bool = True   # upgrade Minecraft only once every mod (optional ones too) supports it
     remind_days: int = 30            # then remind about mods still not updated, this often
+    rehearse: bool = False           # try a new Minecraft on a copy of the server before updating by itself
 
 
 @dataclass
@@ -240,6 +241,7 @@ def parse(root: Path, data: dict) -> Config:
         verify_boot=bool(u.get("verify_boot", True)),
         wait_for_all_mods=bool(u.get("wait_for_all_mods", True)),
         remind_days=max(1, int(u.get("remind_days", 30))),
+        rehearse=bool(u.get("rehearse", False)),
     )
 
     b = data.get("backups", {})
@@ -335,6 +337,7 @@ wait_for_empty = false         # postpone upgrades until nobody is online
 verify_boot = true             # boot the upgraded server and roll back if it fails to start
 wait_for_all_mods = true       # upgrade Minecraft only when every mod (optional ones too) supports it
 remind_days = 30               # a month after a new version is out (and every month after), list the mods holding it back
+rehearse = false               # before updating Minecraft by itself, try the update on a copy of the server first
 
 [backups]
 dir = "backups"

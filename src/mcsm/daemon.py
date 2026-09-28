@@ -146,6 +146,7 @@ def decision_to_dict(m: Manager, decision, changes) -> dict:
         "installed": m.lock.minecraft,
         "latest": decision.latest,
         "target": plan.minecraft if plan else None,
+        "fingerprint": plan.fingerprint if plan else None,
         "loader_version": plan.loader_version if plan else None,
         "up_to_date": bool(plan and (changes is None or changes.empty)),
         "changes": changes.summary() if changes else [],
@@ -186,12 +187,14 @@ class Daemon:
         self.events = LogBuffer(500)
         self.players: set[str] = set()
         self._sched_last = None  # the last time schedules were looked at
+        self._backup_owed = False  # a scheduled backup that came due while another job ran
         self.meter = None        # recent TPS samples (perf.Meter), made when first asked for
         self.crashed_at = None   # when the server last stopped unexpectedly
         self.problem: dict | None = None  # what went wrong last (explain.py), until it starts fine
         self.tunnel_status = None  # the last playit.gg tunnel check (tunnel.check)
         self.started_at: float | None = None
         self.last_check: dict | None = None
+        self.rehearsal = None      # the last update rehearsal (rehearsal.Rehearsal), if any
         self.ops = threading.Lock()     # one job at a time
         self.job: dict | None = None
         self.last_job: dict | None = None
@@ -375,8 +378,9 @@ class Daemon:
         except schedule.CronError as e:  # (checked when saved; a hand-edited file could still be wrong)
             log.warning("schedule: %s", e)
             return
-        if backup_due:
-            self.submit("scheduled backup", self.backup_now, "scheduled")
+        if backup_due or self._backup_owed:
+            # Busy (an update or a rehearsal): made as soon as that's done, not skipped.
+            self._backup_owed = not self.submit("scheduled backup", self.backup_now, "scheduled")
         elif restart:
             if not (self.want_running and self.proc is not None and self.proc.running):
                 return  # nothing to restart
@@ -639,6 +643,12 @@ class Daemon:
                 log.info("update ready but %s player(s) online; waiting", online)
                 self.next_check = time.monotonic() + EMPTY_RETRY
                 return f"waiting for {online} player(s) to leave"
+        if self.rehearsal is not None and self.rehearsal.state == "running" and not force:
+            return "waiting for the update rehearsal to finish"
+        if cfg.rehearse and not force and changes.minecraft:
+            why = self._rehearsal_gate(decision.plan)
+            if why:
+                return why
         was_running = bool(self.proc and self.proc.running)
         result = self.m.apply(decision.plan, server=self.proc, restart=was_running or self.want_running)
         if result.ok:
@@ -655,6 +665,52 @@ class Daemon:
         if not result.ok:
             raise RuntimeError(result.message)
         return result.message
+
+    def make_manager(self):
+        hub = getattr(self, "hub", None)
+        if hub is not None:
+            return hub.make_manager
+        return lambda cfg: Manager(cfg, http=self.m.http, echo=False)
+
+    def start_rehearsal(self, target: str | None = None, minutes: int | None = None, fingerprint: str | None = None):
+        """Try the update on a copy of the server, in the background (it isn't one of the server's
+        jobs: crash restarts and backups carry on meanwhile). When it's done the update check runs
+        again, so an automatic update waiting for it goes ahead (or is held back) straight away."""
+        from . import rehearsal
+        r = rehearsal.Rehearsal(self, self.make_manager(), target=target, minutes=minutes or rehearsal.WATCH_DEFAULT)
+        r.for_fingerprint = fingerprint
+        self.rehearsal = r
+
+        def run():
+            set_current_server(self.server_id)
+            r.run()
+            self.next_check = 0.0
+        threading.Thread(target=run, daemon=True, name=f"rehearsal:{r.id}").start()
+        return r
+
+    def _rehearsal_gate(self, plan) -> str | None:
+        """Before a new Minecraft goes in by itself: None once it has worked on a copy of the
+        server; otherwise why it waits. A rehearsal is started if there's no recent one; one that
+        didn't work is reported once and holds the update back until someone looks (Updates page:
+        rehearse again, or update anyway)."""
+        from . import rehearsal
+        if rehearsal.passed(self.m.config, plan.fingerprint):
+            return None
+        key = "rehearsal:" + plan.fingerprint
+        held = f"held back: the update to Minecraft {plan.minecraft} didn't work on a copy of the server"
+        if key in self.announced:
+            return held
+        r = self.rehearsal
+        if r is not None and r.for_fingerprint == plan.fingerprint and r.state != "running":
+            self.announced.add(key)
+            result = r.result or {}
+            self.m.notifier.send(f"The update to Minecraft {plan.minecraft} was held back: it was tried on a copy of the "
+                                 f"server first, and {result.get('summary') or result.get('error') or 'it did not work'} "
+                                 "See the server's Updates page.")
+            return held
+        log.info("trying the update to Minecraft %s on a copy of the server first", plan.minecraft)
+        self.start_rehearsal(plan.minecraft, fingerprint=plan.fingerprint)
+        return f"trying the update to Minecraft {plan.minecraft} on a copy of the server first"
 
     def remove_and_upgrade(self, version: str, mods: list[str]) -> str:
         """The admin's answer to a reminder: drop the mods that haven't caught up, then update."""
