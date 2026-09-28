@@ -70,13 +70,13 @@ Next:
        app, not a store app) with notifications when it's closed: a crash, a friend asking to join, an update
        held back, lag. Includes a guided way to reach it over trusted HTTPS (Tailscale, a Cloudflare Tunnel or
        a domain), which phones need for this. A store app only if this falls short.
-7. [x] **Accessibility:** everything works with the keyboard, labels for screen readers, and a
+8. [x] **Accessibility:** everything works with the keyboard, labels for screen readers, and a
        high-contrast theme.
-8. [x] **Player activity:** who played when, the busiest times, and a suggested restart time when
+9. [x] **Player activity:** who played when, the busiest times, and a suggested restart time when
        nobody is usually on.
-9. [x] Whitelist through Discord (friends ask with a command, the owner approves).
-10. [x] Web map of the world (BlueMap or Dynmap) with a link to share.
-11. [x] **Map landmarks:** villages, structures and players' bases pinned on the map preview (and
+10. [x] Whitelist through Discord (friends ask with a command, the owner approves).
+11. [x] Web map of the world (BlueMap or Dynmap) with a link to share.
+12. [x] **Map landmarks:** villages, structures and players' bases pinned on the map preview (and
         on the web map). Done: the structures Minecraft and mods place, on the map preview. Not yet:
         players' bases, and pins on the web map (BlueMap and Dynmap show their own).
 13. [x] Limits per server (memory, CPU) and a warning when too many run at once. Also warnings
