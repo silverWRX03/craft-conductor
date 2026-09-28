@@ -39,6 +39,40 @@ PUSH_HOSTS = re.compile(
     r"[a-z0-9-]+\.notify\.windows\.com)")
 
 
+# What each device can choose to hear about (Craft Conductor settings → Phone app); all but
+# "status" (the server started or stopped) are on for a new device.
+KINDS = {
+    "crash": "A server crashed, stopped unexpectedly or wouldn't start",
+    "join": "A friend asks to join, or was let in",
+    "updates": "Updates: available, installed, held back or waiting on mods",
+    "lag": "The server keeps lagging",
+    "backups": "A backup doesn't look right",
+    "tunnel": "The playit.gg tunnel stopped or works again",
+    "computer": "This computer: low disk space, a busy CPU, low memory",
+    "status": "A server started",
+    "other": "Everything else",
+}
+DEFAULT_KINDS = [k for k in KINDS if k != "status"]
+_KIND_WORDS = [  # (the first that matches; checked against the message in lower case)
+    ("crash", ("crashed", "stopped unexpectedly", "didn't start", "did not finish starting", "failed")),
+    ("join", ("asks to join", "was let in")),
+    ("lag", ("falling behind", "lagging", "lag")),
+    ("backups", ("backup",)),
+    ("tunnel", ("tunnel",)),
+    ("updates", ("update", "is out", "held back", "is available", "rolled back")),
+    ("status", ("server is up",)),
+]
+
+
+def kind_of(message: str) -> str:
+    """Which kind of notification a server's message is (see KINDS)."""
+    text = message.lower()
+    for kind, words in _KIND_WORDS:
+        if any(w in text for w in words):
+            return kind
+    return "other"
+
+
 class PushError(ValueError):
     pass
 
@@ -99,7 +133,25 @@ class Push:
     # -------------------------------------------------------- subscriptions
     def subscriptions(self) -> list[dict]:
         with self.lock:
-            return [{k: s[k] for k in ("id", "name", "created", "service")} for s in self._load().get("subscriptions", [])]
+            return [{**{k: s[k] for k in ("id", "name", "created", "service")}, "kinds": s.get("kinds", DEFAULT_KINDS)}
+                    for s in self._load().get("subscriptions", [])]
+
+    def kinds_for(self, endpoint: str) -> list[str] | None:
+        with self.lock:
+            sub = next((s for s in self._load().get("subscriptions", []) if s["endpoint"] == endpoint), None)
+        return sub.get("kinds", DEFAULT_KINDS) if sub else None
+
+    def set_kinds(self, endpoint: str, kinds: list) -> list[str]:
+        """What this device wants to hear about (its own push address names it)."""
+        chosen = [k for k in KINDS if k in {str(x) for x in kinds or []}]
+        with self.lock:
+            data = self._load()
+            sub = next((s for s in data.get("subscriptions", []) if s["endpoint"] == endpoint), None)
+            if sub is None:
+                raise PushError("this device doesn't have notifications on")
+            sub["kinds"] = chosen
+            self._save(data)
+        return chosen
 
     def subscribe(self, endpoint: str, p256dh: str, auth: str, name: str) -> dict:
         if not isinstance(endpoint, str) or not allowed_endpoint(endpoint):
@@ -117,12 +169,14 @@ class Push:
             subs = [s for s in data.get("subscriptions", []) if s["endpoint"] != endpoint]
             if len(subs) >= MAX_SUBSCRIPTIONS:
                 raise PushError(f"up to {MAX_SUBSCRIPTIONS} devices can get notifications; turn one off first")
+            before = next((s for s in data.get("subscriptions", []) if s["endpoint"] == endpoint), None)
             sub = {"id": secrets.token_hex(6), "endpoint": endpoint, "p256dh": p256dh, "auth": auth, "name": name,
-                   "created": time.time(), "service": urlparse(endpoint).hostname}
+                   "created": time.time(), "service": urlparse(endpoint).hostname,
+                   "kinds": before.get("kinds", DEFAULT_KINDS) if before else DEFAULT_KINDS}
             data["subscriptions"] = subs + [sub]
             self._save(data)
         log.info("phone notifications turned on for %s", name)
-        return {k: sub[k] for k in ("id", "name", "created", "service")}
+        return {k: sub[k] for k in ("id", "name", "created", "service", "kinds")}
 
     def unsubscribe(self, endpoint: str | None = None, sub_id: str | None = None) -> int:
         with self.lock:
@@ -134,12 +188,14 @@ class Push:
             return len(subs) - len(keep)
 
     # ---------------------------------------------------------------- sending
-    def notify(self, title: str, body: str, url: str = "/", tag: str = "") -> None:
-        """Queue a notification for every device (sent in the background: never slows anything)."""
+    def notify(self, title: str, body: str, url: str = "/", tag: str = "", kind: str | None = None) -> None:
+        """Queue a notification for every device that wants this kind (sent in the background: never
+        slows anything)."""
         if not self.path.exists():
             return  # nobody asked for notifications yet
         try:
-            self.queue.put_nowait({"title": title[:80], "body": body[:300], "url": url, "tag": tag[:60]})
+            self.queue.put_nowait({"title": title[:80], "body": body[:300], "url": url, "tag": tag[:60],
+                                   "kind": kind if kind in KINDS else kind_of(body)})
         except queue.Full:
             log.warning("too many phone notifications waiting; dropping one")
             return
@@ -162,6 +218,10 @@ class Push:
             data = self._load()
             key = self._key(data) if data.get("subscriptions") else None
             subs = [s for s in data.get("subscriptions", []) if only is None or s["id"] == only]
+        kind = message.get("kind")
+        if only is None and kind:  # (a test goes to its device whatever it chose)
+            subs = [s for s in subs if kind in s.get("kinds", DEFAULT_KINDS)]
+        message = {k: v for k, v in message.items() if k != "kind"}
         payload = json.dumps(message, separators=(",", ":")).encode()
         results, gone = [], []
         for s in subs:

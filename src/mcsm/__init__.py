@@ -1,3 +1,3 @@
 """mcsm - a forever Minecraft server manager."""
 
-__version__ = "0.18.2"
+__version__ = "0.19.0"

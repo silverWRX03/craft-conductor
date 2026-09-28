@@ -46,6 +46,8 @@ class ServerConfig:
     startup_timeout: int = 600
     stop_timeout: int = 120
     find_lag: bool = True           # when it lags with players on, find out why by itself (lagfinder.py)
+    cpu_cores: int = 0              # CPU cores it may use; 0: all (limits.py; not on macOS)
+    priority: str = "normal"        # "low": the rest of the computer comes first
 
 
 @dataclass
@@ -161,6 +163,15 @@ def load(root: Path) -> Config:
     return parse(root, data)
 
 
+def _limits(s: dict) -> tuple[int, str]:
+    """server.cpu_cores and server.priority, checked (limits.py)."""
+    from . import limits
+    try:
+        return limits.check(s.get("cpu_cores", 0), str(s.get("priority", "normal")))
+    except ValueError as e:
+        raise ConfigError(f"server.{e}") from None
+
+
 def _memory(value) -> str:
     """Java heap size: a number with M or G (``4G``, ``4096M``), or ``auto``."""
     text = str(value).strip()
@@ -228,6 +239,7 @@ def parse(root: Path, data: dict) -> Config:
         jvm_args=list(s.get("jvm_args", [])),
         aikar_flags=bool(s.get("aikar_flags", False)),
         find_lag=bool(s.get("find_lag", True)),
+        cpu_cores=_limits(s)[0], priority=_limits(s)[1],
         startup_timeout=parse_duration(s.get("startup_timeout", 600)),
         stop_timeout=parse_duration(s.get("stop_timeout", 120)),
     )
@@ -323,6 +335,8 @@ memory = "4G"
 jvm_args = []                  # extra JVM flags, e.g. ["-XX:+UseZGC"]
 aikar_flags = false            # Aikar's GC flags: fewer lag spikes with lots of memory (16 GB+)
 find_lag = true                # when it lags with players on, find out why by itself
+cpu_cores = 0                  # CPU cores it may use (0 = all; Linux and Windows)
+priority = "normal"            # "low": other programs on this computer come first
 startup_timeout = "10m"        # how long a boot may take before it counts as failed
 stop_timeout = "2m"
 restart_on_crash = true

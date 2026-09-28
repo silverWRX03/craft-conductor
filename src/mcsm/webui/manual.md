@@ -115,9 +115,13 @@ Everyday messages ("Saved", or what went wrong) appear at the **top of the scree
 
 Questions you'll meet again and again ("Stop the server?", "Quit Craft Conductor?", "Update to Minecraft …?", mods with only beta builds, Aikar's flags) have a **Don't ask me again** box, and notices you've read (online-mode is off, a mod test takes a while, closing the tab doesn't stop Craft Conductor) have **Don't show again** or **Got it**. Craft Conductor remembers that in this browser; **Craft Conductor settings → Warnings → Show all warnings again** brings them all back. Questions about deleting or replacing things always ask.
 
+**Warnings about this computer** show in a strip at the top of every page while they last: little disk space left on the drive with a server or its backups (under 10 GB, and in red under 3 GB), the CPU busy (90% or more) for five minutes, the computer almost out of memory, or the running servers given more memory than the computer has. Each says what to do. Craft Conductor looks every minute; each warning is also written to the log and sent to phones with notifications on, once when it starts (and again only after it has gone away, at most every six hours). **Hide** hides it on this page until it changes.
+
 ## Your servers
 
 **Servers** lists every server with its state, version, players and port: **Start**, **Open**, **Delete**, and **Folder** (on the server's own computer). **Import a server...** adds one exported from another computer.
+
+Under the list: how much memory the running servers are given, out of this computer's. Starting a server that would take more than the computer can spare (keeping 1.5 GB for everything else) asks first, with **Start anyway**: servers that together are given more memory than the computer has slow right down or crash.
 
 ### Modded single-player games
 
@@ -211,6 +215,11 @@ Craft Conductor downloads the right Java (Eclipse Temurin) for each Minecraft ve
 ## Settings
 
 The server's version and upgrade choices, memory (with Aikar's flags above 16 GB), port, name and Minecraft's settings.
+
+**Limits** (for several servers on one computer), from the next start:
+
+- **CPU cores it may use:** **All** (the default), or a number: the server then only uses that many of the computer's cores, leaving the others for other servers and everything else. Not on Macs (macOS doesn't allow it).
+- **Lower priority:** the computer serves this server after everything else when it's busy. Good for a server friends use now and then, next to your main one.
 
 **Schedule:** restart the server and make backups at set times: **Every day at…**, **Every week on…**, **Every few hours** (backups), or **Custom (cron)** for anything else (five parts: minute, hour, day of the month, month, day of the week; for example `30 5 * * 1-5` is 5:30 on weekdays). Times are this computer's; the next run is shown. A scheduled restart gives players the in-game countdown first, and **Skip a scheduled restart while players are online** leaves them be. The same settings are `[schedule]` in `mcsm.toml`.
 
@@ -306,6 +315,9 @@ Craft Conductor can live on your phone's home screen like an app, and send **not
 1. **A secure address.** Phones only install web apps and deliver their notifications for a page with a real certificate. The easy way is **Tailscale** (free for personal use): install it on this computer and your phone, signed in to the same account, then press **Check for Tailscale** and **Use Tailscale for the phone app**. The control panel gets an address like `https://your-computer.your-tailnet.ts.net` that only your own devices can reach; it isn't on the internet. (The first time, Tailscale may ask you to switch HTTPS on for your account: follow the link, then press the button again.) It needs a strong password first, because the phone signs in as another device. A Cloudflare Tunnel or your own domain with a real certificate works too (add its name to `[web] allowed_hosts`).
 2. **Put it on your phone.** Open the secure address on the phone (with Tailscale on) and sign in, or pair the phone under **Remote access & phones** and pick the **Tailscale, secure** address. Then: **iPhone or iPad**: in Safari press **Share → Add to Home Screen**, and open Craft Conductor from the Home Screen (iPhones only allow notifications for apps added this way). **Android**: in Chrome press **⋮ → Install app** (or **Add to Home screen**); some browsers show **Install the app** in the card itself.
 3. **Turn on notifications here**, in the app, under **Craft Conductor settings → Phone app**. **Send a test** checks it works. Each device with notifications on is listed; **Remove** stops them for that device, and **Turn off** does it on the device itself.
+4. **Choose what you hear about.** Under **Notify this device about**, tick what this device should get: a server crashed or wouldn't start, friends asking to join, updates, lag, backups, the playit.gg tunnel, this computer (disk space, CPU, memory), a server started (off at first) and everything else. Each device has its own choices, kept when notifications are turned off and on again.
+
+The app follows the phone's light or dark setting (unless you pick day or night with the sun/moon button), and the phone's status bar matches.
 
 **On the phone, the top of the page says where you are.** Opened at a plain address (like `http://192.168.1.50:8765`, the home network address, or a pairing code made for it), Craft Conductor is a web page in the browser: phones won't install it as an app from there, and "Add to Home Screen" only makes a bookmark that opens a browser tab. The message says so, and links to the secure Tailscale address when there is one. At the secure address it offers **Install the app** (or says how: Share → Add to Home Screen on an iPhone), and once it's installed, **Turn on notifications**. **Not now** hides it for two weeks. A paired phone, which can't open Craft Conductor settings, turns its notifications on here. When pairing a phone, the **Tailscale, secure** address is picked first, and the dialog says when another address will only open in the browser.
 

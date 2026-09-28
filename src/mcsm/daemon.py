@@ -273,6 +273,7 @@ class Daemon:
         hub = getattr(self, "hub", None)
         if hub is not None:
             hub.check_port(self)
+            hub.check_memory(self)
         self.want_running = True
         if not self.m.lock.installed:
             log.info("no server installed yet; installing")

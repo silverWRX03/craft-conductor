@@ -34,7 +34,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Any, Callable
 
-from . import __version__, backup, config as configmod, configs, licenses, notice, serverprops, setup as setupmod, stats, webauth
+from . import __version__, backup, config as configmod, configs, licenses, limits, notice, serverprops, setup as setupmod, stats, webauth
 from .config import ConfigError, ModSpec
 from .daemon import Daemon, set_current_server
 from .hub import Hub
@@ -64,7 +64,7 @@ DEVICE_HIDDEN_GETS = {"/api/configs/file", "/api/export/download", "/api/setting
 
 
 # A paired phone turning its own notifications on or off (it names itself by its push address).
-PHONE_POSTS = {"/api/hub/phone/subscribe", "/api/hub/phone/unsubscribe", "/api/hub/phone/test"}
+PHONE_POSTS = {"/api/hub/phone/subscribe", "/api/hub/phone/unsubscribe", "/api/hub/phone/test", "/api/hub/phone/prefs"}
 
 
 def device_allowed(method: str, path: str, role: str = "helper") -> bool:
@@ -808,6 +808,7 @@ class HubApi:
         r[("GET", "/api/hub/discord/guilds")] = lambda q, b: {"guilds": self._discord().guilds()}
         r[("GET", "/api/hub/discord/channels")] = lambda q, b: {"channels": self._discord().channels(q.get("guild", ""))}
         r[("POST", "/api/hub/discord/status")] = self.discord_status
+        r[("GET", "/api/hub/memory")] = lambda q, b: self.hub.memory_plan(q.get("adding") or None)
         r[("GET", "/api/hub/discord/roles")] = lambda q, b: {"roles": self._discord().roles(q.get("guild", ""))}
         r[("POST", "/api/hub/discord/whitelist")] = self.discord_whitelist
         r[("POST", "/api/hub/mods/check")] = self.check_mods
@@ -844,6 +845,7 @@ class HubApi:
         r[("POST", "/api/hub/phone/subscribe")] = self.phone_subscribe
         r[("POST", "/api/hub/phone/unsubscribe")] = self.phone_unsubscribe
         r[("POST", "/api/hub/phone/test")] = self.phone_test
+        r[("POST", "/api/hub/phone/prefs")] = self.phone_prefs
         r[("POST", "/api/hub/phone/remove")] = self.phone_remove
         r[("POST", "/api/hub/phone/tailscale")] = self.phone_tailscale
         r[("GET", "/api/hub/singleplayer")] = self.sp_list
@@ -871,6 +873,7 @@ class HubApi:
             "servers": hub.summary(),
             "share": hub.share_status() if not hub.is_single else None,
             "guide": None if hub.is_single else self._guide_state(),
+            "health": hub._health.warnings if getattr(hub, "_health", None) else [],  # (checked every minute: health.py)
         }
 
     # ------------------------------------------- modded single-player games
@@ -1003,6 +1006,24 @@ class HubApi:
         results = self.hub.push.send_now({"title": "Craft Conductor", "body": "Notifications work on this device.",
                                           "url": "/", "tag": "test"}, only=match[0])
         return {"ok": all(r["ok"] for r in results), "results": results}
+
+    def phone_prefs(self, q, b) -> dict:
+        """Which notifications this device gets (it names itself by its push address); with
+        "kinds", change them."""
+        from .push import KINDS, PushError
+        endpoint = str(b.get("endpoint", ""))
+        try:
+            if "kinds" in b:
+                if not isinstance(b["kinds"], list):
+                    raise ApiError(400, "kinds must be a list")
+                kinds = self.hub.push.set_kinds(endpoint, b["kinds"])
+            else:
+                kinds = self.hub.push.kinds_for(endpoint)
+        except PushError as e:
+            raise ApiError(404, str(e)) from None
+        if kinds is None:
+            raise ApiError(404, "notifications aren't on for this device")
+        return {"kinds": kinds, "all": KINDS}
 
     def phone_remove(self, q, b) -> dict:
         n = self.hub.push.unsubscribe(sub_id=str(b.get("id", "")))
@@ -3039,6 +3060,8 @@ class Api:
         "memory": ("server", "memory", str),
         "aikar_flags": ("server", "aikar_flags", bool),
         "find_lag": ("server", "find_lag", bool),
+        "cpu_cores": ("server", "cpu_cores", int),
+        "priority": ("server", "priority", str),
         "restart_on_crash": ("server", "restart_on_crash", bool),
         "strategy": ("updates", "strategy", str),
         "mod_channel": ("updates", "mod_channel", str),
@@ -3063,6 +3086,8 @@ class Api:
         interval = c.updates.check_interval
         return {
             "memory": c.server.memory, "aikar_flags": c.server.aikar_flags, "find_lag": c.server.find_lag,
+            "cpu_cores": c.server.cpu_cores, "priority": c.server.priority, "cpu_count": limits.cpu_count(),
+            "can_pin_cores": limits.can_pin_cores(),
             "restart_on_crash": c.restart_on_crash,
             "strategy": c.updates.strategy, "mod_channel": c.updates.mod_channel,
             "auto_upgrade": c.updates.auto_upgrade,
@@ -3117,7 +3142,10 @@ class Api:
                 if kind is bool:
                     literal = "true" if value is True else "false" if value is False else None
                 elif kind is int:
-                    literal = str(int(value))
+                    try:
+                        literal = str(int(value))
+                    except (TypeError, ValueError):
+                        raise ApiError(400, f"{key} must be a whole number") from None
                 elif kind is list:
                     literal = json.dumps([int(x) for x in value])
                 else:

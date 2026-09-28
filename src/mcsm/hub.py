@@ -122,6 +122,8 @@ class Hub:
         self._status_lock = threading.Lock()  # the Discord status message
         self._status_sent, self._status_at = None, 0.0
         self.discord_bot = None  # Whitelist through Discord, while it's on (discordbot.WhitelistBot)
+        self._health = None      # warnings about this computer (health.Health): see the health property
+        self._health_lock = threading.Lock()
         self._request_times: dict[str, float] = {}
         self._requests_lock = threading.Lock()
         self.checks: dict = {}  # quick mod checks running in the background (trial.CheckJob) by id
@@ -159,6 +161,7 @@ class Hub:
         hub.previews = {}
         hub._push = None
         hub.discord_bot = None
+        hub._health, hub._health_lock = None, threading.Lock()
         hub.gallery = None
         hub.map_session = None
         hub._upnp_lock = threading.Lock()
@@ -560,6 +563,14 @@ class Hub:
         t.start()
 
     @property
+    def health(self):
+        """Warnings about this computer: disk space, CPU, memory (health.py)."""
+        if self._health is None:
+            from .health import Health
+            self._health = Health(self)
+        return self._health
+
+    @property
     def push(self):
         if self._push is None:
             from .push import Push
@@ -633,6 +644,43 @@ class Hub:
                 name = read_properties(other.m.server_dir / "server.properties").get("motd") or sid
                 raise RuntimeError(f"port {port} is already used by {name}, which is running; "
                                    "stop it first, or give this server another port in its Settings")
+
+    def _check_health(self) -> None:
+        if not self._health_lock.acquire(blocking=False):
+            return  # (the last look hasn't finished: a drive that doesn't answer)
+        try:
+            self.health.check()
+        except Exception:
+            log.exception("couldn't check the computer's disk, CPU and memory")
+        finally:
+            self._health_lock.release()
+
+    def memory_plan(self, adding: str | None = None) -> dict:
+        """The memory given to the running servers (plus ``adding``, about to start) against this
+        computer's, leaving some for the computer itself (limits.py)."""
+        from . import limits, stats
+        from .setup import suggested_memory_gb, total_ram_gb
+        if getattr(self, "_total_ram", False) is False:  # (it doesn't change; on macOS reading it runs a program)
+            self._total_ram = total_ram_gb()
+        default = suggested_memory_gb(self._total_ram)
+        gb = lambda d: stats.heap_bytes(d.m.config.server.memory, default) / 1024 ** 3  # noqa: E731
+        running = {sid: d for sid, d in list(self.daemons.items()) if d.proc and d.proc.running and sid != adding}
+        extra = self.daemons.get(adding)
+        plan = limits.memory_fits([gb(d) for d in running.values()], gb(extra) if extra else 0.0, self._total_ram)
+        plan["running"] = [{"id": sid, "gb": round(gb(d), 1)} for sid, d in running.items()]
+        plan["adding_gb"] = round(gb(extra), 1) if extra else 0.0
+        return plan
+
+    def check_memory(self, daemon: Daemon) -> None:
+        """Say (in the activity) when starting this server gives the servers more memory than the
+        computer has; the page asks before starting it (see memory_plan)."""
+        sid = next((k for k, v in self.daemons.items() if v is daemon), None)
+        if sid is None:
+            return
+        plan = self.memory_plan(sid)
+        if not plan["fits"]:
+            log.warning("the running servers are given %.1f GB of memory with this one, and this computer has %.1f GB: "
+                        "it may slow down or a server may crash; give them less memory, or stop one", plan["after_gb"], plan["total_gb"])
 
     @property
     def staging_dir(self) -> Path:
@@ -1037,6 +1085,7 @@ class Hub:
             next_status = time.monotonic() + 20
             next_tunnels = time.monotonic() + 60
             next_upnp = time.monotonic() + 15
+            next_health = time.monotonic() + 30
             while not self.stop_requested.is_set():
                 if hub_stop_path(self.home).exists():
                     hub_stop_path(self.home).unlink(missing_ok=True)
@@ -1057,6 +1106,9 @@ class Hub:
                     next_upnp = now + self.UPNP_EVERY
                     if self.upnp_settings()["enabled"]:
                         threading.Thread(target=self.upnp_sync, daemon=True, name="upnp").start()
+                if now >= next_health:
+                    next_health = now + 60
+                    threading.Thread(target=self._check_health, daemon=True, name="health").start()
                 if now >= next_status:
                     next_status = now + 30
                     threading.Thread(target=self.discord_status, daemon=True, name="discord-status").start()

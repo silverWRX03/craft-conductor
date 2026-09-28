@@ -79,7 +79,8 @@ Next:
 11. [x] **Map landmarks:** villages, structures and players' bases pinned on the map preview (and
         on the web map). Done: the structures Minecraft and mods place, on the map preview. Not yet:
         players' bases, and pins on the web map (BlueMap and Dynmap show their own).
-13. [ ] Limits per server (memory, CPU) and a warning when too many run at once.
+13. [x] Limits per server (memory, CPU) and a warning when too many run at once. Also warnings
+        about the computer (disk space, CPU, memory) on the page and on phones.
 14. [ ] Other tunnel services next to playit.gg (Cloudflare Tunnel, Tailscale Funnel).
 15. [ ] Purpur servers.
 16. [ ] Scripting hooks (a script on start, stop, a player joining, before an update) and API tokens.
@@ -92,3 +93,5 @@ Next:
         panels with an official API (Pterodactyl, used by many paid hosts) are the realistic
         target. Free hosts (Aternos, Minehut, Minefort) only if they have an official API and their
         terms allow it: Aternos's terms don't allow automating its site.
+21. [ ] **Fingerprint or face sign-in** on the phone app (passkeys, WebAuthn), instead of typing
+        the password.
