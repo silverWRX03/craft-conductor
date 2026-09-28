@@ -1,8 +1,19 @@
 # Changelog
 
 What changed in each version of mcsm, newest first. Bugs are listed the way you'd have seen
-them. Found a new one? [Report it](https://github.com/silverWRX03/mc-server-management/issues/new/choose);
+them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
+
+## 0.16.0 (2026-09-28)
+
+**Changed**
+- **mcsm is now called Craft Conductor**, with a new icon (the same stone-and-lava picture, now with "CC"). The project moved to [github.com/silverWRX03/craft-conductor](https://github.com/silverWRX03/craft-conductor); the old address forwards there.
+  - The downloads are now `craft-conductor-windows-x64.exe`, `craft-conductor-macos-arm64`, `craft-conductor-linux-x64` and `craft-conductor-linux-arm64` (and `craft-conductor-join-...` for friends). Copies of mcsm update themselves as before.
+  - Nothing to move or change on your side: your servers, settings and backups stay where they are (`mcsm.toml`, the `.mcsm` folder), and the command is still `mcsm` (`craft-conductor` works too when installed with pip).
+  - The invite page moved to [silverwrx03.github.io/craft-conductor/join/](https://silverwrx03.github.io/craft-conductor/join/). Invite links made before this version point to the old page, which is gone: make a new invite link and send it again (an invite code pasted into the app still works).
+
+**Fixed**
+- On a phone, the sentence at the top of the Servers page was squeezed into one word per line.
 
 ## 0.15.0 (2026-09-28)
 

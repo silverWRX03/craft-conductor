@@ -100,9 +100,9 @@ def test_install_uses_pip_with_the_release_tag(monkeypatch):
         calls.append(argv)
         return subprocess.CompletedProcess(argv, 0, "ok", "")
     r = selfupdate.Release("0.2.0", "v0.2.0", "", "")
-    assert selfupdate.install(r, runner) == "installed mcsm 0.2.0"
+    assert selfupdate.install(r, runner) == "installed Craft Conductor 0.2.0"
     assert calls[0][1:5] == ["-m", "pip", "install", "--upgrade"]
-    assert calls[0][-1] == "git+https://github.com/silverWRX03/mc-server-management@v0.2.0"
+    assert calls[0][-1] == "git+https://github.com/silverWRX03/craft-conductor@v0.2.0"
 
     failing = lambda argv, **kw: subprocess.CompletedProcess(argv, 1, "", "ERROR: no such tag")  # noqa: E731
     with pytest.raises(selfupdate.SelfUpdateError, match="no such tag"):
@@ -162,7 +162,7 @@ def test_web_self_update(web_daemon, monkeypatch):
                      "can_install": True, "reason": ""}
     assert c.get("/api/status")[1]["self_update"]["version"] == "9.9.9"
     installed = []
-    monkeypatch.setattr(selfupdate, "install", lambda r, **kw: installed.append(r.tag) or f"installed mcsm {r.version}")
+    monkeypatch.setattr(selfupdate, "install", lambda r, **kw: installed.append(r.tag) or f"installed Craft Conductor {r.version}")
     assert c.post("/api/self-update/apply", {"version": "9.9.8"})[0] == 409
     assert c.post("/api/self-update/apply", {"version": "9.9.9"})[0] == 200
     wait_for(lambda: d.restart_requested and d.stop_requested.is_set())

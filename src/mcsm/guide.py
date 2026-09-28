@@ -19,7 +19,7 @@ STEPS = [  # id, title, what to do
     ("join", "Join it yourself",
      "Open Minecraft on this computer, choose Multiplayer → Add Server, and type localhost as the address."),
     ("open", "Let friends reach it",
-     "Friends outside your home need a way in: mcsm settings → Sharing with friends → Router (automatic port "
+     "Friends outside your home need a way in: Craft Conductor settings → Sharing with friends → Router (automatic port "
      "forwarding), a playit.gg tunnel, or the router guide in Help. Check my setup → Test from the internet tells you "
      "if it works."),
     ("invite", "Invite a friend",

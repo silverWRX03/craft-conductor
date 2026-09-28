@@ -96,10 +96,10 @@ class Invite:
         return f"{INVITE_PAGE}#{self.code}{tail}"
 
 
-INVITE_PAGE = "https://silverwrx03.github.io/mc-server-management/join/"
+INVITE_PAGE = "https://silverwrx03.github.io/craft-conductor/join/"
 CODE = re.compile(r"mcsm-[A-Za-z0-9_-]{40,400}")
-OLD_INVITE = ("that invite is from an older mcsm and isn't secure; ask the server's owner "
-              "for a new one (their mcsm needs updating first)")
+OLD_INVITE = ("that invite is from an older Craft Conductor and isn't secure; ask the server's owner "
+              "for a new one (their Craft Conductor needs updating first)")
 
 
 def _checked(host: str, port, token: str, fp: str) -> Invite:
@@ -109,7 +109,7 @@ def _checked(host: str, port, token: str, fp: str) -> Invite:
         raise JoinError("that invite has a bad port") from None
     if not re.fullmatch(r"[A-Za-z0-9.:-]{1,253}", host or "") or not 1 <= port <= 65535 \
             or not re.fullmatch(r"[A-Za-z0-9_-]{16,64}", token or ""):
-        raise JoinError("that doesn't look like an mcsm invite")
+        raise JoinError("that doesn't look like an Craft Conductor invite")
     if not re.fullmatch(r"[A-Za-z0-9_-]{43}", fp or ""):
         raise JoinError(OLD_INVITE)
     return Invite(host, port, token, fp)
@@ -125,7 +125,7 @@ def parse_invite(text: str) -> Invite:
         u = urlparse(text)
         m = re.fullmatch(r"/join/([A-Za-z0-9_-]+)(/.*)?", u.path)
         if u.scheme not in ("http", "https") or not m or not u.hostname:
-            raise JoinError("that link isn't an mcsm invite (it should look like https://.../join/...)")
+            raise JoinError("that link isn't an Craft Conductor invite (it should look like https://.../join/...)")
         if u.scheme != "https":
             raise JoinError(OLD_INVITE)
         return _checked(u.hostname, u.port or 443, m.group(1), u.fragment)
@@ -134,11 +134,11 @@ def parse_invite(text: str) -> Invite:
         raw = base64.urlsafe_b64decode(code + "=" * (-len(code) % 4)).decode()
         parts = raw.split("|")
     except (binascii.Error, UnicodeDecodeError, ValueError):
-        raise JoinError("that doesn't look like an mcsm invite") from None
+        raise JoinError("that doesn't look like an Craft Conductor invite") from None
     if len(parts) == 3:
         raise JoinError(OLD_INVITE)
     if len(parts) != 4:
-        raise JoinError("that doesn't look like an mcsm invite")
+        raise JoinError("that doesn't look like an Craft Conductor invite")
     return _checked(*parts)
 
 
@@ -190,7 +190,7 @@ def validate_pack(pack: object, base: str | None = None) -> dict:
     own files for players are downloaded from there (and only from there). Anything
     unexpected is refused before it's acted on."""
     if not isinstance(pack, dict) or pack.get("format") != FORMAT:
-        raise JoinError("the server sent something this version of mcsm doesn't understand; "
+        raise JoinError("the server sent something this version of Craft Conductor doesn't understand; "
                         "download the invite again")
     name, mc, loader = pack.get("name"), pack.get("minecraft"), pack.get("loader")
     if not isinstance(name, str) or not name.strip() or len(name) > 100:
@@ -198,7 +198,7 @@ def validate_pack(pack: object, base: str | None = None) -> dict:
     if not isinstance(mc, str) or not re.fullmatch(r"\d+(\.\d+){1,3}(-[A-Za-z0-9.]+)?", mc):
         raise JoinError("the server's Minecraft version is missing")
     if loader not in LOADERS:
-        raise JoinError(f"this server uses {loader!r}, which mcsm can't set up for players")
+        raise JoinError(f"this server uses {loader!r}, which Craft Conductor can't set up for players")
     lv = pack.get("loader_version")
     if loader != "vanilla" and not (isinstance(lv, str) and re.fullmatch(r"[A-Za-z0-9.+_-]{1,64}", lv)):
         raise JoinError("the server's mod loader version is missing")
@@ -219,7 +219,7 @@ def validate_pack(pack: object, base: str | None = None) -> dict:
         if m.get("local") and own and str(m.get("url", "")).startswith(own) and m.get("sha1"):
             continue  # one of the server owner's own files, from the server itself
         if not allowed_url(str(m.get("url", ""))):
-            raise JoinError(f"{m.get('name')}: mcsm only downloads mods from Modrinth or CurseForge")
+            raise JoinError(f"{m.get('name')}: Craft Conductor only downloads mods from Modrinth or CurseForge")
         if not (m.get("sha512") or m.get("sha1")):
             raise JoinError(f"{m.get('name')}: the mod list has no checksum for it")
     return pack
@@ -245,7 +245,7 @@ class Joiner:
             if e.status == 404:
                 raise JoinError("the server doesn't recognise this invite any more; ask for a new one") from e
             raise JoinError(f"couldn't reach the server at {self.invite.host}:{self.invite.port} ({e}). "
-                            "Is mcsm running there, and is the share port forwarded?") from e
+                            "Is Craft Conductor running there, and is the share port forwarded?") from e
         return validate_pack(pack, self.invite.url)
 
     def ask_to_join(self, name: str) -> str:
@@ -481,7 +481,7 @@ def explain(pack: dict) -> str:
         "(your other worlds and installations aren't touched)",
         "  - puts the server in that installation's multiplayer list",
         "It never asks for your Microsoft password (the Minecraft Launcher signs you in) and sends",
-        "nothing about you anywhere. mcsm is open-source software that was written with the help of AI.",
+        "nothing about you anywhere. Craft Conductor is open-source software that was written with the help of AI.",
     ])
 
 

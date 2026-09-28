@@ -13,9 +13,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 NOTICE_VERSION = 2
-TITLE = "Before you start: what mcsm does and doesn't do"
+TITLE = "Before you start: what Craft Conductor does and doesn't do"
 POINTS = [
-    "mcsm runs your Minecraft server on this computer and keeps it and its mods up to date.",
+    "Craft Conductor runs your Minecraft server on this computer and keeps it and its mods up to date.",
     "It connects to the internet to download Minecraft, mod loaders, mods, Java and its own updates "
     "(from Mojang, Modrinth, CurseForge, Fabric, Quilt, NeoForge, Forge, Adoptium and GitHub).",
     "It does not collect usage data. There is no analytics, tracking, advertising or account.",

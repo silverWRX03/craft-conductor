@@ -17,6 +17,7 @@ dev = ["pytest>=7"]
 
 [project.scripts]
 mcsm = "mcsm.cli:main"
+craft-conductor = "mcsm.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

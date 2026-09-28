@@ -36,7 +36,7 @@ from .properties import read_properties
 log = logging.getLogger(__name__)
 
 DEFAULT_PORT = 8766
-RELEASES = "https://github.com/silverWRX03/mc-server-management/releases/latest"
+RELEASES = "https://github.com/silverWRX03/craft-conductor/releases/latest"
 HEADERS = {
     "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
     "X-Content-Type-Options": "nosniff",
@@ -47,7 +47,7 @@ HANDSHAKE_SECONDS = 15
 # For a browser (or an old mcsm) that talks plain HTTP to this port.
 NOT_HTTPS = (b"HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\n"
              b"This is an mcsm server's secure invite port. To join, get mcsm from GitHub "
-             b"(silverWRX03/mc-server-management), open it and paste the invite you were sent.\n")
+             b"(silverWRX03/craft-conductor), open it and paste the invite you were sent.\n")
 
 
 def _is_local(host: str) -> bool:
@@ -215,13 +215,13 @@ class ShareHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         m = re.fullmatch(r"/join/([A-Za-z0-9_-]{16,64})(/pack\.json|/mods/([^/]{1,400}))?/?", self.path.split("?")[0])
         if not m:
-            return self._text(404, "Nothing here. Open mcsm and paste the invite you were sent.")
+            return self._text(404, "Nothing here. Open Craft Conductor and paste the invite you were sent.")
         token = m.group(1)
         sid, d = self.server_ref.server_for(token)
         if d is None:
             return self._text(404, "This invite isn't valid any more. Ask the server's owner for a new one.")
         if not m.group(2):  # someone opened the invite link in a browser
-            return self._text(200, f"This is an invite to an mcsm server. Get mcsm from {RELEASES}, "
+            return self._text(200, f"This is an invite to an Craft Conductor server. Get Craft Conductor from {RELEASES}, "
                                    "open it, and paste the invite you were sent.")
         host, port = self._request_host()
         try:

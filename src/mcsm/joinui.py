@@ -538,14 +538,14 @@ def run(invite: Invite | None, pack: dict | None = None, mc_dir: Path | None = N
     """Show the page; ``None`` when no browser could be opened (use the console instead)."""
     ui = JoinUI(invite, pack=pack, mc_dir=mc_dir)
     if pack is None and hand_over(ui.joiner.mc, invite):
-        print("mcsm is already setting up Minecraft: its page is open in your browser again.")
+        print("Craft Conductor is already setting up Minecraft: its page is open in your browser again.")
         return 0
     ui.open_browser = open_browser
     url = ui.start()
     try:
         if not open_browser(url):
             return None
-        print("mcsm opened a page in your browser to set up Minecraft for this server.")
+        print("Craft Conductor opened a page in your browser to set up Minecraft for this server.")
         print(f"If it didn't appear, open {url}")
         print("Keep this window open until you're done there.", flush=True)
         ui.wait()

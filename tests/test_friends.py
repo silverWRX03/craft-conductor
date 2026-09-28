@@ -60,7 +60,7 @@ def test_invites():
     import base64
     old_code = base64.urlsafe_b64encode(f"mc.example.com|8766|{'A' * 24}".encode()).decode().rstrip("=")
     for old in (f"http://mc.example.com:8766/join/{'A' * 24}", old_code, f"https://mc.example.com:8766/join/{'A' * 24}"):
-        with pytest.raises(join.JoinError, match="older mcsm"):
+        with pytest.raises(join.JoinError, match="older Craft Conductor"):
             join.parse_invite(old)
     assert join.invite_from_name(f"Join X (mcsm-{old_code}).exe") is None
     for bad in ("hello", "https://x/other/abc", "https://x:8766/join/short#" + FP, "ftp://x/join/" + "A" * 24,
@@ -72,7 +72,7 @@ def test_invites():
 def test_invite_found_in_copied_text():
     from mcsm import clipboard
     inv = join.Invite("mc.example.com", 8766, "A" * 24, FP)
-    message = f"Weekend Survival\n1. Get mcsm: https://github.com/...\n2. Copy your invite: `{inv.code}` thanks!"
+    message = f"Weekend Survival\n1. Get Craft Conductor: https://github.com/...\n2. Copy your invite: `{inv.code}` thanks!"
     assert clipboard.find_invite(message) == inv
     assert clipboard.find_invite(f"see {inv.link} ok") == inv
     assert clipboard.find_invite("nothing to see") is None and clipboard.find_invite("") is None

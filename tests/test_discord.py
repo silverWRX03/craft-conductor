@@ -61,7 +61,7 @@ def test_post_the_invite(hub_env):
     msg = sent[-1]
     assert msg["content"] == "Server's up! @everyone" and msg["allowed_mentions"] == {"parse": []}
     description = msg["embeds"][0]["description"]
-    assert "Click here to join](https://silverwrx03.github.io/mc-server-management/join/#mcsm-" in description
+    assert "Click here to join](https://silverwrx03.github.io/craft-conductor/join/#mcsm-" in description
     assert hub.discord_settings()["channel"] == CHANNEL  # picked again next time
     assert c.post("/api/hub/discord", {"token": ""})[0] == 200 and not hub.discord_settings()["set"]
 
@@ -93,5 +93,5 @@ def test_live_status_message(hub_env):
     assert len(sent) == 2
     hub.http.patches = {msg_url: lambda body: edits.append(body) or {}}
     hub.discord_status(off=True)
-    assert "mcsm is closed" in edits[-1]["embeds"][0]["description"]
+    assert "Craft Conductor is closed" in edits[-1]["embeds"][0]["description"]
     assert c.post("/api/hub/discord/status", {"channel": ""})[1]["status_channel"] == ""

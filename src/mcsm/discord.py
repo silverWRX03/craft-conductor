@@ -37,7 +37,7 @@ class Discord:
     def _headers(self) -> dict:
         # Discord asks bots to say who they are in this form.
         return {"Authorization": f"Bot {self.token}",
-                "User-Agent": f"DiscordBot (https://github.com/silverWRX03/mc-server-management, {__version__})"}
+                "User-Agent": f"DiscordBot (https://github.com/silverWRX03/craft-conductor, {__version__})"}
 
     def _get(self, path: str):
         try:
@@ -116,7 +116,7 @@ def status_embed(servers: list[dict], address: str = "", off: bool = False) -> d
     for s in servers:
         name = str(s.get("name") or s.get("id"))[:60].replace("*", "").replace("_", "\\_")
         if off:
-            lines.append(f"⚫ **{name}**: mcsm is closed")
+            lines.append(f"⚫ **{name}**: Craft Conductor is closed")
         elif s.get("state") == "running":
             where = f" · `{address}{'' if str(s.get('port')) == '25565' else ':' + str(s.get('port'))}`" if address else ""
             lines.append(f"🟢 **{name}**: {s.get('players', 0)}/{s.get('max_players', 20)} playing · Minecraft {s.get('minecraft') or '?'}{where}")
@@ -126,7 +126,7 @@ def status_embed(servers: list[dict], address: str = "", off: bool = False) -> d
             lines.append(f"🔴 **{name}**: offline")
     return {"title": "Minecraft servers", "description": "\n".join(lines)[:3500] or "No servers.",
             "color": 0x3BA55C if any(s.get("state") == "running" for s in servers) and not off else 0x747F8D,
-            "footer": {"text": "Kept up to date by mcsm"}}
+            "footer": {"text": "Kept up to date by Craft Conductor"}}
 
 
 def check_token(token: str) -> str:
@@ -147,6 +147,6 @@ def invite_message(text: str, name: str, minecraft: str, links: dict[str, str]) 
     if links.get("local"):
         lines.append(f"On the same Wi-Fi/network as the server: [join here]({links['local']})")
     embed = {"title": name[:200], "description": "\n".join(lines)[:3500],
-             "footer": {"text": f"Minecraft {minecraft} · open the link, download mcsm and run it: it sets up your game"},
+             "footer": {"text": f"Minecraft {minecraft} · open the link, download Craft Conductor and run it: it sets up your game"},
              "color": 0x3BA55C}
     return text, embed

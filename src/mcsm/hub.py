@@ -387,7 +387,7 @@ class Hub:
                 server.start()
                 self.share, self.share_error = server, None
             except (OSError, ValueError) as e:  # (ssl.SSLError is an OSError)
-                self.share_error = f"port {port} is busy ({e.strerror or e}); pick another in mcsm settings"
+                self.share_error = f"port {port} is busy ({e.strerror or e}); pick another in Craft Conductor settings"
                 log.warning("couldn't start sharing: %s", self.share_error)
 
     def share_fingerprint(self) -> str:
@@ -416,7 +416,7 @@ class Hub:
             if addr.is_global:
                 return str(addr)
         raise RuntimeError("couldn't find your public address (" + (errors[-1] if errors else "no answer") + "); "
-                           "check the internet connection, or type it in under mcsm settings → Sharing")
+                           "check the internet connection, or type it in under Craft Conductor settings → Sharing")
 
     def share_status(self) -> dict:
         from .cli import lan_ip
@@ -476,7 +476,7 @@ class Hub:
         if pid := running_pid(m):
             if pid != os.getpid():
                 self.problems[sid] = {"root": str(root), "name": m.config.root.name,
-                                      "problem": "another mcsm window (or `mcsm run`) is running this server"}
+                                      "problem": "another Craft Conductor window (or `mcsm run`) is running this server"}
                 self.daemons.pop(sid, None)
                 return
         self.problems.pop(sid, None)
@@ -591,7 +591,7 @@ class Hub:
     def create(self, spec: setupmod.SetupSpec) -> str:
         """Make a new server folder from the setup page and start installing it (not running it)."""
         if self.is_single:
-            raise RuntimeError("this mcsm runs a single server (`mcsm run`); use `mcsm start` for several")
+            raise RuntimeError("this Craft Conductor runs a single server (`mcsm run`); use `mcsm start` for several")
         with self._lock:
             base = slugify(spec.motd)
             sid, n = base, 2
@@ -627,7 +627,7 @@ class Hub:
     def import_server(self, stage_id: str) -> str:
         """Add a server from an export (Settings → Export on another computer)."""
         if self.is_single:
-            raise RuntimeError("this mcsm runs a single server (`mcsm run`); use `mcsm start` to import servers")
+            raise RuntimeError("this Craft Conductor runs a single server (`mcsm run`); use `mcsm start` to import servers")
         if not re.fullmatch(r"[a-f0-9]{16}", stage_id or ""):
             raise ConfigError("that upload isn't here any more; upload the file again")
         found = list((self.staging_dir / stage_id).glob("*.zip"))
@@ -730,9 +730,9 @@ class Hub:
                 port = int(read_properties(d.m.server_dir / "server.properties").get("server-port", "25565") or 25565)
             except (OSError, ValueError):
                 continue
-            out.append((port, "TCP", f"mcsm {sid}"[:60]))
+            out.append((port, "TCP", f"Craft Conductor {sid}"[:60]))
         if self.share:
-            out.append((self.share_settings()["port"], "TCP", "mcsm friends' downloads"))
+            out.append((self.share_settings()["port"], "TCP", "Craft Conductor friends' downloads"))
         seen, unique = set(), []
         for port, proto, label in out:
             if (port, proto) not in seen:
@@ -842,7 +842,7 @@ class Hub:
             self.join_requests[sid] = waiting[-self.JOIN_REQUESTS_KEPT:]
         log.info("%s asks to join %s", name, sid)
         if d is not None:
-            d.m.notifier.send(f"{name} asks to join: allow them on the Players page in mcsm.")
+            d.m.notifier.send(f"{name} asks to join: allow them on the Players page in Craft Conductor.")
         return "asked"
 
     def answer_join_request(self, sid: str, name: str) -> None:
@@ -878,13 +878,13 @@ class Hub:
             release = selfupdate.check(self.http)
         except Exception as e:
             log.debug("mcsm update check failed: %s", e)
-            return f"couldn't check for mcsm updates: {e}"
+            return f"couldn't check for Craft Conductor updates: {e}"
         if release is None:
             self.self_update = None
-            return f"mcsm {selfupdate.__version__} is the latest version"
+            return f"Craft Conductor {selfupdate.__version__} is the latest version"
         can, why = selfupdate.install_method(release)
         self.self_update = {**release.to_dict(), "current": selfupdate.__version__, "can_install": can, "reason": why}
-        return f"mcsm {release.version} is available"
+        return f"Craft Conductor {release.version} is available"
 
     def self_update_info(self) -> dict | None:
         return self._single.self_update if self._single else self.self_update
@@ -905,7 +905,7 @@ class Hub:
             self.stop_requested.wait(60)
         for d in running:
             d.proc.say("Stopping now!")
-        log.info("%s; restarting mcsm", message)
+        log.info("%s; restarting Craft Conductor", message)
         self.restart_requested = True
         self.stop_requested.set()
         return message
@@ -928,7 +928,7 @@ class Hub:
         state = self.state_dir
         state.mkdir(parents=True, exist_ok=True)
         if pid := running_hub(self.home):
-            log.error("mcsm is already running (pid %s)", pid)
+            log.error("Craft Conductor is already running (pid %s)", pid)
             return 1
         hub_pid_path(self.home).write_text(str(os.getpid()))
         hub_stop_path(self.home).unlink(missing_ok=True)

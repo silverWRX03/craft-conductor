@@ -101,7 +101,7 @@ def check_recipe(name, loader, minecraft, mods, memory_gb) -> dict:
 
 def create(hub, **recipe) -> dict:
     if len(games(hub)) >= MAX_GAMES:
-        raise SingleplayerError(f"mcsm keeps up to {MAX_GAMES} single-player games; delete one first")
+        raise SingleplayerError(f"Craft Conductor keeps up to {MAX_GAMES} single-player games; delete one first")
     game = {"id": secrets.token_hex(6), "created": time.time(), "installed": None, **check_recipe(**recipe)}
     if any(g["name"].lower() == game["name"].lower() for g in games(hub)):
         raise SingleplayerError("there's already a game with that name")

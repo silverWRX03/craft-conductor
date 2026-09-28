@@ -49,7 +49,7 @@ document.addEventListener("click", (e) => {
   setTimeout(() => document.documentElement.classList.remove("theme-switching"), 700);
 });
 
-// With several servers, a server's calls go to /api/servers/<id>/...; these are about mcsm itself.
+// With several servers, a server's calls go to /api/servers/<id>/...; these are about Craft Conductor itself.
 const GLOBAL_API = /^\/api\/(login|logout|auth|notice|licenses|self-update|hub|servers)(\/|\?|$)/;
 let server = null;            // the server being looked at (null on the server list)
 const scoped = (path) => server && path.startsWith("/api/") && !GLOBAL_API.test(path)
@@ -98,7 +98,7 @@ function upload(path, file, onProgress) {
 }
 
 // "Open folder" buttons: shown only in a browser on the server's own computer, where
-// mcsm can open the file manager. ``sid`` picks a server other than the current one.
+// Craft Conductor can open the file manager. ``sid`` picks a server other than the current one.
 function folderBtn(what, label, sid, cls = "btn ghost small") {
   if (!hubInfo || !hubInfo.local) return null;
   const path = what === "home" ? "/api/hub/open" : sid ? `/api/servers/${encodeURIComponent(sid)}/open` : "/api/open";
@@ -123,7 +123,7 @@ function closeToast(id) { const el = document.getElementById(id); if (el) el.rem
 
 // Questions ("Stop the server?"): in the middle of the screen like other messages that need an
 // answer, and a promise of the answer. The ones people meet again and again have an `id` and a
-// "Don't ask me again" box; mcsm settings → Warnings brings them all back.
+// "Don't ask me again" box; Craft Conductor settings → Warnings brings them all back.
 const SKIP_KEY = "mcsm-skip-warnings";
 function skippedWarnings() { try { return JSON.parse(localStorage.getItem(SKIP_KEY) || "[]"); } catch (_) { return []; } }
 function skipWarning(id) { try { localStorage.setItem(SKIP_KEY, JSON.stringify([...new Set([...skippedWarnings(), id])])); } catch (_) { /* private mode */ } }
@@ -193,12 +193,12 @@ function card(title, ...children) { return h("div", { class: "card" }, title ? h
 
 // -------------------------------------------------------------------- state
 let status = null;            // the current server's status
-let hubInfo = null;           // mcsm itself: servers, sign-in, notice, updates
+let hubInfo = null;           // Craft Conductor itself: servers, sign-in, notice, updates
 let lastJobSeen = null;
 let current = null;           // current view
 let timers = [];
 
-// Leaving the page (closing the tab, reloading): mcsm and its servers keep running, and jobs
+// Leaving the page (closing the tab, reloading): Craft Conductor and its servers keep running, and jobs
 // like creating or updating a server carry on, so only what lives in this page can be lost: an
 // upload on its way, unsaved changes, a form being filled in, a mod test's report. Then the
 // browser asks first ("Leave site?"). Guards go with an element and end when it's gone.
@@ -295,17 +295,17 @@ $("#login-form").addEventListener("submit", async (e) => {
 });
 
 $("#logout").addEventListener("click", async () => { await api("/api/logout", { method: "POST" }).catch(() => {}); showLogin(); });
-// There's no command window to close, so mcsm is quit from here.
+// There's no command window to close, so Craft Conductor is quit from here.
 $("#quit").addEventListener("click", async () => {
   const running = ((hubInfo && hubInfo.servers) || []).filter((s) => s.state === "running" || s.state === "starting");
-  if (!(await ask(running.length ? `Quit mcsm? ${running.map((s) => s.name).join(", ")} will be stopped (players get disconnected).`
-    : "Quit mcsm? Open it again from its icon when you want it back.", { id: running.length ? "quit-running" : "quit", ok: "Quit" }))) return;
+  if (!(await ask(running.length ? `Quit Craft Conductor? ${running.map((s) => s.name).join(", ")} will be stopped (players get disconnected).`
+    : "Quit Craft Conductor? Open it again from its icon when you want it back.", { id: running.length ? "quit-running" : "quit", ok: "Quit" }))) return;
   try { await api("/api/hub/quit", { method: "POST", body: {} }); } catch (e) { if (!(e instanceof Unauthorized)) { toast(e.message, true); return; } }
   clearTimers();
   document.body.replaceChildren(h("div", { class: "login" }, h("div", { class: "login-card" },
     h("div", { class: "brand big" }, h("span", { class: "logo" }), "mcsm"),
-    h("p", {}, "mcsm is shutting down" + (running.length ? " and stopping your servers" : "") + "."),
-    h("p", { class: "muted small" }, "You can close this tab. To use mcsm again, open it from its icon."))));
+    h("p", {}, "Craft Conductor is shutting down" + (running.length ? " and stopping your servers" : "") + "."),
+    h("p", { class: "muted small" }, "You can close this tab. To use Craft Conductor again, open it from its icon."))));
 });
 
 // ------------------------------------------------------------ first-run notice
@@ -403,9 +403,9 @@ function offerSelfUpdate(u, force = false) {
   if (!u || (!force && dismissed() === u.version)) return;
   const later = () => { try { localStorage.setItem(DISMISS_KEY, u.version); } catch (_) {} closeToast("self-update"); };
   const install = async () => {
-    if (!(await ask(`Update mcsm ${u.current} → ${u.version}?\n\nmcsm installs the update, stops the Minecraft server cleanly (with a 1-minute warning if players are online), and restarts on the new version. You'll need to sign in again afterwards.`, { ok: "Update" }))) return;
+    if (!(await ask(`Update Craft Conductor ${u.current} → ${u.version}?\n\nmcsm installs the update, stops the Minecraft server cleanly (with a 1-minute warning if players are online), and restarts on the new version. You'll need to sign in again afterwards.`, { ok: "Update" }))) return;
     closeToast("self-update");
-    act(() => api("/api/self-update/apply", { method: "POST", body: { version: u.version } }), "Updating mcsm… this page reconnects when it's back.");
+    act(() => api("/api/self-update/apply", { method: "POST", body: { version: u.version } }), "Updating Craft Conductor… this page reconnects when it's back.");
   };
   stickyToast("self-update", [
     h("strong", {}, `mcsm ${u.version} is available`),
@@ -511,7 +511,7 @@ async function refreshStatus() {
   }
   const hb = hubInfo;
   $("#version").textContent = "v" + hb.version + " beta";
-  $("#version").title = t("mcsm is in beta: expect some rough edges, and keep backups.");
+  $("#version").title = t("Craft Conductor is in beta: expect some rough edges, and keep backups.");
   $("#quit").classList.toggle("hidden", !!hb.single || (hb.role && hb.role !== "owner"));
   document.body.classList.toggle("viewer", hb.role === "viewer");  // look-only sign-in: no buttons that change things
   if (!hb.notice_accepted) { showNotice(); return; }
@@ -606,7 +606,7 @@ function consolePanel({ compact = false } = {}) {
   return { el, input, poll };
 }
 
-// A player's face, cut from their skin (served by mcsm), or a lettered tile if there's none.
+// A player's face, cut from their skin (served by Craft Conductor), or a lettered tile if there's none.
 const skinFails = new Set();
 function playerHead(name, size = 32) {
   const c = h("canvas", { width: size, height: size, class: "head", "aria-hidden": "true" });
@@ -655,8 +655,8 @@ function meter(label) {
 // service, so say so wherever it's set up, and check it's working (on the Dashboard).
 function playitNote() {
   return h("div", { class: "notice warn small" }, h("strong", {}, "playit.gg is an outside service. "),
-    "It's run by its own company, not by mcsm: when it has problems, or its program isn't running on this computer, friends can't connect through it, and mcsm can't fix that. ",
-    "mcsm checks the tunnel and shows on the Dashboard whether it's working. ",
+    "It's run by its own company, not by Craft Conductor: when it has problems, or its program isn't running on this computer, friends can't connect through it, and Craft Conductor can't fix that. ",
+    "Craft Conductor checks the tunnel and shows on the Dashboard whether it's working. ",
     h("a", { href: "https://playit.gg/download", target: "_blank", rel: "noopener noreferrer" }, "Get playit ↗"), " · ",
     h("a", { href: "https://status.playit.gg", target: "_blank", rel: "noopener noreferrer" }, "playit.gg status ↗"));
 }
@@ -677,7 +677,7 @@ function tunnelCard() {
       st.status === "down" || st.status === "wrong" ? h("p", { class: "small mt-s" }, "Is it playit.gg? See ",
         h("a", { href: r.status_page, target: "_blank", rel: "noopener noreferrer" }, "their status page ↗"),
         ". Friends on your own network can still join with the Local link.") : null,
-      h("p", { class: "muted small mt-s" }, "playit.gg is an outside service: disruptions on its side are out of mcsm's control.")));
+      h("p", { class: "muted small mt-s" }, "playit.gg is an outside service: disruptions on its side are out of Craft Conductor's control.")));
   };
   return { el: box, load };
 }
@@ -792,7 +792,7 @@ function openDoctor() {
   if ($("#doctor")) return;
   const list = h("ul", { class: "list doctor-list" }, h("li", { class: "muted" }, h("span", { class: "spinner" }), " Checking…"));
   const internet = h("div");
-  // A fix mcsm can do itself: one press, then the checks run again.
+  // A fix Craft Conductor can do itself: one press, then the checks run again.
   const fix = async (c, btn) => {
     const body = { action: c.action };
     if (c.action === "eula") {
@@ -847,7 +847,7 @@ function openDoctor() {
   load();
 }
 
-// Playing on this computer too (offered in a browser on the server's own computer): mcsm sets
+// Playing on this computer too (offered in a browser on the server's own computer): Craft Conductor sets
 // up this computer's Minecraft for the server, the way it does for friends, after saying what
 // running both on one computer costs.
 function playHereCard() {
@@ -962,7 +962,7 @@ views.dashboard = () => {
     if (status) renderOnline(status.players, status.max_players);
   };
 
-  // What went wrong (a crash or a failed start), in plain words with the fixes mcsm can do.
+  // What went wrong (a crash or a failed start), in plain words with the fixes Craft Conductor can do.
   const renderProblem = (p) => {
     const key = p ? JSON.stringify([p.time, p.fixed]) : "";
     if (key === problemShown) return;
@@ -1112,7 +1112,7 @@ function openReadiness(versions, installed) {
     const n = r.counts;
     const verdict = r.loader.state === "red" ? `${r.loader.name} doesn't support Minecraft ${r.minecraft} yet, so nothing can move until it does.`
       : n.red ? `${n.red} mod${n.red === 1 ? " has" : "s have"} no build for Minecraft ${r.minecraft} yet.`
-        : n.yellow ? `Every mod has a build, but ${n.yellow} only ${n.yellow === 1 ? "has" : "have"} alpha/beta builds. mcsm waits for releases unless you allow early builds.`
+        : n.yellow ? `Every mod has a build, but ${n.yellow} only ${n.yellow === 1 ? "has" : "have"} alpha/beta builds. Craft Conductor waits for releases unless you allow early builds.`
           : `Everything is ready for Minecraft ${r.minecraft}. Run a check on the Updates tab to move.`;
     fill(body,
       h("div", { class: "notice " + (r.loader.state === "red" || n.red ? "bad" : n.yellow ? "warn" : "ok") }, verdict),
@@ -1182,7 +1182,7 @@ function rehearsalCard(c, applyNow, applyBtn) {
       applyBtn.title = t("It worked on a copy of the server");
     }
     fill(el, h("h3", {}, "Rehearse it on a copy first"),
-      h("p", { class: "muted small" }, "Try this update before it touches your server: mcsm copies the server and its world, installs the update on the copy and runs it for a few minutes where nobody can join. You get a report: did it start, did it keep up, which mods complained. This server keeps running and isn't changed; the copy is deleted afterwards."),
+      h("p", { class: "muted small" }, "Try this update before it touches your server: Craft Conductor copies the server and its world, installs the update on the copy and runs it for a few minutes where nobody can join. You get a report: did it start, did it keep up, which mods complained. This server keeps running and isn't changed; the copy is deleted afterwards."),
       job ? h("div", {},
         h("div", { class: "row" }, h("span", { class: "grow" }, t(job.step || "Getting ready…")),
           h("button", { class: "link-btn", onclick: () => api("/api/updates/rehearsal/stop", { method: "POST" }).catch(() => null) }, "Stop")),
@@ -1225,7 +1225,7 @@ views.updates = () => {
       if (!r.betas.length || !r.copies) return;
       const pick = h("select", { "aria-label": "Beta version" }, r.betas.map((v) => h("option", { value: v }, `Minecraft ${v}`)));
       fill(betaCard, card("Test a beta version",
-        h("p", { class: "muted small" }, "Try the next Minecraft before it's released. mcsm makes a separate copy of this server " +
+        h("p", { class: "muted small" }, "Try the next Minecraft before it's released. Craft Conductor makes a separate copy of this server " +
           "(world, mods and settings) on the beta, so this server and its world aren't touched. In the copy, mods that don't support " +
           "the beta yet are left out. Delete the copy when you're done."),
         h("div", { class: "row" }, pick, h("button", { class: "btn", onclick: async () => {
@@ -1395,7 +1395,7 @@ views.players = () => {
   return {};
 };
 
-// Friends asking to be let in (their mcsm sends their Minecraft name with the invite).
+// Friends asking to be let in (their Craft Conductor sends their Minecraft name with the invite).
 function joinRequestsCard(after = () => {}) {
   const el = h("div");
   const load = async () => {
@@ -1519,7 +1519,7 @@ views.mods = () => {
         r.skipped.map((x) => h("div", { class: "small" }, `${x.key}: ${x.reason}`))) : null,
       r.unmanaged.length || (r.disabled || []).length ? h("div", { class: "mt-s" },
         h("h4", {}, r.loader === "paper" ? "Plugins you added yourself" : "Jars you added yourself"),
-        h("p", { class: "muted small" }, "Not updated by mcsm. Switching one off keeps the file (as .jar.disabled) so you can switch it back on; changes apply at the next restart."),
+        h("p", { class: "muted small" }, "Not updated by Craft Conductor. Switching one off keeps the file (as .jar.disabled) so you can switch it back on; changes apply at the next restart."),
         h("ul", { class: "list" },
           [...r.unmanaged.map((x) => [x, true]), ...(r.disabled || []).map((x) => [x, false])].map(([x, on]) => h("li", {},
             h("code", { class: "grow" }, x), on ? null : h("span", { class: "tag" }, "off"),
@@ -1534,7 +1534,7 @@ views.mods = () => {
     for (const f of [...picker.files]) {
       const r = await api(`/api/mods/local?filename=${encodeURIComponent(f.name)}`, { method: "POST", raw: f })
         .catch((e) => { toast(`${f.name}: ${e.message}`, true); return null; });
-      if (r) toast(r.managed ? `${r.name}: found on Modrinth, so mcsm will keep it up to date` : `${r.name} added as your own file (mcsm won't update it)`);
+      if (r) toast(r.managed ? `${r.name}: found on Modrinth, so Craft Conductor will keep it up to date` : `${r.name} added as your own file (Craft Conductor won't update it)`);
     }
     picker.value = "";
     load();
@@ -1606,7 +1606,7 @@ function modSetsCard(after) {
     file.value = "";
     if (!f) return;
     let set;
-    try { set = JSON.parse(await f.text()); } catch (_) { toast("That file isn't a mod list saved from mcsm.", true); return; }
+    try { set = JSON.parse(await f.text()); } catch (_) { toast("That file isn't a mod list saved from Craft Conductor.", true); return; }
     const r = await act(() => api("/api/modsets/import", { method: "POST", body: { set } }));
     if (r) { toast(r.message); load(); }
   });
@@ -1641,7 +1641,7 @@ function openAreaRestore(b) {
   const go = async () => {
     const body = { name: b.name, dimension: dim.value, x1: Number(x1.value), z1: Number(z1.value), x2: Number(x2.value), z2: Number(z2.value) };
     if (!(await ask(`Put this area back as it was in ${b.name}? Everything else in the world stays as it is now. ` +
-      "mcsm backs up the world first, so you can undo it.", { ok: "Put it back", danger: true }))) return;
+      "Craft Conductor backs up the world first, so you can undo it.", { ok: "Put it back", danger: true }))) return;
     const r = await act(() => api("/api/backups/area", { method: "POST", body }), "Putting the area back…");
     if (r) close();
   };
@@ -1697,7 +1697,7 @@ views.backups = () => {
   };
   fill($("#main"), 
     h("h2", { class: "view-title" }, "Backups"),
-    card("Create backup", h("p", { class: "muted" }, "Each backup is a snapshot of the whole server: the world, the mods, their settings and mcsm's settings for it. One is also made automatically before every update."),
+    card("Create backup", h("p", { class: "muted" }, "Each backup is a snapshot of the whole server: the world, the mods, their settings and Craft Conductor's settings for it. One is also made automatically before every update."),
       h("div", { class: "row" }, label, h("button", { class: "btn primary", onclick: () => act(() => api("/api/backups/create", { method: "POST", body: { label: label.value } }), "Backing up…") }, "Back up now"))),
     card("Backups", h("div", { class: "row" }, h("p", { class: "muted small grow" }, "Restoring needs the server to be stopped."), folderBtn("backups", "Backups folder")), list),
   );
@@ -1944,7 +1944,7 @@ views.settings = () => {
     if (!r) return;
     fill(exportCard, h("h3", {}, "Move to another computer"),
       h("p", { class: "muted small" }, "Export saves this server (worlds, mods, configs, settings, player lists) in one .zip. " +
-        "On the other computer, install mcsm, then choose Import a server on the server list. The world is saved first, " +
+        "On the other computer, install Craft Conductor, then choose Import a server on the server list. The world is saved first, " +
         "so this works while the server runs."),
       h("div", { class: "row" },
         h("button", { class: "btn primary", disabled: !!(status && status.job), onclick: () => act(() => api("/api/export", { method: "POST", body: { backups: withBackups.checked } }), "Exporting…") }, "Export server"),
@@ -2059,15 +2059,15 @@ views.friends = () => {
   const render = () => {
     const d = data;
     if (!d.available) {
-      fill(body, card(null, h("p", {}, "Friend downloads are part of mcsm's server list. Start mcsm by double-clicking it (or `mcsm start`) to use them.")));
+      fill(body, card(null, h("p", {}, "Friend downloads are part of Craft Conductor's server list. Start Craft Conductor by double-clicking it (or `mcsm start`) to use them.")));
       return;
     }
     const toggle = h("input", { type: "checkbox", checked: d.enabled, onchange: (e) => save({ enabled: e.target.checked },
       e.target.checked ? "Friend download switched on" : "Friend download switched off") });
     const intro = card("Let friends set up their Minecraft",
-      h("p", {}, "Send your friends a link. They click it, download mcsm and run it: it adds a ", h("strong", {}, (status && status.motd) || "server"),
+      h("p", {}, "Send your friends a link. They click it, download Craft Conductor and run it: it adds a ", h("strong", {}, (status && status.motd) || "server"),
         " instance to their launcher (Minecraft Launcher, Prism Launcher, Modrinth App or CurseForge: they choose) with the right Minecraft version, mod loader and mods, and puts this server in their multiplayer list. They sign in with their own Minecraft account as usual."),
-      h("p", { class: "muted small" }, "🔒 Friends' mcsm connects to this computer over HTTPS, and only to this computer: the invite carries its security fingerprint."),
+      h("p", { class: "muted small" }, "🔒 Friends' Craft Conductor connects to this computer over HTTPS, and only to this computer: the invite carries its security fingerprint."),
       h("label", { class: "row mt-s" }, toggle, h("span", {}, "Make a download for friends")));
     if (!d.enabled) { fill(body, intro); return; }
     const s = d.share || {};
@@ -2093,11 +2093,11 @@ views.friends = () => {
       intro,
       h("div", { class: "mt" }, card("Invite links",
         h("p", { class: "small" }, "Send one of these links (by Discord, text or email). Your friend clicks it, presses ",
-          h("strong", {}, "Download"), " and runs the file: mcsm sets up their game. Next time, the link opens their mcsm directly."),
+          h("strong", {}, "Download"), " and runs the file: Craft Conductor sets up their game. Next time, the link opens their Craft Conductor directly."),
         links.local ? linkRow("Local link", `For friends on the same Wi-Fi or network as this computer (${s.lan_ip}).`, links.local) : null,
         links.internet ? linkRow("Internet link", `For friends anywhere else, through your public address (${s.address}).`, links.internet)
           : h("div", { class: "invite" }, h("strong", {}, "Internet link"),
-            h("div", { class: "muted small" }, "For friends elsewhere, mcsm needs your public address. It can find it for you.")),
+            h("div", { class: "muted small" }, "For friends elsewhere, Craft Conductor needs your public address. It can find it for you.")),
         h("div", { class: "row mt-s" }, findIp,
           links.internet || links.local ? h("button", { class: "btn", onclick: () => openDiscord(links) }, "💬 Post to Discord") : null,
           h("button", { class: "btn ghost", onclick: async () => {
@@ -2106,9 +2106,9 @@ views.friends = () => {
             }
           } }, "New links")),
         links.internet || links.local ? h("details", { class: "mt-s small" }, h("summary", {}, "Advanced: invite codes and security"),
-          h("p", { class: "muted" }, "🔒 Friends' mcsm connects to this computer over HTTPS and only to this computer: the invite carries its security fingerprint. " +
-            "The link's invite is after the #, which browsers never send anywhere; the page is mcsm's own, on GitHub."),
-          h("p", { class: "muted" }, "For ", h("code", {}, "mcsm join <code>"), " or pasting into mcsm:"),
+          h("p", { class: "muted" }, "🔒 Friends' Craft Conductor connects to this computer over HTTPS and only to this computer: the invite carries its security fingerprint. " +
+            "The link's invite is after the #, which browsers never send anywhere; the page is Craft Conductor's own, on GitHub."),
+          h("p", { class: "muted" }, "For ", h("code", {}, "mcsm join <code>"), " or pasting into Craft Conductor:"),
           [["Local", links.local], ["Internet", links.internet]].filter(([, l]) => l).map(([label, l]) =>
             h("div", { class: "row mt-s" }, h("span", { class: "tag" }, label),
               h("input", { readonly: true, value: l.split("#")[1].split("/")[0], class: "grow mono", "aria-label": `${label} invite code` })))) : null,
@@ -2118,7 +2118,7 @@ views.friends = () => {
           "For the internet link to work, forward two TCP ports on your router to this computer: ", h("strong", {}, String(s.port)),
           " (the download) and ", h("strong", {}, String((status && status.port) || 25565)), " (Minecraft). Your public address can change; ",
           "press the button again if friends can't connect. You can also type an address (e.g. a domain) under ",
-          h("a", { href: "#mcsm" }, "mcsm settings → Sharing"), "."))),
+          h("a", { href: "#mcsm" }, "Craft Conductor settings → Sharing"), "."))),
       h("div", { class: "mt" }, card("What friends get",
         d.pack_error ? h("div", { class: "notice warn" }, d.pack_error)
           : !pack ? h("p", { class: "empty" }, "Install the server first; the list appears once it's set up.")
@@ -2526,7 +2526,7 @@ function worldPanel(host) {
   const right = h("div", { class: "browse-right world-map-pane" });
   const empty = () => h("div", { class: "empty-map" },
     h("h2", {}, "See the world before you make it"),
-    h("p", {}, "Pick a seed (or leave it empty for a random one) and press Preview map. mcsm makes the world in a private server on this computer, with the server's mods, then draws it from above."),
+    h("p", {}, "Pick a seed (or leave it empty for a random one) and press Preview map. Craft Conductor makes the world in a private server on this computer, with the server's mods, then draws it from above."),
     h("p", { class: "muted small" }, "It takes a minute or two, longer with many mods or a bigger map. Nothing is installed for the server yet: that happens when you create it."));
   const strip = () => st.galleryDone && st.galleryDone.maps.length && !st.galleryJob ? h("div", { class: "mt" },
     h("button", { type: "button", class: "btn small", onclick: () => gallery(st.galleryDone) }, "← Back to the seeds compared"))
@@ -2789,7 +2789,7 @@ function browserPanel(params, host) {
       h("ol", { class: "small" },
         h("li", {}, "Open ", h("a", { href: "https://console.curseforge.com/", target: "_blank", rel: "noopener noreferrer" }, "console.curseforge.com ↗"), " and sign in (a CurseForge or Google account works)."),
         h("li", {}, "Go to ", h("strong", {}, "API keys"), " and copy your key."),
-        h("li", {}, "Paste it here. mcsm checks it with CurseForge and keeps it in mcsm settings.")),
+        h("li", {}, "Paste it here. Craft Conductor checks it with CurseForge and keeps it in Craft Conductor settings.")),
       h("div", { class: "row" }, input, save)));
   };
   const search = async (more = false) => {
@@ -2984,9 +2984,9 @@ function routerHelp(opts = {}) {
     h("p", {}, "Friends on your home Wi-Fi can join straight away. Friends ", h("strong", {}, "anywhere else"),
       " reach your server through your router, which has to be told to pass Minecraft's port on to this computer. That's called ",
       h("strong", {}, "port forwarding"), ", and you set it up once:"),
-    h("div", { class: "notice" }, h("strong", {}, "Let mcsm try first: "), "many routers can do it by themselves (UPnP). Switch on ",
-      h("a", { href: "#mcsm" }, "mcsm settings → Sharing with friends → Open the ports on my router by itself"),
-      " and mcsm says whether it worked. If it didn't, or you'd rather not, do it by hand:"),
+    h("div", { class: "notice" }, h("strong", {}, "Let Craft Conductor try first: "), "many routers can do it by themselves (UPnP). Switch on ",
+      h("a", { href: "#mcsm" }, "Craft Conductor settings → Sharing with friends → Open the ports on my router by itself"),
+      " and Craft Conductor says whether it worked. If it didn't, or you'd rather not, do it by hand:"),
     h("img", { class: "help-img", src: "/help-network.svg", alt: "A friend on the internet connects to your router, which forwards port " + mc + " to this computer." }),
     h("ol", { class: "steps" },
       h("li", {}, "Give this computer a fixed address on your network, so the rule keeps working: in the router's ", h("strong", {}, "LAN / DHCP"),
@@ -3003,24 +3003,24 @@ function routerHelp(opts = {}) {
       "The menus and names above are typical, not exact. If you can't find the setting, check your router's manual or its maker's support site ",
       "(search for your router's model and “port forwarding”), or ask your internet provider. Some providers share one public address between ",
       "customers (called CGNAT); port forwarding can't work then, and they may give you your own address if you ask."),
-    h("p", { class: "muted small" }, "Only forward the ports above. Never forward the control panel's port (8765): to manage mcsm from elsewhere, use ",
+    h("p", { class: "muted small" }, "Only forward the ports above. Never forward the control panel's port (8765): to manage Craft Conductor from elsewhere, use ",
       h("button", { type: "button", class: "link-btn", onclick: openRemoteAccess }, "Remote access & phones"), " instead."));
 }
 
 const HELP = [
   ["start", "Getting started", () => [
-    h("p", {}, "mcsm keeps your Minecraft servers running and up to date by themselves. Make a server under ", h("strong", {}, "New server"),
+    h("p", {}, "Craft Conductor keeps your Minecraft servers running and up to date by themselves. Make a server under ", h("strong", {}, "New server"),
       ": pick the server type (Fabric, NeoForge, Forge, Quilt, Paper or plain Minecraft), the Minecraft version and your mods, then press ",
-      h("strong", {}, "Create my server"), ". mcsm downloads Java, Minecraft, the mod loader and the mods, and checks that the server starts."),
+      h("strong", {}, "Create my server"), ". Craft Conductor downloads Java, Minecraft, the mod loader and the mods, and checks that the server starts."),
     h("p", {}, "Press ", h("strong", {}, "Start"), " when you want to play. In Minecraft, choose Multiplayer → Add Server and use this computer's address."),
     h("p", {}, "Something not working? Press ", h("strong", {}, "🩺 Check my setup"), " on the server's Dashboard: it checks the usual causes ",
       "(Java, memory, disk space, the port, the firewall) and says what to do. ", h("strong", {}, "Test from the internet"), " there checks friends outside your home can connect."),
-    h("p", {}, "To play on this computer too, press ", h("strong", {}, "Play on this computer"), " on the server's Dashboard: mcsm sets up Minecraft here ",
+    h("p", {}, "To play on this computer too, press ", h("strong", {}, "Play on this computer"), " on the server's Dashboard: Craft Conductor sets up Minecraft here ",
       "with the server's mods (it says first whether this computer has the memory for both)."),
-    h("p", {}, "Closing this browser tab doesn't stop mcsm: servers keep running and jobs carry on. Open mcsm again from its icon to come back; ",
+    h("p", {}, "Closing this browser tab doesn't stop Craft Conductor: servers keep running and jobs carry on. Open Craft Conductor again from its icon to come back; ",
       h("strong", {}, "Quit"), " (bottom left) stops everything.")]],
   ["friends", "Letting friends join", () => [
-    h("p", {}, "On a server's ", h("strong", {}, "Friends"), " page, turn on the friends' download and send the link. Their copy of mcsm sets up ",
+    h("p", {}, "On a server's ", h("strong", {}, "Friends"), " page, turn on the friends' download and send the link. Their copy of Craft Conductor sets up ",
       "the right Minecraft version, mod loader and mods in their launcher, and adds your server to their list."),
     h("p", {}, "Friends outside your home also need the router set up (below).")]],
   ["router", "Router setup (port forwarding)", () => [routerHelp()]],
@@ -3029,25 +3029,25 @@ const HELP = [
       "the ", h("strong", {}, "Updates"), " tab says what it's waiting for (", h("strong", {}, "Show why"), ")."),
     h("p", {}, "Before installing, use ", h("strong", {}, "🧪 Test these mods"), " to check that a set of mods works together.")]],
   ["crash", "When something goes wrong", () => [
-    h("p", {}, "If a server won't start or crashes, mcsm says which mod it suspects and writes a report. The message shows where it is ",
+    h("p", {}, "If a server won't start or crashes, Craft Conductor says which mod it suspects and writes a report. The message shows where it is ",
       "(in the server's ", h("code", {}, ".mcsm/logs"), " folder), and Minecraft's own log is in the server's ", h("code", {}, "logs/latest.log"), "."),
     h("p", {}, "Every update makes a backup first and rolls back by itself if the new version doesn't start. Backups are on the ", h("strong", {}, "Backups"), " tab.")]],
-  ["headless", "Running mcsm on another computer", () => [
-    h("p", {}, "mcsm can run on a spare Linux computer or a Raspberry Pi (64-bit) with no screen, and you manage it from here in the browser. " +
+  ["headless", "Running Craft Conductor on another computer", () => [
+    h("p", {}, "Craft Conductor can run on a spare Linux computer or a Raspberry Pi (64-bit) with no screen, and you manage it from here in the browser. " +
       "The easy way: ", h("a", { href: "#new" }, "New server"), " → ", h("strong", {}, "Install on a Linux computer"),
-      " opens SSH in a terminal and installs mcsm there. Or, from your own computer (PowerShell on Windows, Terminal on a Mac or Linux), run one command, using that computer's user and address:"),
-    h("pre", { class: "log" }, 'ssh minecraft@192.168.1.50 "curl -fsSL https://raw.githubusercontent.com/silverWRX03/mc-server-management/main/packaging/install.sh | sh"'),
-    h("p", {}, "It installs mcsm there, starts it at boot, and prints the address to open and a one-time password. ",
-      h("a", { href: "https://github.com/silverWRX03/mc-server-management/blob/main/docs/headless.md", target: "_blank", rel: "noopener noreferrer" }, "Step-by-step guide ↗"),
-      " · ", h("a", { href: "https://github.com/silverWRX03/mc-server-management/blob/main/docs/docker.md", target: "_blank", rel: "noopener noreferrer" }, "Docker ↗"))]],
-  ["remote", "Using mcsm from your phone", () => [
+      " opens SSH in a terminal and installs Craft Conductor there. Or, from your own computer (PowerShell on Windows, Terminal on a Mac or Linux), run one command, using that computer's user and address:"),
+    h("pre", { class: "log" }, 'ssh minecraft@192.168.1.50 "curl -fsSL https://raw.githubusercontent.com/silverWRX03/craft-conductor/main/packaging/install.sh | sh"'),
+    h("p", {}, "It installs Craft Conductor there, starts it at boot, and prints the address to open and a one-time password. ",
+      h("a", { href: "https://github.com/silverWRX03/craft-conductor/blob/main/docs/headless.md", target: "_blank", rel: "noopener noreferrer" }, "Step-by-step guide ↗"),
+      " · ", h("a", { href: "https://github.com/silverWRX03/craft-conductor/blob/main/docs/docker.md", target: "_blank", rel: "noopener noreferrer" }, "Docker ↗"))]],
+  ["remote", "Using Craft Conductor from your phone", () => [
     h("p", {}, "Open ", h("button", { type: "button", class: "link-btn", onclick: openRemoteAccess }, "Remote access & phones"),
       ": set a strong password, allow other devices, and pair your phone by scanning a QR code. Away from home, use Tailscale rather than opening ports.")]],
 ];
 
-// The user manual (manual.md, part of mcsm): the same text as on GitHub, shown here with a
+// The user manual (manual.md, part of Craft Conductor): the same text as on GitHub, shown here with a
 // table of contents. Sections link within the page; printing gives a paper copy.
-const MANUAL_ON_GITHUB = "https://github.com/silverWRX03/mc-server-management/blob/main/src/mcsm/webui/manual.md";
+const MANUAL_ON_GITHUB = "https://github.com/silverWRX03/craft-conductor/blob/main/src/mcsm/webui/manual.md";
 views.manual = () => {
   const body = h("div", { class: "card manual" }, h("p", { class: "empty" }, "Loading the manual…"));
   const toc = h("nav", { class: "help-toc card" }, h("strong", {}, "Contents"));
@@ -3076,9 +3076,9 @@ views.help = () => {
     hubInfo && hubInfo.guide ? h("div", { class: "card mb row" }, h("div", { class: "grow" }, h("strong", {}, "🧭 Guided setup"),
       h("div", { class: "muted small" }, "Step by step from making a server to a friend joining it, with each step ticked as you go.")),
       h("button", { class: "btn primary", onclick: startGuide }, hubInfo.guide.active ? "Show the guide" : "Start the guided setup")) : null,
-    h("div", { class: "notice mb" }, "📖 Everything mcsm does, step by step: ", h("a", { href: "#manual" }, h("strong", {}, "the user manual")), ". ",
-      "Something wrong? ", h("a", { href: "https://github.com/silverWRX03/mc-server-management/issues/new/choose", target: "_blank", rel: "noopener noreferrer" }, "Report a bug ↗"),
-      " · ", h("a", { href: "https://github.com/silverWRX03/mc-server-management/blob/main/CHANGELOG.md", target: "_blank", rel: "noopener noreferrer" }, "What's new ↗")),
+    h("div", { class: "notice mb" }, "📖 Everything Craft Conductor does, step by step: ", h("a", { href: "#manual" }, h("strong", {}, "the user manual")), ". ",
+      "Something wrong? ", h("a", { href: "https://github.com/silverWRX03/craft-conductor/issues/new/choose", target: "_blank", rel: "noopener noreferrer" }, "Report a bug ↗"),
+      " · ", h("a", { href: "https://github.com/silverWRX03/craft-conductor/blob/main/CHANGELOG.md", target: "_blank", rel: "noopener noreferrer" }, "What's new ↗")),
     h("nav", { class: "help-toc card" }, h("strong", {}, "Contents"),
       h("ul", {}, HELP.map(([id, title]) => h("li", {}, h("a", { href: "#help", onclick: (e) => { e.preventDefault(); $(`#help-${id}`).scrollIntoView({ behavior: "smooth" }); } }, title))))),
     HELP.map(([id, title, body]) => h("section", { class: "card mt help-section", id: `help-${id}` }, h("h3", {}, title), body())));
@@ -3086,7 +3086,7 @@ views.help = () => {
 };
 
 // ------------------------------------------------------------ remote access
-// Using mcsm from other devices: a strong password (never a PIN), then phones paired by
+// Using Craft Conductor from other devices: a strong password (never a PIN), then phones paired by
 // scanning a QR code. A paired phone gets its own key and only the everyday controls.
 function strongPassword(p) {
   return p.length >= 12 && /[A-Z]/.test(p) && /[a-z]/.test(p) && /[^A-Za-z0-9\s]/.test(p);
@@ -3123,7 +3123,7 @@ function openSshInstall() {
   };
   const after = (r, opened) => r.rented ? fill(out,
     opened ? h("div", { class: "notice ok" }, h("strong", {}, "A terminal window opened. "),
-      "Type the server's password there when asked (the first time, answer ", h("code", {}, "yes"), " to trust it). It installs mcsm and shows a one-time password.") : null,
+      "Type the server's password there when asked (the first time, answer ", h("code", {}, "yes"), " to trust it). It installs Craft Conductor and shows a one-time password.") : null,
     h("p", { class: "small mt-s" }, opened ? "The command it runs:" : "Run this in a terminal on this computer (PowerShell on Windows):"),
     h("pre", { class: "log" }, r.command),
     h("div", { class: "notice mt-s" }, h("strong", {}, "A rented server's control panel stays private. "),
@@ -3169,7 +3169,7 @@ function openSshInstall() {
     h("div", { class: "modal remote" },
       h("div", { class: "row" }, h("h2", { id: "ssh-title", class: "grow" }, "Install on a Linux computer or rented server (SSH)"), h("button", { class: "btn ghost small", onclick: close }, "Close")),
       h("p", { class: "muted small" }, "For a spare PC, home server or Raspberry Pi 4/5 (64-bit) on this network, or a rented Linux server (a VPS), with SSH turned on. " +
-        "mcsm opens a terminal that connects to it and installs mcsm there; your password is typed into SSH, never into mcsm. " +
+        "Craft Conductor opens a terminal that connects to it and installs Craft Conductor there; your password is typed into SSH, never into Craft Conductor. " +
         "Use a normal user on that computer (not root), e.g. one made with ", h("code", {}, "sudo adduser minecraft"), "."),
       h("form", { onsubmit: submit },
         h("div", { class: "grid" },
@@ -3180,7 +3180,7 @@ function openSshInstall() {
         h("div", { class: "row mt" }, openBtn)),
       out,
       h("p", { class: "muted small mt" }, "More in ",
-        h("a", { href: "https://github.com/silverWRX03/mc-server-management/blob/main/docs/headless.md", target: "_blank", rel: "noopener noreferrer" }, "the headless guide ↗"), "."))));
+        h("a", { href: "https://github.com/silverWRX03/craft-conductor/blob/main/docs/headless.md", target: "_blank", rel: "noopener noreferrer" }, "the headless guide ↗"), "."))));
   host.focus();
 }
 
@@ -3197,7 +3197,7 @@ function openRemoteAccess() {
   const load = async () => {
     const r = await api("/api/hub/remote").catch((e) => { fill(body, h("div", { class: "notice bad" }, e.message)); return null; });
     if (!r) return;
-    if (!r.available) { fill(body, h("p", {}, "Remote access is part of mcsm's server list. Start mcsm by double-clicking it (or `mcsm start`).")); return; }
+    if (!r.available) { fill(body, h("p", {}, "Remote access is part of Craft Conductor's server list. Start Craft Conductor by double-clicking it (or `mcsm start`).")); return; }
     // 1. a strong password
     let pw;
     if (r.strong) pw = h("p", { class: "ok-text" }, "✓ Your password is strong enough for remote access.");
@@ -3218,10 +3218,10 @@ function openRemoteAccess() {
     // 2. other devices
     const toggle = h("input", { type: "checkbox", checked: r.network_access, disabled: !r.strong && !r.network_access, onchange: async (e) => {
       const ok = await act(() => api("/api/hub/network", { method: "POST", body: { enabled: e.target.checked } }));
-      if (ok) toast(ok.restart_needed ? "Saved. Close and reopen mcsm (Quit, then start it again) for this to take effect." : "Saved");
+      if (ok) toast(ok.restart_needed ? "Saved. Close and reopen Craft Conductor (Quit, then start it again) for this to take effect." : "Saved");
       load();
     } });
-    const restartNote = r.configured !== r.running_on_network ? h("div", { class: "notice warn small mt-s" }, "Close and reopen mcsm (Quit, then start it again) for this to take effect.") : null;
+    const restartNote = r.configured !== r.running_on_network ? h("div", { class: "notice warn small mt-s" }, "Close and reopen Craft Conductor (Quit, then start it again) for this to take effect.") : null;
     // 3. away from home
     const away = [
       h("p", { class: "small" }, "On your home Wi-Fi, a phone reaches this computer directly. To use it away from home, use a private network app instead of opening ports:"),
@@ -3236,10 +3236,10 @@ function openRemoteAccess() {
     const key = h("input", { value: r.tls_key || "", placeholder: "Key file (.key / .pem)", "aria-label": "Key file" });
     const https = h("details", { class: "mt-s" }, h("summary", {}, `HTTPS (encryption) ${r.tls ? "· on" : "· optional"}`),
       h("p", { class: "small muted" }, "Tailscale already encrypts everything between your devices. To also serve the panel over HTTPS, " +
-        "give mcsm a certificate: with Tailscale, run `tailscale cert <this computer's name>` and enter the two files it makes."),
+        "give Craft Conductor a certificate: with Tailscale, run `tailscale cert <this computer's name>` and enter the two files it makes."),
       h("div", { class: "grid" }, cert, key),
       h("div", { class: "row mt-s" }, h("button", { class: "btn", onclick: () => act(() => api("/api/hub/remote/tls", { method: "POST", body: { cert: cert.value, key: key.value } }),
-        "Saved. Close and reopen mcsm to switch to HTTPS.").then(load) }, "Save")));
+        "Saved. Close and reopen Craft Conductor to switch to HTTPS.").then(load) }, "Save")));
     // 4. pair a phone
     const pairBox = h("div", { class: "pair-box" });
     const addr = h("select", { "aria-label": "Address the phone uses" }, r.addresses.map((a) => h("option", { value: a.host }, a.label)));
@@ -3274,7 +3274,7 @@ function openRemoteAccess() {
           "a ", h("strong", {}, "viewer"), " can only look. Neither can change settings, mods or files, or use the console, and what they do shows in the activity with their name. " +
           "Pair a friend who helps run the server the same way, on their own phone or computer. Changing your password signs all devices out."),
         r.addresses.length ? h("div", { class: "row" }, addr, role, pair) : h("p", { class: "small muted" }, "No network address found for this computer."),
-        !r.running_on_network ? h("p", { class: "small muted" }, "Pairing works once access from other devices is on and mcsm has been reopened.") : null,
+        !r.running_on_network ? h("p", { class: "small muted" }, "Pairing works once access from other devices is on and Craft Conductor has been reopened.") : null,
         pairBox),
       step(5, "Paired phones", devices,
         r.devices.length > 1 ? h("button", { class: "btn ghost small", onclick: async () => (await ask("Sign out every paired phone?", { ok: "Sign out all", danger: true })) &&
@@ -3299,7 +3299,7 @@ function showPairing(code) {
   const box = h("div", { class: "login-card" }, h("div", { class: "brand big" }, h("span", { class: "logo" }), "mcsm"),
     h("p", {}, "Pair this phone with your Minecraft server manager?"),
     h("label", {}, "Name it (so you can tell phones apart)", name), go,
-    h("p", { class: "muted small" }, "Only pair your own phone. You can sign it out any time in mcsm settings on the computer."));
+    h("p", { class: "muted small" }, "Only pair your own phone. You can sign it out any time in Craft Conductor settings on the computer."));
   document.body.append(h("div", { class: "login", id: "pairing" }, box));
 }
 
@@ -3328,13 +3328,13 @@ function openDiscord(links) {
       } catch (e) { if (!(e instanceof Unauthorized)) toast(e.message, true); save.disabled = false; }
     } }, "Connect");
     fill(body,
-      h("p", {}, "mcsm posts through a Discord bot that belongs to you. Setting one up takes a couple of minutes, once:"),
+      h("p", {}, "Craft Conductor posts through a Discord bot that belongs to you. Setting one up takes a couple of minutes, once:"),
       h("ol", { class: "steps" },
         h("li", {}, "Open the ", ext(info.portal, "Discord Developer Portal ↗"), " and press ", h("strong", {}, "New Application"), ". Name it (e.g. “Minecraft server”)."),
         h("li", {}, "Open the ", h("strong", {}, "Bot"), " tab, press ", h("strong", {}, "Reset Token"), ", then ", h("strong", {}, "Copy"), "."),
-        h("li", {}, "Paste the token here. mcsm checks it with Discord and keeps it in mcsm settings; it never leaves this computer otherwise.")),
+        h("li", {}, "Paste the token here. Craft Conductor checks it with Discord and keeps it in Craft Conductor settings; it never leaves this computer otherwise.")),
       h("div", { class: "row" }, input, save),
-      h("p", { class: "muted small" }, "The bot only needs to see channels and send messages. mcsm never reads messages, and its posts can't ping @everyone."));
+      h("p", { class: "muted small" }, "The bot only needs to see channels and send messages. Craft Conductor never reads messages, and its posts can't ping @everyone."));
     input.focus();
   };
 
@@ -3452,7 +3452,7 @@ function openTester(opts) {
   const idle = () => stepBox.classList.add("hidden");
   const busy = () => stepBox.classList.remove("hidden");
   stickyToast("tester-toast", [h("strong", {}, "Testing mods"),
-    h("span", { class: "small" }, "This can take a long time: looking the mods up takes seconds, but a test boot takes a few minutes, and finding which mods break it can take much longer. You can keep using mcsm meanwhile."),
+    h("span", { class: "small" }, "This can take a long time: looking the mods up takes seconds, but a test boot takes a few minutes, and finding which mods break it can take much longer. You can keep using Craft Conductor meanwhile."),
     toastText, toastBar,
     h("div", { class: "row mt-s" }, h("button", { class: "btn small", onclick: show }, "Show"),
       h("button", { class: "btn small ghost", onclick: hide }, "Hide the dialog"))], { blocking: false });
@@ -3506,7 +3506,7 @@ function openTester(opts) {
     if (!res.bisected) {
       fill(body,
         h("div", { class: "notice bad" }, h("strong", {}, "✗ The server didn't start. "), diag || res.reason),
-        h("p", {}, "mcsm can find which mods are the problem: it starts test servers with the mods added back a group at a time, splitting any group that fails, until it knows which mods work together."),
+        h("p", {}, "Craft Conductor can find which mods are the problem: it starts test servers with the mods added back a group at a time, splitting any group that fails, until it knows which mods work together."),
         dismissible("test-takes-a-while", h("div", { class: "notice warn" }, "This can take a while: each test starts a server (usually 1 to 3 minutes each), and a long mod list can need a dozen tests or more.")),
         h("div", { class: "row mt-s" },
           h("button", { class: "btn primary", onclick: () => runTrial(true) }, "Find the culprits"),
@@ -3556,7 +3556,7 @@ function openTester(opts) {
         : h("div", { class: "notice ok" }, h("strong", {}, "✓ No known problems. "),
           `${r.mods.length} mod(s) have builds for ${r.minecraft ? `Minecraft ${r.minecraft}` : "this Minecraft"}, and none say they conflict with another.`),
       opts.trial ? [
-        h("p", { class: "mt" }, "To be sure, mcsm can start a throwaway server with these mods and see if Minecraft loads. It takes a few minutes; your servers aren't touched."),
+        h("p", { class: "mt" }, "To be sure, Craft Conductor can start a throwaway server with these mods and see if Minecraft loads. It takes a few minutes; your servers aren't touched."),
         h("div", { class: "row" }, h("button", { class: "btn primary", onclick: () => runTrial(false) }, "Start a test boot"))]
         : h("p", { class: "muted small mt" }, "These mods run on players' computers, and a game can't be started here to try them, so this checks versions and known conflicts. " +
           "The server's own mods can be test-booted on its Mods page."));
@@ -3857,8 +3857,8 @@ views.servers = () => {
   const sp = hubInfo && !hubInfo.single ? singleplayerCard() : null;
   fill($("#main"),
     closingTip(),
-    h("div", { class: "row mb" },
-      h("p", { class: "muted grow" }, "Servers only run when you start them here, and stop when you press Stop or Quit mcsm."),
+    h("div", { class: "row mb wrap" },
+      h("p", { class: "muted grow" }, "Servers only run when you start them here, and stop when you press Stop or Quit Craft Conductor."),
       hubInfo && hubInfo.guide ? h("button", { class: "btn ghost", title: "Step by step from making a server to a friend joining it", onclick: startGuide }, "🧭 Guided setup") : null,
       hubInfo && hubInfo.single ? null : h("div", { class: "row" }, importNote, importBtn, picker)),
     list,
@@ -3867,7 +3867,7 @@ views.servers = () => {
   return { onHub: render };
 };
 
-// Modded single-player games: mcsm sets one up in the launcher you use (it isn't a launcher) and
+// Modded single-player games: Craft Conductor sets one up in the launcher you use (it isn't a launcher) and
 // keeps it up to date. The worlds stay in that installation when the mods are updated.
 const SP_LOADERS = [["fabric", "Fabric"], ["neoforge", "NeoForge"], ["forge", "Forge"], ["quilt", "Quilt"]];
 function singleplayerCard() {
@@ -3875,7 +3875,7 @@ function singleplayerCard() {
   const el = h("section", { class: "mt-l" },
     h("div", { class: "row" }, h("h2", { class: "grow" }, "Modded single-player games"),
       h("button", { class: "btn", onclick: () => openSpEditor(null, load) }, "+ New single-player game")),
-    h("p", { class: "muted small" }, "Pick a mod loader and mods, and mcsm puts the game into your launcher (the Minecraft Launcher, Prism, the Modrinth App or CurseForge) and keeps it up to date. No server needed; your worlds stay in the game when it's updated."),
+    h("p", { class: "muted small" }, "Pick a mod loader and mods, and Craft Conductor puts the game into your launcher (the Minecraft Launcher, Prism, the Modrinth App or CurseForge) and keeps it up to date. No server needed; your worlds stay in the game when it's updated."),
     list);
   const LAUNCHER = { minecraft: "Minecraft Launcher", prism: "Prism", modrinth: "Modrinth App", curseforge: "CurseForge" };
   const gameCard = (g) => {
@@ -3905,7 +3905,7 @@ function singleplayerCard() {
         h("button", { class: "btn primary", onclick: check }, inst ? "Check for updates" : "Install…"),
         h("button", { class: "btn", onclick: () => openSpEditor(g, load) }, "Edit"),
         h("button", { class: "btn ghost", onclick: async () => {
-          if (!(await ask(`Forget "${g.name}"? mcsm stops keeping it up to date. The game and its worlds stay in your launcher; delete them there if you want them gone.`, { ok: "Forget it", danger: true }))) return;
+          if (!(await ask(`Forget "${g.name}"? Craft Conductor stops keeping it up to date. The game and its worlds stay in your launcher; delete them there if you want them gone.`, { ok: "Forget it", danger: true }))) return;
           await act(() => api("/api/hub/singleplayer/delete", { method: "POST", body: { id: g.id } }), "Forgotten");
           load();
         } }, "Delete")),
@@ -3977,39 +3977,39 @@ function openSpEditor(game, done) {
       h("div", { class: "browse-footer" }, error, h("button", { class: "btn primary", type: "submit" }, game ? "Save" : "Make the game"))),
     h("div", { class: "browse-right" }, h("div", { class: "empty-map" },
       h("h2", {}, "Your own modded Minecraft"),
-      h("p", {}, "mcsm finds a build of every mod (and the mods they need) for the same Minecraft version, then sets the game up in your launcher. When the mods update, Check for updates brings them in; with “the newest one all the mods support”, Minecraft moves up too once every mod is ready."),
+      h("p", {}, "Craft Conductor finds a build of every mod (and the mods they need) for the same Minecraft version, then sets the game up in your launcher. When the mods update, Check for updates brings them in; with “the newest one all the mods support”, Minecraft moves up too once every mod is ready."),
       h("p", { class: "muted small" }, "Only mods that run on players' computers are listed. Shaders and resource packs can be added on the launcher page when you install.")))),
     game ? "Edit single-player game" : "New single-player game");
   showPicked();
   search();
 }
 
-// A notice people see every time, once they know it: "Don't show again" (see mcsm settings → Warnings).
+// A notice people see every time, once they know it: "Don't show again" (see Craft Conductor settings → Warnings).
 function dismissible(id, notice) {
   if (skippedWarnings().includes(id)) return null;
   notice.append(" ", h("button", { class: "link-btn small", onclick: () => { skipWarning(id); notice.remove(); } }, "Don't show again"));
   return notice;
 }
 
-// Closing the browser tab doesn't stop mcsm (there's no window of its own to close): say so
+// Closing the browser tab doesn't stop Craft Conductor (there's no window of its own to close): say so
 // until the person says they've got it.
 function closingTip() {
   if (skippedWarnings().includes("closing-tip")) return null;
   const tip = h("div", { class: "notice mb row" },
-    h("span", { class: "grow" }, h("strong", {}, "Closing this tab doesn't stop mcsm. "),
-      "Your servers keep running and anything mcsm is doing carries on. ",
-      hubInfo && hubInfo.local ? "Open mcsm again from its icon to come back here; " : "Open this page again to come back; ",
+    h("span", { class: "grow" }, h("strong", {}, "Closing this tab doesn't stop Craft Conductor. "),
+      "Your servers keep running and anything Craft Conductor is doing carries on. ",
+      hubInfo && hubInfo.local ? "Open Craft Conductor again from its icon to come back here; " : "Open this page again to come back; ",
       "Quit (bottom left) stops everything."),
     h("button", { class: "btn small", onclick: () => { skipWarning("closing-tip"); tip.remove(); } }, "Got it"));
   return tip;
 }
 
-// Notifications from this browser while mcsm's tab is in the background (a crash, an update,
+// Notifications from this browser while Craft Conductor's tab is in the background (a crash, an update,
 // someone joining, a job that failed). Kept per browser; checks every 20 seconds while on.
 const NOTIFY_KEY = "mcsm-notify";
 const NOTIFY_KINDS = [["crash", "A server stops unexpectedly", true], ["update", "An update is ready", true],
   ["request", "A friend asks to be let in", true],
-  ["join", "Someone joins a server", false], ["job", "Something mcsm was doing fails", true]];
+  ["join", "Someone joins a server", false], ["job", "Something Craft Conductor was doing fails", true]];
 function notifyPrefs() { try { return JSON.parse(localStorage.getItem(NOTIFY_KEY) || "null"); } catch (_) { return null; } }
 function saveNotifyPrefs(p) { try { localStorage.setItem(NOTIFY_KEY, JSON.stringify(p)); } catch (_) { /* private mode */ } }
 let notifySeen = null;
@@ -4024,8 +4024,8 @@ async function notifyWatch() {
     for (const [id, s] of now) {
       const before = notifySeen.get(id);
       if (!before) continue;
-      if (prefs.crash && s.crashed_at && s.crashed_at !== before.crashed_at) say(`${s.name} stopped unexpectedly`, "mcsm restarts it if it can. Open mcsm to see why.");
-      if (prefs.update && s.update && !before.update) say(`Update ready for ${s.name}`, "Open mcsm's Updates page to see it.");
+      if (prefs.crash && s.crashed_at && s.crashed_at !== before.crashed_at) say(`${s.name} stopped unexpectedly`, "Craft Conductor restarts it if it can. Open Craft Conductor to see why.");
+      if (prefs.update && s.update && !before.update) say(`Update ready for ${s.name}`, "Open Craft Conductor's Updates page to see it.");
       if (prefs.join && s.players > before.players) say(`Someone joined ${s.name}`, `${s.players} online now.`);
       if (prefs.request && (s.join_requests || 0) > (before.join_requests || 0)) say(`A friend asks to join ${s.name}`, "Allow them on the Players page.");
       const j = s.last_job, bj = before.last_job;
@@ -4053,7 +4053,7 @@ function notificationsCard() {
       render();
     });
     fill(box, card("Notifications",
-      h("p", { class: "muted small" }, "Get a notification from this browser when something happens while mcsm's tab is in the background."),
+      h("p", { class: "muted small" }, "Get a notification from this browser when something happens while Craft Conductor's tab is in the background."),
       !supported ? h("p", { class: "small" }, "This browser can't show notifications for this page (they need the address to be localhost, or HTTPS).")
         : perm === "denied" ? h("p", { class: "small bad-text" }, "Notifications are blocked for this page in the browser's site settings.") : null,
       h("label", { class: "row" }, on, h("span", {}, "Notify me in this browser")),
@@ -4068,8 +4068,8 @@ function notificationsCard() {
 }
 
 // Questions answered with "Don't ask me again" (kept in this browser): bring them back here.
-// The language of mcsm's pages (this browser): automatic (the browser's) or one picked here.
-// Automatic port forwarding (UPnP): mcsm asks the router to forward its own ports to this
+// The language of Craft Conductor's pages (this browser): automatic (the browser's) or one picked here.
+// Automatic port forwarding (UPnP): Craft Conductor asks the router to forward its own ports to this
 // computer, renews them while it runs and takes them back when switched off (or on quit).
 function routerBox() {
   const box = h("div", { class: "mt" });
@@ -4083,8 +4083,8 @@ function routerBox() {
       h("span", { class: "muted" }, ` · ${p.label}`), p.ok ? null : h("span", { class: "bad-text" }, ` · ${p.error}`)));
     fill(box, h("h3", {}, "Router"),
       h("label", { class: "row check-row" }, on, h("span", {}, "Open the ports on my router by itself (UPnP)")),
-      h("p", { class: "muted small" }, "mcsm asks your router to forward each server's Minecraft port and the friends' download port to this computer, " +
-        "and takes them back when you switch this off or quit mcsm. Only mcsm's own ports are opened. Many routers have UPnP switched off: " +
+      h("p", { class: "muted small" }, "Craft Conductor asks your router to forward each server's Minecraft port and the friends' download port to this computer, " +
+        "and takes them back when you switch this off or quit Craft Conductor. Only Craft Conductor's own ports are opened. Many routers have UPnP switched off: " +
         "then forward the ports by hand (Help → Router setup), or use playit.gg."),
       busy ? h("p", { class: "small" }, busy) : null,
       !busy && st.enabled && st.error ? h("div", { class: "notice warn" }, h("strong", {}, "It didn't work: "), st.error, ".") : null,
@@ -4160,13 +4160,13 @@ function discordStatusPicker(r, after) {
   const set = (id) => act(() => api("/api/hub/discord/status", { method: "POST", body: { channel: id } }),
     id ? "The status message is posted there and kept up to date" : "Status message stopped").then(after);
   return h("div", { class: "mt" }, h("h4", {}, "Live status message"),
-    h("p", { class: "muted small" }, "One message in a channel that always shows whether each server is online, who's playing and its Minecraft version. mcsm edits it as things change, and says when mcsm is closed."),
+    h("p", { class: "muted small" }, "One message in a channel that always shows whether each server is online, who's playing and its Minecraft version. Craft Conductor edits it as things change, and says when Craft Conductor is closed."),
     r.status_channel ? h("div", { class: "row" }, h("span", { class: "grow small ok-text" }, "✓ On, in a channel you picked."),
       h("button", { class: "btn small ghost", onclick: () => set("") }, "Stop"))
       : h("div", { class: "row" }, guild, channel, h("button", { class: "btn small", onclick: () => channel.value ? set(channel.value) : toast("Pick a channel.", true) }, "Keep a status message there")));
 }
 
-// mcsm itself: sign-in, network access, and what mcsm is.
+// Craft Conductor itself: sign-in, network access, and what Craft Conductor is.
 views.mcsm = () => {
   const security = h("div", { class: "mb" });
   const network = h("div", { class: "mb" });
@@ -4223,7 +4223,7 @@ views.mcsm = () => {
       h("thead", {}, h("tr", {}, h("th", {}, "Name"), h("th", {}, "License"), h("th", {}, "Used for"), h("th", {}))),
       h("tbody", {}, rows.map(row)))];
     fill(about,
-      card("About mcsm",
+      card("About Craft Conductor",
         h("dl", { class: "kv" },
           h("dt", {}, "Version"), h("dd", {}, s.version || ""),
           h("dt", {}, "License"), h("dd", {}, h("a", { href: lic.project.url, target: "_blank", rel: "noopener noreferrer" }, lic.project.license))),
@@ -4231,17 +4231,17 @@ views.mcsm = () => {
           h("button", { class: "btn", onclick: async () => {
             try { localStorage.removeItem(DISMISS_KEY); } catch (_) {}
             closeToast("self-update");
-            await act(() => api("/api/self-update/check", { method: "POST", body: {} }), "Checking for a new mcsm version…");
-          } }, "Check for mcsm updates"), s.single ? null : folderBtn("home", "mcsm folder", null, "btn"))),
+            await act(() => api("/api/self-update/check", { method: "POST", body: {} }), "Checking for a new Craft Conductor version…");
+          } }, "Check for Craft Conductor updates"), s.single ? null : folderBtn("home", "Craft Conductor folder", null, "btn"))),
       h("div", { class: "mt" }, languageCard()),
       h("div", { class: "mt" }, sizeCard()),
       h("div", { class: "mt" }, warningsCard()),
       h("div", { class: "mt" }, notificationsCard()),
-      h("div", { class: "mt" }, card("What mcsm does and doesn't do",
+      h("div", { class: "mt" }, card("What Craft Conductor does and doesn't do",
         h("ul", { class: "notice-points" }, n.points.map((p) => h("li", {}, p))))),
       h("div", { class: "mt" }, card("Open-source licenses",
-        h("p", { class: "muted" }, "mcsm has no third-party runtime dependencies, and the web UI uses no third-party code, fonts or images. Software it downloads for you is never bundled or redistributed by mcsm."),
-        table("Used by mcsm", lic.runtime),
+        h("p", { class: "muted" }, "Craft Conductor has no third-party runtime dependencies, and the web UI uses no third-party code, fonts or images. Software it downloads for you is never bundled or redistributed by Craft Conductor."),
+        table("Used by Craft Conductor", lic.runtime),
         table("Bundled into the downloadable executables", lic.bundled),
         table("Used only for development", lic.development),
         table("Downloaded for you", lic.downloaded),
@@ -4265,7 +4265,7 @@ views.mcsm = () => {
         h("button", { class: "btn primary", onclick: () => input.value.trim() && saveKey(input.value, "CurseForge key saved") }, r.own ? "Replace key" : "Save key"),
         r.own ? h("button", { class: "btn ghost", onclick: async () => (await ask("Remove the CurseForge key?", { ok: "Remove", danger: true })) && saveKey("", "CurseForge key removed") }, "Remove") : null),
       r.own ? h("p", { class: "small ok-text" }, "✓ Your own key is saved.")
-        : r.builtin ? h("p", { class: "small ok-text" }, "✓ This version of mcsm has CurseForge built in. You only need your own key if CurseForge starts refusing requests.")
+        : r.builtin ? h("p", { class: "small ok-text" }, "✓ This version of Craft Conductor has CurseForge built in. You only need your own key if CurseForge starts refusing requests.")
         : null));
   };
   renderCf();
@@ -4474,7 +4474,7 @@ views.setup = () => {
     }, h("strong", {}, l.label), h("span", { class: "small muted" }, l.description))));
     const intro = [
       h("h2", { class: "view-title" }, isNew ? "Create a new server" : "Set up your server"),
-      h("p", { class: "muted" }, "Choose what kind of server you want. mcsm downloads everything it needs (Minecraft, the mod loader, mods and Java) and keeps it up to date from then on. " +
+      h("p", { class: "muted" }, "Choose what kind of server you want. Craft Conductor downloads everything it needs (Minecraft, the mod loader, mods and Java) and keeps it up to date from then on. " +
         (opts.network_option ? "" : "It won't start until you press Start.")),
       error ? h("div", { class: "notice bad" }, h("strong", {}, "Setup didn't finish: "), failureText(error, server),
         h("div", { class: "small mt-s" }, "Change your choices below and try again.")) : null,
@@ -4482,7 +4482,7 @@ views.setup = () => {
     // Or on another computer: a Linux PC without a screen, installed over SSH.
     const elsewhere = isNew && !opts.network_option ? h("div", { class: "mt" }, card("Or on another computer",
       h("div", { class: "row" },
-        h("span", { class: "grow small" }, "Run the server on a Linux PC without a screen on this network (a spare PC, a home server, a Raspberry Pi): mcsm installs itself there over SSH."),
+        h("span", { class: "grow small" }, "Run the server on a Linux PC without a screen on this network (a spare PC, a home server, a Raspberry Pi): Craft Conductor installs itself there over SSH."),
         h("button", { type: "button", class: "btn", onclick: openSshInstall }, "🐧 Install on a Linux computer…")))) : null;
     // Quick start: a ready-made starting point that fills the form in (everything stays changeable).
     const presetCards = isNew ? card("Quick start (optional)",
@@ -4600,7 +4600,7 @@ views.setup = () => {
         `${g} GB${g === opts.memory_gb ? " (suggested)" : ""}${ram && g > ram ? " (more than this computer has)" : ""}`)));
     mem.value = String(st.memory_gb);
 
-    // The Minecraft port, checked as you type: other servers here, mcsm itself, other programs.
+    // The Minecraft port, checked as you type: other servers here, Craft Conductor itself, other programs.
     const portField = () => {
       const note = h("span", { class: "muted small" }, "25565 is Minecraft's usual port. Friends type the address as host:port when it's not 25565.");
       const input = h("input", { type: "number", min: 1024, max: 65535, value: st.port });
@@ -4777,7 +4777,7 @@ views.setup = () => {
       h("h2", { class: "view-title" }, "Creating your server…"),
       h("div", { class: "notice" }, h("div", { class: "row" }, h("span", { class: "spinner" }),
         h("span", { class: "grow" }, "Downloading Java, the mod loader, Minecraft and your mods, then checking that the server starts. This usually takes a few minutes.")),
-        h("div", { class: "small muted mt-s" }, "You can close this page: mcsm keeps going. Open mcsm again and choose See progress on the server.")),
+        h("div", { class: "small muted mt-s" }, "You can close this page: Craft Conductor keeps going. Open Craft Conductor again and choose See progress on the server.")),
       card("What's happening", events),
       // While it installs: what friends outside your home will need (the lower part of the screen).
       h("details", { class: "card mt router-help", open: true }, h("summary", {}, h("strong", {}, "While you wait: letting friends outside your home join")),
@@ -4861,12 +4861,12 @@ function renderNav() {
     a("#help", "Help", currentName === "help"),
     a("#manual", "User manual", currentName === "manual"),
     hb.device ? h("div", { class: "nav-server small", title: "A paired phone has the everyday controls only" }, `📱 ${hb.device} (limited)`)
-      : a("#mcsm", "mcsm settings", currentName === "mcsm"));
+      : a("#mcsm", "Craft Conductor settings", currentName === "mcsm"));
   const inServer = !!server;
   $(".server-id").classList.toggle("hidden", !inServer);
   $(".actions").classList.toggle("hidden", !inServer);
   $("#page-title").classList.toggle("hidden", inServer);
-  $("#page-title").textContent = t({ servers: "Your servers", new: "New server", mcsm: "mcsm settings", help: "Help", manual: "User manual" }[currentName] || "");
+  $("#page-title").textContent = t({ servers: "Your servers", new: "New server", mcsm: "Craft Conductor settings", help: "Help", manual: "User manual" }[currentName] || "");
   if (!inServer) $("#job").classList.add("hidden");
 }
 

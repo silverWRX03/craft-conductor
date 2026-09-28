@@ -698,7 +698,7 @@ class Preview:
         else:
             shutil.rmtree(base, ignore_errors=True)
             spec = setupmod.SetupSpec.from_dict({
-                "loader": self.loader, "minecraft": self.minecraft, "motd": "mcsm map preview", "accept_eula": True,
+                "loader": self.loader, "minecraft": self.minecraft, "motd": "Craft Conductor map preview", "accept_eula": True,
                 "memory_gb": 2, "port": self.hub.free_port(25590)})
             spec.mods = []
             setupmod.configure(base, spec)

@@ -3,14 +3,14 @@
 # 64-bit OS) and runs its control panel in the background, so you can manage everything
 # from a browser on another computer. Run it on that computer, e.g. over SSH:
 #
-#   ssh you@192.168.1.50 "curl -fsSL https://raw.githubusercontent.com/silverWRX03/mc-server-management/main/packaging/install.sh | sh"
+#   ssh you@192.168.1.50 "curl -fsSL https://raw.githubusercontent.com/silverWRX03/craft-conductor/main/packaging/install.sh | sh"
 #
 # It downloads the newest release for this CPU, checks it against the release's SHA256SUMS,
 # puts it in ~/.local/bin (MCSM_BIN_DIR to change), and runs `mcsm service install --panel`,
 # which prints the address to open and a one-time password. Nothing is run as root.
 set -eu
 
-REPO="silverWRX03/mc-server-management"
+REPO="silverWRX03/craft-conductor"
 BASE="${MCSM_RELEASE_URL:-https://github.com/$REPO/releases/latest/download}"
 case "$(uname -s)-$(uname -m)" in
   Linux-x86_64|Linux-amd64) ASSET="mcsm-linux-x64" ;;

@@ -73,7 +73,7 @@ def plan(root: Path, system: bool | None = None, home: Path | None = None, panel
         path = base / "systemd" / "user" / name
     args = ["start", "--no-browser", "--web-host", "0.0.0.0"] if panel else ["run", "--web"]
     exec_start = " ".join(_quote(a) for a in [*mcsm_command(), *args])
-    what = f"mcsm control panel and servers ({root})" if panel else f"Minecraft server managed by mcsm ({root})"
+    what = f"Craft Conductor control panel and servers ({root})" if panel else f"Minecraft server managed by Craft Conductor ({root})"
     env = f"Environment=MCSM_HOME={_quote(str(root))}\n" if panel else ""
     remove = "mcsm service uninstall --panel" if panel else "mcsm service uninstall"
     text = f"""\
@@ -87,7 +87,7 @@ Wants=network-online.target
 Type=simple
 WorkingDirectory={root}
 {env}ExecStart={exec_start}
-# mcsm stops the Minecraft server cleanly (saving the world) on SIGTERM.
+# Craft Conductor stops the Minecraft server cleanly (saving the world) on SIGTERM.
 KillSignal=SIGTERM
 TimeoutStopSec=180
 Restart=on-failure

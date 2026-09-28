@@ -1,4 +1,4 @@
-# mcsm on a computer without a screen
+# Craft Conductor on a computer without a screen
 
 Run your servers on a spare PC, a home server or a Raspberry Pi 4/5 (64-bit OS) that sits
 in a cupboard, and manage everything from a browser on your own computer. After the first
@@ -13,18 +13,18 @@ command, you never need to touch that machine again.
 
 ## 1. Install it
 
-**The easy way:** in mcsm on your own computer, go to **New server → Or on another computer →
+**The easy way:** in Craft Conductor on your own computer, go to **New server → Or on another computer →
 Install on a Linux computer**, type its address and user name, and press **Connect with SSH**.
 A terminal window opens; type that computer's password when SSH asks (the first time, answer
-`yes` to trust it). mcsm never sees the password. When it finishes, the window shows the
+`yes` to trust it). Craft Conductor never sees the password. When it finishes, the window shows the
 control panel's address and a one-time password.
 
 **Or type the command yourself** (it's what that button runs):
 
-The command connects to the Linux computer over SSH and runs mcsm's installer there. The
+The command connects to the Linux computer over SSH and runs Craft Conductor's installer there. The
 installer:
 
-- downloads the newest mcsm for that computer;
+- downloads the newest Craft Conductor for that computer;
 - checks it against the release's checksums;
 - sets it to start at boot (a systemd service);
 - prints the address to open and a one-time password.
@@ -32,13 +32,13 @@ installer:
 **Windows 10/11:** open **PowerShell** (Start menu → type "PowerShell") and run:
 
 ```powershell
-ssh minecraft@192.168.1.50 "curl -fsSL https://raw.githubusercontent.com/silverWRX03/mc-server-management/main/packaging/install.sh | sh"
+ssh minecraft@192.168.1.50 "curl -fsSL https://raw.githubusercontent.com/silverWRX03/craft-conductor/main/packaging/install.sh | sh"
 ```
 
 **macOS:** open **Terminal** (Applications → Utilities) and run:
 
 ```sh
-ssh minecraft@192.168.1.50 "curl -fsSL https://raw.githubusercontent.com/silverWRX03/mc-server-management/main/packaging/install.sh | sh"
+ssh minecraft@192.168.1.50 "curl -fsSL https://raw.githubusercontent.com/silverWRX03/craft-conductor/main/packaging/install.sh | sh"
 ```
 
 **Linux:** the same command, in a terminal.
@@ -56,11 +56,11 @@ first sign-in password: Mcsm-1a2b3c-4d5e6f-7a8b9c!   (one-time: you'll choose yo
 ## 2. Open the control panel
 
 Open that address in a browser on your computer and sign in with the one-time password.
-mcsm asks you to choose your own. It must be strong (12+ characters, upper and lower case,
+Craft Conductor asks you to choose your own. It must be strong (12+ characters, upper and lower case,
 and a special character), because the panel is reachable from your network. From then on
 everything happens in the browser: creating servers, mods, updates, backups and friends.
 
-On your phone, open **Remote access & phones** in mcsm settings to pair it with a QR code.
+On your phone, open **Remote access & phones** in Craft Conductor settings to pair it with a QR code.
 
 ## Firewall
 
@@ -78,11 +78,11 @@ sudo ufw allow 8798/tcp      # friends' downloads, if you use them
 |---|---|
 | Status | `ssh minecraft@192.168.1.50 mcsm service status --panel` (or `~/.local/bin/mcsm ...`) |
 | Logs | `ssh minecraft@192.168.1.50 journalctl --user -u mcsm -f` |
-| Update mcsm | from the control panel (mcsm settings → Check for updates), or run the install command again |
+| Update Craft Conductor | from the control panel (Craft Conductor settings → Check for updates), or run the install command again |
 | Remove the service | `ssh minecraft@192.168.1.50 mcsm service uninstall --panel` (your servers stay in `~/mcsm`) |
 | Forgot the password | `ssh` in, delete `~/mcsm/.mcsm/web-auth.json`, then `systemctl --user restart mcsm` for a new one-time password |
 
-The service runs as your user and keeps running after you log out ("lingering"). If mcsm
+The service runs as your user and keeps running after you log out ("lingering"). If Craft Conductor
 can't turn that on by itself, it prints the `sudo loginctl enable-linger ...` command to run
 once.
 

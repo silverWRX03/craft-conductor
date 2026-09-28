@@ -37,7 +37,7 @@ def test_template_loads_and_mod_blocks_round_trip(tmp_path):
     assert not configmod.remove_mod(path, "modrinth", "create")
     cfg = configmod.load(tmp_path)
     assert [m.id for m in cfg.mods] == ["238222"]
-    assert "# mcsm configuration" in path.read_text()  # comments survive edits
+    assert "# Craft Conductor configuration" in path.read_text()  # comments survive edits
 
 
 def test_invalid_config(tmp_path):

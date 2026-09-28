@@ -70,13 +70,13 @@ def test_import_is_careful(tmp_path):
     manifest = json.dumps({"format": 1, "name": "X"})
     bad = tmp_path / "bad.zip"
     bad.write_bytes(zip_with({"hello.txt": "hi"}))
-    with pytest.raises(transfer.TransferError, match="isn't an mcsm server export"):
+    with pytest.raises(transfer.TransferError, match="isn't an Craft Conductor server export"):
         transfer.read_manifest(bad)
     bad.write_bytes(b"not a zip")
     with pytest.raises(transfer.TransferError, match="isn't a .zip"):
         transfer.read_manifest(bad)
     bad.write_bytes(zip_with({"mcsm-export.json": json.dumps({"format": 99}), "mcsm.toml": ""}))
-    with pytest.raises(transfer.TransferError, match="newer mcsm"):
+    with pytest.raises(transfer.TransferError, match="newer Craft Conductor"):
         transfer.read_manifest(bad)
 
     # Paths outside the server (or mcsm's own files) are never written.

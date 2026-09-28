@@ -20,7 +20,7 @@ import shutil
 import subprocess
 import sys
 
-INSTALLER = "https://raw.githubusercontent.com/silverWRX03/mc-server-management/main/packaging/install.sh"
+INSTALLER = "https://raw.githubusercontent.com/silverWRX03/craft-conductor/main/packaging/install.sh"
 PANEL_PORT = 8765
 HOST = re.compile(r"(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?)*\.?")
 USER = re.compile(r"[a-z_][a-z0-9_.-]{0,31}")
@@ -119,7 +119,7 @@ def launch(host: str, user: str, port: int, popen=subprocess.Popen, rented: bool
         raise RemoteInstallError("OpenSSH isn't installed on this computer (on Windows: Settings → Apps → "
                                  "Optional features → OpenSSH Client)")
     args = [ssh, *(tunnel_args(host, user, port) if tunnel else ssh_args(host, user, port, rented))[1:]]
-    title = f"mcsm: {'control panel of' if tunnel else 'installing on'} {host}"
+    title = f"Craft Conductor: {'control panel of' if tunnel else 'installing on'} {host}"
     if os.name == "nt":
         # A console of its own that stays open afterwards (cmd /k), so the address and password can be read.
         popen(["cmd", "/k", "title", title, "&", *args], creationflags=0x00000010)  # CREATE_NEW_CONSOLE

@@ -30,7 +30,7 @@ from .http import HttpClient, HttpError
 
 log = logging.getLogger(__name__)
 
-REPO = "silverWRX03/mc-server-management"
+REPO = "silverWRX03/craft-conductor"
 DIST = "mc-server-management"
 LATEST = f"https://api.github.com/repos/{REPO}/releases/latest"
 
@@ -114,29 +114,31 @@ def frozen() -> bool:
     return bool(getattr(sys, "frozen", False))
 
 
-FRIEND_PREFIX = "mcsm-join"  # the friends' download: the same mcsm, opening straight into joining
+PREFIX = "craft-conductor"               # the downloads: craft-conductor-windows-x64.exe ...
+FRIEND_PREFIX = "craft-conductor-join"   # the friends' download: the same program, opening straight into joining
+OLD_FRIEND_PREFIX = "mcsm-join"          # (its name before the rename: releases still carry these files)
 
 
 def friend_build() -> bool:
-    """True for the friends' download (``mcsm-join-...``, also when a browser renamed it
-    ``mcsm-join-windows-x64 (1).exe``): it sets up Minecraft to join a server."""
-    return frozen() and Path(sys.executable).name.lower().startswith(FRIEND_PREFIX)
+    """True for the friends' download (``craft-conductor-join-...``, or ``mcsm-join-...`` from before the
+    rename; also when a browser renamed it ``...-windows-x64 (1).exe``): it sets up Minecraft to join a server."""
+    return frozen() and Path(sys.executable).name.lower().startswith((FRIEND_PREFIX, OLD_FRIEND_PREFIX))
 
 
 def asset_name(friend: bool | None = None) -> str:
-    """The release file for this computer, e.g. ``mcsm-windows-x64.exe`` (``mcsm-join-...``
-    for the friends' download, which updates to the same)."""
+    """The release file for this computer, e.g. ``craft-conductor-windows-x64.exe``
+    (``craft-conductor-join-...`` for the friends' download, which updates to the same)."""
     system = {"Windows": "windows", "Darwin": "macos"}.get(platform.system(), "linux")
     machine = platform.machine().lower()
     arch = "arm64" if machine in ("arm64", "aarch64") else "x64"
-    prefix = FRIEND_PREFIX if (friend_build() if friend is None else friend) else "mcsm"
+    prefix = FRIEND_PREFIX if (friend_build() if friend is None else friend) else PREFIX
     return f"{prefix}-{system}-{arch}{'.exe' if system == 'windows' else ''}"
 
 
 def install_method(release: Release | None = None) -> tuple[bool, str]:
     """(can mcsm update itself, why not)."""
     if os.environ.get("MCSM_CONTAINER"):
-        return False, "mcsm runs in a container here; update it by pulling the new image (docker pull ...)"
+        return False, "Craft Conductor runs in a container here; update it by pulling the new image (docker pull ...)"
     if frozen():
         if release is not None and asset_name() not in release.assets:
             return False, f"this release has no download for your system ({asset_name()}); get it from the release page"
@@ -144,12 +146,12 @@ def install_method(release: Release | None = None) -> tuple[bool, str]:
     try:
         dist = metadata.distribution(DIST)
     except metadata.PackageNotFoundError:
-        return False, "mcsm is running from a source checkout; update it with `git pull`"
+        return False, "Craft Conductor is running from a source checkout; update it with `git pull`"
     direct = dist.read_text("direct_url.json")
     if direct:
         try:
             if json.loads(direct).get("dir_info", {}).get("editable"):
-                return False, "mcsm is installed in editable (development) mode; update it with `git pull`"
+                return False, "Craft Conductor is installed in editable (development) mode; update it with `git pull`"
         except ValueError:
             pass
     return True, ""
@@ -162,13 +164,13 @@ def install(release: Release, runner=subprocess.run, http: HttpClient | None = N
     if frozen():
         return install_binary(release, Path(sys.executable), http or HttpClient())
     spec = f"git+https://github.com/{REPO}@{release.tag}"
-    log.info("installing mcsm %s", release.version)
+    log.info("installing Craft Conductor %s", release.version)
     proc = runner([sys.executable, "-m", "pip", "install", "--upgrade", "--disable-pip-version-check", spec],
                   capture_output=True, text=True)
     if proc.returncode != 0:
         tail = "\n".join((proc.stdout + proc.stderr).strip().splitlines()[-15:])
-        raise SelfUpdateError(f"pip could not install mcsm {release.version}:\n{tail}")
-    return f"installed mcsm {release.version}"
+        raise SelfUpdateError(f"pip could not install Craft Conductor {release.version}:\n{tail}")
+    return f"installed Craft Conductor {release.version}"
 
 
 def _expected_sha256(release: Release, name: str, http: HttpClient, workdir: Path) -> str:
@@ -188,7 +190,7 @@ def install_binary(release: Release, exe: Path, http: HttpClient) -> str:
     name = asset_name()
     if name not in release.assets:
         raise SelfUpdateError(f"this release has no download for your system ({name})")
-    log.info("downloading mcsm %s (%s)", release.version, name)
+    log.info("downloading Craft Conductor %s (%s)", release.version, name)
     try:
         with tempfile.TemporaryDirectory(dir=exe.parent, prefix=".mcsm-update-") as tmp:
             workdir = Path(tmp)
@@ -208,9 +210,9 @@ def install_binary(release: Release, exe: Path, http: HttpClient) -> str:
             else:
                 os.replace(new, exe)
     except PermissionError as e:
-        raise SelfUpdateError(f"no permission to replace {exe}; move mcsm somewhere you can write to, "
+        raise SelfUpdateError(f"no permission to replace {exe}; move Craft Conductor somewhere you can write to, "
                               f"or download the new version from {release.url}") from e
-    return f"installed mcsm {release.version}"
+    return f"installed Craft Conductor {release.version}"
 
 
 def old_binary(exe: Path) -> Path:

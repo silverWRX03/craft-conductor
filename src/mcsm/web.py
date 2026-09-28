@@ -228,7 +228,7 @@ class WebUI:
         auth = self.auth
         if not local and not auth.remote_ready and not auth.temporary:
             raise ApiError(403, "signing in from another device needs a strong password "
-                                f"({webauth.STRONG_RULES}); set one in mcsm settings on the server's own computer")
+                                f"({webauth.STRONG_RULES}); set one in Craft Conductor settings on the server's own computer")
         with self.lock:
             if len(self.failures) > 1000:  # forget old attempts, so the table can't grow without end
                 self.failures = {k: v for k, v in self.failures.items() if v and now - v[-1] < 300}
@@ -490,7 +490,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                 if path == "/api/auth/change":
                     raise ApiError(403, "a paired phone can't change the password; use the server's computer")
             elif self._token() in self.web.first_sign_in and path not in FIRST_SIGN_IN_OK:
-                raise ApiError(403, "choose your own password first (mcsm settings → Sign-in)")
+                raise ApiError(403, "choose your own password first (Craft Conductor settings → Sign-in)")
             if path == "/api/auth/change" and method == "POST":
                 b = self._body()
                 token = self.web.change(str(b.get("mode", "")), str(b.get("secret", "")), local)
@@ -856,7 +856,7 @@ class HubApi:
     def _sp(self):
         from . import singleplayer
         if self.hub.is_single:
-            raise ApiError(400, "single-player games need the full mcsm (not `mcsm run`)")
+            raise ApiError(400, "single-player games need the full Craft Conductor (not `mcsm run`)")
         return singleplayer
 
     def sp_list(self, q, b) -> dict:
@@ -957,14 +957,14 @@ class HubApi:
     def guide_status(self, q, b) -> dict:
         from . import guide
         if self.hub.is_single:
-            raise ApiError(400, "the guided setup needs the full mcsm (not `mcsm run`)")
+            raise ApiError(400, "the guided setup needs the full Craft Conductor (not `mcsm run`)")
         return guide.steps(self.hub)
 
     def guide_action(self, q, b) -> dict:
         """Start, skip or stop the guided setup, or tick a step mcsm can't see by itself."""
         from . import guide
         if self.hub.is_single:
-            raise ApiError(400, "the guided setup needs the full mcsm (not `mcsm run`)")
+            raise ApiError(400, "the guided setup needs the full Craft Conductor (not `mcsm run`)")
         action, step = str(b.get("action", "")), str(b.get("step", ""))
         g = guide.state(self.hub)
         if action == "start":
@@ -1058,7 +1058,7 @@ class HubApi:
     def set_upnp(self, q, b) -> dict:
         """Switch automatic port forwarding on or off (``refresh`` re-checks it)."""
         if self.hub.is_single:
-            raise ApiError(400, "automatic port forwarding needs the full mcsm (not `mcsm run`)")
+            raise ApiError(400, "automatic port forwarding needs the full Craft Conductor (not `mcsm run`)")
         enabled = b.get("enabled")
         if enabled is not None and not isinstance(enabled, bool):
             raise ApiError(400, "enabled must be true or false")
@@ -1266,7 +1266,7 @@ class HubApi:
             except (OSError, ssl.SSLError) as e:
                 raise ApiError(400, f"that certificate and key don't work together ({e})") from None
         self.hub.save_web(tls_cert=cert, tls_key=key)
-        log.info("HTTPS for the control panel %s (applies when mcsm restarts)", "set up" if cert else "turned off")
+        log.info("HTTPS for the control panel %s (applies when Craft Conductor restarts)", "set up" if cert else "turned off")
         return {"ok": True, "restart_needed": True}
 
     def pair_device(self, q, b) -> dict:
@@ -1277,7 +1277,7 @@ class HubApi:
         if not self.web.auth.remote_ready:
             raise ApiError(400, "first set a strong password (" + webauth.STRONG_RULES + ")")
         if not self.web.remote_on() or self.web.host in ("127.0.0.1", "localhost", "::1"):
-            raise ApiError(400, "turn on access from other devices first (and restart mcsm), so the phone can reach this computer")
+            raise ApiError(400, "turn on access from other devices first (and restart Craft Conductor), so the phone can reach this computer")
         host = str(b.get("host", ""))
         if host not in {a["host"] for a in self._addresses()}:
             raise ApiError(400, "pick one of the addresses listed")
@@ -1348,7 +1348,7 @@ class HubApi:
     def quit(self, q, b) -> dict:
         """Close mcsm (stopping every server), for when there's no window to close."""
         if self.hub.is_single:
-            raise ApiError(400, "this mcsm was started with `mcsm run`; stop it where it runs")
+            raise ApiError(400, "this Craft Conductor was started with `mcsm run`; stop it where it runs")
         log.info("quitting (asked from the web UI)")
         threading.Timer(0.5, self.hub.stop_requested.set).start()  # after this reply is sent
         return {"ok": True}
@@ -1399,7 +1399,7 @@ class HubApi:
             remoteinstall.launch(host, user, port, rented=info["rented"], tunnel=tunnel)
         except (remoteinstall.RemoteInstallError, OSError) as e:
             raise ApiError(400, str(e)) from None
-        log.info("opened an SSH window %s %s@%s", "to the control panel of" if tunnel else "to install mcsm on", user, host)
+        log.info("opened an SSH window %s %s@%s", "to the control panel of" if tunnel else "to install Craft Conductor on", user, host)
         return {**info, "ok": True}
 
     def stage(self, q, handler) -> dict:
@@ -1463,7 +1463,7 @@ class HubApi:
             raise ApiError(400, "first set a strong password (" + webauth.STRONG_RULES + "); "
                                 "PINs can't be used for access from other devices")
         self.hub.save_web(host="0.0.0.0" if enabled else "127.0.0.1")
-        log.info("network access to the control panel turned %s (applies when mcsm restarts)", "on" if enabled else "off")
+        log.info("network access to the control panel turned %s (applies when Craft Conductor restarts)", "on" if enabled else "off")
         return {"ok": True, "restart_needed": enabled != (self.web.host in ("0.0.0.0", "::"))}
 
     def accept_notice(self, q, b) -> dict:
@@ -1478,10 +1478,10 @@ class HubApi:
         if not info:
             raise ApiError(404, "no mcsm update is available")
         if not info.get("can_install"):
-            raise ApiError(400, info.get("reason") or "mcsm can't update itself here")
+            raise ApiError(400, info.get("reason") or "Craft Conductor can't update itself here")
         if b.get("version") != info["version"]:
             raise ApiError(409, "a different version is available now; reload the page")
-        self.hub.run_job(f"update mcsm to {info['version']}", self.hub.apply_self_update)
+        self.hub.run_job(f"update Craft Conductor to {info['version']}", self.hub.apply_self_update)
         return {"ok": True}
 
 
@@ -1916,7 +1916,7 @@ class Api:
                     dest.unlink(missing_ok=True)
                     return {"ok": True, "name": name, "managed": True, "already": True}
                 log.info("%s is on Modrinth but can't be added (%s); keeping it as a local file", name, e)
-        log.info("added %s as a local mod (mcsm won't update it)", name)
+        log.info("added %s as a local mod (Craft Conductor won't update it)", name)
         return {"ok": True, "name": name, "managed": False}
 
     def remove_mod(self, q, b) -> dict:
@@ -1941,7 +1941,7 @@ class Api:
         filename = q.get("filename", "")
         expected = {x["filename"]: x for x in (self.d.last_check or {}).get("manual", [])}
         if filename not in expected or Path(filename).name != filename:
-            raise ApiError(400, "that file isn't one of the manual downloads mcsm is waiting for")
+            raise ApiError(400, "that file isn't one of the manual downloads Craft Conductor is waiting for")
         length = int(handler.headers.get("Content-Length") or 0)
         if not 0 < length <= MAX_UPLOAD:
             raise ApiError(413, "file is empty or too large")
@@ -2022,7 +2022,7 @@ class Api:
         from . import modsets
         entry = b.get("set")
         if not isinstance(entry, dict):
-            raise ApiError(400, "choose a mod list file saved from mcsm")
+            raise ApiError(400, "choose a mod list file saved from Craft Conductor")
         entry = self._modset(modsets.add, entry)
         return {"ok": True, "message": f"loaded {entry['name']!r} ({len(entry['mods'])} mods)"}
 
@@ -2310,7 +2310,7 @@ class Api:
         if action == "eula":
             if b.get("accept") is not True:
                 raise ApiError(400, "accept the EULA first")
-            (self.m.server_dir / "eula.txt").write_text("# accepted in mcsm's Check my setup\neula=true\n")
+            (self.m.server_dir / "eula.txt").write_text("# accepted in Craft Conductor's Check my setup\neula=true\n")
             message = "EULA accepted"
         elif action == "java":
             major = self.m.lock.java_major or 8
@@ -2377,7 +2377,7 @@ class Api:
         elif kind == "java-auto":
             configmod.set_value(self.m.config.path, "java", "version", json.dumps("auto"))
             self.m.reload_config()
-            message = "mcsm picks the Java version Minecraft needs from the next start"
+            message = "Craft Conductor picks the Java version Minecraft needs from the next start"
         elif kind == "add-mod":
             try:
                 self.add_mod(q, {"source": "modrinth", "id": action["id"]})

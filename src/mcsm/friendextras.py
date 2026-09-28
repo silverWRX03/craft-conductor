@@ -66,7 +66,7 @@ class Store:
 
     def add(self, kind: str, project_id: str, slug: str, name: str) -> dict:
         if kind not in KINDS or not ID.fullmatch(project_id):
-            raise ExtrasError("that isn't something mcsm can add")
+            raise ExtrasError("that isn't something Craft Conductor can add")
         data = self.load()
         if any(i["id"] == project_id for i in data["items"]):
             raise ExtrasError(f"{name} is already added")

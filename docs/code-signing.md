@@ -1,6 +1,6 @@
 # Code signing policy
 
-mcsm's Windows downloads (`mcsm-windows-x64.exe` and the friends' `mcsm-join-windows-x64.exe`)
+Craft Conductor's Windows downloads (`craft-conductor-windows-x64.exe` and the friends' `craft-conductor-join-windows-x64.exe`)
 are to be code-signed, so Windows shows who made them instead of saying it "protected your PC".
 
 Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by
@@ -17,19 +17,19 @@ Foundation's certificate is for Windows).
 ## Team roles
 
 - **Committers and reviewers:** the repository's collaborators, see
-  [contributors](https://github.com/silverWRX03/mc-server-management/graphs/contributors).
+  [contributors](https://github.com/silverWRX03/craft-conductor/graphs/contributors).
   Every change reaches `main` through a pull request.
 - **Approvers:** the repository owner, [silverWRX03](https://github.com/silverWRX03), who starts
   each release. Everyone with those rights uses two-factor authentication on GitHub.
 
 ## Privacy
 
-mcsm doesn't collect or send any information about you or your computer to its authors. It
+Craft Conductor doesn't collect or send any information about you or your computer to its authors. It
 connects only to the services it needs for what you ask it to do: Mojang (Minecraft versions),
-the mod loaders' sites, Modrinth and CurseForge (mods), Adoptium (Java), GitHub (mcsm updates),
+the mod loaders' sites, Modrinth and CurseForge (mods), Adoptium (Java), GitHub (Craft Conductor updates),
 and, when you use those features, Discord, your friends' computers or a public-address lookup.
-See [What mcsm can and can't do](../src/mcsm/webui/manual.md#what-mcsm-can-and-cant-do) and
-*mcsm settings → About mcsm → Online services* in the app.
+See [What Craft Conductor can and can't do](../src/mcsm/webui/manual.md#what-mcsm-can-and-cant-do) and
+*Craft Conductor settings → About Craft Conductor → Online services* in the app.
 
 ## Setting it up (maintainers)
 
@@ -44,4 +44,4 @@ See [What mcsm can and can't do](../src/mcsm/webui/manual.md#what-mcsm-can-and-c
 
 From the next release on, the `release` workflow sends the Windows file to SignPath, waits for
 the signed file, checks it still runs, and publishes that (the checksums in `SHA256SUMS.txt`, which
-mcsm's updater verifies, are of the signed file). Without the variable, releases work as before.
+Craft Conductor's updater verifies, are of the signed file). Without the variable, releases work as before.

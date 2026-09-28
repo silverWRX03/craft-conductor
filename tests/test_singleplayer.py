@@ -86,7 +86,7 @@ def test_launchers_set_up_a_game_without_a_server(tmp_path, http):
     mr = launchers.build_mrpack(j, pack, tmp_path)
     with zipfile.ZipFile(mr) as z:
         assert "overrides/servers.dat" not in z.namelist()
-        assert json.loads(z.read("modrinth.index.json"))["summary"] == "Made by mcsm"
+        assert json.loads(z.read("modrinth.index.json"))["summary"] == "Made by Craft Conductor"
     # A server pack still needs its address.
     with pytest.raises(join.JoinError):
         join.validate_pack({**pack, "singleplayer": False})

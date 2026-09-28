@@ -214,7 +214,7 @@ def describe(auth: Auth) -> str:
     if auth.default:
         return f"{DEFAULT_PASSWORD}  (you'll be asked to choose your own)"
     if auth.temporary:
-        return "the one-time password shown when mcsm first started (you'll be asked to choose your own)"
+        return "the one-time password shown when Craft Conductor first started (you'll be asked to choose your own)"
     return ("the PIN you chose" if auth.mode == "pin" else "the password you chose") + \
         "  (forgot it? run `mcsm web-password --reset`)"
 

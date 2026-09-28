@@ -25,7 +25,7 @@ CAUSES = [
      {"kind": "port", "label": "Use a free port"}),
     (re.compile(r"UnsupportedClassVersionError|compiled by a more recent version of the Java Runtime|requires (?:at least )?Java \d+", re.I),
      "java", "The server needs a different Java", "The Minecraft version (or a mod) needs a newer Java than the one used.",
-     {"kind": "java-auto", "label": "Let mcsm pick the Java version"}),
+     {"kind": "java-auto", "label": "Let Craft Conductor pick the Java version"}),
     (re.compile(r"Failed to load level|Couldn't load (?:level|chunk)|Exception reading .*level\.dat|Chunk file at .* is in the wrong location|"
                 r"Failed to read level\.dat|DataFixer.*failed", re.I), "world", "The world looks damaged",
      "Minecraft couldn't read part of the world. Restoring the last backup made before this is the safest fix.",
@@ -61,7 +61,7 @@ def explain(lines: list[str], server_dir=None, mods=(), since: float | None = No
             if mod_id.lower() in SKIP:
                 continue
             return {**base, "cause": "missing", "title": f"A mod needs {name}, which isn't installed",
-                    "words": f"Add {name} (mcsm looks for it on Modrinth), or remove the mod that needs it.",
+                    "words": f"Add {name} (Craft Conductor looks for it on Modrinth), or remove the mod that needs it.",
                     "evidence": _line(text, m.start()),
                     "actions": [{"kind": "add-mod", "id": mod_id, "name": name, "label": f"Add {name}"}]}
     d = diagnose(lines, server_dir, mods, since=since)

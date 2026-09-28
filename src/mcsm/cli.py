@@ -211,7 +211,7 @@ def _print_decision(m: Manager, decision, changes) -> None:
         print("\nno installable combination found")
     unmanaged = m.unmanaged_jars()
     if unmanaged:
-        print(f"\nwarning: {len(unmanaged)} jar(s) in mods/ are not managed by mcsm and will not be updated:")
+        print(f"\nwarning: {len(unmanaged)} jar(s) in mods/ are not managed by Craft Conductor and will not be updated:")
         for name in unmanaged:
             print(f"  ! {name}")
 
@@ -262,7 +262,7 @@ def _run_daemon(d: Daemon, web: bool) -> int:
     code = d.run(web=web)
     if d.restart_requested:
         argv = selfupdate.restart_argv()
-        print("restarting mcsm on the new version...", flush=True)
+        print("restarting Craft Conductor on the new version...", flush=True)
         os.execv(argv[0], argv)
     return code
 
@@ -291,7 +291,7 @@ def _ask(question: str, default: str, choices: tuple[str, ...] | None = None) ->
 
 
 def _wizard(root: Path) -> bool:
-    print(f"\nWelcome to mcsm! Let's set up your Minecraft server in {root}\n"
+    print(f"\nWelcome to Craft Conductor! Let's set up your Minecraft server in {root}\n"
           "(Press Enter to take the suggestion in [brackets].)\n")
     loader = _ask("Mod loader: fabric, neoforge, forge, quilt, paper or vanilla", "fabric", configmod.LOADERS)
     minecraft = _ask("Minecraft version ('latest' = the newest one your mods support)", "latest")
@@ -313,7 +313,7 @@ def _wizard(root: Path) -> bool:
     print("\nDownloading and building your server. This can take a few minutes...\n")
     ns = argparse.Namespace(
         root=root, dir=root, loader=loader, minecraft=minecraft, mod=mods, optional_mod=[], curseforge=[],
-        memory=memory, java=None, port=25565, motd="A Minecraft server managed by mcsm", max_players=20,
+        memory=memory, java=None, port=25565, motd="A Minecraft server managed by Craft Conductor", max_players=20,
         difficulty="normal", gamemode="survival", seed=None, rcon=False, accept_eula=True,
         force=setupmod.is_pending(root), quiet=True)  # replace a placeholder left by `mcsm start`
     if cmd_create(ns) != 0:
@@ -389,7 +389,7 @@ def cmd_start(args) -> int:
     port = hub.web.port
     url = f"http://localhost:{port}/"
     if pid := running_hub(home):
-        print(f"mcsm is already running (pid {pid}): {url}")
+        print(f"Craft Conductor is already running (pid {pid}): {url}")
         if browser:
             webbrowser.open(url)
         return 0
@@ -400,7 +400,7 @@ def cmd_start(args) -> int:
         setupmod.mark_pending(home)
     servers = hub.discover()
     lines = [f"  Your servers:   {len(servers) or 'none yet - create one in the browser'}"
-             if servers else "  Welcome to mcsm! Create your first server in the browser.",
+             if servers else "  Welcome to Craft Conductor! Create your first server in the browser.",
              f"  Control panel:  {url}"]
     if hub.web.host in ("0.0.0.0", "::") and (ip := lan_ip()):
         lines.append(f"  From other devices on your network:  http://{ip}:{port}/")
@@ -417,7 +417,7 @@ def cmd_start(args) -> int:
     code = hub.run()
     if hub.restart_requested:
         argv = selfupdate.restart_argv()
-        print("restarting mcsm on the new version...", flush=True)
+        print("restarting Craft Conductor on the new version...", flush=True)
         os.execv(argv[0], argv)
     return code
 
@@ -536,7 +536,7 @@ def cmd_stop(args) -> int:
     if not (args.root / configmod.CONFIG_NAME).exists() or args.root.resolve() == home:
         if pid := running_hub(home):
             hub_stop_path(home).write_text("stop")
-            print(f"asked mcsm (pid {pid}) to stop its servers and exit")
+            print(f"asked Craft Conductor (pid {pid}) to stop its servers and exit")
             return 0
     m = _manager(args)
     pid = running_pid(m)
@@ -544,7 +544,7 @@ def cmd_stop(args) -> int:
         print("mcsm run is not running")
         return 1
     request_stop(m)
-    print(f"asked mcsm (pid {pid}) to stop the server")
+    print(f"asked Craft Conductor (pid {pid}) to stop the server")
     return 0
 
 
@@ -613,7 +613,7 @@ def cmd_java(args) -> int:
         if not changed:
             print("managed Java runtimes are up to date")
     elif action == "remove":
-        print(f"removed Java {args.major}" if jm.remove(args.major) else f"Java {args.major} is not managed by mcsm")
+        print(f"removed Java {args.major}" if jm.remove(args.major) else f"Java {args.major} is not managed by Craft Conductor")
     elif action == "use":
         value = args.version
         if value != "auto":
@@ -649,7 +649,7 @@ def cmd_player(args) -> int:
         try:
             rcon = Rcon.from_server_dir(m.server_dir).__enter__()
         except (RconError, OSError) as e:
-            print(f"the server is running but mcsm can't reach its console: {e}\n"
+            print(f"the server is running but Craft Conductor can't reach its console: {e}\n"
                   "enable RCON in server.properties, or use the web UI's Players page")
             return 1
     try:
@@ -691,7 +691,7 @@ def cmd_licenses(args) -> int:
         texts = licenses.full_texts()
         if not texts:
             print("full license texts are bundled only in the downloadable executables; see "
-                  "https://github.com/silverWRX03/mc-server-management/blob/main/THIRD_PARTY_NOTICES.md")
+                  "https://github.com/silverWRX03/craft-conductor/blob/main/THIRD_PARTY_NOTICES.md")
             return 0
         for name, text in texts:
             print(f"{'=' * 78}\n{name}\n{'=' * 78}\n{text}\n")
@@ -704,9 +704,9 @@ def cmd_licenses(args) -> int:
 def cmd_self_update(args) -> int:
     release = selfupdate.check(HttpClient())
     if release is None:
-        print(f"mcsm {__version__} is the latest version")
+        print(f"Craft Conductor {__version__} is the latest version")
         return 0
-    print(f"mcsm {release.version} is available (you have {__version__}): {release.url}")
+    print(f"Craft Conductor {release.version} is available (you have {__version__}): {release.url}")
     if release.notes:
         print("\n" + release.notes.strip()[:1500] + "\n")
     if args.check:
@@ -739,7 +739,7 @@ def _panel_service(args) -> int:
     try:
         if args.action == "install":
             if running_hub(home):
-                print("mcsm is already running; stop it first (Quit in the control panel, or Ctrl+C), then install the service")
+                print("Craft Conductor is already running; stop it first (Quit in the control panel, or Ctrl+C), then install the service")
                 return 1
             home.mkdir(parents=True, exist_ok=True)
             hub = Hub(home)
@@ -755,7 +755,7 @@ def _panel_service(args) -> int:
                 from .remoteinstall import LOCAL_PORT
                 print("\nThe control panel only listens on this server itself (not on the internet).")
                 print(f"On your own computer, reach it through SSH:  ssh -N -L {LOCAL_PORT}:127.0.0.1:{hub.web.port} <you>@<this server>")
-                print(f"then open http://localhost:{LOCAL_PORT}/  (mcsm's \"Open the control panel\" button does both)")
+                print(f"then open http://localhost:{LOCAL_PORT}/  (Craft Conductor's \"Open the control panel\" button does both)")
             else:
                 ip = lan_ip()
                 print(f"\ncontrol panel: http://{ip or '<this computer>'}:{hub.web.port}/  (open it on your own computer)")
@@ -784,7 +784,7 @@ def cmd_service(args) -> int:
     try:
         if args.action == "install":
             if running_pid(Manager(cfg)):
-                print("mcsm is already running this server; stop it first (`mcsm stop`), then install the service")
+                print("Craft Conductor is already running this server; stop it first (`mcsm stop`), then install the service")
                 return 1
             for line in service.install(cfg.root):
                 print(line)
@@ -900,7 +900,7 @@ def _notice_ok(args) -> bool:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="mcsm", description="A forever Minecraft server: runs your modded server "
                                 "and upgrades it to the newest release once your mods support it.")
-    p.add_argument("--version", action="version", version=f"mcsm {__version__}")
+    p.add_argument("--version", action="version", version=f"Craft Conductor {__version__}")
     p.add_argument("-C", "--root", type=Path, default=Path("."), help="directory containing mcsm.toml")
     p.add_argument("-v", "--verbose", action="store_true")
     p.add_argument("--accept-notice", action="store_true",
@@ -915,7 +915,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--web-port", type=int, help="web UI port (default 8765)")
     s.set_defaults(fn=cmd_start)
 
-    s = sub.add_parser("join", help="set up this computer's Minecraft to play on a friend's mcsm server")
+    s = sub.add_parser("join", help="set up this computer's Minecraft to play on a friend's Craft Conductor server")
     s.add_argument("invite", nargs="?", help="the invite link or code (mcsm-...)")
     s.add_argument("-y", "--yes", action="store_true", help="don't ask before setting things up")
     s.add_argument("--no-launcher", action="store_true", help="don't open the Minecraft Launcher afterwards")
@@ -1024,20 +1024,20 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--reason", help="shown to the player when kicked or banned")
     s.set_defaults(fn=cmd_player)
 
-    s = sub.add_parser("notice", help="show the first-run notice (what mcsm does and doesn't do)")
+    s = sub.add_parser("notice", help="show the first-run notice (what Craft Conductor does and doesn't do)")
     s.add_argument("--accept", action="store_true", help="accept it (for scripts and services)")
     s.set_defaults(fn=cmd_notice)
 
-    s = sub.add_parser("licenses", help="list the open-source licenses of everything mcsm uses")
+    s = sub.add_parser("licenses", help="list the open-source licenses of everything Craft Conductor uses")
     s.add_argument("--full", action="store_true", help="print the full license texts bundled in the executable")
     s.set_defaults(fn=cmd_licenses)
 
-    s = sub.add_parser("self-update", help="update mcsm itself to the newest release")
+    s = sub.add_parser("self-update", help="update Craft Conductor itself to the newest release")
     s.add_argument("--check", action="store_true", help="only check, don't install")
     s.add_argument("-y", "--yes", action="store_true")
     s.set_defaults(fn=cmd_self_update)
 
-    s = sub.add_parser("service", help="Linux: run mcsm in the background at boot with systemd")
+    s = sub.add_parser("service", help="Linux: run Craft Conductor in the background at boot with systemd")
     s.add_argument("action", choices=["install", "uninstall", "status"])
     s.add_argument("--local-only", action="store_true",
                    help="with --panel: keep the control panel on this machine (127.0.0.1), for a rented server "
@@ -1072,8 +1072,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return _entry(argv)
     except Exception as e:  # pragma: no cover - last resort, so a windowless failure isn't silent
-        logging.getLogger(__name__).exception("mcsm stopped unexpectedly")
-        desktop.show_error(f"mcsm stopped unexpectedly: {e}\n\nDetails are in {desktop.log_path()}")
+        logging.getLogger(__name__).exception("Craft Conductor stopped unexpectedly")
+        desktop.show_error(f"Craft Conductor stopped unexpectedly: {e}\n\nDetails are in {desktop.log_path()}")
         return 1
 
 

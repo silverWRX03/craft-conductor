@@ -182,7 +182,7 @@ def test_the_manual_covers_every_page():
     app, manual = (webui / "app.js").read_text(encoding="utf-8"), (webui / "manual.md").read_text(encoding="utf-8")
     pages = re.findall(r'\["\w+", "([^"]+)"\]', re.search(r"const SERVER_VIEWS = \[(.*?)\];", app, re.S).group(1))
     headings = set(re.findall(r"^##+ (.+)$", manual, re.M))
-    missing = [p for p in pages + ["Your servers", "mcsm settings", "Remote access and phones"]
+    missing = [p for p in pages + ["Your servers", "Craft Conductor settings", "Remote access and phones"]
                if not any(h.lower().startswith(p.lower()) for h in headings)]
     assert not missing, f"the user manual (src/mcsm/webui/manual.md) has no section for: {missing}"
 

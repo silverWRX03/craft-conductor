@@ -258,7 +258,7 @@ def build_mrpack(joiner: "Joiner", pack: dict, out_dir: Path) -> Path:
         _pack_settings(z, pack)
         z.writestr("modrinth.index.json", json.dumps({
             "formatVersion": 1, "game": "minecraft", "versionId": str(pack.get("updated") or "1"),
-            "name": pack["name"], "summary": f"Plays on {pack['address']} (made by mcsm)" if pack["address"] else "Made by mcsm",
+            "name": pack["name"], "summary": f"Plays on {pack['address']} (made by Craft Conductor)" if pack["address"] else "Made by Craft Conductor",
             "files": files, "dependencies": deps}, indent=2))
     path = _unique(out_dir / f"{_safe_name(pack['name'])}.mrpack")
     path.write_bytes(buf.getvalue())

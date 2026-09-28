@@ -20,7 +20,7 @@ from . import __version__
 
 log = logging.getLogger(__name__)
 
-USER_AGENT = f"silverWRX03/mc-server-management/{__version__} (+https://github.com/silverWRX03/mc-server-management)"
+USER_AGENT = f"silverWRX03/craft-conductor/{__version__} (+https://github.com/silverWRX03/craft-conductor)"
 
 
 class HttpError(Exception):
@@ -156,7 +156,7 @@ class HttpClient:
             except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
                 if isinstance(getattr(e, "reason", e), PinMismatch):  # never retried or ignored
                     raise HttpError(req.full_url, None, "the server's security certificate doesn't match the "
-                                                        "invite, so mcsm didn't connect. Ask for a new invite; if "
+                                                        "invite, so Craft Conductor didn't connect. Ask for a new invite; if "
                                                         "you get the same error, someone may be interfering") from e
                 last = e
             delay = 2**attempt
