@@ -94,22 +94,25 @@ Next:
         players' bases, and pins on the web map (BlueMap and Dynmap show their own).
 13. [x] Limits per server (memory, CPU) and a warning when too many run at once. Also warnings
         about the computer (disk space, CPU, memory) on the page and on phones.
-14. [ ] Other tunnel services next to playit.gg (Cloudflare Tunnel, Tailscale Funnel).
-15. [x] Purpur servers.
-16. [ ] Scripting hooks (a script on start, stop, a player joining, before an update) and API tokens.
-17. [x] **Mod conflict memory:** mod combinations that failed together in "Find which mods break
+14. [ ] **World generation preview loads the mods' dependencies:** when mods are picked for the
+        map preview (New server → World generation & map preview), the mods they require are
+        installed in the preview's throwaway server too, so the map matches the real server.
+15. [ ] Other tunnel services next to playit.gg (Cloudflare Tunnel, Tailscale Funnel).
+16. [x] Purpur servers.
+17. [ ] Scripting hooks (a script on start, stop, a player joining, before an update) and API tokens.
+18. [x] **Mod conflict memory:** mod combinations that failed together in "Find which mods break
         it", shared anonymously if you opt in, so mcsm can warn others before they install them
         (needs somewhere to keep the shared list). Done: a Cloudflare Worker (relay/); it's live
         once its address is in conflicts.RELAY.
-18. [ ] Proxy networks (Velocity) with several servers behind them.
-19. [ ] Translated user manual for the most used languages; a way for people to fix translations.
-20. [ ] **Servers on hosting sites:** look into controlling servers that run elsewhere. Hosting
+19. [ ] Proxy networks (Velocity) with several servers behind them.
+20. [ ] Translated user manual for the most used languages; a way for people to fix translations.
+21. [ ] **Servers on hosting sites:** look into controlling servers that run elsewhere. Hosting
         panels with an official API (Pterodactyl, used by many paid hosts) are the realistic
         target. Free hosts (Aternos, Minehut, Minefort) only if they have an official API and their
         terms allow it: Aternos's terms don't allow automating its site.
-21. [x] **Fingerprint or face sign-in** on the phone app (passkeys, WebAuthn), instead of typing
+22. [x] **Fingerprint or face sign-in** on the phone app (passkeys, WebAuthn), instead of typing
         the password.
-22. [x] **Sounds:** subtle cues, the same in the web page and the phone app (made in the browser,
+23. [x] **Sounds:** subtle cues, the same in the web page and the phone app (made in the browser,
         no sound files; our own sounds, Minecraft-like but not Mojang's): a tap for ordinary buttons,
         rising notes for Start/Save/Install, a falling note for Stop/Delete, a soft thud when
         something fails, and chimes while the page is open (a server is up, a friend asks to join).
@@ -118,12 +121,12 @@ Next:
         Each device keeps its own settings, like Display. Never for moving with the keyboard, no
         stacking on quick presses, and never the only sign something happened. Check the iPhone
         silent switch on real phones.
-23. [ ] **One dashboard for several computers** (low priority): link other computers' Craft
+24. [ ] **One dashboard for several computers** (low priority): link other computers' Craft
         Conductors to one (paired like a phone, with a key they can revoke, limited to Helper or
         Viewer if wanted), list every server on every linked computer on one Servers page, and
         get all their warnings and phone notifications in one place. Easier after 16 (API
         tokens); shares the "servers on another machine" groundwork with 20.
-24. [ ] **Friends' mods land on the right side:** in server setup's "Play with friends" part,
+25. [ ] **Friends' mods land on the right side:** in server setup's "Play with friends" part,
         a mod picked for players that runs on both sides (client and server) is added to the
         server too, with the mods it requires. When a friend sets up their own copy and opens
         Download mods (Modrinth), they only see client-side-only mods.
@@ -136,7 +139,20 @@ all of them: manual (and wiki screenshots when a screen changes), CHANGELOG, tra
 a security then efficiency review, then PR, CI, merge, release. Small items are grouped into one
 release to pay those costs once.
 
-**14. Other tunnel services (Cloudflare Tunnel, Tailscale Funnel)** — medium.
+**14. World generation preview loads the mods' dependencies** — small. Next.
+- The preview (`preview.py`, `Preview`; started by `start_preview` in `web.py`) builds a
+  throwaway server from the mods the page sends: `ModSpec`s written to its `mcsm.toml`, plus
+  Chunky and Fabric API. Check first whether the planner already pulls in each mod's required
+  dependencies there (the real server's update does) or whether the page only sends the
+  world-generation mods and their dependencies get dropped.
+- Fix: resolve required dependencies (Modrinth `dependency_type: required`) for every picked mod
+  before the preview installs, the same way New server does (it already selects a mod's
+  dependencies with it), and show them in the preview's "Downloading…" step. The preview's
+  cache key (`_key`) should include them, so a different dependency set makes a new server.
+- Tests: a picked mod with a required dependency ends up in the preview server's mods; the
+  error message names a dependency that has no build for that Minecraft version.
+
+**15. Other tunnel services (Cloudflare Tunnel, Tailscale Funnel)** — medium.
 - Today: playit.gg only (`tunnel.py`: parse an address, detect the agent running, show status on
   the Dashboard; Settings → per-server tunnel address; hub share tunnel for friends' downloads).
 - Minecraft is TCP. Cloudflare Tunnel doesn't carry raw TCP for players without their own
@@ -149,7 +165,7 @@ release to pay those costs once.
   Anything on the internet requires the strong password (remote_ready) and keeps passkeys and
   rate limits; add the host to `[web] allowed_hosts` automatically.
 
-**16. Scripting hooks and API tokens** — medium.
+**17. Scripting hooks and API tokens** — medium.
 - Hooks: per server in `mcsm.toml` `[hooks]` (on_start, on_stop, on_join, on_leave, before_update,
   after_update, on_crash) = a script path inside the server folder (no shell strings; run with
   `subprocess.run([path], env=...)`, the event as environment variables such as MCSM_EVENT,
@@ -159,9 +175,9 @@ release to pay those costs once.
 - API tokens: Craft Conductor settings → API tokens: make/revoke named tokens with a role
   (viewer/helper/owner-lite), stored hashed like paired devices (`webauth.Devices` pattern), sent
   as `Authorization: Bearer`. Same `device_allowed` rules; rate limit; list last used. Document
-  the API (a Power users wiki page). Needed first by 23.
+  the API (a Power users wiki page). Needed first by 24.
 
-**18. Proxy networks (Velocity)** — large.
+**19. Proxy networks (Velocity)** — large.
 - A new server type "Velocity proxy" (loader: Velocity from PaperMC's Fill API, like
   `loaders/paper.py`), with backend servers chosen from the Servers list; write
   `velocity.toml` (servers, try order, forced hosts) and the modern forwarding secret; set the
@@ -169,14 +185,14 @@ release to pay those costs once.
   Ports: backends on localhost only. Start order: backends then proxy. Players page shows the
   whole network. Keep the forwarding secret out of logs and the diagnostic report.
 
-**19. Translated user manual** — large (mostly text).
+**20. Translated user manual** — large (mostly text).
 - `manual.md` split by `## ` sections already (wiki). Add `manual.<lang>.md` for es, pt, fr, de,
   hi, zh, vi, ar, ko (machine-made, marked as such), served by language like `i18n/*.json`; the
   in-app manual picks the page language; the wiki gets per-language pages
   (`packaging/wiki.py`). "A way for people to fix translations": a "Suggest a better
   translation" link to a GitHub issue form with the section and language filled in.
 
-**20. Servers on hosting sites (Pterodactyl)** — large.
+**21. Servers on hosting sites (Pterodactyl)** — large.
 - Pterodactyl's client API (`/api/client`, a user API key): list servers, power (start/stop/
   restart), console via its websocket, files for mods. Add "a server on a hosting panel" as a
   server kind whose actions go through that API instead of a local process; many pages
@@ -184,8 +200,8 @@ release to pay those costs once.
   (hub file, 0600), never in logs or reports. Free hosts (Aternos etc.) only with an official
   API and terms that allow it (Aternos's don't).
 
-**23. One dashboard for several computers** — large, low priority. After 16.
-- Link: on the other computer, make an API token (16) or a pairing code; the main computer
+**24. One dashboard for several computers** — large, low priority. After 17.
+- Link: on the other computer, make an API token (17) or a pairing code; the main computer
   stores it (hashed on the other side, secret on this side) with that computer's address (the
   secure Tailscale one preferred; HTTPS required off the home network).
 - The main panel lists the other computer's servers (merged into the Servers page, with the
@@ -193,7 +209,7 @@ release to pay those costs once.
   applies its own role rules. Health warnings and phone notifications from linked computers are
   forwarded to the main one. Unlink = revoke the token on either side.
 
-**24. Friends' mods land on the right side** — small/medium.
+**25. Friends' mods land on the right side** — small/medium.
 - Today: the mod browser already knows each Modrinth mod's sides (`browse.py`: `side`
   "server"/"client" picks mods that run there; `env` "only"/"both"/"" narrows further;
   `environment()` gives "server", "client" or "both" per result), and friends' mods live in the
@@ -212,8 +228,8 @@ release to pay those costs once.
 
 **Smaller leftovers**
 - Map landmarks (12): players' bases, and pins on the web map (BlueMap/Dynmap markers).
-- Mod conflict memory (17): put the relay address in `conflicts.RELAY` once it's set up (see
+- Mod conflict memory (18): put the relay address in `conflicts.RELAY` once it's set up (see
   For you), and release.
-- Sounds (22): check the iPhone silent switch on a real phone.
+- Sounds (23): check the iPhone silent switch on a real phone.
 - Store phone app: only if the installable web app falls short.
 
