@@ -97,6 +97,10 @@ Next:
 14. [ ] **World generation preview loads the mods' dependencies:** when mods are picked for the
         map preview (New server → World generation & map preview), the mods they require are
         installed in the preview's throwaway server too, so the map matches the real server.
+        Investigate first: a preview with Terralith, Lithostitched, Cristel Lib and Towns and
+        Towers ticked failed with "the world has no region files to draw: the server didn't save
+        any land", while the footer said "made with all 2 of the server's mods" (0.20.0, Fabric,
+        seed 43, 512 × 512, structures on).
 15. [ ] Other tunnel services next to playit.gg (Cloudflare Tunnel, Tailscale Funnel).
 16. [x] Purpur servers.
 17. [ ] Scripting hooks (a script on start, stop, a player joining, before an update) and API tokens.
@@ -130,6 +134,9 @@ Next:
         a mod picked for players that runs on both sides (client and server) is added to the
         server too, with the mods it requires. When a friend sets up their own copy and opens
         Download mods (Modrinth), they only see client-side-only mods.
+26. [ ] **Investigate: Windows Firewall exceptions alongside UPnP:** when Router (UPnP) opens the
+        ports on the router, also let them through Windows Firewall, so friends can connect
+        without Windows' own prompt being missed or answered "Cancel".
 
 ## Plans for the items left (details to start from)
 
@@ -151,6 +158,15 @@ release to pay those costs once.
   cache key (`_key`) should include them, so a different dependency set makes a new server.
 - Tests: a picked mod with a required dependency ends up in the preview server's mods; the
   error message names a dependency that has no build for that Minecraft version.
+- The reported failure (investigate first): Terralith + Lithostitched + Cristel Lib + Towns and
+  Towers ticked, footer "The map is made with all 2 of the server's mods", result "the world has
+  no region files to draw: the server didn't save any land". Questions: why the footer counts 2
+  (the page's `worldgen` list vs the mods sent; `start_preview` takes `b["mods"]`); whether the
+  preview server started at all or crashed on a missing dependency (Towns and Towers needs
+  Cristel Lib; others need Lithostitched); what its log says (the preview keeps its server under
+  the hub's state folder: read its `logs/latest.log`); and whether "no region files" should
+  instead say the server crashed and why (surface the preview server's crash reason, with
+  `diagnose` naming the mod, like a real start does).
 
 **15. Other tunnel services (Cloudflare Tunnel, Tailscale Funnel)** — medium.
 - Today: playit.gg only (`tunnel.py`: parse an address, detect the agent running, show status on
@@ -232,4 +248,17 @@ release to pay those costs once.
   For you), and release.
 - Sounds (23): check the iPhone silent switch on a real phone.
 - Store phone app: only if the installable web app falls short.
+
+**26. Investigate: Windows Firewall exceptions alongside UPnP** — small/medium.
+- Today: `doctor.py` only explains the firewall (Windows asks the first time Java accepts
+  connections; "Allow an app through firewall → Java"); `upnp.py` opens router ports only.
+- Look into: a "Let it through Windows Firewall" action (in Router and in Check my setup) that
+  adds inbound rules for exactly Craft Conductor's ports (each server's Minecraft TCP port, the
+  friends' download port, Geyser's UDP port) with `netsh advfirewall firewall add rule
+  name="Craft Conductor <port>" dir=in action=allow protocol=TCP localport=<port>
+  profile=private`, which needs administrator rights: one UAC prompt (ShellExecute "runas" on
+  netsh), never a silent change. Remove the rules when UPnP is switched off or the port changes.
+  Check whether a rule already exists (`netsh advfirewall firewall show rule name=...`), prefer
+  the Private profile (public only if the user chooses), and never open anything else.
+  macOS and Linux: explain only (macOS asks per app; Linux firewalls vary: ufw/firewalld hints).
 
