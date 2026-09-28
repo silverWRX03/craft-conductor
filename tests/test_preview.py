@@ -330,3 +330,22 @@ def test_the_seed_gallery(hub_env, modrinth, monkeypatch):
     wait_for(lambda: c.get(f"/api/hub/preview/gallery?id={r['id']}")[1]["state"] != "running", timeout=60)
     g = c.get(f"/api/hub/preview/gallery?id={r['id']}")[1]
     assert g["state"] == "cancelled" and len(g["maps"]) <= 1
+
+
+def test_landmarks_are_found_in_the_world(tmp_path):
+    world = tmp_path / "world"
+    chunks = {(cx, cz): chunk(cx, cz) for cx in range(-2, 2) for cz in range(-2, 2)}
+    chunks[(1, 1)]["structures"] = {"starts": {
+        "minecraft:village_plains": {"id": "minecraft:village_plains", "ChunkX": 1, "ChunkZ": 1,
+                                     "Children": [{"id": "minecraft:jigsaw", "BB": ("I", [20, 60, 22, 30, 70, 28])}]},
+        "minecraft:mineshaft": {"id": "minecraft:mineshaft", "ChunkX": 1, "ChunkZ": 1, "Children": []},  # (underground: left out)
+        "minecraft:igloo": {"id": "INVALID"}}}
+    chunks[(-2, -2)]["structures"] = {"starts": {
+        "towns:castle": {"id": "towns:big_castle", "ChunkX": -2, "ChunkZ": -2}}}  # a mod's: no box, the chunk's middle
+    write_world(world, chunks, spawn=(8, 8))
+    image, meta = preview.render(world, (0, 0), 32, (8, 8))
+    marks = {(m["kind"], m["name"], m["x"], m["z"]) for m in meta["landmarks"]}
+    assert marks == {("village", "Village", 25, 25), ("big_castle", "Big castle", -24, -24)}
+    assert preview.Surfaces(world).landmarks(0, 0, 32, 32)[0]["symbol"] == "🏠"
+    assert preview.landmark_kind("minecraft:ocean_ruin_cold")[1] == "Ocean ruins"
+    assert preview.landmark_kind("minecraft:something_new") is None

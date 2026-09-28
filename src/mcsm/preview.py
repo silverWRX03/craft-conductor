@@ -361,6 +361,58 @@ def chunk_surface(root: dict, stats=None) -> Surface | None:
     return out
 
 
+# Landmarks: the structures Minecraft placed (from each chunk's "structures" → "starts"), with a
+# name and a symbol for the map. Underground or countless ones (mineshafts, buried treasure) are
+# left out; a mod's own structures show with their name.
+LANDMARKS = {
+    "village": ("Village", "🏠"), "pillager_outpost": ("Pillager outpost", "⚔"), "mansion": ("Woodland mansion", "🏰"),
+    "monument": ("Ocean monument", "🔱"), "desert_pyramid": ("Desert temple", "🔺"), "jungle_pyramid": ("Jungle temple", "🌿"),
+    "igloo": ("Igloo", "❄"), "swamp_hut": ("Witch hut", "🧹"), "shipwreck": ("Shipwreck", "⚓"), "ocean_ruin": ("Ocean ruins", "🏛"),
+    "ruined_portal": ("Ruined portal", "🌀"), "stronghold": ("Stronghold", "👁"), "ancient_city": ("Ancient city", "🕯"),
+    "trail_ruins": ("Trail ruins", "🏺"), "trial_chambers": ("Trial chambers", "🗝"),
+}
+HIDDEN_LANDMARKS = ("mineshaft", "buried_treasure", "nether_fossil", "fortress", "bastion", "end_city")
+MAX_LANDMARKS = 500
+
+
+def landmark_kind(structure: str) -> tuple[str, str, str] | None:
+    """(kind, name, symbol) for a structure id like minecraft:village_plains; None to leave out."""
+    namespace, _, path = structure.partition(":") if ":" in structure else ("minecraft", "", structure)
+    if any(path.startswith(x) for x in HIDDEN_LANDMARKS):
+        return None
+    for kind, (name, symbol) in LANDMARKS.items():
+        if path == kind or path.startswith(kind + "_"):
+            return kind, name, symbol
+    if namespace == "minecraft":
+        return None  # (something new or unusual: not guessed at)
+    return path, path.replace("_", " ").replace("/", " ").strip().capitalize()[:40], "📍"
+
+
+def chunk_landmarks(root: dict) -> list[dict]:
+    """The structures that start in this chunk: [{kind, name, symbol, x, z}]."""
+    starts = (root.get("structures") or {}).get("starts") if isinstance(root.get("structures"), dict) else None
+    out = []
+    for key, start in (starts or {}).items() if isinstance(starts, dict) else []:
+        if not isinstance(start, dict) or str(start.get("id", "INVALID")) == "INVALID":
+            continue
+        what = landmark_kind(str(start.get("id") or key))
+        if what is None:
+            continue
+        x = z = None
+        for child in start.get("Children") or []:
+            bb = child.get("BB") if isinstance(child, dict) else None
+            if isinstance(bb, (tuple, list)) and len(bb) == 6:
+                x, z = (bb[0] + bb[3]) // 2, (bb[2] + bb[5]) // 2
+                break
+        if x is None:
+            try:
+                x, z = int(start["ChunkX"]) * 16 + 8, int(start["ChunkZ"]) * 16 + 8
+            except (KeyError, TypeError, ValueError):
+                continue
+        out.append({"kind": what[0], "name": what[1], "symbol": what[2], "x": int(x), "z": int(z)})
+    return out
+
+
 class Surfaces:
     """The ground of a world's chunks, read from its region files once and kept until a file
     changes (the server can add land while the map is open). Safe to use from several threads."""
@@ -368,6 +420,7 @@ class Surfaces:
     def __init__(self, world: Path):
         self.world = world
         self.regions: dict[tuple[int, int], tuple[tuple[int, int], dict]] = {}
+        self.marks: dict[tuple[int, int], list[dict]] = {}  # each region's landmarks (read with its ground)
         self.stats = Counter()
         self.problems: list[str] = []
         self.lock = threading.Lock()
@@ -383,17 +436,38 @@ class Surfaces:
             cached = self.regions.get((rx, rz))
             if cached and cached[0] == stamp:
                 return cached[1]
-            chunks = {}
+            chunks, marks = {}, []
             for cx, cz, root in region_chunks(path, self.problems):
                 surface = chunk_surface(root, self.stats)
                 if surface is not None:
                     chunks[(cx, cz)] = surface
+                try:
+                    marks += chunk_landmarks(root)
+                except (AttributeError, TypeError, ValueError):
+                    pass  # (an odd chunk: no landmarks from it)
             del self.problems[20:]
             self.regions[(rx, rz)] = (stamp, chunks)
+            self.marks[(rx, rz)] = marks
             return chunks
 
     def chunk(self, cx: int, cz: int) -> Surface | None:
         return self.region(cx >> 5, cz >> 5).get((cx, cz))
+
+    def landmarks(self, x0: int | None = None, z0: int | None = None, x1: int | None = None, z1: int | None = None) -> list[dict]:
+        """The landmarks in [x0, x1) × [z0, z1) (all the world's without bounds), nearest the middle first."""
+        folder = self.world / "region"
+        keys = [(int(m.group(1)), int(m.group(2))) for p in (folder.glob("r.*.mca") if folder.is_dir() else [])
+                if (m := re.fullmatch(r"r\.(-?\d+)\.(-?\d+)\.mca", p.name))]
+        if x0 is not None:
+            keys = [(rx, rz) for rx, rz in keys if rx * 512 < x1 and (rx + 1) * 512 > x0 and rz * 512 < z1 and (rz + 1) * 512 > z0]
+        out = []
+        for rx, rz in keys:
+            self.region(rx, rz)
+            out += [m for m in self.marks.get((rx, rz), [])
+                    if x0 is None or (x0 <= m["x"] < x1 and z0 <= m["z"] < z1)]
+        mx, mz = ((x0 + x1) / 2, (z0 + z1) / 2) if x0 is not None else (0, 0)
+        out.sort(key=lambda m: (m["x"] - mx) ** 2 + (m["z"] - mz) ** 2)
+        return out[:MAX_LANDMARKS]
 
 
 def draw(surfaces: Surfaces, x0: int, z0: int, size: int, scale: int = 1) -> tuple[list, int]:
@@ -457,7 +531,8 @@ def render(world: Path, center: tuple[int, int], radius: int, spawn: tuple[int, 
                            + (f"; {surfaces.problems[0]}" if surfaces.problems else "") + ")")
     log.info("map preview: drew %d pixel(s) around %s (spawn %s)", painted, center, spawn)
     meta = {"x": x0, "z": z0, "size": size, "spawn": {"x": spawn[0], "z": spawn[1]} if spawn else None,
-            "biomes": {"names": biome_names, "chunk_x": cx0, "chunk_z": cz0, "grid": biome_grid}}
+            "biomes": {"names": biome_names, "chunk_x": cx0, "chunk_z": cz0, "grid": biome_grid},
+            "landmarks": surfaces.landmarks(x0, z0, x0 + size, z0 + size)}
     return png(pixels), meta
 
 
@@ -532,10 +607,19 @@ class MapSession:
 
     def to_dict(self) -> dict:
         return {"id": self.id, "version": self.version, "areas": self.areas, "spawn": self.spawn,
+                "landmarks": self.landmarks(),
                 "rate": self.rate, "running": bool(self.proc and self.proc.running), "job": self.job,
                 "regions": sorted([int(m.group(1)), int(m.group(2))] for p in (self.world / "region").glob("r.*.mca")
                                   if (m := re.fullmatch(r"r\.(-?\d+)\.(-?\d+)\.mca", p.name)))
                 if (self.world / "region").is_dir() else []}
+
+    def landmarks(self) -> list[dict]:
+        """The world's landmarks, read again only when land was added (not while it's being made:
+        the page asks every couple of seconds then, and the region files keep changing)."""
+        cached = getattr(self, "_marks", None)
+        if cached is None or cached[0] != self.version:
+            self._marks = (self.version, self.surfaces.landmarks())
+        return self._marks[1]
 
     def generate(self, center: tuple[int, int] | None, radius: int, report=None) -> None:
         """Make the land in a square (``center`` None: around the spawn), waiting until it's saved.

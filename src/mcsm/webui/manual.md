@@ -77,6 +77,7 @@ The mods in these run on the server only, so friends join with plain Minecraft. 
 
 - **World generation mods** lists Modrinth's world-generation mods (or plugins) that work with your server type and Minecraft version. Ticking one adds it to the server's mods (with what it needs); unticking removes it.
 - Type a **seed** (or press 🎲 for a random one), pick the world type and a map size, and press **Preview map**. Craft Conductor makes the world in a private server on this computer (nobody can join it), with all the mods you've picked and the Chunky mod to generate the area, then draws it from above: north is up, one pixel is one block, and ★ is the spawn point. Point at the map to see the coordinates and the biome there.
+- **Landmarks:** villages, pillager outposts, temples, woodland mansions, ocean monuments, igloos, witch huts, shipwrecks, ruined portals, ancient cities, trail ruins, trial chambers and the like are marked on the map with a symbol (point at one for its name and coordinates), including a world-generation mod's own structures. The **Landmarks** list under the map counts them and gives each one's coordinates; on the map you can move around, pick one to go there. **Show them on the map** hides or shows the symbols. Mineshafts and buried treasure (underground, and everywhere) aren't shown; strongholds are.
 - **Move around the map:** drag it to move, and scroll (or press **+** and **−**) to zoom, from 4 pixels a block out to 32 blocks a pixel. **⌖ Back to spawn** brings you back. Where the land hasn't been made yet the map is checkered; press **Make this area** and the private server makes the land in view (it asks first when that takes more than a minute), or tick **Keep making the map as I move** and it makes the land as you go. The private server stays on while you explore, and stops by itself after five minutes of not being needed.
 - It takes a minute or two the first time (Minecraft and the mods are downloaded) and less for the next seeds with the same mods. Bigger maps and heavy mods take longer; **Stop** cancels it. You can close the panel and carry on: the map is there when you come back.
 - **Earlier maps** keeps the seeds you've looked at; **Use this seed** makes one the server's seed.
@@ -158,6 +159,8 @@ Players online and players who have joined before, with **Op/De-op**, **Kick**, 
 
 **Asking to join:** when the whitelist is on, friends setting up with your invite can send their Minecraft name. They appear at the top of the Players page (and the Dashboard says so): **Allow** adds them to the whitelist, **Ignore** drops the request. A browser notification can tell you too (Craft Conductor settings → Notifications). Only someone with your invite can ask, and requests are limited.
 
+**Player activity** (at the bottom of the Players page): who played over the **Last 7, 30 or 90 days**, with their time played, visits and when they were last seen, and a grid of the week, one square per hour, darker when more people are usually on (your computer's time). After a few days of play it names the **quietest time** (usually nobody on, preferring the early morning) and the busiest, and **Restart every day at this time** makes that the scheduled restart (Settings → Schedule). Craft Conductor notes each visit as players join and leave (in `.mcsm/activity.jsonl`, kept for 90 days); nothing is sent anywhere.
+
 ## Mods
 
 Installed mods with their versions: **Download mods** (the mod browser), **Local files**, mark a mod required or optional, **Remove** it (with the mods it needed, if nothing else needs them), and **Mod config files** to edit a mod's settings in the page (with colours for TOML, JSON, YAML and more). **Test these mods** checks a set of mods in a throwaway server, so your world is never touched; if they don't start together, **Find the culprits** adds them back a group at a time until it knows which ones clash. Changes apply at the next restart.
@@ -201,6 +204,8 @@ The server's version and upgrade choices, memory (with Aikar's flags above 16 GB
 **Schedule:** restart the server and make backups at set times: **Every day at…**, **Every week on…**, **Every few hours** (backups), or **Custom (cron)** for anything else (five parts: minute, hour, day of the month, month, day of the week; for example `30 5 * * 1-5` is 5:30 on weekdays). Times are this computer's; the next run is shown. A scheduled restart gives players the in-game countdown first, and **Skip a scheduled restart while players are online** leaves them be. The same settings are `[schedule]` in `mcsm.toml`.
 
 **Backup copies:** see Backups.
+
+**Web map:** a live map of the world that you and your friends open in a browser. **Add BlueMap** (3D, looks like the game; it needs more disk space and a while to draw the first time) or **Add Dynmap** (flat, like a road map; lighter). Craft Conductor adds it from Modrinth and offers to install it now (the server restarts after the countdown). The first time the server starts with it, the map sets itself up. BlueMap draws with Minecraft's own textures, which it downloads from Mojang, so it waits for **OK, download them**. Then **Open the map** (BlueMap uses port 8100, Dynmap 8123; **Change port** picks another, from the next restart). The Dashboard shows **See where everyone is on the map** while it runs. The address on your network is shown too; for friends outside your home, forward the map's port on your router like the game's. Anyone with the address can see the map. Remove it on the Mods page to stop it.
 
 **World tools** (while the server runs; they use its own commands):
 
@@ -300,12 +305,27 @@ Notifications go through your phone's own push service (Apple's, Google's, Mozil
 - **Sharing with friends:** the friends' port and your public address, a playit.gg tunnel, and **Router**: open the ports on your router by itself (UPnP).
 - **CurseForge:** searching CurseForge needs an API key (free, from console.curseforge.com); release builds of Craft Conductor can include one.
 - **Discord:** add a bot to post invites to a channel. **Live status message:** pick a Discord server and channel, and **Keep a status message there**: one message that always shows whether each server is online, how many are playing and its Minecraft version (and your public address, if set). Craft Conductor edits it as things change and says when Craft Conductor is closed; **Stop** ends it. The bot never reads the channel.
+  - **Whitelist through Discord:** friends type `/whitelist` and their Minecraft name in your Discord server (with several Minecraft servers, they pick one too). Only they see the answer. Pick what happens: **Ask me first** puts them on the Players page to **Allow** or **Ignore** (and tells you, like any request to join), or **Let them in straight away** adds them to the whitelist at once, optionally **only members with a role** you pick (others are asked for instead). **Turn on** starts it; the card shows whether Craft Conductor is listening. It works while Craft Conductor is open. If `/whitelist` doesn't show up in Discord, add the bot again with **Add it to another Discord server** (bots added before Craft Conductor 0.18 lack the permission for commands) and restart Discord. The bot still never reads messages: Discord only sends it the command.
 - **Notifications:** **Notify me in this browser** shows a notification when a server stops unexpectedly, an update is ready, someone joins (off by default) or something Craft Conductor was doing fails, while Craft Conductor's tab is in the background. The browser asks first. It works when the address is localhost (or HTTPS).
-- **Size:** how big text and buttons are in this browser: **Automatic** (bigger on big screens), Smaller, Normal, Larger or Largest.
+- **Display:** kept in this browser.
+  - **Size:** how big text and buttons are: **Automatic** (bigger on big screens), Smaller, Normal, Larger or Largest.
+  - **Contrast:** **High contrast** gives black or white backgrounds, stronger text, borders on every button, underlined links and a thick outline around what the keyboard is on. **Automatic** turns it on when your computer asks for more contrast.
+  - **Motion:** **Less motion** stops the animations (sliding panes, the spinning and drifting). **Automatic** follows your computer's "reduce motion" setting.
 - **Language:** Craft Conductor's pages in English, Español, Português, Français, Deutsch, हिन्दी, 中文, Tiếng Việt, العربية (right to left) or 한국어. **Automatic** follows your browser's language. The choice is kept in this browser; the buttons, menus and short messages are translated by machine (so they may have mistakes), and this manual stays in English.
 - **Warnings:** how many warnings you've hidden with "Don't ask me again", and **Show all warnings again**.
 - **About Craft Conductor:** the version, **Check for Craft Conductor updates**, the Craft Conductor folder, the notice and open-source licenses. Craft Conductor also checks by itself: when a new version is out, a message offers to install it (it stops your servers cleanly and restarts).
 - The sun/moon button in the top corner switches between day and night.
+
+### Keyboard and screen readers
+
+Everything in Craft Conductor works with the keyboard and a screen reader (NVDA, JAWS, VoiceOver, TalkBack, Narrator).
+
+- **Tab** and **Shift+Tab** move between buttons, links and fields; **Enter** or **Space** presses a button. A clear outline shows where you are.
+- The first **Tab** on a page reaches **Skip to main content**, which jumps past the menu. After you pick a page in the menu, the keyboard starts at the top of that page, and the browser tab's title names the page and the server.
+- A window that opens (a question, Check my setup, a mod's config files…) keeps **Tab** inside it until it closes. **Escape** closes it (the same as its Close or Cancel button), and the keyboard goes back to where you were.
+- In the config file editor, **Tab** indents. To leave the editor, press **Escape**, then **Tab**. **Ctrl+S** saves.
+- On the map preview, the arrow keys move the map, and **+** and **-** zoom.
+- Messages (Saved, errors, a server starting or stopping) are read out by screen readers as they appear.
 
 ## Troubleshooting
 

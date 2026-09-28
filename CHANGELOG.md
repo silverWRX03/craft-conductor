@@ -4,6 +4,16 @@ What changed in each version of mcsm, newest first. Bugs are listed the way you'
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.18.0 (2026-09-28)
+
+**Added**
+- **Keyboard and screen readers:** a **Skip to main content** link, a clear outline on whatever the keyboard is on, windows that keep the keyboard inside them and close with Escape, page titles that name the page and server, and messages that screen readers read out. See the user manual's "Keyboard and screen readers".
+- **Display** (Craft Conductor settings, replacing Size): **High contrast** and **Less motion**, next to the size. Both follow your computer's own settings unless you pick one.
+- **Player activity** (Players page): who played and for how long, a week-by-hour grid of when people are on, and the quietest time, which **Restart every day at this time** makes the scheduled restart.
+- **Whitelist through Discord** (Craft Conductor settings → Discord): friends type `/whitelist <their Minecraft name>` in your Discord server. **Ask me first** puts them on the Players page; **Let them in straight away** adds them at once, optionally only for members with a role. Bots added before this version need adding again (the link on that card) for the command to appear.
+- **Landmarks on the map preview** (New server → World generation & map preview): villages, outposts, temples, mansions, monuments, shipwrecks, ruined portals, ancient cities and more (a mod's own structures too) are marked on the map, with a list of where each one is.
+- **Web map** (Settings → Web map): add **BlueMap** (3D) or **Dynmap** in one click, then **Open the map** to see the world and who is where in a browser. The Dashboard links to it while it runs.
+
 ## 0.17.0 (2026-09-28)
 
 **Added**

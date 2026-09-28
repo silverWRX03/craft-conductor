@@ -208,7 +208,8 @@ class HttpClient:
             headers={"User-Agent": USER_AGENT, "Content-Type": "application/json",
                      "Accept": "application/json", **(headers or {})})
         with self._open(req) as resp:
-            return json.loads(resp.read().decode("utf-8"))
+            data = resp.read()
+            return json.loads(data.decode("utf-8")) if data.strip() else None  # (204 No Content)
 
     def download(self, url: str, dest: Path, sha1: str | None = None, sha512: str | None = None,
                  headers: dict[str, str] | None = None, sha256: str | None = None) -> Path:

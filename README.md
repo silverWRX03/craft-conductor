@@ -83,6 +83,9 @@ ready to update to Minecraft 1.21.4 with fabric 0.16.14:
   (look only).
 - **A live status message on Discord.** One message that always shows which servers are up and
   who's playing, edited as things change.
+- **Whitelist through Discord.** Friends type `/whitelist <their Minecraft name>` in your
+  Discord server; you let them in from the Players page, or let them in straight away
+  (optionally only members with a role).
 - **Saved mod lists.** Keep a mod list under a name, switch to another and back, and move lists
   between servers as files.
 - **Phone app.** Put Craft Conductor on your phone's home screen and get notifications when a server
@@ -124,6 +127,10 @@ ready to update to Minecraft 1.21.4 with fabric 0.16.14:
 - **Schedules and backup copies.** Restart every night, back up every few hours, and copy every
   backup to a USB drive or a cloud-synced folder. Simple choices on the Settings page, or any
   cron expression.
+- **Web map.** BlueMap (3D) or Dynmap in one click, to see the world and who is where in a
+  browser.
+- **Player activity.** Who played and for how long, a week-by-hour grid of when people are on,
+  and the quietest time, made the nightly restart in one click.
 - **Check my setup.** One button checks Java, memory, disk space, the port, the firewall and
   friends' access, says what to fix in plain words, and can test that friends outside your home
   can connect. It also downloads a report for bug reports, with secrets taken out.
@@ -183,6 +190,8 @@ ready to update to Minecraft 1.21.4 with fabric 0.16.14:
   [Linux computer without a screen](docs/headless.md) that you manage from another one
   (New server → **Install on a Linux computer** sets it up over SSH).
 - **Day and night themes**, switched with the sun/moon button.
+- **Accessible:** works with the keyboard and screen readers, with **High contrast** and
+  **Less motion** options (Craft Conductor settings → Display).
 - **Try beta Minecraft versions** (snapshots and pre-releases) on a new server, or on a
   copy of an existing one so your real world is never touched.
 - **Mods three ways:** `.jar` files from your computer (ones Modrinth recognises are
@@ -877,20 +886,15 @@ The test suite runs the full install → upgrade → crash → rollback cycle ag
 
 In priority order (the working list, with what's done, is [TODO.md](TODO.md)):
 
-1. **Accessibility:** keyboard, screen readers, high contrast
-2. **Player activity:** who played when, and the best time to restart
-3. Whitelist through Discord
-4. Web map of the world (BlueMap or Dynmap)
-5. Landmarks on the map preview
-6. Limits per server (memory, CPU)
-7. Other tunnel services (Cloudflare Tunnel, Tailscale Funnel)
-8. Purpur servers (Paper with plugins from Modrinth and Hangar is supported)
-9. Scripting hooks and API tokens
-10. Shared, opt-in memory of mods that don't work together
-11. Proxy networks (Velocity)
-12. A translated user manual
-13. Servers on hosting sites that have an official API (Pterodactyl)
-14. A native phone app (today the control panel works as a web app on your phone's home screen)
+1. Limits per server (memory, CPU)
+2. Other tunnel services (Cloudflare Tunnel, Tailscale Funnel)
+3. Purpur servers (Paper with plugins from Modrinth and Hangar is supported)
+4. Scripting hooks and API tokens
+5. Shared, opt-in memory of mods that don't work together
+6. Proxy networks (Velocity)
+7. A translated user manual
+8. Servers on hosting sites that have an official API (Pterodactyl)
+9. A native phone app (today the control panel works as a web app on your phone's home screen)
 
 ## License
 

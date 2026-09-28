@@ -26,6 +26,10 @@ Before continuing or starting a feature, check this list: some features wait on 
       computer and your phone, press Use Tailscale for the phone app, open the address on the phone, add
       it to the home screen and turn notifications on; then Send a test, and stop a server by hand to see
       one arrive. It was only tried in a desktop browser here.
+- [ ] **Try the 0.18 features for real:** turn on Whitelist through Discord (Craft Conductor settings →
+      Discord; add the bot again with the card's link first) and type `/whitelist <name>` in Discord; add
+      BlueMap or Dynmap (Settings → Web map) and open the map; look at Player activity after a few days;
+      try High contrast and a screen reader (NVDA on Windows, VoiceOver on a Mac).
 - [ ] **Try automatic port forwarding at home** (mcsm settings → Sharing with friends → Router):
       switch it on, look at what it says, then **Test from the internet** in Check my setup. It
       was only tested against a pretend router.
@@ -66,14 +70,15 @@ Next:
        app, not a store app) with notifications when it's closed: a crash, a friend asking to join, an update
        held back, lag. Includes a guided way to reach it over trusted HTTPS (Tailscale, a Cloudflare Tunnel or
        a domain), which phones need for this. A store app only if this falls short.
-7. [ ] **Accessibility:** everything works with the keyboard, labels for screen readers, and a
+7. [x] **Accessibility:** everything works with the keyboard, labels for screen readers, and a
        high-contrast theme.
-8. [ ] **Player activity:** who played when, the busiest times, and a suggested restart time when
+8. [x] **Player activity:** who played when, the busiest times, and a suggested restart time when
        nobody is usually on.
-9. [ ] Whitelist through Discord (friends ask with a command, the owner approves).
-10. [ ] Web map of the world (BlueMap or Dynmap) with a link to share.
-11. [ ] **Map landmarks:** villages, structures and players' bases pinned on the map preview (and
-        on the web map).
+9. [x] Whitelist through Discord (friends ask with a command, the owner approves).
+10. [x] Web map of the world (BlueMap or Dynmap) with a link to share.
+11. [x] **Map landmarks:** villages, structures and players' bases pinned on the map preview (and
+        on the web map). Done: the structures Minecraft and mods place, on the map preview. Not yet:
+        players' bases, and pins on the web map (BlueMap and Dynmap show their own).
 13. [ ] Limits per server (memory, CPU) and a warning when too many run at once.
 14. [ ] Other tunnel services next to playit.gg (Cloudflare Tunnel, Tailscale Funnel).
 15. [ ] Purpur servers.

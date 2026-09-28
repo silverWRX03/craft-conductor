@@ -19,6 +19,8 @@ function h(tag, attrs = {}, ...children) {
     if (c === null || c === undefined || c === false) continue;
     el.append(c instanceof Node ? c : document.createTextNode(typeof c === "string" ? t(c) : String(c)));  // (i18n.js)
   }
+  // A button showing only a symbol ("✕", "📂") is named by its tooltip for screen readers.
+  if (tag === "button" && el.title && !el.hasAttribute("aria-label") && !/\p{L}/u.test(el.textContent)) el.setAttribute("aria-label", el.title);
   return el;
 }
 
@@ -48,6 +50,63 @@ document.addEventListener("click", (e) => {
   applyTheme(next);
   setTimeout(() => document.documentElement.classList.remove("theme-switching"), 700);
 });
+
+// ------------------------------------------------------------------ accessibility
+// Contrast and motion (Craft Conductor settings → Display), kept per browser; Automatic follows the
+// computer's own settings (see style.css).
+const CONTRAST_KEY = "mcsm-contrast", MOTION_KEY = "mcsm-motion";
+const DISPLAY = [[CONTRAST_KEY, "contrast", "high", "(prefers-contrast: more)"], [MOTION_KEY, "motion", "less", "(prefers-reduced-motion: reduce)"]];
+function applyDisplay() {
+  for (const [key, attr, on, query] of DISPLAY) {
+    let v = "";
+    try { v = localStorage.getItem(key) || ""; } catch (_) { /* private mode */ }
+    if (v === on || (!v && window.matchMedia && window.matchMedia(query).matches)) document.documentElement.dataset[attr] = on;
+    else delete document.documentElement.dataset[attr];
+  }
+}
+applyDisplay();
+if (window.matchMedia) for (const [, , , query] of DISPLAY) window.matchMedia(query).addEventListener("change", applyDisplay);
+
+// Keyboard and screen readers: a window that opens (a dialog) takes the focus, keeps Tab inside
+// it, closes with Escape (its Close or Cancel button), and gives the focus back when it closes.
+const FOCUSABLE = "a[href], button:not([disabled]), input:not([disabled]):not([type=hidden]), select:not([disabled]), " +
+  "textarea:not([disabled]), summary, [tabindex]:not([tabindex='-1'])";
+const topDialog = () => { const all = document.querySelectorAll("body > .modal-backdrop"); return all.length ? all[all.length - 1] : null; };
+const focusables = (root) => [...root.querySelectorAll(FOCUSABLE)].filter((el) => el.getClientRects().length);
+let focusBeforeDialog = null;
+document.addEventListener("focusin", (e) => { if (!e.target.closest(".modal-backdrop")) focusBeforeDialog = e.target; });
+new MutationObserver((changes) => {
+  let opened = null, closed = false;
+  for (const c of changes) {
+    for (const n of c.addedNodes) if (n.classList && n.classList.contains("modal-backdrop")) opened = n;
+    for (const n of c.removedNodes) if (n.classList && n.classList.contains("modal-backdrop")) closed = true;
+  }
+  const top = topDialog();
+  if (opened && opened === top && !opened.contains(document.activeElement)) {
+    const first = opened.querySelector("[autofocus]") || focusables(opened)[0];
+    if (first) first.focus();
+  } else if (closed && !top && focusBeforeDialog && focusBeforeDialog.isConnected) focusBeforeDialog.focus();
+  else if (closed && top && !top.contains(document.activeElement)) { const f = focusables(top)[0]; if (f) f.focus(); }
+}).observe(document.body, { childList: true });
+document.addEventListener("keydown", (e) => {
+  const dialog = topDialog();
+  if (!dialog || (e.target.dataset && e.target.dataset.keys === "own" && (e.key === "Escape" || !e.shiftKey))) return;  // (the code editor's Tab and Escape)
+  if (e.key === "Escape") {
+    const names = [t("Close"), t("Cancel"), t("Not now")];
+    const close = [...dialog.querySelectorAll("button")].find((b) => names.includes(b.textContent.trim()));
+    if (close) { e.preventDefault(); e.stopImmediatePropagation(); close.click(); }
+  } else if (e.key === "Tab") {
+    const f = focusables(dialog);
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1];
+    if (!dialog.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+    else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+}, true);
+// "Skip to main content" (the first thing Tab reaches) and, after moving to another page, the
+// focus goes to the page itself so a screen reader reads it from the top.
+document.getElementById("skip-link").addEventListener("click", () => document.getElementById("main").focus());
 
 // With several servers, a server's calls go to /api/servers/<id>/...; these are about Craft Conductor itself.
 const GLOBAL_API = /^\/api\/(login|logout|auth|notice|licenses|self-update|hub|servers)(\/|\?|$)/;
@@ -638,7 +697,7 @@ function meter(label) {
   const fillBar = h("div", { class: "bar-fill" });
   const note = h("div", { class: "muted small" });
   const el = h("div", { class: "card meter" },
-    h("div", { class: "meter-head" }, h("span", {}, label), value), h("div", { class: "bar" }, fillBar), note);
+    h("div", { class: "meter-head" }, h("span", {}, label), value), h("div", { class: "bar", "aria-hidden": "true" }, fillBar), note);
   return {
     el,
     set(pct, text, sub) {
@@ -747,7 +806,9 @@ function perfCard() {
     if (pts.length < 2) return null;
     const NS = "http://www.w3.org/2000/svg", W = 240, H = 40;
     const svg = document.createElementNS(NS, "svg");
-    svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("class", "tps-graph"); svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("class", "tps-graph"); svg.setAttribute("role", "img");
+    const low = Math.min(...pts.map((x) => x.tps));
+    svg.setAttribute("aria-label", t("Speed over the last hour: lowest {low} TPS").replace("{low}", low.toFixed(1)));
     const t0 = pts[0].time, span = Math.max(1, pts[pts.length - 1].time - t0);
     const d = pts.map((x, i) => `${i ? "L" : "M"}${(W * (x.time - t0) / span).toFixed(1)},${(H - 2 - (H - 4) * Math.max(0, Math.min(20, x.tps)) / 20).toFixed(1)}`).join(" ");
     const line = document.createElementNS(NS, "path");
@@ -892,7 +953,12 @@ views.dashboard = () => {
   const events = h("div", { class: "events" });
   const online = h("div", { class: "online" });
   const onlineCount = h("span", { class: "muted" });
-  const playerCard = h("div", { class: "card" }, h("h3", {}, "Online now ", onlineCount), online);
+  const mapLink = h("div");  // the web map, when there is one and it answers (Settings → Web map)
+  const playerCard = h("div", { class: "card" }, h("h3", {}, "Online now ", onlineCount), online, mapLink);
+  api("/api/webmap").then((r) => {
+    if (r.kind && r.answers) fill(mapLink, h("a", { class: "btn small ghost mt-s", href: hubInfo && hubInfo.local ? r.local_url : r.lan_url || r.local_url,
+      target: "_blank", rel: "noopener noreferrer" }, `🗺 ${t("See where everyone is on the map")} ↗`));
+  }).catch(() => null);
   const cpu = meter("CPU"), mem = meter("Memory");
   const perf = perfCard();
   const tun = tunnelCard();
@@ -1388,12 +1454,73 @@ views.players = () => {
           h("button", { class: "btn danger", title: "Enter an IP address, or the name of an online player",
                         onclick: () => name.value.trim() && run("ban-ip", name.value.trim()) }, "Ban IP")));
   const requests = joinRequestsCard(() => load());
-  fill($("#main"), h("h2", { class: "view-title" }, "Players"), requests.el, manage, h("div", { class: "mt" }, body));
+  const activity = activityCard();
+  fill($("#main"), h("h2", { class: "view-title" }, "Players"), requests.el, manage, h("div", { class: "mt" }, body), h("div", { class: "mt" }, activity.el));
   load();
   every(5000, load);
   every(10000, requests.load);
+  every(60000, activity.load);
   return {};
 };
+
+// Player activity (activity.py): who played and for how long, how busy each hour of the week is,
+// and the quietest hour, which can become the nightly restart.
+const weekdayName = (wd, style = "short") => new Date(2024, 0, 1 + wd).toLocaleDateString(LANG, { weekday: style });  // (1 January 2024 was a Monday)
+const hourName = (hr) => new Date(2024, 0, 1, hr).toLocaleTimeString(LANG, { hour: "numeric", minute: "2-digit" });
+function activityCard() {
+  const body = h("div", {}, h("p", { class: "muted small" }, "Loading…"));
+  const el = card("Player activity", body);
+  let days = 30;
+  const heatmap = (r) => {
+    const top = Math.max(0.01, ...r.week.flat());
+    const level = (v) => v <= 0 ? 0 : Math.min(4, 1 + Math.floor(3.999 * v / top));
+    return h("div", { class: "heat-wrap" }, h("table", { class: "heat" },
+      h("caption", { class: "sr-only" }, "Average players online, by day and hour"),
+      h("thead", {}, h("tr", {}, h("td", {}), Array.from({ length: 24 }, (_, hr) =>
+        h("th", { scope: "col", class: "small muted" }, hr % 3 === 0 ? String(hr) : h("span", { class: "sr-only" }, String(hr)))))),
+      h("tbody", {}, r.week.map((row, wd) => h("tr", {}, h("th", { scope: "row", class: "small" }, weekdayName(wd)),
+        row.map((v, hr) => {
+          const words = `${weekdayName(wd, "long")} ${hourName(hr)}: ${v ? v.toFixed(1) : "0"} ${t("on average")}`;
+          return h("td", { class: `heat-cell lvl${level(v)}`, title: words }, h("span", { class: "sr-only" }, words));
+        }))))));
+  };
+  const load = async () => {
+    const r = await api(`/api/players/activity?days=${days}`).catch(() => null);
+    if (!r) { fill(body, h("p", { class: "muted small" }, "Couldn't load the player activity.")); return; }
+    const periods = h("select", { class: "fit", "aria-label": "Period", onchange: (e) => { days = Number(e.target.value); load(); } },
+      [[7, "Last 7 days"], [30, "Last 30 days"], [90, "Last 90 days"]].map(([v, l]) => h("option", { value: v }, l)));
+    periods.value = String(days);
+    if (!r.players.length) {
+      fill(body, h("p", { class: "muted small" }, "Nobody has played since Craft Conductor started keeping track. Who plays when shows here, with the quietest time to restart the server."));
+      return;
+    }
+    const q = r.quiet;
+    const suggestion = !r.enough
+      ? h("p", { class: "muted small" }, "After a few days of play, the quietest time to restart the server is suggested here.")
+      : h("div", { class: "notice ok small row" },
+        h("span", { class: "grow" }, t("Quietest time:") + " ", h("strong", {}, hourName(q.hour)),
+          " ", q.average < 0.05 ? t("(nobody is usually on)") : `(${q.average.toFixed(1)} ${t("players on average")})`,
+          r.busiest ? h("span", { class: "muted" }, " · " + t("busiest:") + ` ${weekdayName(r.busiest.weekday, "long")} ${hourName(r.busiest.hour)}`) : null,
+          r.schedule_restart ? h("div", { class: "muted" }, t("Scheduled restart now:") + " " + t(r.schedule_restart_words || r.schedule_restart)) : null),
+        r.schedule_restart === q.cron ? h("span", { class: "ok-text" }, "✓ The nightly restart is at this time")
+          : hubInfo && hubInfo.device ? null
+          : h("button", { class: "btn small", onclick: () => act(() => api("/api/settings", { method: "POST", body: { schedule_restart: q.cron } }),
+            "The server restarts every day at the quietest time").then(load) }, "Restart every day at this time"));
+    fill(body,
+      h("div", { class: "row" }, h("p", { class: "muted small grow" }, "Who played, when, and how busy each hour of the week is (your computer's time)."), periods),
+      suggestion,
+      heatmap(r),
+      h("div", { class: "row small muted heat-key", "aria-hidden": "true" }, t("Quiet"), [0, 1, 2, 3, 4].map((n) => h("span", { class: `heat-cell lvl${n}` })), t("Busy")),
+      h("h4", { class: "mt" }, "Who played"),
+      h("table", {},
+        h("thead", {}, h("tr", {}, h("th", {}, "Player"), h("th", {}, "Time played"), h("th", {}, "Visits"), h("th", {}, "Last seen"))),
+        h("tbody", {}, r.players.map((p) => h("tr", {},
+          h("td", {}, p.name, p.online ? h("span", { class: "tag ok" }, "online") : null),
+          h("td", {}, fmtDuration(p.seconds)), h("td", {}, String(p.visits)), h("td", {}, p.online ? t("now") : ago(p.last_seen)))))));
+  };
+  load();
+  return { el, load };
+}
 
 // Friends asking to be let in (their Craft Conductor sends their Minecraft name with the invite).
 function joinRequestsCard(after = () => {}) {
@@ -1841,6 +1968,51 @@ function worldTools() {
   return { el, load };
 }
 
+// The web map (webmap.py): BlueMap (3D) or Dynmap, a live map of the world in a browser tab.
+function webMapCard() {
+  const body = h("div", {}, h("p", { class: "muted small" }, "Loading…"));
+  const el = h("div", { class: "card mt" }, h("h3", {}, "Web map"), body);
+  const add = async (kind, name) => {
+    const r = await act(() => api("/api/webmap/add", { method: "POST", body: { kind } }));
+    if (!r) return;
+    const st = status || {};
+    if (st.minecraft && await ask(`${name} is added. Install it now?\n\nThe server updates its mods for Minecraft ${st.minecraft} and restarts (players get the countdown first).`, { ok: "Install now" }))
+      await act(() => api("/api/updates/apply", { method: "POST", body: { target: st.minecraft } }), `Installing ${name}…`);
+    else toast(`${name} is added: it's installed with the next update.`);
+    load();
+  };
+  const load = async () => {
+    const r = await api("/api/webmap").catch(() => null);
+    if (!r) return;
+    if (!r.kind) {
+      fill(body,
+        h("p", { class: "muted small" }, "A live map of the world that you and your friends open in a browser: see the terrain, builds and who is where."),
+        r.listed ? h("p", { class: "small" }, `${r.maps[r.listed]} is added and is installed with the next update.`)
+          : h("div", { class: "row" },
+            h("button", { class: "btn", onclick: () => add("bluemap", "BlueMap") }, "Add BlueMap"),
+            h("span", { class: "muted small grow" }, "3D, looks like the game. Needs more disk space and a while to draw the first time."),
+            h("button", { class: "btn", onclick: () => add("dynmap", "Dynmap") }, "Add Dynmap"),
+            h("span", { class: "muted small grow" }, "Flat, like a road map. Lighter.")));
+      return;
+    }
+    const portIn = h("input", { type: "number", min: 1024, max: 65535, value: r.port, class: "narrow", "aria-label": "Map port" });
+    fill(body,
+      r.accepted === false ? h("div", { class: "notice warn small" },
+        h("p", {}, "BlueMap draws the map with Minecraft's own textures, which it downloads from Mojang. It waits for your OK."),
+        h("button", { class: "btn small primary", onclick: () => act(() => api("/api/webmap/accept", { method: "POST", body: {} }), "BlueMap starts drawing the map").then(load) }, "OK, download them")) : null,
+      !r.configured ? h("p", { class: "muted small" }, `${r.name} sets itself up the first time the server starts with it.`)
+        : r.answers ? h("div", { class: "row" }, h("span", { class: "ok-text small grow" }, `✓ ${r.name} is running.`),
+          h("a", { class: "btn small primary", href: hubInfo && hubInfo.local ? r.local_url : r.lan_url || r.local_url, target: "_blank", rel: "noopener noreferrer" }, "Open the map ↗"))
+          : h("p", { class: "muted small" }, r.running ? `${r.name} isn't answering on port ${r.port} yet (it can take a minute after the server starts).` : "Start the server to see the map."),
+      r.lan_url ? h("p", { class: "small" }, "On your network: ", h("code", {}, r.lan_url)) : null,
+      h("p", { class: "muted small" }, "Friends outside your home need the map's port forwarded on the router, like the game's. Anyone with the address can see the map."),
+      r.configured ? h("div", { class: "row" }, h("label", {}, "Port", portIn),
+        h("button", { class: "btn small", onclick: () => act(() => api("/api/webmap/port", { method: "POST", body: { port: Number(portIn.value) } })).then((x) => { if (x) toast(x.message); load(); }) }, "Change port")) : null,
+      h("p", { class: "muted small" }, `Remove ${r.name} on the Mods page to stop it.`));
+  };
+  return { el, load };
+}
+
 views.settings = () => {
   const form = h("form", { class: "card" });
   let edited = false;  // changes not saved yet
@@ -1971,8 +2143,10 @@ views.settings = () => {
       folderBtn("world", "World folder")));
   worldCard.classList.add("mt");
   const tools = worldTools();
-  fill($("#main"), h("h2", { class: "view-title" }, "Server settings"), form, worldCard, tools.el, exportCard, danger);
+  const map = webMapCard();
+  fill($("#main"), h("h2", { class: "view-title" }, "Server settings"), form, worldCard, tools.el, map.el, exportCard, danger);
   tools.load();
+  map.load();
   load();
   loadExports();
   renderDanger();
@@ -2273,6 +2447,30 @@ async function applyPreset(p, opts) {
 // block out to 32 blocks a pixel). "Make this area" asks the private server for the land in
 // view; "Keep making the map as I move" does that by itself.
 const MAP_LEVELS = [1, 2, 4, 8, 16];  // blocks a pixel the server draws tiles at
+// Landmarks (preview.py): the villages, temples and other structures Minecraft placed, as symbols
+// on the map (named for screen readers and on hover), and a list under it.
+const LANDMARKS_KEY = "mcsm-map-landmarks";
+const landmarksShown = () => { try { return localStorage.getItem(LANDMARKS_KEY) !== "off"; } catch (_) { return true; } };
+function landmarkMark(l) {
+  const words = `${t(l.name)}: x ${l.x}, z ${l.z}`;
+  return h("span", { class: "map-mark", title: words, role: "img", "aria-label": words }, l.symbol);
+}
+function landmarkList(marks, onPick) {
+  if (!marks.length) return h("p", { class: "muted small" }, "No landmarks (villages, temples and the like) in the land made so far.");
+  const counts = {};
+  for (const l of marks) counts[l.name] = (counts[l.name] || 0) + 1;
+  const toggle = h("input", { type: "checkbox", checked: landmarksShown() });
+  toggle.addEventListener("change", () => {
+    try { localStorage.setItem(LANDMARKS_KEY, toggle.checked ? "on" : "off"); } catch (_) { /* private mode */ }
+    document.querySelectorAll(".map-marks").forEach((el) => el.classList.toggle("marks-off", !toggle.checked));
+  });
+  return h("details", { class: "small mt-s landmarks" },
+    h("summary", {}, t("Landmarks:") + " " + Object.entries(counts).map(([n, c]) => `${c} × ${t(n)}`).join(", ")),
+    h("label", { class: "row" }, toggle, h("span", {}, "Show them on the map")),
+    h("ul", { class: "list compact" }, marks.slice(0, 60).map((l) => h("li", {}, h("span", { "aria-hidden": "true" }, l.symbol + " "),
+      h("span", { class: "grow" }, t(l.name)),
+      onPick ? h("button", { type: "button", class: "link-btn", onclick: () => onPick(l) }, `x ${l.x}, z ${l.z}`) : h("code", {}, `x ${l.x}, z ${l.z}`)))));
+}
 function mapExplorer(m, info, readout) {
   const id = m.id;
   const home = info.spawn ? { x: info.spawn.x, z: info.spawn.z }
@@ -2282,7 +2480,10 @@ function mapExplorer(m, info, readout) {
   const layer = h("div", { class: "map-layer" });
   const spawn = h("span", { class: "map-spawn", title: "Spawn" });
   const status = h("div", { class: "map-status small" });
-  const frame = h("div", { class: "map-frame map-live", tabindex: "0", "aria-label": "Map: drag to move, scroll to zoom" }, layer, spawn, status);
+  const marksLayer = h("div", { class: "map-layer map-marks" + (landmarksShown() ? "" : " marks-off") });
+  const marksBox = h("div");
+  let marks = [], marksFrom = null;  // the landmark symbols, and the list they were made from
+  const frame = h("div", { class: "map-frame map-live", tabindex: "0", "aria-label": "Map: drag to move, scroll to zoom" }, layer, marksLayer, spawn, status);
   const tiles = new Map();
   let regions = new Set(state.regions.map(([x, z]) => `${x},${z}`));
   const auto = h("input", { type: "checkbox" });
@@ -2327,6 +2528,16 @@ function mapExplorer(m, info, readout) {
       spawn.style.left = `${(state.spawn.x - left) / view.bpp}px`;
       spawn.style.top = `${(state.spawn.z - top) / view.bpp}px`;
     } else spawn.classList.add("hidden");
+    if (marksFrom !== state.landmarks) {  // (new land, new landmarks)
+      marksFrom = state.landmarks || [];
+      marks = marksFrom.map((l) => [l, landmarkMark(l)]);
+      fill(marksLayer, marks.map(([, el]) => el));
+      fill(marksBox, landmarkList(marksFrom, (l) => { view.x = l.x; view.z = l.z; view.bpp = 0.5; moved(); frame.focus(); }));
+    }
+    for (const [l, el] of marks) {
+      el.style.left = `${(l.x - left) / view.bpp}px`;
+      el.style.top = `${(l.z - top) / view.bpp}px`;
+    }
     const r = visibleRadius();
     makeBtn.disabled = !!(state.job && state.job.state === "running");
     makeBtn.title = `About ${estimate(r)} for ${Math.round(r * 2)} × ${Math.round(r * 2)} blocks`;
@@ -2395,7 +2606,7 @@ function mapExplorer(m, info, readout) {
   frame.addEventListener("pointerup", () => { drag = null; frame.classList.remove("dragging"); });
   frame.addEventListener("pointermove", (e) => {
     const r = frame.getBoundingClientRect();
-    const k = frame.clientWidth ? r.width / frame.clientWidth : 1;  // (the page may be zoomed: see Size)
+    const k = frame.clientWidth ? r.width / frame.clientWidth : 1;  // (the page may be zoomed: see Display)
     if (drag) {
       view.x -= (e.clientX - drag.x) / k * view.bpp;
       view.z -= (e.clientY - drag.y) / k * view.bpp;
@@ -2444,7 +2655,7 @@ function mapExplorer(m, info, readout) {
   showStatus();
   if (state.job && state.job.state === "running") watch();
   setTimeout(draw, 0);
-  return { el: h("div", {}, frame, tools) };
+  return { el: h("div", {}, frame, tools, marksBox) };
 }
 
 function openWorldPanel() {
@@ -2546,7 +2757,13 @@ function worldPanel(host) {
       spawn.style.left = pct((meta.spawn.x - meta.x) / meta.size);  // (styles set here: the page's CSP allows no inline ones)
       spawn.style.top = pct((meta.spawn.z - meta.z) / meta.size);
     } else spawn.classList.add("hidden");
-    const frame = h("div", { class: "map-frame" }, img, spawn);
+    const marks = (meta.landmarks || []).map((l) => {
+      const el = landmarkMark(l);
+      el.style.left = pct((l.x - meta.x) / meta.size);
+      el.style.top = pct((l.z - meta.z) / meta.size);
+      return el;
+    });
+    const frame = h("div", { class: "map-frame" }, img, h("div", { class: "map-layer map-marks" + (landmarksShown() ? "" : " marks-off") }, marks), spawn);
     frame.addEventListener("mousemove", (e) => {
       const r = img.getBoundingClientRect();
       const bx = Math.floor(meta.x + (e.clientX - r.left) / r.width * meta.size);
@@ -2567,13 +2784,16 @@ function worldPanel(host) {
           host.changed(); toast(`The server will use seed ${m.seed}`); showMap(m);
         } }, "Use this seed")),
       frame, readout,
-      h("p", { class: "muted small", id: "map-note" }, "North is up; one pixel is one block, around the spawn point (★). Villages and other structures are too small to see at this size."),
+      h("p", { class: "muted small", id: "map-note" }, "North is up; one pixel is one block, around the spawn point (★). Villages, temples and other landmarks are marked."),
+      meta.landmarks ? h("div", { id: "map-landmarks" }, landmarkList(meta.landmarks, null)) : null,
       strip());
     // The world is still here (the newest preview): make the map explorable.
     api(`/api/hub/map?id=${m.id}`).then((info) => {
       if (shown !== m.id || !frame.isConnected) return;
       const ex = mapExplorer(m, info, readout);
       frame.replaceWith(ex.el);
+      const listed = document.getElementById("map-landmarks");
+      if (listed) listed.remove();  // (the explorable map has its own list)
       const note = document.getElementById("map-note");
       if (note) note.textContent = t("Drag to move and scroll (or + and −) to zoom. Make this area asks the private server for the land in view; it stops by itself after a few minutes of not being needed.");
     }).catch(() => null);
@@ -3043,6 +3263,11 @@ const HELP = [
   ["remote", "Using Craft Conductor from your phone", () => [
     h("p", {}, "Open ", h("button", { type: "button", class: "link-btn", onclick: openRemoteAccess }, "Remote access & phones"),
       ": set a strong password, allow other devices, and pair your phone by scanning a QR code. Away from home, use Tailscale rather than opening ports.")]],
+  ["keyboard", "Keyboard, screen readers and display", () => [
+    h("p", {}, "Everything works with the keyboard: Tab moves, Enter or Space presses, Escape closes a window. The first Tab reaches ",
+      h("strong", {}, "Skip to main content"), ". Screen readers read out messages as they appear."),
+    h("p", {}, "Bigger text, ", h("strong", {}, "High contrast"), " and ", h("strong", {}, "Less motion"), " are under ",
+      h("a", { href: "#mcsm" }, "Craft Conductor settings"), " → ", h("strong", {}, "Display"), ".")]],
 ];
 
 // The user manual (manual.md, part of Craft Conductor): the same text as on GitHub, shown here with a
@@ -3617,9 +3842,10 @@ function highlight(text, lang) {
 function codeEditor(text, lang, onChange) {
   const pre = h("pre", { class: "code-hl", "aria-hidden": "true" });
   const gutter = h("div", { class: "code-gutter", "aria-hidden": "true" });
-  const input = h("textarea", { class: "code-input", spellcheck: "false", autocapitalize: "off", autocomplete: "off", wrap: "off", "aria-label": "File contents" });
+  const input = h("textarea", { class: "code-input", spellcheck: "false", autocapitalize: "off", autocomplete: "off", wrap: "off", "aria-label": "File contents",
+    "data-keys": "own", "aria-description": t("Tab indents. To leave the editor with the keyboard, press Escape, then Tab.") });
   input.value = text;
-  let lines = 0, frame = 0;
+  let lines = 0, frame = 0, leaving = false;
   const sync = () => { pre.scrollTop = input.scrollTop; pre.scrollLeft = input.scrollLeft; gutter.scrollTop = input.scrollTop; };
   const paint = () => {
     frame = 0;
@@ -3630,7 +3856,11 @@ function codeEditor(text, lang, onChange) {
   };
   input.addEventListener("input", () => { if (!frame) frame = requestAnimationFrame(paint); onChange(); });
   input.addEventListener("scroll", sync);
+  input.addEventListener("blur", () => { leaving = false; });
   input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { leaving = true; return; }  // (then Tab leaves, as in other code editors)
+    if (e.key === "Tab" && leaving) return;
+    leaving = false;
     if (e.key === "Tab" && !e.ctrlKey && !e.metaKey && !e.altKey) {  // indent instead of leaving the editor
       e.preventDefault();
       input.setRangeText("  ", input.selectionStart, input.selectionEnd, "end");
@@ -3655,7 +3885,7 @@ function openConfigEditor(title, files, first) {
   const revertBtn = h("button", { class: "btn small", disabled: true }, "Revert");
   const keys = (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); save(); }
-    if (e.key === "Escape") close();
+    if (e.key === "Escape" && !(e.target.dataset && e.target.dataset.keys === "own")) close();  // (in the editor, Escape readies Tab to leave it)
   };
   const close = async () => {
     if (dirty && !(await ask("Close without saving your changes?", { ok: "Close without saving", danger: true }))) return;
@@ -4111,15 +4341,23 @@ function applySize() {
   else delete document.documentElement.dataset.size;
 }
 applySize();
-function sizeCard() {
-  const sel = h("select", { "aria-label": "Size" }, SIZES.map(([v, l]) => h("option", { value: v }, l)));
-  try { sel.value = localStorage.getItem(SIZE_KEY) || ""; } catch (_) { /* private mode */ }
-  sel.addEventListener("change", () => {
-    try { if (sel.value) localStorage.setItem(SIZE_KEY, sel.value); else localStorage.removeItem(SIZE_KEY); } catch (_) { /* private mode */ }
-    applySize();
-  });
-  return card("Size", h("div", { class: "row" }, sel),
-    h("p", { class: "muted small" }, "How big text and buttons are in this browser. Automatic makes everything bigger on big screens."));
+// Display: size, contrast and motion, each kept in this browser (see style.css).
+function displayCard() {
+  const pick = (label, key, options, apply) => {
+    const sel = h("select", {}, options.map(([v, l]) => h("option", { value: v }, l)));
+    try { sel.value = localStorage.getItem(key) || ""; } catch (_) { /* private mode */ }
+    sel.addEventListener("change", () => {
+      try { if (sel.value) localStorage.setItem(key, sel.value); else localStorage.removeItem(key); } catch (_) { /* private mode */ }
+      apply();
+    });
+    return h("label", {}, label, sel);
+  };
+  return card("Display",
+    h("div", { class: "grid three" },
+      pick("Size", SIZE_KEY, SIZES, applySize),
+      pick("Contrast", CONTRAST_KEY, [["", "Automatic (this computer's setting)"], ["high", "High contrast"], ["normal", "Normal"]], applyDisplay),
+      pick("Motion", MOTION_KEY, [["", "Automatic (this computer's setting)"], ["less", "Less motion"], ["normal", "Normal"]], applyDisplay)),
+    h("p", { class: "muted small" }, "How big text and buttons are (Automatic makes everything bigger on big screens), stronger colours and outlines for easier reading, and fewer animations. Kept in this browser."));
 }
 
 function languageCard() {
@@ -4142,6 +4380,43 @@ function warningsCard() {
   };
   render();
   return box;
+}
+
+// Whitelist through Discord (discordbot.py): friends type /whitelist <their Minecraft name> in your
+// Discord server. Ask me first (the Players page's requests) or Let them in (optionally only
+// members with a role).
+const DISCORD_STATE = { connected: "✓ Listening for /whitelist", starting: "Connecting to Discord…", retrying: "Reconnecting to Discord…", stopped: "Stopped" };
+function discordWhitelistBox(r, after) {
+  const w = r.whitelist;
+  const mode = h("select", { "aria-label": "When someone asks" },
+    h("option", { value: "ask" }, "Ask me first (they appear on the Players page)"),
+    h("option", { value: "allow" }, "Let them in straight away"));
+  mode.value = w.mode || "ask";
+  const guild = h("select", { "aria-label": "Discord server for the role" }, h("option", { value: "" }, "Pick a Discord server…"));
+  const role = h("select", { "aria-label": "Role" }, h("option", { value: "" }, "Anyone in the Discord server"));
+  if (w.role) role.append(h("option", { value: w.role }, "The role you picked before"));
+  role.value = w.role || "";
+  const roleRow = h("div", { class: "row mt-s" + (mode.value === "allow" ? "" : " hidden") }, h("span", { class: "small" }, "Only members with this role:"), guild, role);
+  mode.addEventListener("change", () => roleRow.classList.toggle("hidden", mode.value !== "allow"));
+  guild.addEventListener("change", async () => {
+    fill(role, h("option", { value: "" }, "Anyone in the Discord server"));
+    if (!guild.value) return;
+    const x = await api(`/api/hub/discord/roles?guild=${encodeURIComponent(guild.value)}`).catch((e) => { toast(e.message, true); return null; });
+    if (x) role.append(...x.roles.map((y) => h("option", { value: y.id }, `@${y.name}`)));
+  });
+  api("/api/hub/discord/guilds").then((g) => guild.append(...g.guilds.map((x) => h("option", { value: x.id }, x.name)))).catch(() => {});
+  const save = (enabled) => act(() => api("/api/hub/discord/whitelist", { method: "POST", body: { enabled, mode: mode.value, role: mode.value === "allow" ? role.value : "" } }),
+    enabled ? "Whitelist through Discord is on" : "Whitelist through Discord is off").then(after);
+  const st = w.status;
+  return h("div", { class: "mt" }, h("h4", {}, "Whitelist through Discord"),
+    h("p", { class: "muted small" }, "Friends type ", h("code", {}, "/whitelist"), " and their Minecraft name in your Discord server. Only they see the answer. The bot still never reads messages."),
+    h("div", { class: "row" }, mode, w.enabled
+      ? [h("button", { class: "btn small", onclick: () => save(true) }, "Save"), h("button", { class: "btn small ghost", onclick: () => save(false) }, "Turn off")]
+      : h("button", { class: "btn small primary", onclick: () => save(true) }, "Turn on")),
+    roleRow,
+    w.enabled && st ? h("p", { class: `small ${st.state === "connected" ? "ok-text" : st.state === "stopped" ? "bad-text" : "muted"}` },
+      t(DISCORD_STATE[st.state] || st.state), st.state === "connected" ? ` (${st.guilds} ${t("Discord server(s)")})` : "", st.error && st.state !== "connected" ? ` · ${st.error}` : "") : null,
+    w.enabled ? h("p", { class: "muted small" }, "Don't see /whitelist in Discord? Add the bot again with “Add it to another Discord server” above (it now needs permission for commands), then restart Discord.") : null);
 }
 
 // A live status message in a Discord channel: each server's state, players and version, kept up
@@ -4368,7 +4643,7 @@ views.mcsm = () => {
             await act(() => api("/api/self-update/check", { method: "POST", body: {} }), "Checking for a new Craft Conductor version…");
           } }, "Check for Craft Conductor updates"), s.single ? null : folderBtn("home", "Craft Conductor folder", null, "btn"))),
       h("div", { class: "mt" }, languageCard()),
-      h("div", { class: "mt" }, sizeCard()),
+      h("div", { class: "mt" }, displayCard()),
       h("div", { class: "mt" }, warningsCard()),
       h("div", { class: "mt" }, notificationsCard()),
       h("div", { class: "mt" }, card("What Craft Conductor does and doesn't do",
@@ -4416,7 +4691,8 @@ views.mcsm = () => {
         h("button", { class: "btn ghost small", onclick: async () => (await ask("Disconnect the Discord bot? (It stays in your Discord servers until you remove it there.)", { ok: "Disconnect", danger: true })) &&
           act(() => api("/api/hub/discord", { method: "POST", body: { token: "" } }), "Discord bot disconnected").then(renderDc) }, "Disconnect"))
         : h("p", { class: "small" }, "Not set up. Use “Post to Discord” on a server's Friends page to connect a bot."),
-      r.set ? discordStatusPicker(r, renderDc) : null));
+      r.set ? discordStatusPicker(r, renderDc) : null,
+      r.set && r.whitelist ? discordWhitelistBox(r, renderDc) : null));
   };
   renderDc();
   const phone = hubInfo && !hubInfo.single ? phoneCard() : null;
@@ -4978,7 +5254,7 @@ let currentName = null;
 
 function renderNav() {
   const hb = hubInfo || {};
-  const a = (href, label, active, extra) => h("a", { href, class: active ? "active" : null }, label, extra || null);
+  const a = (href, label, active, extra) => h("a", { href, class: active ? "active" : null, "aria-current": active ? "page" : null }, label, extra || null);
   const me = server && hb.servers ? hb.servers.find((x) => x.id === server) : null;
   const pending = me ? me.setup_pending : false;
   fill($("#nav"),
@@ -4987,7 +5263,7 @@ function renderNav() {
       h("div", { class: "nav-server" }, me ? me.name : server),
       pending ? a(link("setup"), "Setup", currentName === "setup")
         : SERVER_VIEWS.filter(([v]) => !hb.device || PHONE_VIEWS.includes(v)).map(([v, label]) => a(link(v), label, currentName === v,
-            v === "updates" ? h("span", { id: "nav-update-dot", class: "dot" + (me && me.update ? "" : " hidden") }) : null)),
+            v === "updates" ? h("span", { id: "nav-update-dot", class: "dot" + (me && me.update ? "" : " hidden"), role: "img", "aria-label": "An update is ready" }) : null)),
     ] : [
       a("#servers", "Servers", currentName === "servers"),
       hb.single || hb.device ? null : a("#new", "New server", currentName === "new"),
@@ -5002,6 +5278,9 @@ function renderNav() {
   $(".actions").classList.toggle("hidden", !inServer);
   $("#page-title").classList.toggle("hidden", inServer);
   $("#page-title").textContent = t({ servers: "Your servers", new: "New server", mcsm: "Craft Conductor settings", help: "Help", manual: "User manual" }[currentName] || "");
+  // The browser tab (and what a screen reader says on arriving): the page, the server, Craft Conductor.
+  const viewName = (SERVER_VIEWS.find(([v]) => v === currentName) || [])[1] || (currentName === "setup" ? "Setup" : "");
+  document.title = [inServer ? t(viewName) : $("#page-title").textContent, inServer ? (me ? me.name : server) : "", "Craft Conductor"].filter(Boolean).join(" · ");
   if (!inServer) $("#job").classList.add("hidden");
 }
 
@@ -5032,7 +5311,10 @@ function route() {
   renderNav();
   every(2000, refreshStatus);
   current = views[view === "new" ? "setup" : view]();
+  if (routed && !topDialog()) $("#main").focus({ preventScroll: true });  // (not on the first page: the browser starts at the top)
+  routed = true;
 }
+let routed = false;
 window.addEventListener("hashchange", () => { if (!$("#app").classList.contains("hidden")) route(); });
 
 async function start() {
