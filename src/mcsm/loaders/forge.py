@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
+from ..http import HttpError
 from .base import Loader, LoaderError, Runtime, args_file_name, run_installer, version_key
 
 NEOFORGE_MAVEN = "https://maven.neoforged.net/releases/net/neoforged/neoforge"
 NEOFORGE_VERSIONS = "https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge"
 FORGE_MAVEN = "https://maven.minecraftforge.net/net/minecraftforge/forge"
 FORGE_PROMOS = "https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json"
+
+log = logging.getLogger(__name__)
 
 # Everything the installers create that belongs to the loader, not the world.
 INSTALLER_FILES = ["libraries", "run.sh", "run.bat"]
@@ -29,11 +33,21 @@ class NeoForgeLoader(Loader):
     name = "neoforge"
     mod_loaders = ("neoforge",)
 
+    def _all_versions(self) -> list[str]:
+        """Every NeoForge release: from NeoForge's API, or its maven-metadata.xml when the API
+        doesn't answer (it has refused some networks)."""
+        try:
+            return [str(v) for v in self.http.get_json(NEOFORGE_VERSIONS)["versions"]]
+        except (HttpError, KeyError, TypeError, ValueError) as e:
+            log.debug("NeoForge's version list didn't answer (%s); reading maven-metadata.xml", e)
+        import re
+        text = self.http.get_text(f"{NEOFORGE_MAVEN}/maven-metadata.xml")
+        return re.findall(r"<version>([^<]{1,40})</version>", text)
+
     def latest_version(self, minecraft: str) -> str | None:
         def fetch():
             prefix = neoforge_prefix(minecraft)
-            versions = [v for v in self.http.get_json(NEOFORGE_VERSIONS)["versions"]
-                        if v.startswith(prefix) and "-" not in v]
+            versions = [v for v in self._all_versions() if v.startswith(prefix) and "-" not in v]
             return max(versions, key=version_key) if versions else None
         return self._safe_latest(fetch)
 

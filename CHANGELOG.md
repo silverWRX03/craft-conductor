@@ -12,6 +12,9 @@ its fix will say which version it's in.
 - **Fingerprint or face sign-in** (Craft Conductor settings → Fingerprint or face sign-in): add a passkey on your phone (at its secure address) or computer, and sign in with your fingerprint, face or screen lock instead of the password.
 - **Mod conflict memory** (Craft Conductor settings → Mod conflicts): if you opt in, conflicts that "Find which mods break it" finds are shared anonymously (only the loader, the Minecraft version and mod ids). Conflicts three people have reported show as warnings on everyone's Mods page. The warnings start once Craft Conductor's shared list is online.
 
+**Fixed**
+- New NeoForge servers and NeoForge updates could stop with "neoforge has no build for 1.21.1 yet" when NeoForge's version service didn't answer. Craft Conductor now falls back to NeoForge's own list of versions.
+
 ## 0.19.1 (2026-09-28)
 
 A security and speed check of the whole of Craft Conductor.
