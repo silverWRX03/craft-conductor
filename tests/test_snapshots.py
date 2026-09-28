@@ -31,7 +31,7 @@ def test_what_changed_and_rolling_back(make_config, http, modrinth):
     configmod.append_mod(cfg.path, ModSpec("modrinth", "newmod"))
     m2 = manager(configmod.load(cfg.root), http, ["1.21.1", "1.21.4"])
     assert update(m2).ok
-    (sd / "server.properties").write_text("difficulty=hard\nrcon.password=secret\n")
+    (sd / "server.properties").write_text("difficulty=hard\nrcon.password=secret\nmanagement-server-secret=abc\n")
     (sd / "config" / "goodmod.toml").write_text("speed = 2\n")
     Daemon(m2, autostart=False).backup_now("after")
     names = [p.name for p in backup.list_backups(cfg.backups.dir)]
@@ -43,7 +43,7 @@ def test_what_changed_and_rolling_back(make_config, http, modrinth):
     last = listing[names[2]]["changes"]
     assert last[:4] == ["Minecraft 1.21.1 → 1.21.4", "+ New Mod 1.0", "~ Good Mod 1.0 → 2.0", "Setting difficulty: (none) → hard"]
     assert "Mod config files changed: config/goodmod.toml" in last
-    assert not any("rcon" in line for line in last)
+    assert not any("rcon" in line or "management" in line for line in last)
 
     # Rolling back to the first puts everything back: files, mod list, settings.
     message = snapshots.roll_back(archive1, m2)

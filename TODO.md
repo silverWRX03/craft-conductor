@@ -19,6 +19,9 @@ Before continuing or starting a feature, check this list: some features wait on 
 - [ ] **Try an update rehearsal for real** (a server → Updates → **Rehearse it on a copy first**, when an
       update is ready): check the report matches what you see when you update for real. It was only
       tried with a pretend server.
+- [ ] **Try the new 0.15 features for real:** Find what's causing lag on a busy server, Compare 10 seeds,
+      Roll back to a snapshot, the guided setup, and a modded single-player game in your launcher
+      (Install…, then Check for updates after a mod updates). They were tried with pretend servers.
 - [ ] **Try automatic port forwarding at home** (mcsm settings → Sharing with friends → Router):
       switch it on, look at what it says, then **Test from the internet** in Check my setup. It
       was only tested against a pretend router.
@@ -43,16 +46,16 @@ Next:
 1. [x] **Update rehearsal:** before a Minecraft update, copy the server, update the copy and run
        it for a few minutes; report whether it started, how laggy it was and which mods
        complained, then offer "Update for real".
-2. [ ] **Lag finder:** when the server slows down, run spark by itself and say what's wrong in
+2. [x] **Lag finder:** when the server slows down, run spark by itself and say what's wrong in
        plain words ("chunk loading around x 1200, z −400: a farm with 400 animals").
-3. [ ] **Seed gallery:** one button makes maps of 10 seeds side by side to pick from, with a
+3. [x] **Seed gallery:** one button makes maps of 10 seeds side by side to pick from, with a
        warning first about the time and the load on the computer (waits on **Try the map preview
        for real**).
-4. [ ] **Snapshots** of a whole server (config, mods, world) with a list of what changed, and
+4. [x] **Snapshots** of a whole server (config, mods, world) with a list of what changed, and
        rollback.
-5. [ ] **Guided first server:** a short walkthrough for complete beginners, with a checklist that
+5. [x] **Guided first server:** a short walkthrough for complete beginners, with a checklist that
        ends at "your friend joined".
-6. [ ] **Modded single-player worlds:** set up and keep a modded single-player game up to date,
+6. [x] **Modded single-player worlds:** set up and keep a modded single-player game up to date,
        then load it into the launcher of your choice (no launcher of our own).
 7. [ ] **Accessibility:** everything works with the keyboard, labels for screen readers, and a
        high-contrast theme.

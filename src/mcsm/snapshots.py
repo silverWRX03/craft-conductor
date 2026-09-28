@@ -13,6 +13,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import time
 from pathlib import Path
 
@@ -24,7 +25,7 @@ log = logging.getLogger(__name__)
 
 NOTE = ".json"
 CONFIG_FILES = 3000                 # config files fingerprinted at most
-HIDDEN = {"rcon.password"}          # settings never shown in a list of changes
+SECRET = re.compile(r"password|secret|token", re.I)  # settings never shown in a list of changes
 
 
 def note_path(archive: Path) -> Path:
@@ -74,7 +75,12 @@ def describe(m) -> dict:
 def record(archive: Path, m) -> None:
     """Write the note next to a backup just made (never fails the backup)."""
     try:
-        note_path(archive).write_text(json.dumps(describe(m)))
+        path = note_path(archive)
+        path.write_text(json.dumps(describe(m)))
+        try:
+            path.chmod(0o600)  # (it holds mcsm.toml, which can hold the Discord webhook)
+        except OSError:
+            pass
     except Exception:
         log.exception("couldn't note what's in the backup %s", archive.name)
 
@@ -106,7 +112,7 @@ def changes(before: dict, after: dict) -> list[str]:
         if am[key]["version"] != bm[key]["version"]:
             out.append(f"~ {am[key]['name']} {bm[key]['version']} → {am[key]['version']}")
     bp, ap = before.get("properties", {}), after.get("properties", {})
-    for key in sorted((set(bp) | set(ap)) - HIDDEN):
+    for key in sorted(k for k in set(bp) | set(ap) if not SECRET.search(k)):
         if bp.get(key) != ap.get(key):
             out.append(f"Setting {key}: {bp.get(key, '(none)') or '(empty)'} → {ap.get(key, '(none)') or '(empty)'}")
     bc, ac = before.get("configs", {}), after.get("configs", {})
@@ -122,11 +128,36 @@ def changes(before: dict, after: dict) -> list[str]:
     return out
 
 
+_listed: dict[Path, tuple[tuple, dict]] = {}  # (the Backups page asks every few seconds)
+
+
 def listing(backups_dir: Path) -> dict[str, dict]:
-    """For each backup: whether it's a full snapshot, and what changed since the one before it."""
+    """For each backup: whether it's a full snapshot, and what changed since the one before it.
+    Worked out again only when a backup or a note changes."""
+    archives = backup.list_backups(backups_dir)
+    stamp = tuple((a.name, *_mtime(note_path(a))) for a in archives)
+    cached = _listed.get(backups_dir)
+    if cached and cached[0] == stamp:
+        return cached[1]
+    out = _listing(archives)
+    if len(_listed) > 50:
+        _listed.clear()
+    _listed[backups_dir] = (stamp, out)
+    return out
+
+
+def _mtime(path: Path) -> tuple[int, int]:
+    try:
+        st = path.stat()
+        return st.st_mtime_ns, st.st_size
+    except OSError:
+        return 0, 0
+
+
+def _listing(archives: list[Path]) -> dict[str, dict]:
     out: dict[str, dict] = {}
     previous = None
-    for archive in backup.list_backups(backups_dir):  # oldest first
+    for archive in archives:  # oldest first
         note = load(archive)
         out[archive.name] = {"snapshot": note is not None, "minecraft": (note or {}).get("minecraft"),
                              "mods": len((note or {}).get("mods", {})),
