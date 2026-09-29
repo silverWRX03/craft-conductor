@@ -1438,7 +1438,9 @@ function rehearsalCard(c, applyNow, applyBtn) {
       r.note ? h("p", { class: "muted small" }, r.note) : null,
       cur ? h("div", { class: "row mt-s" },
         h("button", { class: r.verdict === "bad" ? "btn danger" : "btn primary", onclick: applyNow }, r.verdict === "bad" ? "Update anyway" : "Update for real"),
-        h("span", { class: "muted small" }, r.verdict === "bad" ? "Not recommended: fix the problem first (update or remove the mod named)." : "The real update still makes a backup first.")) : null);
+        h("span", { class: "muted small" }, r.verdict !== "bad" ? "The real update still makes a backup first."
+          : (r.diagnosis && r.diagnosis.suspects && r.diagnosis.suspects.length) || cm.mods.some((m) => m.errors)
+            ? "Not recommended: fix the problem first (update or remove the mod named)." : "Not recommended: fix the problem first (see the copy's last lines).")) : null);
   };
   const render = (st) => {
     const job = st.rehearsal && st.rehearsal.state === "running" ? st.rehearsal : null;
@@ -2908,8 +2910,11 @@ function worldPanel(host) {
   const inServer = h("span", { class: "grow muted small" });
   let results = [], seq = 0, timer;
   const countMods = () => {
-    const n = [...st.mods.values()].filter((m) => m.explicit).length;
-    inServer.textContent = n ? `The map is made with all ${n} of the server's ${plugins ? "plugins" : "mods"}.` : "No mods yet: the map shows plain Minecraft.";
+    const all = [...st.mods.values()];
+    const n = all.filter((m) => m.explicit).length, needed = all.length - n;
+    inServer.textContent = !n ? "No mods yet: the map shows plain Minecraft."
+      : needed ? `The map is made with all ${n} of the server's ${plugins ? "plugins" : "mods"} and the ${needed} they need.`
+        : `The map is made with all ${n} of the server's ${plugins ? "plugins" : "mods"}.`;
   };
   const search = async () => {
     if (!moddable) {

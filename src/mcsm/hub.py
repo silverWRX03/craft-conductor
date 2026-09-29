@@ -73,6 +73,7 @@ def receive(handler, dest: Path, max_bytes: int) -> Path:
     if not 0 < length <= max_bytes:
         raise ValueError("the file is empty or too large")
     dest.parent.mkdir(parents=True, exist_ok=True)
+    handler._body_read = True  # (an error now doesn't try to read it again)
     tmp = dest.with_name(f".{dest.name}.part")
     try:
         with open(tmp, "wb") as out:

@@ -4,6 +4,19 @@ What changed in each version of mcsm, newest first. Bugs are listed the way you'
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.20.2 (not released yet)
+
+**Fixed**
+- The world generation map preview failed on Minecraft 26.x with "the world has no region files to draw: the server didn't save any land", with or without mods: Minecraft 26.x keeps the world's land in a new folder. Once found, the map also came out full of holes (26.x saves blocks differently); both are fixed. The same new folders are now used by **Put back an area** from a backup and by the lag finder's look at the world.
+- The map preview's footer said "made with all 2 of the server's mods" when the mods you picked had brought others along; it now counts those too ("and the 4 they need"), and the download step names them.
+- Windows: **Rehearse the update** could fail with "The update didn't start on the copy: … server did not finish starting:" and nothing after it, when the update needed a new Java (Minecraft 26.x needs Java 25) and Craft Conductor's folder had a long path: the copy's Java went past Windows' 260-character limit. The copy now uses the server's own Java, so a Java downloaded for the rehearsal is there for the real update too. The message now gives the reason, and the copy's last lines are shown.
+- A failed rehearsal said "update or remove the mod named" when no mod was named.
+- Windows: **Test these mods** and the map preview downloaded Java again each time instead of using the Java that was already there.
+- Windows: some refused requests (for example a phone at an address that isn't allowed) could show "connection reset" instead of the reason.
+
+**Changed**
+- When a map preview's private server crashes, the message says which mod it blames (like a server's own start does), and its log is kept (`previews/last-failed.log`) instead of being deleted.
+
 ## 0.20.1 (2026-09-28)
 
 **Fixed**

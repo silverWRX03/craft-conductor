@@ -422,6 +422,7 @@ class RequestHandler(BaseHTTPRequestHandler):
     web: WebUI
     server_version = f"mcsm/{__version__}"
     timeout = REQUEST_TIMEOUT
+    _body_read = False  # whether this request's body was read (see _fail)
 
     def log_message(self, fmt, *args):  # keep the server console clean
         log.debug("web: " + fmt, *args)
@@ -469,6 +470,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             raise ApiError(413, "request too large")
         if length < 0:  # (reading -1 bytes would read until the client stops sending)
             raise ApiError(400, "bad Content-Length")
+        self._body_read = True
         raw = self.rfile.read(length) if length else b"{}"
         try:
             data = json.loads(raw or b"{}")
@@ -561,6 +563,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         self._dispatch("GET", path, urllib.parse.parse_qs(qs))
 
     def do_POST(self):
+        self._body_read = False  # (the same handler answers each request on a kept-open connection)
         if not self._host_ok():
             return
         path, _, qs = self.path.partition("?")
@@ -692,15 +695,29 @@ class RequestHandler(BaseHTTPRequestHandler):
             body = self._body() if method == "POST" else {}
             return self._json(200, handler(q, body))
         except ApiError as e:
-            self._json(e.status, {"error": str(e)})
+            self._fail(e.status, str(e))
         except HttpError as e:  # a website mcsm depends on didn't answer
             log.warning("web request needed %s, which failed: %s", e.url, e)
-            self._json(502, {"error": e.friendly})
+            self._fail(502, e.friendly)
         except (ConfigError, ModError, JavaError, PlayerError, RuntimeError, ValueError, OSError) as e:
-            self._json(400, {"error": str(e)})
+            self._fail(400, str(e))
         except Exception as e:  # pragma: no cover - last resort
             log.exception("web request failed")
-            self._json(500, {"error": f"internal error: {e}"})
+            self._fail(500, f"internal error: {e}")
+
+    def _fail(self, status: int, error: str) -> None:
+        """An error answer. A small request body not read yet is read first: Windows resets a
+        connection closed with data still unread, and the browser then gets "connection reset"
+        instead of the error."""
+        if self.command == "POST" and not self._body_read:
+            self._body_read = True
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+                if 0 < length <= MAX_JSON:
+                    self.rfile.read(length)
+            except (ValueError, OSError):
+                pass
+        self._json(status, {"error": error})
 
 
 def setup_options(mojang: Mojang) -> dict:
@@ -2246,6 +2263,7 @@ class Api:
             raise ApiError(413, "file is empty or too large")
         folder = self.m.config.manual_dir
         folder.mkdir(parents=True, exist_ok=True)
+        handler._body_read = True
         fd, tmp = tempfile.mkstemp(dir=folder, prefix=".upload-")
         try:
             with open(fd, "wb") as out:

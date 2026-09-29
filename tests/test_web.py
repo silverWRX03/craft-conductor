@@ -17,7 +17,8 @@ from test_manager import manager, update
 
 class Client:
     def __init__(self, base):
-        self.base = base
+        # (Windows tries localhost as ::1 first and waits 2 seconds a request before 127.0.0.1)
+        self.base = base.replace("://localhost:", "://127.0.0.1:")
         self.cookie = None
 
     def call(self, method, path, body=None, headers=None, raw=None):

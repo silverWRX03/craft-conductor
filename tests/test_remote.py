@@ -142,6 +142,17 @@ def test_headless_first_sign_in_from_another_device(hub_env, monkeypatch):
     assert store.first_run_password() is None and store.get().remote_ready
 
 
+def test_a_refused_request_is_answered_not_reset(hub_env):
+    """A request refused before its body is read still gets its answer: on Windows, closing a
+    connection with the body unread reset it, and the page saw "connection reset" instead."""
+    hub, c = hub_env
+    proxied = Client(c.base)
+    body = {"padding": "x" * 20_000}
+    for _ in range(50):
+        status, r, _ = proxied.call("POST", "/api/auth/reset-local", body, headers={"Via": "1.1 nginx"})
+        assert status == 403 and "own computer" in r["error"]
+
+
 @pytest.mark.parametrize("header", [{"Via": "1.1 nginx"}, {"Tailscale-User-Login": "someone@example.com"},
                                     {"X-Forwarded-Host": "mc.example.com"}, {"Host": "mc.example.com"}])
 def test_a_proxy_on_this_computer_isnt_local(hub_env, header):

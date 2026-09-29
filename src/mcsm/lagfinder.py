@@ -135,13 +135,13 @@ def read_profile(server_dir: Path, since: float) -> str:
 
 # ------------------------------------------------------------ the world
 def _dimensions(world: Path) -> list[tuple[str, Path]]:
-    """(name, folder) for the overworld and, if there, the Nether and the End (either layout)."""
-    out = [("the Overworld", world)]
-    for name, sub in (("the Nether", "DIM-1"), ("the End", "DIM1")):
-        for base in (world / sub, world.parent / f"{world.name}_{'nether' if sub == 'DIM-1' else 'the_end'}" / sub):
-            if base.is_dir():
-                out.append((name, base))
-                break
+    """(name, folder) for the overworld and, if there, the Nether and the End (any layout)."""
+    from .areas import dimension_folder
+    out = [("the Overworld", dimension_folder(world))]
+    for name, dim in (("the Nether", "nether"), ("the End", "end")):
+        folder = dimension_folder(world, dim)
+        if folder.is_dir():
+            out.append((name, folder))
     return out
 
 
