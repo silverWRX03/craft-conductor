@@ -1570,7 +1570,7 @@ class HubApi:
         shown = f"[{host}]" if ":" in host else host
         url = f"https://{host}/#pair={code}" if secure else f"{'https' if self.web.tls else 'http'}://{shown}:{port}/#pair={code}"
         log.info("made a pairing code for a %s (valid for five minutes)", role)
-        return {"url": url, "qr": qr.svg(url), "expires_in": webauth.PAIR_SECONDS}
+        return {"url": url, "qr": qr.svg(url), "code": code, "secure": secure, "expires_in": webauth.PAIR_SECONDS}
 
     def remove_device(self, q, b) -> dict:
         which = b.get("id")

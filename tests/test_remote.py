@@ -1,5 +1,7 @@
 """Remote access: strong passwords only, and phones paired by QR code with limited powers."""
 
+import re
+
 import pytest
 
 from mcsm import qr, webauth
@@ -79,12 +81,31 @@ def test_remote_access_needs_a_strong_password_and_phones_are_limited(hub_env):
     # Removing it (or changing the password) signs it out.
     assert ui.post("/api/hub/devices/remove", {"id": devices[0]["id"]})[0] == 200
     assert phone.get("/api/hub")[0] == 401
-    code = ui.post("/api/hub/devices/pair", {"host": host})[1]["url"].split("#pair=")[1]
-    assert phone.post("/api/pair", {"code": code, "name": "phone"})[0] == 200
+    # (an iPhone's Home Screen app is paired by typing the code the computer shows)
+    r = ui.post("/api/hub/devices/pair", {"host": host})[1]
+    assert r["url"].endswith("#pair=" + r["code"]) and r["secure"] is False
+    typed = r["code"].replace("-", " ").lower()
+    assert phone.post("/api/pair", {"code": typed, "name": "phone"})[0] == 200
     assert c.post("/api/auth/change", {"mode": "password", "secret": STRONG + "2"})[0] == 200
     assert phone.get("/api/hub")[0] == 401
     with pytest.raises(ConfigError):
         webui.devices.pair("nope", "x", "1.2.3.4", 0)
+
+
+def test_pairing_codes_can_be_typed(tmp_path):
+    """Short, with letters that can't be mixed up; typed in any case, with or without the dashes,
+    and O or I/L for 0 or 1 still work."""
+    devices = webauth.Devices(tmp_path)
+    code = devices.new_code(1000.0)
+    assert re.fullmatch(r"[2-9A-HJKMNP-Z]{4}-[2-9A-HJKMNP-Z]{4}-[2-9A-HJKMNP-Z]{4}", code)
+    assert webauth.pair_code(" abcd-efgh o1il ") == "ABCDEFGH0111"
+    devices.pair(code.lower().replace("-", ""), "Phone", "10.0.0.5", 1001.0)
+    with pytest.raises(ConfigError):  # (once)
+        devices.pair(code, "Phone", "10.0.0.5", 1002.0)
+    late = devices.new_code(1000.0)
+    with pytest.raises(ConfigError):  # (five minutes)
+        devices.pair(late, "Phone", "10.0.0.5", 1000.0 + webauth.PAIR_SECONDS + 1)
+    assert len({devices.new_code(1000.0) for _ in range(50)}) == 50
 
 
 def test_help_images_and_app_manifest_are_served(hub_env):

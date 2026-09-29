@@ -222,7 +222,16 @@ def describe(auth: Auth) -> str:
 # ------------------------------------------------------------ paired phones
 DEVICES_FILE = "devices.json"
 PAIR_SECONDS = 300            # a pairing code works once, for five minutes
+# Pairing codes are short enough to type (an iPhone's Home Screen app doesn't share Safari's
+# sign-in, so it's paired by typing the code): 12 letters and digits that can't be mixed up,
+# about 59 bits, with five tries per five minutes (web.py).
+CODE_LETTERS = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
 DEVICE_DAYS = 180             # a paired phone signs in by itself for this long (unless removed)
+
+
+def pair_code(typed: str) -> str:
+    """A pairing code as typed: any case, with or without dashes or spaces, O for 0, I or L for 1."""
+    return re.sub(r"[^0-9A-Z]", "", str(typed)[:64].upper()).translate(str.maketrans("OIL", "011"))
 
 
 def _digest(token: str) -> str:
@@ -274,16 +283,16 @@ class Devices:
         whoever uses the code."""
         if role not in ROLES:
             raise ConfigError("unknown role")
-        code = secrets.token_urlsafe(24)
+        raw = "".join(secrets.choice(CODE_LETTERS) for _ in range(12))
         with self._lock:
             self._codes = {c: v for c, v in self._codes.items() if v[0] > now}
-            self._codes[_digest(code)] = (now + PAIR_SECONDS, role)
-        return code
+            self._codes[_digest(raw)] = (now + PAIR_SECONDS, role)
+        return f"{raw[:4]}-{raw[4:8]}-{raw[8:]}"
 
     def pair(self, code: str, name: str, ip: str, now: float) -> tuple[str, dict]:
         """Use up a pairing code; returns the new phone's key and its record."""
         with self._lock:
-            exp, role = self._codes.pop(_digest(code), (None, None))
+            exp, role = self._codes.pop(_digest(pair_code(code)), (None, None))
             if exp is None or exp < now:
                 raise ConfigError("that pairing code has expired or was already used; make a new one")
             token = secrets.token_urlsafe(32)

@@ -4,6 +4,15 @@ What changed in each version of mcsm, newest first. Bugs are listed the way you'
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.20.1 (2026-09-28)
+
+**Fixed**
+- Pairing a phone, even with the secure Tailscale address, only opened Craft Conductor as a web page: nothing offered the app. After pairing, the phone now offers **Install the app** (Android). An iPhone is shown how to add it to the Home Screen first and pair it there, because the Home Screen app doesn't share Safari's sign-in (before, it asked for the password).
+
+**Added**
+- **Pair with a code** on the phone's sign-in page: type the short code shown under the pairing QR code.
+- Pairing a phone at an address that only opens in the browser now says so clearly, with **Set up the secure Tailscale address** right there.
+
 ## 0.20.0 (2026-09-28)
 
 **Added**

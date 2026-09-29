@@ -394,7 +394,8 @@ async function showLogin() {
       h("code", {}, "mcsm web-password --reset"), "."]));
   let box = $("#login-passkey");
   if (!box) { box = h("div", { id: "login-passkey", class: "login-fields" }); $("#login-hint").before(box); }
-  fill(box, a && a.passkeys && passkeysWork() ? h("button", { type: "button", class: "btn", onclick: signInWithPasskey }, "Sign in with fingerprint or face") : null);
+  fill(box, a && a.passkeys && passkeysWork() ? h("button", { type: "button", class: "btn", onclick: signInWithPasskey }, "Sign in with fingerprint or face") : null,
+    a && !a.local ? h("button", { type: "button", class: "btn ghost", onclick: () => showPairing("") }, "Pair with a code") : null);
   input.focus();
 }
 
@@ -3681,11 +3682,23 @@ function openRemoteAccess() {
     const pairBox = h("div", { class: "pair-box" });
     const addr = h("select", { "aria-label": "Address the phone uses" }, r.addresses.map((a) => h("option", { value: a.host, "data-kind": a.kind }, a.label)));
     // Phones only install the app (and get notifications) from a secure address: say so for the others.
-    const addrNote = h("p", { class: "small muted" });
+    const addrNote = h("div", { class: "small muted" });
+    const hasSecure = r.addresses.some((a) => a.kind === "tailscale-https");
+    const useTailscale = async () => {
+      const res = await api("/api/hub/phone/tailscale", { method: "POST", body: { on: true } }).catch((e) => { toast(e.message, true); return null; });
+      if (!res) return;
+      if (res.ok) { toast("The secure Tailscale address is ready"); load(); return; }
+      if (!res.enable_url) { toast(res.message, true); return; }
+      fill(addrNote, "Tailscale needs HTTPS switched on for your account first (one click): ",
+        h("a", { href: res.enable_url, target: "_blank", rel: "noopener noreferrer" }, "switch it on ↗"), ", then press the button again.", " ",
+        h("button", { class: "btn small", onclick: useTailscale }, "Set up the secure Tailscale address"));
+    };
     const noteAddr = () => {
       const secure = (addr.selectedOptions[0] || {}).dataset && addr.selectedOptions[0].dataset.kind === "tailscale-https";
-      addrNote.textContent = secure ? t("A secure address: the phone can install Craft Conductor as an app, with notifications.")
-        : t("At this address Craft Conductor opens in the phone's browser, as a web page. To install it as an app with notifications, use a secure address: Craft Conductor settings → Phone app → Use Tailscale for the phone app.");
+      addrNote.className = secure ? "small ok-text" : "notice warn small";
+      fill(addrNote, secure ? t("A secure address: the phone can install Craft Conductor as an app, with notifications.")
+        : [t("At this address Craft Conductor opens in the phone's browser, as a web page, not as an app. To install it as an app with notifications, pair with the Tailscale, secure address."), " ",
+          hasSecure ? null : h("button", { class: "btn small", onclick: useTailscale }, "Set up the secure Tailscale address")]);
     };
     addr.addEventListener("change", noteAddr);
     noteAddr();
@@ -3701,7 +3714,9 @@ function openRemoteAccess() {
       timer = setInterval(tick, 1000);
       tick();
       fill(pairBox, h("img", { class: "qr", alt: "QR code for pairing a phone", src: "data:image/svg+xml;base64," + btoa(p.qr) }),
-        h("p", { class: "small" }, "Scan it with the phone's camera, open the link, and give the phone a name. Then use ", h("strong", {}, "Add to Home screen"), " in the phone's browser for an app icon."),
+        h("p", { class: "small" }, p.secure ? "Scan it with the phone's camera and open the link. The phone is paired, then it offers to install the app (an iPhone adds it to the Home Screen first)."
+          : "Scan it with the phone's camera and open the link. The phone is paired, and Craft Conductor opens in its browser."),
+        h("p", { class: "small" }, "Or, on the phone's sign-in page, choose ", h("strong", {}, "Pair with a code"), " and type ", h("code", { class: "pair-code" }, p.code), "."),
         clock);
     } }, "Show a pairing QR code");
     const devices = r.devices.length ? h("ul", { class: "list" }, r.devices.map((d) => h("li", {},
@@ -3728,25 +3743,74 @@ function openRemoteAccess() {
   };
   load();
 }
-// The page a phone opens from the QR code: name it, and it's paired.
-function showPairing(code) {
+// The page a phone opens from the QR code (or Pair with a code on the sign-in page): name it, and
+// it's paired; then it offers the app. An iPhone's Home Screen app doesn't share Safari's sign-in,
+// so on an iPhone the app is added first and paired there by typing the code.
+const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+function standaloneApp() { return !!(window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true; }
+function secureAddress() { return window.isSecureContext && "serviceWorker" in navigator; }
+function pairingScreen(...children) {
   $("#app").classList.add("hidden");
-  const name = h("input", { value: /Android/i.test(navigator.userAgent) ? "Android phone" : /iPhone|iPad/i.test(navigator.userAgent) ? "iPhone" : "My phone",
-    maxlength: 40, "aria-label": "Name for this phone" });
+  $("#login").classList.add("hidden");
+  if ($("#pairing")) $("#pairing").remove();
+  document.body.append(h("div", { class: "login", id: "pairing" }, h("div", { class: "login-card" },
+    h("div", { class: "brand big" }, h("span", { class: "logo" }), "Craft Conductor"), ...children)));
+}
+function showPairing(code, inBrowser = false) {
+  if (code && IOS && secureAddress() && !standaloneApp() && !inBrowser) {
+    pairingScreen(h("h2", {}, "Get the app first"),
+      h("ol", { class: "steps" },
+        h("li", {}, "Press Share (the square with an arrow), then Add to Home Screen."),
+        h("li", {}, "Open Craft Conductor from your Home Screen."),
+        h("li", {}, "Choose Pair with a code, and type:")),
+      h("p", { class: "pair-code" }, code),
+      h("p", { class: "muted small" }, "The code works once, for five minutes. The Home Screen app doesn't share Safari's sign-in, so it's paired there."),
+      h("button", { class: "btn ghost", onclick: () => showPairing(code, true) }, "Just use it in Safari"));
+    return;
+  }
+  const typed = code ? null : h("input", { autocomplete: "one-time-code", autocapitalize: "characters", spellcheck: "false", maxlength: 20,
+    placeholder: "ABCD-EFGH-JKLM", "aria-label": "Pairing code" });
+  const name = h("input", { value: deviceName(), maxlength: 40, "aria-label": "Name for this phone" });
   const go = h("button", { class: "btn primary", onclick: async () => {
     go.disabled = true;
     try {
-      await api("/api/pair", { method: "POST", body: { code, name: name.value } });
+      await api("/api/pair", { method: "POST", body: { code: code || typed.value, name: name.value } });
       history.replaceState(null, "", location.pathname);
       toast("Paired. This phone now signs in by itself.");
-      start();
+      if (standaloneApp()) start(); else showGetApp();
     } catch (e) { toast(e.message, true); go.disabled = false; }
   } }, "Pair this phone");
-  const box = h("div", { class: "login-card" }, h("div", { class: "brand big" }, h("span", { class: "logo" }), "mcsm"),
-    h("p", {}, "Pair this phone with your Minecraft server manager?"),
+  pairingScreen(h("p", {}, "Pair this phone with your Minecraft server manager?"),
+    typed ? h("label", {}, "The code shown on the computer (Craft Conductor settings → Remote access & phones)", typed) : null,
     h("label", {}, "Name it (so you can tell phones apart)", name), go,
+    typed ? h("button", { class: "btn ghost", onclick: () => { $("#pairing").remove(); showLogin(); } }, "Back") : null,
     h("p", { class: "muted small" }, "Only pair your own phone. You can sign it out any time in Craft Conductor settings on the computer."));
-  document.body.append(h("div", { class: "login", id: "pairing" }, box));
+  (typed || name).focus();
+}
+// Right after pairing in the browser: put Craft Conductor on the home screen, as an app.
+function showGetApp(installed = false) {
+  const later = h("button", { class: "btn ghost", onclick: () => start() }, "Continue in the browser");
+  if (!secureAddress()) {
+    pairingScreen(h("h2", {}, "Paired ✓"),
+      h("div", { class: "notice warn small" }, h("strong", {}, "This address opens Craft Conductor in the browser, not as an app."), " ",
+        t("Phones only install it as an app (with notifications, even when it's closed) from a secure address. On the computer: Craft Conductor settings → Phone app → Use Tailscale for the phone app, then pair again with the Tailscale, secure address.")),
+      h("button", { class: "btn primary", onclick: () => start() }, "Continue"));
+    return;
+  }
+  const how = installed ? h("div", { class: "notice ok small" }, "Installed. Open Craft Conductor from your home screen.")
+    : installPrompt ? h("button", { class: "btn primary", onclick: async () => {
+        const p = installPrompt;
+        installPrompt = null;
+        p.prompt();
+        const choice = await p.userChoice.catch(() => null);
+        showGetApp(!!choice && choice.outcome === "accepted");
+      } }, "Install the app")
+      : IOS ? h("p", {}, "Press Share, then Add to Home Screen. The Home Screen app signs in separately: make a new pairing code on the computer and choose Pair with a code in the app.")
+        : [h("p", {}, "In the browser's menu (⋮), choose Install app or Add to Home screen."),
+          h("p", { class: "muted small" }, "Don't see it? The QR code may have opened inside the camera app: open this page in Chrome (or your usual browser) first.")];
+  pairingScreen(h("h2", {}, "Paired ✓"), h("p", {}, "Now put Craft Conductor on your home screen: it opens like an app, and can tell you when a server needs you."),
+    how, later);
+  $("#pairing").dataset.getApp = "1";
 }
 
 // ------------------------------------------------------------------ Discord
@@ -4714,6 +4778,7 @@ window.addEventListener("beforeinstallprompt", (e) => {
   e.preventDefault(); installPrompt = e;
   const b = $("#phone-banner");  // (it can come after the phone banner was drawn: show its Install button)
   if (b) { b.remove(); phoneBanner(); }
+  if ($("#pairing") && $("#pairing").dataset.getApp) showGetApp();
 });
 function registerWorker() {
   if (window.isSecureContext && "serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => null);
@@ -4771,7 +4836,7 @@ async function phoneBanner() {
       : t("On the computer, open Craft Conductor settings → Phone app → Use Tailscale for the phone app, then open the https://….ts.net address it shows here."),
     h("div", { class: "row mt-s" }, notNow));
   else if (kind === "install") fill(box, h("strong", {}, "Put Craft Conductor on your home screen."), " ",
-    iOS ? t("Press Share, then Add to Home Screen, and open it from there.")
+    iOS ? t("Press Share, then Add to Home Screen, and open it from there. It signs in separately: with your password, or Pair with a code.")
       : installPrompt ? t("It opens like an app, and can tell you when a server needs you.")
         : t("In the browser's menu (⋮), choose Install app or Add to Home screen."),
     h("div", { class: "row mt-s" },
