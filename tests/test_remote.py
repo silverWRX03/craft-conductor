@@ -151,6 +151,9 @@ def test_a_refused_request_is_answered_not_reset(hub_env):
     for _ in range(50):
         status, r, _ = proxied.call("POST", "/api/auth/reset-local", body, headers={"Via": "1.1 nginx"})
         assert status == 403 and "own computer" in r["error"]
+    for _ in range(10):  # (and one answered without needing its body at all)
+        login(c)
+        assert c.post("/api/logout", body)[0] == 200
 
 
 @pytest.mark.parametrize("header", [{"Via": "1.1 nginx"}, {"Tailscale-User-Login": "someone@example.com"},

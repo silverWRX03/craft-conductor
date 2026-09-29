@@ -14,9 +14,9 @@ import json
 import logging
 import os
 import re
+import base64
 import subprocess
-import tempfile
-from pathlib import Path
+import time
 
 log = logging.getLogger(__name__)
 
@@ -55,18 +55,27 @@ def _powershell(script: list[str], timeout: float) -> subprocess.CompletedProces
                           timeout=timeout, **NO_WINDOW)
 
 
-def read(timeout: float = 30) -> dict | None:
+CACHE_SECONDS = 15  # (Check my setup opened again soon, or on several pages: one read)
+_cache: tuple[float, dict | None] | None = None
+
+
+def read(timeout: float = 30, fresh: bool = False) -> dict | None:
     """The firewall's state and its enabled inbound rules; None when that can't be read (not
-    Windows, or PowerShell failed)."""
+    Windows, or PowerShell failed). Read again after CACHE_SECONDS, or when ``fresh``."""
+    global _cache
     if os.name != "nt":
         return None
+    if not fresh and _cache and time.monotonic() - _cache[0] < CACHE_SECONDS:
+        return _cache[1]
     try:
         r = _powershell(["-Command", QUERY], timeout)
         data = json.loads(r.stdout or "null")
     except (OSError, subprocess.SubprocessError, ValueError) as e:
         log.info("couldn't read Windows Firewall's rules: %s", e)
-        return None
-    return data if isinstance(data, dict) else None
+        data = None
+    data = data if isinstance(data, dict) else None
+    _cache = (time.monotonic(), data)
+    return data
 
 
 def _list(x) -> list:
@@ -123,7 +132,9 @@ def assess(state: dict, lan_ip: str | None, wanted: list[dict]) -> dict:
 
 
 def _ps_string(s: str) -> str:
-    return "'" + str(s).replace("'", "''") + "'"
+    """A PowerShell string that's only ever text: every character PowerShell takes as a single
+    quote (the curly ones too) is doubled."""
+    return "'" + re.sub("(['‘’‚‛])", r"\1\1", str(s)) + "'"
 
 
 def script(ports: list[dict]) -> str:
@@ -152,14 +163,10 @@ def let_through(ports: list[dict], timeout: float = 300) -> None:
     answers its prompt). Raises FirewallError when that's declined or fails."""
     if os.name != "nt":
         raise FirewallError("this is only for Windows")
-    text = script(ports)
-    fd, path = tempfile.mkstemp(prefix="mcsm-firewall-", suffix=".ps1")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8-sig") as f:
-            f.write(text)
-        code = elevate("powershell.exe", f'-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{path}"', timeout)
-    finally:
-        Path(path).unlink(missing_ok=True)
+    # (passed inline, not as a file: nothing another program could change between here and
+    # Windows running it with administrator rights)
+    encoded = base64.b64encode(script(ports).encode("utf-16-le")).decode("ascii")
+    code = elevate("powershell.exe", f"-NoProfile -NonInteractive -EncodedCommand {encoded}", timeout)
     if code is None:
         raise FirewallError("Windows didn't get the go-ahead (its administrator prompt was answered No)")
     if code != 0:

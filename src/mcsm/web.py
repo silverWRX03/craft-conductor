@@ -429,6 +429,7 @@ class RequestHandler(BaseHTTPRequestHandler):
 
     # --------------------------------------------------------------- utils
     def _send(self, status: int, body: bytes, content_type: str, headers: dict[str, str] | None = None):
+        self._drain()
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
@@ -443,6 +444,7 @@ class RequestHandler(BaseHTTPRequestHandler):
     def _send_file(self, path: Path):
         """Stream a file from disk as a download."""
         size = path.stat().st_size
+        self._drain()
         self.send_response(200)
         self.send_header("Content-Type", "application/zip")
         self.send_header("Content-Length", str(size))
@@ -708,9 +710,12 @@ class RequestHandler(BaseHTTPRequestHandler):
             self._fail(500, f"internal error: {e}")
 
     def _fail(self, status: int, error: str) -> None:
-        """An error answer. A small request body not read yet is read first: Windows resets a
-        connection closed with data still unread, and the browser then gets "connection reset"
-        instead of the error."""
+        self._json(status, {"error": error})
+
+    def _drain(self) -> None:
+        """Before any answer: a small request body not read yet (a refused request, or one like
+        /api/logout that needs none) is read first. Windows resets a connection closed with data
+        still unread, and the browser then gets "connection reset" instead of the answer."""
         if self.command == "POST" and not self._body_read:
             self._body_read = True
             try:
@@ -719,7 +724,6 @@ class RequestHandler(BaseHTTPRequestHandler):
                     self.rfile.read(length)
             except (ValueError, OSError):
                 pass
-        self._json(status, {"error": error})
 
 
 def setup_options(mojang: Mojang) -> dict:
@@ -2682,11 +2686,11 @@ class Api:
             ports.append({"port": int(share["port"]), "label": "friends' downloads", "program": sys.executable})
         return ports
 
-    def _firewall(self, share: dict | None) -> dict | None:
+    def _firewall(self, share: dict | None, fresh: bool = False) -> dict | None:
         from . import firewall, upnp
         if os.name != "nt":
             return None
-        state = firewall.read()
+        state = firewall.read(fresh=fresh)
         return firewall.assess(state, upnp._lan_address(), self._firewall_ports(share)) if state else None
 
     def doctor(self, q, b) -> dict:
@@ -2763,7 +2767,7 @@ class Api:
                 firewall.let_through([{**p, "unblock": ours(p["program"])} for p in ports])
             except firewall.FirewallError as e:
                 raise ApiError(400, str(e)) from None
-            after = self._firewall(None if hub.is_single else hub.share_status())  # (said only once it's so)
+            after = self._firewall(None if hub.is_single else hub.share_status(), fresh=True)  # (said only once it's so)
             shut = [p["port"] for p in (after or {}).get("ports", []) if not p["allowed"]] if after and after.get("on") else []
             if shut:
                 raise ApiError(400, "Windows still doesn't let port " + ", ".join(map(str, shut)) + " through: "

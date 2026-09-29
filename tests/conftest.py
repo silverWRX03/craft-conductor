@@ -196,7 +196,7 @@ def notice_accepted(tmp_path, monkeypatch):
 def no_real_firewall(monkeypatch):
     """Check my setup doesn't read this computer's Windows Firewall in tests (test_firewall fakes it)."""
     from mcsm import firewall
-    monkeypatch.setattr(firewall, "read", lambda timeout=30: None)
+    monkeypatch.setattr(firewall, "read", lambda timeout=30, fresh=False: None)
 
 
 @pytest.fixture

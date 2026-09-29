@@ -8,6 +8,7 @@ import pytest
 
 from mcsm import doctor, firewall
 
+REAL_READ = firewall.read  # (conftest fakes it for every test)
 JAVA = r"C:\Users\Sam Smith\mcsm\servers\survival\.mcsm\java\21\bin\java.exe"
 WANTED = [{"port": 25565, "label": "Survival (Minecraft)", "program": JAVA},
           {"port": 8766, "label": "friends' downloads", "program": r"C:\cc\craft-conductor.exe"}]
@@ -74,6 +75,8 @@ def test_the_rules_it_adds():
     assert f"-Program '{JAVA}'" in text and text.count("Remove-NetFirewallRule") == 3  # (two old rules of ours, one block)
     assert "Action -eq 'Block'" in text
     assert firewall._ps_string("it's") == "'it''s'"
+    # PowerShell takes curly quotes as quotes too: a path like C:\Users\O’Brien stays text.
+    assert firewall._ps_string("O\u2019Brien\u2018x") == "'O\u2019\u2019Brien\u2018\u2018x'"
     with pytest.raises(firewall.FirewallError):
         firewall.script([{"port": 70000, "label": "x"}])
 
@@ -81,13 +84,15 @@ def test_the_rules_it_adds():
 @pytest.mark.skipif(os.name != "nt", reason="Windows Firewall")
 def test_letting_through_asks_windows(monkeypatch):
     """Asked for straight from Craft Conductor (through a hidden PowerShell, Windows' prompt stayed
-    out of sight until it gave up), and its answer read: No, or the script's own exit code."""
+    out of sight until it gave up), and its answer read: No, or the script's own exit code. The
+    script goes inline: no file another program could change before it runs as administrator."""
+    import base64
     answers, seen = [None, 1, 0], []
 
     def fake(program, arguments, timeout):
-        path = re.search(r'-File "([^"]+)"', arguments).group(1)
-        assert program == "powershell.exe" and os.path.exists(path)  # (the script is there while it runs)
-        seen.append(open(path, encoding="utf-8-sig").read())
+        encoded = re.fullmatch(r"-NoProfile -NonInteractive -EncodedCommand ([A-Za-z0-9+/=]+)", arguments).group(1)
+        assert program == "powershell.exe"
+        seen.append(base64.b64decode(encoded).decode("utf-16-le"))
         return answers.pop(0)
     monkeypatch.setattr(firewall, "elevate", fake)
     with pytest.raises(firewall.FirewallError, match="answered No"):
@@ -95,8 +100,20 @@ def test_letting_through_asks_windows(monkeypatch):
     with pytest.raises(firewall.FirewallError, match="couldn't add"):
         firewall.let_through([{"port": 25565, "label": "x"}])
     firewall.let_through([{"port": 25565, "label": "x"}])
-    assert "-LocalPort 25565" in seen[0]
-    assert not list(__import__("pathlib").Path(__import__("tempfile").gettempdir()).glob("mcsm-firewall-*.ps1"))
+    assert "-LocalPort 25565" in seen[0] and seen[0] == firewall.script([{"port": 25565, "label": "x"}])
+
+
+def test_the_firewall_is_read_once_in_a_while(monkeypatch):
+    runs = []
+    monkeypatch.setattr(firewall, "read", REAL_READ)  # (the real read, with PowerShell faked)
+    monkeypatch.setattr(os, "name", "nt")
+    monkeypatch.setattr(firewall, "_cache", None)
+    monkeypatch.setattr(firewall, "_powershell", lambda args, timeout: runs.append(1) or
+                        subprocess.CompletedProcess(args, 0, '{"profiles": [], "networks": [], "rules": []}', ""))
+    assert firewall.read() == firewall.read() == {"profiles": [], "networks": [], "rules": []}
+    assert len(runs) == 1
+    firewall.read(fresh=True)  # (after letting ports through: what's there now)
+    assert len(runs) == 2
 
 
 def test_only_at_this_computer(hub_env, monkeypatch):
@@ -107,7 +124,8 @@ def test_only_at_this_computer(hub_env, monkeypatch):
     login(c)
     monkeypatch.setattr(os, "name", os.name)  # (restored after)
     added = []
-    monkeypatch.setattr(firewall, "read", lambda timeout=30: state([rule(ports=[str(p["port"]) for p in added[-1]])] if added else []))
+    monkeypatch.setattr(firewall, "read", lambda timeout=30, fresh=False:
+                        state([rule(ports=[str(p["port"]) for p in added[-1]])] if added else []))
     monkeypatch.setattr(firewall, "let_through", lambda ports: added.append(ports))
     monkeypatch.setattr(os, "name", "nt")
     checks = c.get("/api/servers/alpha/doctor")[1]["checks"]
@@ -120,6 +138,6 @@ def test_only_at_this_computer(hub_env, monkeypatch):
     assert status == 200, r
     assert added and added[0][0]["port"] == 25565
     # Windows said yes but nothing changed: it doesn't claim it worked.
-    monkeypatch.setattr(firewall, "read", lambda timeout=30: state([]))
+    monkeypatch.setattr(firewall, "read", lambda timeout=30, fresh=False: state([]))
     status, r, _ = c.post("/api/servers/alpha/doctor/fix", {"action": "firewall"})
     assert status == 400 and "still doesn't let port 25565" in r["error"]
