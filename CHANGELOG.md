@@ -13,6 +13,7 @@ its fix will say which version it's in.
 - The map preview's footer said "made with all 2 of the server's mods" when the mods you picked had brought others along; it now counts those too ("and the 4 they need"), and the download step names them.
 - Windows: **Rehearse the update** could fail with "The update didn't start on the copy: … server did not finish starting:" and nothing after it, when the update needed a new Java (Minecraft 26.x needs Java 25) and Craft Conductor's folder had a long path: the copy's Java went past Windows' 260-character limit. The copy now uses the server's own Java, so a Java downloaded for the rehearsal is there for the real update too. The message now gives the reason, and the copy's last lines are shown.
 - A failed rehearsal said "update or remove the mod named" when no mod was named.
+- **Use Tailscale for the phone app** said "Tailscale isn't installed on this computer" (after half a minute) when Tailscale was installed but Serve wasn't switched on for your Tailscale account yet. It now gives the link to switch it on straight away.
 - Windows: **Test these mods** and the map preview downloaded Java again each time instead of using the Java that was already there.
 - Windows: some refused requests (for example a phone at an address that isn't allowed) could show "connection reset" instead of the reason.
 
