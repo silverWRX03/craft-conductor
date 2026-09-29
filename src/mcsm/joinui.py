@@ -416,6 +416,13 @@ class JoinUI:
                     self._json(404, {"error": "not found"})
 
             def do_POST(self):
+                # The body first, even for a request that's then refused: Windows resets a connection
+                # closed with data unread, and the page would get "connection reset" instead.
+                try:
+                    length = max(0, min(int(self.headers.get("Content-Length") or 0), 64 * 1024))
+                except ValueError:
+                    length = 0
+                raw = self.rfile.read(length) if length else b""
                 rest = self._route()
                 if rest is None:
                     return
@@ -423,8 +430,7 @@ class JoinUI:
                     self._json(403, {"error": "missing header"})
                     return
                 try:
-                    length = max(0, min(int(self.headers.get("Content-Length") or 0), 64 * 1024))
-                    body = json.loads(self.rfile.read(length) or b"{}")
+                    body = json.loads(raw or b"{}")
                     if rest == "api/invite":
                         ui.use_invite(str(body.get("invite", ""))[:2000])
                         self._json(200, ui.info())

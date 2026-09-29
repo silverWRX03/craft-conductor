@@ -207,15 +207,6 @@ class Rehearsal:
         configmod.set_value(path, "server", "dir", '"server"')
         configmod.set_value(path, "backups", "dir", '"backups"')
         configmod.set_value(path, "backups", "keep", "1")
-        # Java that's already downloaded is used again rather than fetched a second time.
-        java = cfg.state_dir / "java"
-        if java.is_dir():
-            target = self.root / configmod.STATE_DIR / "java"
-            target.parent.mkdir(parents=True, exist_ok=True)
-            try:
-                os.symlink(java, target, target_is_directory=True)
-            except OSError:
-                shutil.copytree(java, target, symlinks=True)
         # Private: only this computer can reach it, and no remote console.
         write_properties(self.root / "server" / "server.properties", {
             "server-ip": "127.0.0.1", "server-port": str(_free_port()), "enable-rcon": "false",
@@ -225,6 +216,9 @@ class Rehearsal:
         from .setup import total_ram_gb
         from .doctor import server_memory_gb
         m = self.make_manager(configmod.load(self.root))
+        # The server's own Java folder, used as it is: nothing copied, a Java the update needs is
+        # there for the real update too, and no deeper path (Windows' 260-character limit).
+        m.java.shared = self.d.m.java.dir
         m.notifier.discord_webhook = ""  # nobody needs to hear about the copy
         m.config.backups.copy_to = None
         m.echo = False
@@ -263,7 +257,7 @@ class Rehearsal:
 
     def run(self) -> dict | None:
         """Run it (in this thread): the result is also kept in ``.mcsm/rehearsal.json``."""
-        from .diagnose import diagnose
+        from .diagnose import diagnose, headline
         self.memory_note = ""
         m = self.d.m
         result: dict = {"started": False, "crashed": False, "error": "", "from": m.lock.minecraft}
@@ -294,8 +288,10 @@ class Rehearsal:
                 if applied.process is not None and applied.process.running:
                     applied.process.stop(30)
                 diag = rm.last_diagnosis.to_dict() if rm.last_diagnosis else None
-                result["error"] = ((diag or {}).get("summary") or applied.message.splitlines()[0])[:400]
+                result["error"] = ((diag or {}).get("summary") or headline(applied.message))[:400]
                 result["diagnosis"] = diag
+                if applied.message.count("\n"):  # (the server's last lines follow the first)
+                    result["last_lines"] = applied.message.splitlines()[1:][-15:]
                 self.say("✗ The update didn't start on the copy.")
             else:
                 proc = applied.process
@@ -343,9 +339,6 @@ class Rehearsal:
             if self.proc is not None and self.proc.running:
                 self.proc.stop(30)
             self.step, self.progress = "", None
-            link = self.root / configmod.STATE_DIR / "java"
-            if link.is_symlink():  # (never delete the real Java through the link)
-                link.unlink()
             shutil.rmtree(self.root, ignore_errors=True)
             try:
                 self.root.parent.rmdir()

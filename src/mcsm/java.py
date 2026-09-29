@@ -92,10 +92,11 @@ class JavaManager:
         self.http = http or HttpClient()
         self.probe = probe_fn
         self.platform = platform_fn
+        self.shared: Path | None = None  # another server's Java folder, used as it is (an update rehearsal's copy)
 
     @property
     def dir(self) -> Path:
-        return self.config.state_dir / "java"
+        return self.shared or self.config.state_dir / "java"
 
     # ------------------------------------------------------------ managed
     def installed(self) -> dict[int, ManagedJava]:

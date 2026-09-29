@@ -16,7 +16,6 @@ from __future__ import annotations
 import gzip
 import hashlib
 import logging
-import os
 import re
 import secrets
 import shutil
@@ -178,6 +177,13 @@ def region_chunks(path: Path, problems: list | None = None):
             log.debug("skipping a damaged chunk in %s", path.name)
 
 
+def region_folder(world: Path) -> Path:
+    """The Overworld's region files (world/region, or world/dimensions/minecraft/overworld/region
+    from Minecraft 26.x on)."""
+    from .areas import dimension_folder
+    return dimension_folder(world) / "region"
+
+
 def chunks_present(region: Path) -> set[tuple[int, int]]:
     """The chunks a world's region files hold (from their headers: quick, nothing unpacked)."""
     out: set[tuple[int, int]] = set()
@@ -248,19 +254,27 @@ def _shade(rgb, factor: float) -> tuple[int, int, int]:
 
 
 # --------------------------------------------------------------------- the map
+def _block_name(entry) -> str:
+    """A block palette entry's name. Up to 1.21: {Name, Properties}. Minecraft 26.x: just the
+    name, {id, properties}, or, in a list mixing the two, the name wrapped as {"": name}."""
+    if isinstance(entry, dict):
+        entry = entry.get("Name", entry.get("id", entry.get("")))
+    return entry if isinstance(entry, str) and entry else "minecraft:air"
+
+
 def _section_block(section: dict, x: int, y: int, z: int) -> str:
     states = section.get("block_states") or {}
     palette = states.get("palette") or []
     if not palette:
         return "minecraft:air"
     if len(palette) == 1 or "data" not in states:
-        return str(palette[0].get("Name", "minecraft:air"))
+        return _block_name(palette[0])
     cached = section.get("_blocks")
     if cached is None:
         bits = max(4, (len(palette) - 1).bit_length())
         cached = section["_blocks"] = unpack(states["data"].longs(), bits, 4096)
     i = cached[(y * 16 + z) * 16 + x]
-    return str(palette[i].get("Name", "minecraft:air")) if i < len(palette) else "minecraft:air"
+    return _block_name(palette[i]) if i < len(palette) else "minecraft:air"
 
 
 def _section_biome(section: dict) -> str:
@@ -297,7 +311,7 @@ def map_center(world: Path, radius: int) -> tuple[tuple[int, int], tuple[int, in
     """Where to draw: the spawn when the world has land around it, otherwise the middle of the
     land that was generated (Chunky makes a square around the spawn, wherever that is)."""
     spawn = spawn_point(world)
-    present = chunks_present(world / "region")
+    present = chunks_present(region_folder(world))
     if not present:
         raise PreviewError("the world has no region files to draw: the server didn't save any land")
     if spawn and (spawn[0] >> 4, spawn[1] >> 4) in present:
@@ -426,7 +440,7 @@ class Surfaces:
         self.lock = threading.Lock()
 
     def region(self, rx: int, rz: int) -> dict:
-        path = self.world / "region" / f"r.{rx}.{rz}.mca"
+        path = region_folder(self.world) / f"r.{rx}.{rz}.mca"
         try:
             st = path.stat()
         except OSError:
@@ -455,7 +469,7 @@ class Surfaces:
 
     def landmarks(self, x0: int | None = None, z0: int | None = None, x1: int | None = None, z1: int | None = None) -> list[dict]:
         """The landmarks in [x0, x1) × [z0, z1) (all the world's without bounds), nearest the middle first."""
-        folder = self.world / "region"
+        folder = region_folder(self.world)
         keys = [(int(m.group(1)), int(m.group(2))) for p in (folder.glob("r.*.mca") if folder.is_dir() else [])
                 if (m := re.fullmatch(r"r\.(-?\d+)\.(-?\d+)\.mca", p.name))]
         if x0 is not None:
@@ -550,7 +564,8 @@ def tile(surfaces: Surfaces, scale: int, tx: int, tz: int) -> bytes:
     x0, z0 = tx * span, tz * span
     regions = [(rx, rz) for rx in range(x0 >> 9, ((x0 + span - 1) >> 9) + 1)
                for rz in range(z0 >> 9, ((z0 + span - 1) >> 9) + 1)]
-    if not any((surfaces.world / "region" / f"r.{rx}.{rz}.mca").is_file() for rx, rz in regions):
+    folder = region_folder(surfaces.world)
+    if not any((folder / f"r.{rx}.{rz}.mca").is_file() for rx, rz in regions):
         if EMPTY_PNG is None:
             EMPTY_PNG = png([[BACKGROUND]])
         return EMPTY_PNG
@@ -606,12 +621,13 @@ class MapSession:
         threading.Thread(target=self._watch, daemon=True, name=f"map:{preview_id}").start()
 
     def to_dict(self) -> dict:
+        folder = region_folder(self.world)
         return {"id": self.id, "version": self.version, "areas": self.areas, "spawn": self.spawn,
                 "landmarks": self.landmarks(),
                 "rate": self.rate, "running": bool(self.proc and self.proc.running), "job": self.job,
-                "regions": sorted([int(m.group(1)), int(m.group(2))] for p in (self.world / "region").glob("r.*.mca")
+                "regions": sorted([int(m.group(1)), int(m.group(2))] for p in folder.glob("r.*.mca")
                                   if (m := re.fullmatch(r"r\.(-?\d+)\.(-?\d+)\.mca", p.name)))
-                if (self.world / "region").is_dir() else []}
+                if folder.is_dir() else []}
 
     def landmarks(self) -> list[dict]:
         """The world's landmarks, read again only when land was added (not while it's being made:
@@ -643,7 +659,10 @@ class MapSession:
                 proc.send("chunky cancel")
                 raise InterruptedError
             if not proc.running:
-                raise PreviewError("the server stopped while making the world: " + " / ".join(proc.tail(3)))
+                from .diagnose import diagnose
+                blame = diagnose(proc.tail(400), self.m.server_dir, self.m.lock.mods, since=started).summary
+                raise PreviewError("the server stopped while making the world" +
+                                   (f". {blame}" if blame else ": " + " / ".join(proc.tail(3))))
             lines = _new_lines(proc, mark)
             if any(worldtools._CHUNKY_DONE.search(line) for line in lines):
                 break
@@ -717,6 +736,17 @@ class MapSession:
 
 
 # --------------------------------------------------------------------- the job
+def downloading_step(plan) -> str:
+    """What the preview is downloading, the mods the picked ones need included."""
+    def names(mods):
+        shown = [m.name for m in mods[:6]]
+        return ", ".join(shown) + (f" and {len(mods) - 6} more" if len(mods) > 6 else "")
+    own = [m for m in plan.mods if not m.dependency_of]
+    needed = [m for m in plan.mods if m.dependency_of]
+    return (f"Downloading Minecraft {plan.minecraft} and {len(plan.mods)} mod(s): {names(own)}"
+            + (f"; needed by them: {names(needed)}" if needed else "") + "…")
+
+
 class Preview:
     """One map preview, run in the background; the page polls :meth:`to_dict`."""
 
@@ -772,12 +802,18 @@ class Preview:
         mods = sorted(f"{m.source}:{m.id}:{m.channel or ''}" for m in self.mods)
         return hashlib.sha256(repr((self.loader, self.minecraft, mods)).encode()).hexdigest()[:16]
 
+    def _share_java(self, m) -> None:
+        """Java that a server already downloaded, used as it is (not fetched again)."""
+        if self.java_from and self.java_from.is_dir():
+            m.java.shared = self.java_from
+
     def _server(self):
         """The throwaway server with these mods (and Chunky), made or reused; its world removed."""
         base = self.folder(self.hub) / "server"
         mark = base / ".mcsm-preview"
         if mark.is_file() and mark.read_text() == self.fingerprint():
             m = self.hub.make_manager(configmod.load(base))
+            self._share_java(m)
             shutil.rmtree(m.server_dir / "world", ignore_errors=True)
         else:
             shutil.rmtree(base, ignore_errors=True)
@@ -793,14 +829,8 @@ class Preview:
                 extra.insert(0, ModSpec("modrinth", "fabric-api"))  # Chunky (and most Fabric mods) need it
             for s in [*self.mods, *extra]:
                 configmod.append_mod(path, ModSpec(s.source, s.id, required=True, channel=s.channel))
-            if self.java_from and self.java_from.is_dir():  # reuse Java that's already downloaded
-                target = base / configmod.STATE_DIR / "java"
-                target.parent.mkdir(parents=True, exist_ok=True)
-                try:
-                    os.symlink(self.java_from, target, target_is_directory=True)
-                except OSError:
-                    pass
             m = self.hub.make_manager(configmod.load(base))
+            self._share_java(m)
             self.step = "Downloading Minecraft and the mods…"
             decision, _ = m.check(retry_failed=True)
             if decision.plan is None:
@@ -809,6 +839,7 @@ class Preview:
                 raise PreviewError(f"these mods can't be installed together: {why}")
             if not supports(decision.plan.minecraft):
                 raise PreviewError(f"map previews need Minecraft 1.18 or newer (this is {decision.plan.minecraft})")
+            self.step = downloading_step(decision.plan)
             self._check()
             result = m.apply(decision.plan, verify=False)
             if not result.ok:
@@ -859,9 +890,22 @@ class Preview:
             self._drop_session()
             if not isinstance(e, (PreviewError, OSError, RuntimeError)):
                 log.exception("map preview failed")
-            self.error = str(e).splitlines()[0][:400] if str(e) else repr(e)
+            from .diagnose import headline
+            self.error = headline(str(e)) or repr(e)
             self.step, self.state = "Failed", "failed"
+            self._keep_log()
             shutil.rmtree(self.folder(self.hub) / "server", ignore_errors=True)  # start clean next time
+
+    def _keep_log(self) -> None:
+        """The failed server's log, kept (as previews/last-failed.log) when its server is removed."""
+        server = self.folder(self.hub) / "server"
+        for log_file in server.glob("*/logs/latest.log"):
+            try:
+                shutil.copyfile(log_file, self.folder(self.hub) / "last-failed.log")
+                log.info("map preview failed: its server's log is kept in %s", self.folder(self.hub) / "last-failed.log")
+            except OSError:
+                pass
+            break
 
     def _drop_session(self) -> None:
         session = getattr(self, "session", None)
