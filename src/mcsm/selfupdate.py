@@ -233,3 +233,31 @@ def restart_argv() -> list[str]:
     if frozen():
         return [sys.executable, *sys.argv[1:]]
     return [sys.executable, "-m", "mcsm", *sys.argv[1:]]
+
+
+WINDOWS = os.name == "nt"
+
+
+def restart_env(env: dict[str, str] | None = None) -> dict[str, str]:
+    """The environment for the restarted copy. The standalone download unpacks itself into a
+    temporary folder (PyInstaller) that's deleted when this copy exits; without this, the new
+    copy would think it's a helper of this one, reuse that folder and break as soon as it's gone
+    ("No such file or directory: ...\\_MEI...\\base_library.zip")."""
+    env = dict(os.environ if env is None else env)
+    if frozen():
+        env = {k: v for k, v in env.items() if not k.startswith("_PYI_") and k != "_MEIPASS2"}
+        env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+    return env
+
+
+def restart() -> None:
+    """Replace this process with the same mcsm command on the new version (never returns)."""
+    argv, env = restart_argv(), restart_env()
+    print("restarting Craft Conductor on the new version...", flush=True)
+    if WINDOWS:
+        # (Windows has no real exec: os.execv starts another process without quoting paths
+        # with spaces. Start it properly, sharing this console, and end this one.)
+        subprocess.Popen(argv, env=env)
+        os._exit(0)
+        return  # (only reached in tests)
+    os.execve(argv[0], argv, env)

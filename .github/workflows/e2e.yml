@@ -63,7 +63,7 @@ jobs:
       - name: Build
         if: runner.os != 'Linux'
         run: |
-          pip install "pyinstaller>=6,<7"
+          pip install "pyinstaller>=6.9,<7"
           pyinstaller --noconfirm packaging/mcsm.spec
       - name: End-to-end test
         shell: bash
