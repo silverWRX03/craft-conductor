@@ -16,6 +16,6 @@ python3 -m pip install --quiet --disable-pip-version-check uv
 uv python install --python-preference only-managed "$PYTHON_VERSION"
 rm -rf .build-venv
 uv venv --quiet --python-preference only-managed --python "$PYTHON_VERSION" .build-venv
-uv pip install --quiet --python .build-venv/bin/python "pyinstaller>=6,<7"
+uv pip install --quiet --python .build-venv/bin/python "pyinstaller>=6.9,<7"
 .build-venv/bin/pyinstaller --noconfirm packaging/mcsm.spec
 echo "built dist/mcsm"

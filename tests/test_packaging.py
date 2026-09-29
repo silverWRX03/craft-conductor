@@ -69,6 +69,29 @@ def test_frozen_build_needs_an_asset_for_this_platform(monkeypatch):
     assert selfupdate.restart_argv()[1:] == ["run", "--web"]  # the executable itself, same arguments
 
 
+def test_the_restarted_download_unpacks_itself_again(monkeypatch):
+    """After an update, the standalone download starts a fresh copy of itself. It must not reuse
+    this copy's unpacked files (deleted when this copy exits): the new one broke with
+    "No such file or directory: ...\\_MEI...\\base_library.zip" on its first download."""
+    env = {"PATH": "/bin", "_PYI_APPLICATION_HOME_DIR": "/tmp/_MEI1", "_PYI_ARCHIVE_FILE": "/opt/mcsm",
+           "_PYI_PARENT_PROCESS_LEVEL": "1", "_MEIPASS2": "/tmp/_MEI1"}
+    monkeypatch.setattr(selfupdate, "frozen", lambda: True)
+    assert selfupdate.restart_env(env) == {"PATH": "/bin", "PYINSTALLER_RESET_ENVIRONMENT": "1"}
+    monkeypatch.setattr(selfupdate, "frozen", lambda: False)
+    assert selfupdate.restart_env(env) == env  # (pip installs: nothing to do)
+
+    # On Windows it starts the new copy itself (os.execv doesn't quote paths with spaces) and ends.
+    monkeypatch.setattr(selfupdate, "frozen", lambda: True)
+    monkeypatch.setattr("sys.argv", [r"C:\Users\Sam Doe\Craft Conductor.exe", "start"])
+    monkeypatch.setattr(selfupdate, "WINDOWS", True)
+    started, ended = [], []
+    monkeypatch.setattr(selfupdate.subprocess, "Popen", lambda argv, env: started.append((argv, env)))
+    monkeypatch.setattr(selfupdate.os, "_exit", lambda code: ended.append(code))
+    monkeypatch.setattr(selfupdate.os, "execve", lambda *a: pytest.fail("no exec on Windows"))
+    selfupdate.restart()
+    assert started[0][0][1:] == ["start"] and started[0][1]["PYINSTALLER_RESET_ENVIRONMENT"] == "1" and ended == [0]
+
+
 def test_no_arguments_means_start(monkeypatch):
     called = []
     monkeypatch.setattr(cli, "cmd_start", lambda args: called.append(args.command) or 0)

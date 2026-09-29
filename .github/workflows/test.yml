@@ -46,7 +46,7 @@ jobs:
       - name: Build
         if: runner.os != 'Linux'
         run: |
-          pip install "pyinstaller>=6,<7"
+          pip install "pyinstaller>=6.9,<7"
           pyinstaller --noconfirm packaging/mcsm.spec
       - name: Check it runs on an old Linux (CentOS 7, glibc 2.17)
         if: runner.os == 'Linux'

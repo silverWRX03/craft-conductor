@@ -4,6 +4,11 @@ What changed in each version of mcsm, newest first. Bugs are listed the way you'
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.21.1 (2026-09-29)
+
+**Fixed**
+- After Craft Conductor updated itself on Windows, it could stop being able to download anything: "couldn't load the list of Minecraft versions: request failed: … No such file or directory: …\\_MEI…\\base_library.zip". The restarted copy was still using the old copy's unpacked files, which Windows deleted when the old copy closed. This update itself is installed by the old version, so if you see that message once more, quit Craft Conductor and open it again.
+
 ## 0.21.0 (2026-09-29)
 
 **Fixed**

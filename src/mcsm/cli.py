@@ -261,9 +261,7 @@ def cmd_update(args) -> int:
 def _run_daemon(d: Daemon, web: bool) -> int:
     code = d.run(web=web)
     if d.restart_requested:
-        argv = selfupdate.restart_argv()
-        print("restarting Craft Conductor on the new version...", flush=True)
-        os.execv(argv[0], argv)
+        selfupdate.restart()
     return code
 
 
@@ -416,9 +414,7 @@ def cmd_start(args) -> int:
     hub.open_browser = browser
     code = hub.run()
     if hub.restart_requested:
-        argv = selfupdate.restart_argv()
-        print("restarting Craft Conductor on the new version...", flush=True)
-        os.execv(argv[0], argv)
+        selfupdate.restart()
     return code
 
 
