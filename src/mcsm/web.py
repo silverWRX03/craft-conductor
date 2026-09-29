@@ -422,12 +422,14 @@ class RequestHandler(BaseHTTPRequestHandler):
     web: WebUI
     server_version = f"mcsm/{__version__}"
     timeout = REQUEST_TIMEOUT
+    _body_read = False  # whether this request's body was read (see _fail)
 
     def log_message(self, fmt, *args):  # keep the server console clean
         log.debug("web: " + fmt, *args)
 
     # --------------------------------------------------------------- utils
     def _send(self, status: int, body: bytes, content_type: str, headers: dict[str, str] | None = None):
+        self._drain()
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
@@ -442,6 +444,7 @@ class RequestHandler(BaseHTTPRequestHandler):
     def _send_file(self, path: Path):
         """Stream a file from disk as a download."""
         size = path.stat().st_size
+        self._drain()
         self.send_response(200)
         self.send_header("Content-Type", "application/zip")
         self.send_header("Content-Length", str(size))
@@ -469,6 +472,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             raise ApiError(413, "request too large")
         if length < 0:  # (reading -1 bytes would read until the client stops sending)
             raise ApiError(400, "bad Content-Length")
+        self._body_read = True
         raw = self.rfile.read(length) if length else b"{}"
         try:
             data = json.loads(raw or b"{}")
@@ -561,6 +565,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         self._dispatch("GET", path, urllib.parse.parse_qs(qs))
 
     def do_POST(self):
+        self._body_read = False  # (the same handler answers each request on a kept-open connection)
         if not self._host_ok():
             return
         path, _, qs = self.path.partition("?")
@@ -690,17 +695,35 @@ class RequestHandler(BaseHTTPRequestHandler):
                     raise ApiError(404, str(e)) from None
                 return self._send(200, png, "image/png", {"Cache-Control": "private, max-age=3600"})
             body = self._body() if method == "POST" else {}
+            if path == "/api/doctor/fix":
+                body = {**body, "__local": local and device is None}  # (from this request, not the page's say-so)
             return self._json(200, handler(q, body))
         except ApiError as e:
-            self._json(e.status, {"error": str(e)})
+            self._fail(e.status, str(e))
         except HttpError as e:  # a website mcsm depends on didn't answer
             log.warning("web request needed %s, which failed: %s", e.url, e)
-            self._json(502, {"error": e.friendly})
+            self._fail(502, e.friendly)
         except (ConfigError, ModError, JavaError, PlayerError, RuntimeError, ValueError, OSError) as e:
-            self._json(400, {"error": str(e)})
+            self._fail(400, str(e))
         except Exception as e:  # pragma: no cover - last resort
             log.exception("web request failed")
-            self._json(500, {"error": f"internal error: {e}"})
+            self._fail(500, f"internal error: {e}")
+
+    def _fail(self, status: int, error: str) -> None:
+        self._json(status, {"error": error})
+
+    def _drain(self) -> None:
+        """Before any answer: a small request body not read yet (a refused request, or one like
+        /api/logout that needs none) is read first. Windows resets a connection closed with data
+        still unread, and the browser then gets "connection reset" instead of the answer."""
+        if self.command == "POST" and not self._body_read:
+            self._body_read = True
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+                if 0 < length <= MAX_JSON:
+                    self.rfile.read(length)
+            except (ValueError, OSError):
+                pass
 
 
 def setup_options(mojang: Mojang) -> dict:
@@ -2246,6 +2269,7 @@ class Api:
             raise ApiError(413, "file is empty or too large")
         folder = self.m.config.manual_dir
         folder.mkdir(parents=True, exist_ok=True)
+        handler._body_read = True
         fd, tmp = tempfile.mkstemp(dir=folder, prefix=".upload-")
         try:
             with open(fd, "wb") as out:
@@ -2641,9 +2665,33 @@ class Api:
         from . import doctor
         hub = self.web.hub
         info = hub.self_update_info()
-        return doctor.run(self.m, self.d.state, share=None if hub.is_single else hub.share_status(),
+        share = None if hub.is_single else hub.share_status()
+        return doctor.run(self.m, self.d.state, share=share,
                           self_update={"available": True, **info} if info else None,
-                          upnp=None if hub.is_single else hub.upnp_status())
+                          upnp=None if hub.is_single else hub.upnp_status(), firewall=self._firewall(share))
+
+    def _firewall_ports(self, share: dict | None) -> list[dict]:
+        """What should get through Windows Firewall: the Minecraft port (Java listens on it) and
+        the friends' download (Craft Conductor itself), when it's on."""
+        import sys
+        from .java import JavaError
+        props = read_properties(self.m.server_dir / "server.properties")
+        port = int(props.get("server-port", "25565") or 25565)
+        try:
+            java = str(self.m.java.select(self.m.lock.java_major or 8, install=False)) if self.m.lock.installed else None
+        except (JavaError, OSError):
+            java = None
+        ports = [{"port": port, "label": f"{props.get('motd') or self.d.server_id or 'server'} (Minecraft)", "program": java}]
+        if self.m.config.client.enabled and share and share.get("running") and share.get("port"):
+            ports.append({"port": int(share["port"]), "label": "friends' downloads", "program": sys.executable})
+        return ports
+
+    def _firewall(self, share: dict | None, fresh: bool = False) -> dict | None:
+        from . import firewall, upnp
+        if not firewall.available():
+            return None
+        state = firewall.read(fresh=fresh)
+        return firewall.assess(state, upnp._lan_address(), self._firewall_ports(share)) if state else None
 
     def doctor(self, q, b) -> dict:
         from dataclasses import asdict
@@ -2705,6 +2753,26 @@ class Api:
             s = hub.share_settings()
             hub.save_share(s["port"], ip)
             message = f"Friends outside your home now get {ip}"
+        elif action == "firewall":
+            # (Windows' administrator prompt shows on this computer: only someone at it can answer)
+            if b.get("__local") is not True:
+                raise ApiError(403, "that only works in a browser on the server's own computer")
+            from . import firewall
+            ports = self._firewall_ports(None if hub.is_single else hub.share_status())
+            own_java = self.m.java.dir.resolve()
+
+            def ours(program: str | None) -> str | None:  # (only Craft Conductor's own Java is unblocked)
+                return program if program and own_java in Path(program).resolve().parents else None
+            try:
+                firewall.let_through([{**p, "unblock": ours(p["program"])} for p in ports])
+            except firewall.FirewallError as e:
+                raise ApiError(400, str(e)) from None
+            after = self._firewall(None if hub.is_single else hub.share_status(), fresh=True)  # (said only once it's so)
+            shut = [p["port"] for p in (after or {}).get("ports", []) if not p["allowed"]] if after and after.get("on") else []
+            if shut:
+                raise ApiError(400, "Windows still doesn't let port " + ", ".join(map(str, shut)) + " through: "
+                                    "see Windows Security → Firewall → Advanced settings → Inbound Rules")
+            message = "Windows Firewall lets port " + ", ".join(str(p["port"]) for p in ports) + " through now"
         else:  # upnp
             st = hub.upnp_sync(True)
             if st["error"]:

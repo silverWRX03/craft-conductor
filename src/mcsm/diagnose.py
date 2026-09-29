@@ -67,6 +67,20 @@ class Diagnosis:
         return {"summary": self.summary, "suspects": [s.__dict__ for s in self.suspects]}
 
 
+def headline(message: str, limit: int = 400) -> str:
+    """An error in one line: its first line and, when that ends with a colon (the server's last
+    lines follow), the last of those that says something (not a Java stack frame)."""
+    lines = [line.strip() for line in message.splitlines() if line.strip()]
+    if not lines:
+        return ""
+    out = lines[0]
+    if out.endswith(":"):
+        said = [line for line in lines[1:] if not line.startswith(("at ", "... "))]
+        if said:
+            out = f"{out} {said[-1]}"
+    return out[:limit]
+
+
 def _crash_report(server_dir: Path, since: float) -> str:
     folder = server_dir / "crash-reports"
     if not folder.is_dir():

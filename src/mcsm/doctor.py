@@ -25,7 +25,7 @@ from .properties import read_properties
 
 OK, WARN, BAD, INFO = "ok", "warn", "bad", "info"
 KEEP_WHEN_FULL = 3  # backups kept by "Delete old backups"
-FIXES = ("eula", "java", "memory", "prune-backups", "port", "online-mode", "public-ip", "upnp")
+FIXES = ("eula", "java", "memory", "prune-backups", "port", "online-mode", "public-ip", "upnp", "firewall")
 PORT_CHECK = "https://ifconfig.co/port/{port}"
 
 
@@ -60,8 +60,28 @@ def port_in_use(port: int, host: str = "127.0.0.1") -> bool:
         return False
 
 
+def firewall_check(fw: dict) -> Check:
+    """Check my setup's line for Windows Firewall, from :func:`firewall.assess`."""
+    title = "Windows Firewall"
+    ports = fw.get("ports") or []
+    named = lambda items: ", ".join(f"{p['port']} ({p['label']})" for p in items)  # noqa: E731
+    network = f"this network (Windows calls it {fw.get('network', 'public').lower()})"
+    if not fw.get("on"):
+        return Check("firewall", title, OK, f"Windows Firewall is off for {network}: it doesn't block anything.")
+    shut = [p for p in ports if not p["allowed"]]
+    if not shut:
+        return Check("firewall", title, OK, f"Windows Firewall lets port {named(ports)} through on {network}.")
+    blocked = [p for p in shut if p["blocked"]]
+    detail = (f"Windows Firewall blocks port {named(blocked)}" + (" (Windows' own prompt was answered Cancel)" if blocked else "")
+              if blocked else f"Windows Firewall doesn't let port {named(shut)} through on {network}")
+    return Check("firewall", title, BAD if blocked else WARN, detail + ": friends can't connect, even on your own Wi-Fi.",
+                 "Press the button: Windows asks for permission once (its administrator prompt), then Craft Conductor adds "
+                 "rules for its own ports only (private and public networks).",
+                 "firewall", "Let them through Windows Firewall")
+
+
 def run(m, state: str, *, total_gb: float | None = None, share: dict | None = None,
-        self_update: dict | None = None, upnp: dict | None = None) -> list[Check]:
+        self_update: dict | None = None, upnp: dict | None = None, firewall: dict | None = None) -> list[Check]:
     """The checks for one server. ``state`` is the daemon's (running, stopped, ...)."""
     from .setup import total_ram_gb
     checks: list[Check] = []
@@ -176,10 +196,13 @@ def run(m, state: str, *, total_gb: float | None = None, share: dict | None = No
         else:
             checks.append(Check("share", "Friends' downloads", OK, f"Running on port {share.get('port')}, for {share['address']}."))
 
-    # Windows Firewall (it can't be checked without administrator rights: say what to look for)
-    if os.name == "nt":
+    # Windows Firewall (firewall.py: read here, the rules added by a fix button)
+    if firewall is not None:
+        checks.append(firewall_check(firewall))
+    elif os.name == "nt":
         checks.append(Check("firewall", "Windows Firewall", INFO, "Windows asks the first time the server starts whether Java may accept connections.",
-                            "Choose Allow (private networks). If you pressed Cancel: Windows Security → Firewall → Allow an app through firewall → tick Java."))
+                            "Choose Allow, with both private and public networks ticked. If you pressed Cancel: Windows Security → "
+                            "Firewall → Allow an app through firewall → tick Java."))
 
     # mcsm itself
     if self_update and self_update.get("available"):

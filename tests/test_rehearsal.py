@@ -62,6 +62,35 @@ def test_a_rehearsal_that_fails_names_the_mod(make_config, http, modrinth):
     assert not rehearsal.passed(cfg, result["fingerprint"])
 
 
+def test_the_copy_uses_the_servers_own_java(make_config, http, modrinth):
+    """Nothing is linked or copied (Windows can't link without administrator rights, and a Java
+    downloaded inside the copy made paths past Windows' 260-character limit)."""
+    cfg, _ = installed(make_config, http, modrinth)
+    (cfg.state_dir / "java" / "21").mkdir(parents=True)
+    daemon = SimpleNamespace(m=manager(cfg, http, ["1.21.1", "1.21.4"]), proc=None)
+    used = []
+
+    def make(c):
+        m = manager(c, http, ["1.21.1", "1.21.4"])
+        used.append(m)
+        return m
+    r = rehearsal.Rehearsal(daemon, make)
+    r.minutes = 0.05
+    assert r.run()["verdict"] == "good"
+    assert used[0].java.dir == cfg.state_dir / "java"
+    assert (cfg.state_dir / "java" / "21").is_dir()  # (still there after the copy was removed)
+
+
+def test_an_error_in_one_line():
+    from mcsm.diagnose import headline
+    message = ("Update failed and was rolled back (Minecraft 1.21.11 -> 26.3): server did not finish starting:\n"
+               "Starting the server\nError: missing `server' JVM at `C:\\x\\bin\\server\\jvm.dll'.\n")
+    assert headline(message).endswith("server did not finish starting: Error: missing `server' JVM at `C:\\x\\bin\\server\\jvm.dll'.")
+    assert headline("java.lang.RuntimeException: boom:\nCaused by: X\n\tat a.b(C.java:1)") == \
+        "java.lang.RuntimeException: boom: Caused by: X"
+    assert headline("one line") == "one line" and headline("") == ""
+
+
 def test_nothing_to_rehearse(make_config, http, modrinth):
     cfg, _ = installed(make_config, http, modrinth)
     r, result = rehearse(cfg, http, ["1.21.1"])

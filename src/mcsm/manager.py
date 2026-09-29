@@ -332,12 +332,17 @@ class Manager:
             server.stop(self.config.server.stop_timeout)
 
         archive = None
+        # A first install with no world yet has only the setup's own files: its backup is only for
+        # putting them back if the install fails, and goes once it worked (not listed as a backup).
+        worth_keeping = self.lock.installed or any(self.server_dir.glob("*/level.dat"))
         if make_backup and self.server_dir.exists() and any(self.server_dir.iterdir()):
-            archive = backup.create(self.server_dir, self.config.backups.dir,
-                                    f"before-{old_mc or 'install'}-to-{plan.minecraft}", self.config.backups.exclude)
+            label = (f"before-install-{plan.minecraft}" if not old_mc else f"before-mod-updates-{plan.minecraft}"
+                     if old_mc == plan.minecraft else f"before-{old_mc}-to-{plan.minecraft}")
+            archive = backup.create(self.server_dir, self.config.backups.dir, label, self.config.backups.exclude)
             from . import snapshots
             snapshots.record(archive, self)
-            backup.copy_out(archive, self.config.backups.copy_to, self.config.root.name, self.config.backups.copy_keep)
+            if worth_keeping:
+                backup.copy_out(archive, self.config.backups.copy_to, self.config.root.name, self.config.backups.copy_keep)
 
         proc = None
         try:
@@ -359,6 +364,11 @@ class Manager:
         finally:
             shutil.rmtree(self.staging_dir, ignore_errors=True)
 
+        if archive is not None and not worth_keeping:
+            from . import snapshots
+            archive.unlink(missing_ok=True)
+            snapshots.note_path(archive).unlink(missing_ok=True)
+            archive = None
         backup.prune(self.config.backups.dir, self.config.backups.keep)
         lines = "\n".join(changes.summary())
         self.notifier.send(f"Updated: {title}\n{lines}")

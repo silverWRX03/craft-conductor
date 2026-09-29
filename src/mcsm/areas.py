@@ -27,6 +27,8 @@ log = logging.getLogger(__name__)
 CHECKS = ".checks.json"
 DIMENSIONS = {"overworld": "", "nether": "DIM-1", "end": "DIM1"}
 PAPER_DIMENSION_FOLDERS = {"nether": "_nether", "end": "_the_end"}  # Paper keeps them in world_nether/DIM-1, ...
+NEW_DIMENSION_FOLDER = "dimensions/minecraft"  # Minecraft 26.x: world/dimensions/minecraft/overworld/region, ...
+NEW_DIMENSIONS = {"overworld": "overworld", "nether": "the_nether", "end": "the_end"}
 KINDS = ("region", "entities", "poi")
 MAX_BLOCKS = 4096  # the widest area that can be put back at once (in blocks, each way)
 
@@ -127,12 +129,28 @@ def write_region(chunks: dict[int, tuple[bytes, int]]) -> bytes:
     return bytes(locations) + bytes(stamps) + bytes(body)
 
 
+def dimension_folder(world: Path, dimension: str = "overworld") -> Path:
+    """The folder with a dimension's region, entities and poi folders. Minecraft 26.x keeps
+    each dimension in ``dimensions/minecraft/<name>``; older worlds keep the Overworld in the
+    world folder itself and the others in DIM-1 and DIM1 (Paper: in world_nether, world_the_end)."""
+    new = world / NEW_DIMENSION_FOLDER / NEW_DIMENSIONS[dimension]
+    if new.is_dir() or (world / NEW_DIMENSION_FOLDER).is_dir():
+        return new
+    sub = DIMENSIONS[dimension]
+    if not sub:
+        return world
+    paper = world.parent / (world.name + PAPER_DIMENSION_FOLDERS[dimension]) / sub
+    return paper if paper.is_dir() else world / sub
+
+
 def dimension_dir(level: str, dimension: str, server_dir: Path | None = None) -> str:
     """The dimension's folder, relative to the server folder."""
     if dimension not in DIMENSIONS:
         raise AreaError("pick the Overworld, the Nether or the End")
     if not level or level in (".", "..") or any(c in level for c in '/\\:') or level.startswith("."):
         raise AreaError("the world's folder name (level-name) isn't a plain folder name")
+    if server_dir is not None and (server_dir / level / NEW_DIMENSION_FOLDER).is_dir():
+        return f"{level}/{NEW_DIMENSION_FOLDER}/{NEW_DIMENSIONS[dimension]}"
     sub = DIMENSIONS[dimension]
     if sub and server_dir is not None and (server_dir / (level + PAPER_DIMENSION_FOLDERS[dimension])).is_dir():
         return f"{level}{PAPER_DIMENSION_FOLDERS[dimension]}/{sub}"

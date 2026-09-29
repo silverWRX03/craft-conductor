@@ -7,6 +7,20 @@ from mcsm.daemon import Daemon
 from test_manager import manager, update
 
 
+def test_backups_before_updates_are_named_for_what_they_are(make_config, http, modrinth):
+    """No empty "before install" backup offered for Roll back to this, and a mods-only update
+    isn't named "before-1.21.1-to-1.21.1"."""
+    modrinth.project("AAA", "goodmod", "Good Mod")
+    modrinth.version("AAA", "1.0", ["1.21.1"])
+    cfg = make_config([ModSpec("modrinth", "goodmod")])
+    assert update(manager(cfg, http, ["1.21.1"])).ok
+    assert backup.list_backups(cfg.backups.dir) == []
+    assert not list(cfg.backups.dir.glob("*")) if cfg.backups.dir.exists() else True  # (its note too)
+    modrinth.version("AAA", "1.1", ["1.21.1"])
+    assert update(manager(configmod.load(cfg.root), http, ["1.21.1"])).ok
+    assert [p.name.split("-", 2)[2] for p in backup.list_backups(cfg.backups.dir)] == ["before-mod-updates-1.21.1.tar.gz"]
+
+
 def test_what_changed_and_rolling_back(make_config, http, modrinth):
     modrinth.project("AAA", "goodmod", "Good Mod")
     modrinth.version("AAA", "1.0", ["1.21.1"])
@@ -35,10 +49,10 @@ def test_what_changed_and_rolling_back(make_config, http, modrinth):
     (sd / "config" / "goodmod.toml").write_text("speed = 2\n")
     Daemon(m2, autostart=False).backup_now("after")
     names = [p.name for p in backup.list_backups(cfg.backups.dir)]
-    assert len(names) == 4 and "install" in names[0] and "first" in names[1] and "before-1.21.1-to-1.21.4" in names[2]
-    names = names[1:]  # (the first install made a backup too)
+    # (the first install's own backup, of a server with no world yet, went once it worked)
+    assert len(names) == 3 and "first" in names[0] and "before-1.21.1-to-1.21.4" in names[1]
     listing = snapshots.listing(cfg.backups.dir)
-    assert listing["20" + names[0][2:]]["snapshot"]
+    assert listing[names[0]]["snapshot"]
     assert listing[names[1]]["changes"] == ["mcsm's settings for the server changed"]  # newmod added to mcsm.toml
     last = listing[names[2]]["changes"]
     assert last[:4] == ["Minecraft 1.21.1 → 1.21.4", "+ New Mod 1.0", "~ Good Mod 1.0 → 2.0", "Setting difficulty: (none) → hard"]

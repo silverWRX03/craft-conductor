@@ -15,7 +15,6 @@ Two levels:
 from __future__ import annotations
 
 import logging
-import os
 import secrets
 import shutil
 import threading
@@ -25,6 +24,7 @@ from pathlib import Path
 
 from . import config as configmod, setup as setupmod
 from .config import ModSpec
+from .diagnose import headline
 from .http import HttpError
 from .mods.base import ModError
 from .mods.modrinth import ModrinthProvider
@@ -178,15 +178,9 @@ class Trial:
         path = self.root / configmod.CONFIG_NAME
         configmod.set_value(path, "updates", "verify_boot", "true")
         configmod.set_value(path, "backups", "keep", "1")
-        # Reuse Java that's already downloaded, instead of fetching it again.
-        if self.java_from and self.java_from.is_dir():
-            target = self.root / configmod.STATE_DIR / "java"
-            target.parent.mkdir(parents=True, exist_ok=True)
-            try:
-                os.symlink(self.java_from, target, target_is_directory=True)
-            except OSError:
-                pass
         self.m = self.hub.make_manager(configmod.load(self.root))
+        if self.java_from and self.java_from.is_dir():  # Java that's already downloaded, used as it is
+            self.m.java.shared = self.java_from
 
     def _test(self, mods: list[ModSpec], label: str) -> tuple[bool, str, dict | None]:
         if self.cancel.is_set():
@@ -215,7 +209,7 @@ class Trial:
             self.say(f"  ✓ started fine (Minecraft {decision.plan.minecraft})")
             return True, "", None
         diagnosis = self.m.last_diagnosis.to_dict() if self.m.last_diagnosis else None
-        why = (diagnosis or {}).get("summary") or result.message.splitlines()[0][:300]
+        why = (diagnosis or {}).get("summary") or headline(result.message, 300)
         self.say(f"  ✗ didn't start: {why}")
         return False, why, diagnosis
 

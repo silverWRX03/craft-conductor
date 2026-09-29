@@ -37,8 +37,10 @@ REGION_FILES = 8          # region files read for machines (the most recently ch
 
 # "[02] |   |   entities(201/1) - 45.80%/37.55%"
 _LINE = re.compile(r"^\[(\d+)\]\s((?:\|\s{3})*)(.+?)\((\d+)/(\d+)\)\s+-\s+([\d.]+)%/([\d.]+)%\s*$")
-_STOPPED = re.compile(r"Stopped (?:debug )?profiling after ([\d.]+) second.*?([\d.]+) tick", re.I)
-_TICKS_PER_SECOND = re.compile(r"\(([\d.]+) ticks? per second\)", re.I)
+# (1.21: "Stopped debug profiling after 30.00 seconds and 600 ticks (20.00 ticks per second)";
+# 26.x: "Stopped tick profiling after 30.05 second(s) and 600 tick(s) (20.00 tick(s) per second)")
+_STOPPED = re.compile(r"Stopped (?:debug |tick )?profiling after ([\d.]+) second.*?([\d.]+) tick", re.I)
+_TICKS_PER_SECOND = re.compile(r"\(([\d.]+) tick(?:s|\(s\))? per second\)", re.I)
 _LAG_LINE = re.compile(r"Can't keep up!.*?Running (\d+)ms", re.I)
 
 KINDS = {  # profiler section -> (kind, words)
@@ -135,13 +137,13 @@ def read_profile(server_dir: Path, since: float) -> str:
 
 # ------------------------------------------------------------ the world
 def _dimensions(world: Path) -> list[tuple[str, Path]]:
-    """(name, folder) for the overworld and, if there, the Nether and the End (either layout)."""
-    out = [("the Overworld", world)]
-    for name, sub in (("the Nether", "DIM-1"), ("the End", "DIM1")):
-        for base in (world / sub, world.parent / f"{world.name}_{'nether' if sub == 'DIM-1' else 'the_end'}" / sub):
-            if base.is_dir():
-                out.append((name, base))
-                break
+    """(name, folder) for the overworld and, if there, the Nether and the End (any layout)."""
+    from .areas import dimension_folder
+    out = [("the Overworld", dimension_folder(world))]
+    for name, dim in (("the Nether", "nether"), ("the End", "end")):
+        folder = dimension_folder(world, dim)
+        if folder.is_dir():
+            out.append((name, folder))
     return out
 
 
@@ -206,7 +208,7 @@ def _place(p: dict) -> str:
     return f"around x {p['x']}, z {p['z']} in {p['dimension']}: {p['count']} in all ({what})"
 
 
-def report(profile: dict, places: dict, tps: float | None, lag_lines: int, mods=()) -> dict:
+def report(profile: dict, places: dict, tps: float | None, lag_lines: int, mods=(), paused: bool = False) -> dict:
     """Findings, biggest first, each {"kind", "share", "title", "detail", "places", "tip", "mods"}."""
     names = {}
     for m in mods:  # a namespace -> the installed mod's name
@@ -236,6 +238,9 @@ def report(profile: dict, places: dict, tps: float | None, lag_lines: int, mods=
         cost = f" ({first['share']}% of each tick)" if first["share"] is not None else ""
         where = f" The busiest place is {first['places'][0]}." if first["places"] else ""
         summary = f"The biggest cost: {words[0].lower()}{words[1:]}{cost}.{where}"
+    elif paused:
+        summary = ("Nobody was online, so Minecraft had paused the server (it stops an empty server's clock after a "
+                   "minute): there was nothing to measure. Look again while players are on.")
     elif tps is not None and tps >= 19.5:
         summary = "It kept up fine while it was being looked at: the lag may come and go (a farm, a big explosion, someone exploring)."
     else:
@@ -299,25 +304,30 @@ class LagFinder:
             self.progress = 0.85
             proc.send("save-all")
             time.sleep(3)
+
+            def said() -> list[str]:
+                new = min(proc.line_count - mark, len(proc.lines))
+                return list(proc.lines)[len(proc.lines) - new:] if new else []
+            tps, paused = None, False
+            for line in said():
+                if (s := _TICKS_PER_SECOND.search(line)) and (stop := _STOPPED.search(line)):
+                    tps = round(min(20.0, float(s.group(1))), 1)
+                    paused = float(stop.group(2)) == 0  # no ticks at all: nobody online, so Minecraft paused it
             text = ""
             for _ in range(10):  # (the dump is written a moment after /debug stop)
                 text = read_profile(sd, began)
-                if text or not profiled:
+                if text or not profiled or paused:
                     break
                 time.sleep(1)
-            new = min(proc.line_count - mark, len(proc.lines))
-            lines = list(proc.lines)[len(proc.lines) - new:] if new else []
-            tps = None
-            for line in lines:
-                if (s := _TICKS_PER_SECOND.search(line)) and _STOPPED.search(line):
-                    tps = round(min(20.0, float(s.group(1))), 1)
+            lines = said()
             lag_lines = sum(1 for line in lines if _LAG_LINE.search(line))
             level = read_properties(sd / "server.properties").get("level-name") or "world"
             places = hotspots(sd / level)
-            result = report(summarize_profile(parse_profile(text)), places, tps, lag_lines, m.lock.mods)
+            result = report(summarize_profile(parse_profile(text)), places, None if paused else tps, lag_lines,
+                            m.lock.mods, paused=paused)
             result.update({"profiled": bool(text), "finished": time.time(), "automatic": self.automatic,
                            "seconds": self.seconds})
-            if not text:
+            if not text and not paused:
                 result["note"] = ("Minecraft's profiler gave nothing this time (some server types switch it off), "
                                   "so this comes from the world's files only.")
             self._clean(sd, began)

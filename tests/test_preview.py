@@ -235,6 +235,93 @@ def test_map_tiles(tmp_path):
     assert s.region(0, 0) is first  # read once, until the file changes
 
 
+def test_worlds_from_minecraft_26_keep_their_land_under_dimensions(tmp_path):
+    """Minecraft 26.x saves the Overworld in world/dimensions/minecraft/overworld/region: a map
+    of such a world said "the server didn't save any land" although it had."""
+    from mcsm import areas, lagfinder
+    world = tmp_path / "world"
+    write_world(world, {(cx, cz): chunk(cx, cz) for cx in range(-2, 2) for cz in range(-2, 2)})
+    overworld = world / "dimensions" / "minecraft" / "overworld"
+    overworld.mkdir(parents=True)
+    (world / "region").rename(overworld / "region")
+    (world / "dimensions" / "minecraft" / "the_nether" / "region").mkdir(parents=True)
+    assert preview.region_folder(world) == overworld / "region"
+    assert preview.map_center(world, 32) == ((0, 0), (0, 0))
+    image, meta = preview.render(world, (0, 0), 32, (0, 0))
+    assert read_png(image)[2][10][10][:3] == preview.COLORS["grass_block"]
+    assert read_png(preview.tile(preview.Surfaces(world), 1, 0, 0))[0] == 256
+    assert areas.dimension_folder(world, "nether") == world / "dimensions" / "minecraft" / "the_nether"
+    assert areas.dimension_dir("world", "end", tmp_path) == "world/dimensions/minecraft/the_end"
+    assert [name for name, _ in lagfinder._dimensions(world)] == ["the Overworld", "the Nether"]
+    # Older worlds are where they always were.
+    old = tmp_path / "old"
+    write_world(old, {(0, 0): chunk(0, 0)})
+    (old / "DIM-1").mkdir()
+    assert preview.region_folder(old) == old / "region"
+    assert areas.dimension_folder(old, "nether") == old / "DIM-1"
+    assert areas.dimension_dir("old", "overworld", tmp_path) == "old"
+
+
+def test_block_palettes_from_minecraft_26(tmp_path):
+    """26.x writes a palette as plain names, as {id, properties}, or (mixed) with names wrapped
+    as {"": name}: all read as the block, not air (the map came out full of holes)."""
+    assert preview._block_name({"Name": "minecraft:stone", "Properties": {}}) == "minecraft:stone"
+    assert preview._block_name("minecraft:sand") == "minecraft:sand"
+    assert preview._block_name({"id": "minecraft:cave_vines", "properties": {"age": "1"}}) == "minecraft:cave_vines"
+    assert preview._block_name({"": "minecraft:clay"}) == "minecraft:clay"
+    assert preview._block_name({}) == preview._block_name(5) == "minecraft:air"
+    for palette in (["minecraft:air", "minecraft:sand"], [{"": "minecraft:air"}, {"id": "minecraft:sand", "properties": {}}]):
+        root = chunk(0, 0, block="minecraft:sand")
+        root["sections"][0]["block_states"]["palette"] = palette
+        surface = preview.chunk_surface(preview.read_nbt(nbt(root)))
+        assert all(h is not None for h in surface.heights)
+        assert bytes(surface.colors[:3]) == bytes(preview.COLORS["sand"])
+
+
+def test_the_preview_installs_what_the_picked_mods_need(hub_env, modrinth, monkeypatch):
+    """The page sends the mods that were picked; the ones they need come along (Towns and Towers
+    needs Cristel Lib), and one that can't be installed is named."""
+    hub, c = hub_env
+    login(c)
+    for pid, slug, title in (("FAPI", "fabric-api", "Fabric API"), ("CHK", "chunky", "Chunky"),
+                             ("TNT", "towns-and-towers", "Towns and Towers"), ("CRL", "cristel-lib", "Cristel Lib")):
+        modrinth.project(pid, slug, title)
+    modrinth.version("FAPI", "1.0", ["1.21.1"])
+    modrinth.version("CHK", "1.0", ["1.21.1"])
+    modrinth.version("TNT", "1.0", ["1.21.1"], deps=["CRL"])
+    modrinth.version("CRL", "1.0", ["1.21.1"])
+    installed, steps = [], []
+    real_check = preview.Preview._server
+
+    def server(self):
+        m = real_check(self)
+        steps.append(self.step)
+        return m
+
+    def generate(self, m):
+        installed.append(sorted(p.name.split("-")[0] for p in (m.server_dir / "mods").iterdir()))
+        write_world(m.server_dir / "world", {(cx, cz): chunk(cx, cz) for cx in range(-8, 8) for cz in range(-8, 8)})
+        return m.server_dir / "world"
+
+    monkeypatch.setattr(preview.Preview, "_server", server)
+    monkeypatch.setattr(preview.Preview, "_generate", generate)
+    body = {"loader": "fabric", "minecraft": "1.21.1", "mods": ["towns-and-towers"], "seed": "1",
+            "level_type": "minecraft:normal", "structures": True, "radius": 128}
+    r = c.post("/api/hub/preview", body)[1]
+    wait_for(lambda: c.get(f"/api/hub/preview?id={r['id']}")[1]["state"] != "running", timeout=60)
+    assert c.get(f"/api/hub/preview?id={r['id']}")[1]["state"] == "done"
+    assert installed == [["CHK", "CRL", "FAPI", "TNT"]]
+    assert "needed by them: Cristel Lib" in steps[0] and "Towns and Towers" in steps[0]
+    # A needed mod without a build for this Minecraft: the error says which.
+    modrinth.project("OLD", "old-lib", "Old Lib")
+    modrinth.version("OLD", "1.0", ["1.20.1"])
+    modrinth.version("TNT", "1.1", ["1.21.1"], deps=["CRL", "OLD"])
+    r = c.post("/api/hub/preview", {**body, "mods": ["towns-and-towers", "chunky"]})[1]
+    wait_for(lambda: c.get(f"/api/hub/preview?id={r['id']}")[1]["state"] != "running", timeout=60)
+    job = c.get(f"/api/hub/preview?id={r['id']}")[1]
+    assert job["state"] == "failed" and "Old Lib" in job["error"], job
+
+
 def test_exploring_the_map_from_the_page(hub_env, modrinth, monkeypatch):
     hub, c = hub_env
     login(c)

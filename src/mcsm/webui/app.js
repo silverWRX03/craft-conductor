@@ -1438,7 +1438,9 @@ function rehearsalCard(c, applyNow, applyBtn) {
       r.note ? h("p", { class: "muted small" }, r.note) : null,
       cur ? h("div", { class: "row mt-s" },
         h("button", { class: r.verdict === "bad" ? "btn danger" : "btn primary", onclick: applyNow }, r.verdict === "bad" ? "Update anyway" : "Update for real"),
-        h("span", { class: "muted small" }, r.verdict === "bad" ? "Not recommended: fix the problem first (update or remove the mod named)." : "The real update still makes a backup first.")) : null);
+        h("span", { class: "muted small" }, r.verdict !== "bad" ? "The real update still makes a backup first."
+          : (r.diagnosis && r.diagnosis.suspects && r.diagnosis.suspects.length) || cm.mods.some((m) => m.errors)
+            ? "Not recommended: fix the problem first (update or remove the mod named)." : "Not recommended: fix the problem first (see the copy's last lines).")) : null);
   };
   const render = (st) => {
     const job = st.rehearsal && st.rehearsal.state === "running" ? st.rehearsal : null;
@@ -2227,7 +2229,7 @@ views.settings = () => {
     const s = await api("/api/settings").catch(() => null);
     if (!s) return;
     const f = {};
-    const sel = (k, opts) => (f[k] = h("select", {}, opts.map((o) => h("option", { value: o }, o))), f[k].value = s[k], f[k]);
+    const sel = (k, opts, labels = {}) => (f[k] = h("select", {}, opts.map((o) => h("option", { value: o }, labels[o] || o))), f[k].value = s[k], f[k]);
     const txt = (k, extra = {}) => (f[k] = h("input", { value: s[k], ...extra }));
     const chk = (k, text) => h("label", { class: "row" }, (f[k] = h("input", { type: "checkbox", checked: s[k] })), h("span", {}, text));
     const sched = {};
@@ -2239,8 +2241,12 @@ views.settings = () => {
     fill(form,
       h("h3", {}, "Updates"),
       h("div", { class: "grid" },
-        h("label", {}, "Strategy", sel("strategy", s.choices.strategy)),
-        h("label", {}, "Lowest mod release channel", sel("mod_channel", s.choices.mod_channel)),
+        h("label", {}, "Minecraft version", sel("strategy", s.choices.strategy, {
+          "latest-compatible": "Newest version your mods support (recommended)",
+          "latest": "Only the newest version (waits until every mod supports it)",
+          "mods-only": "Stay on this version (mods still update)" })),
+        h("label", {}, "Mod builds to use", sel("mod_channel", s.choices.mod_channel, {
+          release: "Releases only", beta: "Releases and betas", alpha: "Releases, betas and alphas (least stable)" })),
         h("label", {}, "Check every (e.g. 6h, 30m)", txt("check_interval")),
         h("label", {}, "In-game warnings (minutes, comma separated)", txt("warn_minutes", { value: s.warn_minutes.join(", ") }))),
       h("div", { class: "grid mt-s" },
@@ -2908,8 +2914,11 @@ function worldPanel(host) {
   const inServer = h("span", { class: "grow muted small" });
   let results = [], seq = 0, timer;
   const countMods = () => {
-    const n = [...st.mods.values()].filter((m) => m.explicit).length;
-    inServer.textContent = n ? `The map is made with all ${n} of the server's ${plugins ? "plugins" : "mods"}.` : "No mods yet: the map shows plain Minecraft.";
+    const all = [...st.mods.values()];
+    const n = all.filter((m) => m.explicit).length, needed = all.length - n;
+    inServer.textContent = !n ? "No mods yet: the map shows plain Minecraft."
+      : needed ? `The map is made with all ${n} of the server's ${plugins ? "plugins" : "mods"} and the ${needed} they need.`
+        : `The map is made with all ${n} of the server's ${plugins ? "plugins" : "mods"}.`;
   };
   const search = async () => {
     if (!moddable) {
@@ -4935,7 +4944,7 @@ function phoneCard({ deviceOnly = false } = {}) {  // deviceOnly: just this phon
     if (ts.serving) return h("div", {},
       h("div", { class: "notice ok small" }, "Ready. On your phone (with Tailscale on), open ",
         h("a", { href: `https://${ts.name}/`, target: "_blank", rel: "noopener noreferrer" }, h("strong", {}, `https://${ts.name}`)),
-        ". Sign in with your password, or pair the phone under Access from other devices and pick the \"Tailscale, secure\" address."),
+        ". Sign in with your password, or pair the phone under Remote access & phones and pick the \"Tailscale, secure\" address."),
       h("button", { class: "btn small ghost mt-s", onclick: stopTailscale }, "Stop using Tailscale for this"));
     return h("div", {},
       h("p", { class: "small" }, `Tailscale is on (${ts.name}). Craft Conductor can use it to give this computer a secure address that only your own devices can reach.`),
@@ -5283,6 +5292,7 @@ views.setup = () => {
   const renderForm = (error) => {
     const loaderCards = h("div", { class: "choices" }, opts.loaders.map((l) => h("button", {
       type: "button", class: "choice" + (st.loader === l.name ? " selected" : ""),
+      "aria-pressed": String(st.loader === l.name), "aria-label": `${t(l.label)}: ${t(l.description)}`,
       disabled: !!st.modpack && st.loader !== l.name,
       onclick: () => { st.loader = l.name; if (!l.mods) { st.mods.clear(); st.localMods = []; } else setupRecheckMods(); renderForm(); },
     }, h("strong", {}, l.label), h("span", { class: "small muted" }, l.description))));
@@ -5460,6 +5470,7 @@ views.setup = () => {
         h("h3", { class: "mt-s" }, "World type"),
         h("div", { class: "choices world-types" }, worldTypes.map(([v, label, desc]) => h("button", { type: "button",
           class: "choice" + ((P["level-type"] || "minecraft:normal") === v ? " selected" : ""),
+          "aria-pressed": String((P["level-type"] || "minecraft:normal") === v),
           onclick: () => { P["level-type"] = v; renderForm(); } }, h("strong", {}, label), h("span", { class: "small muted" }, desc)))),
         h("div", { class: "grid mt-s" }, flag("generate-structures", "Villages, temples and other structures"),
           flag("hardcore", "Hardcore: one life, locked to hard")),

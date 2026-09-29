@@ -115,6 +115,17 @@ def test_source_checkouts_are_not_self_updated(monkeypatch):
         selfupdate.install(selfupdate.Release("0.2.0", "v0.2.0", "", ""))
 
 
+def test_accepting_in_the_control_panel_lets_its_servers_run(fresh_user, hub_env):
+    """The control panel keeps the acceptance in its own folder: its servers waited for it in theirs
+    forever, so they never checked for updates, ran their schedules or restarted after a crash."""
+    from test_hub import login
+    hub, c = hub_env
+    login(c)
+    assert hub.daemons and not notice.accepted(next(iter(hub.daemons.values())).m.config.root)
+    assert c.post("/api/notice/accept", {"version": notice.NOTICE_VERSION})[0] == 200
+    wait_for(lambda: all(d._sched_last is not None for d in hub.daemons.values()), timeout=20)  # (the loop got going)
+
+
 # --------------------------------------------------------------------- web
 @pytest.fixture
 def web_daemon(make_config, http, modrinth, fresh_user):
