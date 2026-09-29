@@ -4940,7 +4940,7 @@ function phoneCard({ deviceOnly = false } = {}) {  // deviceOnly: just this phon
     if (ts.serving) return h("div", {},
       h("div", { class: "notice ok small" }, "Ready. On your phone (with Tailscale on), open ",
         h("a", { href: `https://${ts.name}/`, target: "_blank", rel: "noopener noreferrer" }, h("strong", {}, `https://${ts.name}`)),
-        ". Sign in with your password, or pair the phone under Access from other devices and pick the \"Tailscale, secure\" address."),
+        ". Sign in with your password, or pair the phone under Remote access & phones and pick the \"Tailscale, secure\" address."),
       h("button", { class: "btn small ghost mt-s", onclick: stopTailscale }, "Stop using Tailscale for this"));
     return h("div", {},
       h("p", { class: "small" }, `Tailscale is on (${ts.name}). Craft Conductor can use it to give this computer a secure address that only your own devices can reach.`),
