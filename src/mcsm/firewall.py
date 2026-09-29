@@ -100,7 +100,9 @@ def _port_matches(spec: list[str], port: int) -> bool:
 
 
 def _same_program(a: str, b: str | None) -> bool:
-    return bool(b) and os.path.normcase(os.path.expandvars(a)) == os.path.normcase(str(b))
+    """The same program, as Windows sees paths (case doesn't matter, / is \\), wherever this runs."""
+    import ntpath
+    return bool(b) and ntpath.normcase(os.path.expandvars(a)) == ntpath.normcase(str(b))
 
 
 def assess(state: dict, lan_ip: str | None, wanted: list[dict]) -> dict:
