@@ -81,7 +81,6 @@ def test_the_rules_it_adds():
         firewall.script([{"port": 70000, "label": "x"}])
 
 
-@pytest.mark.skipif(os.name != "nt", reason="Windows Firewall")
 def test_letting_through_asks_windows(monkeypatch):
     """Asked for straight from Craft Conductor (through a hidden PowerShell, Windows' prompt stayed
     out of sight until it gave up), and its answer read: No, or the script's own exit code. The
@@ -94,6 +93,7 @@ def test_letting_through_asks_windows(monkeypatch):
         assert program == "powershell.exe"
         seen.append(base64.b64decode(encoded).decode("utf-16-le"))
         return answers.pop(0)
+    monkeypatch.setattr(firewall, "available", lambda: True)  # (not os.name: that breaks pathlib elsewhere)
     monkeypatch.setattr(firewall, "elevate", fake)
     with pytest.raises(firewall.FirewallError, match="answered No"):
         firewall.let_through([{"port": 25565, "label": "x"}])
@@ -106,7 +106,7 @@ def test_letting_through_asks_windows(monkeypatch):
 def test_the_firewall_is_read_once_in_a_while(monkeypatch):
     runs = []
     monkeypatch.setattr(firewall, "read", REAL_READ)  # (the real read, with PowerShell faked)
-    monkeypatch.setattr(os, "name", "nt")
+    monkeypatch.setattr(firewall, "available", lambda: True)
     monkeypatch.setattr(firewall, "_cache", None)
     monkeypatch.setattr(firewall, "_powershell", lambda args, timeout: runs.append(1) or
                         subprocess.CompletedProcess(args, 0, '{"profiles": [], "networks": [], "rules": []}', ""))
@@ -122,12 +122,11 @@ def test_only_at_this_computer(hub_env, monkeypatch):
     from test_web import Client
     hub, c = hub_env
     login(c)
-    monkeypatch.setattr(os, "name", os.name)  # (restored after)
     added = []
     monkeypatch.setattr(firewall, "read", lambda timeout=30, fresh=False:
                         state([rule(ports=[str(p["port"]) for p in added[-1]])] if added else []))
     monkeypatch.setattr(firewall, "let_through", lambda ports: added.append(ports))
-    monkeypatch.setattr(os, "name", "nt")
+    monkeypatch.setattr(firewall, "available", lambda: True)
     checks = c.get("/api/servers/alpha/doctor")[1]["checks"]
     assert next(x for x in checks if x["id"] == "firewall")["action"] == "firewall"
     away = {"X-Forwarded-For": "203.0.113.9"}

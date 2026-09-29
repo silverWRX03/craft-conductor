@@ -2688,7 +2688,7 @@ class Api:
 
     def _firewall(self, share: dict | None, fresh: bool = False) -> dict | None:
         from . import firewall, upnp
-        if os.name != "nt":
+        if not firewall.available():
             return None
         state = firewall.read(fresh=fresh)
         return firewall.assess(state, upnp._lan_address(), self._firewall_ports(share)) if state else None

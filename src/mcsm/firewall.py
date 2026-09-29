@@ -49,6 +49,11 @@ class FirewallError(RuntimeError):
     pass
 
 
+def available() -> bool:
+    """Windows Firewall is there to look at (Windows only)."""
+    return os.name == "nt"
+
+
 def _powershell(script: list[str], timeout: float) -> subprocess.CompletedProcess:
     from .desktop import NO_WINDOW
     return subprocess.run(["powershell", "-NoProfile", "-NonInteractive", *script], capture_output=True, text=True,
@@ -63,7 +68,7 @@ def read(timeout: float = 30, fresh: bool = False) -> dict | None:
     """The firewall's state and its enabled inbound rules; None when that can't be read (not
     Windows, or PowerShell failed). Read again after CACHE_SECONDS, or when ``fresh``."""
     global _cache
-    if os.name != "nt":
+    if not available():
         return None
     if not fresh and _cache and time.monotonic() - _cache[0] < CACHE_SECONDS:
         return _cache[1]
@@ -161,7 +166,7 @@ def script(ports: list[dict]) -> str:
 def let_through(ports: list[dict], timeout: float = 300) -> None:
     """Add the rules, asking Windows for administrator rights (the person at this computer
     answers its prompt). Raises FirewallError when that's declined or fails."""
-    if os.name != "nt":
+    if not available():
         raise FirewallError("this is only for Windows")
     # (passed inline, not as a file: nothing another program could change between here and
     # Windows running it with administrator rights)
