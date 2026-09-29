@@ -139,6 +139,40 @@ def test_only_routers_on_the_home_network_are_believed():
         upnp._fetch("http://93.184.216.34/desc.xml")
 
 
+def test_the_search_goes_out_the_adapter_the_internet_uses(monkeypatch):
+    """With several adapters (Wi-Fi Direct, Hyper-V, VPNs), Windows sent the search out one with no
+    router behind it: "no router answered" with UPnP switched on and no firewall."""
+    options = []
+
+    class FakeSock:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            pass
+
+        def settimeout(self, t):
+            pass
+
+        def setsockopt(self, *a):
+            options.append(a)
+
+        def sendto(self, data, addr):
+            pass
+
+        def recvfrom(self, n):
+            raise socket.timeout
+
+    monkeypatch.setattr(upnp, "_lan_address", lambda: "192.168.1.69")
+    upnp.discover(timeout=0.1, sock_factory=FakeSock)
+    assert (socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton("192.168.1.69")) in options
+    monkeypatch.undo()
+    monkeypatch.setattr(upnp, "_local_ip_towards", lambda host: "169.254.4.5")  # no network behind it
+    assert upnp._lan_address() is None
+    monkeypatch.setattr(upnp, "_local_ip_towards", lambda host: "10.0.0.7")
+    assert upnp._lan_address() == "10.0.0.7"
+
+
 def test_switching_it_on_and_off_from_the_page(hub_env, router):
     hub, c = hub_env
     login(c)

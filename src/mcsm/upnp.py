@@ -65,6 +65,15 @@ def _home_address(host: str) -> bool:
     return any(ip in n for n in HOME_NETWORKS if n.version == ip.version)
 
 
+def _lan_address() -> str | None:
+    """This computer's address on the network its internet goes through (nothing is sent)."""
+    try:
+        ip = _local_ip_towards("192.0.2.1")  # (a documentation address: only the route is looked up)
+    except OSError:
+        return None
+    return ip if _home_address(ip) and not ip.startswith(("127.", "169.254.")) else None
+
+
 def discover(timeout: float = 3.0, sock_factory=None) -> list[tuple[str, str]]:
     """(responder address, description URL) of the routers that answer on this network."""
     make = sock_factory or (lambda: socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP))
@@ -72,6 +81,14 @@ def discover(timeout: float = 3.0, sock_factory=None) -> list[tuple[str, str]]:
     with make() as s:
         s.settimeout(0.5)
         s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
+        # Out through the adapter the internet goes through: with several (Wi-Fi Direct, Hyper-V,
+        # VPNs), Windows could send the search out one with no router behind it.
+        lan = _lan_address()
+        if lan:
+            try:
+                s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(lan))
+            except OSError:
+                pass
         for st in SEARCH_TARGETS:
             msg = (f"M-SEARCH * HTTP/1.1\r\nHOST: {SSDP[0]}:{SSDP[1]}\r\nMAN: \"ssdp:discover\"\r\n"
                    f"MX: 2\r\nST: {st}\r\n\r\n").encode()
