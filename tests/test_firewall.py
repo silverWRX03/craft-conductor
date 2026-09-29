@@ -1,6 +1,7 @@
 """Windows Firewall in Check my setup: reading whether the ports get through, and letting them through."""
 
 import os
+import re
 import subprocess
 
 import pytest
@@ -58,6 +59,13 @@ def test_check_my_setup_says_it_plainly():
     assert c.status == doctor.BAD and "Cancel" in c.detail and c.action == "firewall"
 
 
+def test_its_own_rules_are_read_one_by_one():
+    """Without administrator rights, Windows' list of all ports left out the rules just added:
+    Check my setup said they still weren't there. Craft Conductor's own are asked about singly."""
+    assert "$_.Group -eq 'Craft Conductor'" in firewall.QUERY and "Get-NetFirewallPortFilter }" in firewall.QUERY
+    assert f"-Group {firewall._ps_string(firewall.GROUP)}" in firewall.script([{"port": 25565, "label": "x"}])
+
+
 def test_the_rules_it_adds():
     text = firewall.script([{"port": 25565, "label": "Sam's server & co; rm -rf", "unblock": JAVA},
                             {"port": 8766, "label": "friends' downloads", "unblock": None}])
@@ -72,18 +80,23 @@ def test_the_rules_it_adds():
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows Firewall")
 def test_letting_through_asks_windows(monkeypatch):
-    ran = []
+    """Asked for straight from Craft Conductor (through a hidden PowerShell, Windows' prompt stayed
+    out of sight until it gave up), and its answer read: No, or the script's own exit code."""
+    answers, seen = [None, 1, 0], []
 
-    def fake(argv, **kw):
-        ran.append(argv)
-        script_path = argv[-1].split("'-File',")[1].split(";")[0].strip().strip("'\"")
-        assert os.path.exists(script_path)  # (the script is there while Windows runs it)
-        return subprocess.CompletedProcess(argv, 1, "", "Start-Process : This command cannot be run due to the error: "
-                                           "The operation was canceled by the user.")
-    monkeypatch.setattr(subprocess, "run", fake)
+    def fake(program, arguments, timeout):
+        path = re.search(r'-File "([^"]+)"', arguments).group(1)
+        assert program == "powershell.exe" and os.path.exists(path)  # (the script is there while it runs)
+        seen.append(open(path, encoding="utf-8-sig").read())
+        return answers.pop(0)
+    monkeypatch.setattr(firewall, "elevate", fake)
     with pytest.raises(firewall.FirewallError, match="answered No"):
         firewall.let_through([{"port": 25565, "label": "x"}])
-    assert "-Verb RunAs" in ran[0][-1]
+    with pytest.raises(firewall.FirewallError, match="couldn't add"):
+        firewall.let_through([{"port": 25565, "label": "x"}])
+    firewall.let_through([{"port": 25565, "label": "x"}])
+    assert "-LocalPort 25565" in seen[0]
+    assert not list(__import__("pathlib").Path(__import__("tempfile").gettempdir()).glob("mcsm-firewall-*.ps1"))
 
 
 def test_only_at_this_computer(hub_env, monkeypatch):
@@ -93,8 +106,8 @@ def test_only_at_this_computer(hub_env, monkeypatch):
     hub, c = hub_env
     login(c)
     monkeypatch.setattr(os, "name", os.name)  # (restored after)
-    monkeypatch.setattr(firewall, "read", lambda timeout=30: state([]))
     added = []
+    monkeypatch.setattr(firewall, "read", lambda timeout=30: state([rule(ports=[str(p["port"]) for p in added[-1]])] if added else []))
     monkeypatch.setattr(firewall, "let_through", lambda ports: added.append(ports))
     monkeypatch.setattr(os, "name", "nt")
     checks = c.get("/api/servers/alpha/doctor")[1]["checks"]
@@ -106,3 +119,7 @@ def test_only_at_this_computer(hub_env, monkeypatch):
     status, r, _ = c.post("/api/servers/alpha/doctor/fix", {"action": "firewall"})
     assert status == 200, r
     assert added and added[0][0]["port"] == 25565
+    # Windows said yes but nothing changed: it doesn't claim it worked.
+    monkeypatch.setattr(firewall, "read", lambda timeout=30: state([]))
+    status, r, _ = c.post("/api/servers/alpha/doctor/fix", {"action": "firewall"})
+    assert status == 400 and "still doesn't let port 25565" in r["error"]

@@ -35,6 +35,9 @@ $ports = @{}; Get-NetFirewallPortFilter -All | ForEach-Object { $ports[$_.Instan
 $services = @{}; Get-NetFirewallServiceFilter -All | ForEach-Object { $services[$_.InstanceID] = "$($_.Service)" }
 $rules = @(Get-NetFirewallRule -Direction Inbound -Enabled True | ForEach-Object {
     $p = $ports[$_.Name]; $a = $apps[$_.Name]
+    # (the list of all ports leaves some rules out without administrator rights, rules just added
+    # among them; one at a time they can be read, so Craft Conductor's own are asked about)
+    if (-not $p -and $_.Group -eq 'Craft Conductor') { $p = $_ | Get-NetFirewallPortFilter }
     [pscustomobject]@{ action = [int]$_.Action; profile = [int]$_.Profile; program = "$($a.Program)"; package = "$($a.Package)";
                        service = "$($services[$_.Name])"; protocol = "$($p.Protocol)";
                        ports = @($p.LocalPort | ForEach-Object { "$_" }) } })
@@ -154,22 +157,46 @@ def let_through(ports: list[dict], timeout: float = 300) -> None:
     try:
         with os.fdopen(fd, "w", encoding="utf-8-sig") as f:
             f.write(text)
-        run = ("$p = Start-Process powershell -Verb RunAs -WindowStyle Hidden -Wait -PassThru -ArgumentList "
-               f"'-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',{_ps_string(_quoted(path))}; exit $p.ExitCode")
-        try:
-            r = _powershell(["-Command", run], timeout)
-        except (OSError, subprocess.SubprocessError) as e:
-            raise FirewallError(f"Windows didn't run it ({e})") from None
+        code = elevate("powershell.exe", f'-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{path}"', timeout)
     finally:
         Path(path).unlink(missing_ok=True)
-    if r.returncode != 0:
-        said = (r.stdout + r.stderr).strip()
-        if "cancel" in said.lower() or not said:
-            raise FirewallError("Windows didn't get the go-ahead (its administrator prompt was answered No)")
-        raise FirewallError(said.splitlines()[-1][:300])
+    if code is None:
+        raise FirewallError("Windows didn't get the go-ahead (its administrator prompt was answered No)")
+    if code != 0:
+        raise FirewallError(f"Windows couldn't add the rules (error {code})")
     log.info("Windows Firewall: let through TCP %s", ", ".join(str(p["port"]) for p in ports))
 
 
-def _quoted(path: str) -> str:
-    """A path as one argument for Start-Process (which joins its arguments with spaces)."""
-    return f'"{path}"'
+def elevate(program: str, arguments: str, timeout: float) -> int | None:
+    """Run a program with administrator rights and wait for it: its exit code, or None when the
+    prompt was answered No (or given up on).
+
+    Asked for straight from this process (ShellExecuteEx, "runas"), so Windows shows its prompt in
+    front: asked for through a hidden PowerShell, it stayed out of sight until it gave up."""
+    import ctypes
+    from ctypes import wintypes
+
+    class ShellExecuteInfo(ctypes.Structure):
+        _fields_ = [("cbSize", wintypes.DWORD), ("fMask", ctypes.c_ulong), ("hwnd", wintypes.HWND),
+                    ("lpVerb", wintypes.LPCWSTR), ("lpFile", wintypes.LPCWSTR), ("lpParameters", wintypes.LPCWSTR),
+                    ("lpDirectory", wintypes.LPCWSTR), ("nShow", ctypes.c_int), ("hInstApp", wintypes.HINSTANCE),
+                    ("lpIDList", ctypes.c_void_p), ("lpClass", wintypes.LPCWSTR), ("hkeyClass", wintypes.HKEY),
+                    ("dwHotKey", wintypes.DWORD), ("hIcon", wintypes.HANDLE), ("hProcess", wintypes.HANDLE)]
+
+    info = ShellExecuteInfo(cbSize=ctypes.sizeof(ShellExecuteInfo), fMask=0x40,  # SEE_MASK_NOCLOSEPROCESS
+                            lpVerb="runas", lpFile=program, lpParameters=arguments, nShow=1)  # (shown: hidden, the prompt was too)
+    shell32, kernel32 = ctypes.windll.shell32, ctypes.windll.kernel32
+    shell32.ShellExecuteExW.argtypes = [ctypes.POINTER(ShellExecuteInfo)]
+    if not shell32.ShellExecuteExW(ctypes.byref(info)):
+        return None  # (ERROR_CANCELLED: answered No, or the prompt timed out)
+    try:
+        kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        if kernel32.WaitForSingleObject(info.hProcess, int(timeout * 1000)) != 0:
+            raise FirewallError("Windows took too long to add the rules")
+        code = wintypes.DWORD()
+        kernel32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+        kernel32.GetExitCodeProcess(info.hProcess, ctypes.byref(code))
+        return int(code.value)
+    finally:
+        kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        kernel32.CloseHandle(info.hProcess)

@@ -2763,6 +2763,11 @@ class Api:
                 firewall.let_through([{**p, "unblock": ours(p["program"])} for p in ports])
             except firewall.FirewallError as e:
                 raise ApiError(400, str(e)) from None
+            after = self._firewall(None if hub.is_single else hub.share_status())  # (said only once it's so)
+            shut = [p["port"] for p in (after or {}).get("ports", []) if not p["allowed"]] if after and after.get("on") else []
+            if shut:
+                raise ApiError(400, "Windows still doesn't let port " + ", ".join(map(str, shut)) + " through: "
+                                    "see Windows Security → Firewall → Advanced settings → Inbound Rules")
             message = "Windows Firewall lets port " + ", ".join(str(p["port"]) for p in ports) + " through now"
         else:  # upnp
             st = hub.upnp_sync(True)
