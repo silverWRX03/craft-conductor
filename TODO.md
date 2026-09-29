@@ -143,6 +143,9 @@ Next:
         Windows Firewall check (rules read without admin rights, `firewall.py`) and its **Let them
         through Windows Firewall** button (one administrator prompt; port rules for private and
         public networks, Windows' block rules for our Java removed).
+27. [ ] **Web map buttons only when the map mod exists for that version:** show Add BlueMap and
+        Add Dynmap (Web map, on the World page) only when the mod has a build for the server's
+        Minecraft version and loader; otherwise say it isn't available for that version yet.
 
 ## Plans for the items left (details to start from)
 
@@ -268,3 +271,17 @@ release to pay those costs once.
   the Private profile (public only if the user chooses), and never open anything else.
   macOS and Linux: explain only (macOS asks per app; Linux firewalls vary: ufw/firewalld hints).
 
+**27. Web map buttons only when the map mod exists for that version** — small.
+- Today: `webMapCard()` in `webui/app.js` always shows Add BlueMap and Add Dynmap;
+  `webmap.py` (`MAPS`: Modrinth projects `bluemap`, `dynmap`) adds the mod to `mcsm.toml`, and
+  only the next update finds out there's no build (the mod is then skipped or holds the update).
+- Fix: `GET /api/webmap` also returns, per map, whether Modrinth has a version for the server's
+  loader (Paper/Purpur use the plugin loaders) and Minecraft version (the installed one, or the
+  target of a new install). Use the providers' existing version lookup and HTTP cache, so it's one
+  cached request per map, not one per page view. The page shows only the available buttons; with
+  none, a line like "BlueMap and Dynmap don't support Minecraft X yet". `POST /api/webmap/add`
+  refuses one that isn't available (the page isn't the only check).
+- Also re-check after a Minecraft update: a map already added that has no build for the new
+  version is part of the update's readiness ("Show why") like any other mod.
+- Tests: with a fake Modrinth answer, only the map with a build is offered; adding the other is
+  refused with a clear message; the lookup is cached.
