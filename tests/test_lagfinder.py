@@ -107,6 +107,31 @@ def test_a_look_from_start_to_finish(make_config):
     assert f2.state == "cancelled" and "debug stop" in proc2.sent
 
 
+class EmptyServer(FakeProc):
+    """Minecraft 26.x with nobody online: paused, so the profiler counts no ticks and writes nothing."""
+
+    def send(self, cmd):
+        self.sent.append(cmd)
+        if cmd == "debug stop":
+            self.lines.append("[Server thread/INFO]: System chat: Stopped tick profiling after 30.05 second(s) and 0 tick(s) "
+                              "(0.00 tick(s) per second)")
+            self.line_count += 1
+
+
+def test_a_paused_server_isnt_blamed_on_the_computer(make_config):
+    """26.x words it differently, and an empty server is paused: the look said the computer may
+    be too slow, when there was simply nothing to measure."""
+    line = "Stopped tick profiling after 30.05 second(s) and 600 tick(s) (19.97 tick(s) per second)"
+    assert lagfinder._STOPPED.search(line) and lagfinder._TICKS_PER_SECOND.search(line).group(1) == "19.97"
+    cfg = make_config()
+    (cfg.server.dir / "world").mkdir(parents=True)
+    d = SimpleNamespace(m=SimpleNamespace(server_dir=cfg.server.dir, config=cfg, lock=SimpleNamespace(mods=[])),
+                        proc=EmptyServer(cfg.server.dir))
+    result = lagfinder.LagFinder(d, seconds=1).run()
+    assert "Nobody was online" in result["summary"] and "too slow" not in result["summary"]
+    assert result["tps"] is None and "note" not in result
+
+
 def test_lag_finder_from_the_page(hub_env):
     from test_hub import login
     hub, c = hub_env

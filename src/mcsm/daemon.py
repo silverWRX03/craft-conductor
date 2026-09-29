@@ -458,12 +458,19 @@ class Daemon:
                 self.stop_requested.set()
             raise
 
+    def _notice_accepted(self) -> bool:
+        """Accepted for this server, or (a server in the control panel's list) in the control panel,
+        which keeps it in its own folder: without that, a server made in the control panel never got
+        past this point, so it never checked for updates, ran its schedules or restarted after a crash."""
+        hub = getattr(self, "hub", None)
+        return notice.accepted(self.m.config.root) or (self.hub_managed and hub is not None and notice.accepted(hub.root))
+
     def _loop(self) -> int:
         if not self.hub_managed:
             self._forward_console()
-        if not notice.accepted(self.m.config.root):
+        if not self._notice_accepted():
             log.info("waiting for the first-run notice to be accepted in the web UI")
-            while not notice.accepted(self.m.config.root):
+            while not self._notice_accepted():
                 if self.stop_requested.wait(1) or stop_request_path(self.m).exists():
                     stop_request_path(self.m).unlink(missing_ok=True)
                     return self.exit_code
