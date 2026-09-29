@@ -4,7 +4,7 @@ What changed in each version of mcsm, newest first. Bugs are listed the way you'
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
-## 0.20.2 (not released yet)
+## 0.21.0 (2026-09-29)
 
 **Fixed**
 - Servers made in the control panel never checked for updates by themselves, never ran their scheduled restarts and backups, and weren't restarted after a crash, unless the first-run notice had also been accepted on the command line: they waited for the notice without noticing it had been accepted in the control panel.
