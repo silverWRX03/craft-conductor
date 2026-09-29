@@ -94,13 +94,16 @@ Next:
         players' bases, and pins on the web map (BlueMap and Dynmap show their own).
 13. [x] Limits per server (memory, CPU) and a warning when too many run at once. Also warnings
         about the computer (disk space, CPU, memory) on the page and on phones.
-14. [ ] **World generation preview loads the mods' dependencies:** when mods are picked for the
+14. [x] **World generation preview loads the mods' dependencies:** when mods are picked for the
         map preview (New server → World generation & map preview), the mods they require are
         installed in the preview's throwaway server too, so the map matches the real server.
         Investigate first: a preview with Terralith, Lithostitched, Cristel Lib and Towns and
         Towers ticked failed with "the world has no region files to draw: the server didn't save
         any land", while the footer said "made with all 2 of the server's mods" (0.20.0, Fabric,
-        seed 43, 512 × 512, structures on).
+        seed 43, 512 × 512, structures on). Done: the dependencies were installed all along (the
+        planner adds them); Minecraft 26.x keeps the land in `dimensions/minecraft/overworld/region`
+        and writes block palettes differently, which the preview didn't read. The footer now counts
+        the needed mods, the download step names them, and a crash names the mod.
 15. [ ] Other tunnel services next to playit.gg (Cloudflare Tunnel, Tailscale Funnel).
 16. [x] Purpur servers.
 17. [ ] Scripting hooks (a script on start, stop, a player joining, before an update) and API tokens.
@@ -134,9 +137,12 @@ Next:
         a mod picked for players that runs on both sides (client and server) is added to the
         server too, with the mods it requires. When a friend sets up their own copy and opens
         Download mods (Modrinth), they only see client-side-only mods.
-26. [ ] **Investigate: Windows Firewall exceptions alongside UPnP:** when Router (UPnP) opens the
+26. [x] **Investigate: Windows Firewall exceptions alongside UPnP:** when Router (UPnP) opens the
         ports on the router, also let them through Windows Firewall, so friends can connect
-        without Windows' own prompt being missed or answered "Cancel".
+        without Windows' own prompt being missed or answered "Cancel". Done as Check my setup's
+        Windows Firewall check (rules read without admin rights, `firewall.py`) and its **Let them
+        through Windows Firewall** button (one administrator prompt; port rules for private and
+        public networks, Windows' block rules for our Java removed).
 
 ## Plans for the items left (details to start from)
 

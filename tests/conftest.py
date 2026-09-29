@@ -192,6 +192,13 @@ def notice_accepted(tmp_path, monkeypatch):
     notice.accept(None, by="cli")
 
 
+@pytest.fixture(autouse=True)
+def no_real_firewall(monkeypatch):
+    """Check my setup doesn't read this computer's Windows Firewall in tests (test_firewall fakes it)."""
+    from mcsm import firewall
+    monkeypatch.setattr(firewall, "read", lambda timeout=30: None)
+
+
 @pytest.fixture
 def http():
     return FakeHttp()

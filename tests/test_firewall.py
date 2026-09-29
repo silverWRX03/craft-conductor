@@ -1,0 +1,108 @@
+"""Windows Firewall in Check my setup: reading whether the ports get through, and letting them through."""
+
+import os
+import subprocess
+
+import pytest
+
+from mcsm import doctor, firewall
+
+JAVA = r"C:\Users\Sam Smith\mcsm\servers\survival\.mcsm\java\21\bin\java.exe"
+WANTED = [{"port": 25565, "label": "Survival (Minecraft)", "program": JAVA},
+          {"port": 8766, "label": "friends' downloads", "program": r"C:\cc\craft-conductor.exe"}]
+
+
+def state(rules, public_on=True):
+    return {"profiles": [{"name": "Domain", "on": True}, {"name": "Private", "on": True}, {"name": "Public", "on": public_on}],
+            "networks": [{"category": "Private", "ips": ["100.64.0.2"]}, {"category": "Public", "ips": ["192.168.1.20"]}],
+            "rules": rules}
+
+
+def rule(action=2, profile=0, program="Any", protocol="TCP", ports=("Any",), package="", service="Any"):
+    return {"action": action, "profile": profile, "program": program, "protocol": protocol, "ports": list(ports),
+            "package": package, "service": service}
+
+
+def ports(fw):
+    return [(p["port"], p["allowed"], p["blocked"]) for p in fw["ports"]]
+
+
+def test_which_ports_get_through():
+    lan = "192.168.1.20"  # (on a network Windows calls public)
+    assert ports(firewall.assess(state([]), lan, WANTED)) == [(25565, False, False), (8766, False, False)]
+    # A rule for the port, for public networks; a private-only one doesn't count here.
+    fw = firewall.assess(state([rule(ports=["25565"], profile=4), rule(ports=["8766"], profile=2)]), lan, WANTED)
+    assert fw["network"] == "Public" and ports(fw) == [(25565, True, False), (8766, False, False)]
+    # A range, and "allowed for this program" (Windows' own prompt makes those; their ports can't always be read).
+    fw = firewall.assess(state([rule(ports=["8000-9000"]), rule(program=JAVA.lower(), protocol="", ports=[""])]), lan, WANTED)
+    assert ports(fw) == [(25565, True, False), (8766, True, False)]
+    # Another program's rule, a Store app's or a service's, or one whose details couldn't be read: not for us.
+    others = [rule(program=r"C:\other\java.exe"), rule(package="S-1-15-2-1"), rule(service="Dnscache"), rule(program="", protocol="")]
+    assert ports(firewall.assess(state(others), lan, WANTED)) == [(25565, False, False), (8766, False, False)]
+    # Cancel on Windows' prompt makes a block rule, which beats any allow.
+    fw = firewall.assess(state([rule(ports=["Any"]), rule(action=4, program=JAVA, protocol="", ports=[""])]), lan, WANTED)
+    assert ports(fw) == [(25565, False, True), (8766, True, False)]
+    # Switched off for this network: nothing is blocked.
+    assert firewall.assess(state([], public_on=False), lan, WANTED)["on"] is False
+
+
+def test_check_my_setup_says_it_plainly():
+    lan = "192.168.1.20"
+    c = doctor.firewall_check(firewall.assess(state([], public_on=False), lan, WANTED))
+    assert c.status == doctor.OK and "off" in c.detail and "public" in c.detail
+    c = doctor.firewall_check(firewall.assess(state([rule()]), lan, WANTED))
+    assert c.status == doctor.OK and "25565" in c.detail and not c.action
+    c = doctor.firewall_check(firewall.assess(state([rule(ports=["25565"])]), lan, WANTED))
+    assert c.status == doctor.WARN and "8766 (friends' downloads)" in c.detail and c.action == "firewall"
+    c = doctor.firewall_check(firewall.assess(state([rule(), rule(action=4, program=JAVA)]), lan, WANTED))
+    assert c.status == doctor.BAD and "Cancel" in c.detail and c.action == "firewall"
+
+
+def test_the_rules_it_adds():
+    text = firewall.script([{"port": 25565, "label": "Sam's server & co; rm -rf", "unblock": JAVA},
+                            {"port": 8766, "label": "friends' downloads", "unblock": None}])
+    assert "New-NetFirewallRule -DisplayName 'Craft Conductor: Sams server  co rm -rf (TCP 25565)' -Group 'Craft Conductor'" in text
+    assert "-LocalPort 25565 -Profile Private,Public" in text and "-LocalPort 8766" in text
+    assert f"-Program '{JAVA}'" in text and text.count("Remove-NetFirewallRule") == 3  # (two old rules of ours, one block)
+    assert "Action -eq 'Block'" in text
+    assert firewall._ps_string("it's") == "'it''s'"
+    with pytest.raises(firewall.FirewallError):
+        firewall.script([{"port": 70000, "label": "x"}])
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows Firewall")
+def test_letting_through_asks_windows(monkeypatch):
+    ran = []
+
+    def fake(argv, **kw):
+        ran.append(argv)
+        script_path = argv[-1].split("'-File',")[1].split(";")[0].strip().strip("'\"")
+        assert os.path.exists(script_path)  # (the script is there while Windows runs it)
+        return subprocess.CompletedProcess(argv, 1, "", "Start-Process : This command cannot be run due to the error: "
+                                           "The operation was canceled by the user.")
+    monkeypatch.setattr(subprocess, "run", fake)
+    with pytest.raises(firewall.FirewallError, match="answered No"):
+        firewall.let_through([{"port": 25565, "label": "x"}])
+    assert "-Verb RunAs" in ran[0][-1]
+
+
+def test_only_at_this_computer(hub_env, monkeypatch):
+    """The fix shows Windows' administrator prompt on this computer: not from a phone or another device."""
+    from test_hub import login
+    from test_web import Client
+    hub, c = hub_env
+    login(c)
+    monkeypatch.setattr(os, "name", os.name)  # (restored after)
+    monkeypatch.setattr(firewall, "read", lambda timeout=30: state([]))
+    added = []
+    monkeypatch.setattr(firewall, "let_through", lambda ports: added.append(ports))
+    monkeypatch.setattr(os, "name", "nt")
+    checks = c.get("/api/servers/alpha/doctor")[1]["checks"]
+    assert next(x for x in checks if x["id"] == "firewall")["action"] == "firewall"
+    away = {"X-Forwarded-For": "203.0.113.9"}
+    assert c.call("POST", "/api/servers/alpha/doctor/fix", {"action": "firewall"}, headers=away)[0] in (401, 403)
+    assert c.post("/api/servers/alpha/doctor/fix", {"action": "firewall", "__local": True}, headers=away)[0] in (401, 403)
+    assert not added
+    status, r, _ = c.post("/api/servers/alpha/doctor/fix", {"action": "firewall"})
+    assert status == 200, r
+    assert added and added[0][0]["port"] == 25565

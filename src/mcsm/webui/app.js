@@ -2229,7 +2229,7 @@ views.settings = () => {
     const s = await api("/api/settings").catch(() => null);
     if (!s) return;
     const f = {};
-    const sel = (k, opts) => (f[k] = h("select", {}, opts.map((o) => h("option", { value: o }, o))), f[k].value = s[k], f[k]);
+    const sel = (k, opts, labels = {}) => (f[k] = h("select", {}, opts.map((o) => h("option", { value: o }, labels[o] || o))), f[k].value = s[k], f[k]);
     const txt = (k, extra = {}) => (f[k] = h("input", { value: s[k], ...extra }));
     const chk = (k, text) => h("label", { class: "row" }, (f[k] = h("input", { type: "checkbox", checked: s[k] })), h("span", {}, text));
     const sched = {};
@@ -2241,8 +2241,12 @@ views.settings = () => {
     fill(form,
       h("h3", {}, "Updates"),
       h("div", { class: "grid" },
-        h("label", {}, "Strategy", sel("strategy", s.choices.strategy)),
-        h("label", {}, "Lowest mod release channel", sel("mod_channel", s.choices.mod_channel)),
+        h("label", {}, "Minecraft version", sel("strategy", s.choices.strategy, {
+          "latest-compatible": "Newest version your mods support (recommended)",
+          "latest": "Only the newest version (waits until every mod supports it)",
+          "mods-only": "Stay on this version (mods still update)" })),
+        h("label", {}, "Mod builds to use", sel("mod_channel", s.choices.mod_channel, {
+          release: "Releases only", beta: "Releases and betas", alpha: "Releases, betas and alphas (least stable)" })),
         h("label", {}, "Check every (e.g. 6h, 30m)", txt("check_interval")),
         h("label", {}, "In-game warnings (minutes, comma separated)", txt("warn_minutes", { value: s.warn_minutes.join(", ") }))),
       h("div", { class: "grid mt-s" },
@@ -5288,6 +5292,7 @@ views.setup = () => {
   const renderForm = (error) => {
     const loaderCards = h("div", { class: "choices" }, opts.loaders.map((l) => h("button", {
       type: "button", class: "choice" + (st.loader === l.name ? " selected" : ""),
+      "aria-pressed": String(st.loader === l.name), "aria-label": `${t(l.label)}: ${t(l.description)}`,
       disabled: !!st.modpack && st.loader !== l.name,
       onclick: () => { st.loader = l.name; if (!l.mods) { st.mods.clear(); st.localMods = []; } else setupRecheckMods(); renderForm(); },
     }, h("strong", {}, l.label), h("span", { class: "small muted" }, l.description))));
@@ -5465,6 +5470,7 @@ views.setup = () => {
         h("h3", { class: "mt-s" }, "World type"),
         h("div", { class: "choices world-types" }, worldTypes.map(([v, label, desc]) => h("button", { type: "button",
           class: "choice" + ((P["level-type"] || "minecraft:normal") === v ? " selected" : ""),
+          "aria-pressed": String((P["level-type"] || "minecraft:normal") === v),
           onclick: () => { P["level-type"] = v; renderForm(); } }, h("strong", {}, label), h("span", { class: "small muted" }, desc)))),
         h("div", { class: "grid mt-s" }, flag("generate-structures", "Villages, temples and other structures"),
           flag("hardcore", "Hardcore: one life, locked to hard")),

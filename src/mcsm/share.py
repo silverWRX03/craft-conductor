@@ -148,12 +148,14 @@ class ShareHandler(BaseHTTPRequestHandler):
         """``/join/<secret>/request``: a friend with the invite asks to be let in (their Minecraft
         name, for the whitelist). Small, checked, and limited: the owner decides in mcsm."""
         m = re.fullmatch(r"/join/([A-Za-z0-9_-]{16,64})/request/?", self.path.split("?")[0])
-        if not m:
-            return self._text(404, "Nothing here.")
         try:
             length = int(self.headers.get("Content-Length") or 0)
         except ValueError:
             length = -1
+        if not m:
+            if 0 < length <= 1024:  # (read first: Windows resets a connection closed with data unread)
+                self.rfile.read(length)
+            return self._text(404, "Nothing here.")
         if not 0 < length <= 1024:
             return self._text(413 if length > 1024 else 400, "Send a short JSON body.")
         sid, d = self.server_ref.server_for(m.group(1))

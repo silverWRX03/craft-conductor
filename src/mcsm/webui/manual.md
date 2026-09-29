@@ -149,7 +149,8 @@ While the server runs, **Performance** on the Dashboard shows how well it keeps 
 
 **🩺 Check my setup** (in the Server box on the Dashboard) checks what most often stops a server or keeps friends out, and says what to do about each: the server is installed and the EULA accepted, Java is there, the server's memory fits this computer, there's disk space, the port is free (or another program has it), accounts (online-mode), the friends' download port and public address, the router's port forwarding, Windows Firewall, and whether Craft Conductor has an update.
 
-- **Fix buttons:** where Craft Conductor can put something right itself, the check has a button: **Read and accept the EULA**, **Download Java now**, **Use N GB** (memory that fits this computer), **Delete old backups** (keeps the newest 3) when the disk is nearly full, **Use a free port** when another program has the server's, **Turn it on** for account checks, **Use my public IP** for friends' downloads and **Ask my router (UPnP)** to forward the port. Changes to memory, the port and accounts apply at the server's next start. The checks run again afterwards.
+- **Fix buttons:** where Craft Conductor can put something right itself, the check has a button: **Read and accept the EULA**, **Download Java now**, **Use N GB** (memory that fits this computer), **Delete old backups** (keeps the newest 3) when the disk is nearly full, **Use a free port** when another program has the server's, **Turn it on** for account checks, **Use my public IP** for friends' downloads, **Ask my router (UPnP)** to forward the port, and **Let them through Windows Firewall**. Changes to memory, the port and accounts apply at the server's next start. The checks run again afterwards.
+- **Windows Firewall:** it reads the firewall's rules (no administrator rights needed) and says whether the server's port and the friends' download port get through on the network you're on. Windows calls many home networks "public", and its own "allow Java?" prompt only ticks private networks, so friends on your Wi-Fi can be blocked even after Allow; answering Cancel there blocks Java altogether. **Let them through Windows Firewall** asks for permission once (Windows' administrator prompt, on this computer only), then adds rules named "Craft Conductor: …" for those ports on private and public networks, and removes Windows' block rules for Craft Conductor's own Java. You can see or delete the rules under Windows Security → Firewall → Advanced settings → Inbound Rules.
 - **Test from the internet** (with the server running) asks ifconfig.co, an outside service, to connect to your public address on the server's port: the surest way to know friends outside your home can join. It runs only when you press it.
 - **Report for a bug report** downloads a zip with the checks, versions, the server's settings and the ends of the logs, with passwords, keys, webhooks, invite secrets and players' IP addresses taken out. Look through it, then attach it to a [bug report](https://github.com/silverWRX03/craft-conductor/issues/new/choose).
 
@@ -218,6 +219,8 @@ Craft Conductor downloads the right Java (Eclipse Temurin) for each Minecraft ve
 ## Settings
 
 The server's version and upgrade choices, memory (with Aikar's flags above 16 GB), port, name and Minecraft's settings.
+
+**Minecraft version:** **Newest version your mods support** (recommended: it moves up once every mod works on the next one), **Only the newest version** (waits until every mod supports the very newest), or **Stay on this version** (mods still update). **Mod builds to use:** releases only, or betas and alphas too (less stable).
 
 **Limits** (for several servers on one computer), from the next start:
 

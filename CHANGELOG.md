@@ -16,9 +16,15 @@ its fix will say which version it's in.
 - Windows: **Open the ports on my router by itself (UPnP)** said "no router answered" with UPnP switched on and no firewall in the way, on computers with several network adapters (Wi-Fi Direct, Hyper-V, VPNs): the search for the router went out an adapter with no router behind it. It now goes out the one the internet goes through.
 - **Use Tailscale for the phone app** said "Tailscale isn't installed on this computer" (after half a minute) when Tailscale was installed but Serve wasn't switched on for your Tailscale account yet. It now gives the link to switch it on straight away.
 - Windows: **Test these mods** and the map preview downloaded Java again each time instead of using the Java that was already there.
-- Windows: some refused requests (for example a phone at an address that isn't allowed) could show "connection reset" instead of the reason.
+- Windows: some refused requests (for example a phone at an address that isn't allowed) could show "connection reset" instead of the reason, in the control panel, the friends' setup page and the friends' download.
+
+**Added**
+- Windows: **Check my setup** now looks at Windows Firewall itself (no administrator rights needed): whether the server's port and the friends' download port get through on the network you're on (Windows calls many home networks "public"), and whether an old "Cancel" on Windows' own prompt blocks Java. **Let them through Windows Firewall** adds rules for Craft Conductor's own ports after one administrator prompt, and only from the server's own computer.
 
 **Changed**
+- The server's **Settings** say what the update choices mean: **Minecraft version** (Newest version your mods support, Only the newest version, Stay on this version) and **Mod builds to use**, instead of "latest-compatible" and "release".
+- No more empty "before install" backup offered under **Roll back to this**: the first install's backup, of a server with no world yet, goes once the install worked. A backup before mod updates is named for them, instead of "before-26.3-to-26.3".
+- The server type and world type buttons tell screen readers which one is picked.
 - When a map preview's private server crashes, the message says which mod it blames (like a server's own start does), and its log is kept (`previews/last-failed.log`) instead of being deleted.
 
 ## 0.20.1 (2026-09-28)

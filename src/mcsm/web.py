@@ -693,6 +693,8 @@ class RequestHandler(BaseHTTPRequestHandler):
                     raise ApiError(404, str(e)) from None
                 return self._send(200, png, "image/png", {"Cache-Control": "private, max-age=3600"})
             body = self._body() if method == "POST" else {}
+            if path == "/api/doctor/fix":
+                body = {**body, "__local": local and device is None}  # (from this request, not the page's say-so)
             return self._json(200, handler(q, body))
         except ApiError as e:
             self._fail(e.status, str(e))
@@ -2659,9 +2661,33 @@ class Api:
         from . import doctor
         hub = self.web.hub
         info = hub.self_update_info()
-        return doctor.run(self.m, self.d.state, share=None if hub.is_single else hub.share_status(),
+        share = None if hub.is_single else hub.share_status()
+        return doctor.run(self.m, self.d.state, share=share,
                           self_update={"available": True, **info} if info else None,
-                          upnp=None if hub.is_single else hub.upnp_status())
+                          upnp=None if hub.is_single else hub.upnp_status(), firewall=self._firewall(share))
+
+    def _firewall_ports(self, share: dict | None) -> list[dict]:
+        """What should get through Windows Firewall: the Minecraft port (Java listens on it) and
+        the friends' download (Craft Conductor itself), when it's on."""
+        import sys
+        from .java import JavaError
+        props = read_properties(self.m.server_dir / "server.properties")
+        port = int(props.get("server-port", "25565") or 25565)
+        try:
+            java = str(self.m.java.select(self.m.lock.java_major or 8, install=False)) if self.m.lock.installed else None
+        except (JavaError, OSError):
+            java = None
+        ports = [{"port": port, "label": f"{props.get('motd') or self.d.server_id or 'server'} (Minecraft)", "program": java}]
+        if self.m.config.client.enabled and share and share.get("running") and share.get("port"):
+            ports.append({"port": int(share["port"]), "label": "friends' downloads", "program": sys.executable})
+        return ports
+
+    def _firewall(self, share: dict | None) -> dict | None:
+        from . import firewall, upnp
+        if os.name != "nt":
+            return None
+        state = firewall.read()
+        return firewall.assess(state, upnp._lan_address(), self._firewall_ports(share)) if state else None
 
     def doctor(self, q, b) -> dict:
         from dataclasses import asdict
@@ -2723,6 +2749,21 @@ class Api:
             s = hub.share_settings()
             hub.save_share(s["port"], ip)
             message = f"Friends outside your home now get {ip}"
+        elif action == "firewall":
+            # (Windows' administrator prompt shows on this computer: only someone at it can answer)
+            if b.get("__local") is not True:
+                raise ApiError(403, "that only works in a browser on the server's own computer")
+            from . import firewall
+            ports = self._firewall_ports(None if hub.is_single else hub.share_status())
+            own_java = self.m.java.dir.resolve()
+
+            def ours(program: str | None) -> str | None:  # (only Craft Conductor's own Java is unblocked)
+                return program if program and own_java in Path(program).resolve().parents else None
+            try:
+                firewall.let_through([{**p, "unblock": ours(p["program"])} for p in ports])
+            except firewall.FirewallError as e:
+                raise ApiError(400, str(e)) from None
+            message = "Windows Firewall lets port " + ", ".join(str(p["port"]) for p in ports) + " through now"
         else:  # upnp
             st = hub.upnp_sync(True)
             if st["error"]:
