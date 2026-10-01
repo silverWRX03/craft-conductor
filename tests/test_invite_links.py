@@ -43,7 +43,7 @@ def test_invite_page_decodes_the_full_command_prefix():
 
     if shutil.which("node") is None:
         pytest.skip("needs Node.js")
-    source = (Path(__file__).resolve().parents[1] / "site" / "join" / "join.js").read_text()
+    source = (Path(__file__).resolve().parents[1] / "site" / "join" / "join.js").read_text(encoding="utf-8")
     parser = source[source.index("function readInvite("):source.index("function detectOS(")]
     invite = join.Invite("mc.example.com", 8798, "A" * 24, FP)
     hashes = [invite.code + "/Weekend%20Survival", "craft-conductor-short",
