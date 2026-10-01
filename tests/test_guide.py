@@ -10,7 +10,7 @@ def test_the_guided_setup(hub_env, monkeypatch):
     login(c)
     # Offered only while there's no server yet: someone who has one doesn't need it.
     assert c.get("/api/hub")[1]["guide"] == {"asked": True, "active": False}
-    from mcsm.daemon import Daemon
+    from craft_conductor.daemon import Daemon
     with monkeypatch.context() as m:
         m.setattr(Daemon, "setup_pending", property(lambda self: True))
         assert c.get("/api/hub")[1]["guide"] == {"asked": False, "active": False}  # (the page offers it)
@@ -29,7 +29,7 @@ def test_the_guided_setup(hub_env, monkeypatch):
     assert done["join"] and not done["friend"]
     (sd / "usercache.json").write_text(json.dumps([{"name": "Me", "uuid": "1"}, {"name": "Pal", "uuid": "2"}]))
     assert {s["id"]: s["done"] for s in c.get("/api/hub/guide")[1]["steps"]}["friend"]
-    # Steps mcsm can't see can be ticked by hand; the others can't.
+    # Steps craft-conductor can't see can be ticked by hand; the others can't.
     g = c.post("/api/hub/guide", {"action": "tick", "step": "invite"})[1]
     assert {s["id"]: s["done"] for s in g["steps"]}["invite"]
     assert c.post("/api/hub/guide", {"action": "tick", "step": "friend"})[0] == 400

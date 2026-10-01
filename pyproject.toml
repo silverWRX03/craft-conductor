@@ -3,7 +3,7 @@ requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mc-server-management"
+name = "craft-conductor"
 dynamic = ["version"]
 description = "A forever Minecraft server: manages a modded server and upgrades it to the newest release as soon as your mods support it."
 readme = "README.md"
@@ -16,17 +16,16 @@ classifiers = ["Development Status :: 4 - Beta"]
 dev = ["pytest>=7"]
 
 [project.scripts]
-mcsm = "mcsm.cli:main"
-craft-conductor = "mcsm.cli:main"
+craft-conductor = "craft_conductor.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.dynamic]
-version = { attr = "mcsm.__version__" }
+version = { attr = "craft_conductor.__version__" }
 
 [tool.setuptools.package-data]
-mcsm = ["webui/*", "webui/i18n/*"]
+craft_conductor = ["webui/*", "webui/i18n/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

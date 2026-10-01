@@ -1,0 +1,262 @@
+"""Updating craft-conductor itself from its GitHub releases.
+
+A release is a GitHub release tagged ``vX.Y.Z``. How it is installed depends on
+how craft-conductor was installed:
+
+* the standalone download (a PyInstaller executable): the matching executable is
+  downloaded from the release, checked against the release's ``SHA256SUMS.txt``,
+  and swapped in place of the running one;
+* pip / pipx: ``python -m pip install --upgrade git+https://github.com/<repo>@<tag>``
+  with the same Python that runs craft-conductor;
+* a source checkout (editable install): left to ``git pull``.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+import platform
+import re
+import subprocess
+import sys
+import tempfile
+from dataclasses import asdict, dataclass, field
+from importlib import metadata
+from pathlib import Path
+
+from . import __version__
+from .http import HttpClient, HttpError
+
+log = logging.getLogger(__name__)
+
+REPO = "silverWRX03/craft-conductor"
+DIST = "craft-conductor"
+LATEST = f"https://api.github.com/repos/{REPO}/releases/latest"
+
+
+class SelfUpdateError(Exception):
+    pass
+
+
+@dataclass
+class Release:
+    version: str
+    tag: str
+    url: str
+    notes: str
+    assets: dict[str, str] = field(default_factory=dict)   # file name -> download URL
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+def parse_version(v: str) -> tuple[int, ...]:
+    nums = re.findall(r"\d+", v.lstrip("vV").split("-")[0].split("+")[0])
+    return tuple(int(n) for n in nums[:3]) or (0,)
+
+
+def latest_release(http: HttpClient) -> Release | None:
+    try:
+        data = http.get_json(LATEST, headers={"Accept": "application/vnd.github+json"})
+    except HttpError as e:
+        if e.status == 404:  # no releases published yet
+            return None
+        raise
+    return _release(data)
+
+
+def _release(data: dict) -> Release | None:
+    tag = data.get("tag_name", "")
+    if not tag or data.get("draft") or data.get("prerelease"):
+        return None
+    assets = {a["name"]: a["browser_download_url"] for a in data.get("assets", [])
+              if a.get("name") and a.get("browser_download_url")}
+    return Release(version=tag.lstrip("vV"), tag=tag, url=data.get("html_url", ""),
+                   notes=(data.get("body") or "")[:4000], assets=assets)
+
+
+def release_for(http: HttpClient, version: str = __version__) -> Release | None:
+    """The release of one particular version (e.g. the one running now)."""
+    try:
+        data = http.get_json(f"https://api.github.com/repos/{REPO}/releases/tags/v{version}",
+                             headers={"Accept": "application/vnd.github+json"})
+    except HttpError as e:
+        if e.status == 404:
+            return None
+        raise
+    return _release(data)
+
+
+def fetch_verified(release: Release, name: str, dest: Path, http: HttpClient) -> Path:
+    """Download one of a release's files, checked against its SHA256SUMS.txt."""
+    if name not in release.assets:
+        raise SelfUpdateError(f"release {release.version} has no {name}")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=dest.parent, prefix=".download-") as tmp:
+        sha256 = _expected_sha256(release, name, http, Path(tmp))
+        new = http.download(release.assets[name], Path(tmp) / name, sha256=sha256)
+        new.chmod(0o755)
+        os.replace(new, dest)
+    return dest
+
+
+def check(http: HttpClient, current: str = __version__) -> Release | None:
+    """The newest release, if it is newer than ``current``."""
+    release = latest_release(http)
+    if release and parse_version(release.version) > parse_version(current):
+        return release
+    return None
+
+
+def frozen() -> bool:
+    """True when running as the standalone executable."""
+    return bool(getattr(sys, "frozen", False))
+
+
+PREFIX = "craft-conductor"               # the downloads: craft-conductor-windows-x64.exe ...
+FRIEND_PREFIX = "craft-conductor-join"   # the friends' download: the same program, opening straight into joining
+
+
+def friend_build() -> bool:
+    """True for a friends' download, including a browser's numbered duplicate filename."""
+    return frozen() and Path(sys.executable).name.lower().startswith(FRIEND_PREFIX)
+
+
+
+def asset_name(friend: bool | None = None) -> str:
+    """The release file for this computer, e.g. ``craft-conductor-windows-x64.exe``
+    (``craft-conductor-join-...`` for the friends' download, which updates to the same)."""
+    system = {"Windows": "windows", "Darwin": "macos"}.get(platform.system(), "linux")
+    machine = platform.machine().lower()
+    arch = "arm64" if machine in ("arm64", "aarch64") else "x64"
+    prefix = FRIEND_PREFIX if (friend_build() if friend is None else friend) else PREFIX
+    return f"{prefix}-{system}-{arch}{'.exe' if system == 'windows' else ''}"
+
+
+def install_method(release: Release | None = None) -> tuple[bool, str]:
+    """(can craft-conductor update itself, why not)."""
+    if os.environ.get("CRAFT_CONDUCTOR_CONTAINER"):
+        return False, "Craft Conductor runs in a container here; update it by pulling the new image (docker pull ...)"
+    if frozen():
+        if release is not None and asset_name() not in release.assets:
+            return False, f"this release has no download for your system ({asset_name()}); get it from the release page"
+        return True, ""
+    try:
+        dist = metadata.distribution(DIST)
+    except metadata.PackageNotFoundError:
+        return False, "Craft Conductor is running from a source checkout; update it with `git pull`"
+    direct = dist.read_text("direct_url.json")
+    if direct:
+        try:
+            if json.loads(direct).get("dir_info", {}).get("editable"):
+                return False, "Craft Conductor is installed in editable (development) mode; update it with `git pull`"
+        except ValueError:
+            pass
+    return True, ""
+
+
+def install(release: Release, runner=subprocess.run, http: HttpClient | None = None) -> str:
+    ok, why = install_method(release)
+    if not ok:
+        raise SelfUpdateError(why)
+    if frozen():
+        return install_binary(release, Path(sys.executable), http or HttpClient())
+    spec = f"git+https://github.com/{REPO}@{release.tag}"
+    log.info("installing Craft Conductor %s", release.version)
+    proc = runner([sys.executable, "-m", "pip", "install", "--upgrade", "--disable-pip-version-check", spec],
+                  capture_output=True, text=True)
+    if proc.returncode != 0:
+        tail = "\n".join((proc.stdout + proc.stderr).strip().splitlines()[-15:])
+        raise SelfUpdateError(f"pip could not install Craft Conductor {release.version}:\n{tail}")
+    return f"installed Craft Conductor {release.version}"
+
+
+def _expected_sha256(release: Release, name: str, http: HttpClient, workdir: Path) -> str:
+    sums_url = release.assets.get("SHA256SUMS.txt")
+    if not sums_url:
+        raise SelfUpdateError("the release has no SHA256SUMS.txt, so the download can't be verified")
+    sums = http.download(sums_url, workdir / "SHA256SUMS.txt").read_text()
+    for line in sums.splitlines():
+        parts = line.split()
+        if len(parts) == 2 and parts[1].lstrip("*") == name:
+            return parts[0].lower()
+    raise SelfUpdateError(f"SHA256SUMS.txt has no entry for {name}")
+
+
+def install_binary(release: Release, exe: Path, http: HttpClient) -> str:
+    """Download this platform's executable, verify it, and put it in place of ``exe``."""
+    name = asset_name()
+    if name not in release.assets:
+        raise SelfUpdateError(f"this release has no download for your system ({name})")
+    log.info("downloading Craft Conductor %s (%s)", release.version, name)
+    try:
+        with tempfile.TemporaryDirectory(dir=exe.parent, prefix=".craft-conductor-update-") as tmp:
+            workdir = Path(tmp)
+            sha256 = _expected_sha256(release, name, http, workdir)
+            new = http.download(release.assets[name], workdir / name, sha256=sha256)
+            new.chmod(0o755)
+            if os.name == "nt":
+                # A running .exe can't be overwritten, but it can be renamed out of the way.
+                old = old_binary(exe)
+                old.unlink(missing_ok=True)
+                exe.rename(old)
+                try:
+                    os.replace(new, exe)
+                except OSError:
+                    old.rename(exe)
+                    raise
+            else:
+                os.replace(new, exe)
+    except PermissionError as e:
+        raise SelfUpdateError(f"no permission to replace {exe}; move Craft Conductor somewhere you can write to, "
+                              f"or download the new version from {release.url}") from e
+    return f"installed Craft Conductor {release.version}"
+
+
+def old_binary(exe: Path) -> Path:
+    return exe.with_name(exe.stem + ".old" + exe.suffix)
+
+
+def cleanup_after_update() -> None:
+    """Delete the previous executable that a Windows self-update left behind."""
+    if frozen():
+        try:
+            old_binary(Path(sys.executable)).unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def restart_argv() -> list[str]:
+    """The command line to re-run this same craft-conductor command on the new version."""
+    if frozen():
+        return [sys.executable, *sys.argv[1:]]
+    return [sys.executable, "-m", "craft_conductor", *sys.argv[1:]]
+
+
+WINDOWS = os.name == "nt"
+
+
+def restart_env(env: dict[str, str] | None = None) -> dict[str, str]:
+    """The environment for the restarted copy. The standalone download unpacks itself into a
+    temporary folder (PyInstaller) that's deleted when this copy exits; without this, the new
+    copy would think it's a helper of this one, reuse that folder and break as soon as it's gone
+    ("No such file or directory: ...\\_MEI...\\base_library.zip")."""
+    env = dict(os.environ if env is None else env)
+    if frozen():
+        env = {k: v for k, v in env.items() if not k.startswith("_PYI_") and k != "_MEIPASS2"}
+        env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+    return env
+
+
+def restart() -> None:
+    """Replace this process with the same craft-conductor command on the new version (never returns)."""
+    argv, env = restart_argv(), restart_env()
+    print("restarting Craft Conductor on the new version...", flush=True)
+    if WINDOWS:
+        # (Windows has no real exec: os.execv starts another process without quoting paths
+        # with spaces. Start it properly, sharing this console, and end this one.)
+        subprocess.Popen(argv, env=env)
+        os._exit(0)
+        return  # (only reached in tests)
+    os.execve(argv[0], argv, env)

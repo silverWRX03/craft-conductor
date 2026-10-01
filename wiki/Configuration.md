@@ -1,8 +1,8 @@
-# Configuration (mcsm.toml)
+# Configuration (craft-conductor.toml)
 
-Every server has an `mcsm.toml` in its folder. The control panel's Settings page changes the common parts for you; this page is for editing it by hand. Craft Conductor reads it again when you save in the control panel, or at the next start.
+Every server has an `craft-conductor.toml` in its folder. The control panel's Settings page changes the common parts for you; this page is for editing it by hand. Craft Conductor reads it again when you save in the control panel, or at the next start.
 
-`mcsm init` writes a commented `mcsm.toml`. The important parts:
+`craft-conductor init` writes a commented `craft-conductor.toml`. The important parts:
 
 ```toml
 [server]
@@ -23,7 +23,7 @@ rehearse = false                 # try a new Minecraft on a copy of the server b
 
 [backups]
 keep = 10
-copy_to = "/media/usb/mcsm-backups"   # also copy every backup here (optional)
+copy_to = "/media/usb/craft-conductor-backups"   # also copy every backup here (optional)
 
 [schedule]                       # cron: minute hour day month weekday (local time); "" = off
 restart = "0 4 * * *"            # every day at 4:00, after the in-game countdown

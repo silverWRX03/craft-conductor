@@ -64,12 +64,12 @@ jobs:
         if: runner.os != 'Linux'
         run: |
           pip install "pyinstaller>=6.9,<7"
-          pyinstaller --noconfirm packaging/mcsm.spec
+          pyinstaller --noconfirm packaging/craft-conductor.spec
       - name: End-to-end test
         shell: bash
         run: |
-          exe=dist/mcsm
-          if [ -f dist/mcsm.exe ]; then exe=dist/mcsm.exe; fi
+          exe=dist/craft-conductor
+          if [ -f dist/craft-conductor.exe ]; then exe=dist/craft-conductor.exe; fi
           python packaging/e2e_test.py "$exe" --loader ${{ matrix.loader }} --minecraft ${{ matrix.minecraft }} ${{ matrix.args }}
       - name: Upload logs
         if: failure()

@@ -5,8 +5,8 @@ import json
 
 import pytest
 
-from mcsm import passkeys, webpush
-from mcsm.passkeys import Passkeys, PasskeyError
+from craft_conductor import passkeys, webpush
+from craft_conductor.passkeys import Passkeys, PasskeyError
 
 RP = "server.tail1234.ts.net"
 ORIGINS = {f"https://{RP}"}
@@ -125,7 +125,7 @@ def test_adding_needs_a_verified_person_and_this_address(tmp_path):
 
 def test_the_panel_signs_in_with_a_passkey(hub_env, monkeypatch):
     from test_hub import login
-    from mcsm import web
+    from craft_conductor import web
     hub, c = hub_env
     monkeypatch.setattr(web, "host_allowed", lambda host, extra: True)
     login(c)
@@ -142,13 +142,13 @@ def test_the_panel_signs_in_with_a_passkey(hub_env, monkeypatch):
     c.post("/api/logout", {})
     options = c.post("/api/passkey/options", {}, headers=host)[1]
     status, r, headers = c.post("/api/passkey/login", phone.get(options), headers=host)
-    assert status == 200 and "mcsm_session=" in headers.get("Set-Cookie", "")
+    assert status == 200 and "craft_conductor_session=" in headers.get("Set-Cookie", "")
     c.post("/api/auth/change", {"mode": "password", "secret": "Another-Horse-Battery-2"})
     assert hub.ui.passkeys.list() == []  # a new password removes them, like paired phones
 
 
 def test_rsa_passkeys_are_checked_too():
-    from mcsm import tlscert
+    from craft_conductor import tlscert
     key = tlscert.generate_key(2048)
     size = 256
     cose = {1: 3, 3: -257, -1: key["n"].to_bytes(size, "big"), -2: key["e"].to_bytes(3, "big")}

@@ -8,8 +8,8 @@ dist/
 # local server state when developing in the repo root
 /server/
 /backups/
-/.mcsm/
-/mcsm.toml
-/mcsm.lock.json
+/.craft-conductor/
+/craft-conductor.toml
+/craft-conductor.lock.json
 /.build-venv/
-src/mcsm/_buildkeys.py
+src/craft_conductor/_buildkeys.py

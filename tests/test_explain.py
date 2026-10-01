@@ -2,7 +2,7 @@
 
 from types import SimpleNamespace
 
-from mcsm import explain
+from craft_conductor import explain
 
 from test_hub import login
 from test_web import wait_for
@@ -60,5 +60,5 @@ def test_the_dashboard_explains_a_failed_start_and_fixes_it(hub_env):
     d.problem = {"kind": "crash", "time": 0, "actions": []}
     assert c.post("/api/servers/alpha/problem/fix", {"kind": "dismiss"})[0] == 200
     assert c.get("/api/servers/alpha/status")[1]["problem"] is None
-    from mcsm.web import device_allowed
+    from craft_conductor.web import device_allowed
     assert not device_allowed("POST", "/api/problem/fix")

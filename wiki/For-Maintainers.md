@@ -35,7 +35,7 @@ The test suite runs the full install → upgrade → crash → rollback cycle ag
 
 ## Releasing
 
-1. Set `__version__` in `src/mcsm/__init__.py`, e.g. `"0.2.0"`, and merge it to `main`.
+1. Set `__version__` in `src/craft_conductor/__init__.py`, e.g. `"0.2.0"`, and merge it to `main`.
 2. Go to **Actions → release → Run workflow**, enter `0.2.0`, and run it. This creates
    the `v0.2.0` tag for you. Pushing the tag yourself works too:
    `git tag v0.2.0 && git push origin v0.2.0`.
@@ -44,16 +44,16 @@ The test suite runs the full install → upgrade → crash → rollback cycle ag
    smoke-tests each one on its own OS, then publishes a GitHub release with the
    executables, the friends' `craft-conductor-join-...` copies of them, the Python wheel, and
    `SHA256SUMS.txt`, then publishes the invite page (it links to those downloads).
-4. Running copies of mcsm notice the release within a day and offer to update.
+4. Running copies of craft-conductor notice the release within a day and offer to update.
 
 To build an executable yourself:
 
 - **Linux:** `packaging/build_linux.sh`. It uses a portable Python from
   [python-build-standalone](https://github.com/astral-sh/python-build-standalone), so
   the result runs on glibc 2.17+ and not just on your own distribution.
-  `packaging/check_linux_compat.sh dist/mcsm` proves it in a CentOS 7 container.
-- **Windows or macOS:** `pip install pyinstaller && pyinstaller packaging/mcsm.spec`.
-- Then run `python packaging/smoke_test.py dist/mcsm` (or `dist/mcsm.exe`).
+  `packaging/check_linux_compat.sh dist/craft-conductor` proves it in a CentOS 7 container.
+- **Windows or macOS:** `pip install pyinstaller && pyinstaller packaging/craft-conductor.spec`.
+- Then run `python packaging/smoke_test.py dist/craft-conductor` (or `dist/craft-conductor.exe`).
 
 The executables aren't code-signed yet, which is why Windows and macOS show warnings.
 Windows signing through SignPath Foundation (free for open source) is ready in the release

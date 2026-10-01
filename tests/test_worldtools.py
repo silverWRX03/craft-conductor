@@ -3,7 +3,7 @@ own commands."""
 
 import pytest
 
-from mcsm import worldtools
+from craft_conductor import worldtools
 
 from test_hub import login
 

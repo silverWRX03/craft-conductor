@@ -1,7 +1,7 @@
 """Performance: reading ticks per second from each loader's console command, sampling only
 now and then, and the Dashboard's endpoint."""
 
-from mcsm import perf
+from craft_conductor import perf
 
 from test_hub import login
 

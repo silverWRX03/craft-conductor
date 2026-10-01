@@ -1,8 +1,8 @@
 """Trying beta Minecraft versions: offered in setup, and tested on a copy of a server."""
 
-from mcsm import setup as setupmod
-from mcsm.config import ModSpec
-from mcsm.lock import Lock
+from craft_conductor import setup as setupmod
+from craft_conductor.config import ModSpec
+from craft_conductor.lock import Lock
 
 from conftest import FakeMojang
 from test_hub import login

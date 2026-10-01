@@ -1,14 +1,14 @@
-"""First-time setup: the web setup page, its validation, and `mcsm start` on a new machine."""
+"""First-time setup: the web setup page, its validation, and `craft-conductor start` on a new machine."""
 
 import json
 import threading
 
 import pytest
 
-from mcsm import config as configmod, lock as lockmod, setup as setupmod
-from mcsm.config import ConfigError
-from mcsm.daemon import Daemon
-from mcsm.properties import read_properties
+from craft_conductor import config as configmod, lock as lockmod, setup as setupmod
+from craft_conductor.config import ConfigError
+from craft_conductor.daemon import Daemon
+from craft_conductor.properties import read_properties
 
 from test_manager import manager
 from test_web import Client, login, wait_for
@@ -70,7 +70,7 @@ def pending_daemon(make_config, http, modrinth, fake_java, monkeypatch):
     cfg.web.password = "hunter2hunter2"
     setupmod.mark_pending(cfg.root)
 
-    # configure() writes a fresh mcsm.toml; keep the test's fake java and short timeouts.
+    # configure() writes a fresh craft-conductor.toml; keep the test's fake java and short timeouts.
     real = configmod.render_template
 
     def render(loader, minecraft):
@@ -101,7 +101,7 @@ def test_web_setup_builds_and_starts_the_server(pending_daemon):
     assert 1 <= opts["memory_gb"] <= 8
 
     # Search is filtered by the loader picked on the setup page.
-    from mcsm.mods.modrinth import API
+    from craft_conductor.mods.modrinth import API
     d.m.http.json[f"{API}/search"] = {"hits": [{"project_id": "AAA", "slug": "goodmod", "title": "Good Mod"}]}
     assert c.get("/api/mods/search?loader=fabric&q=good")[1]["results"][0]["slug"] == "goodmod"
     assert c.get("/api/mods/search?loader=bukkit&q=good")[0] == 400

@@ -22,7 +22,7 @@ const OPEN_TIP = {
 // Languages: the friend's browser language, or the one picked at the bottom of the page.
 const LANG_NAMES = { en: "English", es: "Español", pt: "Português", fr: "Français", de: "Deutsch", hi: "हिन्दी",
   zh: "中文（简体）", vi: "Tiếng Việt", ar: "العربية", ko: "한국어" };
-const LANG_KEY = "mcsm-lang";
+const LANG_KEY = "craft-conductor-lang";
 function pickLanguage() {
   let saved = "";
   try { saved = localStorage.getItem(LANG_KEY) || ""; } catch (_) { /* private mode */ }
@@ -68,9 +68,9 @@ function readInvite(hash = location.hash.slice(1)) {
   let text;
   try { text = decodeURIComponent(hash); } catch (_) { return null; }
   const [code, ...rest] = text.split("/");
-  if (!/^mcsm-[A-Za-z0-9_-]{40,400}$/.test(code)) return null;
+  if (!/^craft-conductor-[A-Za-z0-9_-]{40,400}$/.test(code)) return null;
   try {  // check it's a complete invite: host|port|secret|fingerprint
-    const b64 = code.slice(5).replace(/-/g, "+").replace(/_/g, "/");
+    const b64 = code.slice("craft-conductor-".length).replace(/-/g, "+").replace(/_/g, "/");
     const parts = atob(b64 + "=".repeat((4 - b64.length % 4) % 4)).split("|");
     if (parts.length !== 4 || !/^[A-Za-z0-9_-]{43}$/.test(parts[3])) return null;
   } catch (_) { return null; }
@@ -132,14 +132,14 @@ function render() {
     steps,
     h("div", { class: "card" }, h("h2", {}, "Already have Craft Conductor?"),
       h("div", { class: "row" },
-        h("a", { class: "btn", href: `mcsm://join/${invite.code}`, onclick: () => {
+        h("a", { class: "btn", href: `craft-conductor://join/${invite.code}`, onclick: () => {
           copy(invite.code);  // so Craft Conductor finds it even if the link can't open it
           openHelp.classList.remove("hidden");
         } }, "Open in Craft Conductor"),
         h("button", { class: "btn ghost", onclick: () => copy(invite.code).then((ok) => toast(ok ? "Invite copied: open Craft Conductor" : "Couldn't copy; select the code below")) }, "Copy the invite")),
       openHelp,
       h("details", { class: "muted small" }, h("summary", {}, "For power users"),
-        h("p", {}, "Run ", h("code", {}, "mcsm join"), " with this invite code, or paste it into Craft Conductor:"), codeBox.cloneNode())),
+        h("p", {}, "Run ", h("code", {}, "craft-conductor join"), " with this invite code, or paste it into Craft Conductor:"), codeBox.cloneNode())),
     h("p", { class: "muted small center" }, "Craft Conductor checks it's really your friend's server before connecting, and downloads mods only from Modrinth and CurseForge. ",
       h("a", { href: "https://github.com/silverWRX03/craft-conductor" }, "About Craft Conductor")),
     languagePicker());
@@ -152,7 +152,7 @@ function fromPasted(text) {
   text = text.trim();
   const hash = text.includes("#") ? text.slice(text.indexOf("#") + 1) : text;
   if (readInvite(hash)) return hash;
-  const m = text.match(/mcsm-[A-Za-z0-9_-]{40,400}/);
+  const m = text.match(/craft-conductor-[A-Za-z0-9_-]{40,400}/);
   return m && readInvite(m[0]) ? m[0] : null;
 }
 

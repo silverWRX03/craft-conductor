@@ -4,8 +4,8 @@ import datetime as dt
 
 import pytest
 
-from mcsm import backup, schedule
-from mcsm.config import ConfigError, parse
+from craft_conductor import backup, schedule
+from craft_conductor.config import ConfigError, parse
 
 from test_hub import login
 

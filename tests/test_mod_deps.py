@@ -1,8 +1,8 @@
 """Picking a mod brings the mods it needs; they're shown and removed together."""
 
-from mcsm.config import ModSpec
-from mcsm.mods.modrinth import API, ModrinthProvider
-from mcsm.web import mod_requirements
+from craft_conductor.config import ModSpec
+from craft_conductor.mods.modrinth import API, ModrinthProvider
+from craft_conductor.web import mod_requirements
 
 from test_hub import login
 from test_manager import update
@@ -61,7 +61,7 @@ def test_mods_page_groups_and_checks(hub_env, modrinth):
 
 def test_mod_lists_only_show_mods_for_the_chosen_version(hub_env):
     import json
-    from mcsm.mods.modrinth import API
+    from craft_conductor.mods.modrinth import API
     hub, c = hub_env
     login(c)
     hub.http.json[f"{API}/search"] = {"hits": []}

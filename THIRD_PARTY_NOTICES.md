@@ -1,28 +1,28 @@
 # Third-party notices and licenses
 
-mcsm itself is licensed under the [Apache License 2.0](LICENSE).
+craft-conductor itself is licensed under the [Apache License 2.0](LICENSE).
 
-mcsm has **no third-party runtime dependencies**: it uses only Python and its
+craft-conductor has **no third-party runtime dependencies**: it uses only Python and its
 standard library. The web UI is hand-written HTML, CSS and JavaScript, with **no
 third-party code, fonts, icons or images**. Nothing from another project is copied
 into this repository. The downloadable executables bundle the Python runtime and the
 PyInstaller bootloader; they're listed below.
 
-`mcsm licenses` prints this list, and the web UI shows it under **Settings → About**.
-The list itself lives in `src/mcsm/licenses.py`; keep the two in sync.
+`craft-conductor licenses` prints this list, and the web UI shows it under **Settings → About**.
+The list itself lives in `src/craft_conductor/licenses.py`; keep the two in sync.
 
-## Used by mcsm at runtime
+## Used by craft-conductor at runtime
 
 | Software | License | Notes |
 |---|---|---|
-| [Python](https://www.python.org/) and its standard library | [PSF License 2.0](https://docs.python.org/3/license.html) | Runs mcsm. Installed by you, not bundled. |
+| [Python](https://www.python.org/) and its standard library | [PSF License 2.0](https://docs.python.org/3/license.html) | Runs craft-conductor. Installed by you, not bundled. |
 
 ## Bundled into the downloadable executables
 
-The standalone executables on the releases page (`mcsm-windows-x64.exe`,
-`mcsm-macos-arm64`, `mcsm-linux-*`) are built with PyInstaller and include the
+The standalone executables on the releases page (`craft-conductor-windows-x64.exe`,
+`craft-conductor-macos-arm64`, `craft-conductor-linux-*`) are built with PyInstaller and include the
 following. Their full license texts ship inside each executable; print them with
-`mcsm licenses --full`. pip/pipx installs don't include these.
+`craft-conductor licenses --full`. pip/pipx installs don't include these.
 
 | Software | License | Notes |
 |---|---|---|
@@ -49,9 +49,9 @@ These are not installed for users.
 | [build](https://github.com/pypa/build) | MIT | building the wheel for releases |
 | [uv](https://github.com/astral-sh/uv) | MIT / Apache-2.0 | fetching the portable Python for Linux builds |
 
-## Software mcsm downloads for you
+## Software craft-conductor downloads for you
 
-mcsm downloads these from their official sources, on your machine and at your
+craft-conductor downloads these from their official sources, on your machine and at your
 request. It **never bundles or redistributes** them, and each one stays under its
 own license.
 
@@ -62,11 +62,11 @@ own license.
 | [Quilt Loader and installer](https://github.com/QuiltMC/quilt-loader) | Apache-2.0 | `loader = "quilt"` |
 | [NeoForge](https://github.com/neoforged/NeoForge) | LGPL-2.1 | `loader = "neoforge"` |
 | [Minecraft Forge](https://github.com/MinecraftForge/MinecraftForge) | LGPL-2.1 | `loader = "forge"` |
-| [Eclipse Temurin](https://adoptium.net/about/) (OpenJDK) | GPL-2.0 with Classpath Exception | when mcsm manages Java |
+| [Eclipse Temurin](https://adoptium.net/about/) (OpenJDK) | GPL-2.0 with Classpath Exception | when craft-conductor manages Java |
 | [Chunky](https://github.com/pop4959/Chunky) | GPL-3.0 | generating the world for map previews (in a throwaway server) |
 | Mods from Modrinth or CurseForge | each mod's own license, shown on its project page | the mods you add |
 
-## Online services mcsm talks to
+## Online services craft-conductor talks to
 
 No account or usage data is sent to any of them. Their terms apply to your use.
 
@@ -74,23 +74,23 @@ No account or usage data is sent to any of them. Their terms apply to your use.
 |---|---|---|
 | Mojang version manifest and profile API | Minecraft versions; player UUIDs when editing ops/bans offline | [Minecraft terms](https://www.minecraft.net/en-us/terms) |
 | Modrinth API | mod versions, search, identifying imported jars | [Modrinth terms](https://modrinth.com/legal/terms) |
-| CurseForge API | CurseForge mods (with mcsm's built-in key in release builds, or your own) | [CurseForge API terms](https://support.curseforge.com/en/support/solutions/articles/9000207405) |
+| CurseForge API | CurseForge mods (with craft-conductor's built-in key in release builds, or your own) | [CurseForge API terms](https://support.curseforge.com/en/support/solutions/articles/9000207405) |
 | Fabric, Quilt, NeoForge and Forge metadata and maven servers | loader versions and installers | see each project |
 | PaperMC API (Fill) | Paper server builds | [papermc.io](https://papermc.io/) |
 | Purpur API | Purpur server builds | [purpurmc.org](https://purpurmc.org/) |
 | Adoptium API | Java downloads | [adoptium.net](https://adoptium.net/) |
-| GitHub API | checking for new mcsm releases | [GitHub terms](https://docs.github.com/en/site-policy/github-terms/github-terms-of-service) |
+| GitHub API | checking for new craft-conductor releases | [GitHub terms](https://docs.github.com/en/site-policy/github-terms/github-terms-of-service) |
 | Discord webhooks and bot API | notifications and posting invites, only if you set them up | [Discord terms](https://discord.com/terms) |
 | ipify, ifconfig.co | your public IP address, only when you press "Use my public IP" | [ipify.org](https://www.ipify.org/) |
 | Tailscale (the app on your computer) | its address, for phone pairing, if you have it installed | [tailscale.com](https://tailscale.com/terms) |
 
-## Written for mcsm
+## Written for craft-conductor
 
-- `src/mcsm/qr.py`, the QR code encoder used for phone pairing, was written for mcsm from the
+- `src/craft_conductor/qr.py`, the QR code encoder used for phone pairing, was written for craft-conductor from the
   QR Code specification (ISO/IEC 18004), following the approach explained by Project Nayuki's
   QR Code generator (MIT License, https://www.nayuki.io/page/qr-code-generator-library).
 
 ## AI assistance
 
-Much of mcsm was written with the help of AI (Anthropic's Claude). The code is
+Much of craft-conductor was written with the help of AI (Anthropic's Claude). The code is
 covered by the project's Apache-2.0 license like any other contribution.

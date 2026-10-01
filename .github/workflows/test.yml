@@ -47,26 +47,26 @@ jobs:
         if: runner.os != 'Linux'
         run: |
           pip install "pyinstaller>=6.9,<7"
-          pyinstaller --noconfirm packaging/mcsm.spec
+          pyinstaller --noconfirm packaging/craft-conductor.spec
       - name: Check it runs on an old Linux (CentOS 7, glibc 2.17)
         if: runner.os == 'Linux'
-        run: packaging/check_linux_compat.sh dist/mcsm
+        run: packaging/check_linux_compat.sh dist/craft-conductor
       - name: Smoke test
         shell: bash
-        run: python packaging/smoke_test.py dist/mcsm$([ -f dist/mcsm.exe ] && echo .exe)
+        run: python packaging/smoke_test.py dist/craft-conductor$([ -f dist/craft-conductor.exe ] && echo .exe)
       # Test builds: download these from the run's Summary page to try them before a release.
       - name: Name the test build
         shell: bash
         run: |
           case "${{ runner.os }}-${{ runner.arch }}" in
-            Windows-X64) name=mcsm-windows-x64.exe ;;
-            macOS-ARM64) name=mcsm-macos-arm64 ;;
-            Linux-X64)   name=mcsm-linux-x64 ;;
-            Linux-ARM64) name=mcsm-linux-arm64 ;;
-            *)           name=mcsm-${{ runner.os }}-${{ runner.arch }} ;;
+            Windows-X64) name=craft-conductor-windows-x64.exe ;;
+            macOS-ARM64) name=craft-conductor-macos-arm64 ;;
+            Linux-X64)   name=craft-conductor-linux-x64 ;;
+            Linux-ARM64) name=craft-conductor-linux-arm64 ;;
+            *)           name=craft-conductor-${{ runner.os }}-${{ runner.arch }} ;;
           esac
           mkdir -p test-build
-          cp dist/mcsm$([ -f dist/mcsm.exe ] && echo .exe) "test-build/$name"
+          cp dist/craft-conductor$([ -f dist/craft-conductor.exe ] && echo .exe) "test-build/$name"
           echo "BUILD_NAME=$name" >> "$GITHUB_ENV"
       - uses: actions/upload-artifact@v4
         with:
@@ -81,10 +81,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build the image
-        run: docker build -t mcsm:ci .
+        run: docker build -t craft-conductor:ci .
       - name: It starts and answers
         run: |
-          docker run -d --name mcsm-ci -p 8765:8765 mcsm:ci
+          docker run -d --name craft-conductor-ci -p 8765:8765 craft-conductor:ci
           for i in $(seq 1 30); do curl -fs http://127.0.0.1:8765/api/auth && break; sleep 1; done
-          docker logs mcsm-ci 2>&1 | grep -q "one-time" || { docker logs mcsm-ci; exit 1; }
-          docker stop mcsm-ci
+          docker logs craft-conductor-ci 2>&1 | grep -q "one-time" || { docker logs craft-conductor-ci; exit 1; }
+          docker stop craft-conductor-ci

@@ -3,7 +3,7 @@
 import sys
 import time
 
-from mcsm import tailscale
+from craft_conductor import tailscale
 
 WAITS = ("print('Serve is not enabled on your tailnet.'); print('To enable, visit:'); print(); "
          "print('         https://login.tailscale.com/f/serve?node=abc123'); import sys, time; sys.stdout.flush(); time.sleep(60)")

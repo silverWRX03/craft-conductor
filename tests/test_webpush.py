@@ -6,7 +6,7 @@ import struct
 
 import pytest
 
-from mcsm import webpush
+from craft_conductor import webpush
 
 try:  # (the system copy can be broken: then these are skipped)
     from cryptography.hazmat.primitives import hashes as _h  # noqa: F401

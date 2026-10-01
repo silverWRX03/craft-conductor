@@ -1,7 +1,7 @@
-from mcsm.config import ModSpec
-from mcsm.lock import Lock
-from mcsm.mods import providers_for
-from mcsm.planner import Planner
+from craft_conductor.config import ModSpec
+from craft_conductor.lock import Lock
+from craft_conductor.mods import providers_for
+from craft_conductor.planner import Planner
 
 from conftest import FakeLoader, FakeMojang
 

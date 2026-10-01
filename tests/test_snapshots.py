@@ -1,8 +1,8 @@
 """Snapshots: backups that say what changed, and roll the whole server back."""
 
-from mcsm import backup, config as configmod, snapshots
-from mcsm.config import ModSpec
-from mcsm.daemon import Daemon
+from craft_conductor import backup, config as configmod, snapshots
+from craft_conductor.config import ModSpec
+from craft_conductor.daemon import Daemon
 
 from test_manager import manager, update
 
@@ -53,7 +53,7 @@ def test_what_changed_and_rolling_back(make_config, http, modrinth):
     assert len(names) == 3 and "first" in names[0] and "before-1.21.1-to-1.21.4" in names[1]
     listing = snapshots.listing(cfg.backups.dir)
     assert listing[names[0]]["snapshot"]
-    assert listing[names[1]]["changes"] == ["mcsm's settings for the server changed"]  # newmod added to mcsm.toml
+    assert listing[names[1]]["changes"] == ["craft-conductor's settings for the server changed"]  # newmod added to craft-conductor.toml
     last = listing[names[2]]["changes"]
     assert last[:4] == ["Minecraft 1.21.1 → 1.21.4", "+ New Mod 1.0", "~ Good Mod 1.0 → 2.0", "Setting difficulty: (none) → hard"]
     assert "Mod config files changed: config/goodmod.toml" in last
@@ -78,7 +78,7 @@ def test_an_older_backup_restores_its_files(make_config, http, modrinth):
     cfg = make_config([ModSpec("modrinth", "goodmod")])
     m = manager(cfg, http, ["1.21.1"])
     assert update(m).ok
-    archive = backup.create(cfg.server.dir, cfg.backups.dir, "old", [])  # (no note: made by mcsm 0.14)
+    archive = backup.create(cfg.server.dir, cfg.backups.dir, "old", [])  # (no note: made by craft-conductor 0.14)
     assert "only the files" in snapshots.roll_back(archive, m)
     assert snapshots.listing(cfg.backups.dir)[archive.name]["snapshot"] is False
 

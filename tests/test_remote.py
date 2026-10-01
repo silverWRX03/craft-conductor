@@ -4,8 +4,8 @@ import re
 
 import pytest
 
-from mcsm import qr, webauth
-from mcsm.config import ConfigError
+from craft_conductor import qr, webauth
+from craft_conductor.config import ConfigError
 
 from test_hub import login
 from test_web import Client
@@ -53,7 +53,7 @@ def test_remote_access_needs_a_strong_password_and_phones_are_limited(hub_env):
     info = ui.get("/api/hub/remote")[1]
     assert info["strong"] and info["network_access"] and "12 characters" in info["rules"]
     webui = hub.ui
-    webui.host = "0.0.0.0"  # as if mcsm had restarted with network access on
+    webui.host = "0.0.0.0"  # as if craft-conductor had restarted with network access on
     host = info["addresses"][0]["host"] if info["addresses"] else None
     if host is None:  # no network here: pretend there's a home network address
         hub.save_share(hub.share_settings()["port"], "mc.example.com")
@@ -123,7 +123,7 @@ def test_headless_first_sign_in_from_another_device(hub_env, monkeypatch):
     store.path.unlink(missing_ok=True)
     store._auth = None
     first = store.first_run_password()
-    assert first and first.startswith("Mcsm-") and store.get().temporary
+    assert first and first.startswith("Craft-Conductor-") and store.get().temporary
     assert (store.path.parent / "first-password.txt").read_text().count(first) == 1
     hub.web.host = "0.0.0.0"
     away = as_other_device(Client(c.base))
@@ -135,10 +135,10 @@ def test_headless_first_sign_in_from_another_device(hub_env, monkeypatch):
     assert away.post("/api/auth/change", {"mode": "password", "secret": STRONG})[0] == 200
     assert away.get("/api/servers/alpha/status")[0] == 200
     assert not (store.path.parent / "first-password.txt").exists()
-    # A strong MCSM_INITIAL_PASSWORD (e.g. for Docker) is used as the real password instead.
+    # A strong CRAFT_CONDUCTOR_INITIAL_PASSWORD (e.g. for Docker) is used as the real password instead.
     store.path.unlink()
     store._auth = None
-    monkeypatch.setenv("MCSM_INITIAL_PASSWORD", "Another-Strong-7")
+    monkeypatch.setenv("CRAFT_CONDUCTOR_INITIAL_PASSWORD", "Another-Strong-7")
     assert store.first_run_password() is None and store.get().remote_ready
 
 
@@ -175,7 +175,7 @@ def test_a_proxy_on_this_computer_isnt_local(hub_env, header):
 def test_idle_and_excess_connections_are_dropped(hub_env, monkeypatch):
     import socket
     import time
-    from mcsm import web
+    from craft_conductor import web
     hub, c = hub_env
     host, port = c.base.split("//")[1].split(":")
     server = hub.ui.httpd
@@ -213,19 +213,19 @@ def test_the_manual_covers_every_page():
     """A new page in the app needs a section in the user manual (kept with every change)."""
     import re
     from pathlib import Path
-    webui = Path(__file__).resolve().parents[1] / "src" / "mcsm" / "webui"
+    webui = Path(__file__).resolve().parents[1] / "src" / "craft_conductor" / "webui"
     app, manual = (webui / "app.js").read_text(encoding="utf-8"), (webui / "manual.md").read_text(encoding="utf-8")
     pages = re.findall(r'\["\w+", "([^"]+)"\]', re.search(r"const SERVER_VIEWS = \[(.*?)\];", app, re.S).group(1))
     headings = set(re.findall(r"^##+ (.+)$", manual, re.M))
     missing = [p for p in pages + ["Your servers", "Craft Conductor settings", "Remote access and phones"]
                if not any(h.lower().startswith(p.lower()) for h in headings)]
-    assert not missing, f"the user manual (src/mcsm/webui/manual.md) has no section for: {missing}"
+    assert not missing, f"the user manual (src/craft_conductor/webui/manual.md) has no section for: {missing}"
 
 
 def test_the_changelog_has_the_version_being_built():
     """Every version gets its changelog entry (see CLAUDE.md)."""
     from pathlib import Path
-    from mcsm import __version__
+    from craft_conductor import __version__
     changelog = (Path(__file__).resolve().parents[1] / "CHANGELOG.md").read_text(encoding="utf-8")
     assert f"## {__version__} " in changelog, f"CHANGELOG.md has no section for {__version__}"
 
@@ -234,8 +234,8 @@ def test_paired_devices_have_a_role(tmp_path):
     """The owner picks what a paired device may do when making the code: a helper gets the
     everyday controls, a viewer only looks. Phones paired before roles existed are helpers."""
     import time as _time
-    from mcsm import webauth
-    from mcsm.web import device_allowed
+    from craft_conductor import webauth
+    from craft_conductor.web import device_allowed
     devices = webauth.Devices(tmp_path)
     now = _time.time()
     token, viewer = devices.pair(devices.new_code(now, "viewer"), "Sam's laptop", "10.0.0.5", now)
@@ -248,6 +248,6 @@ def test_paired_devices_have_a_role(tmp_path):
     assert device_allowed("GET", "/api/status", "viewer") and not device_allowed("GET", "/api/settings", "viewer")
     assert device_allowed("POST", "/api/server/stop", "helper") and not device_allowed("POST", "/api/settings", "helper")
     old = devices._read()
-    old[0].pop("role")  # paired with an older mcsm
+    old[0].pop("role")  # paired with an older craft-conductor
     devices._write(old)
     assert devices.list()[0]["role"] == "helper"

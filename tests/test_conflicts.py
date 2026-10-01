@@ -3,7 +3,7 @@
 import json
 import time
 
-from mcsm import conflicts
+from craft_conductor import conflicts
 
 
 RESULT = {"bisected": True, "working": ["sodium", "lithium", "fabric-api"],
@@ -23,17 +23,17 @@ def test_sharing_goes_to_the_relay_only_when_there_is_one(monkeypatch):
     sent = []
     http = type("H", (), {"post_json": lambda self, url, body: sent.append((url, body))})()
     monkeypatch.setattr(conflicts, "RELAY", "")
-    monkeypatch.delenv("MCSM_CONFLICTS_URL", raising=False)
+    monkeypatch.delenv("CRAFT_CONDUCTOR_CONFLICTS_URL", raising=False)
     assert conflicts.share(http, conflicts.reports_for("fabric", "1.21.1", RESULT)) == 0
-    monkeypatch.setenv("MCSM_CONFLICTS_URL", "https://relay.test/")
+    monkeypatch.setenv("CRAFT_CONDUCTOR_CONFLICTS_URL", "https://relay.test/")
     assert conflicts.share(http, conflicts.reports_for("fabric", "1.21.1", RESULT)) == 2
     assert sent[0][0] == "https://relay.test/report"
-    monkeypatch.setenv("MCSM_CONFLICTS_URL", "http://insecure.test")
+    monkeypatch.setenv("CRAFT_CONDUCTOR_CONFLICTS_URL", "http://insecure.test")
     assert conflicts.relay_url() == ""
 
 
 def test_the_shared_list_warns_about_mods_used_together(tmp_path, monkeypatch):
-    monkeypatch.setenv("MCSM_CONFLICTS_URL", "https://relay.test")
+    monkeypatch.setenv("CRAFT_CONDUCTOR_CONFLICTS_URL", "https://relay.test")
     listing = {"conflicts": [{"loader": "fabric", "minecraft": "1.21.1", "mod": "badmod", "with": ["sodium"], "reports": 4},
                              {"loader": "fabric", "minecraft": "1.21.1", "mod": "broken", "with": [], "reports": 3}]}
     http = type("H", (), {"get_json": lambda self, url, cache=True: listing})()

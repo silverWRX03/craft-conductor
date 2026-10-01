@@ -7,8 +7,8 @@ import urllib.request
 
 
 def test_a_silent_connection_doesnt_hold_up_others(hub_env, tmp_path):
-    from mcsm import tlscert
-    from mcsm.web import WebUI
+    from craft_conductor import tlscert
+    from craft_conductor.web import WebUI
     hub, _ = hub_env
     cert, key, _ = tlscert.ensure(tmp_path / "tls")
     hub.web.tls_cert, hub.web.tls_key = str(cert), str(key)
@@ -38,7 +38,7 @@ def test_a_negative_length_is_refused_before_sign_in(hub_env):
     hub, c = hub_env
     port = hub.ui.httpd.server_address[1]
     s = socket.create_connection(("127.0.0.1", port), timeout=10)
-    s.sendall(b"POST /api/login HTTP/1.1\r\nHost: localhost\r\nX-MCSM: 1\r\nContent-Length: -1\r\n\r\n{}")
+    s.sendall(b"POST /api/login HTTP/1.1\r\nHost: localhost\r\nX-CRAFT-CONDUCTOR: 1\r\nContent-Length: -1\r\n\r\n{}")
     assert s.recv(100).startswith(b"HTTP/1.0 400")  # (at once: it doesn't wait for more to read)
     s.close()
 
@@ -55,7 +55,7 @@ def test_guesses_sent_all_at_once_still_count(hub_env):
         conn = http.client.HTTPConnection("127.0.0.1", port, timeout=30)
         try:
             conn.request("POST", "/api/login", json.dumps({"password": f"wrong-{i}"}),
-                         {"X-MCSM": "1", "Content-Type": "application/json"})
+                         {"X-CRAFT-CONDUCTOR": "1", "Content-Type": "application/json"})
             statuses.append(conn.getresponse().status)
         except ConnectionError:  # (a busy computer may turn some away: they don't get to guess either)
             statuses.append("refused")

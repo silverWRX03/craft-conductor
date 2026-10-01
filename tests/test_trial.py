@@ -2,9 +2,9 @@
 
 from types import SimpleNamespace
 
-from mcsm import trial
-from mcsm.diagnose import diagnose
-from mcsm.mods.modrinth import ModrinthProvider
+from craft_conductor import trial
+from craft_conductor.diagnose import diagnose
+from craft_conductor.mods.modrinth import ModrinthProvider
 
 from test_hub import login
 from test_web import wait_for
@@ -82,7 +82,7 @@ def test_test_boot_finds_the_culprit(hub_env, modrinth):
 
 
 def test_backups_made_in_the_same_second_are_both_kept(tmp_path):
-    from mcsm import backup
+    from craft_conductor import backup
     sd = tmp_path / "server"
     sd.mkdir()
     (sd / "a.txt").write_text("a")
@@ -93,8 +93,8 @@ def test_backups_made_in_the_same_second_are_both_kept(tmp_path):
 
 
 def test_check_runs_in_the_background_and_survives_a_slow_modrinth(hub_env, modrinth):
-    from mcsm.http import HttpError
-    from mcsm.mods.modrinth import API
+    from craft_conductor.http import HttpError
+    from craft_conductor.mods.modrinth import API
     hub, c = hub_env
     login(c)
     modrinth.project("AAA", "goodmod", "Good Mod")
@@ -120,8 +120,8 @@ def test_check_runs_in_the_background_and_survives_a_slow_modrinth(hub_env, modr
 
 
 def test_a_failed_download_is_explained_not_an_internal_error(hub_env):
-    from mcsm.http import HttpError
-    from mcsm.mods.modrinth import API
+    from craft_conductor.http import HttpError
+    from craft_conductor.mods.modrinth import API
     hub, c = hub_env
     login(c)
     url = f"{API}/project/x1/version"
@@ -135,8 +135,8 @@ def test_a_mod_with_a_huge_history_falls_back_to_one_versions_builds(http, modri
     """Modrinth can time out (HTTP 408) sending all of Fabric API's builds; ask for fewer."""
     import json
     import urllib.parse
-    from mcsm.config import ModSpec
-    from mcsm.http import HttpError
+    from craft_conductor.config import ModSpec
+    from craft_conductor.http import HttpError
     modrinth.project("P7dR8mSH", "fabric-api", "Fabric API")
     modrinth.version("P7dR8mSH", "0.100", ["1.21.1"])
     full = f"{API_URL}/project/P7dR8mSH/version?" + urllib.parse.urlencode({"loaders": json.dumps(["fabric"])})

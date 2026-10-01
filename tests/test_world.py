@@ -6,8 +6,8 @@ import zipfile
 
 import pytest
 
-from mcsm import backup, nbt, world
-from mcsm.nbt import BYTE, Tagged
+from craft_conductor import backup, nbt, world
+from craft_conductor.nbt import BYTE, Tagged
 
 from test_hub import login
 from test_web import wait_for

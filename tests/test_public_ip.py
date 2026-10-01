@@ -4,8 +4,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from mcsm import share
-from mcsm.http import HttpError
+from craft_conductor import share
+from craft_conductor.http import HttpError
 
 from test_hub import login
 
@@ -27,7 +27,7 @@ def test_public_ip_lookup(hub_env):
     # A server with friend downloads on gets both links.
     assert c.post("/api/servers/alpha/client", {"enabled": True})[0] == 200
     links = c.get("/api/servers/alpha/client")[1]["links"]
-    from mcsm import join
+    from craft_conductor import join
     internet = join.parse_invite(links["internet"])  # an invite code, pinned to this computer's certificate
     assert internet.host == "93.184.216.34" and internet.fp == hub.share_fingerprint()
     assert links["local"] is None or join.parse_invite(links["local"]).fp == internet.fp

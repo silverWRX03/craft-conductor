@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from mcsm.players import MOJANG_PROFILE, PlayerError, Players, offline_uuid
+from craft_conductor.players import MOJANG_PROFILE, PlayerError, Players, offline_uuid
 
 
 
@@ -91,7 +91,7 @@ def test_running_server_gets_commands(server, http):
 
 
 def test_cli_reports_when_the_server_cant_find_a_player(make_config, monkeypatch, capsys):
-    from mcsm import cli
+    from craft_conductor import cli
 
     class FakeRcon:
         replies = {"op Notch": "That player does not exist", "op Steve": "Made Steve a server operator"}
@@ -129,7 +129,7 @@ def test_a_second_command_cant_be_slipped_in(server, http):
 
 def test_the_console_takes_one_line_at_a_time(tmp_path):
     import sys
-    from mcsm.process import ServerProcess
+    from craft_conductor.process import ServerProcess
     proc = ServerProcess([sys.executable, "-c", "import sys; sys.stdin.read()"], tmp_path, echo=False)
     proc.start()
     try:

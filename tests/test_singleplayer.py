@@ -4,8 +4,8 @@ import json
 
 import pytest
 
-from mcsm import join, launchers, singleplayer
-from mcsm.minecraft import MANIFEST_URL
+from craft_conductor import join, launchers, singleplayer
+from craft_conductor.minecraft import MANIFEST_URL
 
 from test_hub import login
 
@@ -77,11 +77,11 @@ def test_launchers_set_up_a_game_without_a_server(tmp_path, http):
     join.validate_pack(pack)
     j = join.Joiner(join.Invite("localhost", 1, "local-" + "0" * 16), mc_dir=tmp_path / "mc", http=http, say=lambda s: None)
     r = launchers.install_prism(j, pack, "cozy", tmp_path / "prism")
-    inst = tmp_path / "prism" / "instances" / "mcsm-cozy"
+    inst = tmp_path / "prism" / "instances" / "craft-conductor-cozy"
     cfg = (inst / "instance.cfg").read_text()
     assert "JoinServerOnLaunch=false" in cfg and (inst / ".minecraft" / "mods" / "sodium.jar").read_bytes() == b"jar"
     assert not (inst / ".minecraft" / "servers.dat").exists() and "joins the server" not in r["message"]
-    assert all("--server" not in cmd for cmd in launchers.prism_command("mcsm-cozy", ""))
+    assert all("--server" not in cmd for cmd in launchers.prism_command("craft-conductor-cozy", ""))
     import zipfile
     mr = launchers.build_mrpack(j, pack, tmp_path)
     with zipfile.ZipFile(mr) as z:

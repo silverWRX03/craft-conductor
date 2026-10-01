@@ -8,8 +8,8 @@ import threading
 
 import pytest
 
-from mcsm import tunnel
-from mcsm.config import ConfigError, parse
+from craft_conductor import tunnel
+from craft_conductor.config import ConfigError, parse
 
 from test_hub import login
 
@@ -79,7 +79,7 @@ def test_dashboard_and_invites(hub_env):
     assert c.post("/api/hub/share", {"port": share["port"], "address": "", "tunnel": "fox-lake.gl.joinmc.link:40123"})[0] == 200
     assert hub.share_tunnel() == ("fox-lake.gl.joinmc.link", 40123)
     assert c.post("/api/servers/alpha/client", {"enabled": True})[0] == 200
-    from mcsm import join
+    from craft_conductor import join
     link = c.get("/api/servers/alpha/client")[1]["links"]["internet"]
     invite = join.parse_invite(link)
     assert (invite.host, invite.port) == ("fox-lake.gl.joinmc.link", 40123)

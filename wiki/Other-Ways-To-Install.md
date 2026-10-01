@@ -6,7 +6,7 @@ If you have Python 3.11 or newer (for example on an Intel Mac, or a computer wit
 
 ```sh
 pipx install git+https://github.com/silverWRX03/craft-conductor
-mcsm
+craft-conductor
 ```
 
 ## On Linux, from a terminal
@@ -19,8 +19,8 @@ Raspberry Pi OS 64-bit, and so on). Alpine and other musl-based systems need the
 ```sh
 curl -LO https://github.com/silverWRX03/craft-conductor/releases/latest/download/craft-conductor-linux-x64
 chmod +x craft-conductor-linux-x64
-sudo mv craft-conductor-linux-x64 /usr/local/bin/mcsm     # optional: makes `mcsm` a command
-mcsm
+sudo mv craft-conductor-linux-x64 /usr/local/bin/craft-conductor     # optional: makes `craft-conductor` a command
+craft-conductor
 ```
 
 On a Raspberry Pi or another ARM machine, use `craft-conductor-linux-arm64` instead.

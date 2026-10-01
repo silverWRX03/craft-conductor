@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
-from mcsm import upnp
+from craft_conductor import upnp
 
 from test_hub import login
 
@@ -86,7 +86,7 @@ def test_forwarding_ports(router):
     gw = upnp.find()
     assert gw.name == "Test Router" and gw.local_ip == "127.0.0.1"
     upnp.add(gw, 25565)
-    assert router.mappings[(25565, "TCP")] == ("127.0.0.1", "mcsm")
+    assert router.mappings[(25565, "TCP")] == ("127.0.0.1", "craft-conductor")
     assert upnp.external_ip(gw) == "203.0.113.7"
     upnp.remove(gw, 25565)
     upnp.remove(gw, 25565)  # already gone: fine
@@ -185,7 +185,7 @@ def test_switching_it_on_and_off_from_the_page(hub_env, router):
     assert hub.upnp_settings()["mapped"]
     checks = c.get("/api/servers/alpha/doctor")[1]["checks"]
     assert any(x["id"] == "router" and x["status"] == "ok" for x in checks), checks
-    # off: mcsm takes back what it forwarded (and only that)
+    # off: craft-conductor takes back what it forwarded (and only that)
     router.mappings[(8080, "TCP")] = ("192.168.1.50", "someone else's")
     r = c.post("/api/hub/upnp", {"enabled": False})[1]
     assert not r["enabled"] and list(router.mappings) == [(8080, "TCP")]

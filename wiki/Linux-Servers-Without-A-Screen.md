@@ -14,17 +14,17 @@ doing it by hand.
 - **Keeping it running after you log out, and after reboots:**
 
   ```sh
-  mcsm service install      # sets up a systemd service for this server and starts it
-  mcsm service status
-  journalctl --user -u mcsm-<folder> -f    # the server console (`mcsm service install` prints the exact command)
-  mcsm service uninstall
+  craft-conductor service install      # sets up a systemd service for this server and starts it
+  craft-conductor service status
+  journalctl --user -u craft-conductor-<folder> -f    # the server console (`craft-conductor service install` prints the exact command)
+  craft-conductor service uninstall
   ```
 
   As a normal user this creates a user service and enables "lingering" so it runs
   without anyone logged in (if that needs admin rights, Craft Conductor prints the
   `sudo loginctl enable-linger` command). As root it creates a system service. A good
-  setup is a dedicated `minecraft` user: `sudo -u minecraft mcsm service install`.
-  [`examples/mcsm.service`](https://github.com/silverWRX03/craft-conductor/blob/main/examples/mcsm.service) shows a hand-written unit if you prefer.
+  setup is a dedicated `minecraft` user: `sudo -u minecraft craft-conductor service install`.
+  [`examples/craft_conductor.service`](https://github.com/silverWRX03/craft-conductor/blob/main/examples/craft_conductor.service) shows a hand-written unit if you prefer.
 - **Firewall:** open the Minecraft port for players (`sudo ufw allow 25565/tcp`, or
   `sudo firewall-cmd --add-port=25565/tcp --permanent && sudo firewall-cmd --reload`),
   and port 8765 only if you use the control panel from other devices.

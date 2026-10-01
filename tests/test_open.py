@@ -1,6 +1,6 @@
-"""'Open folder' buttons: only on the server's own computer, only mcsm's own folders."""
+"""'Open folder' buttons: only on the server's own computer, only craft-conductor's own folders."""
 
-from mcsm import opener
+from craft_conductor import opener
 
 from test_hub import login
 from test_web import wait_for
@@ -36,7 +36,7 @@ def test_play_on_this_computer(hub_env, monkeypatch):
     """Play on this computer: the numbers for the warning, then Minecraft's setup page (the
     friends' one, pointed at localhost). Only in a browser on the server's own computer."""
     import webbrowser
-    from mcsm import clientpack, joinui
+    from craft_conductor import clientpack, joinui
     from test_friends import pack
     hub, c = hub_env
     login(c)

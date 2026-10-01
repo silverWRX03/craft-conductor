@@ -4,10 +4,10 @@ import json
 
 import pytest
 
-from mcsm import config as configmod, lock as lockmod, setup as setupmod
-from mcsm.browse import Browser
-from mcsm.config import ConfigError, ModSpec
-from mcsm.mods.modrinth import API, ModrinthProvider
+from craft_conductor import config as configmod, lock as lockmod, setup as setupmod
+from craft_conductor.browse import Browser
+from craft_conductor.config import ConfigError, ModSpec
+from craft_conductor.mods.modrinth import API, ModrinthProvider
 
 from test_hub import login
 from test_manager import manager, update
@@ -48,7 +48,7 @@ def test_setup_and_mods_page_lists(hub_env, modrinth):
     assert [x["slug"] for x in r["results"]] == ["goodmod", "betamod"]
     r = c.get("/api/servers/alpha/mods/search?q=mod")[1]  # the server's own version
     assert [x["slug"] for x in r["results"]] == ["goodmod"]
-    # A beta-only mod: only with its own channel, which is kept in mcsm.toml.
+    # A beta-only mod: only with its own channel, which is kept in craft-conductor.toml.
     assert c.get("/api/hub/mods/requires?id=betamod&loader=fabric&version=1.21.1")[1]["compatible"] is False
     assert c.get("/api/hub/mods/requires?id=betamod&loader=fabric&version=1.21.1&channel=beta")[1]["compatible"]
     assert c.post("/api/servers/alpha/mods/add", {"source": "modrinth", "id": "betamod"})[0] == 400

@@ -1,10 +1,10 @@
-"""End-to-end test of a built mcsm executable against the real services.
+"""End-to-end test of a built craft-conductor executable against the real services.
 
 Unlike the unit tests (which fake every server) this downloads real Minecraft, a real
 mod loader, real mods and a real Java, boots a real server, and drives it through
 the web UI, RCON and the command line. It needs internet access and a few GB of RAM.
 
-    python packaging/e2e_test.py dist/mcsm --loader fabric --minecraft 1.21.1 \\
+    python packaging/e2e_test.py dist/craft-conductor --loader fabric --minecraft 1.21.1 \\
         --mod fabric-api --mod lithium --upgrade
 
 The Minecraft EULA (https://aka.ms/MinecraftEULA) is accepted for the test server.
@@ -42,10 +42,10 @@ def run(exe: str, *args: str, env: dict, timeout: int = 600, ok: bool = True) ->
     out = subprocess.run([exe, *args], env=env, capture_output=True, text=True, timeout=timeout,
                          stdin=subprocess.DEVNULL, encoding="utf-8", errors="replace")
     text = (out.stdout + out.stderr).strip()
-    print(f"$ mcsm {' '.join(args)}  ({time.time() - t0:.0f}s, exit {out.returncode})")
+    print(f"$ craft-conductor {' '.join(args)}  ({time.time() - t0:.0f}s, exit {out.returncode})")
     print("\n".join("  " + line for line in text.splitlines()[-40:]))
     if ok and out.returncode != 0:
-        raise Failed(f"`mcsm {' '.join(args)}` exited with {out.returncode}")
+        raise Failed(f"`craft-conductor {' '.join(args)}` exited with {out.returncode}")
     return text
 
 
@@ -55,7 +55,7 @@ class Web:
         self.call("POST", "/api/login", {"password": password})
 
     def call(self, method: str, path: str, body: dict | None = None):
-        headers = {"X-MCSM": "1", "Content-Type": "application/json"}
+        headers = {"X-CRAFT-CONDUCTOR": "1", "Content-Type": "application/json"}
         if self.cookie:
             headers["Cookie"] = self.cookie
         data = json.dumps(body).encode() if body is not None else None
@@ -87,11 +87,11 @@ def main() -> int:
     ap.add_argument("--minecraft", default="latest")
     ap.add_argument("--mod", action="append", default=[])
     ap.add_argument("--memory", default="3G")
-    ap.add_argument("--upgrade", action="store_true", help="also run `mcsm update` to the newest compatible version")
+    ap.add_argument("--upgrade", action="store_true", help="also run `craft-conductor update` to the newest compatible version")
     args = ap.parse_args()
 
     exe = str(Path(args.exe).resolve())
-    work = Path(tempfile.mkdtemp(prefix="mcsm-e2e-"))
+    work = Path(tempfile.mkdtemp(prefix="craft-conductor-e2e-"))
     root = work / "server-root"
     env = {**os.environ, "XDG_CONFIG_HOME": str(work / "cfg"), "APPDATA": str(work / "cfg")}
     daemon = None
@@ -101,7 +101,7 @@ def main() -> int:
         run(exe, "--accept-notice", "create", str(root), "--loader", args.loader, "--minecraft", args.minecraft,
             *mods, "--memory", args.memory, "--port", "25599", "--rcon", "--accept-eula", "-q",
             env=env, timeout=1800)
-        lock = json.loads((root / "mcsm.lock.json").read_text())
+        lock = json.loads((root / "craft-conductor.lock.json").read_text())
         print(f"installed: Minecraft {lock['minecraft']}, {lock['loader']} {lock['loader_version']}, "
               f"Java {lock['java_major']}, {len(lock['mods'])} mod file(s)")
         if len(lock["mods"]) < len(args.mod):
@@ -119,24 +119,24 @@ def main() -> int:
             step("upgrade to the newest compatible Minecraft (backup, swap, test boot)")
             before = lock["minecraft"]
             run(exe, "-C", str(root), "update", "-y", "-q", env=env, timeout=1800)
-            after = json.loads((root / "mcsm.lock.json").read_text())
+            after = json.loads((root / "craft-conductor.lock.json").read_text())
             print(f"Minecraft {before} -> {after['minecraft']} ({len(after['mods'])} mod files)")
             if after["minecraft"] == before:
                 print("(already on the newest compatible version)")
 
-        step("set up a player's Minecraft for this server (mcsm join)")
+        step("set up a player's Minecraft for this server (craft-conductor join)")
         dot_mc = work / "dot-minecraft"  # stands in for the Minecraft Launcher's folder
         dot_mc.mkdir()
         (dot_mc / "launcher_profiles.json").write_text('{"profiles": {}}')
         run(exe, "join", "--from-server", str(root), "--minecraft-dir", str(dot_mc), "--yes", "--no-launcher",
             env=env, timeout=1800)
         profiles = json.loads((dot_mc / "launcher_profiles.json").read_text())["profiles"]
-        profile = next((p for key, p in profiles.items() if key.startswith("mcsm-")), None)
+        profile = next((p for key, p in profiles.items() if key.startswith("craft-conductor-")), None)
         if not profile:
             raise Failed("no launcher installation was added")
         version = json.loads((dot_mc / "versions" / profile["lastVersionId"] / f"{profile['lastVersionId']}.json").read_text())
         parent = version["inheritsFrom"]
-        final = json.loads((root / "mcsm.lock.json").read_text())
+        final = json.loads((root / "craft-conductor.lock.json").read_text())
         if parent != final["minecraft"] and not (dot_mc / "versions" / parent / f"{parent}.json").is_file():
             raise Failed(f"the {final['loader']} version {parent} wasn't installed for the launcher")
         game = Path(profile["gameDir"])
@@ -172,7 +172,7 @@ def main() -> int:
         out = run(exe, "-C", str(root), "cmd", "list", env=env)
         if "players online" not in out:
             raise Failed("RCON `list` gave no player count")
-        # The server looks the name up with Mojang, which rate-limits busy CI addresses; mcsm
+        # The server looks the name up with Mojang, which rate-limits busy CI addresses; craft-conductor
         # reports that as an error, so give Mojang a few chances before calling it a failure.
         for attempt in range(4):
             if attempt:
@@ -188,7 +188,7 @@ def main() -> int:
         daemon.wait(timeout=300)
         print(f"daemon exited with {daemon.returncode}")
         if daemon.returncode != 0:
-            raise Failed(f"mcsm run exited with {daemon.returncode}")
+            raise Failed(f"craft-conductor run exited with {daemon.returncode}")
         daemon = None
         if "Stopping the server" not in (root / "server" / "logs" / "latest.log").read_text(errors="replace"):
             raise Failed("the Minecraft server didn't log a clean shutdown")
@@ -215,7 +215,7 @@ def main() -> int:
             for url in ("https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge",
                         "https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml"):
                 try:
-                    req = urllib.request.Request(url, headers={"User-Agent": "mcsm-e2e"})
+                    req = urllib.request.Request(url, headers={"User-Agent": "craft-conductor-e2e"})
                     with urllib.request.urlopen(req, timeout=20) as r:
                         body = r.read().decode("utf-8", "replace")
                     print(f"{url}: HTTP {r.status}, {len(body)} bytes, 21.1.x: {body.count('21.1.')}, starts: {body[:160]!r}")
@@ -230,8 +230,8 @@ def main() -> int:
             except Exception:
                 daemon.kill()
         LOGS.mkdir(exist_ok=True)
-        for src in (work / "run.log", root / "server" / "logs" / "latest.log", root / "mcsm.toml",
-                    root / "mcsm.lock.json"):
+        for src in (work / "run.log", root / "server" / "logs" / "latest.log", root / "craft-conductor.toml",
+                    root / "craft-conductor.lock.json"):
             if src.exists():
                 shutil.copy(src, LOGS / src.name)
         crash = root / "server" / "crash-reports"

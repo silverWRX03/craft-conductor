@@ -1,6 +1,6 @@
 # The mod-conflict relay
 
-Craft Conductor's shared memory of mod conflicts (the app side is `src/mcsm/conflicts.py`). It's a
+Craft Conductor's shared memory of mod conflicts (the app side is `src/craft_conductor/conflicts.py`). It's a
 small [Cloudflare Worker](https://developers.cloudflare.com/workers/) that keeps reports in
 Cloudflare's KV storage; both fit in Cloudflare's free plan.
 
@@ -23,9 +23,9 @@ different people and to allow at most 20 reports per address per day.
    text (30+ characters). Keep it to yourself.
 6. **Edit code**: replace everything with [`worker.js`](worker.js), then **Deploy**.
 7. Put the Worker's address (`https://craft-conductor-conflicts.<you>.workers.dev`) in
-   `RELAY` in `src/mcsm/conflicts.py`. From the next release, Craft Conductor uses it.
+   `RELAY` in `src/craft_conductor/conflicts.py`. From the next release, Craft Conductor uses it.
 
-To try a different relay without a new release, set `MCSM_CONFLICTS_URL` (or `off`).
+To try a different relay without a new release, set `CRAFT_CONDUCTOR_CONFLICTS_URL` (or `off`).
 
 ## Updating it
 

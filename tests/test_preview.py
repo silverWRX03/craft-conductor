@@ -6,7 +6,7 @@ import zlib
 
 import pytest
 
-from mcsm import nbt as mcsm_nbt, preview
+from craft_conductor import nbt as craft_conductor_nbt, preview
 
 from test_hub import login
 from test_web import wait_for
@@ -17,16 +17,16 @@ def nbt(root: dict) -> bytes:
     """Uncompressed NBT for plain Python values; ("L", [...]) is a long array."""
     def conv(v):
         if isinstance(v, tuple) and v and v[0] == "I":
-            return mcsm_nbt.Tagged(mcsm_nbt.INT_ARRAY, list(v[1]))
+            return craft_conductor_nbt.Tagged(craft_conductor_nbt.INT_ARRAY, list(v[1]))
         if isinstance(v, tuple) and v and v[0] == "L":
-            return mcsm_nbt.Tagged(mcsm_nbt.LONG_ARRAY, [x - (1 << 64) if x >= 1 << 63 else x for x in v[1]])
+            return craft_conductor_nbt.Tagged(craft_conductor_nbt.LONG_ARRAY, [x - (1 << 64) if x >= 1 << 63 else x for x in v[1]])
         if isinstance(v, dict):
             return {k: conv(x) for k, x in v.items()}
         if isinstance(v, list):
             items = [conv(x) for x in v]
-            return mcsm_nbt.ListTag(mcsm_nbt._kind(items[0]) if items else mcsm_nbt.END, items)
+            return craft_conductor_nbt.ListTag(craft_conductor_nbt._kind(items[0]) if items else craft_conductor_nbt.END, items)
         return v
-    return mcsm_nbt.dumps(conv(root))
+    return craft_conductor_nbt.dumps(conv(root))
 
 
 def pack(values, bits):
@@ -134,7 +134,7 @@ def test_a_world_becomes_a_map(tmp_path):
 
 def test_the_map_follows_the_land_when_the_spawn_cant_be_read(tmp_path):
     """The land Chunky made can be far from 0,0 (Terralith often moves the spawn), and some
-    Minecraft versions keep the spawn where mcsm can't read it: the map goes where the land is."""
+    Minecraft versions keep the spawn where craft-conductor can't read it: the map goes where the land is."""
     import gzip as _gzip
     world = tmp_path / "world"
     write_world(world, {(cx, cz): chunk(cx, cz) for cx in range(60, 70) for cz in range(-40, -30)})
@@ -238,7 +238,7 @@ def test_map_tiles(tmp_path):
 def test_worlds_from_minecraft_26_keep_their_land_under_dimensions(tmp_path):
     """Minecraft 26.x saves the Overworld in world/dimensions/minecraft/overworld/region: a map
     of such a world said "the server didn't save any land" although it had."""
-    from mcsm import areas, lagfinder
+    from craft_conductor import areas, lagfinder
     world = tmp_path / "world"
     write_world(world, {(cx, cz): chunk(cx, cz) for cx in range(-2, 2) for cz in range(-2, 2)})
     overworld = world / "dimensions" / "minecraft" / "overworld"
@@ -373,7 +373,7 @@ def test_exploring_the_map_from_the_page(hub_env, modrinth, monkeypatch):
     r2 = c.post("/api/hub/preview", body)[1]
     wait_for(lambda: c.get(f"/api/hub/preview?id={r2['id']}")[1]["state"] != "running", timeout=60)
     assert old.closed and c.get(f"/api/hub/map?id={r['id']}")[0] == 404
-    from mcsm.web import device_allowed
+    from craft_conductor.web import device_allowed
     assert not device_allowed("POST", "/api/hub/map/explore")
 
 

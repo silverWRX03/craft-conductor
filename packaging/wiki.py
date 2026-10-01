@@ -1,4 +1,4 @@
-"""Build the GitHub wiki: the user manual (src/mcsm/webui/manual.md, the same one the app shows)
+"""Build the GitHub wiki: the user manual (src/craft_conductor/webui/manual.md, the same one the app shows)
 split into one page per section, with screenshots, plus the hand-written pages in wiki/ (Home, the
 Power users pages) and a sidebar to find them all.
 
@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-MANUAL = ROOT / "src" / "mcsm" / "webui" / "manual.md"
+MANUAL = ROOT / "src" / "craft_conductor" / "webui" / "manual.md"
 PAGES = ROOT / "wiki"          # hand-written pages (Home, Power users) and images/
 START = "Craft-Conductor-Manual"   # the manual's first page (the wiki page the manual starts on)
 
@@ -25,7 +25,7 @@ POWER_SECTIONS = ("Where Craft Conductor keeps things", "Command line")
 # The hand-written Power users pages, in the sidebar's order: (page, title).
 POWER_PAGES = [
     ("Power-Users", "Power users: start here"),
-    ("Configuration", "Configuration (mcsm.toml)"),
+    ("Configuration", "Configuration (craft-conductor.toml)"),
     ("Building-Servers-From-The-Command-Line", "Building servers from the command line"),
     ("Running-It-Forever", "Running it forever"),
     ("Linux-Servers-Without-A-Screen", "Linux servers without a screen"),
@@ -44,20 +44,14 @@ TITLES = {"Friends: playing with friends": "Playing with friends",
           "What Craft Conductor can and can't do": "What it can and can't do"}
 # Screenshots shown on each page, after its first paragraph: (file in wiki/images, caption).
 IMAGES = {
-    "Getting started": [("servers.png", "Your servers")],
     "Creating a server": [("new-server.png", "New server"), ("mod-browser.png", "The mod browser"),
                           ("map-preview.png", "World generation & map preview, with landmarks")],
-    "Your servers": [("servers.png", "Your servers")],
     "Dashboard": [("dashboard.png", "The Dashboard"), ("check-my-setup.png", "Check my setup")],
     "Console": [("console.png", "The Console")],
     "Players": [("players.png", "The Players page"), ("player-activity.png", "Player activity")],
-    "Mods": [("mods.png", "The Mods page")],
     "Updates": [("updates.png", "The Updates page")],
     "Backups": [("backups.png", "The Backups page")],
-    "Java": [("java.png", "The Java page")],
     "Settings": [("settings.png", "Settings"), ("web-map.png", "Web map")],
-    "Friends: playing with friends": [("friends.png", "The Friends page")],
-    "For friends: joining a server": [("friend-setup.png", "Setting up Minecraft for a friend's server")],
     "Remote access and phones": [("remote-access.png", "Remote access & phones")],
     "Craft Conductor settings": [("craft-conductor-settings.png", "Craft Conductor settings"),
                                  ("display.png", "Display: size, contrast and motion")],
@@ -95,7 +89,7 @@ def build(out: Path) -> list[str]:
     power = [(t, b) for t, b in secs if t in POWER_SECTIONS]
     written = []
     note = ("\n\n---\n_This page is the user manual that comes with Craft Conductor (Help → User manual in the app). "
-            "It's made from [manual.md](https://github.com/silverWRX03/craft-conductor/blob/main/src/mcsm/webui/manual.md): "
+            "It's made from [manual.md](https://github.com/silverWRX03/craft-conductor/blob/main/src/craft_conductor/webui/manual.md): "
             "change it there, not here._\n")
     for i, (title, body) in enumerate(everyday):
         nav = []
@@ -112,7 +106,7 @@ def build(out: Path) -> list[str]:
     contents = "\n".join(f"{n}. [{TITLES.get(t, t)}]({page_name(t)})" for n, (t, _) in enumerate(everyday, 1))
     (out / f"{START}.md").write_text(
         f"# Craft Conductor user manual\n\n{intro}\n\n## Contents\n\n{contents}\n\n"
-        f"**Power users:** the command line, `mcsm.toml`, running it as a service and more: see [Power users](Power-Users).{note}",
+        f"**Power users:** the command line, `craft-conductor.toml`, running it as a service and more: see [Power users](Power-Users).{note}",
         encoding="utf-8")
     written.append(START)
     for path in PAGES.rglob("*"):  # the hand-written pages and the screenshots

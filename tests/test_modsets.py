@@ -2,8 +2,8 @@
 
 import json
 
-from mcsm import config as configmod
-from mcsm.config import ModSpec
+from craft_conductor import config as configmod
+from craft_conductor.config import ModSpec
 
 from test_hub import login
 

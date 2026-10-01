@@ -11,10 +11,9 @@ Everything happens in a control panel in your browser: no command lines, no conf
 hunting for the right mod versions.
 
 > **Craft Conductor is in beta.** Keep backups (it makes one before every update), and please report
-> problems in [Issues](https://github.com/silverWRX03/craft-conductor/issues). It was called **mcsm**
-> until version 0.16: the command is still `mcsm`, and your servers and settings carry on as they are.
+> problems in [Issues](https://github.com/silverWRX03/craft-conductor/issues).
 
-![Your servers](wiki/images/servers.png)
+![Server dashboard](wiki/images/dashboard.png)
 
 ## What it does
 
@@ -58,7 +57,7 @@ sets up your game. See [Joining a friend's server](https://github.com/silverWRX0
 
 - **[User manual](https://github.com/silverWRX03/craft-conductor/wiki/Craft-Conductor-Manual)**: every page of the app, with pictures.
 - **[Troubleshooting](https://github.com/silverWRX03/craft-conductor/wiki/Troubleshooting)**, and **Check my setup** on a server's Dashboard.
-- **[Power users](https://github.com/silverWRX03/craft-conductor/wiki/Power-Users)**: the command line, `mcsm.toml`, running it as a service, Linux
+- **[Power users](https://github.com/silverWRX03/craft-conductor/wiki/Power-Users)**: the command line, `craft-conductor.toml`, running it as a service, Linux
   servers, Docker and more.
 - [What's new](CHANGELOG.md) · [Report a bug](https://github.com/silverWRX03/craft-conductor/issues/new/choose)
 
@@ -103,6 +102,16 @@ an API key. It follows CurseForge's
   updating your mods.
 
 Craft Conductor isn't made or endorsed by CurseForge or Overwolf. Paper plugins come from Modrinth only.
+
+## Naming and fresh installs
+
+The command is `craft-conductor` (or `python -m craft_conductor` when installed with Python).
+Configuration is `craft-conductor.toml`, per-server state is `.craft-conductor/`, and the
+control panel's default home is `~/craft-conductor`. Environment variables use the
+`CRAFT_CONDUCTOR_` prefix.
+
+The upcoming 0.22 testing release requires a fresh setup. It does not migrate previous
+installation names or settings. Copy any worlds you want to keep before switching.
 
 ## Development
 

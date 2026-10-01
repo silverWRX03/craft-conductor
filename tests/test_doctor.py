@@ -5,7 +5,7 @@ import io
 import socket
 import zipfile
 
-from mcsm import doctor
+from craft_conductor import doctor
 
 from test_hub import login
 
@@ -25,8 +25,8 @@ def test_checks_and_report(hub_env):
     assert {"checks.json", "system.json", "latest.log"} <= set(z.namelist())
     everything = b"".join(z.read(n) for n in z.namelist())
     assert b"fake-xxxxxxxx" not in everything
-    assert "mcsm.toml" in z.namelist()  # the config, secrets taken out (see test_secrets_are_taken_out)
-    from mcsm.web import device_allowed
+    assert "craft-conductor.toml" in z.namelist()  # the config, secrets taken out (see test_secrets_are_taken_out)
+    from craft_conductor.web import device_allowed
     assert not device_allowed("GET", "/api/doctor/report")  # not for paired phones
 
 
@@ -62,7 +62,7 @@ def test_secrets_are_taken_out():
         'discord_webhook = "https://discord.com/api/webhooks/123/abc"',
         'curseforge_api_key = "k" ', 'motd = "My server"',
         'seen https://mc.example.com:8766/join/Abcdefghijklmnop/pack.json',
-        'invite mcsm-' + "Q" * 60,
+        'invite craft-conductor-' + "Q" * 60,
         '[Server thread/INFO]: Steve[/203.0.113.44:51234] logged in; also [2001:db8::7]:25565',
         'listening on 127.0.0.1:8765',
     ])
@@ -73,7 +73,7 @@ def test_secrets_are_taken_out():
 
 
 def test_fix_buttons(hub_env, monkeypatch):
-    from mcsm.properties import read_properties, write_properties
+    from craft_conductor.properties import read_properties, write_properties
     hub, c = hub_env
     login(c)
     d = hub.get("alpha")
@@ -100,9 +100,9 @@ def test_fix_buttons(hub_env, monkeypatch):
     assert fix("eula")[0] == 400
     assert fix("eula", accept=True)[0] == 200 and "eula=true" in (d.m.server_dir / "eula.txt").read_text()
     # too much memory for this computer
-    monkeypatch.setattr("mcsm.setup.total_ram_gb", lambda: 4.5)
+    monkeypatch.setattr("craft_conductor.setup.total_ram_gb", lambda: 4.5)
     checks = {x["id"]: x for x in c.get("/api/servers/alpha/doctor")[1]["checks"]}
     if checks["memory"]["action"]:
         assert fix("memory")[0] == 200 and hub.get("alpha").m.config.server.memory == "1G"
-    from mcsm.web import device_allowed
+    from craft_conductor.web import device_allowed
     assert not device_allowed("POST", "/api/doctor/fix")

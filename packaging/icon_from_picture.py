@@ -1,9 +1,9 @@
-"""Makes Craft Conductor's icons from the artwork (packaging/icon-source.jpg, made by icon_letters.py: stone "CC" on
+"""Makes Craft Conductor's icons from the artwork (packaging/icon-source.jpg: stone "CC" on
 lava-cracked bricks in a metal frame), with the white around it made transparent.
 
     pip install pillow && python packaging/icon_from_picture.py
 
-Writes packaging/mcsm.ico (the Windows executable), src/mcsm/webui/icon.png (and icon-192/512.png, the
+Writes packaging/craft-conductor.ico (the Windows executable), src/craft_conductor/webui/icon.png (and icon-192/512.png, the
 installed phone app) (the web UI, the
 friend page and the invite page) and docs/icon.png (the README). Only the white that reaches
 the picture's edge is removed (white inside the picture stays), and the cut edge is softened
@@ -64,12 +64,12 @@ def square(img: Image.Image, size: int, margin: float = 0.02) -> Image.Image:
 def main() -> None:
     art = cut_out(Image.open(SOURCE))
     big = square(art, 512)
-    square(art, 256).save(ROOT / "src" / "mcsm" / "webui" / "icon.png", optimize=True)  # (small: every page loads it)
+    square(art, 256).save(ROOT / "src" / "craft_conductor" / "webui" / "icon.png", optimize=True)  # (small: every page loads it)
     for size in (192, 512):  # the installed phone app (manifest.webmanifest) and its notifications
-        square(art, size).save(ROOT / "src" / "mcsm" / "webui" / f"icon-{size}.png", optimize=True)
+        square(art, size).save(ROOT / "src" / "craft_conductor" / "webui" / f"icon-{size}.png", optimize=True)
     big.save(ROOT / "docs" / "icon.png", optimize=True)
-    square(art, 256).save(ROOT / "packaging" / "mcsm.ico", sizes=[(s, s) for s in (16, 24, 32, 48, 64, 128, 256)])
-    print("wrote src/mcsm/webui/icon.png (and icon-192/512), docs/icon.png, packaging/mcsm.ico")
+    square(art, 256).save(ROOT / "packaging" / "craft-conductor.ico", sizes=[(s, s) for s in (16, 24, 32, 48, 64, 128, 256)])
+    print("wrote src/craft_conductor/webui/icon.png (and icon-192/512), docs/icon.png, packaging/craft-conductor.ico")
 
 
 if __name__ == "__main__":

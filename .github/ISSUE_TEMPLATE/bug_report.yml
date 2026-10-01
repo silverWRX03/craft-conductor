@@ -1,5 +1,5 @@
 name: Report a bug
-description: Something in mcsm doesn't work the way it should.
+description: Something in craft-conductor doesn't work the way it should.
 labels: ["bug"]
 body:
   - type: markdown
@@ -22,7 +22,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: mcsm version
+      label: craft-conductor version
       description: Shown at the bottom of the control panel's menu, e.g. v0.9.0.
       placeholder: v0.9.0
     validations:
@@ -48,5 +48,5 @@ body:
     id: report
     attributes:
       label: Failure report (optional)
-      description: If mcsm said "the details are in ..." paste that file here. It doesn't contain passwords.
+      description: If craft-conductor said "the details are in ..." paste that file here. It doesn't contain passwords.
       render: text

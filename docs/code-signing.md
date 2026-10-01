@@ -28,7 +28,7 @@ Craft Conductor doesn't collect or send any information about you or your comput
 connects only to the services it needs for what you ask it to do: Mojang (Minecraft versions),
 the mod loaders' sites, Modrinth and CurseForge (mods), Adoptium (Java), GitHub (Craft Conductor updates),
 and, when you use those features, Discord, your friends' computers or a public-address lookup.
-See [What Craft Conductor can and can't do](../src/mcsm/webui/manual.md#what-mcsm-can-and-cant-do) and
+See [What Craft Conductor can and can't do](../src/craft_conductor/webui/manual.md#what-craft-conductor-can-and-cant-do) and
 *Craft Conductor settings → About Craft Conductor → Online services* in the app.
 
 ## Setting it up (maintainers)
@@ -40,7 +40,7 @@ See [What Craft Conductor can and can't do](../src/mcsm/webui/manual.md#what-mcs
    policy with origin verification for the `main` branch.
 3. In this repository's settings: the **variable** `SIGNPATH_ORGANIZATION_ID` and the **secret**
    `SIGNPATH_API_TOKEN` (and the variables `SIGNPATH_PROJECT_SLUG` / `SIGNPATH_POLICY_SLUG` if
-   they aren't `mc-server-management` / `release-signing`).
+   they aren't `craft-conductor` / `release-signing`).
 
 From the next release on, the `release` workflow sends the Windows file to SignPath, waits for
 the signed file, checks it still runs, and publishes that (the checksums in `SHA256SUMS.txt`, which

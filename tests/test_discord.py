@@ -2,9 +2,9 @@
 
 import pytest
 
-from mcsm import discord
-from mcsm.discord import API, Discord, DiscordError
-from mcsm.http import HttpError
+from craft_conductor import discord
+from craft_conductor.discord import API, Discord, DiscordError
+from craft_conductor.http import HttpError
 
 from test_hub import login
 
@@ -13,7 +13,7 @@ GUILD, CHANNEL, OTHER = "111111111111111111", "222222222222222222", "33333333333
 
 
 def fake_discord(http):
-    http.json[f"{API}/users/@me"] = {"id": "999999999999999999", "username": "mcsm-bot"}
+    http.json[f"{API}/users/@me"] = {"id": "999999999999999999", "username": "craft-conductor-bot"}
     http.json[f"{API}/users/@me/guilds"] = [{"id": GUILD, "name": "Our Club"}]
     http.json[f"{API}/guilds/{GUILD}/channels"] = [
         {"id": "444444444444444444", "type": 4, "name": "General stuff", "position": 0},
@@ -27,7 +27,7 @@ def fake_discord(http):
 def test_bot_basics(http):
     fake_discord(http)
     bot = Discord(http, TOKEN)
-    assert bot.me() == {"id": "999999999999999999", "name": "mcsm-bot"}
+    assert bot.me() == {"id": "999999999999999999", "name": "craft-conductor-bot"}
     assert "client_id=999999999999999999" in Discord.invite_url("999999999999999999")
     assert [c["name"] for c in bot.channels(GUILD)] == ["minecraft"]  # text channels only
     assert discord.check_token("Bot " + TOKEN) == TOKEN
@@ -45,7 +45,7 @@ def test_post_the_invite(hub_env):
     assert c.get("/api/hub/discord")[1]["set"] is False
     assert c.get("/api/hub/discord/guilds")[0] == 400  # no bot yet
     status, body, _ = c.post("/api/hub/discord", {"token": TOKEN})
-    assert status == 200 and body["bot"]["name"] == "mcsm-bot" and "client_id=999" in body["invite_url"]
+    assert status == 200 and body["bot"]["name"] == "craft-conductor-bot" and "client_id=999" in body["invite_url"]
     info = c.get("/api/hub/discord")[1]
     assert info["set"] and "token" not in info and TOKEN not in str(info)  # never handed back
     assert c.get("/api/hub/discord/guilds")[1]["guilds"] == [{"id": GUILD, "name": "Our Club"}]
@@ -61,14 +61,14 @@ def test_post_the_invite(hub_env):
     msg = sent[-1]
     assert msg["content"] == "Server's up! @everyone" and msg["allowed_mentions"] == {"parse": []}
     description = msg["embeds"][0]["description"]
-    assert "Click here to join](https://silverwrx03.github.io/craft-conductor/join/#mcsm-" in description
+    assert "Click here to join](https://silverwrx03.github.io/craft-conductor/join/#craft-conductor-" in description
     assert hub.discord_settings()["channel"] == CHANNEL  # picked again next time
     assert c.post("/api/hub/discord", {"token": ""})[0] == 200 and not hub.discord_settings()["set"]
 
 
 def test_live_status_message(hub_env):
     """One message in a channel, kept up to date: posted once, edited when something changes,
-    posted again if someone deleted it, and "mcsm is closed" at the end."""
+    posted again if someone deleted it, and "craft-conductor is closed" at the end."""
     from test_web import wait_for
     hub, c = hub_env
     login(c)

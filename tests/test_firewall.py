@@ -6,10 +6,10 @@ import subprocess
 
 import pytest
 
-from mcsm import doctor, firewall
+from craft_conductor import doctor, firewall
 
 REAL_READ = firewall.read  # (conftest fakes it for every test)
-JAVA = r"C:\Users\Sam Smith\mcsm\servers\survival\.mcsm\java\21\bin\java.exe"
+JAVA = r"C:\Users\Sam Smith\craft-conductor\servers\survival\.craft-conductor\java\21\bin\java.exe"
 WANTED = [{"port": 25565, "label": "Survival (Minecraft)", "program": JAVA},
           {"port": 8766, "label": "friends' downloads", "program": r"C:\cc\craft-conductor.exe"}]
 
