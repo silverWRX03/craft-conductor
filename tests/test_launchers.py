@@ -7,7 +7,7 @@ import zipfile
 
 import pytest
 
-from mcsm import join, joinui, launchers, nbt
+from craft_conductor import join, joinui, launchers, nbt
 
 from test_friends import pack
 from test_web import Client, wait_for
@@ -36,7 +36,7 @@ def joiner(tmp_path, http):
 def test_prism_instance(tmp_path, joiner):
     prism = tmp_path / "PrismLauncher"
     r = launchers.install_prism(joiner, pack(mods=mods()), "weekend-survival", prism)
-    inst = prism / "instances" / "mcsm-weekend-survival"
+    inst = prism / "instances" / "craft-conductor-weekend-survival"
     assert r["downloaded"] == 2 and (inst / ".minecraft" / "mods" / "a.jar").read_bytes() == JAR
     components = json.loads((inst / "mmc-pack.json").read_text())["components"]
     assert [(c["uid"], c["version"]) for c in components] == [
@@ -127,11 +127,11 @@ def test_friend_page(tmp_path, http, joiner, monkeypatch):
         assert c.post("/api/setup", {"launchers": ["prism"], "memory_gb": 999})[0] == 400
         assert c.post("/api/setup", {"launchers": ["prism", "modrinth"], "memory_gb": 6})[0] == 200  # their own choice
         wait_for(lambda: not ui.running and ui.results, timeout=20)
-        cfg = (tmp_path / "prism" / "instances" / "mcsm-weekend-survival" / "instance.cfg").read_text()
+        cfg = (tmp_path / "prism" / "instances" / "craft-conductor-weekend-survival" / "instance.cfg").read_text()
         assert "MaxMemAlloc=6144" in cfg
         progress = c.get("/api/progress?since=0")[1]
         assert [r["ok"] for r in progress["results"]] == [True, True] and "Finished." in progress["lines"]
-        assert (tmp_path / "prism" / "instances" / "mcsm-weekend-survival" / "mmc-pack.json").exists()
+        assert (tmp_path / "prism" / "instances" / "craft-conductor-weekend-survival" / "mmc-pack.json").exists()
         assert c.post("/api/open", {"launcher": "prism"})[1]["ok"]
         assert c.post("/api/quit")[0] == 200 and ui.done.is_set()
     finally:
@@ -147,7 +147,7 @@ def test_friend_page_when_the_server_is_away(tmp_path, http):
 
 
 def test_join_opens_the_page_or_falls_back(monkeypatch, capsys):
-    from mcsm import cli
+    from craft_conductor import cli
     code = "A" * 24
     monkeypatch.setattr(cli, "interactive", lambda: True)
     calls = []
@@ -161,16 +161,16 @@ def test_join_opens_the_page_or_falls_back(monkeypatch, capsys):
     assert cli.main(["join", join.Invite("mc.example.com", 8766, code, "F" * 43).code, "--launcher", "tlauncher"]) == 2
 
 
-def test_opening_mcsm_again_brings_its_page_back(tmp_path, http):
-    """A friend closes the tab by mistake, then opens mcsm again (or "Open in mcsm" on an invite
-    page): the mcsm that's still running shows its page again, with the new invite."""
+def test_opening_craft_conductor_again_brings_its_page_back(tmp_path, http):
+    """A friend closes the tab by mistake, then opens craft-conductor again (or "Open in craft-conductor" on an invite
+    page): the craft-conductor that's still running shows its page again, with the new invite."""
     mc = tmp_path / ".minecraft"
     ui = joinui.JoinUI(None, mc_dir=mc, http=http)
     opened = []
     ui.open_browser = opened.append
     url = ui.start()
     try:
-        note = mc / "mcsm" / "join-running.json"
+        note = mc / "craft-conductor" / "join-running.json"
         assert json.loads(note.read_text())["token"] == ui.token
         invite = join.Invite("mc.example.com", 8766, "C" * 24, "F" * 43)
         assert joinui.hand_over(mc, invite)
@@ -185,7 +185,7 @@ def test_opening_mcsm_again_brings_its_page_back(tmp_path, http):
 
 
 def test_servers_joined_before_say_when_they_changed(tmp_path, http):
-    """A friend's mcsm remembers each server's setup, and says which changed since."""
+    """A friend's craft-conductor remembers each server's setup, and says which changed since."""
     mc = tmp_path / ".minecraft"
     invite = join.Invite("mc.example.com", 8766, "E" * 24, "F" * 43)
     url = f"https://mc.example.com:8766/join/{'E' * 24}/pack.json"

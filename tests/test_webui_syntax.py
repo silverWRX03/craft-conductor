@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS = sorted([*(ROOT / "src" / "mcsm" / "webui").glob("*.js"), *(ROOT / "site").rglob("*.js")])  # (site/: the invite page)
+SCRIPTS = sorted([*(ROOT / "src" / "craft_conductor" / "webui").glob("*.js"), *(ROOT / "site").rglob("*.js")])  # (site/: the invite page)
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="needs Node.js")
@@ -18,9 +18,9 @@ def test_script_parses(script):
 
 
 def test_the_control_panel_asks_in_its_own_dialog():
-    """Questions use ask() (mcsm's dialog, with "Don't ask me again" for the everyday ones),
+    """Questions use ask() (craft-conductor's dialog, with "Don't ask me again" for the everyday ones),
     never the browser's confirm(), and the page guards against closing mid-upload or unsaved."""
     import re
-    app = (ROOT / "src" / "mcsm" / "webui" / "app.js").read_text(encoding="utf-8")
+    app = (ROOT / "src" / "craft_conductor" / "webui" / "app.js").read_text(encoding="utf-8")
     assert not re.search(r"(?<![\w.])confirm\(", app)
     assert "beforeunload" in app and "Don't ask me again" in app

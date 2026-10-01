@@ -2,9 +2,9 @@
 
 import time
 
-from mcsm import config as configmod, reminders
-from mcsm.config import ModSpec
-from mcsm.daemon import Daemon
+from craft_conductor import config as configmod, reminders
+from craft_conductor.config import ModSpec
+from craft_conductor.daemon import Daemon
 
 from test_manager import manager, update
 

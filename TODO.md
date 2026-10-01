@@ -8,12 +8,17 @@ comes first; it says which.
 
 Before continuing or starting a feature, check this list: some features wait on one of these.
 
+- [ ] **Refresh wiki screenshots for the naming cleanup:** capture Your servers, Mods, Java,
+      Friends, and the friend setup page from a fresh build. Their outdated screenshots were
+      removed because they showed the retired name. Restore their entries in `packaging/wiki.py`
+      once replacement pictures are captured.
+
 - [ ] **Attach the screenshot of Maps still not working:** the screenshot is on your desktop
       and has not been added to this report. Include the app version, which Maps screen/action
       failed, Minecraft version, loader, selected mods, and relevant logs or reproduction steps.
       *Needed before:* confirming the reported Maps failure and verifying the fix (32).
 
-- [x] **New icon:** put the stone-and-lava "MCSM" picture in the repository (for example
+- [x] **New icon:** put the stone-and-lava "Craft Conductor" picture in the repository (for example
       `packaging/icon-source.png`) or attach it as a file. The copy pasted in the chat didn't
       come through as a file. *Needed before:* the new icon (white background removed).
 - [ ] **Try the map preview for real** (New server → World → World generation & map preview):
@@ -35,13 +40,13 @@ Before continuing or starting a feature, check this list: some features wait on 
       Discord; add the bot again with the card's link first) and type `/whitelist <name>` in Discord; add
       BlueMap or Dynmap (Settings → Web map) and open the map; look at Player activity after a few days;
       try High contrast and a screen reader (NVDA on Windows, VoiceOver on a Mac).
-- [ ] **Try automatic port forwarding at home** (mcsm settings → Sharing with friends → Router):
+- [ ] **Try automatic port forwarding at home** (craft-conductor settings → Sharing with friends → Router):
       switch it on, look at what it says, then **Test from the internet** in Check my setup. It
       was only tested against a pretend router.
 - [ ] **Windows code signing (optional):** apply to the SignPath Foundation (see
       [docs/code-signing.md](docs/code-signing.md)). Once accepted, add the repository variable
       `SIGNPATH_ORGANIZATION_ID` and the secret `SIGNPATH_API_TOKEN`; releases are then signed
-      and Windows stops warning about mcsm.
+      and Windows stops warning about craft-conductor.
 - [ ] **Merged pull requests:** comment "Fixed in <version>" on any issues a release fixed
       (none so far).
 - [ ] **Set up the mod-conflict relay** (steps in [relay/README.md](relay/README.md): a free
@@ -49,7 +54,7 @@ Before continuing or starting a feature, check this list: some features wait on 
       `CONFLICTS`, a secret `SALT`, then paste `relay/worker.js`). Then tell Claude the Worker's
       address (`https://craft-conductor-conflicts.<you>.workers.dev`; not secret).
       *Needed before:* sharing mod conflicts works (Claude puts the address in
-      `RELAY` in `src/mcsm/conflicts.py` and releases).
+      `RELAY` in `src/craft_conductor/conflicts.py` and releases).
 - [ ] **Try the 0.20 features for real:** a Purpur server with a plugin; the sounds on a phone
       (including an iPhone's silent switch, and vibration on Android); adding fingerprint or face
       sign-in on the phone at the Tailscale address and signing in with it. They were only tried
@@ -113,7 +118,7 @@ Next:
 16. [x] Purpur servers.
 17. [ ] Scripting hooks (a script on start, stop, a player joining, before an update) and API tokens.
 18. [x] **Mod conflict memory:** mod combinations that failed together in "Find which mods break
-        it", shared anonymously if you opt in, so mcsm can warn others before they install them
+        it", shared anonymously if you opt in, so craft-conductor can warn others before they install them
         (needs somewhere to keep the shared list). Done: a Cloudflare Worker (relay/); it's live
         once its address is in conflicts.RELAY.
 19. [ ] Proxy networks (Velocity) with several servers behind them.
@@ -177,7 +182,7 @@ release to pay those costs once.
 
 **14. World generation preview loads the mods' dependencies** — small. Next.
 - The preview (`preview.py`, `Preview`; started by `start_preview` in `web.py`) builds a
-  throwaway server from the mods the page sends: `ModSpec`s written to its `mcsm.toml`, plus
+  throwaway server from the mods the page sends: `ModSpec`s written to its `craft-conductor.toml`, plus
   Chunky and Fabric API. Check first whether the planner already pulls in each mod's required
   dependencies there (the real server's update does) or whether the page only sends the
   world-generation mods and their dependencies get dropped.
@@ -211,10 +216,10 @@ release to pay those costs once.
   rate limits; add the host to `[web] allowed_hosts` automatically.
 
 **17. Scripting hooks and API tokens** — medium.
-- Hooks: per server in `mcsm.toml` `[hooks]` (on_start, on_stop, on_join, on_leave, before_update,
+- Hooks: per server in `craft-conductor.toml` `[hooks]` (on_start, on_stop, on_join, on_leave, before_update,
   after_update, on_crash) = a script path inside the server folder (no shell strings; run with
-  `subprocess.run([path], env=...)`, the event as environment variables such as MCSM_EVENT,
-  MCSM_PLAYER; a timeout; output to the log). Owner-only to set (Settings → Hooks), never from a
+  `subprocess.run([path], env=...)`, the event as environment variables such as CRAFT_CONDUCTOR_EVENT,
+  CRAFT_CONDUCTOR_PLAYER; a timeout; output to the log). Owner-only to set (Settings → Hooks), never from a
   paired phone. Players' names must be validated before they go into env (they already are, by
   NAME_RE).
 - API tokens: Craft Conductor settings → API tokens: make/revoke named tokens with a role
@@ -261,7 +266,7 @@ release to pay those costs once.
   client pack (`clientpack.py`; "Mods for players" on the Friends page, and setup's friends part).
 - Owner side (setup's Play with friends, and the Friends page's "Mods for players"): when a
   picked mod's environment is "both" (client_side and server_side required/optional), also add
-  it to the server's mods (`ModSpec` in `mcsm.toml`) and resolve its required dependencies the
+  it to the server's mods (`ModSpec` in `craft-conductor.toml`) and resolve its required dependencies the
   way the server's own mods are (planner/providers). Say so in a toast ("X also runs on the
   server, so it was added there too, with Y"). Removing it from the players' list asks whether
   to remove it from the server too.
@@ -269,7 +274,7 @@ release to pay those costs once.
   asks with `side=client` and `env=only`, so only client-side-only mods (server_side
   unsupported) show. Modpacks and resource packs/shaders keep their own filters.
 - Tests: the side/env facets for the friend search; a "both" mod picked for players ends up in
-  `mcsm.toml` with its required dependency; a client-only one doesn't.
+  `craft-conductor.toml` with its required dependency; a client-only one doesn't.
 
 **Smaller leftovers**
 - Map landmarks (12): players' bases, and pins on the web map (BlueMap/Dynmap markers).
@@ -293,7 +298,7 @@ release to pay those costs once.
 
 **27. Web map buttons only when the map mod exists for that version** — small.
 - Today: `webMapCard()` in `webui/app.js` always shows Add BlueMap and Add Dynmap;
-  `webmap.py` (`MAPS`: Modrinth projects `bluemap`, `dynmap`) adds the mod to `mcsm.toml`, and
+  `webmap.py` (`MAPS`: Modrinth projects `bluemap`, `dynmap`) adds the mod to `craft-conductor.toml`, and
   only the next update finds out there's no build (the mod is then skipped or holds the update).
 - Fix: `GET /api/webmap` also returns, per map, whether Modrinth has a version for the server's
   loader (Paper/Purpur use the plugin loaders) and Minecraft version (the installed one, or the

@@ -6,11 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from mcsm import joinui, web
+from craft_conductor import joinui, web
 from test_web import running  # noqa: F401  (the fixture)
 
 ROOT = Path(__file__).resolve().parents[1]
-WEBUI = ROOT / "src" / "mcsm" / "webui"
+WEBUI = ROOT / "src" / "craft_conductor" / "webui"
 SITE = ROOT / "site" / "join"
 
 
@@ -53,7 +53,7 @@ def test_the_text_translated_is_on_the_pages():
     """Keys are text the pages actually show (a renamed button needs its translation renamed)."""
     sources = "".join((WEBUI / n).read_text(encoding="utf-8") for n in ("app.js", "join.js", "index.html", "join.html"))
     # (and labels the server sends, like the server settings' names)
-    sources += "".join(p.read_text(encoding="utf-8") for p in (ROOT / "src" / "mcsm").glob("*.py"))
+    sources += "".join(p.read_text(encoding="utf-8") for p in (ROOT / "src" / "craft_conductor").glob("*.py"))
     missing = [k for k in catalog("es") if k not in sources and k.replace('"', '\\"') not in sources]
     assert not missing, missing[:10]
     site = (SITE / "join.js").read_text(encoding="utf-8")

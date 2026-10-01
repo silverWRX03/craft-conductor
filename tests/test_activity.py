@@ -4,7 +4,7 @@ import datetime as dt
 import json
 import time
 
-from mcsm.activity import Activity, summarise
+from craft_conductor.activity import Activity, summarise
 
 
 def at(day, hour, minute=0):

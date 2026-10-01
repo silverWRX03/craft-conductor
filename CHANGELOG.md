@@ -1,8 +1,18 @@
 # Changelog
 
-What changed in each version of mcsm, newest first. Bugs are listed the way you'd have seen
+What changed in each version of craft-conductor, newest first. Bugs are listed the way you'd have seen
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
+
+## 0.22.0 (not released yet)
+
+**Changed**
+- The command, configuration, data folders, services, invite links, and downloads now consistently
+  use `craft-conductor`. Python imports use `craft_conductor`; environment variables use
+  `CRAFT_CONDUCTOR_*`. Help, the manual, wiki, translations, and build tooling use the same names.
+- This is a clean-install testing release: previous installation paths, commands, environment
+  variables, and invite schemes are not supported or migrated. Set up a fresh installation;
+  copy any worlds you want to keep before switching.
 
 ## 0.21.1 (2026-09-29)
 
@@ -84,7 +94,7 @@ A security and speed check of the whole of Craft Conductor.
 ## 0.18.1 (2026-09-28)
 
 **Changed**
-- **The user manual is on the [wiki](https://github.com/silverWRX03/craft-conductor/wiki/Craft-Conductor-Manual)** too, a page a section with pictures and a sidebar, plus **Power users** pages (the command line, `mcsm.toml`, running it as a service, and more). **User manual → On the wiki, with pictures** opens it. The README is now short, for getting started.
+- **The user manual is on the [wiki](https://github.com/silverWRX03/craft-conductor/wiki/Craft-Conductor-Manual)** too, a page a section with pictures and a sidebar, plus **Power users** pages (the command line, `craft-conductor.toml`, running it as a service, and more). **User manual → On the wiki, with pictures** opens it. The README is now short, for getting started.
 - **Choosing a password** now lists what it needs under the boxes (4 or more characters, or a strong one with remote access on; 4 to 8 digits for a PIN; both boxes the same) and ticks each one off as you type, instead of saying only after you press Save.
 
 ## 0.18.0 (2026-09-28)
@@ -105,9 +115,8 @@ A security and speed check of the whole of Craft Conductor.
 ## 0.16.0 (2026-09-28)
 
 **Changed**
-- **mcsm is now called Craft Conductor**, with a new icon (the same stone-and-lava picture, now with "CC"). The project moved to [github.com/silverWRX03/craft-conductor](https://github.com/silverWRX03/craft-conductor); the old address forwards there.
-  - The downloads are now `craft-conductor-windows-x64.exe`, `craft-conductor-macos-arm64`, `craft-conductor-linux-x64` and `craft-conductor-linux-arm64` (and `craft-conductor-join-...` for friends). Copies of mcsm update themselves as before.
-  - Nothing to move or change on your side: your servers, settings and backups stay where they are (`mcsm.toml`, the `.mcsm` folder), and the command is still `mcsm` (`craft-conductor` works too when installed with pip).
+- **Craft Conductor branding**, with a new icon (the same stone-and-lava picture, now with "CC"). The project moved to [github.com/silverWRX03/craft-conductor](https://github.com/silverWRX03/craft-conductor); the old address forwards there.
+  - The downloads are now `craft-conductor-windows-x64.exe`, `craft-conductor-macos-arm64`, `craft-conductor-linux-x64` and `craft-conductor-linux-arm64` (and `craft-conductor-join-...` for friends). Copies of craft-conductor update themselves as before.
   - The invite page moved to [silverwrx03.github.io/craft-conductor/join/](https://silverwrx03.github.io/craft-conductor/join/). Invite links made before this version point to the old page, which is gone: make a new invite link and send it again (an invite code pasted into the app still works).
 
 **Fixed**
@@ -118,9 +127,9 @@ A security and speed check of the whole of Craft Conductor.
 **Added**
 - **Lag finder** (Dashboard → Performance → **Find what's causing lag**): 30 seconds of Minecraft's own profiler plus a look through the saved world say, in plain words, what's making the server lag (mobs, hoppers and other machines, making new land, a mod's things), where (by coordinates) and what to do. It also runs by itself when the server keeps falling behind while people play, and tells you (switch it off in Settings → Updates).
 - **Compare 10 seeds** (New server → World generation & map preview): maps of 10 random seeds side by side, to pick the one you like. It asks first, since it takes a while and works the computer hard.
-- **Snapshots:** every backup now notes the whole server (Minecraft version, mods, settings, mod configs, mcsm's settings). The Backups page says what changed since the backup before, and **Roll back to this** shows what it will undo, then puts all of it back, mod list and settings included.
-- **Guided setup:** a checklist from making your first server to a friend joining it, ticking itself as you go. The first time you use mcsm it asks (**Guide me** or **Skip**, asked only once); start it again any time from Help or the Servers page.
-- **Modded single-player games** (Servers page): pick a mod loader and mods, and mcsm puts the game into your launcher (Minecraft Launcher, Prism, Modrinth App or CurseForge) and keeps it up to date. Minecraft moves up once every mod supports the new version; your worlds are kept.
+- **Snapshots:** every backup now notes the whole server (Minecraft version, mods, settings, mod configs, craft-conductor's settings). The Backups page says what changed since the backup before, and **Roll back to this** shows what it will undo, then puts all of it back, mod list and settings included.
+- **Guided setup:** a checklist from making your first server to a friend joining it, ticking itself as you go. The first time you use craft-conductor it asks (**Guide me** or **Skip**, asked only once); start it again any time from Help or the Servers page.
+- **Modded single-player games** (Servers page): pick a mod loader and mods, and craft-conductor puts the game into your launcher (Minecraft Launcher, Prism, Modrinth App or CurseForge) and keeps it up to date. Minecraft moves up once every mod supports the new version; your worlds are kept.
 
 **Fixed**
 - Backups made within the same second could be listed (and pruned) in the wrong order.
@@ -139,10 +148,10 @@ A security and speed check of the whole of Craft Conductor.
 ## 0.12.1 (2026-09-27)
 
 **Added**
-- **Size** (mcsm settings): how big text and buttons are in this browser. **Automatic** (the default) makes mcsm's pages bigger on big screens, so they fill a large monitor instead of sitting small in a corner.
+- **Size** (craft-conductor settings): how big text and buttons are in this browser. **Automatic** (the default) makes craft-conductor's pages bigger on big screens, so they fill a large monitor instead of sitting small in a corner.
 
 **Changed**
-- mcsm has a new icon: the stone "MCSM" letters on lava-cracked bricks in a metal frame.
+- craft-conductor has a new icon: the stone "Craft Conductor" letters on lava-cracked bricks in a metal frame.
 
 **Fixed**
 - **Preview map** finished but showed an empty map ("0 biome(s) in view"): the map was drawn around 0,0 when the world's spawn couldn't be read, while the land had been made around the real spawn elsewhere. It's now drawn where the land is, and if there's nothing to draw it says why instead of showing a blank map.
@@ -150,7 +159,7 @@ A security and speed check of the whole of Craft Conductor.
 ## 0.12.0 (2026-09-27)
 
 **Added**
-- **Router set up by itself** (mcsm settings → Sharing with friends → Router): with UPnP, mcsm forwards each server's port and the friends' download port on your router, and takes them back when switched off or on quit. It says when forwarding can't help (CGNAT, two routers).
+- **Router set up by itself** (craft-conductor settings → Sharing with friends → Router): with UPnP, craft-conductor forwards each server's port and the friends' download port on your router, and takes them back when switched off or on quit. It says when forwarding can't help (CGNAT, two routers).
 - **Fix buttons in Check my setup:** accept the EULA, download Java, use memory that fits, delete old backups when the disk is full, use a free port, turn account checks back on, use your public IP, ask the router to forward the port.
 - **What went wrong** on the Dashboard: when a server crashes or won't start, the cause in plain words with buttons to fix it (remove or switch off the mod to blame, add a missing mod, more memory, the right Java, a free port).
 - **Quick start** on New server: ready-made starting points (vanilla Minecraft with friends, smooth survival, new lands to explore, plugins, a modpack).
@@ -159,50 +168,50 @@ A security and speed check of the whole of Craft Conductor.
 ## 0.11.0 (2026-09-27)
 
 **Added**
-- **World generation & map preview** (New server → World): pick world-generation mods from Modrinth, and see a map of a seed before you create the server. mcsm makes the world in a private test server with the server's mods and draws it from above, with the biome under the pointer; earlier maps stay listed so you can compare seeds and **Use this seed**.
+- **World generation & map preview** (New server → World): pick world-generation mods from Modrinth, and see a map of a seed before you create the server. craft-conductor makes the world in a private test server with the server's mods and draws it from above, with the biome under the pointer; earlier maps stay listed so you can compare seeds and **Use this seed**.
 
 ## 0.10.0 (2026-09-27)
 
 **Added**
-- **Languages:** mcsm's pages, the friends' joining page and the invite page in Spanish, Portuguese, French, German, Hindi, Chinese (Simplified), Vietnamese, Arabic (right to left) and Korean, besides English: **mcsm settings → Language**, or automatically in your browser's language. The translations are machine-made; the user manual stays in English.
+- **Languages:** craft-conductor's pages, the friends' joining page and the invite page in Spanish, Portuguese, French, German, Hindi, Chinese (Simplified), Vietnamese, Arabic (right to left) and Korean, besides English: **craft-conductor settings → Language**, or automatically in your browser's language. The translations are machine-made; the user manual stays in English.
 - **Rented servers (a VPS):** **Install on a Linux computer** works for a server on the internet too, keeping its control panel private and reached through an SSH tunnel (**Open an SSH tunnel**), with a [guide](docs/rented-server.md).
 - **Paper plugins from Hangar** (PaperMC's plugin site) next to Modrinth, kept updated like mods; plugins and mods you added yourself can be switched off, on or removed.
-- **playit.gg tunnels** for when you can't forward ports: a tunnel address per server and for friends' downloads, and a **playit.gg tunnel** card on the Dashboard that checks it's working (through the tunnel, the way a friend's game connects) and says when it stops. playit.gg is an outside service: disruptions on its side are out of mcsm's control.
-- **The friends' download** (`mcsm-join-...`): the same mcsm under its own name, opening straight into joining a server (even on a computer that runs servers). Invite links offer it.
+- **playit.gg tunnels** for when you can't forward ports: a tunnel address per server and for friends' downloads, and a **playit.gg tunnel** card on the Dashboard that checks it's working (through the tunnel, the way a friend's game connects) and says when it stops. playit.gg is an outside service: disruptions on its side are out of craft-conductor's control.
+- **The friends' download** (`craft-conductor-join-...`): the same craft-conductor under its own name, opening straight into joining a server (even on a computer that runs servers). Invite links offer it.
 - Windows code signing through SignPath Foundation is ready in the release workflow; it switches on once the project is accepted ([code signing policy](docs/code-signing.md)).
 - **Co-admins:** pair a device as a **Helper** (everyday controls) or a **Viewer** (look only), for a friend who helps run the server; what they do shows in the activity.
-- **Discord live status message** (mcsm settings → Discord): one message in a channel showing each server's state, players and version, kept up to date.
+- **Discord live status message** (craft-conductor settings → Discord): one message in a channel showing each server's state, players and version, kept up to date.
 - **Saved mod lists** (Mods page): save the mods under a name, switch lists and switch back (the current list is saved first), and download or load a list as a file.
 - **World tools** (Settings): game rules with what they do, a world border, and pre-generating terrain with Chunky (added in one click), with progress.
 - **Bedrock players** (phones, tablets, consoles, Windows): **Let Bedrock players join** on the Friends page adds Geyser and Floodgate and says which port to use and forward.
-- **Ask to be let in:** friends joining a server with a whitelist send their Minecraft name from their mcsm; it shows on the Players page with **Allow** / **Ignore** (and as a notification).
-- **Servers you've joined** (friends' mcsm) marks the servers that changed since you set up, so you know when to press **Update**.
+- **Ask to be let in:** friends joining a server with a whitelist send their Minecraft name from their craft-conductor; it shows on the Players page with **Allow** / **Ignore** (and as a notification).
+- **Servers you've joined** (friends' craft-conductor) marks the servers that changed since you set up, so you know when to press **Update**.
 - **Performance** on the Dashboard: ticks per second and ms per tick with a graph of the last hour, what slows a server down, and (with the spark mod) a 30-second profile.
-- **Notifications** from the browser (mcsm settings → Notifications): a server stopping unexpectedly, an update being ready, someone joining, a job failing, while the tab is in the background.
+- **Notifications** from the browser (craft-conductor settings → Notifications): a server stopping unexpectedly, an update being ready, someone joining, a job failing, while the tab is in the background.
 - **Schedules** (Settings → Schedule): restart the server every day or week, back up every few hours or daily, or any cron expression; scheduled restarts give players the countdown and can skip while people are online.
 - **Backup copies** (Settings → Backup copies): every backup is also copied to a USB drive or a cloud-synced folder, keeping the newest few.
-- **🩺 Check my setup** on the Dashboard: Java, memory, disk space, the port, accounts, the friends' port and public address, the firewall and mcsm updates, each with what to do. **Test from the internet** checks friends outside can connect (asks ifconfig.co, only when pressed). **Report for a bug report** downloads the logs and settings with secrets taken out.
+- **🩺 Check my setup** on the Dashboard: Java, memory, disk space, the port, accounts, the friends' port and public address, the firewall and craft-conductor updates, each with what to do. **Test from the internet** checks friends outside can connect (asks ifconfig.co, only when pressed). **Report for a bug report** downloads the logs and settings with secrets taken out.
 - **Play on this computer** on a server's Dashboard: sets up this computer's Minecraft for the server (on the server's own computer), after saying what running both on one computer needs: memory and CPU with this computer's numbers, lag spikes, and heavy modpacks.
 
 ## 0.9.2 (2026-09-27)
 
 **Added**
-- **Don't ask me again** on questions you meet often (Stop the server?, Quit mcsm?, Update to Minecraft…?, beta-only mods, Aikar's flags), and **Don't show again** on notices you've read. **mcsm settings → Warnings** brings them back.
+- **Don't ask me again** on questions you meet often (Stop the server?, Quit craft-conductor?, Update to Minecraft…?, beta-only mods, Aikar's flags), and **Don't show again** on notices you've read. **craft-conductor settings → Warnings** brings them back.
 - Closing the browser tab no longer loses work silently: the browser asks first while a file is uploading, settings or a config file aren't saved, a New server form is started, picked mods aren't added, or a mod test is running.
 
 **Changed**
-- Questions ("Stop the server?", "Delete …?") appear in mcsm's own dialog in the middle of the screen, with clear button names, instead of the browser's.
-- The Servers page says once that closing the tab doesn't stop mcsm (**Got it** hides it), and the New server progress says you can close the page while it installs.
+- Questions ("Stop the server?", "Delete …?") appear in craft-conductor's own dialog in the middle of the screen, with clear button names, instead of the browser's.
+- The Servers page says once that closing the tab doesn't stop craft-conductor (**Got it** hides it), and the New server progress says you can close the page while it installs.
 
 **Fixed**
-- Closing mcsm's page (a friend setting up their game) and then pressing **Open in mcsm** or opening mcsm again didn't bring it back. It now shows the page again, with the progress or results, and the browser asks before the tab is closed while Minecraft is being set up.
+- Closing craft-conductor's page (a friend setting up their game) and then pressing **Open in craft-conductor** or opening craft-conductor again didn't bring it back. It now shows the page again, with the progress or results, and the browser asks before the tab is closed while Minecraft is being set up.
 - An invite link that lost its invite on the way (some apps cut links short) ended at "This invite link isn't complete"; the invite page now has a box to paste the link or invite code.
 
 ## 0.9.1 (2026-09-27)
 
 **Added**
 - A **user manual** in the app (**User manual** in the menu, and on Help), with contents, print and "Open on GitHub".
-- **One-click friend invites:** friends click a link, press Download and run the file; mcsm sets up their game. Next time, the link's **Open in mcsm** opens their mcsm directly (Windows and Linux). The raw invite codes are still there for power users.
+- **One-click friend invites:** friends click a link, press Download and run the file; craft-conductor sets up their game. Next time, the link's **Open in craft-conductor** opens their craft-conductor directly (Windows and Linux). The raw invite codes are still there for power users.
 
 **Changed**
 - Messages that need an answer are shown in the middle of the screen with the page blurred behind; everyday messages are at the top of the screen instead of the bottom-right corner.
@@ -212,13 +221,13 @@ A security and speed check of the whole of Craft Conductor.
 - New server kept the previous server's type and mods after a server was created, and skipped the first step (where "install on a Linux computer" was). "Or on another computer" is now at every step.
 
 **Fixed (security review)**
-- An "Open in mcsm" link could pass extra options to mcsm; it now only ever carries the invite.
+- An "Open in craft-conductor" link could pass extra options to craft-conductor; it now only ever carries the invite.
 
 ## 0.9.0 (2026-09-27)
 
 **Added**
 - **Install on a Linux computer over SSH** from the New server page.
-- Friends connect to your server over **HTTPS**, and only to your server (the invite carries its certificate's fingerprint). mcsm itself always comes from GitHub.
+- Friends connect to your server over **HTTPS**, and only to your server (the invite carries its certificate's fingerprint). craft-conductor itself always comes from GitHub.
 
 **Changed**
 - The **"no password"** sign-in option was removed; there's always a password or PIN.
@@ -241,7 +250,7 @@ A security and speed check of the whole of Craft Conductor.
 - **"Runs on" filter** in the mod browser: Modrinth mods tagged server-side, client-side or both (server-side and both for servers, client-side and both for friends).
 
 **Fixed**
-- Windows: installing for a friend failed with **"The process cannot access the file because it is being used by another process"**; mcsm now shows the real error and waits out antivirus scans.
+- Windows: installing for a friend failed with **"The process cannot access the file because it is being used by another process"**; craft-conductor now shows the real error and waits out antivirus scans.
 - The mod browser's **Add selected mods** button could be pushed off the screen, and the mod's details scrolled away with the list.
 - Iris added without **Sodium** (and other mods whose required mods are listed by version only); a friend's extras now show what they bring along.
 - The friend's shaders/resource packs/mods picker had **no thumbnails**, and now works like the mod browser.
@@ -291,7 +300,7 @@ A security and speed check of the whole of Craft Conductor.
 
 ## 0.2.1 (2026-09-25)
 
-- Fixed the setup page and the default password for folders from mcsm 0.1.
+- Fixed the setup page and the default password for folders from craft-conductor 0.1.
 
 ## 0.2.0 (2026-09-25)
 

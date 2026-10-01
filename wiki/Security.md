@@ -5,9 +5,9 @@
 **Signing in.** The first password is `PASSWORD`, and the panel asks you to change
 it right after you sign in. You can pick a password or a 4–8 digit PIN; there's always
 one. A PIN only works in a browser on the server's own computer. Change it later
-under Settings → Sign-in. Forgot it? Run `mcsm web-password --reset` on the server
+under Settings → Sign-in. Forgot it? Run `craft-conductor web-password --reset` on the server
 to go back to `PASSWORD`. To fix the password in the config instead, set
-`[web] password` in mcsm.toml. Passwords and PINs are stored only as salted hashes.
+`[web] password` in craft-conductor.toml. Passwords and PINs are stored only as salted hashes.
 
 **Security.** By default it only listens on `127.0.0.1`. Every request needs a
 login (rate limited; sessions are HttpOnly, SameSite=Strict cookies), and
@@ -48,7 +48,7 @@ The panel can be added to your phone's home screen, where it opens like an app.
 
 On a computer without a screen, or in Docker, Craft Conductor starts with a random **one-time
 password** printed on its console. Signing in with it can only choose your own strong
-password (or set `MCSM_INITIAL_PASSWORD`). See [docs/headless.md](https://github.com/silverWRX03/craft-conductor/blob/main/docs/headless.md) and
+password (or set `CRAFT_CONDUCTOR_INITIAL_PASSWORD`). See [docs/headless.md](https://github.com/silverWRX03/craft-conductor/blob/main/docs/headless.md) and
 [docs/docker.md](https://github.com/silverWRX03/craft-conductor/blob/main/docs/docker.md).
 
 ## Friends' downloads
@@ -59,7 +59,7 @@ friends' Craft Conductor refuses anything else, so nobody in between (on café W
 or swap the mods. The program itself always comes from GitHub, never from your server. The invite
 page lives on GitHub Pages (a real certificate, so no browser warning), and the invite
 itself is after the `#` in the link, which browsers never send anywhere. Power users can
-still use the raw invite code with `mcsm join <code>`.
+still use the raw invite code with `craft-conductor join <code>`.
 
 ---
 [← Power users](Power-Users)

@@ -7,9 +7,9 @@ import zipfile
 
 import pytest
 
-from mcsm import config as configmod, lock as lockmod, modpack, setup as setupmod
-from mcsm.browse import Browser, BrowseError
-from mcsm.mods.modrinth import API
+from craft_conductor import config as configmod, lock as lockmod, modpack, setup as setupmod
+from craft_conductor.browse import Browser, BrowseError
+from craft_conductor.mods.modrinth import API
 
 from test_hub import login
 from test_web import wait_for
@@ -167,7 +167,7 @@ def test_browse_and_add_from_the_web(hub_env):
     assert status == 200 and body["added"] == ["Good Mod"] and body["skipped"][0]["name"] == "Good Mod"
     assert c.post("/api/servers/alpha/mods/add-many", {"mods": []})[0] == 400
 
-    # A jar from this computer: Modrinth knows it, so it becomes a mod mcsm keeps up to date...
+    # A jar from this computer: Modrinth knows it, so it becomes a mod craft-conductor keeps up to date...
     mods_dir = hub.get("alpha").m.server_dir / "mods"
     hub.http.posts[f"{API}/version_files"] = lambda body: {body["hashes"][0]: {"project_id": "FAPI"}} \
         if body["hashes"][0] == hashlib.sha1(b"known").hexdigest() else {}

@@ -8,16 +8,16 @@ import zipfile
 
 import pytest
 
-from mcsm import configs, diagnose, lock as lockmod
-from mcsm.browse import Browser, BrowseError
-from mcsm.clientpack import PackBuilder
-from mcsm.config import ModSpec
-from mcsm.http import HttpError
-from mcsm.loaders import LOADERS, PaperLoader, mods_folder
-from mcsm.loaders.paper import FILL, PAPER_V2
-from mcsm.manager import Manager
-from mcsm.mods import providers_for
-from mcsm.mods.modrinth import API
+from craft_conductor import configs, diagnose, lock as lockmod
+from craft_conductor.browse import Browser, BrowseError
+from craft_conductor.clientpack import PackBuilder
+from craft_conductor.config import ModSpec
+from craft_conductor.http import HttpError
+from craft_conductor.loaders import LOADERS, PaperLoader, mods_folder
+from craft_conductor.loaders.paper import FILL, PAPER_V2
+from craft_conductor.manager import Manager
+from craft_conductor.mods import providers_for
+from craft_conductor.mods.modrinth import API
 
 from conftest import FakeLoader, FakeMojang
 from test_manager import update
@@ -126,9 +126,9 @@ def test_plugin_configs_and_blame(tmp_path):
 
 
 def test_purpur_installs_the_newest_build_that_worked(http, tmp_path):
-    from mcsm.loaders import PurpurLoader, runs_plugins
-    from mcsm.loaders.purpur import API
-    from mcsm.loaders.base import LoaderError
+    from craft_conductor.loaders import PurpurLoader, runs_plugins
+    from craft_conductor.loaders.purpur import API
+    from craft_conductor.loaders.base import LoaderError
     jar = b"purpur server jar"
     http.json[f"{API}/1.21.4"] = {"builds": {"latest": "2402", "all": ["2400", "2401", "2402"]}}
     http.json[f"{API}/1.21.4/2402"] = {"result": "FAILURE"}

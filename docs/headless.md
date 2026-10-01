@@ -50,7 +50,7 @@ The last lines look like this:
 
 ```
 control panel: http://192.168.1.50:8765/  (open it on your own computer)
-first sign-in password: Mcsm-1a2b3c-4d5e6f-7a8b9c!   (one-time: you'll choose your own; ...)
+first sign-in password: Craft-Conductor-1a2b3c-4d5e6f-7a8b9c!   (one-time: you'll choose your own; ...)
 ```
 
 ## 2. Open the control panel
@@ -76,11 +76,11 @@ sudo ufw allow 8798/tcp      # friends' downloads, if you use them
 
 | | |
 |---|---|
-| Status | `ssh minecraft@192.168.1.50 mcsm service status --panel` (or `~/.local/bin/mcsm ...`) |
-| Logs | `ssh minecraft@192.168.1.50 journalctl --user -u mcsm -f` |
+| Status | `ssh minecraft@192.168.1.50 craft-conductor service status --panel` (or `~/.local/bin/craft-conductor ...`) |
+| Logs | `ssh minecraft@192.168.1.50 journalctl --user -u craft-conductor -f` |
 | Update Craft Conductor | from the control panel (Craft Conductor settings → Check for updates), or run the install command again |
-| Remove the service | `ssh minecraft@192.168.1.50 mcsm service uninstall --panel` (your servers stay in `~/mcsm`) |
-| Forgot the password | `ssh` in, delete `~/mcsm/.mcsm/web-auth.json`, then `systemctl --user restart mcsm` for a new one-time password |
+| Remove the service | `ssh minecraft@192.168.1.50 craft-conductor service uninstall --panel` (your servers stay in `~/craft-conductor`) |
+| Forgot the password | `ssh` in, delete `~/craft-conductor/.craft-conductor/web-auth.json`, then `systemctl --user restart craft-conductor` for a new one-time password |
 
 The service runs as your user and keeps running after you log out ("lingering"). If Craft Conductor
 can't turn that on by itself, it prints the `sudo loginctl enable-linger ...` command to run

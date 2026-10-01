@@ -1,11 +1,11 @@
 name: Suggest an idea
-description: Something mcsm could do, or do more easily.
+description: Something craft-conductor could do, or do more easily.
 labels: ["enhancement"]
 body:
   - type: textarea
     id: idea
     attributes:
-      label: What would you like mcsm to do?
+      label: What would you like craft-conductor to do?
     validations:
       required: true
   - type: textarea

@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from mcsm import health, limits
+from craft_conductor import health, limits
 
 
 def test_settings_are_checked():
@@ -38,7 +38,7 @@ def test_memory_fits():
 
 
 def test_the_config_takes_limits(tmp_path):
-    from mcsm import config as configmod
+    from craft_conductor import config as configmod
     base = {"server": {"loader": "fabric", "minecraft": "1.21.1"}}
     c = configmod.parse(tmp_path, {**base, "server": {**base["server"], "cpu_cores": 2, "priority": "low"}})
     assert (c.server.cpu_cores, c.server.priority) == (2, "low")

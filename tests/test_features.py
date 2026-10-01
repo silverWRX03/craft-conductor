@@ -1,4 +1,4 @@
-"""Java runtime management, manual (blocked) downloads, and `mcsm create`."""
+"""Java runtime management, manual (blocked) downloads, and `craft-conductor create`."""
 
 import hashlib
 import io
@@ -8,13 +8,13 @@ import urllib.parse
 
 from pathlib import Path
 
-from mcsm import cli, lock as lockmod
-from mcsm.config import ModSpec
-from mcsm.java import ADOPTIUM, JavaManager
-from mcsm.manager import Manager, ManualDownloadRequired
-from mcsm.mods import providers_for
-from mcsm.mods.curseforge import API as CURSEFORGE
-from mcsm.properties import read_properties
+from craft_conductor import cli, lock as lockmod
+from craft_conductor.config import ModSpec
+from craft_conductor.java import ADOPTIUM, JavaManager
+from craft_conductor.manager import Manager, ManualDownloadRequired
+from craft_conductor.mods import providers_for
+from craft_conductor.mods.curseforge import API as CURSEFORGE
+from craft_conductor.properties import read_properties
 
 from conftest import FakeLoader, FakeMojang
 from test_manager import manager, update
@@ -91,7 +91,7 @@ def test_manual_download_for_blocked_curseforge_mod(make_config, http, modrinth)
 
 
 def test_manual_download_error_lists_links():
-    from mcsm.mods.base import ModFile
+    from craft_conductor.mods.base import ModFile
     mod = ModFile(key="curseforge:1", source="curseforge", project_id="1", name="X", version_id="9",
                   version_number="1", filename="x.jar", url="", manual_url="https://example.test/x")
     folder = Path("/srv/mc/manual-downloads")
@@ -120,8 +120,8 @@ def test_create_builds_a_whole_server(tmp_path, http, modrinth, fake_java, monke
     props = read_properties(root / "server" / "server.properties")
     assert props["server-port"] == "25570" and props["motd"] == "hello"
     assert props["enable-rcon"] == "true" and len(props["rcon.password"]) > 16
-    assert 'memory = "6G"' in (root / "mcsm.toml").read_text()
-    assert 'id = "goodmod"' in (root / "mcsm.toml").read_text()
+    assert 'memory = "6G"' in (root / "craft-conductor.toml").read_text()
+    assert 'id = "goodmod"' in (root / "craft-conductor.toml").read_text()
     lk = lockmod.load(root)
     assert lk.minecraft == "1.21.1" and lk.installed
     assert (root / "server" / "mods" / "AAA-1.0.jar").exists()

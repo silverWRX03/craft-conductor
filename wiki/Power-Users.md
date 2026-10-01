@@ -4,13 +4,13 @@ Everything in Craft Conductor can be done from the control panel. These pages ar
 
 | Page | What's there |
 |---|---|
-| [Configuration (mcsm.toml)](Configuration) | every setting in a server's `mcsm.toml`, and the update strategies |
-| [Command line](Command-line) | the `mcsm` commands |
-| [Building servers from the command line](Building-Servers-From-The-Command-Line) | `mcsm create`, and bringing in an existing server |
-| [Running it forever](Running-It-Forever) | `mcsm run`, the supervisor, and starting with your computer |
+| [Configuration (craft-conductor.toml)](Configuration) | every setting in a server's `craft-conductor.toml`, and the update strategies |
+| [Command line](Command-line) | the `craft-conductor` commands |
+| [Building servers from the command line](Building-Servers-From-The-Command-Line) | `craft-conductor create`, and bringing in an existing server |
+| [Running it forever](Running-It-Forever) | `craft-conductor run`, the supervisor, and starting with your computer |
 | [Linux servers without a screen](Linux-Servers-Without-A-Screen) | reaching the control panel, systemd, the firewall |
-| [Managing players from the command line](Managing-Players-From-The-Command-Line) | `mcsm player` |
-| [Java in detail](Java-In-Detail) | how the right Java is found, and `mcsm java` |
+| [Managing players from the command line](Managing-Players-From-The-Command-Line) | `craft-conductor player` |
+| [Java in detail](Java-In-Detail) | how the right Java is found, and `craft-conductor java` |
 | [How an upgrade works](How-An-Upgrade-Works) | plan, stage, back up, swap, verify, roll back |
 | [Updating Craft Conductor](Updating-Craft-Conductor) | how Craft Conductor updates itself |
 | [Mods that block third-party downloads](Mods-That-Block-Downloads) | CurseForge files you download yourself |

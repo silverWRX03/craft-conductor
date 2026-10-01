@@ -1,7 +1,7 @@
 """Bedrock players through Geyser: whether the server can, whether it's on, and the port."""
 
-from mcsm import config as configmod
-from mcsm.config import ModSpec
+from craft_conductor import config as configmod
+from craft_conductor.config import ModSpec
 
 from test_hub import login
 

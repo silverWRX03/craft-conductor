@@ -1,8 +1,8 @@
-"""Smoke-test a built mcsm executable on the machine it was built for.
+"""Smoke-test a built craft-conductor executable on the machine it was built for.
 
-    python packaging/smoke_test.py dist/mcsm-linux-x64
+    python packaging/smoke_test.py dist/craft-conductor-linux-x64
 
-Checks that it starts, that the bundled web UI is served, and that `mcsm stop`
+Checks that it starts, that the bundled web UI is served, and that `craft-conductor stop`
 shuts it down. The first-run notice is left unaccepted, so the daemon waits at
 the notice and never downloads or starts a Minecraft server.
 """
@@ -32,7 +32,7 @@ PORT = free_port()
 def run(exe: str, *args: str, env: dict, cwd: Path) -> str:
     out = subprocess.run([exe, *args], env=env, cwd=cwd, capture_output=True, text=True, timeout=120)
     if out.returncode != 0:
-        raise SystemExit(f"`mcsm {' '.join(args)}` failed ({out.returncode}):\n{out.stdout}\n{out.stderr}")
+        raise SystemExit(f"`craft-conductor {' '.join(args)}` failed ({out.returncode}):\n{out.stdout}\n{out.stderr}")
     return out.stdout
 
 
@@ -53,7 +53,7 @@ def main(exe: str) -> None:
         print(run(exe, "--version", env=setup_env, cwd=root).strip())
         assert "Apache-2.0" in run(exe, "licenses", env=setup_env, cwd=root)
         run(exe, "--accept-notice", "init", env=setup_env, cwd=root)
-        assert (root / "mcsm.toml").exists()
+        assert (root / "craft-conductor.toml").exists()
 
         log = open(tmp / "run.log", "w")
         proc = subprocess.Popen([exe, "run", "--web", "--web-port", str(PORT)], env=fresh_env, cwd=root,
@@ -86,9 +86,9 @@ def main(exe: str) -> None:
                     proc.kill()
             log.close()
 
-        # `mcsm start` (what double-clicking runs): the server list, with nothing started.
+        # `craft-conductor start` (what double-clicking runs): the server list, with nothing started.
         home = tmp / "home"
-        hub_env = {**fresh_env, "MCSM_HOME": str(home)}
+        hub_env = {**fresh_env, "CRAFT_CONDUCTOR_HOME": str(home)}
         log = open(tmp / "start.log", "w")
         proc = subprocess.Popen([exe, "start", "--no-browser", "--web-port", str(PORT)], env=hub_env, cwd=tmp,
                                 stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL)
@@ -100,14 +100,14 @@ def main(exe: str) -> None:
                     break
                 except OSError:
                     if proc.poll() is not None or time.time() > deadline:
-                        raise SystemExit("mcsm start never came up:\n" + (tmp / "start.log").read_text())
+                        raise SystemExit("craft-conductor start never came up:\n" + (tmp / "start.log").read_text())
                     time.sleep(0.5)
             assert status == 200 and '"default": true' in body, body
-            print("mcsm start serves the control panel (password PASSWORD)")
+            print("craft-conductor start serves the control panel (password PASSWORD)")
             run(exe, "stop", env=hub_env, cwd=tmp)
             proc.wait(timeout=60)
-            print(f"mcsm start stopped cleanly (exit {proc.returncode})")
-            assert not (home / "mcsm.toml").exists(), "mcsm start should not create a server by itself"
+            print(f"craft-conductor start stopped cleanly (exit {proc.returncode})")
+            assert not (home / "craft-conductor.toml").exists(), "craft-conductor start should not create a server by itself"
         finally:
             if proc.poll() is None:
                 proc.terminate()
@@ -116,19 +116,19 @@ def main(exe: str) -> None:
                 except subprocess.TimeoutExpired:
                     proc.kill()
             log.close()
-        # A friend's mcsm with an invite (here pointing at a closed port): it connects over pinned
+        # A friend's craft-conductor with an invite (here pointing at a closed port): it connects over pinned
         # HTTPS, so it has to say it can't reach the server. Built executables only.
         if Path(exe).read_bytes()[:2] == b"#!":
             print("smoke test passed (not a built executable: skipped the friend check)")
             return
         sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-        from mcsm.join import Invite
+        from craft_conductor.join import Invite
         invite = Invite("127.0.0.1", free_port(), "A" * 24, "F" * 43)
         out = subprocess.run([exe, "join", invite.code, "--console", "--yes", "--no-launcher"], env=fresh_env, cwd=tmp,
                              capture_output=True, text=True, timeout=120, stdin=subprocess.DEVNULL)
         text = out.stdout + out.stderr
         assert out.returncode == 1 and "reach" in text, text
-        print("a friend's mcsm joins with an invite code")
+        print("a friend's craft-conductor joins with an invite code")
     print("smoke test passed")
 
 

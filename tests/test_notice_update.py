@@ -1,13 +1,13 @@
-"""First-run notice, mcsm self-update, and license listing."""
+"""First-run notice, craft-conductor self-update, and license listing."""
 
 import subprocess
 import threading
 
 import pytest
 
-from mcsm import cli, licenses, notice, selfupdate
-from mcsm.config import ModSpec
-from mcsm.daemon import Daemon
+from craft_conductor import cli, licenses, notice, selfupdate
+from craft_conductor.config import ModSpec
+from craft_conductor.daemon import Daemon
 
 from test_manager import manager, update
 from test_web import Client, login, wait_for
@@ -47,12 +47,12 @@ def test_cli_refuses_until_accepted(tmp_path, fresh_user, capsys, monkeypatch):
     root = tmp_path / "srv"
     assert cli.main(["-C", str(root), "init"]) == 2
     err = capsys.readouterr().err
-    assert "does not collect usage data" in err and "mcsm notice --accept" in err
-    assert not (root / "mcsm.toml").exists()  # nothing happened
+    assert "does not collect usage data" in err and "craft-conductor notice --accept" in err
+    assert not (root / "craft-conductor.toml").exists()  # nothing happened
 
     assert cli.main(["licenses"]) == 0  # always allowed
     assert cli.main(["-C", str(root), "--accept-notice", "init"]) == 0
-    assert (root / "mcsm.toml").exists()
+    assert (root / "craft-conductor.toml").exists()
     assert cli.main(["-C", str(root), "status"]) == 0  # remembered
 
 

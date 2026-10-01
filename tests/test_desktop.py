@@ -3,7 +3,7 @@
 import os
 import sys
 
-from mcsm import desktop
+from craft_conductor import desktop
 
 from test_hub import login
 from test_web import wait_for

@@ -30,7 +30,7 @@ through SSH.
    that starts at boot, keeps its control panel on the server itself (`127.0.0.1`), and shows
    a one-time password.
 
-Or by hand, on the server: `curl -fsSL https://raw.githubusercontent.com/silverWRX03/craft-conductor/main/packaging/install.sh | MCSM_PANEL_LOCAL=1 sh`
+Or by hand, on the server: `curl -fsSL https://raw.githubusercontent.com/silverWRX03/craft-conductor/main/packaging/install.sh | CRAFT_CONDUCTOR_PANEL_LOCAL=1 sh`
 
 ## Opening its control panel
 

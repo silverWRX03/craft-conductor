@@ -1,8 +1,8 @@
-"""Entry point for the standalone executable built by PyInstaller (see mcsm.spec)."""
+"""Entry point for the standalone executable built by PyInstaller (see craft-conductor.spec)."""
 
 import sys
 
-from mcsm.cli import main
+from craft_conductor.cli import main
 
 if __name__ == "__main__":
     sys.exit(main())

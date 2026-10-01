@@ -2,8 +2,8 @@
 
 import json
 
-from mcsm import friendextras, join, joinui
-from mcsm.mods.modrinth import API
+from craft_conductor import friendextras, join, joinui
+from craft_conductor.mods.modrinth import API
 
 from test_friends import pack
 from test_web import Client, wait_for
@@ -85,7 +85,7 @@ def test_friend_page_extras(tmp_path, http, modrinth):
         assert c.get("/api/extras")[1]["kinds"] == {"shader": True, "resourcepack": True, "mod": True}
         assert c.get("/api/extras/search?kind=shader&q=bsl")[1]["results"][0]["name"] == "BSL Shaders"
         assert c.get("/api/extras/search?kind=nope")[0] == 400
-        # Sorting and categories, and the details pane (like mcsm's mod browser).
+        # Sorting and categories, and the details pane (like craft-conductor's mod browser).
         seen, orig = [], http.get_json
         http.get_json = lambda u, params=None, headers=None: seen.append(params) or orig(u, params, headers)
         assert c.get("/api/extras/search?kind=shader&sort=downloads&category=realistic")[0] == 200
@@ -114,10 +114,10 @@ def test_friend_page_extras(tmp_path, http, modrinth):
         assert status == 409 and [x["name"] for x in body["changes"]] == ["Mini Map"]
         assert c.post("/api/setup", {"launchers": ["prism"], "accept_changes": True})[0] == 200
         wait_for(lambda: not ui.running and ui.results, timeout=20)
-        game = tmp_path / "prism" / "instances" / "mcsm-weekend-server" / ".minecraft"
+        game = tmp_path / "prism" / "instances" / "craft-conductor-weekend-server" / ".minecraft"
         assert (game / "shaderpacks" / "BSL.zip").is_file() and (game / "mods" / "IRI-1.8.jar").is_file()
         assert [i["name"] for i in c.get("/api/extras")[1]["items"]] == ["BSL Shaders"]
-        saved = json.loads((tmp_path / ".minecraft" / "mcsm" / "extras" / "weekend-server.json").read_text())
+        saved = json.loads((tmp_path / ".minecraft" / "craft-conductor" / "extras" / "weekend-server.json").read_text())
         assert saved["minecraft"] == "1.21.2"
     finally:
         ui.stop()

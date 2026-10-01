@@ -8,9 +8,9 @@ import urllib.request
 
 import pytest
 
-from mcsm.config import ModSpec
-from mcsm.daemon import Daemon
-from mcsm.players import offline_uuid
+from craft_conductor.config import ModSpec
+from craft_conductor.daemon import Daemon
+from craft_conductor.players import offline_uuid
 
 from test_manager import manager, update
 
@@ -22,7 +22,7 @@ class Client:
         self.cookie = None
 
     def call(self, method, path, body=None, headers=None, raw=None):
-        h = {"X-MCSM": "1", **(headers or {})}
+        h = {"X-CRAFT-CONDUCTOR": "1", **(headers or {})}
         if self.cookie:
             h["Cookie"] = self.cookie
         data = raw if raw is not None else (json.dumps(body).encode() if body is not None else None)
@@ -68,7 +68,7 @@ def running(make_config, http, modrinth):
 
 @pytest.fixture
 def running_default(make_config, http, modrinth):
-    """No password in mcsm.toml: sign-in is chosen in the web UI."""
+    """No password in craft-conductor.toml: sign-in is chosen in the web UI."""
     yield from _running(make_config, http, modrinth, "")
 
 
@@ -101,12 +101,12 @@ def test_auth_and_csrf(running):
     d, c, cfg = running
     assert c.get("/api/status")[0] == 401
     assert c.post("/api/login", {"password": "nope"})[0] == 401
-    status, _, _ = c.call("POST", "/api/login", {"password": "hunter2hunter2"}, headers={"X-MCSM": ""})
+    status, _, _ = c.call("POST", "/api/login", {"password": "hunter2hunter2"}, headers={"X-CRAFT-CONDUCTOR": ""})
     assert status == 403  # no CSRF header
     login(c)
     assert c.get("/api/status")[0] == 200
     # State-changing calls need the header even with a valid session.
-    assert c.call("POST", "/api/server/stop", {}, headers={"X-MCSM": "0"})[0] == 403
+    assert c.call("POST", "/api/server/stop", {}, headers={"X-CRAFT-CONDUCTOR": "0"})[0] == 403
     c.post("/api/logout")
     assert c.get("/api/status")[0] == 401
 
@@ -197,7 +197,7 @@ def test_backups_and_restore_requires_stop(running):
     wait_for(lambda: any("web_test" in b["name"] for b in c.get("/api/backups")[1]["backups"]))
     name = c.get("/api/backups")[1]["backups"][0]["name"]
     assert c.post("/api/backups/restore", {"name": name})[0] == 409  # still running
-    assert c.post("/api/backups/restore", {"name": "../mcsm.toml"})[0] == 404
+    assert c.post("/api/backups/restore", {"name": "../craft-conductor.toml"})[0] == 404
 
 
 def test_manual_upload_only_accepts_expected_files(running):
@@ -268,8 +268,8 @@ def test_default_password_and_changing_it(running_default):
     assert c.post("/api/auth/change", {"mode": "none"})[0] == 400
     assert Client(c.base).get("/api/status")[0] == 401
 
-    # `mcsm web-password --reset` while running goes back to PASSWORD.
-    from mcsm import webauth
+    # `craft-conductor web-password --reset` while running goes back to PASSWORD.
+    from craft_conductor import webauth
     webauth.AuthStore(cfg).reset()
     fresh = Client(c.base)
     assert fresh.get("/api/status")[0] == 401
@@ -295,7 +295,7 @@ def test_dashboard_usage_and_skins(running):
     time.sleep(0.6)
     assert c.get("/api/status")[1]["resources"]["cpu_percent"] is not None
 
-    from mcsm.skins import SkinError
+    from craft_conductor.skins import SkinError
     skins = d.ui.api.skins
 
     def fake_png(name):

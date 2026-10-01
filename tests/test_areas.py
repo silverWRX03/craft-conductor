@@ -3,7 +3,7 @@
 import gzip
 import tarfile
 
-from mcsm import areas, backup
+from craft_conductor import areas, backup
 
 from test_hub import login
 from test_preview import chunk, write_world
@@ -12,7 +12,7 @@ from test_web import wait_for
 
 def blocks(world, cx, cz):
     """The name of the ground block of a chunk (as test_preview's chunk() writes it)."""
-    from mcsm.preview import region_chunks
+    from craft_conductor.preview import region_chunks
     for x, z, root in region_chunks(world / "region" / f"r.{cx >> 5}.{cz >> 5}.mca"):
         if (x, z) == (cx, cz):
             return root["sections"][0]["block_states"]["palette"][1]["Name"]

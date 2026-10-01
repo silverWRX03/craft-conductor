@@ -1,6 +1,6 @@
 name: invite page
 
-# mcsm's invite page (site/join/), published on GitHub Pages: friends open invite links there.
+# craft-conductor's invite page (site/join/), published on GitHub Pages: friends open invite links there.
 # Needs Settings → Pages → Build and deployment → Source: "GitHub Actions" (once).
 # Published by each release (release.yml), after its downloads exist, since the page links to
 # them; run it by hand to publish a change to the page alone.
@@ -29,7 +29,7 @@ jobs:
         run: |
           mkdir -p _site
           cp -r site/. _site/
-          cp src/mcsm/webui/icon.png _site/icon.png
+          cp src/craft_conductor/webui/icon.png _site/icon.png
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

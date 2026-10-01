@@ -1,6 +1,6 @@
 """Web Push known answers (worked out with the cryptography package), checked without it."""
 
-from mcsm import webpush
+from craft_conductor import webpush
 
 A = 0x1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF % webpush.N
 B = 0x0FEDCBA0987654321FEDCBA0987654321FEDCBA0987654321FEDCBA09876543 % webpush.N

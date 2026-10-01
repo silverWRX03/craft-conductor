@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from mcsm import webmap
+from craft_conductor import webmap
 
 
 def mod(name, filename=""):

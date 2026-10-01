@@ -1,4 +1,4 @@
-"""Friend downloads: the client pack, the share server, and `mcsm join` setting up a launcher."""
+"""Friend downloads: the client pack, the share server, and `craft-conductor join` setting up a launcher."""
 
 import hashlib
 import json
@@ -9,12 +9,12 @@ import urllib.request
 
 import pytest
 
-from mcsm import config as configmod, join, nbt, selfupdate, setup as setupmod
-from mcsm.clientpack import PackBuilder, allowed_url
-from mcsm.config import ModSpec
-from mcsm.http import HttpClient, HttpError
-from mcsm.hub import Hub
-from mcsm.loaders.fabric import FABRIC_META
+from craft_conductor import config as configmod, join, nbt, selfupdate, setup as setupmod
+from craft_conductor.clientpack import PackBuilder, allowed_url
+from craft_conductor.config import ModSpec
+from craft_conductor.http import HttpClient, HttpError
+from craft_conductor.hub import Hub
+from craft_conductor.loaders.fabric import FABRIC_META
 
 from test_hub import login
 from test_manager import manager, update
@@ -35,7 +35,7 @@ def test_servers_dat_round_trip():
     servers = nbt.loads(data)["servers"]
     assert [(s["name"], s["ip"]) for s in servers] == [("Weekend Survival (renamed)", "mc.example.com"),
                                                       ("Other", "10.0.0.2:25570")]
-    # Entries (and tag types) mcsm doesn't know about survive.
+    # Entries (and tag types) craft-conductor doesn't know about survive.
     root = {"servers": nbt.ListTag(nbt.COMPOUND, [{"name": "Old", "ip": "old:1", "icon": "abc",
                                                   "hidden": nbt.Tagged(nbt.BYTE, 1)}]),
             "other": nbt.Tagged(nbt.LONG, 2 ** 40), "arr": nbt.Tagged(nbt.INT_ARRAY, [1, -2])}
@@ -53,7 +53,7 @@ def test_invites():
     inv = join.Invite("mc.example.com", 8766, "A" * 24, FP)
     assert inv.url == "https://mc.example.com:8766/join/" + "A" * 24
     assert join.parse_invite(inv.link) == inv and join.parse_invite(inv.code) == inv
-    assert inv.code.startswith("mcsm-")
+    assert inv.code.startswith("craft-conductor-")
     ipv6 = join.Invite("2001:db8::1", 8766, "B" * 24, FP)
     assert join.parse_invite(ipv6.link) == ipv6 and join.parse_invite(ipv6.code) == ipv6
     # Invites from before HTTPS (no fingerprint, or http://) are refused, with a way forward.
@@ -62,7 +62,7 @@ def test_invites():
     for old in (f"http://mc.example.com:8766/join/{'A' * 24}", old_code, f"https://mc.example.com:8766/join/{'A' * 24}"):
         with pytest.raises(join.JoinError, match="older Craft Conductor"):
             join.parse_invite(old)
-    assert join.invite_from_name(f"Join X (mcsm-{old_code}).exe") is None
+    assert join.invite_from_name(f"Join X (craft-conductor-{old_code}).exe") is None
     for bad in ("hello", "https://x/other/abc", "https://x:8766/join/short#" + FP, "ftp://x/join/" + "A" * 24,
                 "https://x:8766/join/" + "A" * 24 + "#tooshort"):
         with pytest.raises(join.JoinError):
@@ -70,7 +70,7 @@ def test_invites():
 
 
 def test_invite_found_in_copied_text():
-    from mcsm import clipboard
+    from craft_conductor import clipboard
     inv = join.Invite("mc.example.com", 8766, "A" * 24, FP)
     message = f"Weekend Survival\n1. Get Craft Conductor: https://github.com/...\n2. Copy your invite: `{inv.code}` thanks!"
     assert clipboard.find_invite(message) == inv
@@ -146,16 +146,16 @@ def test_join_sets_up_the_launcher(launcher, http):
            "sha1": hashlib.sha1(jar).hexdigest(), "side": "both"}
     j = join.Joiner(join.Invite("mc.example.com", 8766, "A" * 24), mc_dir=launcher, http=http, say=lambda s: None)
     result = j.run(pack(mods=[mod]), open_launcher=False)
-    game = launcher / "mcsm" / "weekend-survival"
+    game = launcher / "craft-conductor" / "weekend-survival"
     assert result["downloaded"] == 1 and (game / "mods" / "a.jar").read_bytes() == jar
     assert (launcher / "versions" / "fabric-loader-0.16.5-1.21.1" / "fabric-loader-0.16.5-1.21.1.json").exists()
-    ours = json.loads((launcher / "versions" / "mcsm-weekend-survival" / "mcsm-weekend-survival.json").read_text())
+    ours = json.loads((launcher / "versions" / "craft-conductor-weekend-survival" / "craft-conductor-weekend-survival.json").read_text())
     assert ours["inheritsFrom"] == "fabric-loader-0.16.5-1.21.1" and ours["jar"] == "1.21.1"
     assert ours["arguments"]["game"] == ["--quickPlayMultiplayer", "mc.example.com"]  # joins by itself
     assert nbt.loads((game / "servers.dat").read_bytes())["servers"][0]["ip"] == "mc.example.com"
     profiles = json.loads((launcher / "launcher_profiles.json").read_text())
-    ours = profiles["profiles"]["mcsm-weekend-survival"]
-    assert ours["name"] == "Weekend Survival" and ours["lastVersionId"] == "mcsm-weekend-survival"
+    ours = profiles["profiles"]["craft-conductor-weekend-survival"]
+    assert ours["name"] == "Weekend Survival" and ours["lastVersionId"] == "craft-conductor-weekend-survival"
     assert ours["gameDir"] == str(game) and "-Xmx4G" in ours["javaArgs"]
     assert profiles["profiles"]["x"]["name"] == "Mine" and profiles["settings"] == {"keep": True}  # untouched
 
@@ -163,7 +163,7 @@ def test_join_sets_up_the_launcher(launcher, http):
     (game / "mods" / "mine.jar").write_bytes(b"theirs")
     result = j.run(pack(mods=[], minecraft="1.19.2", loader="vanilla", loader_version=None), open_launcher=False)
     assert result["removed"] == 1 and not (game / "mods" / "a.jar").exists() and (game / "mods" / "mine.jar").exists()
-    ours = json.loads((launcher / "versions" / "mcsm-weekend-survival" / "mcsm-weekend-survival.json").read_text())
+    ours = json.loads((launcher / "versions" / "craft-conductor-weekend-survival" / "craft-conductor-weekend-survival.json").read_text())
     assert ours["inheritsFrom"] == "1.19.2" and "arguments" not in ours  # no quick play before 1.20
 
 
@@ -179,7 +179,7 @@ def test_join_rejects_a_tampered_mod(launcher, http):
     j = join.Joiner(join.Invite("h", 1, "A" * 24), mc_dir=launcher, http=http, say=lambda s: None)
     with pytest.raises(join.JoinError, match="checksum"):
         j.run(pack(loader="vanilla", mods=[mod]), open_launcher=False)
-    assert not (launcher / "mcsm" / "weekend-survival" / "mods" / "a.jar").exists()
+    assert not (launcher / "craft-conductor" / "weekend-survival" / "mods" / "a.jar").exists()
 
 
 def test_join_runs_the_neoforge_installer(launcher, http):
@@ -196,7 +196,7 @@ def test_join_runs_the_neoforge_installer(launcher, http):
                     java_probe=lambda binary: 21)
     j.run(pack(loader="neoforge", loader_version="21.1.1"), open_launcher=False)
     assert ran[0][0] == "java" and ran[0][-2:] == ["--installClient", str(launcher)]
-    ours = json.loads((launcher / "versions" / "mcsm-weekend-survival" / "mcsm-weekend-survival.json").read_text())
+    ours = json.loads((launcher / "versions" / "craft-conductor-weekend-survival" / "craft-conductor-weekend-survival.json").read_text())
     assert ours["inheritsFrom"] == "neoforge-21.1.1"
 
 
@@ -238,11 +238,11 @@ def test_friends_page_and_download(tmp_path, http, modrinth, fake_template, monk
         def get(url):
             with pinned._open(urllib.request.Request(url)) as r:
                 return r.read(), r.headers
-        # HTTPS only: plain HTTP (a browser, an old mcsm) gets an explanation and nothing else.
+        # HTTPS only: plain HTTP (a browser, an old craft-conductor) gets an explanation and nothing else.
         with pytest.raises(urllib.error.HTTPError) as e:
             urllib.request.urlopen(f"http://127.0.0.1:{share_port}/join/{token}/pack.json")
         assert e.value.code == 400 and b"secure invite port" in e.value.read()
-        page, headers = get(base)  # the invite opened in a browser: where to get mcsm
+        page, headers = get(base)  # the invite opened in a browser: where to get craft-conductor
         assert b"github.com" in page and headers["Content-Security-Policy"].startswith("default-src 'none'")
         body, _ = get(base + "/pack.json")
         p = json.loads(body)
@@ -259,7 +259,7 @@ def test_friends_page_and_download(tmp_path, http, modrinth, fake_template, monk
         # A friend's copy fetches the same pack through the invite (pinned by the Joiner).
         assert join.Joiner(inv, mc_dir=tmp_path / "x").fetch_pack()["name"] == "Weekend Survival"
 
-        # A friend asks to be let in; the owner sees it (Players page, mcsm's list) and allows them.
+        # A friend asks to be let in; the owner sees it (Players page, craft-conductor's list) and allows them.
         assert json.loads(get(base + "/pack.json")[0])["whitelist"] is False
         http.json["https://api.mojang.com/users/profiles/minecraft/Friendly_1"] = {"id": "1" * 32, "name": "Friendly_1"}
         friend = join.Joiner(inv, mc_dir=tmp_path / "z")
@@ -282,7 +282,7 @@ def test_friends_page_and_download(tmp_path, http, modrinth, fake_template, monk
             assert e.value.status == 404
 
         # Your own files for players come from the share server, and only from there.
-        from mcsm.clientpack import client_dir
+        from craft_conductor.clientpack import client_dir
         client_dir(configmod.load(root)).mkdir()
         (client_dir(configmod.load(root)) / "My Tweaks-1.0.jar").write_bytes(b"homemade")
         assert c.get("/api/servers/survival/client")[1]["local_mods"] == ["My Tweaks-1.0.jar"]
@@ -317,7 +317,7 @@ def test_friends_page_and_download(tmp_path, http, modrinth, fake_template, monk
 
 
 def test_join_command_line(monkeypatch, capsys, launcher, http):
-    from mcsm import cli, clipboard
+    from craft_conductor import cli, clipboard
     got = []
     monkeypatch.setattr(join, "run_interactive", lambda invite, confirm, open_launcher, **kw: got.append(invite) or 0)
     inv = join.Invite("mc.example.com", 8766, "A" * 24, FP)
@@ -345,8 +345,8 @@ def test_client_side_companions_of_server_mods_are_included(make_config, http, m
 
 
 def test_player_mod_search_leaves_out_server_only_mods(http):
-    from mcsm.browse import Browser, BrowseError
-    from mcsm.mods.modrinth import API
+    from craft_conductor.browse import Browser, BrowseError
+    from craft_conductor.mods.modrinth import API
     seen = []
     http.json[f"{API}/search"] = {"total_hits": 0, "hits": []}
     orig = http.get_json
@@ -372,7 +372,7 @@ def test_new_server_form_takes_friends_mods_and_files(tmp_path):
 
 
 def test_manual_links_from_a_pack_must_be_https():
-    from mcsm.join import validate_pack
+    from craft_conductor.join import validate_pack
     p = validate_pack({"format": 1, "name": "S", "minecraft": "1.21.1", "loader": "vanilla", "address": "a.example",
                        "mods": [], "manual": [{"name": "Good", "url": "https://www.curseforge.com/x"},
                                               {"name": "Bad", "url": "javascript:alert(1)"}, "junk"]})
@@ -380,7 +380,7 @@ def test_manual_links_from_a_pack_must_be_https():
 
 
 def test_new_servers_start_without_a_whitelist(tmp_path):
-    from mcsm.properties import read_properties
+    from craft_conductor.properties import read_properties
     root = tmp_path / "srv"
     cfg = setupmod.configure(root, setupmod.SetupSpec.from_dict({"loader": "vanilla", "accept_eula": True}))
     props = read_properties(cfg.server.dir / "server.properties")

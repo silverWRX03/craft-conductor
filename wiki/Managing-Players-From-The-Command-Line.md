@@ -3,15 +3,15 @@
 From the web UI's **Players** page, or the command line:
 
 ```sh
-mcsm player list
-mcsm player op Steve
-mcsm player deop Steve
-mcsm player kick Griefer --reason "cool it"
-mcsm player ban Griefer --reason "griefing spawn"
-mcsm player pardon Griefer
-mcsm player ban-ip 203.0.113.9
-mcsm player whitelist-on
-mcsm player whitelist-add Alex
+craft-conductor player list
+craft-conductor player op Steve
+craft-conductor player deop Steve
+craft-conductor player kick Griefer --reason "cool it"
+craft-conductor player ban Griefer --reason "griefing spawn"
+craft-conductor player pardon Griefer
+craft-conductor player ban-ip 203.0.113.9
+craft-conductor player whitelist-on
+craft-conductor player whitelist-add Alex
 ```
 
 While the server runs, these are sent as the normal console commands (from the

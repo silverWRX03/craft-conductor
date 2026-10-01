@@ -1,4 +1,4 @@
-"""mcsm's own certificate for the share server, and friends' mcsm pinning it."""
+"""craft-conductor's own certificate for the share server, and friends' craft-conductor pinning it."""
 
 import os
 import socket
@@ -7,7 +7,7 @@ import threading
 
 import pytest
 
-from mcsm import join, joinui, tlscert
+from craft_conductor import join, joinui, tlscert
 
 from test_friends import FP, pack
 from test_web import Client
@@ -31,7 +31,7 @@ def test_certificate_is_valid_tls_and_kept(tmp_path):
     threading.Thread(target=serve, daemon=True).start()
     # A strict client (signature, dates, name) accepts it: it's a proper certificate.
     client = ssl.create_default_context(cafile=str(cert))
-    with socket.create_connection(srv.getsockname()) as raw, client.wrap_socket(raw, server_hostname="mcsm") as s:
+    with socket.create_connection(srv.getsockname()) as raw, client.wrap_socket(raw, server_hostname="craft-conductor") as s:
         assert s.recv(2) == b"hi" and tlscert.fingerprint(s.getpeercert(binary_form=True)) == fp
     srv.close()
 
@@ -48,7 +48,7 @@ def test_certificate_is_renewed_near_its_end(tmp_path):
 
 
 def test_friend_page_asks_for_an_invite_and_remembers_servers(tmp_path, http, monkeypatch):
-    from mcsm import clipboard
+    from craft_conductor import clipboard
     inv = join.Invite("mc.example.com", 8766, "D" * 24, FP)
     http.json[f"{inv.url}/pack.json"] = pack(name="Weekend Server")
     monkeypatch.setattr(clipboard, "read_text", lambda: f"join us! {inv.code}")

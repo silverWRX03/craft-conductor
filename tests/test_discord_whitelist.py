@@ -7,8 +7,8 @@ import threading
 
 import pytest
 
-from mcsm import discordbot
-from mcsm.discordbot import WebSocket, WhitelistBot, command_definition
+from craft_conductor import discordbot
+from craft_conductor.discordbot import WebSocket, WhitelistBot, command_definition
 
 GUILD = "123456789012345678"
 ROLE = "223456789012345678"

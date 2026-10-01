@@ -1,9 +1,9 @@
 # Builds the downloadable executables and publishes a GitHub release.
 #
-# To release: set __version__ in src/mcsm/__init__.py (e.g. "0.2.0") and merge it, then either
+# To release: set __version__ in src/craft_conductor/__init__.py (e.g. "0.2.0") and merge it, then either
 #   - Actions -> release -> Run workflow, and enter the version (e.g. 0.2.0), or
 #   - git tag v0.2.0 && git push origin v0.2.0
-# The first creates the tag itself. Installed copies of mcsm find the release and offer to update.
+# The first creates the tag itself. Installed copies of craft-conductor find the release and offer to update.
 name: release
 
 on:
@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to release, e.g. 0.2.0 (must match __version__ in src/mcsm/__init__.py)"
+        description: "Version to release, e.g. 0.2.0 (must match __version__ in src/craft_conductor/__init__.py)"
         required: true
 
 permissions:
@@ -32,9 +32,9 @@ jobs:
           python-version: "3.12"
       - name: Check the tag matches the version
         run: |
-          version=$(python -c "import sys; sys.path.insert(0, 'src'); import mcsm; print(mcsm.__version__)")
+          version=$(python -c "import sys; sys.path.insert(0, 'src'); import craft_conductor; print(craft_conductor.__version__)")
           if [ "v$version" != "$TAG" ]; then
-            echo "::error::release $TAG doesn't match __version__ $version in src/mcsm/__init__.py"; exit 1
+            echo "::error::release $TAG doesn't match __version__ $version in src/craft_conductor/__init__.py"; exit 1
           fi
       - run: pip install -e ".[dev]"
       - run: pytest -q
@@ -46,15 +46,15 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            asset: mcsm-windows-x64.exe
+            asset: craft-conductor-windows-x64.exe
           - os: macos-latest          # Apple silicon
-            asset: mcsm-macos-arm64
+            asset: craft-conductor-macos-arm64
           # Linux builds use a portable Python (packaging/build_linux.sh), so they run
           # on glibc 2.17+ (CentOS 7 onwards) whatever the runner's own version.
           - os: ubuntu-latest
-            asset: mcsm-linux-x64
+            asset: craft-conductor-linux-x64
           - os: ubuntu-24.04-arm
-            asset: mcsm-linux-arm64   # e.g. Raspberry Pi 4/5 (64-bit OS)
+            asset: craft-conductor-linux-arm64   # e.g. Raspberry Pi 4/5 (64-bit OS)
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
@@ -74,14 +74,14 @@ jobs:
         if: runner.os != 'Linux'
         run: |
           pip install "pyinstaller>=6.9,<7"
-          pyinstaller --noconfirm packaging/mcsm.spec
+          pyinstaller --noconfirm packaging/craft-conductor.spec
       - name: Check it runs on an old Linux (CentOS 7, glibc 2.17)
         if: runner.os == 'Linux'
-        run: packaging/check_linux_compat.sh dist/mcsm
+        run: packaging/check_linux_compat.sh dist/craft-conductor
       - name: Name the executable
         shell: bash
         run: |
-          if [ -f dist/mcsm.exe ]; then mv dist/mcsm.exe "dist/${{ matrix.asset }}"; else mv dist/mcsm "dist/${{ matrix.asset }}"; fi
+          if [ -f dist/craft-conductor.exe ]; then mv dist/craft-conductor.exe "dist/${{ matrix.asset }}"; else mv dist/craft-conductor "dist/${{ matrix.asset }}"; fi
       - name: Smoke test
         run: python packaging/smoke_test.py "dist/${{ matrix.asset }}"
       - uses: actions/upload-artifact@v4
@@ -101,7 +101,7 @@ jobs:
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'mc-server-management' }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'craft-conductor' }}
           signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG || 'release-signing' }}
           github-artifact-id: ${{ steps.upload.outputs.artifact-id }}
           wait-for-completion: true
@@ -138,24 +138,18 @@ jobs:
         with:
           path: release
           merge-multiple: true
-      - name: The downloads under Craft Conductor's name, and the friends' downloads
-        # craft-conductor-<system>: the downloads people pick. The mcsm-<system> files (the names
-        # the builds have) stay too, so copies of mcsm from before the rename can still update
-        # themselves. The friends' downloads are the same program under a name of its own: it opens
-        # straight into joining a server (and updates itself under that name); the invite page
-        # offers these.
+      - name: Make the friends' downloads
+        # The same program, named to open straight into joining a server.
         working-directory: release
         run: |
-          for f in mcsm-windows-* mcsm-macos-* mcsm-linux-*; do
-            cp "$f" "craft-conductor-${f#mcsm-}"
-            cp "$f" "craft-conductor-join-${f#mcsm-}"
-            cp "$f" "mcsm-join-${f#mcsm-}"
+          for f in craft-conductor-windows-* craft-conductor-macos-* craft-conductor-linux-*; do
+            cp "$f" "craft-conductor-join-${f#craft-conductor-}"
           done
           ls -l
       - name: Checksums
         working-directory: release
         run: |
-          chmod +x mcsm-linux-* mcsm-macos-* mcsm-join-linux-* mcsm-join-macos-* craft-conductor-*linux-* craft-conductor-*macos-* || true
+          chmod +x craft-conductor-*linux-* craft-conductor-*macos-*
           sha256sum * > SHA256SUMS.txt
           cat SHA256SUMS.txt
       - uses: softprops/action-gh-release@v2
@@ -167,7 +161,7 @@ jobs:
           files: release/*
           generate_release_notes: true
           body: |
-            > **Craft Conductor (formerly mcsm) is in beta.** It's used and tested, but it's still young: expect rough
+            > **Craft Conductor is in beta.** It's used and tested, but it's still young: expect rough
             > edges, keep backups (it makes one before every update), and please [report problems](https://github.com/silverWRX03/craft-conductor/issues/new/choose).
 
             **What's new:** see the [changelog](https://github.com/silverWRX03/craft-conductor/blob/main/CHANGELOG.md).
@@ -185,9 +179,6 @@ jobs:
             **Joining a friend's server?** Use their invite link, or the `craft-conductor-join-...` file for your
             computer: the same program, opening straight into setting up Minecraft for their server.
 
-            The `mcsm-...` files are the same programs under their old names, for copies of mcsm from before the
-            rename to update themselves: you don't need them.
-
             No Python needed for the executables. See the README's "Download and run" section.
             `SHA256SUMS.txt` lets you verify your download; the built-in updater checks it automatically.
 
@@ -202,7 +193,7 @@ jobs:
     uses: ./.github/workflows/pages.yml
 
   docker:
-    # The container image, on GitHub's registry: ghcr.io/<owner>/mc-server-management
+    # The container image, on GitHub's registry: ghcr.io/<owner>/craft-conductor
     needs: publish
     runs-on: ubuntu-latest
     timeout-minutes: 40

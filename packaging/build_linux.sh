@@ -7,7 +7,7 @@
 # 2.17: CentOS 7 / RHEL 7 (2014) and everything newer, including Raspberry Pi OS.
 # musl-based distributions such as Alpine can't run it; use pipx there.
 #
-#   packaging/build_linux.sh            # -> dist/mcsm
+#   packaging/build_linux.sh            # -> dist/craft-conductor
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -17,5 +17,5 @@ uv python install --python-preference only-managed "$PYTHON_VERSION"
 rm -rf .build-venv
 uv venv --quiet --python-preference only-managed --python "$PYTHON_VERSION" .build-venv
 uv pip install --quiet --python .build-venv/bin/python "pyinstaller>=6.9,<7"
-.build-venv/bin/pyinstaller --noconfirm packaging/mcsm.spec
-echo "built dist/mcsm"
+.build-venv/bin/pyinstaller --noconfirm packaging/craft-conductor.spec
+echo "built dist/craft-conductor"

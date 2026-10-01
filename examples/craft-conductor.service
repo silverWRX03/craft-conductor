@@ -1,0 +1,24 @@
+# A hand-written systemd unit for a forever server.
+# Easier: run `craft-conductor service install` in the server folder, which writes one for you.
+#
+#   craft-conductor notice --accept            # (as the User below) a service can't answer the prompt
+#   sudo cp craft_conductor.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now craft-conductor
+#   journalctl -u craft-conductor -f           # server console + craft-conductor messages
+[Unit]
+Description=Minecraft server managed by craft-conductor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=minecraft
+WorkingDirectory=/opt/minecraft
+ExecStart=/usr/local/bin/craft-conductor run --web
+# craft-conductor stops the server gracefully (with a world save) on SIGTERM.
+KillSignal=SIGTERM
+TimeoutStopSec=180
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

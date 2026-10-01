@@ -5,9 +5,9 @@ import json
 import pytest
 from types import SimpleNamespace
 
-from mcsm import rehearsal
-from mcsm.config import ModSpec
-from mcsm.daemon import Daemon
+from craft_conductor import rehearsal
+from craft_conductor.config import ModSpec
+from craft_conductor.daemon import Daemon
 
 from test_manager import manager, update
 from test_web import wait_for
@@ -37,14 +37,14 @@ def rehearse(cfg, http, releases, minutes=0.05):
 
 def test_a_rehearsal_that_works(make_config, http, modrinth):
     cfg, m = installed(make_config, http, modrinth)
-    before = (cfg.root / "mcsm.lock.json").read_text()
+    before = (cfg.root / "craft-conductor.lock.json").read_text()
     r, result = rehearse(cfg, http, ["1.21.1", "1.21.4"])
     assert r.state == "done", r.log
     assert result["verdict"] == "good" and result["started"] and not result["crashed"], result
     assert result["from"] == "1.21.1" and result["to"] == "1.21.4"
     assert any("1.21.4" in line for line in result["changes"])
     # The server itself wasn't touched, and the copy is gone.
-    assert (cfg.root / "mcsm.lock.json").read_text() == before
+    assert (cfg.root / "craft-conductor.lock.json").read_text() == before
     assert not (cfg.state_dir / "rehearsal").exists()
     assert json.loads((cfg.state_dir / "rehearsal.json").read_text())["verdict"] == "good"
     # It counts for exactly this update.
@@ -82,7 +82,7 @@ def test_the_copy_uses_the_servers_own_java(make_config, http, modrinth):
 
 
 def test_an_error_in_one_line():
-    from mcsm.diagnose import headline
+    from craft_conductor.diagnose import headline
     message = ("Update failed and was rolled back (Minecraft 1.21.11 -> 26.3): server did not finish starting:\n"
                "Starting the server\nError: missing `server' JVM at `C:\\x\\bin\\server\\jvm.dll'.\n")
     assert headline(message).endswith("server did not finish starting: Error: missing `server' JVM at `C:\\x\\bin\\server\\jvm.dll'.")
@@ -100,9 +100,9 @@ def test_nothing_to_rehearse(make_config, http, modrinth):
 
 def test_automatic_updates_wait_for_a_rehearsal(make_config, http, modrinth, monkeypatch):
     cfg, _ = installed(make_config, http, modrinth, new_file="crash-2.0.jar")
-    text = (cfg.root / "mcsm.toml").read_text().replace("rehearse = false", "rehearse = true")
-    (cfg.root / "mcsm.toml").write_text(text)
-    from mcsm import config as configmod
+    text = (cfg.root / "craft-conductor.toml").read_text().replace("rehearse = false", "rehearse = true")
+    (cfg.root / "craft-conductor.toml").write_text(text)
+    from craft_conductor import config as configmod
     m = manager(configmod.load(cfg.root), http, ["1.21.1", "1.21.4"])
     sent = []
     m.notifier.send = sent.append
@@ -127,9 +127,9 @@ def test_automatic_updates_wait_for_a_rehearsal(make_config, http, modrinth, mon
 
 def test_a_passing_rehearsal_lets_the_update_go_ahead(make_config, http, modrinth, monkeypatch):
     cfg, _ = installed(make_config, http, modrinth)
-    text = (cfg.root / "mcsm.toml").read_text().replace("rehearse = false", "rehearse = true")
-    (cfg.root / "mcsm.toml").write_text(text)
-    from mcsm import config as configmod
+    text = (cfg.root / "craft-conductor.toml").read_text().replace("rehearse = false", "rehearse = true")
+    (cfg.root / "craft-conductor.toml").write_text(text)
+    from craft_conductor import config as configmod
     m = manager(configmod.load(cfg.root), http, ["1.21.1", "1.21.4"])
     d = Daemon(m, autostart=True)
     d.make_manager = lambda: (lambda c: manager(c, http, ["1.21.1", "1.21.4"]))

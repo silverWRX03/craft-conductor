@@ -2,9 +2,9 @@
 
 import pytest
 
-from mcsm.config import ModSpec
-from mcsm.mods import hangar
-from mcsm.mods.base import Unavailable
+from craft_conductor.config import ModSpec
+from craft_conductor.mods import hangar
+from craft_conductor.mods.base import Unavailable
 
 from test_hub import login
 
@@ -49,7 +49,7 @@ def test_resolve(http):
 
 
 def test_search_and_the_browser(http):
-    from mcsm.browse import Browser, BrowseError
+    from craft_conductor.browse import Browser, BrowseError
     http.json[f"{API}/projects"] = {"pagination": {"count": 1}, "result": [
         {"name": "ViaVersion", "namespace": {"owner": "ViaVersion", "slug": "ViaVersion"}, "description": "Newer clients on older servers",
          "stats": {"downloads": 1000, "stars": 50}, "avatarUrl": "https://hangarcdn.papermc.io/avatar.png", "category": "admin_tools"}]}

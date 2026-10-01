@@ -1,10 +1,10 @@
 """End-to-end upgrade tests against a fake `java` and a fake Minecraft server."""
 
-from mcsm import backup, lock as lockmod
-from mcsm.config import ModSpec
-from mcsm.daemon import Daemon
-from mcsm.manager import Manager
-from mcsm.mods import providers_for
+from craft_conductor import backup, lock as lockmod
+from craft_conductor.config import ModSpec
+from craft_conductor.daemon import Daemon
+from craft_conductor.manager import Manager
+from craft_conductor.mods import providers_for
 
 from conftest import FakeLoader, FakeMojang
 
@@ -136,7 +136,7 @@ def test_daemon_applies_update_to_running_server(make_config, http, modrinth):
 def test_import_existing_mods(make_config, http, modrinth):
     import hashlib
 
-    from mcsm.mods.modrinth import API
+    from craft_conductor.mods.modrinth import API
 
     modrinth.project("AAA", "goodmod", "Good Mod")
     cfg = make_config([])
@@ -156,8 +156,8 @@ def test_import_existing_mods(make_config, http, modrinth):
 
 
 def test_aikars_flags(make_config, http, modrinth):
-    from mcsm import config as configmod
-    from mcsm.jvmflags import aikar
+    from craft_conductor import config as configmod
+    from craft_conductor.jvmflags import aikar
     cfg = make_config()
     configmod.set_value(cfg.path, "server", "memory", '"20G"')
     configmod.set_value(cfg.path, "server", "aikar_flags", "true")

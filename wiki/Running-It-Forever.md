@@ -1,20 +1,20 @@
 # Running it forever
 
-## The supervisor: `mcsm run`
+## The supervisor: `craft-conductor run`
 
-`mcsm run` is a foreground supervisor, so run it under systemd (see
-[`examples/mcsm.service`](https://github.com/silverWRX03/craft-conductor/blob/main/examples/mcsm.service)), tmux or screen. While it's running:
+`craft-conductor run` is a foreground supervisor, so run it under systemd (see
+[`examples/craft_conductor.service`](https://github.com/silverWRX03/craft-conductor/blob/main/examples/craft_conductor.service)), tmux or screen. While it's running:
 
 | Command | What it does |
 |---|---|
-| `mcsm update` | ask the running daemon to check and apply updates right now |
-| `mcsm update --to 1.21.4` | ask it to move to one specific version |
-| `mcsm cmd say hello` | send a console command over RCON (enable RCON in `server.properties`) |
-| `mcsm status` | installed versions, mods, anything skipped, failed attempts |
-| `mcsm stop` | stop the server gracefully and exit the daemon |
-| `mcsm run --web` | same, plus the [web UI](Security) |
+| `craft-conductor update` | ask the running daemon to check and apply updates right now |
+| `craft-conductor update --to 1.21.4` | ask it to move to one specific version |
+| `craft-conductor cmd say hello` | send a console command over RCON (enable RCON in `server.properties`) |
+| `craft-conductor status` | installed versions, mods, anything skipped, failed attempts |
+| `craft-conductor stop` | stop the server gracefully and exit the daemon |
+| `craft-conductor run --web` | same, plus the [web UI](Security) |
 
-When the server isn't running, `mcsm update` does the upgrade and a test boot itself.
+When the server isn't running, `craft-conductor update` does the upgrade and a test boot itself.
 
 ## Windows and macOS in the background
 

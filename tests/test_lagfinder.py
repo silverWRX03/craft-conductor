@@ -4,7 +4,7 @@ import threading
 from collections import deque
 from types import SimpleNamespace
 
-from mcsm import lagfinder
+from craft_conductor import lagfinder
 
 from test_preview import write_world
 

@@ -9,7 +9,7 @@ import urllib.error
 
 import pytest
 
-from mcsm import push, webpush, web
+from craft_conductor import push, webpush, web
 
 FCM = "https://fcm.googleapis.com/fcm/send/abc123"
 

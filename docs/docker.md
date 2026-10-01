@@ -7,10 +7,10 @@ image updates.
 ## Start it
 
 ```sh
-docker run -d --name mcsm --restart unless-stopped \
+docker run -d --name craft-conductor --restart unless-stopped \
   -p 8765:8765 -p 25565:25565 -p 8798:8798 \
-  -v mcsm-data:/data \
-  -e MCSM_LAN_IP=192.168.1.20 \
+  -v craft-conductor-data:/data \
+  -e CRAFT_CONDUCTOR_LAN_IP=192.168.1.20 \
   ghcr.io/silverwrx03/craft-conductor:latest
 ```
 
@@ -22,7 +22,7 @@ Or use [`docker-compose.yml`](../docker-compose.yml): `docker compose up -d`.
 | 25565 | Minecraft. Each extra server needs its own port: map a range, e.g. `-p 25565-25570:25565-25570`. |
 | 8798 | friends' downloads (HTTPS; the invites), only needed if you use them |
 
-`MCSM_LAN_IP` is the Docker host's address on your network. Inside a container Craft Conductor can't
+`CRAFT_CONDUCTOR_LAN_IP` is the Docker host's address on your network. Inside a container Craft Conductor can't
 see it, and it goes into invite links and the phone-pairing QR code.
 
 ## First sign-in
@@ -32,14 +32,14 @@ need a strong password (12+ characters, upper and lower case, and a special char
 first start Craft Conductor makes a **one-time password** and prints it:
 
 ```sh
-docker logs mcsm | grep Password
+docker logs craft-conductor | grep Password
 ```
 
 Sign in with it and choose your own. Until you do, it can't be used for anything else. You
-can also set a strong password up front with `-e MCSM_INITIAL_PASSWORD='Your-Strong-Pass1'`.
+can also set a strong password up front with `-e CRAFT_CONDUCTOR_INITIAL_PASSWORD='Your-Strong-Pass1'`.
 It's only used when `/data` is new.
 
-Forgot the password? Stop the container, delete `/data/.mcsm/web-auth.json` in the volume,
+Forgot the password? Stop the container, delete `/data/.craft-conductor/web-auth.json` in the volume,
 and start it again for a new one-time password.
 
 ## Memory
@@ -51,18 +51,18 @@ Give the container at least the memory your servers use, plus about 1 GB. With
 
 ```sh
 docker pull ghcr.io/silverwrx03/craft-conductor:latest
-docker rm -f mcsm && docker run ...   # same command as before; /data keeps everything
+docker rm -f craft-conductor && docker run ...   # same command as before; /data keeps everything
 ```
 
 Craft Conductor's own "update Craft Conductor" button doesn't apply to containers: update the image instead.
 
 ## Stopping
 
-`docker stop mcsm` asks Craft Conductor to stop. Every server saves its world and shuts down cleanly.
-Allow it time: `docker stop -t 120 mcsm`, or `stop_grace_period` in compose.
+`docker stop craft-conductor` asks Craft Conductor to stop. Every server saves its world and shuts down cleanly.
+Allow it time: `docker stop -t 120 craft-conductor`, or `stop_grace_period` in compose.
 
 ## Building it yourself
 
 ```sh
-docker build -t mcsm .
+docker build -t craft-conductor .
 ```

@@ -5,7 +5,7 @@ import zipfile
 
 import pytest
 
-from mcsm import configs
+from craft_conductor import configs
 
 from test_hub import login
 
@@ -83,4 +83,4 @@ def test_config_editor_api(hub_env):
                                                                   "modified": f["modified"]})
     assert status == 200 and not body["running"]
     assert c.post("/api/servers/alpha/configs/file", {"path": "config/goodmod.json", "text": "{"})[0] == 400
-    assert c.get("/api/servers/alpha/configs/file?path=../mcsm.toml")[0] == 400
+    assert c.get("/api/servers/alpha/configs/file?path=../craft-conductor.toml")[0] == 400

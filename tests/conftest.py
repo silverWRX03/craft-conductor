@@ -11,11 +11,11 @@ from pathlib import Path
 
 import pytest
 
-from mcsm import config as configmod
-from mcsm.http import HashMismatch, HttpError
-from mcsm.loaders.base import Loader, Runtime
-from mcsm.minecraft import MANIFEST_URL, Mojang
-from mcsm.mods.modrinth import API as MODRINTH
+from craft_conductor import config as configmod
+from craft_conductor.http import HashMismatch, HttpError
+from craft_conductor.loaders.base import Loader, Runtime
+from craft_conductor.minecraft import MANIFEST_URL, Mojang
+from craft_conductor.mods.modrinth import API as MODRINTH
 
 FAKE_SERVER = textwrap.dedent("""\
     import sys, pathlib
@@ -186,7 +186,7 @@ class ModrinthFixture:
 @pytest.fixture(autouse=True)
 def notice_accepted(tmp_path, monkeypatch):
     """Keep tests away from the real user config, with the first-run notice already accepted."""
-    from mcsm import notice
+    from craft_conductor import notice
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
     monkeypatch.delenv("APPDATA", raising=False)
     notice.accept(None, by="cli")
@@ -195,7 +195,7 @@ def notice_accepted(tmp_path, monkeypatch):
 @pytest.fixture(autouse=True)
 def no_real_firewall(monkeypatch):
     """Check my setup doesn't read this computer's Windows Firewall in tests (test_firewall fakes it)."""
-    from mcsm import firewall
+    from craft_conductor import firewall
     monkeypatch.setattr(firewall, "read", lambda timeout=30, fresh=False: None)
 
 
@@ -249,9 +249,9 @@ def make_config(tmp_path, fake_java):
         text = text.replace('startup_timeout = "10m"', 'startup_timeout = "30s"')
         for key, value in updates.items():
             text = text.replace(f"\n{key} = ", f"\n{key} = {json.dumps(value)}  # ", 1)
-        (root / "mcsm.toml").write_text(text)
+        (root / "craft-conductor.toml").write_text(text)
         for spec in mods:
-            configmod.append_mod(root / "mcsm.toml", spec)
+            configmod.append_mod(root / "craft-conductor.toml", spec)
         server = root / "server"
         server.mkdir(exist_ok=True)
         (server / "eula.txt").write_text("eula=true\n")
@@ -261,7 +261,7 @@ def make_config(tmp_path, fake_java):
 
 @pytest.fixture
 def fake_template(monkeypatch, fake_java):
-    """configure() writes a fresh mcsm.toml; point it at the fake java with short timeouts."""
+    """configure() writes a fresh craft-conductor.toml; point it at the fake java with short timeouts."""
     real = configmod.render_template
 
     def render(loader, minecraft):
@@ -275,8 +275,8 @@ def fake_template(monkeypatch, fake_java):
 def hub_env(tmp_path, http, modrinth, fake_template):
     """A running hub with an installed server (alpha) and an unfinished one (main)."""
     import threading
-    from mcsm import config as configmod, setup as setupmod
-    from mcsm.hub import Hub
+    from craft_conductor import config as configmod, setup as setupmod
+    from craft_conductor.hub import Hub
     from test_manager import manager, update
     from test_web import Client, wait_for
     modrinth.project("FAPI", "fabric-api", "Fabric API")
@@ -284,7 +284,7 @@ def hub_env(tmp_path, http, modrinth, fake_template):
     modrinth.project("AAA", "goodmod", "Good Mod")
     modrinth.version("AAA", "1.0", ["1.21.1"])
     home = tmp_path / "home"
-    # An installed server in servers/alpha, and a never-finished one in the home folder (mcsm 0.1-0.3).
+    # An installed server in servers/alpha, and a never-finished one in the home folder (craft-conductor 0.1-0.3).
     alpha = home / "servers" / "alpha"
     setupmod.configure(alpha, setupmod.SetupSpec.from_dict({"loader": "fabric", "minecraft": "1.21.1",
                                                             "motd": "Alpha", "accept_eula": True}))
