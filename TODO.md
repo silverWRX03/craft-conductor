@@ -8,6 +8,11 @@ comes first; it says which.
 
 Before continuing or starting a feature, check this list: some features wait on one of these.
 
+- [ ] **Attach the screenshot of Maps still not working:** the screenshot is on your desktop
+      and has not been added to this report. Include the app version, which Maps screen/action
+      failed, Minecraft version, loader, selected mods, and relevant logs or reproduction steps.
+      *Needed before:* confirming the reported Maps failure and verifying the fix (32).
+
 - [x] **New icon:** put the stone-and-lava "MCSM" picture in the repository (for example
       `packaging/icon-source.png`) or attach it as a file. The copy pasted in the chat didn't
       come through as a file. *Needed before:* the new icon (white background removed).
@@ -147,6 +152,21 @@ Next:
         Add Dynmap (Web map, on the World page) only when the mod has a build for the server's
         Minecraft version and loader; otherwise say it isn't available for that version yet.
 
+28. [ ] **Reuse compatible Java installations:** detect and reuse Java already on the computer
+        (or a shared managed runtime) when it matches the selected Minecraft version and loader.
+        Download another runtime only when needed, including when container isolation requires it.
+29. [ ] **Granular roles for external server managers:** give external users individual access
+        with permissions scoped to specific servers and management actions (RBAC).
+30. [ ] **Native Bedrock servers:** support creating and managing Minecraft Bedrock Dedicated
+        Servers, alongside the existing Java server types.
+31. [ ] **Continuous mod browsing:** load 20 results initially and prefetch the next 20 around
+        result 12, then repeat as the user scrolls, preserving position and avoiding duplicates.
+32. [ ] **Investigate Maps still not working:** a new unresolved user report; screenshot is on
+        the user's desktop and is pending attachment. Identify the affected map feature and
+        reproduce before deciding whether this relates to completed item 14 or open item 27.
+33. [ ] **Contextual help drawer:** Help opens the relevant section in a panel that slides in
+        from the right; users can collapse it back to the right without leaving their work.
+
 ## Plans for the items left (details to start from)
 
 Written down so the work can start without re-deriving it. The house rules in CLAUDE.md apply to
@@ -285,3 +305,98 @@ release to pay those costs once.
   version is part of the update's readiness ("Show why") like any other mod.
 - Tests: with a fake Modrinth answer, only the map with a build is offered; adding the other is
   refused with a clear message; the lookup is cached.
+
+## Additional requests (2026-10-01): implementation briefs
+
+These six items are pending requirements, not implemented features. Their numbering preserves
+the existing roadmap and does not establish a new priority order. Inspect the current code
+before choosing an implementation. Apply CLAUDE.md when implementing; keep related help,
+translations, documentation, and changelog entries current.
+
+**28. Reuse compatible Java installations**
+- Goal: avoid downloading a separate Java runtime for every Minecraft instance when a suitable
+  runtime already exists on the same computer.
+- Resolve the required Java version from the selected Minecraft version and loader. Detect
+  existing configured/system installations and already downloaded managed runtimes, verify
+  their actual version and platform/architecture compatibility, and reuse a compatible one.
+  Revalidate when the selected Minecraft version or loader changes.
+- Keep each server's chosen executable explicit; do not replace the user's global Java or
+  change another server's runtime. Download a managed runtime only if no suitable accessible
+  runtime exists or the deployment requires a separate one.
+- Container boundary: inspect how isolation is implemented. A host Java installation may not
+  be accessible or usable inside a container; use a compatible runtime inside that environment.
+  Do not weaken isolation just to reuse host Java. Share/cache runtimes only where safe.
+- Acceptance: two compatible instances can use one runtime without duplicate downloads;
+  incompatible requirements select separate versions; absent Java triggers installation;
+  containerized instances remain isolated and runnable. Explain the selected runtime and
+  any required download to the user.
+
+**29. Granular role-based access (RBAC) for external users**
+- Goal: let the owner delegate server management without giving every external user full
+  administrator access. Inspect existing viewer/helper/device permissions before extending them.
+- Support identifiable users with roles/permissions scoped to selected servers and individual
+  capabilities, such as viewing status/logs, power controls, console commands, managing
+  mods/settings, and creating/restoring backups. Define the exact permission matrix before coding.
+- Enforce authorization on the backend for every affected request, including live connections,
+  with deny-by-default behavior. UI visibility alone is not authorization. Keep account/role
+  administration and global secrets owner-only; treat console and file/config access as
+  powerful capabilities that can undermine narrower permissions.
+- Allow access changes and revocation to take effect for existing sessions. Reuse the same
+  authorization model for API tokens (17) and linked computers (24) where applicable.
+- Acceptance: an external user can perform only granted actions on assigned servers;
+  direct API requests cannot bypass permissions or reach other servers; revocation removes
+  access. Test allowed and denied actions, server scope, and privilege escalation attempts.
+
+**30. Native Minecraft Bedrock server support**
+- Goal: create and manage Bedrock Dedicated Servers as a first-class server type. This means
+  native Bedrock hosting; cross-play through a Java server bridge alone does not satisfy it.
+- First assess supported operating systems/architectures, official distribution/update
+  mechanisms, and license acceptance. Explain unsupported combinations in the UI.
+- Plan installation, version selection/updates, start/stop/restart, logs/console, Bedrock
+  configuration, world storage, backups/restores, and player access controls according to
+  Bedrock's actual capabilities.
+- Treat Java-specific loaders, mods, runtime installation, and tooling as inapplicable unless
+  explicitly supported. Account for Bedrock's UDP networking in connection guidance, port
+  conflict checks, firewall/router setup, and diagnostics.
+- Acceptance: a supported machine can create, start, join from a Bedrock client, stop, back up,
+  restore, and update a Bedrock server; existing Java servers continue to work. Record any
+  features that are unavailable for Bedrock rather than exposing broken Java-only controls.
+
+**31. Continuous mod results with early prefetch**
+- Goal: replace batches of 10 with a smooth, continuously scrolling list.
+- Fetch 20 results initially. As the user reaches approximately the 12th result in that batch,
+  prefetch the next 20; repeat at the equivalent point in subsequent batches (about eight
+  loaded results remaining). Append results without resetting scroll position or selections.
+- Use each provider's supported pagination; prevent duplicate results and overlapping fetches.
+  Reset pagination when search text, filters, provider, Minecraft version, or loader changes;
+  ignore/cancel stale responses so old searches cannot populate the new list.
+- Keep loading nonblocking, show an unobtrusive indicator if the network falls behind, allow
+  retry after failure, and stop requests at the end of results. Respect provider limits.
+- Acceptance: the first batch has up to 20 results, the next request starts around item 12,
+  later batches append smoothly, and rapid scrolling/filter changes cause no duplicates,
+  stale results, lost selections, or repeated requests after the final page.
+
+**32. Maps still not working — investigate the current failure**
+- User report: "Maps is still not working"; supporting screenshot is on the user's desktop.
+  The screenshot has not been inspected. The exact screen, error, and root cause are unknown.
+- Obtain the screenshot and reproduction details from the outside task above. Determine
+  whether this affects world-generation preview, seed comparisons, or the BlueMap/Dynmap
+  web map; do not assume the prior fix in 14 resolved this report or that 27 is the cause.
+- Reproduce using the reported version/loader/mods and inspect the relevant server/preview
+  logs and UI/API errors. Preserve worlds and use a temporary test copy where appropriate.
+- Acceptance: reproduce the reported failure, fix the verified cause, add a regression test
+  for it, and confirm the user's failing workflow works with the same setup. If real-world
+  verification is unavailable, leave that verification explicitly pending.
+
+**33. Contextual help in a collapsible right-side drawer**
+- Goal: pressing Help in a page/section opens that specific section's help in a drawer
+  sliding in from the right, keeping the current task visible.
+- Map each Help entry point to the corresponding manual section. Reuse the maintained help
+  content instead of duplicating it; provide general help as a fallback where needed.
+- Add an obvious control to collapse the drawer back to the right. Opening/closing it must
+  preserve the current page, unsaved form values, selections, and scroll position.
+- Make the drawer usable on small screens and with a keyboard/screen reader: meaningful
+  labels, appropriate focus handling, Escape to close, focus returned to its trigger, and
+  reduced-motion support.
+- Acceptance: Help opens the correct section from each supported context; collapse returns
+  to the same work state; keyboard and mobile users can open, read, and close it reliably.
