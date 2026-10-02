@@ -138,13 +138,17 @@ def summarise(visits: list[dict], days: int, now: float) -> dict:
     busy = [[0.0] * 24 for _ in range(7)]
     for v in visits:
         start, end = max(v["start"], since), min(v["end"], now)
-        if end <= start:
+        if end < start:
             continue
+        # A just-joined player can have exactly the same start/end timestamp on clocks with
+        # coarse resolution (notably Windows). They must still appear as online immediately.
         p = players.setdefault(v["name"], {"name": v["name"], "seconds": 0.0, "visits": 0, "last_seen": 0.0, "online": False})
-        p["seconds"] += end - start
         p["visits"] += 1
         p["last_seen"] = max(p["last_seen"], end)
         p["online"] = p["online"] or bool(v.get("online"))
+        if end == start:
+            continue
+        p["seconds"] += end - start
         for wd, hr, secs in _hours(start, end):
             busy[wd][hr] += secs
     first = max(since, min((v["start"] for v in visits), default=now))
