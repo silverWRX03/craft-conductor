@@ -63,10 +63,21 @@ def test_the_text_translated_is_on_the_pages():
         assert not missing, (code, missing[:5])
 
 
+def test_reviewed_translation_layers_are_loaded():
+    """Human-reviewed fixes survive machine regeneration and load after the generated catalogs."""
+    web_js = (WEBUI / "i18n.js").read_text(encoding="utf-8")
+    assert "const REVIEWED_I18N" in web_js
+    assert "Object.assign(I18N, REVIEWED_I18N[LANG] || {})" in web_js
+
+    reviewed = (SITE / "i18n-reviewed.js").read_text(encoding="utf-8")
+    assert "const SITE_I18N_REVIEWED" in reviewed
+    assert "Object.assign(SITE_I18N[code], fixes)" in reviewed
+
+
 def test_the_invite_page_loads_its_translations_without_requests():
     html = (SITE / "index.html").read_text(encoding="utf-8")
     assert "connect-src 'none'" in html
-    assert html.index('src="i18n.js"') < html.index('src="join.js"')
+    assert html.index('src="i18n.js"') < html.index('src="i18n-reviewed.js"') < html.index('src="join.js"')
 
 
 def test_catalogs_are_served(running):

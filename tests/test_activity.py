@@ -34,6 +34,15 @@ def test_still_online_counts_up_to_now(tmp_path):
     assert s["recent"][0]["online"] and not s["enough"]
 
 
+def test_just_joined_player_is_visible_without_clock_tick(tmp_path):
+    """Coarse clocks (notably Windows) can return the same timestamp for join and summary."""
+    a = Activity(tmp_path)
+    now = time.time()
+    a.joined("Steve", now)
+    s = a.summary(days=7, now=now)
+    assert s["players"] == [{"name": "Steve", "seconds": 0, "visits": 1, "last_seen": now, "online": True}]
+
+
 def test_the_quietest_hour_and_the_busiest():
     visits = []
     for day in range(1, 8):  # every evening 18:00-23:00, two players; one plays at 3 in the morning too
