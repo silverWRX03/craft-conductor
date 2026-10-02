@@ -830,19 +830,30 @@ const views = {};
 
 // A live server console: output plus a command box. Used on the Console page and the dashboard.
 function consolePanel({ compact = false } = {}) {
-  const out = h("div", { class: "console" + (compact ? " compact" : "") });
-  const input = h("input", { placeholder: "Type a server command, e.g. say hello  (↑/↓ for history)", autocomplete: "off",
+  const out = h("div", { class: "console cc-terminal-box" + (compact ? " compact" : "") });
+  const input = h("input", { class: "cc-command-input", placeholder: "Type a server command, e.g. say hello  (↑/↓ for history)", autocomplete: "off",
     "aria-label": "Server command" });
   const history = []; let hi = 0; let seq = 0;
 
-  const cls = (line) => line.user ? "l-user" : /\/(ERROR|FATAL)\]|Exception/.test(line.text) ? "l-error" : /\/WARN\]/.test(line.text) ? "l-warn" : "";
+  const cls = (line) => line.user ? "cc-log-meta l-user"
+    : /\/(ERROR|FATAL)\]|Exception/.test(line.text) ? "cc-log-error l-error"
+      : /\/WARN\]/.test(line.text) ? "cc-log-warning l-warn"
+        : /(?:Done \(|joined the game|logged in|success(?:fully)?)/i.test(line.text) ? "cc-log-success" : "";
+  const logLine = (line) => {
+    const match = /^(\[[^\]]+\])(\s*)(.*)$/.exec(line.text);
+    const statusClass = cls(line);
+    const body = (value) => statusClass ? h("span", { class: statusClass }, value) : value;
+    return h("div", { class: "cc-log-line" }, match
+      ? [h("span", { class: "cc-log-timestamp" }, match[1]), match[2], body(match[3])]
+      : body(line.text));
+  };
   const poll = async () => {
     const r = await api(`/api/console?since=${seq}`).catch(() => null);
     if (!r || !r.lines.length) return;
     const stick = out.scrollHeight - out.scrollTop - out.clientHeight < 40;
     seq = r.last;
     const frag = document.createDocumentFragment();
-    for (const l of r.lines) frag.append(h("div", { class: cls(l) }, l.text));
+    for (const line of r.lines) frag.append(logLine(line));
     out.append(frag);
     while (out.childElementCount > (compact ? 500 : 3000)) out.firstChild.remove();
     if (stick) out.scrollTop = out.scrollHeight;
@@ -861,7 +872,11 @@ function consolePanel({ compact = false } = {}) {
     else if (e.key === "ArrowDown") { hi = Math.min(history.length, hi + 1); input.value = history[hi] || ""; }
   });
   const el = h("div", { class: compact ? "console-panel" : "console-wrap" },
-    out, h("div", { class: "console-input" }, input, h("button", { class: "btn primary", onclick: send }, "Send")));
+    out,
+    h("div", { class: "console-input cc-command-wrapper" },
+      h("span", { class: "cc-command-prompt", "aria-hidden": "true" }, ">"),
+      input,
+      h("button", { class: "cc-btn cc-btn-primary", onclick: send }, "Send")));
   return { el, input, poll };
 }
 
@@ -893,18 +908,21 @@ function playerHead(name, size = 32) {
 }
 
 function meter(label) {
-  const value = h("strong", {});
+  const value = h("div", { class: "cc-metric-value" }, "—");
   const fillBar = h("div", { class: "bar-fill" });
-  const note = h("div", { class: "muted small" });
-  const el = h("div", { class: "card meter" },
-    h("div", { class: "meter-head" }, h("span", {}, label), value), h("div", { class: "bar", "aria-hidden": "true" }, fillBar), note);
+  const note = h("div", { class: "cc-metric-subtext" });
+  const el = h("div", { class: "cc-metric-card meter" },
+    h("div", { class: "cc-metric-label" }, h("span", {}, label)),
+    value,
+    h("div", { class: "bar", "aria-hidden": "true" }, fillBar),
+    note);
   return {
     el,
     set(pct, text, sub) {
       value.textContent = t(text);
       note.textContent = t(sub || "");
       const p = pct === null || pct === undefined ? 0 : Math.max(0, Math.min(100, pct));
-      fillBar.style.width = p + "%";  // CSSOM, allowed by the CSP (unlike style attributes)
+      fillBar.style.width = p + "%";
       fillBar.className = "bar-fill" + (p >= 90 ? " bad" : p >= 75 ? " warn" : "");
     },
   };
@@ -1152,14 +1170,16 @@ views.dashboard = () => {
   const update = h("div");
   const events = h("div", { class: "events" });
   const online = h("div", { class: "online" });
-  const onlineCount = h("span", { class: "muted" });
-  const mapLink = h("div");  // the web map, when there is one and it answers (Settings → Web map)
-  const playerCard = h("div", { class: "card" }, h("h3", {}, "Online now ", onlineCount), online, mapLink);
+  const onlineCount = h("span", { class: "cc-chip cc-chip-nominal" });
+  const mapLink = h("div");
+  const playerCard = h("section", { class: "cc-panel" },
+    h("h3", { class: "cc-header-title" }, "Connected Players ", onlineCount), online, mapLink);
   api("/api/webmap").then((r) => {
-    if (r.kind && r.answers) fill(mapLink, h("a", { class: "btn small ghost mt-s", href: hubInfo && hubInfo.local ? r.local_url : r.lan_url || r.local_url,
+    if (r.kind && r.answers) fill(mapLink, h("a", { class: "btn small cc-btn cc-btn-secondary mt-s", href: hubInfo && hubInfo.local ? r.local_url : r.lan_url || r.local_url,
       target: "_blank", rel: "noopener noreferrer" }, `🗺 ${t("See where everyone is on the map")} ↗`));
   }).catch(() => null);
-  const cpu = meter("CPU"), mem = meter("Memory");
+
+  const cpu = meter("CPU"), mem = meter("RAM"), disk = meter("Disk"), players = meter("Players");
   const perf = perfCard();
   const tun = tunnelCard();
   const con = consolePanel({ compact: true });
@@ -1167,22 +1187,28 @@ views.dashboard = () => {
   const problemBox = h("div");
   let problemShown = "";
   let evSeq = 0;
-  let selected = null;      // player whose actions are open
+  let selected = null;
   let ops = new Set();
-  let shown = "";           // online list last rendered, to keep head icons from flickering
+  let shown = "";
 
   const gb = (n) => n < 1024 ** 3 ? Math.round(n / 1024 ** 2) + " MB" : (n / 1024 ** 3).toFixed(n >= 10 * 1024 ** 3 ? 0 : 1) + " GB";
   const renderMeters = (s) => {
     const r = s.resources;
     if (!r) {
       const idle = s.state === "starting" ? "starting…" : "server stopped";
-      cpu.set(0, "—", idle); mem.set(0, "—", idle);
+      cpu.set(0, "—", idle);
+      mem.set(0, "—", idle);
+      disk.set(0, "—", idle);
       return;
     }
     cpu.set(r.cpu_percent, r.cpu_percent === null ? "…" : `${Math.round(r.cpu_percent)}%`,
       `of ${r.cpus} CPU core${r.cpus === 1 ? "" : "s"}`);
     mem.set(100 * r.memory_bytes / r.memory_max_bytes, `${gb(r.memory_bytes)} / ${gb(r.memory_max_bytes)}`,
       "used / allowed" + (r.system_memory_bytes ? ` · this computer has ${gb(r.system_memory_bytes)}` : ""));
+    if (r.disk_total_bytes) {
+      const used = r.disk_used_bytes ?? Math.max(0, r.disk_total_bytes - (r.disk_free_bytes || 0));
+      disk.set(100 * used / r.disk_total_bytes, `${gb(used)} / ${gb(r.disk_total_bytes)}`, "used / total");
+    } else disk.set(0, "—", "disk telemetry unavailable");
   };
 
   const run = async (action, name) => {
@@ -1200,6 +1226,7 @@ views.dashboard = () => {
   };
   const renderOnline = (names, max, force = false) => {
     onlineCount.textContent = `${names.length} / ${max}`;
+    players.set(max ? 100 * names.length / max : 0, `${names.length} / ${max}`, "connected / slots");
     const key = names.join(",") + "|" + selected + "|" + [...ops].join(",");
     if (key === shown && !force) return;
     shown = key;
@@ -1213,13 +1240,13 @@ views.dashboard = () => {
       }, playerHead(n, 28), h("span", {}, n), ops.has(n.toLowerCase()) ? h("span", { class: "badge" }, "op") : null))),
       selected ? h("div", { class: "row mt-s player-actions" },
         h("strong", { class: "grow" }, selected),
-        h("button", { class: "btn small", onclick: () => message(selected) }, "Message"),
+        h("button", { class: "btn small cc-btn cc-btn-secondary", onclick: () => message(selected) }, "Message"),
         ops.has(selected.toLowerCase())
-          ? h("button", { class: "btn small", onclick: () => run("deop", selected) }, "Remove op")
-          : h("button", { class: "btn small", onclick: () => run("op", selected) }, "Make op"),
-        h("button", { class: "btn small", onclick: () => run("kick", selected) }, "Kick"),
-        h("button", { class: "btn small danger", onclick: () => run("ban", selected) }, "Ban"),
-        h("a", { class: "btn small ghost", href: link("players") }, "More…")) : null);
+          ? h("button", { class: "btn small cc-btn cc-btn-secondary", onclick: () => run("deop", selected) }, "Remove op")
+          : h("button", { class: "btn small cc-btn cc-btn-primary", onclick: () => run("op", selected) }, "Make op"),
+        h("button", { class: "btn small cc-btn cc-btn-secondary", onclick: () => run("kick", selected) }, "Kick"),
+        h("button", { class: "btn small cc-btn cc-btn-danger", onclick: () => run("ban", selected) }, "Ban"),
+        h("a", { class: "btn small cc-btn cc-btn-secondary", href: link("players") }, "More…")) : null);
   };
   const loadPlayers = async () => {
     const r = await api("/api/players").catch(() => null);
@@ -1228,7 +1255,6 @@ views.dashboard = () => {
     if (status) renderOnline(status.players, status.max_players);
   };
 
-  // What went wrong (a crash or a failed start), in plain words with the fixes Craft Conductor can do.
   const renderProblem = (p) => {
     const key = p ? JSON.stringify([p.time, p.fixed]) : "";
     if (key === problemShown) return;
@@ -1247,13 +1273,13 @@ views.dashboard = () => {
     };
     fill(problemBox, h("div", { class: "notice bad mt problem" },
       h("div", { class: "row" }, h("strong", { class: "grow" }, p.kind === "start" ? "The server didn't start: " : "The server crashed: ", p.title),
-        h("span", { class: "muted small" }, ago(p.time))),
+        h("span", { class: "cc-log-timestamp small" }, ago(p.time))),
       h("p", { class: "small" }, p.words),
-      p.evidence ? h("details", { class: "small" }, h("summary", {}, "What Minecraft said"), h("pre", { class: "log" }, p.evidence)) : null,
-      p.fixed ? h("div", { class: "row mt-s" }, h("span", { class: "grow small ok-text" }, `✓ ${p.fixed}`),
-        h("button", { class: "btn primary small", onclick: () => act(() => api("/api/server/start", { method: "POST", body: {} }), "Starting…").then(() => press({ kind: "dismiss" })) }, "Start the server"))
-        : h("div", { class: "row mt-s" }, (p.actions || []).map((a) => h("button", { class: "btn small primary", onclick: () => press(a) }, a.label)),
-          h("button", { class: "btn small ghost", onclick: () => press({ kind: "dismiss" }) }, "Dismiss"))));
+      p.evidence ? h("details", { class: "small" }, h("summary", {}, "What Minecraft said"), h("pre", { class: "log cc-log-line" }, p.evidence)) : null,
+      p.fixed ? h("div", { class: "row mt-s" }, h("span", { class: "grow small cc-log-success" }, `✓ ${p.fixed}`),
+        h("button", { class: "btn small cc-btn cc-btn-primary", onclick: () => act(() => api("/api/server/start", { method: "POST", body: {} }), "Starting…").then(() => press({ kind: "dismiss" })) }, "Start the server"))
+        : h("div", { class: "row mt-s" }, (p.actions || []).map((a) => h("button", { class: "btn small cc-btn cc-btn-primary", onclick: () => press(a) }, a.label)),
+          h("button", { class: "btn small cc-btn cc-btn-secondary", onclick: () => press({ kind: "dismiss" }) }, "Dismiss"))));
   };
 
   const render = (s) => {
@@ -1279,10 +1305,10 @@ views.dashboard = () => {
         : u.target ? h("div", { class: "notice warn" }, `Update ready: Minecraft ${u.target}`,
             u.manual ? h("div", { class: "small" }, `${u.manual} manual download(s) needed`) : null)
         : h("div", { class: "notice bad" }, `Minecraft ${u.latest} is out but nothing installable yet.`),
-      u ? h("p", { class: "muted small" }, `Checked ${ago(u.checked_at)} · strategy ${s.strategy} · auto-upgrade ${s.auto_upgrade ? "on" : "off"}`) : null,
+      u ? h("p", { class: "cc-metric-subtext" }, `Checked ${ago(u.checked_at)} · strategy ${s.strategy} · auto-upgrade ${s.auto_upgrade ? "on" : "off"}`) : null,
       h("div", { class: "row" },
-        h("button", { class: "btn", onclick: () => act(() => api("/api/updates/check", { method: "POST", body: {} }), "Checking for updates…") }, "Check now"),
-        h("a", { href: link("updates"), class: "btn ghost" }, "Details →")),
+        h("button", { class: "btn cc-btn cc-btn-secondary", onclick: () => act(() => api("/api/updates/check", { method: "POST", body: {} }), "Checking for updates…") }, "Check now"),
+        h("a", { href: link("updates"), class: "btn cc-btn cc-btn-secondary" }, "Details →")),
     );
   };
 
@@ -1291,26 +1317,38 @@ views.dashboard = () => {
     if (!r) return;
     evSeq = r.last;
     for (const e of r.events) {
-      events.prepend(h("div", { class: "ev " + e.level }, h("time", {}, fmtClock(e.time)), h("span", {}, e.message)));
+      const level = e.level === "error" ? "cc-log-error" : e.level === "warning" || e.level === "warn" ? "cc-log-warning" : e.level === "success" ? "cc-log-success" : "";
+      events.prepend(h("div", { class: `ev cc-log-line ${level}` }, h("time", { class: "cc-log-timestamp" }, fmtClock(e.time)), h("span", {}, e.message)));
     }
     while (events.childElementCount > 200) events.lastChild.remove();
   };
 
+  const runtimeCard = h("section", { class: "cc-panel" },
+    h("h3", { class: "cc-header-title" }, "Runtime Parameters"),
+    statusBody,
+    h("div", { class: "row mt-s" },
+      h("button", { class: "btn small cc-btn cc-btn-secondary", onclick: openDoctor }, "🩺 Check my setup"),
+      folderBtn("server", "Server folder", null, "btn small cc-btn cc-btn-secondary"),
+      folderBtn("world", "World folder", null, "btn small cc-btn cc-btn-secondary")));
+
   fill($("#main"),
-    h("h2", { class: "view-title" }, "Dashboard"),
-    problemBox,
-    lagBanner,
-    h("div", { class: "meters" }, cpu.el, mem.el),
-    h("div", { class: "mt" }, perf.el),
-    tun.el,
-    h("div", { class: "mt" }, playerCard),
-    askingNotice(),
-    hubInfo && hubInfo.local ? h("div", { class: "mt" }, playHereCard()) : null,
-    h("div", { class: "card mt" }, h("h3", {}, "Console"), con.el),
-    h("div", { class: "grid mt" }, card("Server", statusBody,
-      h("div", { class: "row mt-s" }, h("button", { class: "btn small", onclick: openDoctor }, "🩺 Check my setup"),
-        folderBtn("server", "Server folder"), folderBtn("world", "World folder"))), card("Updates", update)),
-    h("div", { class: "card mt" }, h("h3", {}, "Activity"), events),
+    h("div", { class: "cc-panel cc-dashboard-shell" },
+      h("h2", { class: "view-title cc-header-title" }, "Dashboard"),
+      problemBox,
+      lagBanner,
+      h("div", { class: "cc-telemetry-grid" }, cpu.el, mem.el, disk.el, players.el),
+      h("div", { class: "cc-dashboard-layout" },
+        h("section", { class: "cc-dashboard-main" },
+          perf.el,
+          tun.el,
+          askingNotice(),
+          hubInfo && hubInfo.local ? playHereCard() : null,
+          h("section", { class: "cc-panel" }, h("h3", { class: "cc-header-title" }, "Console"), con.el),
+          h("section", { class: "cc-panel" }, h("h3", { class: "cc-header-title" }, "Activity"), events)),
+        h("aside", { class: "cc-sidebar-rail", "aria-label": "Server dashboard details" },
+          playerCard,
+          runtimeCard,
+          h("section", { class: "cc-panel" }, h("h3", { class: "cc-header-title" }, "Updates"), update)))),
   );
   if (status) render(status);
   every(3000, pollEvents);

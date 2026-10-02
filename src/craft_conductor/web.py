@@ -85,6 +85,7 @@ STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/rich.js": ("rich.js", "text/javascript; charset=utf-8"),
           "/manual.md": ("manual.md", "text/markdown; charset=utf-8"),
           "/style.css": ("style.css", "text/css; charset=utf-8"),
+          "/css/craft-conductor-theme.css": ("css/craft-conductor-theme.css", "text/css; charset=utf-8"),
           "/icon.png": ("icon.png", "image/png"),
           "/icon-192.png": ("icon-192.png", "image/png"),
           "/icon-512.png": ("icon-512.png", "image/png"),
@@ -1966,9 +1967,13 @@ class Api:
         if usage is None:
             return None
         total = setupmod.total_ram_gb()
+        disk = shutil.disk_usage(self.m.server_dir)
         return {**usage,
                 "memory_max_bytes": stats.heap_bytes(self.m.config.server.memory, setupmod.suggested_memory_gb(total)),
-                "system_memory_bytes": int(total * 1024 ** 3) if total else None}
+                "system_memory_bytes": int(total * 1024 ** 3) if total else None,
+                "disk_total_bytes": disk.total,
+                "disk_used_bytes": disk.used,
+                "disk_free_bytes": disk.free}
 
     def readiness(self, q, b) -> dict:
         """For one Minecraft version (default: the newest release): is the loader ready, and does
