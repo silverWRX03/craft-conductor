@@ -1,5 +1,53 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8">
-<meta http-equiv="refresh" content="0; url=https://github.com/silverWRX03/craft-conductor">
-<title>Craft Conductor</title></head>
-<body><p><a href="https://github.com/silverWRX03/craft-conductor">Craft Conductor on GitHub</a></p></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Craft Conductor — Dashboard Preview</title>
+  <link rel="stylesheet" href="css/craft-conductor-theme.css">
+  <link rel="stylesheet" href="css/preview.css">
+  <script src="preview.js" defer></script>
+</head>
+<body>
+  <div class="preview-shell">
+    <header class="preview-header">
+      <div><p class="eyebrow">CRAFT CONDUCTOR / DESIGN EVALUATION</p><h1 class="cc-header-title">Server dashboard</h1></div>
+      <label>Appearance <select id="theme" aria-label="Appearance"><option value="system">System</option><option value="dark">Dark</option><option value="light">Light</option></select></label>
+    </header>
+    <p class="preview-note">Interactive preview · sample telemetry · controls simulate activity locally.</p>
+    <main class="cc-panel" aria-label="Server dashboard">
+      <header class="server-header"><div><h2 class="cc-header-title">Obsidian / Survival</h2><span id="server-state" class="cc-chip cc-chip-nominal" role="status">Online</span><span class="server-meta">Minecraft 1.21 · Fabric · Uptime 02:14:32</span></div>
+        <div class="actions"><button id="start" class="cc-btn cc-btn-primary" disabled>Start</button><button id="restart" class="cc-btn cc-btn-secondary">Restart</button><button id="stop" class="cc-btn cc-btn-danger">Stop</button></div>
+      </header>
+      <section class="cc-telemetry-grid" aria-label="Server telemetry">
+        <article class="cc-metric-card"><h3 class="cc-metric-label">CPU <span>8 CORES</span></h3><div id="cpu" class="cc-metric-value">24%</div><p class="cc-metric-subtext">Process utilization</p></article>
+        <article class="cc-metric-card"><h3 class="cc-metric-label">RAM <span>8 GB LIMIT</span></h3><div id="ram" class="cc-metric-value">3.2 GB</div><p class="cc-metric-subtext">40% of allocated memory</p></article>
+        <article class="cc-metric-card"><h3 class="cc-metric-label">Disk <span>100 GB VOLUME</span></h3><div class="cc-metric-value">18.6 GB</div><p class="cc-metric-subtext">World, mods and backups</p></article>
+        <article class="cc-metric-card"><h3 class="cc-metric-label">Players <span>20 SLOTS</span></h3><div id="players" class="cc-metric-value">3 / 20</div><p class="cc-metric-subtext">Connected to the server</p></article>
+      </section>
+      <div class="dashboard-layout">
+        <section class="console-panel" aria-labelledby="console-title">
+          <div class="section-header"><h3 id="console-title" class="cc-header-title">Live console</h3><button id="clear" class="cc-btn cc-btn-secondary">Clear</button></div>
+          <div id="console" class="cc-terminal-box" role="log" aria-label="Server console" aria-live="polite" aria-relevant="additions">
+            <div class="cc-log-line"><time class="cc-log-timestamp">[14:32:01]</time> <span class="cc-log-meta">[Server/INFO]</span> Loading world: survival</div>
+            <div class="cc-log-line"><time class="cc-log-timestamp">[14:32:04]</time> <span class="cc-log-success">Done (3.124s)! Server ready.</span></div>
+            <div class="cc-log-line"><time class="cc-log-timestamp">[14:35:12]</time> Alex joined the game</div>
+            <div class="cc-log-line"><time class="cc-log-timestamp">[14:37:23]</time> Sam joined the game</div>
+            <div class="cc-log-line"><time class="cc-log-timestamp">[14:38:09]</time> Robin joined the game</div>
+            <div class="cc-log-line"><time class="cc-log-timestamp">[14:40:11]</time> <span class="cc-log-warning">Tick delay detected: 120 ms. Monitoring recovery.</span></div>
+            <div class="cc-log-line"><time class="cc-log-timestamp">[14:40:12]</time> <span class="cc-log-success">Tick timing returned to normal.</span></div>
+            <div class="cc-log-line"><time class="cc-log-timestamp">[14:42:08]</time> <span class="cc-log-error">Sample diagnostic: optional map service unavailable.</span></div>
+          </div>
+          <form id="command-form" class="cc-command-wrapper"><span class="cc-command-prompt" aria-hidden="true">&gt;</span><label class="sr-only" for="command">Server command</label><input id="command" class="cc-command-input" placeholder="Try help, list or say hello" autocomplete="off" maxlength="500" required><button class="cc-btn cc-btn-primary" type="submit">Execute</button></form>
+        </section>
+        <aside class="dashboard-rail" aria-label="Server details">
+          <section class="cc-panel" aria-labelledby="connected-title"><h3 id="connected-title" class="cc-header-title">Connected Players</h3><ul id="connected-players" class="player-list"><li>Alex <span class="cc-chip">Operator</span></li><li>Sam <span class="cc-log-meta">Survival</span></li><li>Robin <span class="cc-log-meta">Survival</span></li></ul><p id="player-note" class="cc-metric-subtext">3 players online</p></section>
+          <section class="cc-panel" aria-labelledby="runtime-title"><h3 id="runtime-title" class="cc-header-title">Runtime Parameters</h3><dl class="runtime"><dt>Java</dt><dd>21</dd><dt>Memory</dt><dd>-Xmx8G</dd><dt>Port</dt><dd>25565</dd><dt>Loader</dt><dd>Fabric</dd><dt>View distance</dt><dd>10 chunks</dd><dt>Auto backup</dt><dd>Every 6 hours</dd></dl></section>
+        </aside>
+      </div>
+    </main>
+    <footer>Evaluation build · <a href="https://github.com/silverWRX03/craft-conductor">Repository</a></footer>
+  </div>
+</body>
+</html>
