@@ -37,3 +37,36 @@ footer { margin-top:20px; font-size:11px; } a { color:var(--silver-bright); }
   .cc-metric-value { font-size: clamp(18px, 6vw, 28px); }
   .cc-metric-subtext { overflow-wrap: anywhere; }
 }
+
+/* Navigation reference: compact mono labels, line icons and a left accent rail. */
+.cc-sidebar-nav { padding-inline: 0; }
+.cc-nav-header { margin-inline: 12px; }
+.cc-nav-header .cc-header-title { font-family: var(--font-telemetry); font-size: 11px; }
+.cc-nav-list { gap: 0; }
+.cc-nav-item {
+  min-height: 34px;
+  padding: 8px 12px 8px 10px;
+  gap: 8px;
+  border: 0;
+  border-left: 3px solid transparent;
+  color: var(--silver-industrial);
+  font-family: var(--font-telemetry);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: .08em;
+  line-height: 18px;
+}
+.cc-nav-icon { display: inline-flex; width: 14px; height: 14px; flex: 0 0 14px; }
+.cc-nav-icon svg { display: block; width: 100%; height: 100%; }
+.cc-nav-item:hover {
+  background-color: color-mix(in srgb, var(--silver-industrial) 7%, var(--bg-obsidian));
+  border-left-color: var(--silver-steel);
+  color: var(--silver-bright);
+}
+.cc-nav-item.active, .cc-nav-item:focus-visible {
+  background-color: color-mix(in srgb, var(--silver-industrial) 9%, var(--bg-obsidian));
+  border-left-color: var(--magma-orange);
+  color: var(--magma-orange);
+  font-weight: 600;
+}
+.cc-nav-item:focus-visible { outline: 1px solid var(--magma-orange); outline-offset: -1px; }
