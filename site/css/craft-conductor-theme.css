@@ -284,3 +284,166 @@ body {
   color: var(--state-nominal);
   background-color: rgba(34, 197, 94, 0.1);
 }
+/* ==========================================================================
+   RESPONSIVE LEFT SIDEBAR NAVIGATION SYSTEM
+   ========================================================================== */
+
+/* Main Layout Positioning Wrapper Interceptor */
+.cc-nav-wrapper {
+  position: relative;
+  z-index: 1000;
+}
+
+/* --- DESKTOP SPECIFICATIONS (Permanent Structural Left Rail) --- */
+@media (min-width: 1024px) {
+  body {
+    display: flex;
+    min-height: 100vh;
+  }
+  
+  /* Pushes your existing server panel content grid to the right cleanly */
+  #main-content-dashboard { 
+    flex-grow: 1;
+    margin-left: 240px; 
+    width: calc(100% - 240px);
+  }
+
+  .cc-sidebar-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 240px;
+    height: 100vh;
+    background-color: var(--bg-obsidian);
+    border-right: 1px solid var(--border-basalt);
+    padding: 1.5rem 1rem;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .cc-menu-trigger, .cc-nav-overlay {
+    display: none !important; /* Hide hamburger mechanisms on widescreen layout */
+  }
+}
+
+/* --- MOBILE & TABLET LAYOUTS (Collapsible Drawer Framework) --- */
+@media (max-width: 1023px) {
+  .cc-menu-trigger {
+    position: fixed;
+    top: 1rem;
+    left: 1rem;
+    z-index: 1100;
+    width: 40px;
+    height: 40px;
+    background-color: var(--bg-obsidian);
+    border: 1px solid var(--border-basalt);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+  }
+
+  .cc-menu-trigger:focus {
+    border-color: var(--magma-orange);
+    box-shadow: 0 0 8px var(--magma-glow);
+  }
+
+  .cc-bar {
+    width: 20px;
+    height: 2px;
+    background-color: var(--silver-bright);
+    transition: transform 0.2s, opacity 0.2s;
+  }
+
+  /* Structural Drawer Canvas */
+  .cc-sidebar-nav {
+    position: fixed;
+    top: 0;
+    left: -260px; /* Hidden offscreen by default */
+    width: 260px;
+    height: 100vh;
+    background-color: var(--bg-obsidian);
+    border-right: 2px solid var(--border-basalt);
+    padding: 4rem 1rem 1rem 1rem;
+    z-index: 1050;
+    transition: left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Active Open Toggles */
+  .cc-sidebar-nav.open {
+    left: 0;
+  }
+
+  /* Hamburger transform toggle into closing cross */
+  .cc-menu-trigger.open .cc-bar:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+  .cc-menu-trigger.open .cc-bar:nth-child(2) { opacity: 0; }
+  .cc-menu-trigger.open .cc-bar:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+  /* Dim Backing Overlay */
+  .cc-nav-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.7);
+    z-index: 1040;
+    display: none;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+
+  .cc-nav-overlay.open {
+    display: block;
+    opacity: 1;
+  }
+}
+
+/* --- INNER TYPOGRAPHY & BUTTON STYLING --- */
+.cc-nav-header {
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-basalt-bright);
+}
+
+.cc-nav-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cc-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  color: var(--silver-industrial);
+  text-decoration: none;
+  font-family: var(--font-structural);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: 1px solid transparent;
+}
+
+.cc-nav-icon {
+  font-size: 14px;
+}
+
+.cc-nav-item:hover {
+  background-color: var(--bg-recessed);
+  border-color: var(--border-basalt-bright);
+  color: var(--silver-bright);
+}
+
+/* Active Highlight Focus */
+.cc-nav-item.active {
+  background-color: rgba(255, 62, 0, 0.05);
+  border-color: var(--magma-orange);
+  color: var(--magma-orange);
+}
