@@ -21,3 +21,19 @@ h1 { font-size:24px; margin:4px 0; } h2 { font-size:18px; margin:0 0 8px; } h3 {
 footer { margin-top:20px; font-size:11px; } a { color:var(--silver-bright); }
 @media(max-width:1023px) { .dashboard-layout { grid-template-columns:minmax(0,1fr) 260px; } }
 @media(max-width:767px) { .preview-shell { padding:16px; } .preview-header { align-items:flex-start; flex-direction:column; } .dashboard-layout { grid-template-columns:1fr; } .server-meta { display:block; margin:8px 0 0; } .actions { flex-wrap:wrap; } .cc-terminal-box { height:360px; } }
+
+/* Keep the mobile heading clear of the fixed menu button and compact telemetry. */
+@media (max-width: 1023px) {
+  .preview-header { flex-direction: column; align-items: center; }
+  .preview-header > div { display: flex; flex-direction: column; width: 100%; padding-inline: 48px; text-align: center; min-height: 40px; }
+  .preview-header h1 { order: -1; margin: 0; font-size: clamp(14px, 4.5vw, 24px); line-height: 40px; }
+  .preview-header .eyebrow { margin-top: 8px; }
+}
+@media (max-width: 767px) {
+  .cc-telemetry-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cc-metric-card { min-width: 0; }
+  .cc-metric-label { flex-wrap: wrap; gap: 4px; }
+  .cc-metric-label span { font-size: 9px; }
+  .cc-metric-value { font-size: clamp(18px, 6vw, 28px); }
+  .cc-metric-subtext { overflow-wrap: anywhere; }
+}
