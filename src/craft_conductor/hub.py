@@ -153,6 +153,7 @@ class Hub:
         hub._single = daemon
         hub.daemons = {HOME_ID: daemon}
         hub.problems = {}
+        hub.join_requests = {}  # summary() also runs for classic single-server dashboards
         hub.stop_requested = daemon.stop_requested
         hub._lock = threading.RLock()
         hub.ui = None
