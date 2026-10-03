@@ -8,15 +8,15 @@
   <link rel="icon" type="image/png" href="/icon.png">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/icon.png">
-  <meta name="theme-color" content="#0f1214">
+  <meta name="theme-color" content="#0A0A0A">
   <meta name="color-scheme" content="light dark">
   <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/craft-conductor-theme.css">
 </head>
 <body>
   <button type="button" id="skip-link" class="skip-link">Skip to main content</button>
   <div id="login" class="login hidden">
-    <button type="button" class="theme-toggle corner" data-theme-toggle aria-label="Switch between day and night" title="Day / night">
-          <span class="sun" aria-hidden="true"></span><span class="moon" aria-hidden="true"></span></button>
+    <div class="cc-theme-control cc-login-theme"><span>Light</span><button type="button" class="cc-theme-switch" data-theme-toggle role="switch" aria-label="Switch between day and night" aria-checked="true"><span class="cc-thumb" aria-hidden="true"></span></button><span>Dark</span></div>
     <form id="login-form" class="login-card">
       <div class="brand big"><span class="logo"></span>Craft Conductor</div>
       <p class="muted">Forever server control panel <span class="tag warn">beta</span></p>
@@ -37,9 +37,12 @@
   </div>
 
   <div id="app" class="app hidden">
-    <aside class="sidebar">
+    <button id="cc-app-menu" class="cc-menu-trigger" type="button" aria-label="Toggle App Navigation" aria-controls="cc-app-sidebar" aria-expanded="false"><span></span><span></span><span></span></button>
+    <div id="cc-app-overlay" class="cc-nav-overlay"></div>
+    <aside id="cc-app-sidebar" class="sidebar">
       <div class="brand"><span class="logo"></span>Craft Conductor</div>
       <nav id="nav" aria-label="Main"></nav>
+      <div id="cc-theme-mobile"></div>
       <div class="sidebar-foot">
         <button id="logout" class="btn ghost small">Sign out</button>
         <button id="quit" class="btn ghost small hidden" title="Stop every server and close Craft Conductor">Quit</button>
@@ -60,8 +63,7 @@
           <button id="btn-restart" class="btn">Restart</button>
           <button id="btn-stop" class="btn danger">Stop</button>
         </div>
-        <button type="button" class="theme-toggle" data-theme-toggle aria-label="Switch between day and night" title="Day / night">
-          <span class="sun" aria-hidden="true"></span><span class="moon" aria-hidden="true"></span></button>
+        <div id="cc-theme-desktop"><div id="cc-app-theme" class="cc-theme-control"><span>Light</span><button type="button" class="cc-theme-switch" data-theme-toggle role="switch" aria-label="Switch between day and night" aria-checked="true"><span class="cc-thumb" aria-hidden="true"></span></button><span>Dark</span></div></div>
       </header>
       <div id="stage" class="stage"><main id="main" tabindex="-1"></main></div>
     </div>

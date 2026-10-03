@@ -1,5 +1,116 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8">
-<meta http-equiv="refresh" content="0; url=https://github.com/silverWRX03/craft-conductor">
-<title>Craft Conductor</title></head>
-<body><p><a href="https://github.com/silverWRX03/craft-conductor">Craft Conductor on GitHub</a></p></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Craft Conductor — Dashboard Preview</title>
+  <link rel="stylesheet" href="css/craft-conductor-theme.css">
+  <link rel="stylesheet" href="css/preview.css">
+  <link rel="stylesheet" href="css/depth.css">
+  <script src="preview.js" defer></script>
+</head>
+<body>
+  <!-- Navigation System Container -->
+  <div class="cc-nav-wrapper">
+    <!-- Hamburger Menu Button (Hidden on Desktop via CSS) -->
+    <button class="cc-menu-trigger" id="ccMenuTrigger" aria-label="Toggle App Navigation">
+      <span class="cc-bar"></span>
+      <span class="cc-bar"></span>
+      <span class="cc-bar"></span>
+    </button>
+
+    <!-- Left Sidebar Panel Drawer -->
+    <nav class="cc-sidebar-nav" id="ccSidebarNav">
+      <div class="cc-nav-header">
+        <span class="cc-header-title">Navigation</span>
+      </div>
+      <ul class="cc-nav-list">
+        <li><a href="index.html" class="cc-nav-item active" aria-current="page"><span class="cc-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18"/><path d="M3 9h18M9 9v12"/></svg></span> Dashboard</a></li>
+        <li><a href="console.html" class="cc-nav-item"><span class="cc-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16"/><path d="m7 9 3 3-3 3m6 0h4"/></svg></span> Live Console</a></li>
+        <li><a href="players.html" class="cc-nav-item"><span class="cc-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2m1-15a3 3 0 0 1 0 6m2 3a5 5 0 0 1 3 4v2"/></svg></span> Players</a></li>
+        <li><a href="mods.html" class="cc-nav-item"><span class="cc-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 5v9l9 5 9-5V8m-9 5v9M7.5 5.5l9 5"/></svg></span> Mods Management</a></li>
+        <li><a href="backups.html" class="cc-nav-item"><span class="cc-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg></span> Backups</a></li>
+        <li><a href="settings.html" class="cc-nav-item"><span class="cc-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></svg></span> Settings</a></li>
+        <li><a href="help.html" class="cc-nav-item"><span class="cc-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5C9 3 5 3 3 4v15c3-1 6-1 9 1m0-15c3-2 7-2 9-1v15c-3-1-6-1-9 1V5"/></svg></span> User Manual</a></li>
+      </ul>
+      <div id="mobile-theme-slot" class="cc-nav-theme"></div>
+    </nav>
+
+    <!-- Tap-to-Dismiss Overlay Backing (Mobile Only) -->
+    <div class="cc-nav-overlay" id="ccNavOverlay"></div>
+  </div>
+  <div id="main-content-dashboard">
+  <div class="preview-shell">
+    <header class="preview-header">
+      <div><p class="eyebrow">CRAFT CONDUCTOR / DESIGN EVALUATION</p><h1 class="cc-header-title">Server dashboard</h1></div>
+      <div id="desktop-theme-slot"><div id="theme-control" class="theme-control"><span class="theme-label">Light</span><button id="theme" class="theme-slider" type="button" role="switch" aria-label="Dark theme" aria-checked="false"><span class="theme-slider-thumb" aria-hidden="true"></span></button><span class="theme-label">Dark</span></div></div>
+    </header>
+    <p class="preview-note">Interactive preview · sample telemetry · controls simulate activity locally.</p>
+    <main class="cc-panel" aria-label="Server dashboard">
+      <header class="server-header"><div><h2 class="cc-header-title">Obsidian / Survival</h2><span id="server-state" class="cc-chip cc-chip-nominal" role="status">Online</span><span class="server-meta">Minecraft 1.21 · Fabric · Uptime 02:14:32</span></div>
+        <div class="actions"><button id="start" class="cc-btn cc-btn-primary" disabled>Start</button><button id="restart" class="cc-btn cc-btn-secondary">Restart</button><button id="stop" class="cc-btn cc-btn-danger">Stop</button></div>
+      </header>
+      <section class="cc-telemetry-grid" aria-label="Server telemetry">
+        <article class="cc-metric-card"><h3 class="cc-metric-label">CPU <span>8 CORES</span></h3><div id="cpu" class="cc-metric-value">24%</div><p class="cc-metric-subtext">Process utilization</p></article>
+        <article class="cc-metric-card"><h3 class="cc-metric-label">RAM <span>8 GB LIMIT</span></h3><div id="ram" class="cc-metric-value">3.2 GB</div><p class="cc-metric-subtext">40% of allocated memory</p></article>
+        <article class="cc-metric-card"><h3 class="cc-metric-label">Disk <span>100 GB VOLUME</span></h3><div class="cc-metric-value">18.6 GB</div><p class="cc-metric-subtext">World, mods and backups</p></article>
+        <article class="cc-metric-card"><h3 class="cc-metric-label">Players <span>20 SLOTS</span></h3><div id="players" class="cc-metric-value">3 / 20</div><p class="cc-metric-subtext">Connected to the server</p></article>
+      </section>
+      <div class="dashboard-layout">
+        <section class="console-panel" aria-labelledby="console-title">
+          <div class="section-header"><h3 id="console-title" class="cc-header-title">Live console</h3><button id="clear" class="cc-btn cc-btn-secondary">Clear</button></div>
+          <div id="console" class="cc-terminal-box" role="log" aria-label="Server console" aria-live="polite" aria-relevant="additions">
+            <div class="cc-log-line"><time class="cc-log-timestamp">[14:32:01]</time> <span class="cc-log-meta">[Server/INFO]</span> Loading world: survival</div>
+            <div class="cc-log-line"><time class="cc-log-timestamp">[14:32:04]</time> <span class="cc-log-success">Done (3.124s)! Server ready.</span></div>
+            <div class="cc-log-line"><time class="cc-log-timestamp">[14:35:12]</time> Alex joined the game</div>
+            <div class="cc-log-line"><time class="cc-log-timestamp">[14:37:23]</time> Sam joined the game</div>
+            <div class="cc-log-line"><time class="cc-log-timestamp">[14:38:09]</time> Robin joined the game</div>
+            <div class="cc-log-line"><time class="cc-log-timestamp">[14:40:11]</time> <span class="cc-log-warning">Tick delay detected: 120 ms. Monitoring recovery.</span></div>
+            <div class="cc-log-line"><time class="cc-log-timestamp">[14:40:12]</time> <span class="cc-log-success">Tick timing returned to normal.</span></div>
+            <div class="cc-log-line"><time class="cc-log-timestamp">[14:42:08]</time> <span class="cc-log-error">Sample diagnostic: optional map service unavailable.</span></div>
+          </div>
+          <form id="command-form" class="cc-command-wrapper"><span class="cc-command-prompt" aria-hidden="true">&gt;</span><label class="sr-only" for="command">Server command</label><input id="command" class="cc-command-input" placeholder="Try help, list or say hello" autocomplete="off" maxlength="500" required><button class="cc-btn cc-btn-primary" type="submit">Execute</button></form>
+        </section>
+        <aside class="dashboard-rail" aria-label="Server details">
+          <section class="cc-panel" aria-labelledby="connected-title"><h3 id="connected-title" class="cc-header-title">Connected Players</h3><ul id="connected-players" class="player-list"><li>Alex <span class="cc-chip">Operator</span></li><li>Sam <span class="cc-log-meta">Survival</span></li><li>Robin <span class="cc-log-meta">Survival</span></li></ul><p id="player-note" class="cc-metric-subtext">3 players online</p></section>
+          <section class="cc-panel" aria-labelledby="runtime-title"><h3 id="runtime-title" class="cc-header-title">Runtime Parameters</h3><dl class="runtime"><dt>Java</dt><dd>21</dd><dt>Memory</dt><dd>-Xmx8G</dd><dt>Port</dt><dd>25565</dd><dt>Loader</dt><dd>Fabric</dd><dt>View distance</dt><dd>10 chunks</dd><dt>Auto backup</dt><dd>Every 6 hours</dd></dl></section>
+        </aside>
+      </div>
+    </main>
+    <footer>Evaluation build · <a href="https://github.com/silverWRX03/craft-conductor">Repository</a></footer>
+  </div>
+  </div>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const trigger = document.getElementById('ccMenuTrigger');
+  const sidebar = document.getElementById('ccSidebarNav');
+  const overlay = document.getElementById('ccNavOverlay');
+  const navItems = document.querySelectorAll('.cc-nav-item');
+
+  function toggleMenu() {
+    trigger.classList.toggle('open');
+    sidebar.classList.toggle('open');
+    overlay.classList.toggle('open');
+  }
+
+  function closeMenu() {
+    trigger.classList.remove('open');
+    sidebar.classList.remove('open');
+    overlay.classList.remove('open');
+  }
+
+  // Handle Event Triggers
+  if (trigger && sidebar && overlay) {
+    trigger.addEventListener('click', toggleMenu);
+    overlay.addEventListener('click', closeMenu);
+
+    // Auto-collapse instantly once a sub-selection is triggered
+    navItems.forEach(item => {
+      item.addEventListener('click', closeMenu);
+    });
+  }
+});
+</script>
+</body>
+</html>

@@ -7,12 +7,16 @@ its fix will say which version it's in.
 ## 0.22.0 (not released yet)
 
 **Changed**
+- The control panel and invite pages now use the Industrial Silver, Obsidian and Magma theme, with raised widgets, a boxed console, four dashboard resource cards, and a mobile navigation drawer with a remembered Light / Dark slider.
 - The command, configuration, data folders, services, invite links, and downloads now consistently
   use `craft-conductor`. Python imports use `craft_conductor`; environment variables use
   `CRAFT_CONDUCTOR_*`. Help, the manual, wiki, translations, and build tooling use the same names.
 - This is a clean-install testing release: previous installation paths, commands, environment
   variables, and invite schemes are not supported or migrated. Set up a fresh installation;
   copy any worlds you want to keep before switching.
+
+**Fixed**
+- The classic single-server control panel now initializes its navigation summary correctly instead of failing to load the dashboard.
 
 ## 0.21.1 (2026-09-29)
 

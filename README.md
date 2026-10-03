@@ -10,6 +10,9 @@ and its mods up to date for as long as you play. It also gets your friends' game
 Everything happens in a control panel in your browser: no command lines, no config files, no
 hunting for the right mod versions.
 
+The control panel has light and dark themes, raised resource widgets, and a boxed live console.
+On phones, a hamburger menu contains navigation and the remembered Light / Dark slider.
+
 > **Craft Conductor is in beta.** Keep backups (it makes one before every update), and please report
 > problems in [Issues](https://github.com/silverWRX03/craft-conductor/issues).
 

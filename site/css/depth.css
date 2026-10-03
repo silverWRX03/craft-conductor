@@ -1,0 +1,40 @@
+/* Depth concept: preserve geometry and palette, add surface hierarchy. */
+:root { --depth-shadow: rgba(0,0,0,.48); --depth-highlight: rgba(255,255,255,.055); --depth-grid: rgba(255,255,255,.014); }
+:root[data-theme="light"] { --depth-shadow: rgba(18,24,32,.12); --depth-highlight: rgba(255,255,255,.95); --depth-grid: rgba(18,24,32,.023); }
+body { background-image: linear-gradient(var(--depth-grid) 1px,transparent 1px),linear-gradient(90deg,var(--depth-grid) 1px,transparent 1px); background-size:32px 32px; }
+.preview-shell { padding-top:36px; }
+.preview-header { padding-bottom:20px; border-bottom:1px solid var(--border-basalt); box-shadow:0 1px 0 var(--depth-highlight); }
+main.cc-panel { padding:20px; box-shadow:0 14px 38px -16px var(--depth-shadow),inset 0 1px 0 var(--depth-highlight); }
+.server-header { padding-bottom:16px; border-bottom:1px solid var(--border-basalt); box-shadow:0 1px 0 var(--depth-highlight); }
+.cc-metric-card { position:relative; background-image:linear-gradient(145deg,var(--depth-highlight),transparent 70%); box-shadow:0 4px 10px -6px var(--depth-shadow),inset 0 1px 0 var(--depth-highlight); border-top-color:var(--border-basalt-bright); padding:16px; }
+.cc-metric-value { text-shadow:0 2px 1px var(--depth-shadow); }
+:root[data-theme="light"] .cc-metric-value { text-shadow:none; }
+.cc-terminal-box { box-shadow:inset 0 3px 12px var(--depth-shadow),inset 0 0 0 1px rgba(0,0,0,.08); }
+.dashboard-rail .cc-panel { padding:16px; background-image:linear-gradient(150deg,var(--depth-highlight),transparent 65%); box-shadow:0 4px 12px -8px var(--depth-shadow),inset 0 1px 0 var(--depth-highlight); }
+.dashboard-rail h3 { padding-bottom:12px; border-bottom:1px solid var(--border-basalt); }
+.cc-sidebar-nav { box-shadow:6px 0 18px -12px var(--depth-shadow),inset -1px 0 0 var(--depth-highlight); background-image:linear-gradient(90deg,transparent 90%,rgba(0,0,0,.035)); }
+.cc-nav-item.active { box-shadow:inset 0 1px 0 var(--depth-highlight),inset 0 -1px 0 var(--depth-highlight); }
+.cc-btn { box-shadow:0 2px 4px -2px var(--depth-shadow),inset 0 1px 0 var(--depth-highlight); }
+.cc-command-wrapper { box-shadow:0 3px 10px -6px var(--depth-shadow); }
+@media(max-width:767px) { .preview-shell { padding-top:16px; } main.cc-panel { padding:12px; } .cc-metric-card { padding:12px; } }
+
+/* Stronger raised widgets and a unified console enclosure. */
+.cc-metric-card, .dashboard-rail .cc-panel {
+  background-image: linear-gradient(135deg, var(--depth-highlight), transparent 75%);
+  box-shadow: 0 8px 16px -6px var(--depth-shadow), 0 2px 3px rgba(0,0,0,.12), inset 0 1px 0 var(--depth-highlight), inset 1px 0 0 var(--depth-highlight);
+  border-top-color: color-mix(in srgb, var(--silver-steel) 35%, var(--border-basalt));
+  border-left-color: color-mix(in srgb, var(--silver-steel) 18%, var(--border-basalt));
+}
+.console-panel {
+  padding: 16px;
+  background-color: var(--bg-obsidian);
+  background-image: linear-gradient(135deg, var(--depth-highlight), transparent 65%);
+  border: 1px solid var(--border-basalt);
+  border-top-color: color-mix(in srgb, var(--silver-steel) 35%, var(--border-basalt));
+  box-shadow: 0 8px 16px -6px var(--depth-shadow), 0 2px 3px rgba(0,0,0,.12), inset 0 1px 0 var(--depth-highlight);
+}
+.console-panel .section-header { padding-bottom: 12px; border-bottom: 1px solid var(--border-basalt); }
+.console-panel .cc-terminal-box { height: 450px; }
+.console-panel .cc-command-wrapper { border: 1px solid var(--border-basalt); border-top: 0; }
+@media(max-width:767px) { .console-panel { padding:12px; } .console-panel .cc-terminal-box { height:360px; } }
+

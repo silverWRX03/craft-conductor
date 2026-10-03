@@ -40,6 +40,7 @@ HEADERS = {
 STATIC = {"": ("join.html", "text/html; charset=utf-8"), "join.js": ("join.js", "text/javascript; charset=utf-8"),
           "rich.js": ("rich.js", "text/javascript; charset=utf-8"),
           "style.css": ("style.css", "text/css; charset=utf-8"), "icon.png": ("icon.png", "image/png"),
+          "craft-conductor-theme.css": ("craft-conductor-theme.css", "text/css; charset=utf-8"),
           "i18n.js": ("i18n.js", "text/javascript; charset=utf-8"),
           **{f"i18n/{code}.json": (f"i18n/{code}.json", "application/json; charset=utf-8")
              for code in ("es", "pt", "fr", "de", "hi", "zh", "vi", "ar", "ko")}}

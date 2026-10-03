@@ -134,7 +134,7 @@ Below the servers, **Modded single-player games** sets up modded Minecraft for p
 
 ## Dashboard
 
-**Start**, **Restart** and **Stop** are at the top of every server page. The Dashboard shows CPU and memory use, who's online, the console, the server's details and whether an update is ready. Stopping warns players and saves the world first.
+**Start**, **Restart** and **Stop** are at the top of every server page. The Dashboard shows four resource cards: **CPU**, **RAM**, **Disk** (space used and free on the server's filesystem), and **Players**. On a phone these form a 2×2 grid. The boxed **Live console** sits alongside **Connected Players** and **Runtime Parameters** on a wide screen, with those details below it on a phone. Performance, updates and activity remain underneath. Stopping warns players and saves the world first.
 
 **When something goes wrong** (the server crashed, or didn't start), the Dashboard says what happened in plain words, shows what Minecraft said, and offers the fixes Craft Conductor can do: **Remove** or **Switch off** the mod to blame, **Add** a mod that another one needs, **Give it more memory** when it ran out, **Let Craft Conductor pick the Java version**, **Use a free port**, **Accept the EULA**, or **Open Backups** when the world looks damaged. After a fix, **Start the server**; **Dismiss** hides the message.
 
@@ -325,7 +325,7 @@ Craft Conductor can live on your phone's home screen like an app, and send **not
 3. **Turn on notifications here**, in the app, under **Craft Conductor settings → Phone app**. **Send a test** checks it works. Each device with notifications on is listed; **Remove** stops them for that device, and **Turn off** does it on the device itself.
 4. **Choose what you hear about.** Under **Notify this device about**, tick what this device should get: a server crashed or wouldn't start, friends asking to join, updates, lag, backups, the playit.gg tunnel, this computer (disk space, CPU, memory), a server started (off at first) and everything else. Each device has its own choices, kept when notifications are turned off and on again.
 
-The app follows the phone's light or dark setting (unless you pick day or night with the sun/moon button), and the phone's status bar matches.
+The app follows the phone's light or dark setting (unless you pick Light or Dark with the theme slider), and the phone's status bar matches.
 
 **On the phone, the top of the page says where you are.** Opened at a plain address (like `http://192.168.1.50:8765`, the home network address, or a pairing code made for it), Craft Conductor is a web page in the browser: phones won't install it as an app from there, and "Add to Home Screen" only makes a bookmark that opens a browser tab. The message says so, and links to the secure Tailscale address when there is one. At the secure address it offers **Install the app** (or says how: Share → Add to Home Screen on an iPhone), and once it's installed, **Turn on notifications**. **Not now** hides it for two weeks. A paired phone, which can't open Craft Conductor settings, turns its notifications on here. When pairing a phone, the **Tailscale, secure** address is picked first, and the dialog says when another address will only open in the browser.
 
@@ -350,7 +350,8 @@ Notifications go through your phone's own push service (Apple's, Google's, Mozil
 - **Mod conflicts:** **Share mod conflicts anonymously** (off until you switch it on). When **Find which mods break it** finds a mod that doesn't work, Craft Conductor sends only the mod loader, the Minecraft version and the ids of the mods involved to Craft Conductor's relay, nothing about you or your server. Once three different people report the same conflict, it's on the shared list, and the Mods page warns anyone who has those mods together (everyone gets the warnings, whether they share or not). The list is fetched at most once a day.
 - **Warnings:** how many warnings you've hidden with "Don't ask me again", and **Show all warnings again**.
 - **About Craft Conductor:** the version, **Check for Craft Conductor updates**, the Craft Conductor folder, the notice and open-source licenses. Craft Conductor also checks by itself: when a new version is out, a message offers to install it (it stops your servers cleanly and restarts).
-- The sun/moon button in the top corner switches between day and night.
+- The **Light / Dark** slider switches the whole app between themes and remembers your choice. On desktop it is in the top bar; on phones and tablets it is inside the hamburger navigation menu at the top left. Escape or tapping outside closes the menu.
+- Panels, dialogs, settings, mods, backups and the invite pages share the Industrial Silver, Obsidian and Magma theme, with square edges, raised widgets and a recessed console.
 
 ### Keyboard and screen readers
 

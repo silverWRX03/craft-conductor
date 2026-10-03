@@ -20,7 +20,13 @@ function h(tag, attrs = {}, ...children) {
     if (v === null || v === undefined || v === false) continue;
     if ((k === "href" || k === "src") && !safeUrl(String(v), tag === "img")) continue;  // (links from mod sites: web addresses only)
     if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
-    else if (k === "class") el.className = v;
+    else if (k === "class") {
+      el.className = v;
+      if (el.classList.contains("btn")) {
+        el.classList.add("cc-btn", el.classList.contains("primary") ? "cc-btn-primary" : el.classList.contains("danger") ? "cc-btn-danger" : "cc-btn-secondary");
+      }
+      if (el.classList.contains("card")) el.classList.add("cc-panel");
+    }
     else if (k === "value") el.value = v;
     else if (k === "checked") el.checked = !!v;
     else el.setAttribute(k, v === true ? "" : k === "placeholder" || k === "title" || k === "aria-label" ? t(String(v)) : v);
@@ -46,9 +52,10 @@ function currentTheme() {
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
   const bar = document.querySelector('meta[name="theme-color"]');  // (the phone's status bar and the app's title bar)
-  if (bar) bar.setAttribute("content", theme === "day" ? "#eef4fa" : "#0f1214");
+  if (bar) bar.setAttribute("content", theme === "day" ? "#F4F4F4" : "#0A0A0A");
   for (const b of document.querySelectorAll("[data-theme-toggle]")) {
-    b.setAttribute("aria-pressed", String(theme === "day"));
+    if (b.getAttribute("role") === "switch") b.setAttribute("aria-checked", String(theme === "night"));
+    else b.setAttribute("aria-pressed", String(theme === "day"));
     b.title = t(theme === "day" ? "Switch to night" : "Switch to day");
   }
 }
@@ -830,19 +837,24 @@ const views = {};
 
 // A live server console: output plus a command box. Used on the Console page and the dashboard.
 function consolePanel({ compact = false } = {}) {
-  const out = h("div", { class: "console" + (compact ? " compact" : "") });
+  const out = h("div", { class: "console cc-terminal-box" + (compact ? " compact" : ""), role: "log", "aria-label": "Server console", "aria-live": "polite" });
   const input = h("input", { placeholder: "Type a server command, e.g. say hello  (↑/↓ for history)", autocomplete: "off",
     "aria-label": "Server command" });
   const history = []; let hi = 0; let seq = 0;
 
-  const cls = (line) => line.user ? "l-user" : /\/(ERROR|FATAL)\]|Exception/.test(line.text) ? "l-error" : /\/WARN\]/.test(line.text) ? "l-warn" : "";
+  const cls = (line) => line.user ? "l-user" : /\/(ERROR|FATAL)\]|Exception/.test(line.text) ? "l-error cc-log-error" : /\/WARN\]/.test(line.text) ? "l-warn cc-log-warning" : /Done \(|joined the game|Server ready/i.test(line.text) ? "cc-log-success" : "";
   const poll = async () => {
     const r = await api(`/api/console?since=${seq}`).catch(() => null);
     if (!r || !r.lines.length) return;
     const stick = out.scrollHeight - out.scrollTop - out.clientHeight < 40;
     seq = r.last;
     const frag = document.createDocumentFragment();
-    for (const l of r.lines) frag.append(h("div", { class: cls(l) }, l.text));
+    for (const l of r.lines) {
+      const stamp = l.text.match(/^\[[0-9: .-]+\]/);
+      frag.append(h("div", { class: "cc-log-line " + cls(l) },
+        stamp ? h("span", { class: "cc-log-timestamp" }, stamp[0]) : null,
+        stamp ? l.text.slice(stamp[0].length) : l.text));
+    }
     out.append(frag);
     while (out.childElementCount > (compact ? 500 : 3000)) out.firstChild.remove();
     if (stick) out.scrollTop = out.scrollHeight;
@@ -860,8 +872,8 @@ function consolePanel({ compact = false } = {}) {
     else if (e.key === "ArrowUp" && hi > 0) { input.value = history[--hi]; e.preventDefault(); }
     else if (e.key === "ArrowDown") { hi = Math.min(history.length, hi + 1); input.value = history[hi] || ""; }
   });
-  const el = h("div", { class: compact ? "console-panel" : "console-wrap" },
-    out, h("div", { class: "console-input" }, input, h("button", { class: "btn primary", onclick: send }, "Send")));
+  const el = h("section", { class: "card cc-panel cc-console-widget " + (compact ? "console-panel" : "console-wrap"), "aria-label": "Live console" },
+    h("h3", {}, "Live console"), out, h("div", { class: "console-input" }, input, h("button", { class: "btn primary", onclick: send }, "Send")));
   return { el, input, poll };
 }
 
@@ -896,7 +908,7 @@ function meter(label) {
   const value = h("strong", {});
   const fillBar = h("div", { class: "bar-fill" });
   const note = h("div", { class: "muted small" });
-  const el = h("div", { class: "card meter" },
+  const el = h("div", { class: "card meter cc-metric-card" },
     h("div", { class: "meter-head" }, h("span", {}, label), value), h("div", { class: "bar", "aria-hidden": "true" }, fillBar), note);
   return {
     el,
@@ -1154,12 +1166,12 @@ views.dashboard = () => {
   const online = h("div", { class: "online" });
   const onlineCount = h("span", { class: "muted" });
   const mapLink = h("div");  // the web map, when there is one and it answers (Settings → Web map)
-  const playerCard = h("div", { class: "card" }, h("h3", {}, "Online now ", onlineCount), online, mapLink);
+  const playerCard = h("div", { class: "card" }, h("h3", {}, "Connected Players ", onlineCount), online, mapLink);
   api("/api/webmap").then((r) => {
     if (r.kind && r.answers) fill(mapLink, h("a", { class: "btn small ghost mt-s", href: hubInfo && hubInfo.local ? r.local_url : r.lan_url || r.local_url,
       target: "_blank", rel: "noopener noreferrer" }, `🗺 ${t("See where everyone is on the map")} ↗`));
   }).catch(() => null);
-  const cpu = meter("CPU"), mem = meter("Memory");
+  const cpu = meter("CPU"), mem = meter("RAM"), disk = meter("Disk"), players = meter("Players");
   const perf = perfCard();
   const tun = tunnelCard();
   const con = consolePanel({ compact: true });
@@ -1173,6 +1185,9 @@ views.dashboard = () => {
 
   const gb = (n) => n < 1024 ** 3 ? Math.round(n / 1024 ** 2) + " MB" : (n / 1024 ** 3).toFixed(n >= 10 * 1024 ** 3 ? 0 : 1) + " GB";
   const renderMeters = (s) => {
+    players.set(s.max_players ? 100 * s.players.length / s.max_players : 0, `${s.players.length} / ${s.max_players}`, "Connected players");
+    disk.set(s.disk && s.disk.total_bytes ? 100 * s.disk.used_bytes / s.disk.total_bytes : null,
+      s.disk ? gb(s.disk.used_bytes) : "—", s.disk ? `${gb(s.disk.free_bytes)} free on server volume` : "Disk usage unavailable");
     const r = s.resources;
     if (!r) {
       const idle = s.state === "starting" ? "starting…" : "server stopped";
@@ -1300,16 +1315,18 @@ views.dashboard = () => {
     h("h2", { class: "view-title" }, "Dashboard"),
     problemBox,
     lagBanner,
-    h("div", { class: "meters" }, cpu.el, mem.el),
+    h("section", { class: "cc-panel cc-dashboard", "aria-label": "Server dashboard" },
+      h("div", { class: "cc-telemetry-grid", "aria-label": "Server telemetry" }, cpu.el, mem.el, disk.el, players.el),
+      h("div", { class: "cc-dashboard-layout" }, con.el,
+        h("aside", { class: "cc-dashboard-rail", "aria-label": "Server details" }, playerCard,
+          card("Runtime Parameters", statusBody,
+            h("div", { class: "row mt-s" }, h("button", { class: "btn small", onclick: openDoctor }, "🩺 Check my setup"),
+              folderBtn("server", "Server folder"), folderBtn("world", "World folder")))))),
     h("div", { class: "mt" }, perf.el),
     tun.el,
-    h("div", { class: "mt" }, playerCard),
     askingNotice(),
     hubInfo && hubInfo.local ? h("div", { class: "mt" }, playHereCard()) : null,
-    h("div", { class: "card mt" }, h("h3", {}, "Console"), con.el),
-    h("div", { class: "grid mt" }, card("Server", statusBody,
-      h("div", { class: "row mt-s" }, h("button", { class: "btn small", onclick: openDoctor }, "🩺 Check my setup"),
-        folderBtn("server", "Server folder"), folderBtn("world", "World folder"))), card("Updates", update)),
+    card("Updates", update),
     h("div", { class: "card mt" }, h("h3", {}, "Activity"), events),
   );
   if (status) render(status);
@@ -3483,6 +3500,7 @@ const HELP = [
       h("a", { href: "https://github.com/silverWRX03/craft-conductor/blob/main/docs/headless.md", target: "_blank", rel: "noopener noreferrer" }, "Step-by-step guide ↗"),
       " · ", h("a", { href: "https://github.com/silverWRX03/craft-conductor/blob/main/docs/docker.md", target: "_blank", rel: "noopener noreferrer" }, "Docker ↗"))]],
   ["remote", "Using Craft Conductor from your phone", () => [
+    h("p", {}, "The hamburger menu at the top left opens navigation. The Light / Dark slider inside it remembers your theme. On desktop the slider is in the top bar. The Dashboard shows CPU, RAM, server-volume Disk usage and Players in four cards, above the boxed Live console."),
     h("p", {}, "Open ", h("button", { type: "button", class: "link-btn", onclick: openRemoteAccess }, "Remote access & phones"),
       ": set a strong password, allow other devices, and pair your phone by scanning a QR code. Away from home, use Tailscale rather than opening ports.")]],
   ["keyboard", "Keyboard, screen readers and display", () => [
@@ -5666,9 +5684,21 @@ const SERVER_VIEWS = [["dashboard", "Dashboard"], ["console", "Console"], ["play
   ["mods", "Mods"], ["friends", "Friends"], ["backups", "Backups"], ["java", "Java"], ["settings", "Settings"]];
 let currentName = null;
 
+const NAV_ICONS = {"dashboard":"M3 3h18v18H3z M3 9h18 M9 9v12","console":"M3 4h18v16H3z M7 9l3 3-3 3 M13 15h4","players":"M6 20v-2a6 6 0 0 1 12 0v2 M9 4h6v6H9z","mods":"M12 3l9 5v9l-9 5-9-5V8z M3 8l9 5 9-5 M12 13v9","backups":"M4 5h16v15H4z M4 10h16 M4 15h16","settings":"M4 7h16 M4 17h16 M9 4v6 M15 14v6","manual":"M12 5C9 3 5 3 3 4v15c3-1 6-1 9 1 M12 5c3-2 7-2 9-1v15c-3-1-6-1-9 1 V5","default":"M4 4h16v16H4z M8 8h8 M8 12h8 M8 16h5"};
+function navIcon(href) {
+  const name = href.split("/").pop().replace("#", "");
+  const span = h("span", { class: "cc-nav-icon", "aria-hidden": "true" });
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24"); svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor"); svg.setAttribute("stroke-width", "1.5");
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("d", NAV_ICONS[name] || NAV_ICONS.default); svg.append(path); span.append(svg);
+  return span;
+}
+
 function renderNav() {
   const hb = hubInfo || {};
-  const a = (href, label, active, extra) => h("a", { href, class: active ? "active" : null, "aria-current": active ? "page" : null }, label, extra || null);
+  const a = (href, label, active, extra) => h("a", { href, class: active ? "active" : null, "aria-current": active ? "page" : null }, navIcon(href), h("span", {}, label), extra || null);
   const me = server && hb.servers ? hb.servers.find((x) => x.id === server) : null;
   const pending = me ? me.setup_pending : false;
   fill($("#nav"),
@@ -5699,6 +5729,7 @@ function renderNav() {
 }
 
 function route() {
+  closeAppNavigation();
   closeBrowser(true);
   const hash = (location.hash || "#servers").slice(1);
   document.body.classList.remove("browse-mode");
@@ -5730,6 +5761,42 @@ function route() {
 }
 let routed = false;
 window.addEventListener("hashchange", () => { if (!$("#app").classList.contains("hidden")) route(); });
+
+// Responsive application navigation. Existing routes and permissions stay in renderNav().
+const appNavigation = window.matchMedia("(max-width: 1023px)");
+const menuTrigger = $("#cc-app-menu"), appSidebar = $(".sidebar"), menuOverlay = $("#cc-app-overlay");
+function closeAppNavigation(returnFocus = false) {
+  appSidebar.classList.remove("open"); menuOverlay.classList.remove("open");
+  menuTrigger.setAttribute("aria-expanded", "false");
+  $(".content").inert = false;
+  appSidebar.inert = appNavigation.matches;
+  if (returnFocus) menuTrigger.focus();
+}
+function syncAppNavigation() {
+  closeAppNavigation();
+  (appNavigation.matches ? $("#cc-theme-mobile") : $("#cc-theme-desktop")).append($("#cc-app-theme"));
+}
+menuTrigger.addEventListener("click", () => {
+  if (appSidebar.classList.contains("open")) { closeAppNavigation(true); return; }
+  appSidebar.inert = false; $(".content").inert = true;
+  appSidebar.classList.add("open"); menuOverlay.classList.add("open");
+  menuTrigger.setAttribute("aria-expanded", "true");
+  const first = appSidebar.querySelector("a"); if (first) first.focus();
+});
+menuOverlay.addEventListener("click", () => closeAppNavigation(true));
+$("#nav").addEventListener("click", (e) => { if (e.target.closest("a")) closeAppNavigation(); });
+document.addEventListener("keydown", (e) => {
+  if (!appSidebar.classList.contains("open")) return;
+  if (e.key === "Escape") { e.preventDefault(); closeAppNavigation(true); }
+  if (e.key === "Tab") {
+    const items = [menuTrigger, ...focusables(appSidebar)];
+    const index = items.indexOf(document.activeElement);
+    if (e.shiftKey && index <= 0) { e.preventDefault(); items[items.length - 1].focus(); }
+    else if (!e.shiftKey && index === items.length - 1) { e.preventDefault(); items[0].focus(); }
+  }
+});
+appNavigation.addEventListener("change", syncAppNavigation);
+syncAppNavigation();
 
 async function start() {
   await loadLanguage("/");  // (i18n.js: the chosen language's words, before anything is drawn)

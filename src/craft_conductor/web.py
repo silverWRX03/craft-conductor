@@ -85,6 +85,7 @@ STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/rich.js": ("rich.js", "text/javascript; charset=utf-8"),
           "/manual.md": ("manual.md", "text/markdown; charset=utf-8"),
           "/style.css": ("style.css", "text/css; charset=utf-8"),
+          "/craft-conductor-theme.css": ("craft-conductor-theme.css", "text/css; charset=utf-8"),
           "/icon.png": ("icon.png", "image/png"),
           "/icon-192.png": ("icon-192.png", "image/png"),
           "/icon-512.png": ("icon-512.png", "image/png"),
@@ -1955,8 +1956,17 @@ class Api:
             "id": self.sid,
             "auth": self.web.auth.info(),
             "resources": self._resources(),
+            "disk": self._disk_usage(),
             "problem": d.problem,
         }
+
+    def _disk_usage(self) -> dict | None:
+        """Filesystem capacity, without recursively scanning world or backup files."""
+        try:
+            volume = shutil.disk_usage(self.m.server_dir if self.m.server_dir.exists() else self.m.config.root)
+            return {"total_bytes": volume.total, "used_bytes": volume.used, "free_bytes": volume.free}
+        except OSError:
+            return None
 
     def _resources(self) -> dict | None:
         """CPU and memory use of the running server, for the dashboard's bars."""
