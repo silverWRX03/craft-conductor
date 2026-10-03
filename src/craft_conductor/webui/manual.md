@@ -4,6 +4,10 @@ Craft Conductor (Minecraft server manager) sets up a Minecraft server on your ow
 
 This manual is also inside Craft Conductor: open **User manual** (or **Help**) in the control panel. It comes with Craft Conductor, so it always matches the version you have and is updated with it. Craft Conductor is in beta: back up anything you can't afford to lose.
 
+Help and User manual slide over the current page. Their contents appear on the left in place of the control menu. **Close Help** or **Escape** returns to the same page and scroll position, with unsaved entries intact. On a phone, the contents appear above the help text.
+
+In the app, expand **See this screen** for current screenshots; they ship with the manual and work offline. Screenshots use example servers.
+
 
 ## What Craft Conductor can and can't do
 
@@ -20,7 +24,7 @@ This manual is also inside Craft Conductor: open **User manual** (or **Help**) i
 - make your computer reachable from the internet on every network: friends outside your home need **port forwarding** on your router. Craft Conductor can ask the router to do it (UPnP) when the router allows it; otherwise the Help page shows how;
 - make mods work together when their authors haven't; it can only tell you and wait for updates;
 - download CurseForge mods whose authors block downloads by other apps (you download those yourself; Craft Conductor gives you the link);
-- run your server while your computer is off; it isn't a hosting service. Bedrock Edition isn't supported.
+- run your server while your computer is off; it isn't a hosting service. Bedrock players can join supported Java servers through Geyser (see Friends).
 
 ## Getting started
 
@@ -86,6 +90,7 @@ The mods in these run on the server only, so friends join with plain Minecraft. 
 **World generation & map preview** (under the new world's settings) slides open beside the form:
 
 - **World generation mods** lists Modrinth's world-generation mods (or plugins) that work with your server type and Minecraft version. Ticking one adds it to the server's mods (with what it needs); unticking removes it.
+- A release mod may need a library that only publishes beta or alpha builds. Craft Conductor names those required libraries and asks before allowing early builds for that mod and its dependencies. Declining leaves the incompatibility visible; it does not silently omit the required library.
 - Type a **seed** (or press 🎲 for a random one), pick the world type and a map size, and press **Preview map**. Craft Conductor makes the world in a private server on this computer (nobody can join it), with all the mods you've picked, the mods they need, and the Chunky mod to generate the area (the line under the list counts them, and the progress names them), then draws it from above: north is up, one pixel is one block, and ★ is the spawn point. Point at the map to see the coordinates and the biome there.
 - **Landmarks:** villages, pillager outposts, temples, woodland mansions, ocean monuments, igloos, witch huts, shipwrecks, ruined portals, ancient cities, trail ruins, trial chambers and the like are marked on the map with a symbol (point at one for its name and coordinates), including a world-generation mod's own structures. The **Landmarks** list under the map counts them and gives each one's coordinates; on the map you can move around, pick one to go there. **Show them on the map** hides or shows the symbols. Mineshafts and buried treasure (underground, and everywhere) aren't shown; strongholds are.
 - **Move around the map:** drag it to move, and scroll (or press **+** and **−**) to zoom, from 4 pixels a block out to 32 blocks a pixel. **⌖ Back to spawn** brings you back. Where the land hasn't been made yet the map is checkered; press **Make this area** and the private server makes the land in view (it asks first when that takes more than a minute), or tick **Keep making the map as I move** and it makes the land as you go. The private server stays on while you explore, and stops by itself after five minutes of not being needed.
@@ -113,7 +118,7 @@ A spare PC, a home server or a Raspberry Pi 4/5 (64-bit) can run your servers wi
 
 Everyday messages ("Saved", or what went wrong) appear at the **top of the screen** for a few seconds; click one to dismiss it. When Craft Conductor needs an answer (use Aikar's flags? install an craft-conductor update? a mod test finished), it asks in the **middle of the screen** with the page blurred behind, and waits until you choose. A long mod test shows its progress at the top while you keep working.
 
-Questions you'll meet again and again ("Stop the server?", "Quit Craft Conductor?", "Update to Minecraft …?", mods with only beta builds, Aikar's flags) have a **Don't ask me again** box, and notices you've read (online-mode is off, a mod test takes a while, closing the tab doesn't stop Craft Conductor) have **Don't show again** or **Got it**. Craft Conductor remembers that in this browser; **Craft Conductor settings → Warnings → Show all warnings again** brings them all back. Questions about deleting or replacing things always ask.
+Questions you'll meet again and again ("Stop the server?", "Quit Craft Conductor?", "Update to Minecraft …?", mods with only beta builds, Aikar's flags) have a **Don't ask me again** box, and notices you've read (online-mode is off, a mod test takes a while, closing the tab doesn't stop Craft Conductor) have **Don't show again** or **Got it**. Craft Conductor remembers that in this browser; **Craft Conductor settings → Sounds & notifications → Warnings → Show all warnings again** brings them all back. Questions about deleting or replacing things always ask.
 
 **Warnings about this computer** show in a strip at the top of every page while they last: little disk space left on the drive with a server or its backups (under 10 GB, and in red under 3 GB), the CPU busy (90% or more) for five minutes, the computer almost out of memory, or the running servers given more memory than the computer has. Each says what to do. Craft Conductor looks every minute; each warning is also written to the log and sent to phones with notifications on, once when it starts (and again only after it has gone away, at most every six hours). **Hide** hides it on this page until it changes.
 
@@ -173,7 +178,7 @@ Minecraft's live output. Type a server command (without the `/`, e.g. `say hello
 
 Players online and players who have joined before, with **Op/De-op**, **Kick**, **Ban/Pardon** and **Whitelist**. The **Whitelist** card turns it on (only listed players can join) or off. **Add or manage a player** works for people who haven't joined yet.
 
-**Asking to join:** when the whitelist is on, friends setting up with your invite can send their Minecraft name. They appear at the top of the Players page (and the Dashboard says so): **Allow** adds them to the whitelist, **Ignore** drops the request. A browser notification can tell you too (Craft Conductor settings → Notifications). Only someone with your invite can ask, and requests are limited.
+**Asking to join:** when the whitelist is on, friends setting up with your invite can send their Minecraft name. They appear at the top of the Players page (and the Dashboard says so): **Allow** adds them to the whitelist, **Ignore** drops the request. A browser notification can tell you too (Craft Conductor settings → Sounds & notifications → Notifications). Only someone with your invite can ask, and requests are limited.
 
 **Player activity** (at the bottom of the Players page): who played over the **Last 7, 30 or 90 days**, with their time played, visits and when they were last seen, and a grid of the week, one square per hour, darker when more people are usually on (your computer's time). After a few days of play it names the **quietest time** (usually nobody on, preferring the early morning) and the busiest, and **Restart every day at this time** makes that the scheduled restart (Settings → Schedule). Craft Conductor notes each visit as players join and leave (in `.craft-conductor/activity.jsonl`, kept for 90 days); nothing is sent anywhere.
 
@@ -181,13 +186,15 @@ Players online and players who have joined before, with **Op/De-op**, **Kick**, 
 
 Installed mods with their versions: **Download mods** (the mod browser), **Local files**, mark a mod required or optional, **Remove** it (with the mods it needed, if nothing else needs them), and **Mod config files** to edit a mod's settings in the page (with colours for TOML, JSON, YAML and more). **Test these mods** checks a set of mods in a throwaway server, so your world is never touched; if they don't start together, **Find the culprits** adds them back a group at a time until it knows which ones clash. Changes apply at the next restart.
 
-**Known conflicts:** when other people found that mods on this page don't work together (on the same loader and Minecraft version), a warning says which, and how many people reported it. It comes from Craft Conductor's shared list of mod conflicts (see Craft Conductor settings → Mod conflicts). If your server starts fine, you can ignore it.
+**Known conflicts:** when other people found that mods on this page don't work together (on the same loader and Minecraft version), a warning says which, and how many people reported it. It comes from Craft Conductor's shared list of mod conflicts (see Craft Conductor settings → Connections → Mod conflicts). If your server starts fine, you can ignore it.
 
 **Paper and Purpur servers (plugins):** the page is called **Plugins**. **Download plugins** searches **Modrinth** and **Hangar** (PaperMC's own plugin site; pick it as the source): tick plugins and press **Add selected**, and Craft Conductor keeps them updated with Minecraft like mods, checking each file (Hangar's SHA-256). A plugin Hangar only links to elsewhere is listed to download yourself. **Plugins you added yourself** (jars dropped into the plugins folder, or uploaded with **Local files**) can be **switched off** (kept as `.jar.disabled`), switched back on, or removed. Plugin settings are under **Mod config files** (the `plugins/<plugin>/` folders), with `purpur.yml`, `bukkit.yml` and `spigot.yml` from the server folder (Purpur's own settings are in `purpur.yml`).
 
 **Saved mod lists:** **Save the current mods** under a name, and **Switch to it** later: the mods you had are saved first as "Before …", so you can always switch back. Craft Conductor offers to install the switched list right away (the server restarts after the countdown). **⬇** downloads a list as a file, and **Load a list from a file…** adds one, say from another server. The friends' extra mods are part of each list.
 
 ## Updates
+
+**Show why** checks builds for the selected Minecraft version and server type. Green means a release build is available, yellow means only early builds, red means none, and gray means compatibility could not be checked. A failed lookup never means ready. Local JAR files appear as unknown: identify them on **Mods**, or disable them before changing Minecraft versions. Updates to managed mods on the current Minecraft version remain available. Explicitly choosing a Minecraft version still respects the setting to wait for every mod.
 
 Craft Conductor checks for updates by itself and applies them when it's safe:
 
@@ -247,9 +254,9 @@ On the server's **Friends** page, switch on "Make a download for friends". Then:
 
 For power users, **Advanced: invite codes and security** shows the raw invite codes (for `craft-conductor join <code>`).
 
-**For friends outside your home:** press **Use my public IP** (or type your address under Craft Conductor settings → Sharing with friends), and forward two TCP ports on your router to this computer: the Minecraft port (25565 for the first server) and the friends' port (8766 unless you changed it).
+**For friends outside your home:** press **Use my public IP** (or type your address under Craft Conductor settings → Connections → Sharing with friends), and forward two TCP ports on your router to this computer: the Minecraft port (25565 for the first server) and the friends' port (8766 unless you changed it).
 
-- **Let Craft Conductor do it:** **Craft Conductor settings → Sharing with friends → Open the ports on my router by itself (UPnP)**. Craft Conductor asks the router to forward each server's Minecraft port and the friends' port to this computer, renews that while it runs, and takes the ports back when you switch it off or quit Craft Conductor. It shows which ports worked, your router's internet address, and warns when forwarding can't help (your provider shares one address between homes, called CGNAT, or there are two routers). **Check my setup** shows it too.
+- **Let Craft Conductor do it:** **Craft Conductor settings → Connections → Sharing with friends → Open the ports on my router by itself (UPnP)**. Craft Conductor asks the router to forward each server's Minecraft port and the friends' port to this computer, renews that while it runs, and takes the ports back when you switch it off or quit Craft Conductor. It shows which ports worked, your router's internet address, and warns when forwarding can't help (your provider shares one address between homes, called CGNAT, or there are two routers). **Check my setup** shows it too.
 - **By hand:** many routers have UPnP switched off. The Help page has pictures; every router is different, so check its manual if you get stuck.
 
 **What friends get:** the Minecraft version, mod loader and every mod that runs on players' computers (server-only mods are left out), plus the mods you add under **Mods for players**, and the memory you choose for their Minecraft. Mods that server mods need on players' computers are added by themselves (a message says which and why).
@@ -266,13 +273,15 @@ If your router or internet provider doesn't let you forward ports, [playit.gg](h
 
 1. Download playit from playit.gg, run it, and claim it in your playit.gg account (it shows a link).
 2. In playit.gg, add a **Minecraft Java** tunnel to this server's port (25565 unless you changed it). Put the address it gives you in the server's **Settings → playit.gg tunnel**.
-3. For friends' downloads (the invite) from outside, add a **TCP** tunnel to the friends' download port (8766 unless changed) and put its address, with the port, in **Craft Conductor settings → Sharing with friends → No port forwarding? Use playit.gg**. Internet invites then use it.
+3. For friends' downloads (the invite) from outside, add a **TCP** tunnel to the friends' download port (8766 unless changed) and put its address, with the port, in **Craft Conductor settings → Connections → Sharing with friends → No port forwarding? Use playit.gg**. Internet invites then use it.
 
 With a tunnel set, the Dashboard shows **playit.gg tunnel**: Craft Conductor asks the server for its status through the tunnel, the way a friend's game does, and says whether it's **working**, whether it answers with a **different server** (point the tunnel at this server's port), or can't be reached. It also says if the playit program isn't running here, and links to playit.gg's status page. Craft Conductor checks every 5 minutes and notes in the activity (and on Discord, if set up) when the tunnel stops or starts working. **Check my setup** includes it too.
 
 ### Bedrock players (phones, tablets, consoles)
 
 Friends playing Minecraft on a phone, a tablet, Windows (the Microsoft Store version) or a console can join a Fabric, Quilt, NeoForge, Paper or Purpur server through [Geyser](https://geysermc.org). On the Friends page, press **Let Bedrock players join**: Craft Conductor adds the Geyser and Floodgate mods from Modrinth and offers to install them now (the server restarts after the countdown). Bedrock players then use **Play → Servers → Add Server** with your address and the Bedrock port (19132 unless Geyser's config says otherwise), and sign in with their own Microsoft account; they don't need Java Edition.
+
+The setup checks both mods first. When a compatible Geyser build is labeled beta or alpha, it offers that build with an early-build confirmation. Accepting applies to the bridge mod and its dependencies; other mods keep their existing release policy.
 
 - For friends outside your home, also forward **UDP** port 19132 on your router (Bedrock uses UDP).
 - Xbox, PlayStation and Switch can't add servers by themselves; GeyserMC's guide shows the workarounds.
@@ -304,7 +313,7 @@ Craft Conductor never asks for your Microsoft password: your launcher signs you 
 
 ## Remote access and phones
 
-By default only the server's own computer can open the control panel. **Craft Conductor settings → Remote access & phones** (also a button on the New server page) lets other devices in:
+By default only the server's own computer can open the control panel. **Craft Conductor settings → Connections → Remote access & phones** (also a button on the New server page) lets other devices in:
 
 - It needs a **strong password**: 12+ characters with an uppercase letter, a lowercase letter and a special character. PINs don't work from other devices.
 - **Pair a phone** by scanning the QR code with its camera and opening the link. The code works once, for five minutes. The phone signs in by itself afterwards, with its own key. At the **Tailscale, secure** address, the phone then offers to install the app (see The phone app); at other addresses Craft Conductor opens in the phone's browser, and the dialog says so. No secure address yet? **Set up the secure Tailscale address** is right there.
@@ -316,13 +325,13 @@ By default only the server's own computer can open the control panel. **Craft Co
 
 ### The phone app
 
-Craft Conductor can live on your phone's home screen like an app, and send **notifications** even when it's closed: when a server crashes or won't start, a friend asks to join, an update is held back, the lag finder finds something, and everything else Craft Conductor would post to Discord. It's set up under **Craft Conductor settings → Phone app**:
+Craft Conductor can live on your phone's home screen like an app, and send **notifications** even when it's closed: when a server crashes or won't start, a friend asks to join, an update is held back, the lag finder finds something, and everything else Craft Conductor would post to Discord. It's set up under **Craft Conductor settings → Connections → Phone app**:
 
 1. **A secure address.** Phones only install web apps and deliver their notifications for a page with a real certificate. The easy way is **Tailscale** (free for personal use): install it on this computer and your phone, signed in to the same account, then press **Check for Tailscale** and **Use Tailscale for the phone app**. The control panel gets an address like `https://your-computer.your-tailnet.ts.net` that only your own devices can reach; it isn't on the internet. (The first time, Tailscale may ask you to switch HTTPS on for your account: follow the link, then press the button again.) It needs a strong password first, because the phone signs in as another device. A Cloudflare Tunnel or your own domain with a real certificate works too (add its name to `[web] allowed_hosts`).
 2. **Put it on your phone.** Pair the phone under **Remote access & phones** with the **Tailscale, secure** address (Tailscale on on the phone), or open the secure address on the phone and sign in. After scanning the pairing QR code:
    - **Android:** the phone is paired, then **Install the app** puts Craft Conductor on the home screen (or, in Chrome's menu, **⋮ → Install app** or **Add to Home screen**). If there's no such option, the QR code opened inside the camera app: open the page in Chrome first.
    - **iPhone or iPad:** the page says **Get the app first**: press **Share → Add to Home Screen**, open Craft Conductor from the Home Screen, choose **Pair with a code** and type the code the page shows. iPhones only allow notifications for apps added this way, and the Home Screen app doesn't share Safari's sign-in, which is why it's paired there. (**Just use it in Safari** pairs Safari instead.)
-3. **Turn on notifications here**, in the app, under **Craft Conductor settings → Phone app**. **Send a test** checks it works. Each device with notifications on is listed; **Remove** stops them for that device, and **Turn off** does it on the device itself.
+3. **Turn on notifications here**, in the app, under **Craft Conductor settings → Connections → Phone app**. **Send a test** checks it works. Each device with notifications on is listed; **Remove** stops them for that device, and **Turn off** does it on the device itself.
 4. **Choose what you hear about.** Under **Notify this device about**, tick what this device should get: a server crashed or wouldn't start, friends asking to join, updates, lag, backups, the playit.gg tunnel, this computer (disk space, CPU, memory), a server started (off at first) and everything else. Each device has its own choices, kept when notifications are turned off and on again.
 
 The app follows the phone's light or dark setting (unless you pick Light or Dark with the theme slider), and the phone's status bar matches.
@@ -332,6 +341,8 @@ The app follows the phone's light or dark setting (unless you pick Light or Dark
 Notifications go through your phone's own push service (Apple's, Google's, Mozilla's or Microsoft's), encrypted so that only your phone can read them. A paired phone can turn its own notifications on and off, even as a viewer.
 
 ## Craft Conductor settings
+
+Choose a section from the menu: **Appearance** (Language and Display), **Sounds & notifications** (Sounds, Notifications and Warnings), **Sign-in & security**, **Connections** (Remote access & phones, Phone app, Sharing with friends, CurseForge, Discord and Mod conflicts), or **About & updates**. Switching sections preserves what you typed. Settings that need saving have a Save button.
 
 - **Sign-in:** change your password or PIN. There's always one.
 - **Remote access & phones:** see above.
@@ -368,7 +379,7 @@ Everything in Craft Conductor works with the keyboard and a screen reader (NVDA,
 
 **The server won't start or setup failed.** The message says where the failure report is (in the server folder, under `.craft-conductor/logs`). It has the error, what Craft Conductor was doing and the server's last output; Minecraft's own log is `logs/latest.log` in the server folder. If a mod is to blame, Craft Conductor names it: remove it or wait for an update.
 
-**"Port ... is busy."** Another program (or another server) uses that port. Pick another on the server's Settings page, or for the friends' port under Craft Conductor settings → Sharing.
+**"Port ... is busy."** Another program (or another server) uses that port. Pick another on the server's Settings page, or for the friends' port under Craft Conductor settings → Connections → Sharing with friends.
 
 **Friends can't connect from outside.** Check both ports are forwarded to this computer's local address, that you pressed **Use my public IP** again (home addresses change), and that your internet provider allows it (some don't; Tailscale or a VPN works then).
 

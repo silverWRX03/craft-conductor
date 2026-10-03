@@ -67,7 +67,10 @@ def test_the_newest_minecraft_every_mod_supports(hub_env, http, modrinth):
     assert c.post("/api/hub/singleplayer/delete", {"id": "../../x"})[0] == 404
 
 
-def test_launchers_set_up_a_game_without_a_server(tmp_path, http):
+def test_launchers_set_up_a_game_without_a_server(tmp_path, http, monkeypatch):
+    # Command discovery must not inspect the user's actual launcher installation.
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "local"))
+    monkeypatch.setenv("ProgramFiles", str(tmp_path / "programs"))
     http.files["https://cdn.modrinth.com/data/SOD/sodium.jar"] = b"jar"
     import hashlib
     pack = {"format": 1, "name": "Cozy", "minecraft": "1.21.1", "loader": "fabric", "loader_version": "0.16.5",

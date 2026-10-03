@@ -78,7 +78,7 @@ sudo ufw allow 8798/tcp      # friends' downloads, if you use them
 |---|---|
 | Status | `ssh minecraft@192.168.1.50 craft-conductor service status --panel` (or `~/.local/bin/craft-conductor ...`) |
 | Logs | `ssh minecraft@192.168.1.50 journalctl --user -u craft-conductor -f` |
-| Update Craft Conductor | from the control panel (Craft Conductor settings → Check for updates), or run the install command again |
+| Update Craft Conductor | from the control panel (Craft Conductor settings → About & updates → Check for updates), or run the install command again |
 | Remove the service | `ssh minecraft@192.168.1.50 craft-conductor service uninstall --panel` (your servers stay in `~/craft-conductor`) |
 | Forgot the password | `ssh` in, delete `~/craft-conductor/.craft-conductor/web-auth.json`, then `systemctl --user restart craft-conductor` for a new one-time password |
 

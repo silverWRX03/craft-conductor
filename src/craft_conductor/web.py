@@ -42,7 +42,7 @@ from .hub import Hub
 from .minecraft import Mojang
 from .http import HttpError, sha1_file
 from .java import JavaError
-from .mods import ModError
+from .mods import ModError, Unavailable
 from .mods.modrinth import ModrinthProvider, keep_buildable
 from .planner import lowest
 from .players import PlayerError, Players
@@ -96,6 +96,9 @@ STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/i18n.js": ("i18n.js", "text/javascript; charset=utf-8"),
           # the page's words in other languages (see i18n.js)
           **{f"/i18n/{code}.json": (f"i18n/{code}.json", "application/json; charset=utf-8") for code in LANGUAGES}}
+SCREENSHOTS = ("servers", "new-server", "map-preview", "dashboard", "console", "players", "updates",
+               "update-readiness", "mods", "friends", "backups", "java", "settings", "craft-conductor-settings", "help")
+STATIC.update({f"/screenshots/{name}.png": (f"screenshots/{name}.png", "image/png") for name in SCREENSHOTS})
 SECURITY_HEADERS = {
     "Content-Security-Policy": "default-src 'self'; img-src 'self' https: data:; style-src 'self'; "
                                "script-src 'self'; connect-src 'self'; frame-ancestors 'none'",
@@ -704,7 +707,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         except HttpError as e:  # a website craft-conductor depends on didn't answer
             log.warning("web request needed %s, which failed: %s", e.url, e)
             self._fail(502, e.friendly)
-        except (ConfigError, ModError, JavaError, PlayerError, RuntimeError, ValueError, OSError) as e:
+        except (ConfigError, ModError, Unavailable, JavaError, PlayerError, RuntimeError, ValueError, OSError) as e:
             self._fail(400, str(e))
         except Exception as e:  # pragma: no cover - last resort
             log.exception("web request failed")
@@ -846,16 +849,21 @@ def mod_requirements(provider: ModrinthProvider, mod_id: str, loaders: tuple[str
         seen.add(pid)
         try:
             dep = provider.project(pid)
-        except ModError:
-            continue
+        except ModError as e:
+            return {"project": info, "compatible": False, "reason": f"couldn't check a required mod: {e}",
+                    "deps": deps, "companions": companions}
         if dep.server_side == "unsupported":  # only players need it: it goes in friends' downloads
             companions.append({"id": dep.id, "slug": dep.slug, "name": dep.name, "needed_by": needed_by})
             continue
         dep_version = newest(dep.id)
         deps.append({"id": dep.id, "slug": dep.slug, "name": dep.name, "needed_by": needed_by,
-                     "compatible": dep_version is not None})
+                     "compatible": dep_version is not None,
+                     "channel": dep_version.get("version_type", "release") if dep_version else None})
         if dep_version is not None:
             queue += [(x, dep.name) for x in required(dep_version)]
+    if queue:
+        return {"project": info, "compatible": False, "reason": "too many required mods to check; check this set before installing",
+                "deps": deps, "companions": companions}
     return {"project": info, "compatible": all(d["compatible"] for d in deps), "deps": deps, "companions": companions,
             "reason": next((f"it needs {d['name']}, which has no build for Minecraft {minecraft}"
                             for d in deps if not d["compatible"]), "")}
@@ -1845,6 +1853,7 @@ class Api:
         get("/api/performance", self.performance)
         get("/api/join-requests", self.join_requests)
         get("/api/bedrock", self.bedrock)
+        get("/api/bedrock/check", self.bedrock_check)
         get("/api/tunnel", self.tunnel)
         get("/api/world/tools", self.world_tools)
         get("/api/modsets", self.modsets)
@@ -2023,6 +2032,9 @@ class Api:
                         "channel": channel if channel not in (None, "unknown") else None,
                         "required": x.required, "needed_by": names.get(x.dependency_of or "", None)})
         order = {"red": 0, "yellow": 1, "unknown": 2, "green": 3}
+        for name in self.m.unmanaged_jars():
+            out.append({"name": name, "key": f"local:{name}", "version": "local file", "state": "unknown",
+                        "channel": None, "required": True, "needed_by": None})
         out.sort(key=lambda m: (order[m["state"]], m["name"].lower()))
         return {"minecraft": version, "installed": self.m.lock.minecraft,
                 "loader": {"name": loader.name, "state": loader_state, "version": loader_version},
@@ -2188,9 +2200,8 @@ class Api:
             try:
                 req = mod_requirements(self._modrinth(), project.id, self.m.loader.mod_loaders, self.m.lock.minecraft,
                                        channel=lowest(self.m.config.updates.mod_channel, early))
-            except (ModError, HttpError) as e:
-                log.debug("couldn't check %s's requirements: %s", project.name, e)
-                req = None
+            except (ModError, HttpError, Unavailable) as e:
+                raise ApiError(400, f"couldn't check {project.name}'s required mods: {e}") from e
             if req is not None:
                 if not req["compatible"] and self.m.lock.minecraft:
                     raise ApiError(400, f"can't add {project.name}: " + (req["reason"] or "no compatible build"))
@@ -2521,6 +2532,26 @@ class Api:
         return {"supported": loader in self.BEDROCK_LOADERS, "geyser": "geyser" in ids, "floodgate": "floodgate" in ids,
                 "installed": any(x.name.lower().startswith("geyser") for x in self.m.lock.mods), "port": port,
                 "minecraft": self.m.lock.minecraft}
+
+    def bedrock_check(self, q, b) -> dict:
+        """Preflight both bridge mods, including explicitly offered early builds."""
+        if not self.bedrock({}, {})["supported"]:
+            raise ApiError(400, "this server type doesn't support Geyser")
+        version = self.m.lock.minecraft or self.m.planner().current_version()
+        provider = self._modrinth()
+        mods = []
+        for slug in ("geyser", "floodgate"):
+            project = provider.project(slug)
+            channel = provider.best_channels([project.id], self.m.loader.mod_loaders, version)[project.id]
+            if channel == "unknown":
+                raise ApiError(502, f"couldn't check {project.name}; try again in a moment")
+            if channel is None:
+                raise ApiError(400, f"{project.name} has no {self.m.loader.name} build for Minecraft {version}")
+            req = mod_requirements(provider, project.id, self.m.loader.mod_loaders, version, channel=channel)
+            if not req["compatible"]:
+                raise ApiError(400, req["reason"])
+            mods.append({"id": slug, "name": project.name, "source": "modrinth", "channel": channel})
+        return {"mods": mods, "minecraft": version}
 
     # ------------------------------------------- friends asking to join
     def join_requests(self, q, b) -> dict:

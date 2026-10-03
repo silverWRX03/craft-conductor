@@ -354,6 +354,7 @@ def test_exploring_the_map_from_the_page(hub_env, modrinth, monkeypatch):
     assert c.get(f"/api/hub/preview?id={r['id']}")[1]["state"] == "done"
     info = c.get(f"/api/hub/map?id={r['id']}")[1]
     assert info["version"] == 0 and info["regions"] and info["areas"][0][2] == 128
+    assert info["spawn"] == {"x": 0, "z": 0}  # browser tile coordinates use named axes
     status, png, headers = c.get(f"/api/hub/map/tile?id={r['id']}&s=1&x=0&z=0")
     assert status == 200 and headers["Content-Type"] == "image/png"
     assert c.get(f"/api/hub/map/biome?id={r['id']}&x=5&z=5")[1] == {"biome": "minecraft:plains", "made": True}

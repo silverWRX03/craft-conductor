@@ -8,6 +8,24 @@ from conftest import FakeLoader, FakeMojang
 RELEASES = ["1.21.1", "1.21.2", "1.21.3", "1.21.4"]
 
 
+def test_explicit_upgrade_also_waits_for_optional_mods(make_config, http, modrinth):
+    modrinth.project("OLD", "oldmod")
+    modrinth.version("OLD", "1.0", ["1.21.1"])
+    p = planner(make_config([ModSpec("modrinth", "oldmod", required=False)]), http)
+    decision = p.decide("1.21.2")
+    assert decision.plan is None
+    assert decision.blocked[0].blockers[0].waiting
+
+
+def test_local_files_block_minecraft_changes_but_not_current_mod_updates(make_config, http):
+    p = planner(make_config([]), http)
+    p.unmanaged = ["my-worldgen.jar"]
+    decision = p.decide("1.21.2")
+    assert decision.plan is None
+    assert decision.blocked[0].blockers[0].name == "my-worldgen.jar"
+    assert p.decide("1.21.1").plan is not None
+
+
 def planner(config, http, lock=None, supported=None):
     mojang = FakeMojang(http, RELEASES)
     loader = FakeLoader(http, mojang, supported)

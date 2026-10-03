@@ -13,6 +13,28 @@ from test_hub import login
 from test_manager import manager, update
 
 
+def test_readiness_lookup_failure_is_unknown_and_local_files_are_included(hub_env, modrinth):
+    from craft_conductor.http import HttpError
+    hub, c = hub_env
+    login(c)
+    modrinth.project("MOD", "mod")
+    modrinth.version("MOD", "1", ["1.21.1"])
+    assert c.post("/api/servers/alpha/mods/add", {"id": "mod"})[0] == 200
+    m = hub.get("alpha").m
+    assert update(m).ok
+    (m.mods_dir / "local.jar").write_bytes(b"local test file")
+    hub.http.json[f"{API}/project/MOD/version"] = HttpError("https://api.modrinth.com", 503, "unavailable")
+    r = c.get("/api/servers/alpha/updates/readiness?version=1.21.2")[1]
+    assert r["counts"]["unknown"] == 2 and r["counts"]["green"] == 0
+
+
+def test_release_file_must_match_loader_even_if_api_filter_fails(http, modrinth):
+    modrinth.project("MOD", "mod")
+    modrinth.version("MOD", "1", ["1.21.1"], loaders=("forge",))
+    http.json[f"{API}/project/MOD/version"] = modrinth.versions["MOD"]
+    assert ModrinthProvider(http).best_channels(["MOD"], ("fabric",), "1.21.1") == {"MOD": None}
+
+
 def publish(modrinth, http):
     modrinth.project("GOOD", "goodmod", "Good Mod")
     modrinth.version("GOOD", "1.0", ["1.21.1"])

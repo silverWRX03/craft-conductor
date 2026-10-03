@@ -4,6 +4,22 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.22.1 (not released yet)
+
+**Fixed**
+- The world-generation preview could show only a checkerboard even though land and landmarks had been generated.
+- Update readiness no longer calls failed lookups ready or leaves local mod files out. Minecraft upgrades wait for unverified local files, and explicitly chosen upgrades also respect the setting to wait for every mod.
+- Release-ready indicators stay green in both themes.
+- Required dependencies that cannot be looked up no longer silently disappear from the install plan.
+- Selecting a world-generation mod offers required beta libraries by name, including TerraBlender for Oh The Biomes We’ve Gone, instead of leaving the dependency unresolved under a release-only selection.
+- Bedrock setup offers compatible Geyser beta builds with an early-build confirmation instead of saying no build exists.
+- Restored the slide animations when opening and closing side panels, while keeping the underlying page's scroll position.
+
+**Changed**
+- Craft Conductor settings are grouped into Appearance, Sounds & notifications, Sign-in & security, Connections, and About & updates.
+- Help and User manual open over the current page, with contents on the left. Close Help or Escape returns to the same page and preserves unsaved entries.
+- Updated the application and Windows icons from the supplied artwork, and refreshed the Help and manual screenshots.
+
 ## 0.22.0 (2026-10-02)
 
 **Changed**

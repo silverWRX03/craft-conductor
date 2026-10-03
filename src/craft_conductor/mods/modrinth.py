@@ -43,20 +43,22 @@ class ModrinthProvider(ModProvider):
         params = {"loaders": json.dumps(list(loaders))}
         if minecraft:
             params["game_versions"] = json.dumps([minecraft])
-        return self.http.get_json(f"{API}/project/{project_id}/version", params=params)
+        versions = self.http.get_json(f"{API}/project/{project_id}/version", params=params)
+        # Verify each file's metadata too; never trust only a search/API filter.
+        return [v for v in versions if set(loaders).intersection(v.get("loaders", []))
+                and (minecraft is None or minecraft in v.get("game_versions", []))]
 
     def best_channels(self, project_ids: list[str], loaders: tuple[str, ...], minecraft: str,
                       workers: int = 6) -> dict[str, str | None]:
         """For each project, the most stable kind of build it has for these loaders and this
         Minecraft: "release", "beta" or "alpha", or None when it has none. Search results can't
         say (their version and loader lists cover all of a mod's builds together), so this looks
-        at each mod's builds, several at a time. A mod that can't be looked up counts as "release"
-        rather than being hidden."""
+        at each mod's builds, several at a time. A failed lookup is "unknown", never ready."""
         def one(pid: str) -> str | None:
             try:
                 versions = self._versions(pid, loaders, minecraft)
             except HttpError:
-                return "release"
+                return "unknown"
             kinds = {v.get("version_type", "release") for v in versions if minecraft in v.get("game_versions", [])}
             return min(kinds, key=lambda k: CHANNEL_RANK.get(k, 9)) if kinds else None
         ids = list(dict.fromkeys(project_ids))
@@ -126,8 +128,10 @@ class ModrinthProvider(ModProvider):
             if not pid and d.get("version_id"):
                 try:
                     pid = self.http.get_json(f"{API}/version/{d['version_id']}").get("project_id")
-                except HttpError:
-                    pid = None  # can't tell which mod it is
+                except HttpError as e:
+                    raise Unavailable("couldn't check a required dependency; try again before installing") from e
+            if not pid:
+                raise Unavailable("a required dependency has no project id; check the mod's installation instructions")
             if pid and pid not in out:
                 out.append(pid)
         return out
@@ -169,6 +173,8 @@ def keep_buildable(channels: dict[str, str | None], hits: list[dict], early: boo
         channel = channels.get(hit[key], "release")
         if channel is None:
             hidden += 1
+        elif channel == "unknown":
+            out.append({**hit, "channel": None})
         elif channel != "release" and not early:
             early_hidden += 1
         else:

@@ -44,18 +44,22 @@ TITLES = {"Friends: playing with friends": "Playing with friends",
           "What Craft Conductor can and can't do": "What it can and can't do"}
 # Screenshots shown on each page, after its first paragraph: (file in wiki/images, caption).
 IMAGES = {
+    "Your servers": [("servers.png", "Your servers")],
     "Creating a server": [("new-server.png", "New server"), ("mod-browser.png", "The mod browser"),
                           ("map-preview.png", "World generation & map preview, with landmarks")],
     "Dashboard": [("dashboard.png", "The Dashboard"), ("check-my-setup.png", "Check my setup")],
     "Console": [("console.png", "The Console")],
     "Players": [("players.png", "The Players page"), ("player-activity.png", "Player activity")],
-    "Updates": [("updates.png", "The Updates page")],
+    "Updates": [("updates.png", "The Updates page"), ("update-readiness.png", "Release readiness stays green")],
+    "Mods": [("mods.png", "Installed mods and their dependencies")],
+    "Java": [("java.png", "Java versions")],
+    "Friends: playing with friends": [("friends.png", "Invites and Bedrock players")],
     "Backups": [("backups.png", "The Backups page")],
     "Settings": [("settings.png", "Settings"), ("web-map.png", "Web map")],
     "Remote access and phones": [("remote-access.png", "Remote access & phones")],
     "Craft Conductor settings": [("craft-conductor-settings.png", "Craft Conductor settings"),
                                  ("display.png", "Display: size, contrast and motion")],
-    "Troubleshooting": [("help.png", "Help, with the router guide")],
+    "Troubleshooting": [("help.png", "Help with contents on the left; Close Help returns to your page")],
 }
 
 

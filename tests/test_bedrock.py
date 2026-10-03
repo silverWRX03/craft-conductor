@@ -6,6 +6,20 @@ from craft_conductor.config import ModSpec
 from test_hub import login
 
 
+def test_bedrock_offers_beta_without_changing_server_policy(hub_env, modrinth):
+    hub, c = hub_env
+    login(c)
+    modrinth.project("GEY", "geyser", "Geyser")
+    modrinth.version("GEY", "2.11", ["1.21.1"], version_type="beta")
+    modrinth.project("FLO", "floodgate", "Floodgate")
+    modrinth.version("FLO", "2.2", ["1.21.1"])
+    code, r, _ = c.get("/api/servers/alpha/bedrock/check")
+    assert code == 200
+    assert [(x["id"], x["channel"]) for x in r["mods"]] == [("geyser", "beta"), ("floodgate", "release")]
+    assert hub.get("alpha").m.config.updates.mod_channel == "release"
+    assert not {s.id for s in hub.get("alpha").m.config.mods} & {"geyser", "floodgate"}
+
+
 def test_bedrock_status(hub_env):
     hub, c = hub_env
     login(c)

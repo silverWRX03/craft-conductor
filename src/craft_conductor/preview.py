@@ -622,7 +622,8 @@ class MapSession:
 
     def to_dict(self) -> dict:
         folder = region_folder(self.world)
-        return {"id": self.id, "version": self.version, "areas": self.areas, "spawn": self.spawn,
+        return {"id": self.id, "version": self.version, "areas": self.areas,
+                "spawn": {"x": self.spawn[0], "z": self.spawn[1]} if self.spawn is not None else None,
                 "landmarks": self.landmarks(),
                 "rate": self.rate, "running": bool(self.proc and self.proc.running), "job": self.job,
                 "regions": sorted([int(m.group(1)), int(m.group(2))] for p in folder.glob("r.*.mca")

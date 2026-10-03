@@ -215,7 +215,7 @@ th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: upp
 .notice.bad { border-inline-start-color: var(--danger); }
 
 /* first-run notice */
-.modal-backdrop { position: fixed; inset: 0; background: var(--backdrop); display: grid; place-items: center; padding: 16px; z-index: 20; }
+.modal-backdrop { position: fixed; inset: 0; background: var(--backdrop); display: grid; place-items: center; padding: 16px; z-index: 100; }
 .modal { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 24px 26px;
   max-width: 640px; width: 100%; max-height: calc(calc(100 * var(--vh)) - 32px); overflow: auto; box-shadow: 0 12px 48px var(--shadow-strong); }
 .modal h2 { margin: 0 0 14px; font-size: 19px; }
@@ -355,26 +355,27 @@ body.browse-mode main { padding: 0; overflow: hidden; }
 .rich table { display: block; overflow-x: auto; }
 /* in the page: what was there slides left into a rail, the browser fills the rest */
 .stage { display: flex; flex: 1; min-height: 0; position: relative; overflow: hidden; }
-.stage > main { flex: 1 1 auto; min-width: 0; transition: flex-basis .25s ease, opacity .25s ease, transform .25s ease; }
-.stage.browsing > main { flex: 0 0 0; padding: 0; opacity: 0; transform: translateX(-40px); overflow: hidden; pointer-events: none; }
-.browse-rail { flex: 0 0 52px; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 16px 0;
+.stage > main { flex: 1 1 auto; min-width: 0; transition: opacity .25s ease, transform .25s ease; }
+.stage.browsing > main { opacity: 0; transform: translateX(-100%); pointer-events: none; }
+.browse-rail { position: absolute; inset-block: 0; inset-inline-start: 0; width: 52px; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 16px 0;
   border: 0; border-inline-end: 1px solid var(--border); background: var(--panel-2); color: var(--muted); cursor: pointer;
   font: inherit; animation: rail-in .25s ease-out; }
 .browse-rail:hover, .browse-rail:focus-visible { color: var(--text); background: var(--panel); }
 .rail-arrow { font-size: 26px; line-height: 1; }
 .rail-label { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 13px; font-weight: 600; letter-spacing: .3px; }
-.inpage-browser { flex: 1 1 auto; min-width: 0; display: flex; animation: browser-in .3s ease-out; }
-.inpage-browser.leaving { animation: browser-out .25s ease-in forwards; position: absolute; inset: 0; }
+.inpage-browser { position: absolute; inset-block: 0; inset-inline-start: 52px; inset-inline-end: 0; min-width: 0; display: flex; background: var(--bg); animation: browser-in .3s ease-out; }
+.inpage-browser.leaving { animation: browser-out .25s ease-in forwards; pointer-events: none; }
 .inpage-browser > .browse { flex: 1; height: 100%; min-height: 0; }
 @keyframes rail-in { from { transform: translateX(-52px); } to { transform: none; } }
-@keyframes browser-in { from { opacity: 0; transform: translateX(60px); } to { opacity: 1; transform: none; } }
-@keyframes browser-out { from { opacity: 1; } to { opacity: 0; transform: translateX(60px); } }
+@keyframes browser-in { from { opacity: 0; transform: translateX(100%); } to { opacity: 1; transform: none; } }
+@keyframes browser-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(100%); } }
 @media (prefers-reduced-motion: reduce) {
-  .stage > main, .browse-rail, .inpage-browser { transition: none; animation: none; }
+  :root:not([data-motion="normal"]) .stage > main, :root:not([data-motion="normal"]) .browse-rail,
+  :root:not([data-motion="normal"]) .inpage-browser { transition: none; animation: none; }
 }
 @media (max-width: 760px) {
-  .stage.browsing { flex-direction: column; overflow: auto; }
-  .browse-rail { flex: 0 0 auto; flex-direction: row; justify-content: center; padding: 10px; border-inline-end: 0; border-bottom: 1px solid var(--border); }
+  .browse-rail { inset-block-end: auto; width: 100%; height: 48px; flex-direction: row; justify-content: center; padding: 10px; border-inline-end: 0; border-bottom: 1px solid var(--border); }
+  .inpage-browser { inset-block-start: 48px; inset-inline-start: 0; overflow: auto; }
   .rail-label { writing-mode: horizontal-tb; transform: none; }
   .inpage-browser > .browse { height: auto; }
   .browse { grid-template-columns: 1fr; grid-template-rows: calc(60 * var(--vh)) auto; height: auto; }
@@ -559,7 +560,7 @@ ol.steps { padding-inline-start: 20px; line-height: 1.6; }
 .readiness h2 { margin: 0; }
 .readiness .legend { gap: 6px 10px; flex-wrap: wrap; margin: 8px 0 12px; color: var(--muted); }
 .dotc { width: 12px; height: 12px; border-radius: 50%; flex: 0 0 12px; display: inline-block; background: var(--border); }
-.dotc.green { background: var(--accent); }
+.dotc.green { background: var(--ok-fg, #22c55e); }
 .dotc.yellow { background: var(--warn, #e0b400); }
 .dotc.red { background: var(--danger, #d9534f); }
 .ready-row { align-items: center; }
@@ -782,3 +783,29 @@ ul.checklist { list-style: none; padding: 0; margin: 4px 0 8px; display: grid; g
 .health .notice { margin: 0; }
 fieldset.choices { border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 12px 10px; margin: 10px 0 0; display: grid; gap: 6px; }
 fieldset.choices legend { padding: 0 4px; color: var(--muted); }
+
+/* Settings retain their DOM while switching sections, including unsaved edits. */
+.preferences-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 24px; max-width: 1180px; }
+.preferences-nav { display: flex; flex-direction: column; gap: 8px; align-self: start; position: sticky; top: 0; }
+.preferences-button { text-align: start; white-space: normal; }
+.preferences-button[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 3px 0 var(--accent); }
+.preferences-panel > .card, .preferences-panel > div { margin-bottom: 16px; }
+.preferences-panel > h3 { margin-top: 0; }
+.help-overlay { position: fixed; inset: 0; z-index: 85; display: grid; grid-template-columns: 240px minmax(0, 1fr); background: var(--bg); animation: browser-in .3s ease-out; }
+.help-overlay.leaving { animation: browser-out .25s ease-in forwards; pointer-events: none; }
+.help-contents { overflow: auto; background: var(--panel); border-inline-end: 1px solid var(--border); padding: 20px 14px; }
+.help-contents .help-toc { margin-top: 20px; padding: 12px; }
+.help-contents .help-toc ul { columns: 1; }
+.help-content { overflow: auto; padding: 28px 32px; min-width: 0; }
+@media (max-width: 760px) {
+  .preferences-layout { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .preferences-nav { position: static; flex-direction: row; flex-wrap: wrap; }
+  .help-overlay { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(100px, 28vh) minmax(0, 1fr); }
+  .help-content { padding: 16px; }
+}
+@media (prefers-reduced-motion: reduce) { :root:not([data-motion="normal"]) .help-overlay { animation: none; } }
+@media print {
+  body:has(.help-overlay) #app > :not(.help-overlay), .help-contents { display: none !important; }
+  .help-overlay { position: static; display: block; }
+  .help-content { overflow: visible; }
+}

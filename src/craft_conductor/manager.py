@@ -113,7 +113,7 @@ class Manager:
 
     # ------------------------------------------------------------- planning
     def planner(self) -> Planner:
-        return Planner(self.config, self.lock, self.mojang, self.loader, self.providers)
+        return Planner(self.config, self.lock, self.mojang, self.loader, self.providers, self.unmanaged_jars())
 
     def check(self, target: str | None = None, retry_failed: bool = False) -> tuple[Decision, Changes | None]:
         if hasattr(self.http, "clear_cache"):
@@ -311,6 +311,11 @@ class Manager:
         returned in :attr:`Result.process`.
         """
         changes = plan.changes(self.lock)
+        if changes.minecraft and self.lock.installed and plan.minecraft != self.lock.minecraft:
+            local = self.unmanaged_jars()
+            if local:
+                return Result(False, "Minecraft compatibility is unverified for local files: " + ", ".join(local)
+                              + ". Identify or disable them on the Mods page before upgrading.", server)
         if changes.empty:
             return Result(True, "already up to date", server)
         old_mc = self.lock.minecraft
