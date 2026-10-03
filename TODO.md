@@ -171,6 +171,10 @@ Next:
         reproduce before deciding whether this relates to completed item 14 or open item 27.
 33. [ ] **Contextual help drawer:** Help opens the relevant section in a panel that slides in
         from the right; users can collapse it back to the right without leaving their work.
+34. [ ] **Dashboard Connected Players widget:** compact player management on the Dashboard,
+        with connected count / maximum capacity, player status, names, role badges, live ping,
+        per-player KICK, and Whitelist Control and Broadcast footer actions; update without
+        a full Dashboard refresh.
 
 ## Plans for the items left (details to start from)
 
@@ -405,3 +409,19 @@ translations, documentation, and changelog entries current.
   reduced-motion support.
 - Acceptance: Help opens the correct section from each supported context; collapse returns
   to the same work state; keyboard and mobile users can open, read, and close it reliably.
+
+**34. Dashboard Connected Players widget**
+- Goal: upgrade the Dashboard's Connected Players widget into a compact player-management
+  interface, with the requested controls available directly on the Dashboard without requiring
+  a separate player page. This is a pending roadmap item, not an implemented feature.
+- Show the connected player count / maximum server capacity in the header (for example,
+  `14 / 30`).
+- Give each connected player a row with an online/status indicator, Minecraft username,
+  role/permission badge such as OP or MOD, live ping in milliseconds, an optional visual
+  latency state, and a per-player KICK action.
+- Add Whitelist Control and Broadcast actions in the widget's footer: view/manage the server
+  whitelist and send a server-wide message to connected players.
+- Update player status, count, roles, and ping dynamically without a full Dashboard refresh.
+- Acceptance: the header reflects current occupancy and capacity; each player row shows the
+  requested information and KICK action; both footer actions work from the Dashboard; player
+  changes appear dynamically while management stays compact and on the Dashboard.
