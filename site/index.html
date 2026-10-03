@@ -79,5 +79,36 @@
     <footer>Evaluation build · <a href="https://github.com/silverWRX03/craft-conductor">Repository</a></footer>
   </div>
   </div>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const trigger = document.getElementById('ccMenuTrigger');
+  const sidebar = document.getElementById('ccSidebarNav');
+  const overlay = document.getElementById('ccNavOverlay');
+  const navItems = document.querySelectorAll('.cc-nav-item');
+
+  function toggleMenu() {
+    trigger.classList.toggle('open');
+    sidebar.classList.toggle('open');
+    overlay.classList.toggle('open');
+  }
+
+  function closeMenu() {
+    trigger.classList.remove('open');
+    sidebar.classList.remove('open');
+    overlay.classList.remove('open');
+  }
+
+  // Handle Event Triggers
+  if (trigger && sidebar && overlay) {
+    trigger.addEventListener('click', toggleMenu);
+    overlay.addEventListener('click', closeMenu);
+
+    // Auto-collapse instantly once a sub-selection is triggered
+    navItems.forEach(item => {
+      item.addEventListener('click', closeMenu);
+    });
+  }
+});
+</script>
 </body>
 </html>
