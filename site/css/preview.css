@@ -70,3 +70,18 @@ footer { margin-top:20px; font-size:11px; } a { color:var(--silver-bright); }
   font-weight: 600;
 }
 .cc-nav-item:focus-visible { outline: 1px solid var(--magma-orange); outline-offset: -1px; }
+
+/* One accessible theme slider, placed in the mobile drawer or desktop header. */
+.theme-control { display: flex; align-items: center; gap: 10px; }
+.theme-label { color: var(--silver-industrial); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.theme-slider { position: relative; width: 42px; height: 22px; padding: 3px; border: 1px solid var(--border-basalt-bright); background: var(--bg-recessed); cursor: pointer; flex: 0 0 42px; }
+.theme-slider-thumb { display: block; width: 14px; height: 14px; background: var(--silver-bright); transition: transform .15s ease; }
+.theme-slider[aria-checked="true"] { border-color: var(--magma-orange); }
+.theme-slider[aria-checked="true"] .theme-slider-thumb { transform: translateX(20px); background: var(--magma-orange); }
+.cc-nav-theme:empty { display: none; }
+@media (max-width: 1023px) {
+  #desktop-theme-slot { display: none; }
+  .cc-nav-theme { margin: 20px 12px 0; padding-top: 16px; border-top: 1px solid var(--border-basalt-bright); }
+  .cc-sidebar-nav { overflow-y: auto; }
+}
+@media (prefers-reduced-motion: reduce) { .theme-slider-thumb { transition: none; } }

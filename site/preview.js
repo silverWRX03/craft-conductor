@@ -2,10 +2,30 @@
 // Sample-only interactions. No server requests or real server actions.
 const byId = (id) => document.getElementById(id);
 let running = true;
-byId("theme").addEventListener("change", (event) => {
-  if (event.target.value === "system") delete document.documentElement.dataset.theme;
-  else document.documentElement.dataset.theme = event.target.value;
+const themeSwitch = byId("theme");
+const themePreference = window.matchMedia("(prefers-color-scheme: dark)");
+let savedTheme;
+try { savedTheme = localStorage.getItem("cc-preview-theme"); } catch {}
+function applyTheme(dark) {
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  themeSwitch.setAttribute("aria-checked", String(dark));
+}
+applyTheme(savedTheme ? savedTheme === "dark" : themePreference.matches);
+themeSwitch.addEventListener("click", () => {
+  const dark = themeSwitch.getAttribute("aria-checked") !== "true";
+  applyTheme(dark);
+  savedTheme = dark ? "dark" : "light";
+  try { localStorage.setItem("cc-preview-theme", savedTheme); } catch {}
 });
+themePreference.addEventListener("change", (event) => {
+  if (!savedTheme) applyTheme(event.matches);
+});
+const mobileNavigation = window.matchMedia("(max-width: 1023px)");
+function placeThemeControl() {
+  byId(mobileNavigation.matches ? "mobile-theme-slot" : "desktop-theme-slot").append(byId("theme-control"));
+}
+placeThemeControl();
+mobileNavigation.addEventListener("change", placeThemeControl);
 function log(message, status = "") {
   const line = document.createElement("div");
   line.className = "cc-log-line";
