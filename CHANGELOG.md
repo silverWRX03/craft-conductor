@@ -7,6 +7,7 @@ its fix will say which version it's in.
 ## 0.22.1 (not released yet)
 
 **Fixed**
+- Translated phone setup instructions include the new Connections section and remain available after the settings reorganization.
 - The world-generation preview could show only a checkerboard even though land and landmarks had been generated.
 - Update readiness no longer calls failed lookups ready or leaves local mod files out. Minecraft upgrades wait for unverified local files, and explicitly chosen upgrades also respect the setting to wait for every mod.
 - Release-ready indicators stay green in both themes.
