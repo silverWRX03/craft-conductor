@@ -4,7 +4,7 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
-## 0.22.0 (not released yet)
+## 0.22.0 (2026-10-02)
 
 **Changed**
 - The control panel and invite pages now use the Industrial Silver, Obsidian and Magma theme, with raised widgets, a boxed console, four dashboard resource cards, and a mobile navigation drawer with a remembered Light / Dark slider.
