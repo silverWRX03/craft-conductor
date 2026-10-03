@@ -57,7 +57,7 @@ sudo ufw enable
 ```
 
 There's no router to forward: friends join at the server's address. For friends' invites, set
-**Craft Conductor settings → Sharing with friends → Your public address** to the server's address.
+**Craft Conductor settings → Connections → Sharing with friends → Your public address** to the server's address.
 
 ## Keeping it safe
 

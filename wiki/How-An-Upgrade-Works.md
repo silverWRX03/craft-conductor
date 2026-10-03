@@ -7,6 +7,12 @@ builds for them. When they do, it counts down in-game, backs up, swaps
 everything over, boots the new version to make sure it works, and
 **rolls back automatically** if it doesn't.
 
+Each candidate file must list the target Minecraft version and a compatible loader. Required
+dependencies are checked too; a failed lookup does not mean ready. Local JARs that Craft
+Conductor cannot identify block a Minecraft-version change until you identify or disable them
+on **Mods**. They remain untouched. Explicitly selecting a version still respects the
+`wait_for_all_mods` setting, and local files are checked again before an update is applied.
+
 It's one tool for both jobs: running the server (like autoMCS) and doing the
 fragile upgrade pipeline you'd otherwise do by hand.
 

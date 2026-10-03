@@ -25,7 +25,7 @@ where = ["src"]
 version = { attr = "craft_conductor.__version__" }
 
 [tool.setuptools.package-data]
-craft_conductor = ["webui/*", "webui/i18n/*"]
+craft_conductor = ["webui/*", "webui/i18n/*", "webui/screenshots/*.png"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

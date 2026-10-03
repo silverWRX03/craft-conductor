@@ -74,7 +74,7 @@ document.addEventListener("click", (e) => {
 });
 
 // ------------------------------------------------------------------ accessibility
-// Contrast and motion (Craft Conductor settings → Display), kept per browser; Automatic follows the
+// Contrast and motion (Craft Conductor settings → Appearance → Display), kept per browser; Automatic follows the
 // computer's own settings (see style.css).
 const CONTRAST_KEY = "craft-conductor-contrast", MOTION_KEY = "craft-conductor-motion";
 const DISPLAY = [[CONTRAST_KEY, "contrast", "high", "(prefers-contrast: more)"], [MOTION_KEY, "motion", "less", "(prefers-reduced-motion: reduce)"]];
@@ -83,6 +83,7 @@ function applyDisplay() {
     let v = "";
     try { v = localStorage.getItem(key) || ""; } catch (_) { /* private mode */ }
     if (v === on || (!v && window.matchMedia && window.matchMedia(query).matches)) document.documentElement.dataset[attr] = on;
+    else if (v === "normal") document.documentElement.dataset[attr] = "normal";
     else delete document.documentElement.dataset[attr];
   }
 }
@@ -204,7 +205,7 @@ function closeToast(id) { const el = document.getElementById(id); if (el) el.rem
 
 // Questions ("Stop the server?"): in the middle of the screen like other messages that need an
 // answer, and a promise of the answer. The ones people meet again and again have an `id` and a
-// "Don't ask me again" box; Craft Conductor settings → Warnings brings them all back.
+// "Don't ask me again" box; Craft Conductor settings → Sounds & notifications → Warnings brings them all back.
 const SKIP_KEY = "craft-conductor-skip-warnings";
 function skippedWarnings() { try { return JSON.parse(localStorage.getItem(SKIP_KEY) || "[]"); } catch (_) { return []; } }
 function skipWarning(id) { try { localStorage.setItem(SKIP_KEY, JSON.stringify([...new Set([...skippedWarnings(), id])])); } catch (_) { /* private mode */ } }
@@ -247,7 +248,7 @@ function toast(message, bad = false) {
 // ------------------------------------------------------------------ sounds
 // Short cues made here in the browser (no sound files), the same in the web page and the phone
 // app. On at a quiet volume; each kind can be turned off, and each device keeps its own choice
-// (Craft Conductor settings → Sounds). Never the only sign something happened.
+// (Craft Conductor settings → Sounds & notifications → Sounds). Never the only sign something happened.
 const SOUND_KEY = "craft-conductor-sounds";
 const SOUND_KINDS = [["tap", "Button presses"], ["go", "Start, save and install"], ["stop", "Stop and delete"],
   ["problem", "Something went wrong"], ["chime", "Heads-up: a server is up, a friend asks to join"]];
@@ -454,7 +455,7 @@ function passkeyCard() {
         } }, "Remove")))) : null,
       !r.allowed ? h("p", { class: "small" }, "Choose your own password first (Sign-in above).")
         : passkeysWork() ? h("button", { class: "btn", onclick: add }, "Add fingerprint or face sign-in on this device")
-          : h("div", { class: "notice small" }, "This page isn't on a secure address, so this browser can't use fingerprint or face sign-in here. Open Craft Conductor at its secure address (Craft Conductor settings → Phone app), or at localhost on this computer.")));
+          : h("div", { class: "notice small" }, "This page isn't on a secure address, so this browser can't use fingerprint or face sign-in here. Open Craft Conductor at its secure address (Craft Conductor settings → Connections → Phone app), or at localhost on this computer.")));
   };
   api("/api/hub/passkeys").then(render).catch(() => render(null));
   return box;
@@ -1395,10 +1396,11 @@ function openReadiness(versions, installed) {
     const n = r.counts;
     const verdict = r.loader.state === "red" ? `${r.loader.name} doesn't support Minecraft ${r.minecraft} yet, so nothing can move until it does.`
       : n.red ? `${n.red} mod${n.red === 1 ? " has" : "s have"} no build for Minecraft ${r.minecraft} yet.`
+        : n.unknown || r.loader.state === "unknown" ? "Compatibility could not be confirmed for every file. Check local files on Mods and retry any failed lookups before upgrading."
         : n.yellow ? `Every mod has a build, but ${n.yellow} only ${n.yellow === 1 ? "has" : "have"} alpha/beta builds. Craft Conductor waits for releases unless you allow early builds.`
           : `Everything is ready for Minecraft ${r.minecraft}. Run a check on the Updates tab to move.`;
     fill(body,
-      h("div", { class: "notice " + (r.loader.state === "red" || n.red ? "bad" : n.yellow ? "warn" : "ok") }, verdict),
+      h("div", { class: "notice " + (r.loader.state === "red" || n.red ? "bad" : n.yellow || n.unknown || r.loader.state === "unknown" ? "warn" : "ok") }, verdict),
       h("ul", { class: "list mt-s" },
         row(r.loader.state, `${r.loader.name[0].toUpperCase()}${r.loader.name.slice(1)} (server type)`,
           r.loader.state === "green" ? `ready (${r.loader.version})` : r.loader.state === "red" ? `no ${r.loader.name} build for Minecraft ${r.minecraft} yet` : "couldn't check it right now"),
@@ -2406,8 +2408,11 @@ function bedrockCard() {
     const turnOn = h("button", { class: "btn primary", onclick: async () => {
       turnOn.disabled = true;
       try {
-        for (const [id, have] of [["geyser", r.geyser], ["floodgate", r.floodgate]]) {
-          if (!have) await api("/api/mods/add", { method: "POST", body: { source: "modrinth", id, required: false } });
+        const check = await api("/api/bedrock/check");
+        const missing = check.mods.filter((m) => !r[m.id]);
+        if (!(await confirmEarly(missing))) { turnOn.disabled = false; return; }
+        for (const mod of missing) {
+          await api("/api/mods/add", { method: "POST", body: { ...mod, required: true } });
         }
         if (await ask(`Geyser and Floodgate are added. Install them now?\n\nThe server updates its mods for Minecraft ${r.minecraft} and restarts (players get the countdown first). Otherwise they're installed with the next update.`, { ok: "Install now" })) {
           await act(() => api("/api/updates/apply", { method: "POST", body: { target: r.minecraft } }), "Installing Geyser and Floodgate…");
@@ -2528,7 +2533,7 @@ views.friends = () => {
           "For the internet link to work, forward two TCP ports on your router to this computer: ", h("strong", {}, String(s.port)),
           " (the download) and ", h("strong", {}, String((status && status.port) || 25565)), " (Minecraft). Your public address can change; ",
           "press the button again if friends can't connect. You can also type an address (e.g. a domain) under ",
-          h("a", { href: "#craft-conductor" }, "Craft Conductor settings → Sharing"), "."))),
+          h("a", { href: "#craft-conductor" }, "Craft Conductor settings → Connections → Sharing with friends"), "."))),
       h("div", { class: "mt" }, card("What friends get",
         d.pack_error ? h("div", { class: "notice warn" }, d.pack_error)
           : !pack ? h("p", { class: "empty" }, "Install the server first; the list appears once it's set up.")
@@ -2607,23 +2612,78 @@ function openSidePane(el, label) {
   const rail = h("button", { type: "button", class: "browse-rail", title: `Back to ${back} (Esc)`, "aria-label": `Back to ${back}`,
     onclick: () => closeBrowser() }, h("span", { class: "rail-arrow" }, "‹"), h("span", { class: "rail-label" }, `Back to ${back}`));
   const panel = h("section", { class: "inpage-browser", "aria-label": label }, el);
+  const focus = document.activeElement;
+  $("#main").inert = true;
   stage.append(rail, panel);
   stage.classList.add("browsing");
-  browserOpen = { rail, panel };
+  browserOpen = { rail, panel, focus };
+  rail.focus({ preventScroll: true });
 }
 function closeBrowser(instant = false) {
   if (!browserOpen) return;
-  const { rail, panel } = browserOpen;
+  const { rail, panel, focus } = browserOpen;
   browserOpen = null;
   const stage = $("#stage");
   stage.classList.remove("browsing");
-  if (instant || matchMedia("(prefers-reduced-motion: reduce)").matches) { rail.remove(); panel.remove(); return; }
+  $("#main").inert = false;
+  if (!instant && focus && focus.isConnected) focus.focus({ preventScroll: true });
+  if (instant || lessMotion()) { rail.remove(); panel.remove(); return; }
   panel.classList.add("leaving");
   rail.remove();
   setTimeout(() => panel.remove(), 260);
 }
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && browserOpen && !document.querySelector(".modal")) closeBrowser();
+  if (e.key === "Escape" && helpOpen && !document.querySelector(".modal")) closeHelp();
+  else if (e.key === "Escape" && browserOpen && !document.querySelector(".modal")) closeBrowser();
+});
+
+function lessMotion() {
+  const choice = document.documentElement.dataset.motion;
+  return choice === "less" || (choice !== "normal" && matchMedia("(prefers-reduced-motion: reduce)").matches);
+}
+
+// Help overlays the navigation and content without routing away or rebuilding forms.
+let helpOpen = null;
+function closeHelp(instant = false) {
+  if (!helpOpen) return;
+  const { el, focus, inert } = helpOpen;
+  helpOpen = null;
+  for (const [node, before] of inert) node.inert = before;
+  if (!instant && focus && focus.isConnected) focus.focus({ preventScroll: true });
+  if (instant || lessMotion()) el.remove();
+  else { el.classList.add("leaving"); setTimeout(() => el.remove(), 260); }
+}
+function openHelp(name = "help") {
+  const previousFocus = helpOpen ? helpOpen.focus : document.activeElement;
+  closeHelp(true);
+  const content = h("div", { class: "help-content", tabindex: "-1" });
+  const contents = h("aside", { class: "help-contents" },
+    h("button", { class: "btn", type: "button", onclick: () => closeHelp() }, "← Close Help"),
+    h("div", { class: "row mt" },
+      h("button", { class: "btn small", onclick: () => openHelp("help") }, "Help"),
+      h("button", { class: "btn small", onclick: () => openHelp("manual") }, "User manual")));
+  const el = h("section", { class: "help-overlay", role: "dialog", "aria-modal": "true", "aria-label": name === "manual" ? "User manual" : "Help" }, contents, content);
+  const inert = [...$("#app").children].map((node) => [node, node.inert]);
+  for (const [node] of inert) node.inert = true;
+  $("#app").append(el);
+  helpOpen = { el, focus: previousFocus, inert };
+  views[name](content);
+  const toc = content.querySelector(".help-toc");
+  if (toc) contents.append(toc);
+  contents.querySelector("button").focus({ preventScroll: true });
+  el.addEventListener("keydown", (e) => {
+    if (e.key !== "Tab") return;
+    const nodes = focusables(el);
+    const first = nodes[0], last = nodes[nodes.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
+}
+document.addEventListener("click", (e) => {
+  const a = e.target.closest("a[href]");
+  if (e.defaultPrevented || !a || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+  const hash = a.getAttribute("href");
+  if (hash === "#help" || hash === "#manual") { e.preventDefault(); openHelp(hash.slice(1)); }
 });
 
 views.browse = (params) => {  // a direct #browse link: the browser on its own
@@ -3444,7 +3504,7 @@ function routerHelp(opts = {}) {
       " reach your server through your router, which has to be told to pass Minecraft's port on to this computer. That's called ",
       h("strong", {}, "port forwarding"), ", and you set it up once:"),
     h("div", { class: "notice" }, h("strong", {}, "Let Craft Conductor try first: "), "many routers can do it by themselves (UPnP). Switch on ",
-      h("a", { href: "#craft-conductor" }, "Craft Conductor settings → Sharing with friends → Open the ports on my router by itself"),
+      h("a", { href: "#craft-conductor" }, "Craft Conductor settings → Connections → Sharing with friends → Open the ports on my router by itself"),
       " and Craft Conductor says whether it worked. If it didn't, or you'd rather not, do it by hand:"),
     h("img", { class: "help-img", src: "/help-network.svg", alt: "A friend on the internet connects to your router, which forwards port " + mc + " to this computer." }),
     h("ol", { class: "steps" },
@@ -3467,6 +3527,12 @@ function routerHelp(opts = {}) {
 }
 
 const HELP = [
+  ["navigation", "Finding your way", () => [
+    h("p", {}, "Help and User manual keep your current page open underneath. Use the contents on the left, then Close Help or Escape to return to the same place, with your unsaved entries intact."),
+    h("p", {}, "Craft Conductor settings are grouped into Appearance, Sounds & notifications, Sign-in & security, Connections, and About & updates."),
+    h("img", { class: "help-img", src: "/screenshots/craft-conductor-settings.png", alt: "Craft Conductor settings with section navigation", loading: "lazy" }),
+    h("p", {}, "Update readiness uses green for releases, yellow for early builds, red for missing builds and gray when compatibility could not be checked. A Minecraft upgrade waits for unverified local files. World-generation mods bring their required mods; if one only has an early build, adding it asks you first."),
+    h("p", {}, "Bedrock setup checks both Geyser and Floodgate, and offers compatible early builds with a confirmation when releases are unavailable.")]],
   ["start", "Getting started", () => [
     h("p", {}, "Craft Conductor keeps your Minecraft servers running and up to date by themselves. Make a server under ", h("strong", {}, "New server"),
       ": pick the server type (Fabric, NeoForge, Forge, Quilt, Paper or plain Minecraft), the Minecraft version and your mods, then press ",
@@ -3507,16 +3573,22 @@ const HELP = [
     h("p", {}, "Everything works with the keyboard: Tab moves, Enter or Space presses, Escape closes a window. The first Tab reaches ",
       h("strong", {}, "Skip to main content"), ". Screen readers read out messages as they appear."),
     h("p", {}, "Bigger text, ", h("strong", {}, "High contrast"), " and ", h("strong", {}, "Less motion"), " are under ",
-      h("a", { href: "#craft-conductor" }, "Craft Conductor settings"), " → ", h("strong", {}, "Display"), ".")]],
+      h("a", { href: "#craft-conductor" }, "Craft Conductor settings"), " → Appearance → ", h("strong", {}, "Display"), ".")]],
 ];
 
 // The user manual (manual.md, part of Craft Conductor): the same text as on GitHub, shown here with a
 // table of contents. Sections link within the page; printing gives a paper copy.
 const MANUAL_ON_GITHUB = "https://github.com/silverWRX03/craft-conductor/wiki/Craft-Conductor-Manual";  // (the same manual, a page a section, with pictures)
-views.manual = () => {
+const MANUAL_PICTURES = {
+  "Creating a server": ["new-server", "map-preview"], "Dashboard": ["dashboard"], "Console": ["console"],
+  "Players": ["players"], "Updates": ["updates", "update-readiness"], "Mods": ["mods"],
+  "Friends: playing with friends": ["friends"], "Backups": ["backups"], "Java": ["java"],
+  "Settings": ["settings"], "Craft Conductor settings": ["craft-conductor-settings"], "Troubleshooting": ["help"],
+};
+views.manual = (target = $("#main")) => {
   const body = h("div", { class: "card manual" }, h("p", { class: "empty" }, "Loading the manual…"));
   const toc = h("nav", { class: "help-toc card" }, h("strong", {}, "Contents"));
-  fill($("#main"),
+  fill(target,
     h("div", { class: "row mb" }, h("h2", { class: "view-title grow" }, "User manual"),
       h("button", { class: "btn small", onclick: () => window.print() }, "🖨 Print"),
       h("a", { class: "btn small ghost", href: MANUAL_ON_GITHUB, target: "_blank", rel: "noopener noreferrer" }, "On the wiki, with pictures ↗")),
@@ -3527,6 +3599,11 @@ views.manual = () => {
       rich.querySelector("h1") && rich.querySelector("h1").remove();  // the page has its own title
       const heads = [...rich.querySelectorAll("h2, h3")];
       heads.forEach((el, i) => { el.id = `manual-${i}`; });
+      for (const heading of heads) {
+        const pictures = MANUAL_PICTURES[heading.textContent.trim()];
+        if (pictures) heading.after(h("details", { class: "manual-pictures" }, h("summary", {}, "See this screen"),
+          pictures.map((name) => h("img", { class: "help-img", src: `/screenshots/${name}.png`, alt: heading.textContent, loading: "lazy" }))));
+      }
       fill(toc, h("strong", {}, "Contents"), h("ul", {}, heads.map((el) => h("li", { class: el.tagName === "H3" ? "sub" : null },
         h("a", { href: "#manual", onclick: (e) => { e.preventDefault(); el.scrollIntoView({ behavior: "smooth" }); } }, el.textContent)))));
       fill(body, rich);
@@ -3536,8 +3613,8 @@ views.manual = () => {
   return {};
 };
 
-views.help = () => {
-  fill($("#main"), h("h2", { class: "view-title" }, "Help"),
+views.help = (target = $("#main")) => {
+  fill(target, h("h2", { class: "view-title" }, "Help"),
     hubInfo && hubInfo.guide ? h("div", { class: "card mb row" }, h("div", { class: "grow" }, h("strong", {}, "🧭 Guided setup"),
       h("div", { class: "muted small" }, "Step by step from making a server to a friend joining it, with each step ticked as you go.")),
       h("button", { class: "btn primary", onclick: startGuide }, hubInfo.guide.active ? "Show the guide" : "Start the guided setup")) : null,
@@ -3808,7 +3885,7 @@ function showPairing(code, inBrowser = false) {
     } catch (e) { toast(e.message, true); go.disabled = false; }
   } }, "Pair this phone");
   pairingScreen(h("p", {}, "Pair this phone with your Minecraft server manager?"),
-    typed ? h("label", {}, "The code shown on the computer (Craft Conductor settings → Remote access & phones)", typed) : null,
+    typed ? h("label", {}, "The code shown on the computer (Craft Conductor settings → Connections → Remote access & phones)", typed) : null,
     h("label", {}, "Name it (so you can tell phones apart)", name), go,
     typed ? h("button", { class: "btn ghost", onclick: () => { $("#pairing").remove(); showLogin(); } }, "Back") : null,
     h("p", { class: "muted small" }, "Only pair your own phone. You can sign it out any time in Craft Conductor settings on the computer."));
@@ -3820,7 +3897,7 @@ function showGetApp(installed = false) {
   if (!secureAddress()) {
     pairingScreen(h("h2", {}, "Paired ✓"),
       h("div", { class: "notice warn small" }, h("strong", {}, "This address opens Craft Conductor in the browser, not as an app."), " ",
-        t("Phones only install it as an app (with notifications, even when it's closed) from a secure address. On the computer: Craft Conductor settings → Phone app → Use Tailscale for the phone app, then pair again with the Tailscale, secure address.")),
+        t("Phones only install it as an app (with notifications, even when it's closed) from a secure address. On the computer: Craft Conductor settings → Connections → Phone app → Use Tailscale for the phone app, then pair again with the Tailscale, secure address.")),
       h("button", { class: "btn primary", onclick: () => start() }, "Continue"));
     return;
   }
@@ -4535,7 +4612,7 @@ function openSpEditor(game, done) {
   search();
 }
 
-// A notice people see every time, once they know it: "Don't show again" (see Craft Conductor settings → Warnings).
+// A notice people see every time, once they know it: "Don't show again" (see Craft Conductor settings → Sounds & notifications → Warnings).
 function dismissible(id, notice) {
   if (skippedWarnings().includes(id)) return null;
   notice.append(" ", h("button", { class: "link-btn small", onclick: () => { skipWarning(id); notice.remove(); } }, "Don't show again"));
@@ -4860,7 +4937,7 @@ async function phoneBanner() {
   if (kind === "plain") fill(box, h("strong", {}, "This is Craft Conductor in your browser, not the app yet."), " ",
     t("Phones only install it as an app (with notifications, even when it's closed) from a secure address."), " ",
     secureUrl ? h("span", {}, t("Open the secure address with Tailscale on:"), " ", h("a", { href: secureUrl }, secureUrl))
-      : t("On the computer, open Craft Conductor settings → Phone app → Use Tailscale for the phone app, then open the https://….ts.net address it shows here."),
+      : t("On the computer, open Craft Conductor settings → Connections → Phone app → Use Tailscale for the phone app, then open the https://….ts.net address it shows here."),
     h("div", { class: "row mt-s" }, notNow));
   else if (kind === "install") fill(box, h("strong", {}, "Put Craft Conductor on your home screen."), " ",
     iOS ? t("Press Share, then Add to Home Screen, and open it from there. It signs in separately: with your password, or Pair with a code.")
@@ -4996,7 +5073,7 @@ function phoneCard({ deviceOnly = false } = {}) {  // deviceOnly: just this phon
         h("ol", {},
           h("li", {}, "On the phone, open the secure address (with Tailscale on)."),
           h("li", {}, "iPhone or iPad: in Safari press Share → Add to Home Screen, then open Craft Conductor from the Home Screen. Android: in Chrome press ⋮ → Install app (or Add to Home screen)."),
-          h("li", {}, "In the app, go to Craft Conductor settings → Phone app → Turn on notifications here."))),
+          h("li", {}, "In the app, go to Craft Conductor settings → Connections → Phone app → Turn on notifications here."))),
       h("details", { class: "small" }, h("summary", {}, "Other ways to get a secure address"),
         h("p", {}, "A Cloudflare Tunnel, or your own domain with a reverse proxy (Caddy, nginx) that has a real certificate, works too: add its host name to [web] allowed_hosts, and keep a strong password, since that address is on the internet."))]);
   };
@@ -5070,11 +5147,6 @@ views["craft-conductor"] = () => {
             closeToast("self-update");
             await act(() => api("/api/self-update/check", { method: "POST", body: {} }), "Checking for a new Craft Conductor version…");
           } }, "Check for Craft Conductor updates"), s.single ? null : folderBtn("home", "Craft Conductor folder", null, "btn"))),
-      h("div", { class: "mt" }, languageCard()),
-      h("div", { class: "mt" }, displayCard()),
-      h("div", { class: "mt" }, soundsCard()),
-      h("div", { class: "mt" }, warningsCard()),
-      h("div", { class: "mt" }, notificationsCard()),
       h("div", { class: "mt" }, card("What Craft Conductor does and doesn't do",
         h("ul", { class: "notice-points" }, n.points.map((p) => h("li", {}, p))))),
       h("div", { class: "mt" }, card("Open-source licenses",
@@ -5126,7 +5198,26 @@ views["craft-conductor"] = () => {
   renderDc();
   const phone = hubInfo && !hubInfo.single ? phoneCard() : null;
   const owner = !(hubInfo && hubInfo.role && hubInfo.role !== "owner");
-  fill($("#main"), security, owner ? passkeyCard() : null, network, phone, sharing, cf, dc, owner && hubInfo && !hubInfo.single ? conflictsCard() : null, about);
+  const sections = [
+    ["Appearance", "Language, size, contrast and motion on this device.", languageCard(), displayCard()],
+    ["Sounds & notifications", "Choose what you hear and which alerts you see.", soundsCard(), notificationsCard(), warningsCard()],
+    ["Sign-in & security", "Manage how you and your devices sign in.", security, owner ? passkeyCard() : null],
+    ["Connections", "Phones, sharing with friends and connected services.", network, phone, sharing, cf, dc,
+      owner && hubInfo && !hubInfo.single ? conflictsCard() : null],
+    ["About & updates", "Craft Conductor version, updates and licenses.", about],
+  ];
+  const panels = sections.map(([title, description, ...cards], i) => h("section", {
+    id: `preferences-${i}`, class: "preferences-panel" + (i ? " hidden" : ""), "aria-labelledby": `preferences-button-${i}`,
+  }, h("h3", {}, title), h("p", { class: "muted" }, description), ...cards.filter(Boolean)));
+  const buttons = sections.map(([title], i) => h("button", { type: "button", id: `preferences-button-${i}`,
+    class: "btn preferences-button", "aria-controls": `preferences-${i}`, "aria-pressed": String(i === 0), onclick: () => {
+      panels.forEach((panel, n) => panel.classList.toggle("hidden", n !== i));
+      buttons.forEach((button, n) => button.setAttribute("aria-pressed", String(n === i)));
+    } }, title));
+  fill($("#main"), h("h2", { class: "view-title" }, "Craft Conductor settings"),
+    h("p", { class: "muted" }, "Choose a section to find the settings you need."),
+    h("div", { class: "preferences-layout" }, h("nav", { class: "preferences-nav", "aria-label": "Settings sections" }, buttons),
+      h("div", { class: "preferences-content" }, panels)));
   renderSecurity(hubInfo);
   renderSharing(hubInfo);
   loadAbout();
@@ -5182,9 +5273,24 @@ async function setupCheckMod(key, quiet = false) {
   const e = st.mods.get(key);
   if (!e || !st.loader || key.startsWith("curseforge:")) return;
   const v = setupModVersion();
-  const r = await api(`/api/hub/mods/requires?id=${encodeURIComponent(key)}&loader=${encodeURIComponent(st.loader)}` +
-    (v ? `&version=${encodeURIComponent(v)}` : "") + (e.channel ? `&channel=${e.channel}` : "")).catch(() => null);
+  const url = `/api/hub/mods/requires?id=${encodeURIComponent(key)}&loader=${encodeURIComponent(st.loader)}` +
+    (v ? `&version=${encodeURIComponent(v)}` : "");
+  let r = await api(url + (e.channel ? `&channel=${e.channel}` : "")).catch((err) => {
+    e.bad = `Couldn't check required mods: ${err.message}`; setupChanged(); return null;
+  });
   if (!r || st.mods.get(key) !== e) return;
+  if (!r.compatible && !quiet) {
+    for (const channel of ["beta", "alpha"].filter((c) => c !== e.channel)) {
+      const candidate = await api(url + `&channel=${channel}`).catch(() => null);
+      if (st.mods.get(key) !== e || setupModVersion() !== v) return;
+      if (!candidate || !candidate.compatible) continue;
+      const needed = candidate.deps.filter((d) => d.channel && d.channel !== "release");
+      if (await confirmEarly(needed.length ? needed : [{ name: e.name, channel }])) {
+        e.channel = channel; r = candidate;
+      }
+      break;
+    }
+  }
   e.name = r.project.name;
   e.bad = r.compatible ? "" : r.reason;
   e.companions = r.companions || [];  // what players need on their computers for it
@@ -5193,7 +5299,10 @@ async function setupCheckMod(key, quiet = false) {
   for (const d of r.deps) {
     const dk = d.slug || d.id;
     if (!st.mods.has(dk)) { st.mods.set(dk, { name: d.name, required: e.required, explicit: false, by: new Set(), bad: "", channel: e.channel }); added.push(d); }
-    st.mods.get(dk).by.add(key);
+    const dep = st.mods.get(dk);
+    dep.by.add(key);
+    dep.bad = d.compatible ? "" : `No compatible build for Minecraft ${v}`;
+    if (!dep.explicit) dep.channel = d.channel && d.channel !== "release" ? d.channel : e.channel;
   }
   if (added.length && !quiet) {
     toast(`Added ${added.map((d) => d.name).join(", ")} because ${added.length === 1 ? "it's" : "they're"} needed by ` +
@@ -5729,6 +5838,7 @@ function renderNav() {
 }
 
 function route() {
+  closeHelp(true);
   closeAppNavigation();
   closeBrowser(true);
   const hash = (location.hash || "#servers").slice(1);

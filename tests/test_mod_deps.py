@@ -8,6 +8,17 @@ from test_hub import login
 from test_manager import update
 
 
+def test_unresolved_required_version_is_not_silently_skipped(http, modrinth):
+    import pytest
+    from craft_conductor.mods import Unavailable
+    modrinth.project("TOP", "worldgen")
+    modrinth.version("TOP", "1", ["1.21.1"])
+    modrinth.versions["TOP"][0]["dependencies"] = [
+        {"dependency_type": "required", "version_id": "missing", "project_id": None}]
+    with pytest.raises(Unavailable, match="required dependency"):
+        ModrinthProvider(http).resolve(ModSpec("modrinth", "worldgen"), "1.21.1", ("fabric",), "release")
+
+
 def publish(modrinth):
     modrinth.project("LIB", "deplib", "Dep Lib")
     modrinth.version("LIB", "1.0", ["1.21.1"])

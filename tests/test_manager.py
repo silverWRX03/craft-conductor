@@ -44,11 +44,16 @@ def test_install_upgrade_and_rollback(make_config, http, modrinth):
     # 1.21.2 comes out and the mod updates for it.
     m.mojang.set_releases(["1.21.1", "1.21.2"])
     modrinth.version("AAA", "1.1", ["1.21.2"])
+    decision, changes = m.check()
+    assert decision.plan.minecraft == "1.21.1" and changes.empty
+    assert any(b.name == "handmade.jar" for p in decision.blocked for b in p.blockers)
+    # Disabling the unverified local file allows the upgrade without deleting it.
+    m.set_jar("handmade.jar", "disable")
     result = update(m)
     assert result.ok, result.message
     assert not (server / "mods" / "AAA-1.0.jar").exists()
     assert (server / "mods" / "AAA-1.1.jar").exists()
-    assert (server / "mods" / "handmade.jar").exists()
+    assert (server / "mods" / "handmade.jar.disabled").read_bytes() == b"mine"
     assert not (server / "runtime-1.21.1.txt").exists()  # old runtime removed
     assert (server / "runtime-1.21.2.txt").exists()
     assert (server / "world" / "level.dat").read_bytes() == b"level"
@@ -73,6 +78,18 @@ def test_install_upgrade_and_rollback(make_config, http, modrinth):
     assert decision.plan.minecraft == "1.21.2"
     assert changes.empty
     assert m.check(retry_failed=True)[0].plan.minecraft == "1.21.3"  # but a manual update retries
+
+
+def test_local_file_added_after_check_still_prevents_upgrade(make_config, http):
+    m = manager(make_config([]), http, ["1.21.1"])
+    assert update(m).ok
+    m.mojang.set_releases(["1.21.1", "1.21.2"])
+    plan = m.check()[0].plan
+    assert plan.minecraft == "1.21.2"
+    (m.mods_dir / "unverified.jar").write_bytes(b"local test jar")
+    result = m.apply(plan)
+    assert not result.ok and "unverified.jar" in result.message
+    assert m.lock.minecraft == "1.21.1"
 
 
 def test_download_failure_leaves_server_untouched(make_config, http, modrinth):

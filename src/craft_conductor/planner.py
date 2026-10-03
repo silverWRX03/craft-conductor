@@ -119,16 +119,22 @@ def lowest(server: str, mod: str | None) -> str:
 
 class Planner:
     def __init__(self, config: Config, lock: Lock, mojang: Mojang, loader: Loader,
-                 providers: dict[str, ModProvider]):
+                 providers: dict[str, ModProvider], unmanaged: list[str] | None = None):
         self.config = config
         self.lock = lock
         self.mojang = mojang
         self.loader = loader
         self.providers = providers
+        self.unmanaged = unmanaged or []
 
     def plan_for(self, minecraft: str) -> Plan:
         plan = Plan(minecraft=minecraft, loader=self.loader.name,
                     loader_version=self.loader.latest_version(minecraft))
+        if self.lock.installed and minecraft != self.lock.minecraft:
+            for name in self.unmanaged:
+                plan.blockers.append(Blocker(f"local:{name}", name,
+                    "this local file has no verified build for the new Minecraft; identify it on the Mods page, "
+                    "or disable it before changing Minecraft versions", True))
         channel = self.config.updates.mod_channel
         resolved: dict[str, ModFile] = {}
         failed: dict[str, Blocker] = {}
@@ -153,6 +159,10 @@ class Planner:
                 # Something required depends on it, so it is required too.
                 if spec.required:
                     if key in resolved:
+                        if not resolved[key].required:
+                            for dep in resolved[key].dependencies:
+                                queue.append(ModSpec(spec.source, dep, required=True, dependency_of=key,
+                                                     channel=spec.channel))
                         resolved[key].required = True
                     elif key in failed:
                         failed[key].required = True
@@ -186,6 +196,11 @@ class Planner:
         plan.mods = sorted(resolved.values(), key=lambda m: m.name.lower())
         for b in failed.values():
             (plan.blockers if b.required else plan.dropped).append(b)
+        if self.config.updates.wait_for_all_mods and self.lock.installed and minecraft != self.lock.minecraft:
+            for b in [b for b in plan.dropped if not b.client_only]:
+                plan.dropped.remove(b)
+                b.waiting = True
+                plan.blockers.append(b)
         return plan
 
     def current_version(self) -> str:
@@ -225,13 +240,6 @@ class Planner:
         skip_failed = self.lock.installed and not retry_failed
         for version in self._candidates():
             plan = self.plan_for(version)
-            if self.config.updates.wait_for_all_mods and self.lock.installed and version != self.lock.minecraft:
-                # A newer Minecraft waits for every mod, optional ones too (client-only ones never
-                # run on the server, so they don't count).
-                for b in [b for b in plan.dropped if not b.client_only]:
-                    plan.dropped.remove(b)
-                    b.waiting = True
-                    plan.blockers.append(b)
             if skip_failed and plan.complete and plan.fingerprint in self.lock.failed_plans:
                 log.info("not retrying Minecraft %s automatically: the same update failed before", version)
                 plan.blockers.append(Blocker("craft-conductor:failed", "an earlier attempt",

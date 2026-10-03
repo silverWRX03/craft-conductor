@@ -29,7 +29,7 @@ connects only to the services it needs for what you ask it to do: Mojang (Minecr
 the mod loaders' sites, Modrinth and CurseForge (mods), Adoptium (Java), GitHub (Craft Conductor updates),
 and, when you use those features, Discord, your friends' computers or a public-address lookup.
 See [What Craft Conductor can and can't do](../src/craft_conductor/webui/manual.md#what-craft-conductor-can-and-cant-do) and
-*Craft Conductor settings → About Craft Conductor → Online services* in the app.
+*Craft Conductor settings → About & updates → About Craft Conductor → Online services* in the app.
 
 ## Setting it up (maintainers)
 
