@@ -40,7 +40,8 @@ workflow) uses the real services; it runs on pull requests.
 2. **Keep the help current**, in the same change:
    - the user manual, `src/craft_conductor/webui/manual.md` (Help → User manual in the app, and
      the [wiki](https://github.com/silverWRX03/craft-conductor/wiki): edit the manual or `wiki/`,
-     never the wiki itself). A new screen or a changed look needs its screenshot retaken;
+     never the wiki itself). A new screen or a changed look needs its screenshot retaken: run
+     `tests/test_screenshots.py` (its docstring says how), and look at the pictures before committing;
    - the Help page (`HELP` in `src/craft_conductor/webui/app.js`) if it covers the feature;
    - the README, only for what a newcomer needs;
    - any `docs/*.md` page that describes it.

@@ -1,6 +1,7 @@
-"""Optional real-browser regressions and documentation captures against the test hub.
+"""Optional real-browser regressions against the test hub.
 
-Set CRAFT_UI_NODE and CRAFT_UI_PLAYWRIGHT to run; CRAFT_UI_SCREENSHOTS saves captures.
+Set CRAFT_UI_NODE and CRAFT_UI_PLAYWRIGHT to run (CRAFT_UI_CHANNEL picks the browser: msedge on
+Windows unless set). The pictures in the manual and Help come from test_screenshots.py.
 The server and Minecraft data are fixtures, never a user's running server.
 """
 import os

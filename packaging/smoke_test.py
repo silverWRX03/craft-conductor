@@ -71,6 +71,8 @@ def main(exe: str) -> None:
             assert status == 200 and "Craft Conductor" in body, body[:200]
             assert "use strict" in fetch("/app.js")[1]
             assert fetch("/style.css")[0] == 200
+            with urllib.request.urlopen(f"http://127.0.0.1:{PORT}/screenshots/dashboard.png", timeout=5) as r:
+                assert r.status == 200 and r.read(8) == b"\x89PNG\r\n\x1a\n"  # (Help's pictures are bundled)
             print("web UI served")
 
             run(exe, "stop", env=fresh_env, cwd=root)

@@ -8,10 +8,8 @@ comes first; it says which.
 
 Before continuing or starting a feature, check this list: some features wait on one of these.
 
-- [ ] **Refresh wiki screenshots for the naming cleanup:** capture Your servers, Mods, Java,
-      Friends, and the friend setup page from a fresh build. Their outdated screenshots were
-      removed because they showed the retired name. Restore their entries in `packaging/wiki.py`
-      once replacement pictures are captured.
+- [x] **Refresh wiki screenshots for the naming cleanup:** every page is retaken by
+      `tests/test_screenshots.py` with example servers, the friend's setup page included.
 
 - [ ] **Attach the screenshot of Maps still not working:** the screenshot is on your desktop
       and has not been added to this report. Include the app version, which Maps screen/action

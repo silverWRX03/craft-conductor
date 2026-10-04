@@ -1,6 +1,6 @@
 """Build the GitHub wiki: the user manual (src/craft_conductor/webui/manual.md, the same one the app shows)
-split into one page per section, with screenshots, plus the hand-written pages in wiki/ (Home, the
-Power users pages) and a sidebar to find them all.
+split into one page per section, with the app's own screenshots (src/craft_conductor/webui/screenshots),
+plus the hand-written pages in wiki/ (Home, the Power users pages) and a sidebar to find them all.
 
     python packaging/wiki.py OUT_DIR
 
@@ -17,7 +17,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 MANUAL = ROOT / "src" / "craft_conductor" / "webui" / "manual.md"
-PAGES = ROOT / "wiki"          # hand-written pages (Home, Power users) and images/
+PAGES = ROOT / "wiki"          # hand-written pages (Home, Power users) and images/ (the icon)
+SHOTS = ROOT / "src" / "craft_conductor" / "webui" / "screenshots"  # the pictures, as Help shows them too
 START = "Craft-Conductor-Manual"   # the manual's first page (the wiki page the manual starts on)
 
 # Manual sections that belong with the power users' pages, not the everyday manual.
@@ -42,24 +43,34 @@ POWER_PAGES = [
 TITLES = {"Friends: playing with friends": "Playing with friends",
           "For friends: joining a server": "Joining a friend's server",
           "What Craft Conductor can and can't do": "What it can and can't do"}
-# Screenshots shown on each page, after its first paragraph: (file in wiki/images, caption).
+# Screenshots under each section or sub-section, after its first paragraph: (file in SHOTS, caption).
+# The same as "See this screen" in the app's manual (MANUAL_PICTURES in app.js; test_wiki.py checks).
 IMAGES = {
-    "Your servers": [("servers.png", "Your servers")],
+    "Getting started": [("sign-in.png", "Signing in the first time"), ("choose-password.png", "Choosing your own password")],
+    "The guided setup": [("guided-setup.png", "The guided setup's checklist, in a corner of the page")],
     "Creating a server": [("new-server.png", "New server"), ("mod-browser.png", "The mod browser"),
                           ("map-preview.png", "World generation & map preview, with landmarks")],
-    "Dashboard": [("dashboard.png", "The Dashboard"), ("check-my-setup.png", "Check my setup")],
+    "On another computer (Linux, over SSH)": [("ssh-install.png", "Install on a Linux computer or rented server (SSH)")],
+    "Messages": [("question.png", "A question waits in the middle of the screen")],
+    "Your servers": [("servers.png", "Your servers, and a modded single-player game")],
+    "Dashboard": [("dashboard.png", "The Dashboard of a running server"),
+                  ("dashboard-problem.png", "A server that didn't start: what went wrong, and the fix")],
+    "Performance": [("performance.png", "Performance, with the last hour's graph")],
+    "Check my setup": [("check-my-setup.png", "Check my setup")],
     "Console": [("console.png", "The Console")],
     "Players": [("players.png", "The Players page"), ("player-activity.png", "Player activity")],
-    "Updates": [("updates.png", "The Updates page"), ("update-readiness.png", "Release readiness stays green")],
-    "Mods": [("mods.png", "Installed mods and their dependencies")],
+    "Mods": [("mods.png", "Installed mods")],
+    "Updates": [("updates.png", "The Updates page, waiting for two mods"), ("update-readiness.png", "Show why: each mod, ready or not")],
+    "Backups": [("backups.png", "Backups, each checked, with what changed since the one before")],
     "Java": [("java.png", "Java versions")],
-    "Friends: playing with friends": [("friends.png", "Invites and Bedrock players")],
-    "Backups": [("backups.png", "The Backups page")],
-    "Settings": [("settings.png", "Settings"), ("web-map.png", "Web map")],
-    "Remote access and phones": [("remote-access.png", "Remote access & phones")],
-    "Craft Conductor settings": [("craft-conductor-settings.png", "Craft Conductor settings"),
-                                 ("display.png", "Display: size, contrast and motion")],
-    "Troubleshooting": [("help.png", "Help with contents on the left; Close Help returns to your page")],
+    "Settings": [("settings.png", "A server's settings"), ("web-map.png", "World tools and the web map")],
+    "Friends: playing with friends": [("friends.png", "Invite links on the Friends page")],
+    "For friends: joining a server": [("invite-page.png", "The invite page your friend opens"),
+                                      ("friend-setup.png", "Craft Conductor setting up Minecraft on your friend's computer")],
+    "Remote access and phones": [("remote-access.png", "Remote access & phones"), ("phone.png", "On a phone")],
+    "Craft Conductor settings": [("craft-conductor-settings.png", "Craft Conductor settings: Connections"),
+                                 ("display.png", "Appearance: language, size, contrast and motion")],
+    "Troubleshooting": [("help.png", "Help, with its contents on the left")],
 }
 
 
@@ -77,12 +88,19 @@ def sections(text: str) -> tuple[str, list[tuple[str, str]]]:
 
 
 def with_images(title: str, body: str) -> str:
-    shots = IMAGES.get(title, [])
-    if not shots:
-        return body
-    first, sep, rest = body.partition("\n\n")
-    pictures = "\n\n".join(f"![{caption}](images/{name})" for name, caption in shots)
-    return f"{first}\n\n{pictures}{sep}{rest}"
+    """The section's pictures after its first paragraph, and each sub-section's after its own."""
+    def after_first(text: str, shots: list[tuple[str, str]]) -> str:
+        first, sep, rest = text.partition("\n\n")
+        pictures = "\n\n".join(f"![{caption}](images/{name})" for name, caption in shots)
+        return f"{first}\n\n{pictures}{sep}{rest}"
+    parts = re.split(r"^(### .+)$", body, flags=re.M)  # [text, heading, text, heading, text...]
+    if title in IMAGES:
+        parts[0] = after_first(parts[0], IMAGES[title])
+    for i in range(1, len(parts), 2):
+        sub = parts[i][4:].strip()
+        if sub in IMAGES:
+            parts[i + 1] = "\n\n" + after_first(parts[i + 1].lstrip("\n"), IMAGES[sub])
+    return "".join(parts)
 
 
 def build(out: Path) -> list[str]:
@@ -113,13 +131,16 @@ def build(out: Path) -> list[str]:
         f"**Power users:** the command line, `craft-conductor.toml`, running it as a service and more: see [Power users](Power-Users).{note}",
         encoding="utf-8")
     written.append(START)
-    for path in PAGES.rglob("*"):  # the hand-written pages and the screenshots
+    for path in PAGES.rglob("*"):  # the hand-written pages and the icon
         if path.is_file():
             target = out / path.relative_to(PAGES)
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(path, target)
             if path.suffix == ".md" and path.parent == PAGES:
                 written.append(path.stem)
+    (out / "images").mkdir(exist_ok=True)
+    for path in SHOTS.glob("*.png"):  # the screenshots
+        shutil.copyfile(path, out / "images" / path.name)
     sidebar = ["**[Home](Home)**", "", "**User manual**", "", f"- [Start here]({START})"]
     sidebar += [f"- [{TITLES.get(t, t)}]({page_name(t)})" for t, _ in everyday]
     sidebar += ["", "**Power users**", ""]

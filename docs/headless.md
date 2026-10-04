@@ -19,6 +19,8 @@ A terminal window opens; type that computer's password when SSH asks (the first 
 `yes` to trust it). Craft Conductor never sees the password. When it finishes, the window shows the
 control panel's address and a one-time password.
 
+![Install on a Linux computer or rented server (SSH)](../src/craft_conductor/webui/screenshots/ssh-install.png)
+
 **Or type the command yourself** (it's what that button runs):
 
 The command connects to the Linux computer over SSH and runs Craft Conductor's installer there. The

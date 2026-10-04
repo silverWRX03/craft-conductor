@@ -1,14 +1,15 @@
 name: wiki
 
 # The wiki is made from the repository: the user manual (src/craft_conductor/webui/manual.md) split into
-# pages with screenshots, plus the hand-written pages in wiki/ (see packaging/wiki.py). Edit those
-# files, not the wiki: this publishes them on every change to main (pages written on the wiki
-# itself and not made here are left alone).
+# pages with the app's screenshots (src/craft_conductor/webui/screenshots), plus the hand-written pages
+# in wiki/ (see packaging/wiki.py). Edit those files, not the wiki: this publishes them on every change
+# to main (pages written on the wiki itself and not made here are left alone).
 
 on:
   push:
     branches: [main]
-    paths: ["src/craft_conductor/webui/manual.md", "wiki/**", "packaging/wiki.py", ".github/workflows/wiki.yml"]
+    paths: ["src/craft_conductor/webui/manual.md", "src/craft_conductor/webui/screenshots/**", "wiki/**",
+            "packaging/wiki.py", ".github/workflows/wiki.yml"]
   workflow_dispatch:
 
 permissions:
@@ -34,9 +35,9 @@ jobs:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git clone --depth 1 "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" wiki-repo
-          # Retired screenshots contain obsolete branding; do not leave copies in the wiki.
-          rm -f wiki-repo/images/servers.png wiki-repo/images/mods.png wiki-repo/images/java.png \
-            wiki-repo/images/friends.png wiki-repo/images/friend-setup.png
+          # Pictures this used to publish and no longer does (friend-setup.png has the retired name).
+          rm -f wiki-repo/images/friend-setup.png wiki-repo/images/help-mobile.png wiki-repo/images/manual.png \
+            wiki-repo/images/readiness-day.png wiki-repo/images/settings-day.png
           cp -r wiki-out/. wiki-repo/
           cd wiki-repo
           git config user.name "github-actions[bot]"

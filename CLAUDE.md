@@ -17,10 +17,11 @@ vanilla-JS web UI under a strict Content-Security-Policy (`src/craft_conductor/w
   change:
   - the user manual, `src/craft_conductor/webui/manual.md` (shown in the app under Help → User manual).
     It's also the **wiki**: `packaging/wiki.py` makes a page of each `## ` section, with the
-    screenshots in `wiki/images` (see `IMAGES`), and `.github/workflows/wiki.yml` publishes it on
-    every change to main. Don't edit the wiki on GitHub: edit `manual.md`, or the hand-written
-    pages in `wiki/` (Home, the Power users pages). A new screen or a changed look needs its
-    screenshot retaken;
+    screenshots in `src/craft_conductor/webui/screenshots` (see `IMAGES`, the same as
+    `MANUAL_PICTURES` in `app.js`), and `.github/workflows/wiki.yml` publishes it on every change
+    to main. Don't edit the wiki on GitHub: edit `manual.md`, or the hand-written pages in `wiki/`
+    (Home, the Power users pages). A new screen or a changed look needs its screenshot retaken:
+    `tests/test_screenshots.py` takes them all, with example servers (see its docstring);
   - the Help page (`HELP` in `src/craft_conductor/webui/app.js`) if it covers the feature;
   - the README, only for what a newcomer needs (the details live in the wiki);
   - any `docs/*.md` page that describes it.
