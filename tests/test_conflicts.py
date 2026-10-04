@@ -51,6 +51,7 @@ def test_the_setting_is_off_until_switched_on(hub_env, monkeypatch):
     from test_hub import login
     hub, c = hub_env
     login(c)
+    monkeypatch.delenv("CRAFT_CONDUCTOR_CONFLICTS_URL", raising=False)
     monkeypatch.setattr(conflicts, "RELAY", "https://relay.test")
     assert c.get("/api/hub/conflicts")[1] == {"enabled": False, "available": True, "relay": "https://relay.test"}
     assert c.post("/api/hub/conflicts", {"enabled": True})[1]["enabled"] is True and hub.share_conflicts()

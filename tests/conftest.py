@@ -193,6 +193,12 @@ def notice_accepted(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def no_real_relay(monkeypatch):
+    """Tests never report to, or read from, the real mod-conflict relay (test_conflicts sets its own)."""
+    monkeypatch.setenv("CRAFT_CONDUCTOR_CONFLICTS_URL", "off")
+
+
+@pytest.fixture(autouse=True)
 def no_real_firewall(monkeypatch):
     """Check my setup doesn't read this computer's Windows Firewall in tests (test_firewall fakes it)."""
     from craft_conductor import firewall

@@ -19,8 +19,8 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
-# Craft Conductor's relay; CRAFT_CONDUCTOR_CONFLICTS_URL points elsewhere (or "off"). Empty until it's set up.
-RELAY = ""
+# Craft Conductor's relay (relay/worker.js); CRAFT_CONDUCTOR_CONFLICTS_URL points elsewhere (or "off").
+RELAY = "https://craft-conductor.kyle-r-nordick.workers.dev"
 FILE = "known-conflicts.json"
 REFRESH = 86400
 ID = re.compile(r"[a-z0-9][a-z0-9_.-]{0,63}")
