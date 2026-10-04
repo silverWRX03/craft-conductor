@@ -4,6 +4,16 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.23.0 (not released yet)
+
+**Added**
+- Friends' mods land on the right side. A mod you pick for players (the friends part of **New server**, or **Mods for players** on the Friends page) that runs on both the client and the server is now also added to the server's own mods, with the mods it requires, and a message says so ("X also runs on the server, so it was added there too, with Y"). The list marks it **also on the server**, and removing it from the players' list asks whether to remove it from the server too. Mods that only run on players' computers stay with the players.
+
+**Changed**
+- **Add BlueMap** and **Add Dynmap** (World page → Web map) only show for a map that has a build for the server's loader and Minecraft version, asked of Modrinth once and remembered for a while rather than on every page view. When neither has one, the card says "BlueMap and Dynmap don't support Minecraft X yet" instead of adding a mod that the next update would skip or be held back by, and adding one by hand is refused with the reason.
+- A web map you added that has no build for a newer Minecraft is now counted under **Show why** on the Updates page, like any other mod, even before it is installed.
+- On the page your friends set up from, **More mods** lists only mods that run on their computer alone (the server's own mods come with the download already).
+
 ## 0.22.3 (2026-10-04)
 
 **Added**

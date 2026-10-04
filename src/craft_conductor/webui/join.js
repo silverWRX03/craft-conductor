@@ -209,6 +209,7 @@ function openPicker(kind) {
           h("div", { class: "row" }, h("strong", { class: "grow" }, `${label} for Minecraft ${info.pack.minecraft}`),
             h("button", { class: "btn ghost small", onclick: closePicker }, "Done")),
           kind === "shader" ? h("p", { class: "muted small" }, "Shaders need a shader loader (Iris, or Oculus on Forge); it's added for you. They need a good graphics card.") : null,
+          kind === "mod" ? h("p", { class: "muted small" }, "Only mods that run on your computer alone are listed: the server's own mods come with the download already.") : null,
           q,
           h("div", { class: "row" }, sort, category)),
         list,

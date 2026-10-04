@@ -31,6 +31,18 @@ def environment(client_side: str | None, server_side: str | None) -> str:
     return "both" if on_client and on_server else "server" if on_server else "client" if on_client else ""
 
 
+def side_facets(side: str = "server", env: str = "") -> list[list[str]]:
+    """Modrinth facets for mods that run on ``side`` ("server" or "client"); ``env`` narrows them to
+    mods for that side only ("only": the other side is unsupported) or for both sides ("both")."""
+    facets = [[f"{side}_side:required", f"{side}_side:optional"]]
+    other = "client" if side == "server" else "server"
+    if env == "only":
+        facets.append([f"{other}_side:unsupported"])
+    elif env == "both":
+        facets.append([f"{other}_side:required", f"{other}_side:optional"])
+    return facets
+
+
 class BrowseError(Exception):
     pass
 
@@ -77,12 +89,7 @@ class Browser:
             return self._hangar_search(query, version, category, sort, offset)
         if source != "modrinth":
             raise BrowseError("unknown source")
-        facets = [[f"project_type:{kind}"], [f"{side}_side:required", f"{side}_side:optional"]]
-        other = "client" if side == "server" else "server"
-        if env == "only" and kind == "mod":
-            facets.append([f"{other}_side:unsupported"])
-        elif env == "both" and kind == "mod":
-            facets.append([f"{other}_side:required", f"{other}_side:optional"])
+        facets = [[f"project_type:{kind}"], *side_facets(side, env if kind == "mod" else "")]
         if plugins and kind == "mod":
             facets = [["categories:paper", "categories:spigot", "categories:bukkit"]]
         elif loader and kind == "mod":

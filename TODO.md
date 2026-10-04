@@ -11,11 +11,6 @@ Before continuing or starting a feature, check this list: some features wait on 
 - [x] **Refresh wiki screenshots for the naming cleanup:** every page is retaken by
       `tests/test_screenshots.py` with example servers, the friend's setup page included.
 
-- [ ] **Attach the screenshot of Maps still not working:** the screenshot is on your desktop
-      and has not been added to this report. Include the app version, which Maps screen/action
-      failed, Minecraft version, loader, selected mods, and relevant logs or reproduction steps.
-      *Needed before:* confirming the reported Maps failure and verifying the fix (32).
-
 - [x] **New icon:** put the stone-and-lava "Craft Conductor" picture in the repository (for example
       `packaging/icon-source.png`) or attach it as a file. The copy pasted in the chat didn't
       come through as a file. *Needed before:* the new icon (white background removed).
@@ -51,6 +46,12 @@ Before continuing or starting a feature, check this list: some features wait on 
       folder with a non-English name (e.g. `C:\Users\José\Документы\Майнкрафт`), and with
       Windows Defender (and any other antivirus) watching. Note any "being used by another
       process" errors or downloads flagged as viruses.
+- [ ] **Try the friends' mods and web map buttons for real** (0.23.0): on the Friends page, **Set up now**
+      under Mods for players, tick a mod that says "server + client" and one that says "client-side"
+      only, then **Add selected mods**: the first should say it was also added to the server, the second
+      not; **Remove** the first (it asks about the server). On the World page's Web map card, only the
+      map that has a build for your Minecraft version should have an Add button. On a friend's setup
+      page, **More mods** should list only client-side mods. They were tried with a pretend Modrinth.
 - [ ] **Windows code signing (optional):** apply to the SignPath Foundation (see
       [docs/code-signing.md](docs/code-signing.md)). Once accepted, add the repository variable
       `SIGNPATH_ORGANIZATION_ID` and the secret `SIGNPATH_API_TOKEN`; releases are then signed
@@ -156,19 +157,21 @@ Next:
         Viewer if wanted), list every server on every linked computer on one Servers page, and
         get all their warnings and phone notifications in one place. Easier after 16 (API
         tokens); shares the "servers on another machine" groundwork with 20.
-25. [ ] **Friends' mods land on the right side:** in server setup's "Play with friends" part,
+25. [x] **Friends' mods land on the right side:** in server setup's "Play with friends" part,
         a mod picked for players that runs on both sides (client and server) is added to the
         server too, with the mods it requires. When a friend sets up their own copy and opens
-        Download mods (Modrinth), they only see client-side-only mods.
+        Download mods (Modrinth), they only see client-side-only mods. Done in 0.23.0 (not
+        released yet); the Friends page does the same, and removing asks about the server too.
 26. [x] **Investigate: Windows Firewall exceptions alongside UPnP:** when Router (UPnP) opens the
         ports on the router, also let them through Windows Firewall, so friends can connect
         without Windows' own prompt being missed or answered "Cancel". Done as Check my setup's
         Windows Firewall check (rules read without admin rights, `firewall.py`) and its **Let them
         through Windows Firewall** button (one administrator prompt; port rules for private and
         public networks, Windows' block rules for our Java removed).
-27. [ ] **Web map buttons only when the map mod exists for that version:** show Add BlueMap and
+27. [x] **Web map buttons only when the map mod exists for that version:** show Add BlueMap and
         Add Dynmap (Web map, on the World page) only when the mod has a build for the server's
         Minecraft version and loader; otherwise say it isn't available for that version yet.
+        Done in 0.23.0 (not released yet).
 
 28. [ ] **Reuse compatible Java installations:** detect and reuse Java already on the computer
         (or a shared managed runtime) when it matches the selected Minecraft version and loader.
@@ -179,19 +182,18 @@ Next:
         Servers, alongside the existing Java server types.
 31. [ ] **Continuous mod browsing:** load 20 results initially and prefetch the next 20 around
         result 12, then repeat as the user scrolls, preserving position and avoiding duplicates.
-32. [ ] **Investigate Maps still not working:** a new unresolved user report; screenshot is on
-        the user's desktop and is pending attachment. Identify the affected map feature and
-        reproduce before deciding whether this relates to completed item 14 or open item 27.
+32. [x] **Investigate Maps still not working:** the report is closed: Maps works now (checked on
+        the user's real setup).
 33. [ ] **Contextual help drawer:** Help opens the relevant section in a panel that slides in
         from the right; users can collapse it back to the right without leaving their work.
 34. [ ] **Dashboard Connected Players widget:** compact player management on the Dashboard,
         with connected count / maximum capacity, player status, names, role badges, live ping,
         per-player KICK, and Whitelist Control and Broadcast footer actions; update without
         a full Dashboard refresh.
-35. [ ] **Size limits when unpacking archives** (security): a modpack's overrides and a backup
+35. [x] **Size limits when unpacking archives** (security): a modpack's overrides and a backup
         being restored are unpacked without a limit on their total unpacked size, so a small
-        crafted file could fill the disk. Add the limits, then remove the two `xfail`s in
-        `tests/security/test_archive_security.py` that wait for them.
+        crafted file could fill the disk. Shipped in 0.22.3; the two `xfail`s in
+        `tests/security/test_archive_security.py` are gone.
 
 ## Plans for the items left (details to start from)
 
@@ -280,7 +282,7 @@ release to pay those costs once.
   applies its own role rules. Health warnings and phone notifications from linked computers are
   forwarded to the main one. Unlink = revoke the token on either side.
 
-**25. Friends' mods land on the right side** — small/medium.
+**25. Friends' mods land on the right side** — small/medium. Done (0.23.0).
 - Today: the mod browser already knows each Modrinth mod's sides (`browse.py`: `side`
   "server"/"client" picks mods that run there; `env` "only"/"both"/"" narrows further;
   `environment()` gives "server", "client" or "both" per result), and friends' mods live in the
@@ -315,7 +317,7 @@ release to pay those costs once.
   the Private profile (public only if the user chooses), and never open anything else.
   macOS and Linux: explain only (macOS asks per app; Linux firewalls vary: ufw/firewalld hints).
 
-**27. Web map buttons only when the map mod exists for that version** — small.
+**27. Web map buttons only when the map mod exists for that version** — small. Done (0.23.0).
 - Today: `webMapCard()` in `webui/app.js` always shows Add BlueMap and Add Dynmap;
   `webmap.py` (`MAPS`: Modrinth projects `bluemap`, `dynmap`) adds the mod to `craft-conductor.toml`, and
   only the next update finds out there's no build (the mod is then skipped or holds the update).
@@ -399,18 +401,6 @@ translations, documentation, and changelog entries current.
 - Acceptance: the first batch has up to 20 results, the next request starts around item 12,
   later batches append smoothly, and rapid scrolling/filter changes cause no duplicates,
   stale results, lost selections, or repeated requests after the final page.
-
-**32. Maps still not working — investigate the current failure**
-- User report: "Maps is still not working"; supporting screenshot is on the user's desktop.
-  The screenshot has not been inspected. The exact screen, error, and root cause are unknown.
-- Obtain the screenshot and reproduction details from the outside task above. Determine
-  whether this affects world-generation preview, seed comparisons, or the BlueMap/Dynmap
-  web map; do not assume the prior fix in 14 resolved this report or that 27 is the cause.
-- Reproduce using the reported version/loader/mods and inspect the relevant server/preview
-  logs and UI/API errors. Preserve worlds and use a temporary test copy where appropriate.
-- Acceptance: reproduce the reported failure, fix the verified cause, add a regression test
-  for it, and confirm the user's failing workflow works with the same setup. If real-world
-  verification is unavailable, leave that verification explicitly pending.
 
 **33. Contextual help in a collapsible right-side drawer**
 - Goal: pressing Help in a page/section opens that specific section's help in a drawer

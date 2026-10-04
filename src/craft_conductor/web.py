@@ -1842,9 +1842,11 @@ class Api:
     """One server's part of the API: /api/servers/<id>/... (or /api/... with a single server)."""
 
     def __init__(self, web: WebUI, daemon: Daemon, sid: str):
+        from .webmap import Availability
         self.web = web
         self.d = daemon
         self.sid = sid
+        self._webmaps = Availability()  # which web maps Modrinth has a build of (asked rarely)
         r: dict[tuple[str, str], Callable[[dict, dict], Any]] = {}
         get = lambda p, f: r.__setitem__(("GET", p), f)    # noqa: E731
         post = lambda p, f: r.__setitem__(("POST", p), f)  # noqa: E731
@@ -2041,6 +2043,11 @@ class Api:
         loaders = loader.mod_loaders
         channels: dict[str, str | None] = {}
         modrinth_ids = [x.project_id for x in mods if x.source == "modrinth" and not x.manual]
+        from . import webmap
+        # A web map that was added but isn't installed yet counts like any installed mod.
+        pending_map = None if webmap.installed(mods) else webmap.installed(self.m.config.mods)
+        if pending_map and loaders:
+            modrinth_ids.append(webmap.MAPS[pending_map]["project"])
         if modrinth_ids and loaders:
             provider = self.m.providers.get("modrinth")
             channels.update((provider if isinstance(provider, ModrinthProvider) else ModrinthProvider(self.m.http))
@@ -2065,6 +2072,14 @@ class Api:
                         "channel": channel if channel not in (None, "unknown") else None,
                         "required": x.required, "needed_by": names.get(x.dependency_of or "", None)})
         order = {"red": 0, "yellow": 1, "unknown": 2, "green": 3}
+        if pending_map:
+            spec = webmap.MAPS[pending_map]
+            channel = channels.get(spec["project"], "unknown") if loaders else "unknown"
+            listed = next((m for m in self.m.config.mods if webmap.installed([m])), None)
+            out.append({"name": spec["name"], "key": f"modrinth:{spec['project']}", "version": "", "installed": False,
+                        "state": {"release": "green", None: "red", "unknown": "unknown"}.get(channel, "yellow"),
+                        "channel": channel if channel not in (None, "unknown") else None,
+                        "required": listed.required if listed else False, "needed_by": None})
         for name in self.m.unmanaged_jars():
             out.append({"name": name, "key": f"local:{name}", "version": "local file", "state": "unknown",
                         "channel": None, "required": True, "needed_by": None})
@@ -2235,6 +2250,12 @@ class Api:
         if any(s.source == source and s.id in (mod_id, project.id, project.slug) for s in self.m.config.mods):
             raise ApiError(409, f"{project.name} is already listed")
         early = b.get("channel") if b.get("channel") in ("beta", "alpha") else None  # picked with only early builds
+        deps = self._list_server_mod(source, project, bool(b.get("required", True)), early)
+        return {"ok": True, "name": project.name, "deps": deps}
+
+    def _list_server_mod(self, source: str, project, required: bool, early: str | None = None) -> list[str]:
+        """Put a mod in craft-conductor.toml (it's installed with the next update); returns the names of the
+        mods it needs, which come along. A Modrinth mod without a build for this server is refused."""
         deps = []
         if source == "modrinth" and self.m.loader.mod_loaders:
             # Only mods that work on this server's Minecraft, and say what comes along with them.
@@ -2247,11 +2268,15 @@ class Api:
                 if not req["compatible"] and self.m.lock.minecraft:
                     raise ApiError(400, f"can't add {project.name}: " + (req["reason"] or "no compatible build"))
                 deps = [d["name"] for d in req["deps"]]
-        configmod.append_mod(self.m.config.path, ModSpec(source, project.slug or project.id,
-                                                         required=bool(b.get("required", True)), channel=early))
+        # The name written to craft-conductor.toml comes from the site's answer (Modrinth allows quote marks in a
+        # slug): only a plain name is written, else the project's id, else it's refused.
+        ident = next((x for x in (project.slug, project.id) if x and re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", x)), None)
+        if ident is None:
+            raise ApiError(400, f"{project.name} has a name that isn't safe to save, so it can't be added")
+        configmod.append_mod(self.m.config.path, ModSpec(source, ident, required=required, channel=early))
         self.m.reload_config()
         log.info("added %s%s", project.name, f" (with {', '.join(deps)})" if deps else "")
-        return {"ok": True, "name": project.name, "deps": deps}
+        return deps
 
     def _browser(self):
         from .browse import Browser
@@ -2486,8 +2511,21 @@ class Api:
         return {"ok": True, "message": message}
 
     # ------------------------------------------------------- web map
+    def _webmap_builds(self) -> tuple[str, dict]:
+        """The Minecraft version the maps are for (the installed one, or a new install's target),
+        and for each map whether Modrinth has a build for it on this server's loader (True or
+        False; None when that couldn't be checked). Cached: see webmap.Availability."""
+        cfg = self.m.config
+        try:
+            version = self.m.lock.minecraft or (self.m.mojang.latest_release() if cfg.server.minecraft == "latest"
+                                                else cfg.server.minecraft)
+        except (HttpError, KeyError):
+            version = ""
+        return version, self._webmaps.check(self._modrinth(), self.m.loader.mod_loaders, version, cfg.updates.mod_channel)
+
     def webmap(self, q, b) -> dict:
-        """BlueMap or Dynmap (webmap.py): which one, its port, whether it answers, its address."""
+        """BlueMap or Dynmap (webmap.py): which one, its port, whether it answers, its address.
+        With none added, also which ones Modrinth has a build of for this server."""
         from . import webmap
         from .cli import lan_ip
         loader = self.m.lock.loader or self.m.config.server.loader
@@ -2495,6 +2533,9 @@ class Api:
         listed = webmap.installed(self.m.config.mods)
         out = {"kind": kind, "listed": listed, "maps": {k: v["name"] for k, v in webmap.MAPS.items()},
                "running": self.d.state == "running"}
+        if not (kind or listed):  # (only when the Add buttons are to be shown)
+            version, builds = self._webmap_builds()
+            out.update(minecraft=version, available=builds, runs_mods=bool(self.m.loader.mod_loaders))
         if kind:
             port = webmap.port(self.m.server_dir, kind, loader)
             ip = lan_ip()
@@ -2512,6 +2553,13 @@ class Api:
         other = webmap.installed(self.m.config.mods)
         if other and other != kind:
             raise ApiError(409, f"this server already has {webmap.MAPS[other]['name']}: one web map is enough")
+        if not other:  # (adding the one that's already listed is add_mod's "already listed")
+            name = webmap.MAPS[kind]["name"]
+            if not self.m.loader.mod_loaders:
+                raise ApiError(400, f"{name} needs a server that runs mods or plugins, and this one runs plain Minecraft")
+            version, builds = self._webmap_builds()
+            if builds[kind] is False:
+                raise ApiError(400, f"{name} has no {self.m.loader.name} build for Minecraft {version} yet, so it can't be added")
         return self.add_mod(q, {"source": "modrinth", "id": webmap.MAPS[kind]["project"], "required": False})
 
     def webmap_accept(self, q, b) -> dict:
@@ -2998,6 +3046,7 @@ class Api:
         return {
             "available": not hub.is_single,
             "enabled": c.enabled, "mods": c.mods, "memory_gb": c.memory_gb,
+            "mods_on_server": self._players_mods_on_server(c.mods),
             "link": self._invite_link() if c.enabled else None,
             "links": self._invite_links() if c.enabled else {},
             # How long the links work: shared links can't be single-use, so they expire instead.
@@ -3008,6 +3057,38 @@ class Api:
             "loader": self.m.config.server.loader, "minecraft": self.m.lock.minecraft or "",
             "local_mods": [p.name for p in local_jars(self.m.config)],
         }
+
+    def _players_mods_on_server(self, slugs: list[str]) -> list[str]:
+        """Which of the mods picked for players are also among the server's own mods."""
+        listed = {s.id for s in self.m.config.mods if s.source == "modrinth"}
+        return [x for x in slugs if x in listed]
+
+    def _also_on_server(self, slugs: list[str]) -> tuple[list[dict], list[dict]]:
+        """Mods picked for players that run on both sides (Modrinth's environment tags) are also
+        added to the server's own mods, with what they need, the way any server mod is. Returns
+        what was added (with its dependencies) and what couldn't be (with why). Mods that only
+        run on players' computers, and ones the server already has, are left as they are."""
+        from .browse import environment
+        added, skipped = [], []
+        if not self.m.loader.mod_loaders or self.m.loader.mods_folder != "mods":
+            return added, skipped  # (plain Minecraft, or plugins: players need nothing)
+        provider = self._modrinth()
+        for slug in slugs:
+            try:
+                project = provider.project(slug)
+            except (ModError, HttpError):
+                continue  # (the download's own check says what's wrong with it)
+            if environment(project.client_side, project.server_side) != "both":
+                continue
+            if any(s.source == "modrinth" and s.id in (slug, project.id, project.slug) for s in self.m.config.mods):
+                continue
+            try:
+                deps = self._list_server_mod("modrinth", project, required=project.server_side == "required")
+            except ApiError as e:
+                skipped.append({"name": project.name, "reason": str(e)})
+                continue
+            added.append({"name": project.name, "deps": deps})
+        return added, skipped
 
     def save_client(self, q, b) -> dict:
         if self.web.hub.is_single:
@@ -3032,7 +3113,19 @@ class Api:
             if not isinstance(mods, list) or not all(isinstance(x, str) and re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", x)
                                                      for x in mods):
                 raise ApiError(400, "mods must be a list of Modrinth project names")
-            configmod.set_value(path, "client", "mods", json.dumps(list(dict.fromkeys(mods))))
+            before = list(c.mods)
+            mods = list(dict.fromkeys(mods))
+            configmod.set_value(path, "client", "mods", json.dumps(mods))
+            self.m.reload_config()
+            also, skipped = self._also_on_server([x for x in mods if x not in before])
+            drop = b.get("remove_from_server")
+            if drop is not None:  # "remove it from the server too": a mod that's no longer on the players' list
+                if not isinstance(drop, list) or not all(isinstance(x, str) and re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", x)
+                                                         for x in drop):
+                    raise ApiError(400, "remove_from_server must be a list of mod names")
+                for x in drop:
+                    if x not in mods and configmod.remove_mod(path, "modrinth", x):
+                        log.info("removed %s from the server's mods too (it left the players' list)", x)
         if "memory_gb" in b:
             try:
                 memory = int(b["memory_gb"])
@@ -3044,7 +3137,10 @@ class Api:
         self.m.reload_config()
         self.web.hub.update_share()
         log.info("friend download settings saved")
-        return self.client(q, {})
+        out = self.client(q, {})
+        if "mods" in b:
+            out.update(also_on_server=also, server_skipped=skipped)  # (this save's doing; the page says so once)
+        return out
 
     def new_client_link(self, q, b) -> dict:
         from .clientpack import make_link
