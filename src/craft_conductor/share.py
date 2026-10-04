@@ -13,6 +13,10 @@ what's sent. craft-conductor itself isn't handed out here: friends download it f
 
 There is no sign-in and nothing to change here; the secret in the invite keeps servers
 from being found by guessing. The control panel stays on its own, private port.
+
+An invite is shared (a Discord channel, a group chat), so it isn't single-use. It works until
+the time the owner picked when making it (``[client] expires``), or until they stop or replace
+it; after that, every request with it is refused (410 Gone).
 """
 
 from __future__ import annotations
@@ -23,6 +27,7 @@ import logging
 import re
 import shutil
 import threading
+import time
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import quote, unquote
 
@@ -34,6 +39,7 @@ from .properties import read_properties
 log = logging.getLogger(__name__)
 
 DEFAULT_PORT = 8766
+EXPIRED = "This invite has expired. Ask the server's owner for a new link."
 RELEASES = "https://github.com/silverWRX03/craft-conductor/releases/latest"
 HEADERS = {
     "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
@@ -67,10 +73,13 @@ class ShareServer:
 
     # ---------------------------------------------------------- lookups
     def server_for(self, token: str):
+        """The server an invite is for: (sid, daemon) while its link works, (sid, None) once it has
+        expired or been stopped, and (None, None) for anything else."""
+        now = time.time()
         for sid, d in list(self.hub.daemons.items()):
             c = d.m.config.client
             if c.enabled and c.token and hmac.compare_digest(c.token.encode(), token.encode()):
-                return sid, d
+                return (sid, d) if c.link_works(now) else (sid, None)
         return None, None
 
     def builder(self, sid: str, d) -> PackBuilder:
@@ -134,6 +143,11 @@ class ShareHandler(BaseHTTPRequestHandler):
     def _text(self, status: int, message: str) -> None:
         self._send(status, (message + "\n").encode(), "text/plain; charset=utf-8")
 
+    def _not_valid(self, sid) -> None:
+        if sid is not None:
+            return self._text(410, EXPIRED)
+        return self._text(404, "This invite isn't valid any more. Ask the server's owner for a new one.")
+
     def _request_host(self) -> tuple[str, int]:
         raw = (self.headers.get("Host") or "").strip()
         m = re.fullmatch(r"\[?([A-Za-z0-9.:-]{1,253}?)\]?(?::(\d{1,5}))?", raw)
@@ -161,7 +175,7 @@ class ShareHandler(BaseHTTPRequestHandler):
         sid, d = self.server_ref.server_for(m.group(1))
         if d is None:
             self.rfile.read(length)
-            return self._text(404, "This invite isn't valid any more. Ask the server's owner for a new one.")
+            return self._not_valid(sid)
         try:
             name = str(json.loads(self.rfile.read(length) or b"{}").get("name", "")).strip()
         except (ValueError, AttributeError):
@@ -179,7 +193,7 @@ class ShareHandler(BaseHTTPRequestHandler):
         token = m.group(1)
         sid, d = self.server_ref.server_for(token)
         if d is None:
-            return self._text(404, "This invite isn't valid any more. Ask the server's owner for a new one.")
+            return self._not_valid(sid)
         if not m.group(2):  # someone opened the invite link in a browser
             return self._text(200, f"This is an invite to an Craft Conductor server. Get Craft Conductor from {RELEASES}, "
                                    "open it, and paste the invite you were sent.")

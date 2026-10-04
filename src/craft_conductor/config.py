@@ -14,6 +14,9 @@ LOADERS = ("fabric", "quilt", "neoforge", "forge", "paper", "purpur", "vanilla")
 MOD_SOURCES = ("modrinth", "curseforge", "hangar")  # Hangar: Paper plugins
 STRATEGIES = ("latest-compatible", "latest", "mods-only")
 CHANNELS = ("release", "beta", "alpha")
+UPDATE_CHANNELS = ("stable", "beta")   # Craft Conductor's own releases (selfupdate.CHANNELS)
+LINK_DAYS = (1, 7, 30, 0)              # how long a new friends' invite link works; 0 = until a new one is made
+DEFAULT_LINK_DAYS = 7
 
 
 class ConfigError(Exception):
@@ -99,6 +102,11 @@ class ClientConfig:
     token: str = ""                 # secret part of the invite link
     mods: list[str] = field(default_factory=list)   # extra client-only Modrinth mods (slugs)
     memory_gb: int = 4              # memory the friends' Minecraft gets
+    expires: int = 0                # when the invite link stops working (Unix time); 0 = never
+    link_days: int = DEFAULT_LINK_DAYS  # how long new links work (one of LINK_DAYS; 0 = until replaced)
+
+    def link_works(self, now: float) -> bool:
+        return bool(self.enabled and self.token) and (not self.expires or now < self.expires)
 
 
 @dataclass
@@ -116,6 +124,7 @@ class Config:
     manual_dir: Path | None = None      # where to drop mods that must be downloaded by hand
     web: WebConfig = field(default_factory=lambda: WebConfig())
     self_update_check: bool = True      # look for new craft-conductor releases (installing always asks first)
+    self_update_channel: str = "stable"  # stable releases only, or betas too (UPDATE_CHANNELS)
     discord_webhook: str = ""
     curseforge_api_key: str = ""
     restart_on_crash: bool = True
@@ -224,7 +233,16 @@ def _client(c: dict) -> ClientConfig:
     memory = int(c.get("memory_gb", 4))
     if not 1 <= memory <= 32:
         raise ConfigError("client.memory_gb must be between 1 and 32")
-    return ClientConfig(enabled=bool(c.get("enabled", False)), token=token, mods=list(mods), memory_gb=memory)
+    try:
+        expires, days = int(c.get("expires", 0)), int(c.get("link_days", DEFAULT_LINK_DAYS))
+    except (TypeError, ValueError):
+        raise ConfigError("client.expires and client.link_days must be whole numbers") from None
+    if expires < 0:
+        raise ConfigError("client.expires must be a time (or 0 for never)")
+    if days not in LINK_DAYS:
+        raise ConfigError("client.link_days must be one of " + ", ".join(map(str, LINK_DAYS)) + " (0 = until replaced)")
+    return ClientConfig(enabled=bool(c.get("enabled", False)), token=token, mods=list(mods), memory_gb=memory,
+                        expires=expires, link_days=days)
 
 
 def parse(root: Path, data: dict) -> Config:
@@ -305,6 +323,8 @@ def parse(root: Path, data: dict) -> Config:
         java_image=_choice(j.get("image", "jre"), ("jre", "jdk"), "java.image"),
         manual_dir=(root / data.get("downloads", {}).get("manual_dir", "manual-downloads")).resolve(),
         self_update_check=bool(data.get("craft-conductor", {}).get("update_check", True)),
+        self_update_channel=_choice(data.get("craft-conductor", {}).get("update_channel", "stable"),
+                                    UPDATE_CHANNELS, "craft-conductor.update_channel"),
         web=WebConfig(
             enabled=bool(data.get("web", {}).get("enabled", False)),
             host=str(data.get("web", {}).get("host", "127.0.0.1")),
@@ -383,10 +403,11 @@ discord_webhook = ""
 
 [craft-conductor]
 update_check = true            # tell you when a new version of Craft Conductor is out (it never installs without asking)
+update_channel = "stable"      # stable | beta (early versions: newer, less tested)
 
 [web]
 enabled = false                # or start with `craft-conductor run --web`
-host = "127.0.0.1"             # only this machine; use "0.0.0.0" behind an HTTPS reverse proxy
+host = "127.0.0.1"             # only this machine (the safe default); "0.0.0.0" opens it to your network
 port = 8765
 password = ""                  # empty = starts as PASSWORD and you choose your own when you sign in
 # allowed_hosts = ["mc.example.com"]  # host names used to reach the panel through a reverse proxy

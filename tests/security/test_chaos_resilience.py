@@ -104,7 +104,7 @@ def test_process_kill_during_self_update_download_keeps_current_binary(tmp_path:
         )
 
         class Http:
-            def download(self, url, dest, sha256=None):
+            def download(self, url, dest, sha256=None, max_bytes=None):
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 if url == "asset://sums":
                     dest.write_text(f"{digest}  {name}\\n")
@@ -211,7 +211,7 @@ def test_self_update_hash_mismatch_never_replaces_binary(tmp_path: Path) -> None
     )
 
     class HashMismatchHttp:
-        def download(self, url, dest, sha256=None):
+        def download(self, url, dest, sha256=None, max_bytes=None):
             if url == "asset://sums":
                 dest.write_text(f"{'0' * 64}  {name}\n")
                 return dest

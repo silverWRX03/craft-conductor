@@ -4,6 +4,8 @@
 #   - Actions -> release -> Run workflow, and enter the version (e.g. 0.2.0), or
 #   - git tag v0.2.0 && git push origin v0.2.0
 # The first creates the tag itself. Installed copies of craft-conductor find the release and offer to update.
+# A beta (a version like 0.3.0b1) is published as a GitHub pre-release: only copies set to the beta
+# channel are offered it, and the container image's :latest tag stays on the newest stable release.
 name: release
 
 on:
@@ -152,12 +154,20 @@ jobs:
           chmod +x craft-conductor-*linux-* craft-conductor-*macos-*
           sha256sum * > SHA256SUMS.txt
           cat SHA256SUMS.txt
+      - name: Stable or beta
+        id: kind
+        # Only a plain vX.Y.Z is a stable release; anything else (v0.3.0b1, v0.3.0rc1) is a beta.
+        run: |
+          if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          else echo "prerelease=true" >> "$GITHUB_OUTPUT"; fi
       - uses: softprops/action-gh-release@v2
         with:
           # From "Run workflow" this also creates the tag, on the commit that was built.
           tag_name: ${{ env.TAG }}
           target_commitish: ${{ github.sha }}
           name: Craft Conductor ${{ env.TAG }} (beta)
+          prerelease: ${{ steps.kind.outputs.prerelease }}
+          make_latest: ${{ steps.kind.outputs.prerelease == 'true' && 'false' || 'true' }}
           files: release/*
           generate_release_notes: true
           body: |
@@ -216,7 +226,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Image name
-        run: echo "IMAGE=ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+        run: |
+          image="ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
+          echo "IMAGE=$image" >> "$GITHUB_ENV"
+          # :latest is the newest stable release; a beta moves :beta instead.
+          if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "MOVING_TAG=$image:latest" >> "$GITHUB_ENV"
+          else echo "MOVING_TAG=$image:beta" >> "$GITHUB_ENV"; fi
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -224,4 +239,4 @@ jobs:
           push: true
           tags: |
             ${{ env.IMAGE }}:${{ env.TAG }}
-            ${{ env.IMAGE }}:latest
+            ${{ env.MOVING_TAG }}

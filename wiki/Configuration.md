@@ -40,6 +40,17 @@ manual_dir = "manual-downloads"  # drop blocked CurseForge files here
 [notify]
 discord_webhook = "https://discord.com/api/webhooks/..."
 
+[craft-conductor]
+update_check = true              # look for new Craft Conductor versions (installing always asks first)
+update_channel = "stable"        # or "beta": early versions too
+
+[web]
+host = "127.0.0.1"               # this computer only (the default); "0.0.0.0" opens it to your network
+
+[client]                         # the friends' download (the Friends page sets these)
+link_days = 7                    # how long a new invite link works: 1, 7, 30, or 0 = until replaced
+expires = 0                      # when the current link stops (Unix time; written for you)
+
 [[mods]]
 source = "modrinth"
 id = "lithium"

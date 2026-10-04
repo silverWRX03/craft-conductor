@@ -185,7 +185,11 @@ def run(m, state: str, *, total_gb: float | None = None, share: dict | None = No
 
     # Friends' downloads
     if cfg.client.enabled and share is not None:
-        if not share.get("running"):
+        if cfg.client.token and not cfg.client.link_works(time.time()):
+            checks.append(Check("share", "Friends' downloads", WARN, "The invite links have expired (or were stopped), so "
+                                "friends can't set up or update their game with them. Friends who already set up can still play.",
+                                "Make new links on the Friends page and send them again."))
+        elif not share.get("running"):
             checks.append(Check("share", "Friends' downloads", BAD, "The friends' download port isn't running" +
                                 (f": {share['error']}" if share.get("error") else "."),
                                 "Craft Conductor settings → Sharing with friends: pick another port if it's busy, then reopen Craft Conductor."))

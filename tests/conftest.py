@@ -78,10 +78,13 @@ class FakeHttp:
             raise HttpError(url, 404, "HTTP 404")
         return handler(body) if callable(handler) else handler
 
-    def download(self, url, dest: Path, sha1=None, sha512=None, headers=None, sha256=None):
+    def download(self, url, dest: Path, sha1=None, sha512=None, headers=None, sha256=None, max_bytes=None):
         if url not in self.files:
             raise HttpError(url, 404, "HTTP 404")
         data = self.files[url]
+        if max_bytes is not None and len(data) > max_bytes:
+            from craft_conductor.http import TooBig
+            raise TooBig(url)
         if sha1 and hashlib.sha1(data).hexdigest() != sha1:
             raise HashMismatch(url)
         if sha256 and hashlib.sha256(data).hexdigest() != sha256:

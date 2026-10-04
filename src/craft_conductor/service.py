@@ -71,7 +71,9 @@ def plan(root: Path, system: bool | None = None, home: Path | None = None, panel
     else:
         base = Path(os.environ.get("XDG_CONFIG_HOME") or (home or Path.home()) / ".config")
         path = base / "systemd" / "user" / name
-    args = ["start", "--no-browser", "--web-host", "0.0.0.0"] if panel else ["run", "--web"]
+    # (The panel listens where its settings say: this machine only, unless network access is on.
+    # Never a --web-host here, which would override that at every boot.)
+    args = ["start", "--no-browser"] if panel else ["run", "--web"]
     exec_start = " ".join(_quote(a) for a in [*craft_conductor_command(), *args])
     what = f"Craft Conductor control panel and servers ({root})" if panel else f"Minecraft server managed by Craft Conductor ({root})"
     env = f"Environment=CRAFT_CONDUCTOR_HOME={_quote(str(root))}\n" if panel else ""

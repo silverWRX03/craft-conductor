@@ -301,9 +301,9 @@ def _wizard(root: Path) -> bool:
         mods = [x.strip() for x in answer.split(",") if x.strip()]
         if loader in ("fabric", "quilt") and mods and "fabric-api" not in mods:
             mods.insert(0, "fabric-api")
-    headless = not has_display()
+    # (Off unless answered yes: the control panel only listens on this computer by default.)
     remote = _ask("Open the control panel from other devices on your network too, like your phone or "
-                  "another PC? (yes/no)", "yes" if headless else "no", ("yes", "no", "y", "n")) in ("yes", "y")
+                  "another PC? (yes/no)", "no", ("yes", "no", "y", "n")) in ("yes", "y")
     print("\nMinecraft servers require accepting Mojang's EULA: https://aka.ms/MinecraftEULA")
     if _ask("Do you accept the Minecraft EULA? (yes/no)", "no", ("yes", "no", "y", "n")) not in ("yes", "y"):
         print("The server can't run without accepting the EULA. Nothing was set up.")
@@ -372,17 +372,19 @@ def cmd_start(args) -> int:
     hub = Hub(home)
     if here and here != home:
         hub.add_folder(here)  # list the server in this folder too
-    if not has_display() and "web" not in hub._hub_file() and not (home / configmod.CONFIG_NAME).exists():
-        hub.save_web(host="0.0.0.0")  # headless: the panel must be reachable from another device
-        hub._web = hub._load_web()
-    first_password = None
-    if not has_display() and hub.web.host not in ("127.0.0.1", "localhost", "::1"):
-        from .webauth import AuthStore
-        first_password = AuthStore(hub).first_run_password()
+    # The control panel only listens on this computer (127.0.0.1) unless it's been asked to do
+    # otherwise: --web-host, or Remote access in the panel. A computer without a screen is no
+    # exception: it's reached through an SSH tunnel until network access is turned on.
     if args.web_host:
         hub.web.host = args.web_host
     if args.web_port:
         hub.web.port = args.web_port
+    first_password = None
+    if not has_display() or hub.web.host not in ("127.0.0.1", "localhost", "::1"):
+        # Nobody at this computer's screen (or reachable from others): a random one-time password
+        # rather than the built-in one, which only works in a browser on this computer anyway.
+        from .webauth import AuthStore
+        first_password = AuthStore(hub).first_run_password()
     browser = not args.no_browser and has_display()
     port = hub.web.port
     url = f"http://localhost:{port}/"
@@ -697,12 +699,25 @@ def cmd_licenses(args) -> int:
     return 0
 
 
+def _update_channel(args) -> str:
+    """The channel to look on: --channel, else this server's [craft-conductor] update_channel,
+    else the control panel's setting (Craft Conductor settings → About)."""
+    if getattr(args, "channel", None):
+        return args.channel
+    if (args.root / configmod.CONFIG_NAME).exists():
+        return configmod.load(args.root).self_update_channel
+    from .hub import Hub
+    return Hub(default_home()).update_channel()
+
+
 def cmd_self_update(args) -> int:
-    release = selfupdate.check(HttpClient())
+    channel = _update_channel(args)
+    release = selfupdate.check(HttpClient(), channel=channel)
     if release is None:
-        print(f"Craft Conductor {__version__} is the latest version")
+        print(f"Craft Conductor {__version__} is the latest version ({channel} channel)")
         return 0
-    print(f"Craft Conductor {release.version} is available (you have {__version__}): {release.url}")
+    print(f"Craft Conductor {release.version}{' (beta)' if release.prerelease else ''} is available "
+          f"(you have {__version__}): {release.url}")
     if release.notes:
         print("\n" + release.notes.strip()[:1500] + "\n")
     if args.check:
@@ -739,11 +754,15 @@ def _panel_service(args) -> int:
                 return 1
             home.mkdir(parents=True, exist_ok=True)
             hub = Hub(home)
-            local_only = getattr(args, "local_only", False)
-            if local_only:
+            if getattr(args, "network", False) and getattr(args, "local_only", False):
+                print("pick one: --network (open to your network) or --local-only (this machine only)")
+                return 1
+            if getattr(args, "local_only", False):
                 hub.save_web(host="127.0.0.1")  # a rented server: the panel is reached through SSH, never the internet
-            elif hub.web.host in ("127.0.0.1", "localhost", "::1"):
-                hub.save_web(host="0.0.0.0")  # managed from other computers
+            elif getattr(args, "network", False):
+                hub.save_web(host="0.0.0.0")  # asked for: managed from other computers on the network
+            # (otherwise what's saved: this machine only, unless network access was turned on before)
+            local_only = hub.web.host in ("127.0.0.1", "localhost", "::1")
             first = webauth.AuthStore(hub).first_run_password()
             for line in service.install(home, panel=True):
                 print(line)
@@ -752,6 +771,8 @@ def _panel_service(args) -> int:
                 print("\nThe control panel only listens on this server itself (not on the internet).")
                 print(f"On your own computer, reach it through SSH:  ssh -N -L {LOCAL_PORT}:127.0.0.1:{hub.web.port} <you>@<this server>")
                 print(f"then open http://localhost:{LOCAL_PORT}/  (Craft Conductor's \"Open the control panel\" button does both)")
+                if not getattr(args, "local_only", False):
+                    print("To open it to your home network instead: craft-conductor service install --panel --network")
             else:
                 ip = lan_ip()
                 print(f"\ncontrol panel: http://{ip or '<this computer>'}:{hub.web.port}/  (open it on your own computer)")
@@ -1030,17 +1051,22 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("self-update", help="update Craft Conductor itself to the newest release")
     s.add_argument("--check", action="store_true", help="only check, don't install")
+    s.add_argument("--channel", choices=selfupdate.CHANNELS,
+                   help="stable (the default) or beta (early versions); otherwise the one chosen in settings")
     s.add_argument("-y", "--yes", action="store_true")
     s.set_defaults(fn=cmd_self_update)
 
     s = sub.add_parser("service", help="Linux: run Craft Conductor in the background at boot with systemd")
     s.add_argument("action", choices=["install", "uninstall", "status"])
     s.add_argument("--local-only", action="store_true",
-                   help="with --panel: keep the control panel on this machine (127.0.0.1), for a rented server "
-                        "you reach over SSH (ssh -L), rather than open to the network")
+                   help="with --panel: keep the control panel on this machine (127.0.0.1, the default), for a rented "
+                        "server you reach over SSH (ssh -L), even if network access was turned on before")
+    s.add_argument("--network", action="store_true",
+                   help="with --panel: open the control panel to other computers on your network (0.0.0.0); "
+                        "it needs a strong password. Never forward its port on your router")
     s.add_argument("--panel", action="store_true",
-                   help="the whole control panel with all your servers (craft-conductor start), reachable from other "
-                        "computers on your network; without it, just the server in this folder")
+                   help="the whole control panel with all your servers (craft-conductor start); without it, just the "
+                        "server in this folder")
     s.set_defaults(fn=cmd_service)
 
     s = sub.add_parser("cmd", help="send a console command over RCON")

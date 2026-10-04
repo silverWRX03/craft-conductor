@@ -245,6 +245,8 @@ class Joiner:
         except HttpError as e:
             if e.status == 404:
                 raise JoinError("the server doesn't recognise this invite any more; ask for a new one") from e
+            if e.status == 410:
+                raise JoinError("this invite has expired; ask the server's owner for a new link") from e
             raise JoinError(f"couldn't reach the server at {self.invite.host}:{self.invite.port} ({e}). "
                             "Is Craft Conductor running there, and is the share port forwarded?") from e
         return validate_pack(pack, self.invite.url)
@@ -258,6 +260,8 @@ class Joiner:
         except HttpError as e:
             if e.status == 429:
                 return "slow down"
+            if e.status == 410:
+                raise JoinError("this invite has expired; ask the server's owner for a new link") from e
             raise JoinError(f"couldn't reach the server to ask ({e.friendly})") from e
         return result
 

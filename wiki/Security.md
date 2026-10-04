@@ -9,7 +9,10 @@ under Settings → Sign-in. Forgot it? Run `craft-conductor web-password --reset
 to go back to `PASSWORD`. To fix the password in the config instead, set
 `[web] password` in craft-conductor.toml. Passwords and PINs are stored only as salted hashes.
 
-**Security.** By default it only listens on `127.0.0.1`. Every request needs a
+**Security.** By default it only listens on `127.0.0.1`, including on a computer without a
+screen (reached through an SSH tunnel) and as a boot service (`craft-conductor service install
+--panel`; `--network` opens it to your home network). In Docker the example publishes it on
+`127.0.0.1` too. Every request needs a
 login (rate limited; sessions are HttpOnly, SameSite=Strict cookies), and
 changes need a CSRF header. Requests must address this machine by IP, `localhost`,
 a `.local` name, or its host name, which blocks DNS-rebinding attacks. If you use a
@@ -28,7 +31,9 @@ safeguards:
   character. PINs only ever work on the server's own computer, and the
   password can't be weakened while remote access is on.
 - **Phones are paired by scanning a QR code** (or typing its 12-character code). The code
-  works once, for five minutes, and only 5 tries are allowed per 5 minutes. Each phone gets
+  works once (even if two phones try it at the same moment), for five minutes, and only 5 tries
+  are allowed per 5 minutes. **Cancel this code** stops it sooner, and so do turning off remote
+  access, removing every phone and changing the password. Each phone gets
   its own key (only a hash of it is stored) and signs in by itself afterwards.
 - **Phones get the everyday controls only:** start, stop and restart servers, backups,
   updates and players. They can't change settings, mods or files, use the console or change
@@ -60,6 +65,26 @@ or swap the mods. The program itself always comes from GitHub, never from your s
 page lives on GitHub Pages (a real certificate, so no browser warning), and the invite
 itself is after the `#` in the link, which browsers never send anywhere. Power users can
 still use the raw invite code with `craft-conductor join <code>`.
+
+**Links that stop.** An invite link is made to be shared (in a Discord channel, say), so it isn't
+single-use. It stops working by itself after the time you pick on the Friends page (7 days unless
+you change it; or until you replace it), and **Stop these links** or **New links** ends it at once.
+After that every request with it is refused, and when no server has a working link the friends'
+port closes. A link only ever gives the setup for players' computers and a way to **ask to be let
+in**: it never reaches the control panel, and with the whitelist on, you decide who plays.
+
+## The router (UPnP)
+
+**Open the ports on my router by itself** is off until you switch it on, and asks first: it makes
+your server reachable from the whole internet, and the page says so for as long as it's on. Only
+each server's Minecraft port and the friends' port are forwarded, never the control panel's port
+or a server's RCON port, and they're taken back when you switch it off or quit.
+
+## Updates
+
+Craft Conductor only updates to a newer version, on the channel you chose (stable unless you pick
+beta), and only with a download that matches the checksum published with the release; anything
+else leaves the running version as it is. See [Updating Craft Conductor](Updating-Craft-Conductor).
 
 ## Found a security problem?
 

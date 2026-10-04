@@ -643,13 +643,31 @@ function offerSelfUpdate(u, force = false) {
     act(() => api("/api/self-update/apply", { method: "POST", body: { version: u.version } }), "Updating Craft Conductor… this page reconnects when it's back.");
   };
   stickyToast("self-update", [
-    h("strong", {}, `craft-conductor ${u.version} is available`),
+    h("strong", {}, `Craft Conductor ${u.version}${u.prerelease ? " (beta)" : ""} is available`),
     h("div", { class: "small muted" }, `You have ${u.current}. `, u.url ? h("a", { href: u.url, target: "_blank", rel: "noopener noreferrer" }, "What's new ↗") : null),
     u.can_install ? null : h("div", { class: "small" }, u.reason),
     h("div", { class: "row mt-s" },
       u.can_install ? h("button", { class: "btn primary small", onclick: install }, "Update now") : null,
       h("button", { class: "btn small", onclick: later }, "Later")),
   ]);
+}
+
+// Which versions Craft Conductor offers to update to: stable (the default) or betas too.
+function updateChannelPicker(current) {
+  const sel = h("select", { "aria-label": "Craft Conductor updates", onchange: async () => {
+    const r = await act(() => api("/api/self-update/channel", { method: "POST", body: { channel: sel.value } }),
+      sel.value === "beta" ? "You'll be offered beta versions too" : "You'll only be offered stable versions");
+    if (!r) { sel.value = current || "stable"; return; }
+    current = r.channel;
+    try { localStorage.removeItem(DISMISS_KEY); } catch (_) {}
+    closeToast("self-update");
+    offerSelfUpdate(r.self_update, true);
+  } },
+    h("option", { value: "stable" }, "Stable versions only (recommended)"),
+    h("option", { value: "beta" }, "Beta versions too (early, less tested)"));
+  sel.value = current || "stable";
+  return h("label", { class: "mt-s" }, "Updates", sel,
+    h("span", { class: "muted small" }, "Every update is checked against the checksum published with it before it's installed, and Craft Conductor never goes back to an older version: after leaving beta, the next update is the next stable version."));
 }
 
 // ------------------------------------------------------------- guided setup
@@ -1072,6 +1090,10 @@ function openDoctor() {
     if (c.action === "eula") {
       if (!(await ask("Minecraft's End User License Agreement (EULA) is Mojang's terms for running a Minecraft server. " +
         "Read it at https://aka.ms/MinecraftEULA.\n\nDo you accept it?", { ok: "I accept the EULA" }))) return;
+      body.accept = true;
+    }
+    if (c.action === "upnp") {
+      if (!(await confirmUpnp())) return;
       body.accept = true;
     }
     btn.disabled = true;
@@ -2439,6 +2461,22 @@ function bedrockCard() {
   return box;
 }
 
+// How long friends' invite links work. They're shared (a Discord channel, a group chat), so they
+// can't be single-use: they stop by themselves instead, and can be stopped or replaced any time.
+function linkLifetime(d, done) {
+  const label = (n) => n === 0 ? "Until I make new ones" : n === 1 ? "1 day" : `${n} days`;
+  const sel = h("select", { "aria-label": "How long invite links work", onchange: async () => {
+    const r = await act(() => api("/api/client", { method: "POST", body: { link_days: Number(sel.value) } }),
+      Number(sel.value) ? `The links work for ${label(Number(sel.value))} from now` : "The links work until you make new ones");
+    if (r) done(r); else sel.value = String(d.link_days);
+  } }, (d.link_day_choices || [1, 7, 30, 0]).map((n) => h("option", { value: String(n) }, label(n))));
+  sel.value = String(d.link_days);
+  return h("div", { class: "mt-s" },
+    h("label", { class: "row" }, h("span", {}, "Links work for"), sel),
+    h("p", { class: "muted small" }, "Anyone with a link can use it until it stops, so a link posted in a Discord channel works for everyone there. " +
+      "Changing this starts the time again from now; it also applies to new links. Friends who already set up keep playing after a link stops, but need a new link to update their game."));
+}
+
 views.friends = () => {
   const body = h("div");
   let data = null;
@@ -2509,17 +2547,28 @@ views.friends = () => {
       h("div", { class: "mt" }, card("Invite links",
         h("p", { class: "small" }, "Send one of these links (by Discord, text or email). Your friend clicks it, presses ",
           h("strong", {}, "Download"), " and runs the file: Craft Conductor sets up their game. Next time, the link opens their Craft Conductor directly."),
-        links.local ? linkRow("Local link", `For friends on the same Wi-Fi or network as this computer (${s.lan_ip}).`, links.local) : null,
-        links.internet ? linkRow("Internet link", `For friends anywhere else, through your public address (${s.address}).`, links.internet)
-          : h("div", { class: "invite" }, h("strong", {}, "Internet link"),
-            h("div", { class: "muted small" }, "For friends elsewhere, Craft Conductor needs your public address. It can find it for you.")),
-        h("div", { class: "row mt-s" }, findIp,
-          links.internet || links.local ? h("button", { class: "btn", onclick: () => openDiscord(links) }, "💬 Post to Discord") : null,
-          h("button", { class: "btn ghost", onclick: async () => {
-            if (await ask("Make new links? The old ones stop working (friends who already set up keep playing, but can't update until they get a new link).", { ok: "Make new links", danger: true })) {
+        d.expired ? h("div", { class: "notice warn" }, h("strong", {}, "These links have stopped working. "),
+          d.expires ? `They stopped on ${fmtTime(d.expires)}. ` : "",
+          "Friends who already set up can still play, but nobody can set up or update their game with the old links. Make new links and send them again.") : [
+          links.local ? linkRow("Local link", `For friends on the same Wi-Fi or network as this computer (${s.lan_ip}).`, links.local) : null,
+          links.internet ? linkRow("Internet link", `For friends anywhere else, through your public address (${s.address}).`, links.internet)
+            : h("div", { class: "invite" }, h("strong", {}, "Internet link"),
+              h("div", { class: "muted small" }, "For friends elsewhere, Craft Conductor needs your public address. It can find it for you.")),
+          h("p", { class: "small" }, d.expires ? `🔒 These links work until ${fmtTime(d.expires)}, then stop by themselves.`
+            : "These links work until you make new ones or stop them.")],
+        linkLifetime(d, (r) => { data = r; render(); }),
+        h("div", { class: "row mt-s" }, d.expired ? null : findIp,
+          !d.expired && (links.internet || links.local) ? h("button", { class: "btn", onclick: () => openDiscord(links) }, "💬 Post to Discord") : null,
+          h("button", { class: d.expired ? "btn primary" : "btn ghost", onclick: async () => {
+            if (d.expired || await ask("Make new links? The old ones stop working (friends who already set up keep playing, but can't update until they get a new link).", { ok: "Make new links", danger: true })) {
               act(() => api("/api/client/new-link", { method: "POST", body: {} }), "New links made").then((r) => { if (r) { data = r; render(); } });
             }
-          } }, "New links")),
+          } }, d.expired ? "Make new links" : "New links"),
+          !d.expired && (links.internet || links.local) ? h("button", { class: "btn ghost", onclick: async () => {
+            if (await ask("Stop these links now? Nobody else can set up with them. Friends who already set up keep playing, but can't update their game until they get a new link.", { ok: "Stop the links", danger: true })) {
+              act(() => api("/api/client/stop-link", { method: "POST", body: {} }), "Links stopped").then((r) => { if (r) { data = r; render(); } });
+            }
+          } }, "Stop these links") : null),
         links.internet || links.local ? h("details", { class: "mt-s small" }, h("summary", {}, "Advanced: invite codes and security"),
           h("p", { class: "muted" }, "🔒 Friends' Craft Conductor connects to this computer over HTTPS and only to this computer: the invite carries its security fingerprint. " +
             "The link's invite is after the #, which browsers never send anywhere; the page is Craft Conductor's own, on GitHub."),
@@ -2528,6 +2577,7 @@ views.friends = () => {
             h("div", { class: "row mt-s" }, h("span", { class: "tag" }, label),
               h("input", { readonly: true, value: l.split("#")[1].split("/")[0], class: "grow mono", "aria-label": `${label} invite code` })))) : null,
         s.error ? h("div", { class: "notice bad mt-s" }, s.error)
+          : d.expired ? null  // (nothing to share until there are new links)
           : h("p", { class: "muted small" }, s.running ? `Sharing on port ${s.port}.` : "Sharing starts in a few seconds."),
         h("p", { class: "muted small" },
           "For the internet link to work, forward two TCP ports on your router to this computer: ", h("strong", {}, String(s.port)),
@@ -3506,6 +3556,7 @@ function routerHelp(opts = {}) {
     h("div", { class: "notice" }, h("strong", {}, "Let Craft Conductor try first: "), "many routers can do it by themselves (UPnP). Switch on ",
       h("a", { href: "#craft-conductor" }, "Craft Conductor settings → Connections → Sharing with friends → Open the ports on my router by itself"),
       " and Craft Conductor says whether it worked. If it didn't, or you'd rather not, do it by hand:"),
+    h("p", { class: "small muted" }, "Either way, forwarding the port makes your server reachable from the whole internet: keep the whitelist on, and never forward the control panel's port."),
     h("img", { class: "help-img", src: "/help-network.svg", alt: "A friend on the internet connects to your router, which forwards port " + mc + " to this computer." }),
     h("ol", { class: "steps" },
       h("li", {}, "Give this computer a fixed address on your network, so the rule keeps working: in the router's ", h("strong", {}, "LAN / DHCP"),
@@ -3547,6 +3598,8 @@ const HELP = [
   ["friends", "Letting friends join", () => [
     h("p", {}, "On a server's ", h("strong", {}, "Friends"), " page, turn on the friends' download and send the link. Their copy of Craft Conductor sets up ",
       "the right Minecraft version, mod loader and mods in their launcher, and adds your server to their list."),
+    h("p", {}, "Links are shared, so anyone with one can use it: each stops working by itself after the time you pick (7 days unless you change it), and ",
+      h("strong", {}, "Stop these links"), " or ", h("strong", {}, "New links"), " stops it sooner. Friends who already set up keep playing; they need a new link to update."),
     h("p", {}, "Friends outside your home also need the router set up (below).")]],
   ["router", "Router setup (port forwarding)", () => [routerHelp()]],
   ["mods", "Mods and updates", () => [
@@ -3568,7 +3621,7 @@ const HELP = [
   ["remote", "Using Craft Conductor from your phone", () => [
     h("p", {}, "The hamburger menu at the top left opens navigation. The Light / Dark slider inside it remembers your theme. On desktop the slider is in the top bar. The Dashboard shows CPU, RAM, server-volume Disk usage and Players in four cards, above the boxed Live console."),
     h("p", {}, "Open ", h("button", { type: "button", class: "link-btn", onclick: openRemoteAccess }, "Remote access & phones"),
-      ": set a strong password, allow other devices, and pair your phone by scanning a QR code. Away from home, use Tailscale rather than opening ports.")]],
+      ": set a strong password, allow other devices, and pair your phone by scanning a QR code (it works once, for five minutes). Until then, only this computer can open the control panel. Away from home, use Tailscale rather than opening ports.")]],
   ["keyboard", "Keyboard, screen readers and display", () => [
     h("p", {}, "Everything works with the keyboard: Tab moves, Enter or Space presses, Escape closes a window. The first Tab reaches ",
       h("strong", {}, "Skip to main content"), ". Screen readers read out messages as they appear."),
@@ -3821,7 +3874,12 @@ function openRemoteAccess() {
         h("p", { class: "small" }, p.secure ? "Scan it with the phone's camera and open the link. The phone is paired, then it offers to install the app (an iPhone adds it to the Home Screen first)."
           : "Scan it with the phone's camera and open the link. The phone is paired, and Craft Conductor opens in its browser."),
         h("p", { class: "small" }, "Or, on the phone's sign-in page, choose ", h("strong", {}, "Pair with a code"), " and type ", h("code", { class: "pair-code" }, p.code), "."),
-        clock);
+        clock,
+        h("div", { class: "row mt-s" }, h("button", { class: "btn small ghost", onclick: async () => {
+          if (!(await act(() => api("/api/hub/devices/cancel-pairing", { method: "POST", body: {} }), "Pairing code cancelled"))) return;
+          clearInterval(timer);
+          fill(pairBox, h("p", { class: "small muted" }, "The code was cancelled: it no longer works."));
+        } }, "Cancel this code")));
     } }, "Show a pairing QR code");
     const devices = r.devices.length ? h("ul", { class: "list" }, r.devices.map((d) => h("li", {},
       h("div", { class: "grow" }, h("strong", {}, d.name), " ", h("span", { class: "tag" }, d.role === "viewer" ? "viewer" : "helper"),
@@ -4700,12 +4758,19 @@ function notificationsCard() {
 // The language of Craft Conductor's pages (this browser): automatic (the browser's) or one picked here.
 // Automatic port forwarding (UPnP): Craft Conductor asks the router to forward its own ports to this
 // computer, renews them while it runs and takes them back when switched off (or on quit).
+// What switching it on means, in plain words (the same as upnp.EXPOSURE_WARNING: a test checks).
+const UPNP_WARNING = "This makes your Minecraft server reachable from the whole internet, not just your friends. " +
+  "Anyone can try to connect, and a weakness in Minecraft or in a mod could put this computer at risk. " +
+  "Only the game ports and the friends' download port are opened; the control panel stays private. " +
+  "Keep the whitelist on, and switch this off when you don't need it.";
+const confirmUpnp = () => ask(`Open the ports on your router?\n\n${UPNP_WARNING}`, { ok: "Open the ports", danger: true });
 function routerBox() {
   const box = h("div", { class: "mt" });
   const render = (st, busy = "") => {
     const on = h("input", { type: "checkbox", checked: !!st.enabled, disabled: !!busy, onchange: async () => {
+      if (on.checked && !(await confirmUpnp())) { on.checked = false; return; }
       render({ ...st, enabled: on.checked }, on.checked ? "Asking your router…" : "Taking the ports back…");
-      const r = await api("/api/hub/upnp", { method: "POST", body: { enabled: on.checked } }).catch((e) => { toast(e.message, true); return null; });
+      const r = await api("/api/hub/upnp", { method: "POST", body: { enabled: on.checked, accept: on.checked } }).catch((e) => { toast(e.message, true); return null; });
       render(r || st);
     } });
     const ports = (st.ports || []).map((p) => h("li", {}, p.ok ? "✓ " : "✗ ", h("strong", {}, `${p.protocol} ${p.port}`),
@@ -4716,6 +4781,7 @@ function routerBox() {
         "and takes them back when you switch this off or quit Craft Conductor. Only Craft Conductor's own ports are opened. Many routers have UPnP switched off: " +
         "then forward the ports by hand (Help → Router setup), or use playit.gg."),
       busy ? h("p", { class: "small" }, busy) : null,
+      !busy && st.enabled ? h("div", { class: "notice warn", role: "status" }, h("strong", {}, "Your server is open to the internet. "), st.exposure || UPNP_WARNING) : null,
       !busy && st.enabled && st.error ? h("div", { class: "notice warn" }, h("strong", {}, "It didn't work: "), st.error, ".") : null,
       !busy && st.enabled && !st.error && st.router ? h("p", { class: "small ok-text" },
         `${st.router}${st.external_ip ? ` (internet address ${st.external_ip})` : ""}`) : null,
@@ -5146,7 +5212,8 @@ views["craft-conductor"] = () => {
             try { localStorage.removeItem(DISMISS_KEY); } catch (_) {}
             closeToast("self-update");
             await act(() => api("/api/self-update/check", { method: "POST", body: {} }), "Checking for a new Craft Conductor version…");
-          } }, "Check for Craft Conductor updates"), s.single ? null : folderBtn("home", "Craft Conductor folder", null, "btn"))),
+          } }, "Check for Craft Conductor updates"), s.single ? null : folderBtn("home", "Craft Conductor folder", null, "btn")),
+        updateChannelPicker(s.update_channel)),
       h("div", { class: "mt" }, card("What Craft Conductor does and doesn't do",
         h("ul", { class: "notice-points" }, n.points.map((p) => h("li", {}, p))))),
       h("div", { class: "mt" }, card("Open-source licenses",
