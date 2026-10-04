@@ -41,7 +41,8 @@ Before continuing or starting a feature, check this list: some features wait on 
 - [ ] **Try automatic port forwarding at home** (craft-conductor settings → Sharing with friends → Router):
       switch it on, look at what it says, then **Test from the internet** in Check my setup. It
       was only tested against a pretend router.
-- [ ] **Try the 0.22.3 safety checks on real computers** (they were only tested on Linux, with a
+- [ ] **Try the 0.22.3 safety checks on real computers** (the full plan, with prompts for Claude Code
+      on your PC: [docs/real-world-testing.md](docs/real-world-testing.md); they were only tested on Linux, with a
       pretend Minecraft): on a clean Windows VM, install the download and make a Fabric server,
       back it up, **Restore** it while File Explorer has the server folder open (it should say a
       program is using a file and leave the server as it was), and pull the power (or end the
