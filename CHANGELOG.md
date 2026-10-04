@@ -4,7 +4,7 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
-## 0.22.3 (not released yet)
+## 0.22.3 (2026-10-04)
 
 **Added**
 - Help shows a picture of the screen for each of its topics (press one to see it full size), and the user manual's **See this screen** now has pictures for every page: signing in, the guided setup, Check my setup, Performance, a server that didn't start, Backups, the invite page and setup page your friends see, Remote access & phones, a phone, and more. The wiki and the README show the same pictures.
