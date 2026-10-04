@@ -307,9 +307,11 @@ class Joiner:
 
     def java(self, major: int) -> str:
         from .java import JavaManager, probe
-        cfg = SimpleNamespace(state_dir=self.mc / "craft-conductor" / ".craft-conductor", java_image="jre", java_default="java",
-                              java_versions={}, java_version=None, java_auto_install=True)
-        return JavaManager(cfg, self.http, self.java_probe or probe).select(major)
+        cfg = SimpleNamespace(java_image="jre", java_default="java", java_versions={}, java_version=None,
+                              java_auto_install=True)
+        # (a Java of its own for the loader's installer, in the friend's Minecraft folder)
+        return JavaManager(cfg, self.http, self.java_probe or probe, scan=False,
+                           store=self.mc / "craft-conductor" / ".craft-conductor" / "java").select(major)
 
     def write_version(self, pack: dict, base: str, slug: str) -> str:
         """Our own launcher version: the loader's, plus joining the server on start (1.20+)."""

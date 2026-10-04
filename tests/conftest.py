@@ -191,6 +191,18 @@ class ModrinthFixture:
 
 
 @pytest.fixture(autouse=True)
+def java_store(tmp_path, monkeypatch):
+    """Each test has its own shared Java folder, and doesn't find the Java of the computer it runs on."""
+    from craft_conductor import java as javamod
+    store = tmp_path / "java-store"
+    monkeypatch.setattr(javamod, "default_store", lambda: store)
+    monkeypatch.setattr(javamod, "install_folders", lambda: [])
+    monkeypatch.setattr(javamod, "GRACE", 0)
+    monkeypatch.delenv("JAVA_HOME", raising=False)
+    return store
+
+
+@pytest.fixture(autouse=True)
 def notice_accepted(tmp_path, monkeypatch):
     """Keep tests away from the real user config, with the first-run notice already accepted."""
     from craft_conductor import notice
@@ -223,9 +235,13 @@ def modrinth(http):
 
 
 FAKE_JAVA = textwrap.dedent("""\
-    import runpy, sys
+    import platform, runpy, sys
     args = sys.argv[1:]
-    if args[:1] == ["-version"]:
+    if "-version" in args:
+        if "-XshowSettings:properties" in args:
+            print("Property settings:", file=sys.stderr)
+            print("    java.version = 21.0.4", file=sys.stderr)
+            print("    os.arch = " + platform.machine().lower(), file=sys.stderr)
         print('openjdk version "21.0.4" 2024-07-16', file=sys.stderr)
         sys.exit(0)
     while args and args[0].startswith("-"):  # JVM flags

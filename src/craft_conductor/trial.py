@@ -20,7 +20,6 @@ import shutil
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path
 
 from . import config as configmod, setup as setupmod
 from .config import ModSpec
@@ -138,12 +137,10 @@ class CheckJob:
 class Trial:
     """One test run: boots a throwaway server with ``mods``; with ``bisect``, finds the culprits."""
 
-    def __init__(self, hub, loader: str, minecraft: str, mods: list[ModSpec], bisect: bool = False,
-                 java_from: Path | None = None):
+    def __init__(self, hub, loader: str, minecraft: str, mods: list[ModSpec], bisect: bool = False):
         self.id = secrets.token_hex(6)
         self.hub = hub
         self.loader, self.minecraft, self.mods, self.bisect = loader, minecraft, mods, bisect
-        self.java_from = java_from
         self.root = hub.state_dir / "trials" / self.id
         self.state = "running"
         self.log: list[str] = []
@@ -179,8 +176,7 @@ class Trial:
         configmod.set_value(path, "updates", "verify_boot", "true")
         configmod.set_value(path, "backups", "keep", "1")
         self.m = self.hub.make_manager(configmod.load(self.root))
-        if self.java_from and self.java_from.is_dir():  # Java that's already downloaded, used as it is
-            self.m.java.shared = self.java_from
+        self.m.java.temporary = True  # (the shared Java folder, without counting as a server using it)
 
     def _test(self, mods: list[ModSpec], label: str) -> tuple[bool, str, dict | None]:
         if self.cancel.is_set():

@@ -26,12 +26,17 @@ const HEADERS = {'X-CRAFT-CONDUCTOR': '1'};
   page.on('pageerror', e => errors.push(e.message));
 
   // The example servers live in a test folder: show them where Craft Conductor keeps servers on Windows.
-  const tidy = () => page.evaluate(([folder, shown]) => {
-    const swap = s => s.split(folder).map((part, i) => i ? part.replace(/^[^\s,;)]*/, p => p.replace(/\//g, '\\')) : part).join(shown);
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    for (let n; (n = walker.nextNode());) if (n.nodeValue.includes(folder)) n.nodeValue = swap(n.nodeValue);
-    for (const el of document.querySelectorAll('input, textarea')) if (el.value.includes(folder)) el.value = swap(el.value);
-  }, [home, 'C:\\Users\\you\\craft-conductor']);
+  // (and Java "installed" in a test folder, where Windows keeps programs)
+  const places = [[home, 'C:\\Users\\you\\craft-conductor']];
+  if (process.env.CRAFT_UI_PROGRAMS) places.push([process.env.CRAFT_UI_PROGRAMS, 'C:\\Program Files']);
+  const tidy = () => page.evaluate((places) => {
+    for (const [folder, shown] of places) {
+      const swap = s => s.split(folder).map((part, i) => i ? part.replace(/^[^\s,;)]*/, p => p.replace(/\//g, '\\')) : part).join(shown);
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      for (let n; (n = walker.nextNode());) if (n.nodeValue.includes(folder)) n.nodeValue = swap(n.nodeValue);
+      for (const el of document.querySelectorAll('input, textarea')) if (el.value.includes(folder)) el.value = swap(el.value);
+    }
+  }, places);
   const shot = async (name, {full = false} = {}) => {
     await page.waitForFunction(() => !document.querySelector('#toasts .toast:not(.sticky)'), null, {timeout: 15000});
     await tidy();

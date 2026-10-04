@@ -216,9 +216,9 @@ class Rehearsal:
         from .setup import total_ram_gb
         from .doctor import server_memory_gb
         m = self.make_manager(configmod.load(self.root))
-        # The server's own Java folder, used as it is: nothing copied, a Java the update needs is
-        # there for the real update too, and no deeper path (Windows' 260-character limit).
-        m.java.shared = self.d.m.java.dir
+        # The shared Java folder, as every server uses it: nothing copied, and a Java the update needs
+        # is there for the real update too. The copy doesn't count as a server using it.
+        m.java.temporary = True
         m.notifier.discord_webhook = ""  # nobody needs to hear about the copy
         m.config.backups.copy_to = None
         m.echo = False

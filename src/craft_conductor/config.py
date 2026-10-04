@@ -390,10 +390,11 @@ restart_when_empty = false     # skip a scheduled restart while players are onli
 
 [java]
 version = "auto"               # "auto" = whatever the Minecraft version needs, or force one, e.g. 21
-auto_install = true            # download Eclipse Temurin into .craft-conductor/java/ when the needed version is missing
+auto_install = true            # download Eclipse Temurin into the shared Java folder when no Java on this computer fits
 image = "jre"                  # jre | jdk
 default = "java"               # a system Java to use if it is exactly the right version
-# Java you installed yourself, by major version (used before downloading):
+# Java you installed yourself, by major version (used before downloading; Java found on this
+# computer is added here when a server starts using it):
 # [java.versions]
 # 17 = "/usr/lib/jvm/java-17-openjdk/bin/java"
 # 21 = "/usr/lib/jvm/java-21-openjdk/bin/java"
@@ -499,3 +500,20 @@ def set_value(path: Path, table: str, key: str, literal: str) -> None:
     else:
         lines.insert(start + 1, f"{key} = {literal}\n")
     path.write_text("".join(lines))
+
+
+def unset_value(path: Path, table: str, key: str) -> bool:
+    """Remove ``key = ...`` from ``[table]`` (every other line, and comment, stays). False if it wasn't there."""
+    lines = path.read_text().splitlines(keepends=True)
+    header = re.compile(rf"^\s*\[{re.escape(table)}\]\s*(#.*)?$")
+    start = next((i for i, line in enumerate(lines) if header.match(line)), None)
+    if start is None:
+        return False
+    end = next((i for i in range(start + 1, len(lines)) if re.match(r"^\s*\[", lines[i])), len(lines))
+    assign = re.compile(rf"^\s*{re.escape(key)}\s*=")
+    for i in range(start + 1, end):
+        if assign.match(lines[i]):
+            del lines[i]
+            path.write_text("".join(lines))
+            return True
+    return False

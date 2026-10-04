@@ -752,7 +752,7 @@ class Preview:
     """One map preview, run in the background; the page polls :meth:`to_dict`."""
 
     def __init__(self, hub, loader: str, minecraft: str, mods: list[ModSpec], seed: str, level_type: str,
-                 structures: bool, radius: int, java_from: Path | None = None):
+                 structures: bool, radius: int):
         if not SEED.fullmatch(seed):
             raise PreviewError("the seed can be up to 64 letters, numbers or symbols")
         if level_type not in LEVEL_TYPES:
@@ -768,7 +768,6 @@ class Preview:
         self.minecraft, self.mods = minecraft, mods
         self.seed = seed.strip() or random_seed()
         self.level_type, self.structures, self.radius = level_type, structures, radius
-        self.java_from = java_from
         self.state, self.step, self.progress = "running", "Getting ready…", None
         self.error = ""
         self.meta: dict | None = None
@@ -803,10 +802,10 @@ class Preview:
         mods = sorted(f"{m.source}:{m.id}:{m.channel or ''}" for m in self.mods)
         return hashlib.sha256(repr((self.loader, self.minecraft, mods)).encode()).hexdigest()[:16]
 
-    def _share_java(self, m) -> None:
-        """Java that a server already downloaded, used as it is (not fetched again)."""
-        if self.java_from and self.java_from.is_dir():
-            m.java.shared = self.java_from
+    @staticmethod
+    def _share_java(m) -> None:
+        """The shared Java folder, as servers use it; the throwaway server doesn't count as one using it."""
+        m.java.temporary = True
 
     def _server(self):
         """The throwaway server with these mods (and Chunky), made or reused; its world removed."""

@@ -2081,32 +2081,79 @@ views.backups = () => {
 
 views.java = () => {
   const body = h("div");
-  const load = async () => {
+  const names = (list) => list.length > 1 ? `${list.slice(0, -1).join(", ")} and ${list[list.length - 1]}` : list.join("");
+  const use = (b, okMessage = "Saved. Applies at the next start.") => act(() => api("/api/java/use", { method: "POST", body: b }), okMessage).then(load);
+  // A newer Java than Minecraft asks for: used only when you say so (some loaders and older mods break on one).
+  const useNewer = async (major, path) => {
+    if (await ask(`Use Java ${major} for this server?\n\nMinecraft asks for an older Java. A newer one works for most servers, but some loaders and older mods break on one: if the server doesn't start, choose "auto" again.`, { ok: `Use Java ${major}` }))
+      use(path ? { version: String(major), path } : { version: String(major) });
+  };
+  async function load() {
     const r = await api("/api/java").catch(() => null);
     if (!r) return;
-    const use = h("select", {}, h("option", { value: "auto" }, "auto (what Minecraft needs)"),
+    const c = r.choice;
+    const pick = h("select", {}, h("option", { value: "auto" }, "auto (what Minecraft needs)"),
       [8, 11, 16, 17, 21, 25].map((v) => h("option", { value: String(v) }, `Java ${v}`)));
-    use.value = r.forced ? String(r.forced) : "auto";
+    pick.value = r.forced ? String(r.forced) : "auto";
     const major = h("input", { type: "number", min: 8, max: 99, value: r.required || 21, class: "narrow" });
-    fill(body, 
-      h("div", { class: "grid" },
-        card("Server runtime", h("dl", { class: "kv" },
-          h("dt", {}, "Needs"), h("dd", {}, r.required ? `Java ${r.required}` : "—"),
-          h("dt", {}, "Using"), h("dd", {}, r.current ? h("code", {}, r.current) : "—"),
-          h("dt", {}, "Auto-install"), h("dd", {}, r.auto_install ? "on" : "off")),
-          h("label", { class: "mt-s" }, "Run the server on",
-            h("div", { class: "row" }, use, h("button", { class: "btn primary", onclick: () => act(() => api("/api/java/use", { method: "POST", body: { version: use.value } }), "Saved. Applies at the next start.").then(load) }, "Save")))),
-        card("Download Temurin", h("p", { class: "muted" }, "Downloads Eclipse Temurin into .craft-conductor/java/. ", folderBtn("java", "Open it")),
-          h("div", { class: "row" }, major, h("button", { class: "btn", onclick: () => act(() => api("/api/java/install", { method: "POST", body: { major: Number(major.value) } }), "Downloading…") }, "Install"))),
-      ),
-      card("Available runtimes", h("table", {},
-        h("thead", {}, h("tr", {}, h("th", {}, "Java"), h("th", {}, "Source"), h("th", {}, "Path"))),
-        h("tbody", {},
-          r.managed.map((j) => h("tr", {}, h("td", {}, String(j.major)), h("td", {}, "managed ", h("span", { class: "tag" }, j.release)), h("td", {}, h("code", {}, j.path)))),
-          r.configured.map((j) => h("tr", {}, h("td", {}, String(j.major)), h("td", {}, "[java.versions]"), h("td", {}, h("code", {}, j.path)))),
-          h("tr", {}, h("td", {}, "?"), h("td", {}, "default"), h("td", {}, h("code", {}, r.default)))))),
-    );
-  };
+    const others = c && c.also && c.also.length ? h("span", { class: "muted" }, " · also used by ", names(c.also)) : null;
+    const using = !c ? "—"
+      : c.source === "shared" ? h("span", {}, h("strong", {}, `Shared Java ${c.major}`), " ", h("span", { class: "tag" }, c.release), others || h("span", { class: "muted" }, " · only this server uses it"))
+      : c.source === "configured" ? h("span", {}, h("strong", {}, "Your own Java"), " at ", h("code", {}, c.binary), others)
+      : c.source === "found" ? h("span", {}, h("strong", {}, "Your own Java"), " at ", h("code", {}, c.binary), h("span", { class: "muted" }, " · found on this computer; used from the next start"))
+      : c.source === "default" ? h("span", {}, h("strong", {}, "This computer's Java"), " ", h("code", {}, c.binary), others)
+      : c.source === "download" ? h("span", {}, h("strong", {}, "Nothing yet:"), ` Java ${c.wanted} will be downloaded (Eclipse Temurin) into the shared Java folder at the next start.`)
+      : h("span", { class: "bad" }, c.note);
+    const newer = c && c.newer && c.newer.length ? h("div", { class: "notice small mt-s" },
+      c.newer.map((n) => h("div", { class: "row" },
+        h("span", { class: "grow" }, `Java ${n.major} is already on this computer`, n.source === "shared" ? " (shared)" : h("span", {}, " at ", h("code", {}, n.path)),
+          `. Minecraft asks for Java ${c.wanted}: a newer Java works for most servers, but some loaders and older mods break on one.`),
+        h("button", { class: "btn small", onclick: () => useNewer(n.major, n.source === "shared" ? null : n.path) }, `Use Java ${n.major}`)))) : null;
+    const runtime = card("This server's Java", h("dl", { class: "kv" },
+      h("dt", {}, "Needs"), h("dd", {}, r.required ? `Java ${r.required}` : "—", r.forced ? h("span", { class: "muted" }, ` (set to Java ${r.forced})`) : null),
+      h("dt", {}, "Uses"), h("dd", {}, using),
+      c && c.note && !["missing", "shared", "download"].includes(c.source) ? [h("dt", {}, "Why"), h("dd", { class: "small muted" }, c.note)] : null,
+      h("dt", {}, "Auto-install"), h("dd", {}, r.auto_install ? "on" : "off")),
+      c && c.source === "download" ? h("div", { class: "row mt-s" }, h("button", { class: "btn small", onclick: () => act(() => api("/api/java/install", { method: "POST", body: { major: c.wanted } }), "Downloading…") }, `Download Java ${c.wanted} now`)) : null,
+      c && (c.source === "configured" || c.source === "found") ? h("div", { class: "row mt-s" }, h("button", { class: "btn small ghost", onclick: () => use({ version: "shared" }) }, "Use the shared Java instead")) : null,
+      newer,
+      h("label", { class: "mt-s" }, "Run the server on",
+        h("div", { class: "row" }, pick, h("button", { class: "btn primary", onclick: () => (pick.value !== "auto" && r.required && Number(pick.value) > r.required ? useNewer(Number(pick.value)) : use({ version: pick.value })) }, "Save"))));
+    const releases = r.shared.flatMap((s) => s.releases.map((j) => h("tr", {},
+      h("td", {}, String(s.major)),
+      h("td", {}, h("span", { class: "tag" }, j.release), j.newest ? null : h("span", { class: "small muted" }, j.running ? " older: a running server still uses it (removed after it restarts)" : " older: removed soon")),
+      h("td", {}, j.bytes ? fmtBytes(j.bytes) : "—"),
+      h("td", {}, j.newest ? (s.used_by.length ? names(s.used_by) : h("span", { class: "muted" }, "no server")) : ""),
+      h("td", {}, j.newest && !s.used_by.length ? h("button", { class: "btn small ghost", onclick: async () => {
+        if (await ask(`Remove the shared Java ${s.major}?`, { ok: "Remove", danger: true })) act(() => api("/api/java/remove", { method: "POST", body: { major: s.major } }), "Removed").then(load);
+      } }, "Remove") : null))));
+    const savedBytes = r.shared.reduce((sum, s) => sum + (s.releases[0].bytes || 0) * Math.max(0, s.used_by.length - 1), 0);
+    const shared = card("Shared Java",
+      h("p", { class: "muted small" }, "One copy of each Java version for every server on this computer, in ", h("code", {}, r.store), ". ", folderBtn("java", "Open it")),
+      r.shared.length ? h("table", {},
+        h("thead", {}, h("tr", {}, h("th", {}, "Java"), h("th", {}, "Release"), h("th", {}, "Size"), h("th", {}, "Used by"), h("th", {}, ""))),
+        h("tbody", {}, releases)) : h("p", { class: "muted" }, "Nothing downloaded yet."),
+      savedBytes ? h("p", { class: "small" }, `Shared instead of one copy per server: ${fmtBytes(savedBytes)} saved.`) : null,
+      h("div", { class: "row mt-s" },
+        h("button", { class: "btn small", onclick: () => act(() => api("/api/java/update", { method: "POST" }), "Checking for new Java releases…") }, "Update shared Java"),
+        major, h("button", { class: "btn small", onclick: () => act(() => api("/api/java/install", { method: "POST", body: { major: Number(major.value) } }), "Downloading…") }, "Install")),
+      h("p", { class: "small muted" }, "A running server keeps its Java until it restarts; an older release is removed once no server runs on it."));
+    const usable = (f) => !f.problem && f.major && r.required && f.major >= r.required && !(c && c.binary === f.path);
+    const found = card("Found on this computer",
+      h("p", { class: "muted small" }, "Java you installed yourself, from your settings, java on the PATH, JAVA_HOME and the usual install folders. Each is only asked its version until a server is set to use it."),
+      r.found.length ? h("table", {},
+        h("thead", {}, h("tr", {}, h("th", {}, "Java"), h("th", {}, "Kind"), h("th", {}, "Where"), h("th", {}, ""))),
+        h("tbody", {}, r.found.map((f) => h("tr", {},
+          h("td", {}, f.major ? String(f.major) : "?"),
+          h("td", {}, [f.arch, f.vendor].filter(Boolean).join(" · ") || "—"),
+          h("td", {}, h("code", {}, f.path), f.problem ? h("div", { class: "small muted" }, f.problem) : null),
+          h("td", {}, usable(f) ? h("button", { class: "btn small ghost", onclick: () => f.major === r.required ? use({ version: "auto", path: f.path }) : useNewer(f.major, f.path) }, f.major === r.required ? "Use this one" : `Use Java ${f.major}`) : null))))) : h("p", { class: "muted" }, "None found."),
+      h("div", { class: "row mt-s" }, h("button", { class: "btn small ghost", onclick: () => act(() => api("/api/java/scan", { method: "POST" })).then(load) }, "Look again")));
+    const old = r.old_folder ? h("div", { class: "notice small" },
+      h("strong", {}, "An old Java folder: "), "before version 0.23 this server kept its own copy of Java in ", h("code", {}, r.old_folder),
+      ` (${fmtBytes(r.old_bytes)}). It isn't used any more: delete that folder by hand to free the space. `, folderBtn("old-java", "Open it")) : null;
+    fill(body, old, h("div", { class: "grid" }, runtime, shared), found);
+  }
   fill($("#main"), h("h2", { class: "view-title" }, "Java"), body);
   load();
   return { onJobDone: load };

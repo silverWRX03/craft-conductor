@@ -574,44 +574,59 @@ def cmd_java(args) -> int:
     cfg = configmod.load(args.root)
     jm = JavaManager(cfg)
     action = args.java_command
-    if action in ("update", "remove") and running_pid(Manager(cfg)):
-        print("the server is running on a managed runtime - `craft-conductor stop` first, then try again")
-        return 1
     if action == "list":
-        managed = jm.installed()
-        print(f"managed runtimes ({jm.dir}):")
-        for major, j in managed.items():
-            print(f"  Java {major:<3} {j.release:24} {j.binary}")
-        if not managed:
+        users = jm.store.users()
+        print(f"shared Java, for every server on this computer ({jm.dir}):")
+        releases = jm.store.releases()
+        for major, rels in releases.items():
+            used = [u.get("name") or u["root"] for u in users if u.get("shared") and u.get("major") == major]
+            for i, j in enumerate(rels):
+                state = "newest" if i == 0 else ("still running a server" if jm.store.running(j) else "old")
+                print(f"  Java {major:<3} {j.release:24} {state:8} {j.binary}")
+            print(f"           used by: {', '.join(used) or 'no server'}")
+        if not releases:
             print("  (none)")
         if cfg.java_versions:
             print("configured in [java.versions]:")
             for major, path in sorted(cfg.java_versions.items()):
                 print(f"  Java {major:<3} {path}")
-        found = jm.probe(cfg.java_default)
-        print(f"default: {cfg.java_default} ({f'Java {found}' if found else 'not found'})")
+        print("found on this computer:")
+        found = [f for f in jm.found() if f.source in ("JAVA_HOME", "installed", "default") and f.info]
+        for f in found:
+            why = f"  (not usable: {f.problem})" if f.problem else ""
+            print(f"  Java {f.info.major:<3} {f.info.arch or '?':8} {f.path}{why}")
+        if not found:
+            print("  (none)")
         forced = cfg.java_version
         print(f"server uses: {f'Java {forced} (forced)' if forced else 'the version Minecraft needs (auto)'}"
               f"{', downloading it if missing' if cfg.java_auto_install else ''}")
         lk = lockmod.load(cfg.root)
         if lk.java_major:
             try:
-                print(f"current server: Minecraft {lk.minecraft} needs Java {lk.java_major} -> "
-                      f"{jm.select(lk.java_major, install=False)}")
+                c = jm.choose(lk.java_major, offers=True)
+                print(f"current server: Minecraft {lk.minecraft} needs Java {lk.java_major} -> {c.note}")
+                for f in c.newer:
+                    print(f"  also here: Java {f.info.major} ({f.path}); some loaders and older mods break on a newer "
+                          f"Java: `craft-conductor java use {f.info.major}` to use it anyway")
             except JavaError as e:
                 print(f"current server: {e}")
     elif action == "install":
         for major in args.major:
             j = jm.install(major)
-            print(f"installed Java {major} ({j.release}) at {j.binary}")
+            print(f"Java {major} ({j.release}) is in the shared Java folder: {j.binary}")
     elif action == "update":
         changed = jm.update()
         for major, old, new in changed:
-            print(f"Java {major}: {old} -> {new}")
+            print(f"Java {major}: {old} -> {new} (servers move to it at their next start; "
+                  f"{old} is removed once no server runs on it)")
         if not changed:
-            print("managed Java runtimes are up to date")
+            print("the shared Java is up to date")
     elif action == "remove":
-        print(f"removed Java {args.major}" if jm.remove(args.major) else f"Java {args.major} is not managed by Craft Conductor")
+        try:
+            print(f"removed Java {args.major}" if jm.remove(args.major) else f"there's no shared Java {args.major}")
+        except JavaError as e:
+            print(f"Java {args.major} stays: {e}")
+            return 1
     elif action == "use":
         value = args.version
         if value != "auto":
@@ -622,8 +637,6 @@ def cmd_java(args) -> int:
             if required and int(value) < required:
                 print(f"Minecraft {lockmod.load(cfg.root).minecraft} needs Java {required}+")
                 return 1
-            if cfg.java_auto_install and int(value) not in jm.installed():
-                jm.select(int(value))  # download now rather than at the next start
         configmod.set_value(cfg.path, "java", "version", json.dumps(value) if value == "auto" else value)
         print(f"server will use {'the Java version Minecraft needs' if value == 'auto' else f'Java {value}'}"
               " (applies at the next start)")
@@ -1030,11 +1043,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("java", help="download and manage the Java runtime the server uses")
     jsub = s.add_subparsers(dest="java_command", required=True)
-    jsub.add_parser("list", help="show managed and configured Java runtimes and which one the server uses")
-    j = jsub.add_parser("install", help="download Eclipse Temurin for one or more major versions")
+    jsub.add_parser("list", help="show the shared Java, Java found on this computer, and which one the server uses")
+    j = jsub.add_parser("install", help="download Eclipse Temurin into the shared Java folder")
     j.add_argument("major", type=int, nargs="+")
-    jsub.add_parser("update", help="update managed runtimes to their newest patch release")
-    j = jsub.add_parser("remove", help="delete a managed runtime")
+    jsub.add_parser("update", help="bring the shared Java to its newest patch releases (servers move at their next start)")
+    j = jsub.add_parser("remove", help="delete a shared Java version no server uses")
     j.add_argument("major", type=int)
     j = jsub.add_parser("use", help='force a Java major version, or "auto" to follow Minecraft')
     j.add_argument("version")

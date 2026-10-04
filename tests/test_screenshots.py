@@ -170,15 +170,33 @@ def docs_manager(cfg, http):
                    echo=False, sleep=lambda s: None)
 
 
-def managed_java(root: Path, fake_java: Path) -> None:
-    """A Java 21 where Craft Conductor keeps the ones it downloads, running the stand-in server.
+def managed_java(store: Path, fake_java: Path) -> None:
+    """A Java 21 in the shared Java folder, running the stand-in server.
     (Named as on Windows elsewhere too: the pictures show Windows paths.)"""
     from craft_conductor.java import META
-    folder = root / ".craft-conductor" / "java" / "jdk-21.0.4+7-jre"
+    folder = store / "21" / "jdk-21.0.4+7"
     name = fake_java.name if os.name == "nt" else "java.exe"
-    (folder / "bin").mkdir(parents=True)
-    shutil.copy2(fake_java, folder / "bin" / name)
-    (folder / META).write_text(json.dumps({"major": 21, "release": "jdk-21.0.4+7", "semver": "21.0.4+7", "java": f"bin/{name}"}))
+    (folder / "jdk-21.0.4+7-jre" / "bin").mkdir(parents=True)
+    shutil.copy2(fake_java, folder / "jdk-21.0.4+7-jre" / "bin" / name)
+    (folder / META).write_text(json.dumps({"major": 21, "release": "jdk-21.0.4+7", "semver": "21.0.4+7",
+                                           "java": f"jdk-21.0.4+7-jre/bin/{name}", "installed_at": time.time() - 9 * 86400,
+                                           "bytes": 141_300_000}))
+
+
+def installed_javas(programs: Path, monkeypatch) -> None:
+    """Java the owner installed themselves (as if in C:\\Program Files): a JDK 17 and an old 32-bit Java 8."""
+    from craft_conductor import java as javamod
+    kinds = {"jdk-17.0.12.7-hotspot": javamod.JavaInfo(17, "x64", "17.0.12+7", "Microsoft"),
+             "jre1.8.0_421": javamod.JavaInfo(8, "x32", "1.8.0_421-b09", "Oracle Corporation")}
+    for vendor, name in (("Microsoft", "jdk-17.0.12.7-hotspot"), ("Java", "jre1.8.0_421")):
+        (programs / vendor / name / "bin").mkdir(parents=True)
+        (programs / vendor / name / "bin" / "java.exe").write_text("")
+        (programs / vendor / name / "bin" / "java.exe").chmod(0o755)
+    real = javamod.run_version
+    # (and not the java of the computer taking the pictures)
+    monkeypatch.setattr(javamod, "run_version", lambda b: None if b == "java" else kinds.get(Path(b).parent.parent.name) or real(b))
+    monkeypatch.setattr(javamod, "install_folders", lambda: [str(programs / "*" / "*" / "bin" / "java.exe")])
+    monkeypatch.setattr(javamod, "host_platform", lambda: ("windows", "x64"))
 
 
 def make_server(http, fake_java, root: Path, mods: list[str], **spec):
@@ -186,7 +204,6 @@ def make_server(http, fake_java, root: Path, mods: list[str], **spec):
     from craft_conductor import config as configmod, setup as setupmod
     setupmod.configure(root, setupmod.SetupSpec.from_dict({"loader": "fabric", "minecraft": "latest", "mods": mods,
                                                            "accept_eula": True, **spec}))
-    managed_java(root, fake_java)
     m = docs_manager(configmod.load(root), http)
     decision, _ = m.check()
     assert decision.plan is not None and m.apply(decision.plan).ok
@@ -310,6 +327,11 @@ def test_documentation_screenshots(tmp_path, http, modrinth, fake_java, monkeypa
     home = tmp_path / "home"
     servers = home / "servers"
     now = time.time()
+    from craft_conductor import java as javamod
+    store = home / ".craft-conductor" / "java"
+    monkeypatch.setattr(javamod, "default_store", lambda: store)
+    managed_java(store, fake_java)
+    installed_javas(tmp_path / "Program Files", monkeypatch)
     # The main server: friends play on it every evening. Its backups go back a week.
     survival = servers / "survival"
     m = make_server(http, fake_java, survival, [s for s, *_ in MODS if s not in ("simple-voice-chat", "bluemap", "xaeros-minimap")],
@@ -402,6 +424,7 @@ def test_documentation_screenshots(tmp_path, http, modrinth, fake_java, monkeypa
         friend_url = friend.start()
         try:
             env = {**os.environ, "CRAFT_UI_HOME": str(home), "CRAFT_UI_FRIEND": friend_url,
+                   "CRAFT_UI_PROGRAMS": str(tmp_path / "Program Files"),
                    "CRAFT_UI_INVITE": invite.page_link("Survival with friends").split("#", 1)[1],
                    "CRAFT_UI_SITE": str(site / "join" / "index.html")}
             result = subprocess.run([os.environ["CRAFT_UI_NODE"], str(Path(__file__).with_name("ui_screenshots.cjs")),

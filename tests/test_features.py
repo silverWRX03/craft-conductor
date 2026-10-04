@@ -8,9 +8,11 @@ import urllib.parse
 
 from pathlib import Path
 
+import pytest
+
 from craft_conductor import cli, lock as lockmod
 from craft_conductor.config import ModSpec
-from craft_conductor.java import ADOPTIUM, JavaManager
+from craft_conductor.java import ADOPTIUM, JavaError, JavaManager
 from craft_conductor.manager import Manager, ManualDownloadRequired
 from craft_conductor.mods import providers_for
 from craft_conductor.mods.curseforge import API as CURSEFORGE
@@ -55,6 +57,9 @@ def test_java_install_update_remove(make_config, http):
     publish_temurin(http, 21, "jdk-21.0.5+11")
     assert jm.update() == [(21, "jdk-21.0.4+7", "jdk-21.0.5+11")]
     assert jm.update() == []
+    with pytest.raises(JavaError, match="used by"):  # (this server runs on it)
+        jm.remove(21)
+    jm.forget()
     assert jm.remove(21) and jm.installed() == {}
 
 
