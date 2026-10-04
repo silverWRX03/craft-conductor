@@ -46,9 +46,12 @@ LOADERS = {
 LEVEL_DAT = gzip.compress(nbt.dumps({"Data": {"LevelName": "Flow World", "Version": {"Name": "1.21.1"}}}))
 
 FLOW_JAVA = textwrap.dedent("""\
-    import runpy, sys
+    import platform, runpy, sys
     args = sys.argv[1:]
-    if args[:1] == ["-version"]:
+    if "-version" in args:
+        if "-XshowSettings:properties" in args:
+            print("Property settings:", file=sys.stderr)
+            print("    os.arch = " + platform.machine().lower(), file=sys.stderr)
         print('openjdk version "21.0.4" 2024-07-16', file=sys.stderr)
         sys.exit(0)
     expanded = []

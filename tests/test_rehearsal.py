@@ -62,11 +62,11 @@ def test_a_rehearsal_that_fails_names_the_mod(make_config, http, modrinth):
     assert not rehearsal.passed(cfg, result["fingerprint"])
 
 
-def test_the_copy_uses_the_servers_own_java(make_config, http, modrinth):
+def test_the_copy_uses_the_shared_java(make_config, http, modrinth):
     """Nothing is linked or copied (Windows can't link without administrator rights, and a Java
-    downloaded inside the copy made paths past Windows' 260-character limit)."""
+    downloaded inside the copy made paths past Windows' 260-character limit): the copy uses the shared
+    Java folder like the server does, without counting as a server that uses it."""
     cfg, _ = installed(make_config, http, modrinth)
-    (cfg.state_dir / "java" / "21").mkdir(parents=True)
     daemon = SimpleNamespace(m=manager(cfg, http, ["1.21.1", "1.21.4"]), proc=None)
     used = []
 
@@ -77,8 +77,9 @@ def test_the_copy_uses_the_servers_own_java(make_config, http, modrinth):
     r = rehearsal.Rehearsal(daemon, make)
     r.minutes = 0.05
     assert r.run()["verdict"] == "good"
-    assert used[0].java.dir == cfg.state_dir / "java"
-    assert (cfg.state_dir / "java" / "21").is_dir()  # (still there after the copy was removed)
+    assert used[0].java.dir == daemon.m.java.dir and used[0].java.temporary
+    assert not (cfg.state_dir / "java").exists()
+    assert all(u["root"] != str(used[0].config.root) for u in daemon.m.java.store.users())
 
 
 def test_an_error_in_one_line():

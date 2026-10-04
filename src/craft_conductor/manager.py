@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from . import backup, java as javamod, lock as lockmod
+from . import backup, lock as lockmod
 from .config import Config
 from .http import HttpClient, sha1_file
 from .java import JavaManager
@@ -79,7 +79,7 @@ class Result:
 class Manager:
     def __init__(self, config: Config, http: HttpClient | None = None, mojang: Mojang | None = None,
                  loader: Loader | None = None, providers: dict[str, ModProvider] | None = None,
-                 java_probe: Callable[[str], int | None] = javamod.probe, notifier: Notifier | None = None,
+                 java_probe: Callable[[str], int | None] | None = None, notifier: Notifier | None = None,
                  echo: bool = True, sleep: Callable[[float], None] = time.sleep):
         self.config = config
         self.last_diagnosis = None  # why the last boot failed (diagnose.Diagnosis), if it did
@@ -310,6 +310,8 @@ class Manager:
         proc = self.new_process(lock)
         started = time.time()
         proc.start()
+        if proc.proc is not None:
+            self.java.lease(proc.argv[0], proc.proc.pid)  # (its Java isn't removed while it runs)
         if self.on_process:
             self.on_process(proc)
         if not proc.wait_ready(self.config.server.startup_timeout):

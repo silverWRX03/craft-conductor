@@ -173,9 +173,10 @@ Next:
         Minecraft version and loader; otherwise say it isn't available for that version yet.
         Done in 0.23.0 (not released yet).
 
-28. [ ] **Reuse compatible Java installations:** detect and reuse Java already on the computer
+28. [x] **Reuse compatible Java installations:** detect and reuse Java already on the computer
         (or a shared managed runtime) when it matches the selected Minecraft version and loader.
         Download another runtime only when needed, including when container isolation requires it.
+        Done in 0.23.0 (not released yet).
 29. [ ] **Granular roles for external server managers:** give external users individual access
         with permissions scoped to specific servers and management actions (RBAC).
 30. [ ] **Native Bedrock servers:** support creating and managing Minecraft Bedrock Dedicated
@@ -334,28 +335,10 @@ release to pay those costs once.
 
 ## Additional requests (2026-10-01): implementation briefs
 
-These six items are pending requirements, not implemented features. Their numbering preserves
+These five items are pending requirements, not implemented features. Their numbering preserves
 the existing roadmap and does not establish a new priority order. Inspect the current code
 before choosing an implementation. Apply CLAUDE.md when implementing; keep related help,
 translations, documentation, and changelog entries current.
-
-**28. Reuse compatible Java installations**
-- Goal: avoid downloading a separate Java runtime for every Minecraft instance when a suitable
-  runtime already exists on the same computer.
-- Resolve the required Java version from the selected Minecraft version and loader. Detect
-  existing configured/system installations and already downloaded managed runtimes, verify
-  their actual version and platform/architecture compatibility, and reuse a compatible one.
-  Revalidate when the selected Minecraft version or loader changes.
-- Keep each server's chosen executable explicit; do not replace the user's global Java or
-  change another server's runtime. Download a managed runtime only if no suitable accessible
-  runtime exists or the deployment requires a separate one.
-- Container boundary: inspect how isolation is implemented. A host Java installation may not
-  be accessible or usable inside a container; use a compatible runtime inside that environment.
-  Do not weaken isolation just to reuse host Java. Share/cache runtimes only where safe.
-- Acceptance: two compatible instances can use one runtime without duplicate downloads;
-  incompatible requirements select separate versions; absent Java triggers installation;
-  containerized instances remain isolated and runnable. Explain the selected runtime and
-  any required download to the user.
 
 **29. Granular role-based access (RBAC) for external users**
 - Goal: let the owner delegate server management without giving every external user full

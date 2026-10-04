@@ -31,8 +31,11 @@ backup = "0 */6 * * *"           # every 6 hours
 restart_when_empty = false       # skip a scheduled restart while players are online
 
 [java]
-version = "auto"                 # or force a major version, e.g. 21
-auto_install = true              # download Temurin when the needed version is missing
+version = "auto"                 # or force a major version, e.g. 21 (a newer one than Minecraft asks for is allowed)
+auto_install = true              # download Temurin into the shared Java folder when no Java on this computer fits
+
+[java.versions]                  # Java on this computer, by major version (a found one is added here when used)
+21 = "C:/Program Files/Eclipse Adoptium/jdk-21.0.4.7-hotspot/bin/java.exe"
 
 [downloads]
 manual_dir = "manual-downloads"  # drop blocked CurseForge files here

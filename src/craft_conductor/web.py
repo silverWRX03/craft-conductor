@@ -1279,7 +1279,6 @@ class HubApi:
         if any(t.state == "running" for t in self.hub.trials.values()):
             raise ApiError(409, "a test is already running; wait for it or stop it")
         sid = b.get("server")
-        java_from = None
         if sid:  # the mods of an existing server
             d = self.hub.get(str(sid))
             if d is None:
@@ -1288,7 +1287,6 @@ class HubApi:
             loader = cfg.server.loader
             minecraft = d.m.lock.minecraft or cfg.server.minecraft
             mods = [ModSpec(s.source, s.id, channel=s.channel) for s in cfg.mods]
-            java_from = cfg.state_dir / "java"
         else:
             loader = str(b.get("loader", ""))
             minecraft = str(b.get("minecraft") or "latest")
@@ -1301,11 +1299,9 @@ class HubApi:
                 if source not in configmod.MOD_SOURCES or not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", mod_id):
                     raise ApiError(400, f"{item!r} isn't a mod id")
                 mods.append(ModSpec(source, mod_id, channel=early_channel(b, str(item))))
-            java_from = next((dd.m.config.state_dir / "java" for dd in self.hub.daemons.values()
-                              if (dd.m.config.state_dir / "java").is_dir()), None)
         if loader not in configmod.LOADERS or loader == "vanilla" and mods:
             raise ApiError(400, "pick a server type that runs mods")
-        t = trial.Trial(self.hub, loader, minecraft, mods, bisect=bool(b.get("bisect")), java_from=java_from)
+        t = trial.Trial(self.hub, loader, minecraft, mods, bisect=bool(b.get("bisect")))
         self.hub.trials = {k: v for k, v in self.hub.trials.items() if v.state == "running"}  # forget old ones
         self.hub.trials[t.id] = t.start()
         return {"ok": True, "id": t.id}
@@ -1362,13 +1358,10 @@ class HubApi:
             mods.append(ModSpec(source, mod_id, channel=early_channel(b, str(item))))
         if loader == "vanilla" and mods:
             raise ApiError(400, "pick a server type that runs mods")
-        java_from = next((dd.m.config.state_dir / "java" for dd in self.hub.daemons.values()
-                          if (dd.m.config.state_dir / "java").is_dir()), None)
         try:
             radius = int(b.get("radius", 256))
             p = preview.Preview(self.hub, loader, str(b.get("minecraft") or "latest"), mods, str(b.get("seed") or ""),
-                                str(b.get("level_type") or "minecraft:normal"), bool(b.get("structures", True)), radius,
-                                java_from=java_from)
+                                str(b.get("level_type") or "minecraft:normal"), bool(b.get("structures", True)), radius)
         except (TypeError, ValueError) as e:
             raise ApiError(400, str(e) or "check the map settings") from None
         keep = {k: v for k, v in self.hub.previews.items() if v.state == "done"}
@@ -1400,16 +1393,13 @@ class HubApi:
             mods.append(ModSpec(source, mod_id, channel=early_channel(b, str(item))))
         if loader == "vanilla" and mods:
             raise ApiError(400, "pick a server type that runs mods")
-        java_from = next((dd.m.config.state_dir / "java" for dd in self.hub.daemons.values()
-                          if (dd.m.config.state_dir / "java").is_dir()), None)
         count = b.get("count", preview.GALLERY_MAX)
         if not isinstance(count, int) or isinstance(count, bool):
             raise ApiError(400, f"compare 2 to {preview.GALLERY_MAX} seeds")
         try:
             g = preview.Gallery(self.hub, count, loader=loader, minecraft=str(b.get("minecraft") or "latest"), mods=mods,
                                 level_type=str(b.get("level_type") or "minecraft:normal"),
-                                structures=bool(b.get("structures", True)), radius=int(b.get("radius", 128)),
-                                java_from=java_from)
+                                structures=bool(b.get("structures", True)), radius=int(b.get("radius", 128)))
         except (TypeError, ValueError) as e:
             raise ApiError(400, str(e) or "check the map settings") from None
         self.hub.previews = {k: v for k, v in self.hub.previews.items() if v.state == "done"}
@@ -1932,6 +1922,9 @@ class Api:
         get("/api/java", self.java)
         post("/api/java/install", self.java_install)
         post("/api/java/use", self.java_use)
+        post("/api/java/scan", self.java_scan)
+        post("/api/java/update", self.java_update)
+        post("/api/java/remove", self.java_remove)
         get("/api/settings", self.settings)
         post("/api/settings", self.save_settings)
         get("/api/browse/search", lambda q, b: browse_search(self._browser(), q, self.m))
@@ -2812,7 +2805,7 @@ class Api:
         props = read_properties(self.m.server_dir / "server.properties")
         port = int(props.get("server-port", "25565") or 25565)
         try:
-            java = str(self.m.java.select(self.m.lock.java_major or 8, install=False)) if self.m.lock.installed else None
+            java = self.m.java.choose(self.m.lock.java_major or 8).binary if self.m.lock.installed else None
         except (JavaError, OSError):
             java = None
         ports = [{"port": port, "label": f"{props.get('motd') or self.d.server_id or 'server'} (Minecraft)", "program": java}]
@@ -3261,7 +3254,8 @@ class Api:
         return self._job("backup", self.d.backup_now, label)
 
     # ---------------------------------------------------------- open folder
-    FOLDERS = ("server", "files", "world", "mods", "config", "logs", "crash", "backups", "exports", "manual", "java")
+    FOLDERS = ("server", "files", "world", "mods", "config", "logs", "crash", "backups", "exports", "manual", "java",
+               "old-java")
 
     def folder(self, what: str) -> Path:
         """One of the server's folders, by name (never an arbitrary path)."""
@@ -3271,7 +3265,8 @@ class Api:
             return world.level_dir(sd)  # (never outside the server: level-name is checked)
         paths = {"server": cfg.root, "files": sd, "mods": sd / "mods", "config": sd / "config", "logs": sd / "logs",
                  "crash": sd / "crash-reports", "backups": cfg.backups.dir, "exports": self.exports_dir,
-                 "manual": cfg.manual_dir, "java": cfg.state_dir / "java", "reports": cfg.state_dir / "logs"}
+                 "manual": cfg.manual_dir, "java": self.m.java.dir, "old-java": cfg.state_dir / "java",
+                 "reports": cfg.state_dir / "logs"}
         if what not in paths:
             raise ApiError(400, "unknown folder")
         return paths[what]
@@ -3280,7 +3275,7 @@ class Api:
         from . import opener
         where = self.folder(str(b.get("what", "")))
         if not where.exists():
-            if str(b.get("what")) in ("world", "logs", "crash", "java"):
+            if str(b.get("what")) in ("world", "logs", "crash", "java", "old-java"):
                 raise ApiError(404, f"{where} doesn't exist yet (it appears once the server has run)")
             where.mkdir(parents=True, exist_ok=True)
         if not opener.open_path(where):
@@ -3466,24 +3461,62 @@ class Api:
         return self._job("roll back", run)
 
     # ----------------------------------------------------------------- java
+    def _old_java(self) -> tuple[Path | None, int]:
+        """The Java folder servers had of their own before 0.23 (unused now, deleted by hand), and its size."""
+        old = self.m.config.state_dir / "java"
+        try:
+            if not old.is_dir() or old.is_symlink() or old.resolve() == self.m.java.dir.resolve():
+                return None, 0
+            key = (str(old), old.stat().st_mtime_ns)
+        except OSError:
+            return None, 0
+        cached = getattr(self, "_old_java_size", None)
+        if not cached or cached[0] != key:
+            from .java import folder_size
+            size = folder_size(old)
+            self._old_java_size = cached = (key, size)
+        return old, cached[1]
+
     def java(self, q, b) -> dict:
         jm, lk = self.m.java, self.m.lock
-        current = None
+        choice = None
         if lk.java_major:
             try:
-                current = jm.select(lk.java_major, install=False)
+                c = jm.choose(lk.java_major, offers=True)
+                choice = {"source": c.source, "binary": c.binary, "major": c.major, "wanted": c.wanted,
+                          "release": c.release, "note": c.note,
+                          "also": [u.get("name") or Path(u["root"]).name for u in jm.users_of(c)] if c.binary else [],
+                          "newer": [{"major": f.info.major, "path": f.path, "source": f.source} for f in c.newer]}
             except JavaError as e:
-                current = f"(none: {e})"
+                choice = {"source": "missing", "note": str(e), "also": [], "newer": []}
+        users = jm.store.users()
+        shared = []
+        for major, rels in jm.store.releases().items():
+            used = [u.get("name") or Path(u["root"]).name for u in users if u.get("shared") and u.get("major") == major]
+            shared.append({"major": major, "used_by": used, "releases": [
+                {"release": j.release, "path": str(j.binary), "bytes": j.size, "running": bool(jm.store.running(j)),
+                 "newest": i == 0} for i, j in enumerate(rels)]})
+        old, old_bytes = self._old_java()
         return {
             "required": lk.java_major,
             "forced": self.m.config.java_version,
             "auto_install": self.m.config.java_auto_install,
-            "current": current,
-            "managed": [{"major": j.major, "release": j.release, "path": str(j.binary)}
-                        for j in jm.installed().values()],
+            "choice": choice,
+            "store": str(jm.dir),
+            "shared": shared,
+            "found": [{"path": f.path, "source": f.source, "major": f.info.major if f.info else None,
+                       "arch": f.info.arch if f.info else None, "vendor": f.info.vendor if f.info else "",
+                       "version": f.info.version if f.info else "", "problem": f.problem} for f in jm.found()],
             "configured": [{"major": k, "path": v} for k, v in sorted(self.m.config.java_versions.items())],
             "default": self.m.config.java_default,
+            "old_folder": str(old) if old else None,
+            "old_bytes": old_bytes,
         }
+
+    def java_scan(self, q, b) -> dict:
+        """Look for Java on this computer again (each new one is run with -version once)."""
+        found = self.m.java.found(refresh=True)
+        return {"ok": True, "count": sum(1 for f in found if f.info)}
 
     def java_install(self, q, b) -> dict:
         major = int(b.get("major", 0))
@@ -3491,14 +3524,53 @@ class Api:
             raise ApiError(400, "invalid Java version")
         return self._job(f"install Java {major}", lambda: f"installed {self.m.java.install(major).release}")
 
+    def java_update(self, q, b) -> dict:
+        def run():
+            changed = self.m.java.update()
+            if not changed:
+                return "the shared Java is up to date"
+            return "; ".join(f"Java {major}: {new} (servers move to it at their next start)" for major, _, new in changed)
+        return self._job("update the shared Java", run)
+
+    def java_remove(self, q, b) -> dict:
+        major = b.get("major")
+        if not isinstance(major, int) or isinstance(major, bool):
+            raise ApiError(400, "invalid Java version")
+        try:
+            if not self.m.java.remove(major):
+                raise ApiError(404, f"there's no shared Java {major}")
+        except JavaError as e:
+            raise ApiError(409, str(e)) from None
+        return {"ok": True}
+
     def java_use(self, q, b) -> dict:
+        """What the server runs on from its next start: "auto" (the version Minecraft needs), a newer
+        version (asked for: some loaders and older mods break on one), a Java found on this computer
+        (only one the scan found, never any path), or "shared" (drop its own Java for the shared one)."""
+        cfg, required = self.m.config, self.m.lock.java_major
         value = str(b.get("version", "auto"))
+        path = b.get("path")
+        if value == "shared":
+            if not required:
+                raise ApiError(400, "nothing is installed yet")
+            wanted = cfg.java_version or required
+            configmod.unset_value(cfg.path, "java.versions", str(wanted))
+            self.m.reload_config()
+            return {"ok": True, "note": "applies the next time the server starts"}
         if value != "auto":
             if not value.isdigit():
                 raise ApiError(400, 'use a major version such as 21, or "auto"')
-            if self.m.lock.java_major and int(value) < self.m.lock.java_major:
-                raise ApiError(400, f"Minecraft {self.m.lock.minecraft} needs Java {self.m.lock.java_major}+")
-        configmod.set_value(self.m.config.path, "java", "version", json.dumps(value) if value == "auto" else value)
+            if required and int(value) < required:
+                raise ApiError(400, f"Minecraft {self.m.lock.minecraft} needs Java {required}+")
+        if path is not None:
+            match = next((f for f in self.m.java.found() if f.path == path), None)
+            if match is None or match.info is None or match.problem:
+                raise ApiError(400, "that Java isn't one Craft Conductor found on this computer: press Look again")
+            major = match.info.major
+            if value != ("auto" if major == required else str(major)):
+                raise ApiError(400, f"that's Java {major}")
+            configmod.set_value(cfg.path, "java.versions", str(major), json.dumps(match.path))
+        configmod.set_value(cfg.path, "java", "version", json.dumps(value) if value == "auto" else value)
         self.m.reload_config()
         return {"ok": True, "note": "applies the next time the server starts"}
 

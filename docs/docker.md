@@ -2,7 +2,8 @@
 
 The image holds Craft Conductor and Python. Craft Conductor downloads Minecraft, the mod loader, mods and Java
 into `/data` when you create a server. Keep `/data` on a volume and your servers survive
-image updates.
+image updates. Java goes into `/data/.craft-conductor/java/`, one copy per Java version shared by every
+server in the container; Java installed on the Docker host isn't used inside the container.
 
 ## Start it
 

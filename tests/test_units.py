@@ -62,7 +62,10 @@ def test_java_selection(tmp_path):
     assert jm.select(21) == "/j21"
     assert jm.select(17) == "/j17"
     assert jm.select(25) == "java"
-    assert jm.select(16) == "/j17"  # no exact match: lowest newer one
+    with pytest.raises(JavaError, match="Java 17 is on this computer"):  # a newer one only when asked for
+        jm.select(16)
+    cfg.java_version = 17
+    assert jm.select(16) == "/j17"
     cfg.java_version = 21
     assert jm.select(17) == "/j21"  # forced
     with pytest.raises(JavaError, match="needs Java 25"):

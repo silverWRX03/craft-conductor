@@ -838,6 +838,12 @@ class Hub:
             if t:
                 t.join(timeout=30)
             self.daemons.pop(sid, None)
+            # It no longer counts as using its Java; deleted, a shared Java only it used goes too.
+            others = {dd.m.lock.java_major for dd in self.daemons.values()}
+            gone = d.m.java.forget(prune=delete_files, keep=others)
+            if gone:
+                log.info("removed the shared Java %s: no other server uses it", ", ".join(map(str, gone)))
+            store = d.m.java.dir
             data = self._hub_file()
             data["extra"] = [p for p in data.get("extra", []) if p != str(root)]
             if not delete_files:
@@ -858,6 +864,8 @@ class Hub:
                 for p in inside:
                     if p is None or not p.exists() or root not in p.parents:
                         continue  # never anything outside the server's folder
+                    if p == store or p in store.parents:
+                        continue  # nor the shared Java folder
                     if p.is_dir():
                         _rmtree(p)
                     else:

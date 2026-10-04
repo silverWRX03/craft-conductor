@@ -104,8 +104,10 @@ def run(m, state: str, *, total_gb: float | None = None, share: dict | None = No
     if lk.installed:
         from .java import JavaError
         try:
-            java = m.java.select(lk.java_major or 8, install=False)
-            checks.append(Check("java", "Java", OK, f"Java {lk.java_major or 8} is ready ({java})."))
+            c = m.java.choose(lk.java_major or 8)
+            if c.binary is None:
+                raise JavaError(c.note)
+            checks.append(Check("java", "Java", OK, f"Java {c.wanted} is ready: {c.note}."))
         except (JavaError, OSError) as e:
             checks.append(Check("java", "Java", WARN, f"Java {lk.java_major or 8} isn't on this computer yet ({e}).",
                                 "Craft Conductor downloads it when the server starts; if that fails, see the Java page.",
