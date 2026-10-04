@@ -125,6 +125,9 @@ def test_static_page_and_headers(running):
     assert "default-src 'self'" in headers["Content-Security-Policy"]
     assert headers["X-Frame-Options"] == "DENY"
     assert c.get("/app.js")[0] == 200
+    status, png, headers = c.get("/screenshots/dashboard.png")  # (Help's and the manual's pictures)
+    assert status == 200 and png.startswith(b"\x89PNG") and headers["Content-Type"] == "image/png"
+    assert c.get("/screenshots/missing.png")[0] == 404 and c.get("/screenshots/../app.js")[0] == 404
 
 
 def test_status_console_and_commands(running):

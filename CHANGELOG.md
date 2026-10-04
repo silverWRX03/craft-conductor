@@ -6,7 +6,12 @@ its fix will say which version it's in.
 
 ## 0.22.3 (not released yet)
 
+**Added**
+- Help shows a picture of the screen for each of its topics (press one to see it full size), and the user manual's **See this screen** now has pictures for every page: signing in, the guided setup, Check my setup, Performance, a server that didn't start, Backups, the invite page and setup page your friends see, Remote access & phones, a phone, and more. The wiki and the README show the same pictures.
+
 **Fixed**
+- The pictures in the manual and on the wiki showed empty test servers, and one showed a folder from the computer it was taken on. They're retaken with example servers, players and mods.
+- While a new Minecraft waited for mods, the Updates page said "craft-conductor reminds you" instead of "Craft Conductor reminds you".
 - **Replace world** could delete a folder outside the server: the world's folder name (`level-name` in server.properties, which a modpack, an imported server or a backup can bring) was used as given, so `../something` pointed the swap, and the clean-up after it, at another folder. A world folder name that isn't a plain name is now refused, and setting up a server with a world, the config editor and the world folder button check it too.
 - A restored backup could bring back a link pointing just outside the server's folder (at the folder holding every server). Restoring now refuses any link that leads outside the server.
 - If Craft Conductor was stopped (the computer turned off, the process killed) in the middle of an update, the server was left half-updated, or, during a rollback, without its folder at all ("the Minecraft EULA has not been accepted"). The next start now puts the backup made before the update back first, and the update isn't tried again by itself. A restore or a world swap cut off half-way is put right the same way, instead of Minecraft making a brand-new world.

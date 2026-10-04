@@ -1,6 +1,7 @@
 """The wiki: every manual section becomes a page, the sidebar finds them all, nothing links nowhere."""
 
 import importlib.util
+import json
 import re
 from pathlib import Path
 
@@ -28,7 +29,20 @@ def test_the_wiki_builds_with_no_broken_links(tmp_path):
 def test_every_screenshot_is_there():
     for shots in wiki.IMAGES.values():
         for name, _ in shots:
-            assert (wiki.PAGES / "images" / name).is_file(), name
+            assert (wiki.SHOTS / name).is_file(), name
     manual = wiki.MANUAL.read_text(encoding="utf-8")
     for title in wiki.IMAGES:
-        assert f"## {title}\n" in manual, f"no manual section {title!r} for its screenshots"
+        assert re.search(rf"^###? {re.escape(title)}$", manual, re.M), f"no manual section {title!r} for its screenshots"
+
+
+def test_the_app_and_the_wiki_show_the_same_screenshots():
+    """The manual's "See this screen" in the app (MANUAL_PICTURES) and the wiki's pictures (IMAGES) match,
+    and every picture that ships with craft-conductor is shown somewhere."""
+    app = (wiki.ROOT / "src" / "craft_conductor" / "webui" / "app.js").read_text(encoding="utf-8")
+    block = app[app.index("const MANUAL_PICTURES = {") + len("const MANUAL_PICTURES = "):]
+    block = block[:block.index("\n};") + 2]
+    pictures = json.loads(re.sub(r",(\s*[}\]])", r"\1", block))
+    assert pictures == {title: [[name[:-4], caption] for name, caption in shots] for title, shots in wiki.IMAGES.items()}
+    used = {name for shots in wiki.IMAGES.values() for name, _ in shots}
+    used |= {f"{name}.png" for name in re.findall(r'screenshot\("([a-z-]+)"', app)}
+    assert {p.name for p in wiki.SHOTS.glob("*.png")} == used

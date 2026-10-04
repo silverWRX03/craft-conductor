@@ -6,7 +6,7 @@ This manual is also inside Craft Conductor: open **User manual** (or **Help**) i
 
 Help and User manual slide over the current page. Their contents appear on the left in place of the control menu. **Close Help** or **Escape** returns to the same page and scroll position, with unsaved entries intact. On a phone, the contents appear above the help text.
 
-In the app, expand **See this screen** for current screenshots; they ship with the manual and work offline. Screenshots use example servers.
+Help shows a picture of the screen with each topic, and in the User manual, **See this screen** under a heading opens its pictures; press a picture to see it full size. They come with Craft Conductor, so they work offline, and they show example servers.
 
 
 ## What Craft Conductor can and can't do

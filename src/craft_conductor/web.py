@@ -97,9 +97,10 @@ STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/i18n.js": ("i18n.js", "text/javascript; charset=utf-8"),
           # the page's words in other languages (see i18n.js)
           **{f"/i18n/{code}.json": (f"i18n/{code}.json", "application/json; charset=utf-8") for code in LANGUAGES}}
-SCREENSHOTS = ("servers", "new-server", "map-preview", "dashboard", "console", "players", "updates",
-               "update-readiness", "mods", "friends", "backups", "java", "settings", "craft-conductor-settings", "help")
-STATIC.update({f"/screenshots/{name}.png": (f"screenshots/{name}.png", "image/png") for name in SCREENSHOTS})
+# The pictures in Help and the user manual (webui/screenshots, retaken by tests/test_screenshots.py).
+SCREENSHOTS = sorted(f.name for f in resources.files("craft_conductor").joinpath("webui", "screenshots").iterdir()
+                     if f.name.endswith(".png"))
+STATIC.update({f"/screenshots/{name}": (f"screenshots/{name}", "image/png") for name in SCREENSHOTS})
 SECURITY_HEADERS = {
     "Content-Security-Policy": "default-src 'self'; img-src 'self' https: data:; style-src 'self'; "
                                "script-src 'self'; connect-src 'self'; frame-ancestors 'none'",

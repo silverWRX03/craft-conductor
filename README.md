@@ -16,7 +16,7 @@ On phones, a hamburger menu contains navigation and the remembered Light / Dark 
 > **Craft Conductor is in beta.** Keep backups (it makes one before every update), and please report
 > problems in [Issues](https://github.com/silverWRX03/craft-conductor/issues).
 
-![Server dashboard](wiki/images/dashboard.png)
+![The Dashboard of a running server](src/craft_conductor/webui/screenshots/dashboard.png)
 
 ## What it does
 
@@ -30,6 +30,12 @@ On phones, a hamburger menu contains navigation and the remembered Light / Dark 
 - **Looks after itself:** crash restarts, schedules, backups you can check, and plain-words help when
   something goes wrong.
 - **Works from your phone,** with notifications, and on a Linux computer without a screen or in Docker.
+
+<table>
+<tr><td width="50%"><img src="src/craft_conductor/webui/screenshots/servers.png" alt="All your servers in one place"><br>All your servers in one place</td><td width="50%"><img src="src/craft_conductor/webui/screenshots/mod-browser.png" alt="Find mods on Modrinth and CurseForge"><br>Find mods on Modrinth and CurseForge</td></tr>
+<tr><td width="50%"><img src="src/craft_conductor/webui/screenshots/update-readiness.png" alt="A new Minecraft goes in once every mod is ready"><br>A new Minecraft goes in once every mod is ready</td><td width="50%"><img src="src/craft_conductor/webui/screenshots/friends.png" alt="One link sets up your friends' game"><br>One link sets up your friends' game</td></tr>
+<tr><td width="50%"><img src="src/craft_conductor/webui/screenshots/dashboard-problem.png" alt="Plain words, and a fix, when a server won't start"><br>Plain words, and a fix, when a server won't start</td><td width="50%"><img src="src/craft_conductor/webui/screenshots/backups.png" alt="Backups that are checked, with what changed"><br>Backups that are checked, with what changed</td></tr>
+</table>
 
 The **[user manual on the wiki](https://github.com/silverWRX03/craft-conductor/wiki/Craft-Conductor-Manual)** shows everything, page by page with
 pictures (it's also in the app: Help → User manual).

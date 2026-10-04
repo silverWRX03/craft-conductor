@@ -570,6 +570,10 @@ ol.steps { padding-inline-start: 20px; line-height: 1.6; }
 
 /* help */
 .help-img { display: block; width: 100%; max-width: 760px; height: auto; margin: 12px 0; border-radius: 12px; }
+.help-shot { margin: 12px 0 18px; }
+.help-shot .help-img { margin: 0; border: 1px solid var(--border); }
+.help-shot .help-img.narrow { max-width: 280px; }
+.help-shot figcaption { margin-top: 6px; max-width: 760px; }
 .help-toc ul { columns: 2; margin: 8px 0 0; padding-inline-start: 18px; }
 .help-section h3 { margin-top: 0; }
 .router-help summary { cursor: pointer; }
