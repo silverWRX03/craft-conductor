@@ -1,0 +1,28 @@
+# Dependabot: pull requests that keep what CI and the downloads are built with up to date, and
+# security updates when an advisory names something here. Craft Conductor itself uses only
+# Python's standard library at runtime; pip-audit.yml checks the build and test tools daily.
+version: 2
+updates:
+  # The actions every workflow uses (checkout, setup-python, CodeQL, the release steps).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+    open-pull-requests-limit: 5
+
+  # pyproject.toml: the test tools (the "dev" extra).
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  # The container image's base (Dockerfile).
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
