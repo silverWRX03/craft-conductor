@@ -4,6 +4,20 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.22.2 (not released yet)
+
+**Fixed**
+- A CurseForge key entered in Craft Conductor settings → Connections → CurseForge within a few minutes of another one was accepted without being checked with CurseForge.
+- The Minecraft server, and so every mod on it, could read the CurseForge key (yours, or the one built into the downloads) and Docker's first password from its environment; so could the loader installers and launchers Craft Conductor starts. They no longer get them.
+- A mod build whose file name (chosen by its author on Modrinth or CurseForge) pointed outside the mods folder was saved outside it. That build is now left out, with the reason on the Updates page.
+- When NeoForge's download site listed only part of its builds (on 2026-09-28 no NeoForge 1.21.1 server could be made for hours), Craft Conductor said "neoforge has no build for 1.21.1 yet". It now says NeoForge's list is incomplete and to try again later, and servers that already run NeoForge keep the NeoForge they have and carry on with their mod updates.
+
+**Changed**
+- Update checks of NeoForge servers read NeoForge's full list of builds once, instead of once for each newer Minecraft version.
+
+**Added**
+- [How to report a security problem privately](SECURITY.md) (also offered when you open a new issue), and [how to contribute](CONTRIBUTING.md).
+
 ## 0.22.1 (2026-10-04)
 
 **Added**

@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from . import nbt, opener
+from .desktop import child_env
 from .http import HashMismatch, sha1_file
 
 if TYPE_CHECKING:
@@ -212,7 +213,8 @@ def prism_command(instance_id: str, address: str) -> list[list[str]]:
 def open_prism(slug: str, address: str) -> bool:
     for cmd in prism_command(f"craft-conductor-{slug}", address):
         try:
-            subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             env=child_env())
             return True
         except OSError:
             continue

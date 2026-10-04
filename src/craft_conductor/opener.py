@@ -8,10 +8,13 @@ import subprocess
 import sys
 from pathlib import Path
 
+from .desktop import child_env
+
 
 def _spawn(cmd: list[str]) -> bool:
     try:
-        subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         env=child_env())
         return True
     except OSError:
         return False

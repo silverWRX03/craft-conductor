@@ -8,7 +8,7 @@ browser. Its output goes, in order of preference:
 3. a log file, ``craft-conductor.log`` in craft-conductor's folder (the web UI shows the activity anyway).
 
 Programs craft-conductor starts (Java, Minecraft, loader installers) are started without a
-window too, via ``NO_WINDOW``.
+window too, via ``NO_WINDOW``, and without Craft Conductor's secrets, via ``child_env()``.
 """
 
 from __future__ import annotations
@@ -20,6 +20,16 @@ from pathlib import Path
 
 #: pass to subprocess calls: on Windows, don't open a console window for the child
 NO_WINDOW: dict = {"creationflags": 0x08000000} if os.name == "nt" else {}  # CREATE_NO_WINDOW
+
+#: Secrets Craft Conductor keeps in its own environment (the CurseForge key: yours, or the one
+#: built into the downloads; the first password for Docker). Programs it starts never need them,
+#: and some run code nobody here wrote (every mod on a server can read the server's environment).
+SECRET_ENV = ("CRAFT_CONDUCTOR_CURSEFORGE_API_KEY", "CRAFT_CONDUCTOR_INITIAL_PASSWORD")
+
+
+def child_env() -> dict[str, str]:
+    """The environment for a program Craft Conductor starts: its own, without the secrets."""
+    return {k: v for k, v in os.environ.items() if k.upper() not in SECRET_ENV}
 
 _windowless = False
 LOG_LIMIT = 5 << 20

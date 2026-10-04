@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 
@@ -7,9 +8,20 @@ from ..config import ModSpec
 
 CHANNEL_RANK = {"release": 0, "beta": 1, "alpha": 2}
 
+# A mod file's name is whatever its author uploaded, and it becomes a path: in the server's mods
+# folder, the folder for manual downloads, and friends' and single-player games. So it must be
+# one plain name that means the same file on every system.
+_FILE_NAME = re.compile(r"[^/\\:*?\"<>|\x00-\x1f]{1,200}")
+_RESERVED = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}
+
 
 class ModError(Exception):
     pass
+
+
+def safe_file_name(name: str) -> bool:
+    return (bool(_FILE_NAME.fullmatch(name)) and not name.startswith(".") and not name.endswith((".", " "))
+            and name.split(".")[0].rstrip().upper() not in _RESERVED)
 
 
 @dataclass

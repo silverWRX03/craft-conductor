@@ -56,9 +56,17 @@ Before continuing or starting a feature, check this list: some features wait on 
       (including an iPhone's silent switch, and vibration on Android); adding fingerprint or face
       sign-in on the phone at the Tailscale address and signing in with it. They were only tried
       in a desktop browser and with a software "phone".
-- [ ] **NeoForge 1.21.1:** on 2026-09-28 NeoForge's own servers listed only one version
+- [x] **NeoForge 1.21.1:** on 2026-09-28 NeoForge's own servers listed only one version
       (`26.3.0.33-beta`), so no NeoForge 1.21.1 server could be created (the e2e check was red on
-      main too). Check it works again later; if it stays broken, tell Claude.
+      main too). It worked again the same evening (every e2e run since is green) and the e2e check
+      on main was re-run green on 2026-10-04. Since 0.22.2 Craft Conductor says when NeoForge's
+      list is incomplete, and servers already on NeoForge keep updating their mods meanwhile.
+- [ ] **Switch on the repository's security settings** (Settings → Code security), for
+      SECURITY.md and the new workflows: **Private vulnerability reporting** (SECURITY.md's
+      "Report a vulnerability" link needs it), **Dependabot alerts** and **Dependabot security
+      updates** (`.github/dependabot.yml` does the version updates). If CodeQL's **Default
+      setup** is on, switch it off: `.github/workflows/codeql.yml` replaces it, and GitHub
+      refuses its results while both are on.
 
 ## For Claude (next work)
 
@@ -172,6 +180,10 @@ Next:
         with connected count / maximum capacity, player status, names, role badges, live ping,
         per-player KICK, and Whitelist Control and Broadcast footer actions; update without
         a full Dashboard refresh.
+35. [ ] **Size limits when unpacking archives** (security): a modpack's overrides and a backup
+        being restored are unpacked without a limit on their total unpacked size, so a small
+        crafted file could fill the disk. Add the limits, then remove the two `xfail`s in
+        `tests/security/test_archive_security.py` that wait for them.
 
 ## Plans for the items left (details to start from)
 

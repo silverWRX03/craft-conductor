@@ -1574,7 +1574,7 @@ views.updates = () => {
         h("tbody", {}, c.blocked.map((b) => h("tr", {},
           h("td", {}, b.minecraft),
           h("td", {}, h("ul", { class: "list" },
-            b.loader_missing ? h("li", {}, "Loader has no build for this version yet") : null,
+            b.loader_missing ? h("li", {}, b.loader_reason || "Loader has no build for this version yet") : null,
             b.blockers.map((x) => h("li", {}, h("div", {}, h("strong", {}, x.name), x.waiting ? h("span", { class: "tag" }, "optional") : null,
               h("div", { class: "muted small" }, x.reason)))))),
         ))))) : null;

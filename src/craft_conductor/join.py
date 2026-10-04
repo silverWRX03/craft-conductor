@@ -39,6 +39,7 @@ from typing import Callable
 from urllib.parse import quote, urlparse
 
 from . import nbt
+from .desktop import child_env
 from .clientpack import FORMAT, allowed_url
 from .http import HashMismatch, HttpClient, HttpError, sha1_file
 from .loaders.fabric import FABRIC_META, QUILT_META
@@ -292,7 +293,7 @@ class Joiner:
             self.http.download(url, jar)
             from .desktop import NO_WINDOW
             proc = self.run_cmd([java, "-jar", str(jar), "--installClient", str(self.mc)], cwd=tmp, **NO_WINDOW,
-                                capture_output=True, text=True)
+                                capture_output=True, text=True, env=child_env())
             if proc.returncode != 0:
                 tail = "\n".join((proc.stdout + proc.stderr).splitlines()[-15:])
                 raise JoinError(f"the {loader} installer failed:\n{tail}")
@@ -408,7 +409,8 @@ class Joiner:
                 candidates.append(["flatpak", "run", "com.mojang.Minecraft"])
         for cmd in candidates:
             try:
-                subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                 env=child_env())
                 return True
             except OSError:
                 continue

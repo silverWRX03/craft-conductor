@@ -187,7 +187,7 @@ def _print_decision(m: Manager, decision, changes) -> None:
     for plan in decision.blocked:
         why = [f"{b.name}: {b.reason}" for b in plan.blockers]
         if plan.loader_version is None:
-            why.insert(0, f"{plan.loader} has no build for {plan.minecraft} yet")
+            why.insert(0, plan.loader_problem)
         print(f"\nMinecraft {plan.minecraft} is blocked by:")
         for line in why:
             print(f"  x {line}")

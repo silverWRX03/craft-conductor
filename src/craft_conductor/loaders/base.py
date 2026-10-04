@@ -49,6 +49,12 @@ class Loader(ABC):
     def install(self, minecraft: str, version: str, dest: Path, java: str) -> Runtime:
         """Install the server runtime into the empty directory ``dest``."""
 
+    def missing_reason(self, minecraft: str) -> str | None:
+        """Why ``latest_version`` found nothing, when it isn't simply "no build yet" (for example
+        the download site listing far fewer builds than it has). Called only after
+        ``latest_version`` returned None, so it can reuse that lookup's answers."""
+        return None
+
     def _safe_latest(self, fn) -> str | None:
         try:
             return fn()
@@ -61,9 +67,9 @@ class Loader(ABC):
 
 
 def run_installer(java: str, installer: Path, args: list[str], cwd: Path) -> None:
-    from ..desktop import NO_WINDOW
+    from ..desktop import NO_WINDOW, child_env
     proc = subprocess.run([java, "-jar", str(installer), *args], cwd=cwd,
-                          capture_output=True, text=True, **NO_WINDOW)
+                          capture_output=True, text=True, env=child_env(), **NO_WINDOW)
     if proc.returncode != 0:
         tail = "\n".join((proc.stdout + proc.stderr).splitlines()[-20:])
         raise LoaderError(f"installer {installer.name} failed (exit {proc.returncode}):\n{tail}")

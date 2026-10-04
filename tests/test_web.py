@@ -215,6 +215,34 @@ def test_manual_upload_only_accepts_expected_files(running):
     assert d.last_check["manual"] == []
 
 
+def test_a_blocked_curseforge_file_is_checked_before_it_counts(running, http, monkeypatch):
+    """Updates page → Manual downloads needed: the link is the file's CurseForge page, and only
+    the exact file CurseForge lists is taken."""
+    import hashlib
+    from craft_conductor import config as configmod
+    from craft_conductor.mods.curseforge import API
+    d, c, cfg = running
+    login(c)
+    jar = b"the author's own jar"
+    http.json[f"{API}/mods/123"] = {"data": {"id": 123, "slug": "blocked-mod", "name": "Blocked Mod"}}
+    http.json[f"{API}/mods/123/files"] = {"data": [{
+        "id": 5550001, "displayName": "Blocked Mod 1.0", "fileName": "blocked-1.0.jar", "releaseType": 1,
+        "downloadUrl": None, "gameVersions": ["1.21.1", "Fabric"], "fileDate": "2025-01-01T00:00:00Z",
+        "hashes": [{"value": hashlib.sha1(jar).hexdigest(), "algo": 1}], "dependencies": []}]}
+    monkeypatch.setenv("CRAFT_CONDUCTOR_CURSEFORGE_API_KEY", "test-key")
+    configmod.append_mod(cfg.path, ModSpec("curseforge", "123"))
+    d.m.reload_config()
+    d.check_only()
+    assert d.last_check["manual"] == [{"name": "Blocked Mod", "filename": "blocked-1.0.jar",
+                                       "url": "https://www.curseforge.com/minecraft/mc-mods/blocked-mod/files/5550001"}]
+    upload = "/api/manual/upload?filename=blocked-1.0.jar"
+    status, body, _ = c.call("POST", upload, raw=b"something else", headers={"Content-Type": "application/octet-stream"})
+    assert status == 400 and "checksum differs" in body["error"]
+    assert not (cfg.manual_dir / "blocked-1.0.jar").exists()
+    assert c.call("POST", upload, raw=jar, headers={"Content-Type": "application/octet-stream"})[0] == 200
+    assert (cfg.manual_dir / "blocked-1.0.jar").read_bytes() == jar and d.last_check["manual"] == []
+
+
 def test_web_players_page(running):
     d, c, cfg = running
     login(c)

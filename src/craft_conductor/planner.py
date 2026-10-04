@@ -76,10 +76,16 @@ class Plan:
     mods: list[ModFile] = field(default_factory=list)
     blockers: list[Blocker] = field(default_factory=list)   # required mods that are not ready
     dropped: list[Blocker] = field(default_factory=list)    # optional / client-only mods left out
+    loader_reason: str | None = None  # why the loader has no build, when it isn't "not yet"
 
     @property
     def complete(self) -> bool:
         return self.loader_version is not None and not self.blockers
+
+    @property
+    def loader_problem(self) -> str:
+        """What to tell people when ``loader_version`` is None."""
+        return self.loader_reason or f"{self.loader} has no build for Minecraft {self.minecraft} yet"
 
     @property
     def fingerprint(self) -> str:
@@ -130,6 +136,16 @@ class Planner:
     def plan_for(self, minecraft: str) -> Plan:
         plan = Plan(minecraft=minecraft, loader=self.loader.name,
                     loader_version=self.loader.latest_version(minecraft))
+        if plan.loader_version is None:
+            plan.loader_reason = self.loader.missing_reason(minecraft)
+            if (self.lock.installed and minecraft == self.lock.minecraft and self.lock.loader == self.loader.name
+                    and self.lock.loader_version):
+                # The build this server runs exists, whatever the loader's list says just now (its
+                # site can have an incomplete list for hours), so keep it and carry on with the mods.
+                log.warning("%s lists no build for Minecraft %s just now; keeping the installed %s%s",
+                            self.loader.name, minecraft, self.lock.loader_version,
+                            f" ({plan.loader_reason})" if plan.loader_reason else "")
+                plan.loader_version, plan.loader_reason = self.lock.loader_version, None
         if self.lock.installed and minecraft != self.lock.minecraft:
             for name in self.unmanaged:
                 plan.blockers.append(Blocker(f"local:{name}", name,

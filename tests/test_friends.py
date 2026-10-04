@@ -182,12 +182,14 @@ def test_join_rejects_a_tampered_mod(launcher, http):
     assert not (launcher / "craft-conductor" / "weekend-survival" / "mods" / "a.jar").exists()
 
 
-def test_join_runs_the_neoforge_installer(launcher, http):
+def test_join_runs_the_neoforge_installer(launcher, http, monkeypatch):
     http.files["https://maven.neoforged.net/releases/net/neoforged/neoforge/21.1.1/neoforge-21.1.1-installer.jar"] = b"jar"
+    monkeypatch.setenv("CRAFT_CONDUCTOR_CURSEFORGE_API_KEY", "built-in-key-for-the-test")
     ran = []
 
     def run(cmd, cwd, capture_output, text, **kw):  # kw: creationflags on Windows
         ran.append(cmd)
+        assert "CRAFT_CONDUCTOR_CURSEFORGE_API_KEY" not in kw["env"]  # (the installer isn't ours)
         vdir = launcher / "versions" / "neoforge-21.1.1"
         vdir.mkdir(parents=True)
         (vdir / "neoforge-21.1.1.json").write_text("{}")
