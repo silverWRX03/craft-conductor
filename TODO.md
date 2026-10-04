@@ -59,6 +59,13 @@ Before continuing or starting a feature, check this list: some features wait on 
       the server keeps running and moves to the new Java at its next start. Old per-server
       `.craft-conductor/java` folders are pointed out with their size; delete one by hand and check
       that server still starts. It was only tried with pretend Java installations.
+- [ ] **Try continuous mod browsing for real** (0.23.0): in the mod browser (**Download mods**), scroll
+      down a search and check the list keeps going without jumping, and what you ticked stays ticked.
+      Try it on a slow connection (a phone hotspot, or the browser's developer tools set to "Slow 4G"):
+      **Loading more…** should show at the bottom, then the rows. Search with a Minecraft version that
+      few mods support yet (many "result(s) hidden"): the list should keep going, or offer **Keep
+      looking**. And the friend's setup page on a phone: **Resource packs** or **More mods**, scrolled
+      with a thumb. It was tried with a pretend Modrinth.
 - [ ] **Windows code signing (optional):** apply to the SignPath Foundation (see
       [docs/code-signing.md](docs/code-signing.md)). Once accepted, add the repository variable
       `SIGNPATH_ORGANIZATION_ID` and the secret `SIGNPATH_API_TOKEN`; releases are then signed
@@ -89,7 +96,7 @@ Before continuing or starting a feature, check this list: some features wait on 
 The numbers below are kept as they are, so they don't say the order. What's left, in priority
 order (the first one is next):
 
-**31** continuous mod browsing → **34** Connected Players widget → **33** help drawer →
+**34** Connected Players widget → **33** help drawer →
 **17** scripting hooks and API tokens → **29** roles for other people (RBAC, uses 17) →
 **15** other tunnel services → **19** Velocity networks → **30** Bedrock servers →
 **20** translated manual → **21** servers on hosting panels → **24** one dashboard for
@@ -198,8 +205,9 @@ Next:
         with permissions scoped to specific servers and management actions (RBAC).
 30. [ ] **Native Bedrock servers:** support creating and managing Minecraft Bedrock Dedicated
         Servers, alongside the existing Java server types.
-31. [ ] **Continuous mod browsing:** load 20 results initially and prefetch the next 20 around
+31. [x] **Continuous mod browsing:** load 20 results initially and prefetch the next 20 around
         result 12, then repeat as the user scrolls, preserving position and avoiding duplicates.
+        Done in 0.23.0 (not released yet).
 32. [x] **Investigate Maps still not working:** the report is closed: Maps works now (checked on
         the user's real setup).
 33. [ ] **Contextual help drawer:** Help opens the relevant section in a panel that slides in
@@ -352,7 +360,7 @@ roadmap is done (see above), so finished items collect under the upcoming versio
 
 ## Additional requests (2026-10-01): implementation briefs
 
-Briefs for the items asked for on 2026-10-01. 28 and 32 are done; 29, 30, 31, 33 and 34 are
+Briefs for the items asked for on 2026-10-01. 28, 31 and 32 are done; 29, 30, 33 and 34 are
 still to do. Their numbering preserves the existing roadmap and does not establish a priority
 order (the order is under "For Claude" above). Inspect the current code
 before choosing an implementation. Apply CLAUDE.md when implementing; keep related help,

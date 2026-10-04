@@ -84,6 +84,7 @@ LOCAL_ONLY = {"/api/open", "/api/hub/open", "/api/hub/remote-install/open", "/ap
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/app.js": ("app.js", "text/javascript; charset=utf-8"),
           "/rich.js": ("rich.js", "text/javascript; charset=utf-8"),
+          "/pager.js": ("pager.js", "text/javascript; charset=utf-8"),
           "/manual.md": ("manual.md", "text/markdown; charset=utf-8"),
           "/style.css": ("style.css", "text/css; charset=utf-8"),
           "/craft-conductor-theme.css": ("craft-conductor-theme.css", "text/css; charset=utf-8"),
