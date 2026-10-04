@@ -4,7 +4,7 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
-## 0.22.2 (not released yet)
+## 0.22.2 (2026-10-04)
 
 **Fixed**
 - A CurseForge key entered in Craft Conductor settings → Connections → CurseForge within a few minutes of another one was accepted without being checked with CurseForge.
