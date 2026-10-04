@@ -17,6 +17,7 @@ import re
 import time
 from pathlib import Path
 
+from .browse import side_facets
 from .config import ModSpec
 from .http import HttpClient, HttpError
 from .mods.base import ModError, Unavailable
@@ -111,7 +112,9 @@ def search(http: HttpClient, kind: str, query: str, pack: dict, offset: int = 0,
     facets = [[f"project_type:{KINDS[kind][1]}"], [f"versions:{pack['minecraft']}"]]
     if kind == "mod":
         facets.append([f"categories:{x}" for x in MOD_LOADERS[pack["loader"]]])
-        facets.append(["client_side:required", "client_side:optional"])
+        # Only mods that run on the player's computer alone: the ones that also run on the server
+        # (side "both") come with the server's own download, so they'd be there twice.
+        facets.extend(side_facets("client", "only"))
     if category:
         facets.append([f"categories:{category}"])
     data = http.get_json(f"{API}/search", params={"query": query[:100], "facets": json.dumps(facets),

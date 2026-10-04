@@ -1428,7 +1428,7 @@ function openReadiness(versions, installed) {
           r.loader.state === "green" ? `ready (${r.loader.version})` : r.loader.state === "red" ? `no ${r.loader.name} build for Minecraft ${r.minecraft} yet` : "couldn't check it right now"),
         r.mods.map((m) => row(m.state, m.name,
           { green: "has a release build", yellow: `only ${m.channel} builds so far`, red: `no build for Minecraft ${r.minecraft} yet`, unknown: "can't tell (your own file, or the lookup failed)" }[m.state] +
-            ` · installed ${m.version}`,
+            (m.installed === false ? " · added, installed with the next update" : ` · installed ${m.version}`),
           [m.needed_by ? h("span", { class: "tag" }, `needed by ${m.needed_by}`) : null, m.required ? null : h("span", { class: "tag" }, "optional")]))),
       r.mods.length ? null : h("p", { class: "empty" }, "No mods installed."));
   };
@@ -2232,14 +2232,17 @@ function webMapCard() {
     const r = await api("/api/webmap").catch(() => null);
     if (!r) return;
     if (!r.kind) {
+      // Only the maps that have a build for this server (false: none; null: couldn't check, so the add itself tells).
+      const offered = [["bluemap", "BlueMap", "3D, looks like the game. Needs more disk space and a while to draw the first time."],
+        ["dynmap", "Dynmap", "Flat, like a road map. Lighter."]].filter(([kind]) => (r.available || {})[kind] !== false);
       fill(body,
         h("p", { class: "muted small" }, "A live map of the world that you and your friends open in a browser: see the terrain, builds and who is where."),
         r.listed ? h("p", { class: "small" }, `${r.maps[r.listed]} is added and is installed with the next update.`)
-          : h("div", { class: "row" },
-            h("button", { class: "btn", onclick: () => add("bluemap", "BlueMap") }, "Add BlueMap"),
-            h("span", { class: "muted small grow" }, "3D, looks like the game. Needs more disk space and a while to draw the first time."),
-            h("button", { class: "btn", onclick: () => add("dynmap", "Dynmap") }, "Add Dynmap"),
-            h("span", { class: "muted small grow" }, "Flat, like a road map. Lighter.")));
+          : !r.runs_mods ? h("p", { class: "muted small" }, "A web map needs a server that runs mods or plugins; this one runs plain Minecraft.")
+          : !offered.length ? h("p", { class: "muted small" }, `BlueMap and Dynmap don't support Minecraft ${r.minecraft || "this version"} yet.`)
+          : h("div", { class: "row" }, offered.map(([kind, name, about]) => [
+            h("button", { class: "btn", onclick: () => add(kind, name) }, `Add ${name}`),
+            h("span", { class: "muted small grow" }, about)])));
       return;
     }
     const portIn = h("input", { type: "number", min: 1024, max: 65535, value: r.port, class: "narrow", "aria-label": "Map port" });
@@ -2482,9 +2485,17 @@ views.friends = () => {
   let data = null;
   const save = async (changes, message) => {
     const r = await act(() => api("/api/client", { method: "POST", body: changes }), message);
-    if (r) { data = r; render(); }
+    if (r) { data = r; render(); announceAlsoOnServer(r); }
   };
   const reload = async () => { const r = await api("/api/client").catch(() => null); if (r) { data = r; render(); } };
+  // Taking a mod off the players' list; one that was also added to the server asks about that too.
+  const removePlayerMod = async (x) => {
+    const mods = data.mods.filter((y) => y !== x);
+    const alsoOnServer = (data.mods_on_server || []).includes(x);
+    await save({ mods }, `${x} removed`);
+    if (alsoOnServer && await ask(`${x} is also one of the server's mods. Remove it from the server too?\n\nCancel keeps it on the server.`, { ok: "Remove from the server" }))
+      await save({ mods, remove_from_server: [x] }, `${x} removed from the server`);
+  };
   // Your own mod files for players (e.g. ones that aren't on Modrinth).
   const picker = h("input", { type: "file", multiple: true, accept: ".jar", class: "hidden" });
   picker.addEventListener("change", async () => {
@@ -2594,7 +2605,7 @@ views.friends = () => {
              pack.skipped.length ? h("div", { class: "notice warn mt-s" }, pack.skipped.map((x) => `${x.name}: ${x.reason}`).join("; ")) : null],
         d.mods.length ? h("div", { class: "mt-s" }, h("strong", {}, "Mods you added for players: "),
           d.mods.map((x) => h("span", { class: "tag" }, x, " ", h("button", { class: "link-btn", "aria-label": `Remove ${x}`,
-            onclick: () => save({ mods: d.mods.filter((y) => y !== x) }, `${x} removed`) }, "✕")))) : null,
+            onclick: () => removePlayerMod(x) }, "✕")))) : null,
         h("label", { class: "mt" }, "Memory for friends' Minecraft",
           (() => { const sel = h("select", { onchange: (e) => save({ memory_gb: Number(e.target.value) }, "Saved") },
             [2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32].map((g) => h("option", { value: String(g) }, `${g} GB`))); sel.value = String(d.memory_gb); return sel; })()))),
@@ -2609,7 +2620,8 @@ views.friends = () => {
         h("h3", { class: "mt" }, "Your players' mods"),
         d.mods.length || d.local_mods.length || companions.length ? h("ul", { class: "list" },
           d.mods.map((x) => h("li", {}, h("strong", { class: "grow" }, x),
-            h("button", { class: "btn small danger", onclick: () => save({ mods: d.mods.filter((y) => y !== x) }, `${x} removed`) }, "Remove"))),
+            (d.mods_on_server || []).includes(x) ? h("span", { class: "tag" }, "also on the server") : null,
+            h("button", { class: "btn small danger", onclick: () => removePlayerMod(x) }, "Remove"))),
           d.local_mods.map((x) => h("li", {}, h("div", { class: "grow" }, h("strong", {}, x), h("span", { class: "tag" }, "local file")),
             h("button", { class: "btn small danger", onclick: async () => (await ask(`Remove ${x} from the players' download?`, { ok: "Remove", danger: true })) &&
               act(() => api("/api/client/local/remove", { method: "POST", body: { name: x } }), `${x} removed`).then(reload) }, "Remove"))),
@@ -3451,12 +3463,17 @@ function browserPanel(params, host) {
 
   addBtn.addEventListener("click", async () => {
     const mods = [...st.selected.values()].map((m) => ({ source: m.source, id: m.id, slug: m.slug, name: m.name,
-      channel: m.channel && m.channel !== "release" ? m.channel : null }));
+      environment: m.environment, channel: m.channel && m.channel !== "release" ? m.channel : null }));
     if (!(await confirmEarly(mods))) return;
     if (forPlayers && target === "setup") {  // a new server: kept with the setup form until it's created
       for (const m of mods) setupState.clientMods.set(m.slug || m.id, m.name);
       setupState.friends = true;
       toast(`Added ${mods.map((m) => m.name).join(", ")} to your friends' download`);
+      // The ones that also run on the server go in the server's mods too, with what they need.
+      for (const m of mods.filter((x) => x.environment === "both" && !setupHasServerMod(setupModKey(x)))) {
+        const needs = await setupAddAlsoOnServer(setupModKey(m), m.name, m.channel);
+        toast(alsoOnServerMessage(m.name, needs));
+      }
       if (host) host.changed(); else location.hash = "#new";
       return;
     }
@@ -3465,6 +3482,7 @@ function browserPanel(params, host) {
       if (!cur) return;
       const r = await act(() => api(`/api/servers/${encodeURIComponent(target)}/client`, { method: "POST",
         body: { mods: [...new Set([...cur.mods, ...mods.map((m) => m.slug || m.id)])] } }), `Added ${mods.map((m) => m.name).join(", ")} for players`);
+      if (r) announceAlsoOnServer(r);
       if (r && host) host.changed();
       return;
     }
@@ -3592,7 +3610,7 @@ const HELP = [
     h("p", {}, "Help and User manual keep your current page open underneath. Use the contents on the left, then Close Help or Escape to return to the same place, with your unsaved entries intact."),
     h("p", {}, "Craft Conductor settings are grouped into Appearance, Sounds & notifications, Sign-in & security, Connections, and About & updates."),
     screenshot("craft-conductor-settings", "Craft Conductor settings: pick a section on the left."),
-    h("p", {}, "Update readiness uses green for releases, yellow for early builds, red for missing builds and gray when compatibility could not be checked. A Minecraft upgrade waits for unverified local files. World-generation mods bring their required mods; if one only has an early build, adding it asks you first."),
+    h("p", {}, "Update readiness uses green for releases, yellow for early builds, red for missing builds and gray when compatibility could not be checked. A Minecraft upgrade waits for unverified local files. World-generation mods bring their required mods; if one only has an early build, adding it asks you first. A web map you added (BlueMap or Dynmap) counts like any other mod, and Add BlueMap / Add Dynmap on the World page only appear for a map that has a build for the server's Minecraft."),
     h("p", {}, "Bedrock setup checks both Geyser and Floodgate, and offers compatible early builds with a confirmation when releases are unavailable.")]],
   ["start", "Getting started", () => [
     h("p", {}, "Craft Conductor keeps your Minecraft servers running and up to date by themselves. Make a server under ", h("strong", {}, "New server"),
@@ -3616,6 +3634,8 @@ const HELP = [
     screenshot("friend-setup", "Your friend's Craft Conductor sets up their launchers, and can ask you to let them in."),
     h("p", {}, "Links are shared, so anyone with one can use it: each stops working by itself after the time you pick (7 days unless you change it), and ",
       h("strong", {}, "Stop these links"), " or ", h("strong", {}, "New links"), " stops it sooner. Friends who already set up keep playing; they need a new link to update."),
+    h("p", {}, "Mods you pick under ", h("strong", {}, "Mods for players"), " that run on both sides (client and server) are added to the server's own mods too, with the mods they need, and a message says so; ",
+      "removing one from the players' list asks whether to remove it from the server as well. Mods that only run on players' computers stay with the players."),
     h("p", {}, "Friends outside your home also need the router set up (below).")]],
   ["router", "Router setup (port forwarding)", () => [routerHelp()]],
   ["mods", "Mods and updates", () => [
@@ -5374,13 +5394,27 @@ async function confirmEarly(mods) {
   return !early.length || ask(`${early.map((m) => m.name).join(", ")} ${early.length === 1 ? "only has" : "only have"} ` +
     `alpha or beta builds for this Minecraft version.\n\n${EARLY_WARNING}\n\nAdd ${early.length === 1 ? "it" : "them"} anyway?`, { id: "early-builds", ok: "Add anyway" });
 }
-async function setupAddMod(key, name, channel = null) {
+async function setupAddMod(key, name, channel = null, quiet = false) {
   const st = setupState;
   const e = st.mods.get(key);
   if (e) { e.explicit = true; if (channel && channel !== "release") e.channel = channel; }
   else st.mods.set(key, { name, required: true, explicit: true, by: new Set(), bad: "", channel: channel && channel !== "release" ? channel : null });
   setupChanged();
-  await setupCheckMod(key);
+  return setupCheckMod(key, quiet);
+}
+// A mod picked for friends that runs on both sides is also one of the server's mods: the toast
+// (here and on the Friends page) says so, and what came along with it.
+const alsoOnServerMessage = (name, needs) =>
+  `${name} also runs on the server, so it was added there too` + (needs && needs.length ? `, with ${needs.join(", ")}` : "");
+function announceAlsoOnServer(r) {
+  for (const x of r.also_on_server || []) toast(alsoOnServerMessage(x.name, x.deps));
+  for (const x of r.server_skipped || []) toast(`${x.name} runs on the server too, but couldn't be added there: ${x.reason}`, true);
+}
+const setupHasServerMod = (key) => { const e = setupState.mods.get(key); return !!(e && e.explicit); };
+async function setupAddAlsoOnServer(key, name, channel) {
+  const added = await setupAddMod(key, name, channel, true);  // (quietly: the one toast says what came along)
+  setupAnnounceCompanions();
+  return (added || []).map((d) => d.name);
 }
 async function setupCheckMod(key, quiet = false) {
   const st = setupState;
@@ -5423,6 +5457,7 @@ async function setupCheckMod(key, quiet = false) {
       [...new Set(added.map((d) => d.needed_by))].join(" and ") + ".");
   }
   setupChanged();
+  return added;
 }
 // Mods the picked server mods need on players' computers: they go in the friends' download
 // by themselves. Each one is announced once.
@@ -5771,8 +5806,16 @@ views.setup = () => {
       });
       const companions = setupCompanions();
       const list = st.clientMods.size || st.clientLocal.length || companions.size ? h("ul", { class: "list" },
-        [...st.clientMods].map(([k, name]) => h("li", {}, h("strong", { class: "grow" }, name), h("span", { class: "tag" }, "players only"),
-          h("button", { type: "button", class: "btn small danger", onclick: () => { st.clientMods.delete(k); renderForm(); } }, "Remove"))),
+        [...st.clientMods].map(([k, name]) => h("li", {}, h("strong", { class: "grow" }, name),
+          h("span", { class: "tag" }, setupHasServerMod(k) ? "also on the server" : "players only"),
+          h("button", { type: "button", class: "btn small danger", onclick: async () => {
+            st.clientMods.delete(k);
+            renderForm();
+            if (setupHasServerMod(k) && await ask(`${name} is also one of the server's mods. Remove it from the server too?\n\nCancel keeps it on the server.`, { ok: "Remove from the server" })) {
+              await setupRemoveMod(k);
+              renderForm();
+            }
+          } }, "Remove"))),
         st.clientLocal.map((m) => h("li", {}, h("div", { class: "grow" }, h("strong", {}, m.name), h("span", { class: "tag" }, "local file")),
           h("button", { type: "button", class: "btn small danger", onclick: () => { st.clientLocal = st.clientLocal.filter((x) => x !== m); renderForm(); } }, "Remove"))),
         [...companions.values()].map((c) => h("li", { class: "dep" }, h("div", { class: "grow" }, "↳ ", h("strong", {}, c.name),

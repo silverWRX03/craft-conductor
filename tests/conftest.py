@@ -142,6 +142,7 @@ class ModrinthFixture:
     def __init__(self, http: FakeHttp):
         self.http = http
         self.versions: dict[str, list[dict]] = {}
+        self.slugs: dict[str, str] = {}
 
     def project(self, pid: str, slug: str | None = None, title: str | None = None, server_side="required",
                 client_side="required"):
@@ -152,6 +153,7 @@ class ModrinthFixture:
         projects = [p for p in self.http.json.get(f"{MODRINTH}/projects", []) if p["id"] != pid]
         self.http.json[f"{MODRINTH}/projects"] = projects + [body]  # the batch lookup
         self.versions[pid] = []
+        self.slugs[pid] = slug
         self._publish(pid)
 
     def version(self, pid: str, number: str, game_versions: list[str], deps: list[str] = (),
@@ -184,6 +186,8 @@ class ModrinthFixture:
             return [v for v in reversed(self.versions[pid]) if (not loaders or loaders & set(v["loaders"]))
                     and (not games or games & set(v["game_versions"]))]
         self.http.json[f"{MODRINTH}/project/{pid}/version"] = serve
+        # (Modrinth takes a project's slug where it takes its id)
+        self.http.json[f"{MODRINTH}/project/{self.slugs.get(pid, pid)}/version"] = serve
 
 
 @pytest.fixture(autouse=True)

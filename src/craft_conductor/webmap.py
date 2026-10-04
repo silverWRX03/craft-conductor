@@ -11,7 +11,11 @@ from __future__ import annotations
 
 import re
 import socket
+import threading
+import time
 from pathlib import Path
+
+from .mods.base import CHANNEL_RANK
 
 MAPS = {
     "bluemap": {"name": "BlueMap", "project": "bluemap", "port": 8100, "key": "port",
@@ -24,6 +28,44 @@ PLUGIN_LOADERS = {"paper", "purpur", "spigot", "bukkit"}
 
 class WebMapError(ValueError):
     pass
+
+
+class Availability:
+    """Which web maps have a build for a server's loader and Minecraft version, asked of Modrinth.
+
+    One request per map, remembered for a while (and for less time when a lookup failed), so
+    opening the World page again and again asks Modrinth nothing. Each answer is True (a build
+    the server's release channel accepts), False (none), or None (couldn't ask)."""
+
+    TTL = 900.0    # seconds an answer is kept
+    RETRY = 60.0   # ... when a lookup failed: try again soon, but not on every page view
+
+    def __init__(self, ttl: float | None = None, retry: float | None = None):
+        self.ttl = self.TTL if ttl is None else ttl
+        self.retry = self.RETRY if retry is None else retry
+        self._lock = threading.Lock()
+        self._cache: dict[tuple, tuple[float, dict[str, bool | None]]] = {}
+
+    def check(self, provider, loaders: tuple[str, ...], minecraft: str | None, channel: str = "release") -> dict[str, bool | None]:
+        if not loaders:
+            return {kind: False for kind in MAPS}  # vanilla: nothing runs a map
+        if not minecraft:
+            return {kind: None for kind in MAPS}
+        key = (tuple(loaders), minecraft, channel)
+        with self._lock:  # (one lookup at a time: simultaneous page loads share its answer)
+            hit = self._cache.get(key)
+            if hit and time.monotonic() < hit[0]:
+                return dict(hit[1])
+            found = provider.best_channels([spec["project"] for spec in MAPS.values()], tuple(loaders), minecraft)
+            answer: dict[str, bool | None] = {}
+            for kind, spec in MAPS.items():
+                best = found.get(spec["project"])
+                answer[kind] = None if best == "unknown" else (
+                    best is not None and CHANNEL_RANK.get(best, 9) <= CHANNEL_RANK.get(channel, 0))
+            if len(self._cache) >= 16:  # (the version and loader come from the server's own settings)
+                self._cache.clear()
+            self._cache[key] = (time.monotonic() + (self.retry if None in answer.values() else self.ttl), answer)
+            return dict(answer)
 
 
 def installed(mods) -> str | None:
