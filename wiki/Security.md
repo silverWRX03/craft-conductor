@@ -61,5 +61,10 @@ page lives on GitHub Pages (a real certificate, so no browser warning), and the 
 itself is after the `#` in the link, which browsers never send anywhere. Power users can
 still use the raw invite code with `craft-conductor join <code>`.
 
+## Found a security problem?
+
+Please report it privately, not in an issue: see
+[SECURITY.md](https://github.com/silverWRX03/craft-conductor/blob/main/SECURITY.md).
+
 ---
 [← Power users](Power-Users)
