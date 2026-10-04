@@ -4,9 +4,10 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
-## 0.22.1 (not released yet)
+## 0.22.1 (2026-10-04)
 
 **Added**
+- CurseForge works out of the box: the downloads come with Craft Conductor's own CurseForge API key. A key you enter in Craft Conductor settings → Connections → CurseForge is still used instead.
 - Craft Conductor's shared list of mod conflicts is online: the Mods page warns when mods you have together are known not to work, and **Share mod conflicts anonymously** (Craft Conductor settings → Connections → Mod conflicts) now sends what Find which mods break it finds.
 
 **Fixed**

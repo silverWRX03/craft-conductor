@@ -78,7 +78,7 @@ The mods in these run on the server only, so friends join with plain Minecraft. 
 
 **3. Mods** (or plugins):
 
-- **Download mods** opens the mod browser beside the form: search Modrinth (and CurseForge, with an API key), read a mod's page on the right, tick the ones you want, and press **Add selected mods**. Mods that need other mods bring them along.
+- **Download mods** opens the mod browser beside the form: search Modrinth and CurseForge, read a mod's page on the right, tick the ones you want, and press **Add selected mods**. Mods that need other mods bring them along.
 - **Runs on** narrows Modrinth mods by where they run: server-side and both (the default for a server), server-side only, or both. Tags show where each one runs.
 - "Also show mods with only alpha/beta builds" includes less stable mods, with a warning.
 - **Local files** adds `.jar` files from your computer. **Modpacks** builds the whole server from a Modrinth modpack.
@@ -347,7 +347,7 @@ Choose a section from the menu: **Appearance** (Language and Display), **Sounds 
 - **Sign-in:** change your password or PIN. There's always one.
 - **Remote access & phones:** see above.
 - **Sharing with friends:** the friends' port and your public address, a playit.gg tunnel, and **Router**: open the ports on your router by itself (UPnP).
-- **CurseForge:** searching CurseForge needs an API key (free, from console.curseforge.com); release builds of Craft Conductor can include one.
+- **CurseForge:** the downloads of Craft Conductor come with Craft Conductor's own CurseForge API key, so CurseForge works without one of your own. If you prefer your own (free, from console.curseforge.com), enter it here; it's used instead.
 - **Discord:** add a bot to post invites to a channel. **Live status message:** pick a Discord server and channel, and **Keep a status message there**: one message that always shows whether each server is online, how many are playing and its Minecraft version (and your public address, if set). Craft Conductor edits it as things change and says when Craft Conductor is closed; **Stop** ends it. The bot never reads the channel.
   - **Whitelist through Discord:** friends type `/whitelist` and their Minecraft name in your Discord server (with several Minecraft servers, they pick one too). Only they see the answer. Pick what happens: **Ask me first** puts them on the Players page to **Allow** or **Ignore** (and tells you, like any request to join), or **Let them in straight away** adds them to the whitelist at once, optionally **only members with a role** you pick (others are asked for instead). **Turn on** starts it; the card shows whether Craft Conductor is listening. It works while Craft Conductor is open. If `/whitelist` doesn't show up in Discord, add the bot again with **Add it to another Discord server** (bots added before Craft Conductor 0.18 lack the permission for commands) and restart Discord. The bot still never reads messages: Discord only sends it the command.
 - **Notifications:** **Notify me in this browser** shows a notification when a server stops unexpectedly, an update is ready, someone joins (off by default) or something Craft Conductor was doing fails, while Craft Conductor's tab is in the background. The browser asks first. It works when the address is localhost (or HTTPS).
