@@ -21,6 +21,9 @@ SORTS = ("relevance", "downloads", "follows", "newest", "updated")
 CF_SORT = {"relevance": None, "downloads": 6, "follows": 2, "newest": 11, "updated": 3}
 CF_MODPACKS_CLASS_ID = 4471
 PAGE = 20
+# How deep a search can go: CurseForge refuses a page past its 10,000th result, and Modrinth's
+# search stops there too. Hangar has no such limit, but nobody scrolls that far.
+MAX_RESULTS = 10_000
 ENVS = ("", "only", "both")  # which side(s) a mod runs on: this side's and both (""), this side only, or both
 
 
@@ -41,6 +44,16 @@ def side_facets(side: str = "server", env: str = "") -> list[list[str]]:
     elif env == "both":
         facets.append([f"{other}_side:required", f"{other}_side:optional"])
     return facets
+
+
+def paging(offset: int, got: int, total: int) -> dict:
+    """Where a page of ``got`` results (counting ones left out for having no build) sits in a
+    search: its ``offset``, the provider's ``total`` and the offset of the ``next`` page, or None
+    at the real end. The page keeps asking until ``next`` is None, whatever it showed, since
+    results left out make what it shows fewer than what came back."""
+    nxt = offset + PAGE
+    end = got < PAGE or nxt >= total or nxt + PAGE > MAX_RESULTS
+    return {"total": total, "offset": offset, "page": PAGE, "next": None if end else nxt}
 
 
 class BrowseError(Exception):
@@ -69,7 +82,7 @@ class Browser:
             raise BrowseError("unknown kind")
         if sort not in SORTS:
             raise BrowseError("unknown sort order")
-        offset = max(0, min(int(offset), 10_000))
+        offset = max(0, min(int(offset), MAX_RESULTS - PAGE))
         plugins = loader in ("paper", "purpur")  # (loaders.PLUGIN_SERVERS)
         if side not in ("server", "client"):
             raise BrowseError("unknown side")
@@ -112,7 +125,7 @@ class Browser:
             "environment": "" if plugins else environment(h.get("client_side"), h.get("server_side")),
             "url": f"https://modrinth.com/{'plugin' if plugins else kind}/{h.get('slug') or h['project_id']}",
         } for h in data.get("hits", [])]
-        page = {"total": data.get("total_hits", len(hits)), "offset": offset, "page": PAGE}
+        page = paging(offset, len(hits), int(data.get("total_hits", offset + len(hits))))
         if kind == "mod" and loader and version and hits:
             from .loaders import LOADERS
             loaders = LOADERS[loader].mod_loaders if loader in LOADERS else (loader,)
@@ -120,10 +133,11 @@ class Browser:
             return {**keep_buildable(channels, hits, early), **page}
         return {"results": hits, "hidden": 0, "early_hidden": 0, **page}
 
-    def _cf(self, path: str, params: dict | None = None):
+    def _cf(self, path: str, params: dict | None = None, whole: bool = False):
         if not self.cf_key:
             raise BrowseError("searching CurseForge needs a CurseForge API key (Settings)")
-        return self.http.get_json(f"{cf.API}{path}", params=params, headers={"x-api-key": self.cf_key})["data"]
+        data = self.http.get_json(f"{cf.API}{path}", params=params, headers={"x-api-key": self.cf_key})
+        return data if whole else data["data"]
 
     def _cf_channels(self, ids: list[str], loader: str, version: str) -> dict[str, str | None]:
         """Like ModrinthProvider.best_channels, from each CurseForge project's files."""
@@ -150,6 +164,7 @@ class Browser:
             params["gameVersion"] = version
         if category and category.isdigit():
             params["categoryId"] = category
+        data = self._cf("/mods/search", params, whole=True)
         hits = [{
             "source": "curseforge", "id": str(m["id"]), "slug": m.get("slug", ""), "name": m.get("name", ""),
             "summary": m.get("summary", ""), "icon": (m.get("logo") or {}).get("thumbnailUrl", ""),
@@ -158,8 +173,9 @@ class Browser:
             "updated": m.get("dateModified", ""), "created": m.get("dateReleased", ""),
             "categories": [c.get("name", "") for c in m.get("categories", [])][:4], "versions": [],
             "kind": "mod", "url": (m.get("links") or {}).get("websiteUrl") or f"{cf.WEBSITE}/{m.get('slug', '')}",
-        } for m in self._cf("/mods/search", params)]
-        page = {"total": offset + len(hits) + (PAGE if len(hits) == PAGE else 0), "offset": offset, "page": PAGE}
+        } for m in data["data"]]
+        total = (data.get("pagination") or {}).get("totalCount")
+        page = paging(offset, len(hits), int(total) if isinstance(total, int) else offset + len(hits) + (PAGE if len(hits) == PAGE else 0))
         if loader in cf.LOADER_TYPES and version and hits:
             return {**keep_buildable(self._cf_channels([h["id"] for h in hits], loader, version), hits, early), **page}
         return {"results": hits, "hidden": 0, "early_hidden": 0, **page}
@@ -188,8 +204,8 @@ class Browser:
                          "updated": p.get("lastUpdated", ""), "created": p.get("createdAt", ""),
                          "categories": [p["category"]] if p.get("category") else [], "versions": [], "kind": "mod",
                          "environment": "", "url": f"{HANGAR_SITE}/{ns.get('owner', '')}/{slug}"})
-        total = int((data.get("pagination") or {}).get("count", len(hits)))
-        return {"results": hits, "hidden": 0, "early_hidden": 0, "total": total, "offset": offset, "page": PAGE}
+        total = int((data.get("pagination") or {}).get("count", offset + len(hits)))
+        return {"results": hits, "hidden": 0, "early_hidden": 0, **paging(offset, len(hits), total)}
 
     # ----------------------------------------------------------- details
     def project(self, source: str, project_id: str) -> dict:

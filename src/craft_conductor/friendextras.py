@@ -17,7 +17,7 @@ import re
 import time
 from pathlib import Path
 
-from .browse import side_facets
+from .browse import MAX_RESULTS, PAGE, paging, side_facets
 from .config import ModSpec
 from .http import HttpClient, HttpError
 from .mods.base import ModError, Unavailable
@@ -96,8 +96,9 @@ SORTS = ("relevance", "downloads", "follows", "newest", "updated")
 
 
 def search(http: HttpClient, kind: str, query: str, pack: dict, offset: int = 0, sort: str = "",
-           category: str = "") -> list[dict]:
-    """Modrinth projects of this kind for the server's Minecraft (and loader, for mods)."""
+           category: str = "") -> dict:
+    """One page of Modrinth projects of this kind for the server's Minecraft (and loader, for
+    mods), with where it sits in the search (``next``: the next page's offset, None at the end)."""
     if kind not in KINDS:
         raise ExtrasError("unknown kind")
     if sort and sort not in SORTS:
@@ -117,13 +118,16 @@ def search(http: HttpClient, kind: str, query: str, pack: dict, offset: int = 0,
         facets.extend(side_facets("client", "only"))
     if category:
         facets.append([f"categories:{category}"])
+    offset = max(0, min(int(offset), MAX_RESULTS - PAGE))
     data = http.get_json(f"{API}/search", params={"query": query[:100], "facets": json.dumps(facets),
                                                    "index": sort or ("relevance" if query else "downloads"),
-                                                   "limit": 20, "offset": max(0, int(offset))})
-    return [{"id": h["project_id"], "slug": h.get("slug", ""), "name": h.get("title", ""),
+                                                   "limit": PAGE, "offset": offset})
+    hits = data.get("hits", [])
+    results = [{"id": h["project_id"], "slug": h.get("slug", ""), "name": h.get("title", ""),
              "summary": h.get("description", ""), "icon": h.get("icon_url") or "", "downloads": h.get("downloads", 0),
              "follows": h.get("follows", 0), "author": h.get("author", ""), "updated": h.get("date_modified", ""),
-             "kind": kind} for h in data.get("hits", [])]
+             "kind": kind} for h in hits]
+    return {"results": results, **paging(offset, len(hits), int(data.get("total_hits", offset + len(hits))))}
 
 
 # ---------------------------------------------------------------- resolving

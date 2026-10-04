@@ -34,6 +34,19 @@ def test_a_friends_mod_search_shows_only_client_side_only_mods(http):
     assert all(f in seen[-1] for f in side_facets("client", "only"))
 
 
+def test_a_friends_search_says_where_the_next_page_starts(http):
+    """The friend's More mods keeps scrolling to the real end, like the owner's mod browser."""
+    from test_browse import fake_search
+    seen = []
+    http.json[f"{API}/search"] = fake_search(30, seen)
+    first = friendextras.search(http, "resourcepack", "", pack())
+    assert len(first["results"]) == 20 and first["next"] == 20 and first["total"] == 30
+    last = friendextras.search(http, "resourcepack", "", pack(), offset=20)
+    assert len(last["results"]) == 10 and last["next"] is None
+    friendextras.search(http, "resourcepack", "", pack(), offset=50_000)
+    assert seen == [0, 20, 9_980]  # (no deeper than Modrinth's search goes)
+
+
 def test_modpacks_resource_packs_and_shaders_keep_their_own_filters(http):
     seen = record_searches(http)
     for kind, project_type in (("resourcepack", "resourcepack"), ("shader", "shader")):

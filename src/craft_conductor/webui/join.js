@@ -90,7 +90,7 @@ function openPicker(kind) {
   closePicker();
   const [label, , noun] = KIND[kind];
   const one = noun.replace(/s$/, "");
-  const st = { q: "", sort: "", category: "", offset: 0, results: [], selected: new Map(), active: null };
+  const st = { q: "", sort: "", category: "", selected: new Map(), active: null };
   const q = h("input", { type: "search", placeholder: `Search ${noun}…`, "aria-label": `Search ${noun}` });
   const sort = h("select", { "aria-label": "Sort by" }, [["", "Best match"], ["downloads", "Most downloaded"],
     ["follows", "Most followed"], ["newest", "Newest"], ["updated", "Recently updated"]].map(([v, l]) => h("option", { value: v }, l)));
@@ -99,7 +99,7 @@ function openPicker(kind) {
   const details = h("div", { class: "browse-right" }, h("p", { class: "empty" }, `Pick a ${one} on the left to read about it here.`));
   const count = h("span", { class: "grow muted small" });
   const addBtn = h("button", { class: "btn primary", disabled: true }, `Add selected ${noun}`);
-  let timer, seq = 0;
+  let timer;
   const fmt = (n) => n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? Math.round(n / 1e3) + "k" : String(n);
   const icon = (src, cls) => src ? h("img", { src, alt: "", loading: "lazy", referrerpolicy: "no-referrer", class: cls })
     : h("div", { class: "noicon" });
@@ -123,41 +123,44 @@ function openPicker(kind) {
       : `Tick the ${noun} you want.`;
     addBtn.disabled = n === 0;
   };
-  const renderList = (more) => {
-    const have = new Set(extras.items.map((i) => i.id));
-    list.replaceChildren(...(st.results.length ? st.results.map((m) => {
-      const added = have.has(m.id);
-      const box = added ? h("span", { class: "tag ok", title: "Already added" }, "✓")
-        : h("input", { type: "checkbox", checked: st.selected.has(m.id), "aria-label": `Select ${m.name}`,
-          onclick: (e) => e.stopPropagation(),
-          onchange: (e) => { if (e.target.checked) { st.selected.set(m.id, m); needs(m); } else st.selected.delete(m.id); updateFooter(); } });
-      return h("div", { class: "result" + (st.active === m.id ? " active" : ""), tabindex: "0", role: "button",
-        onclick: () => showDetails(m), onkeydown: (e) => { if (e.key === "Enter") showDetails(m); } },
-        box, icon(m.icon),
-        h("div", { class: "info" },
-          h("div", { class: "name" }, m.name, m.author ? h("span", { class: "muted small" }, ` by ${m.author}`) : null, added ? h("span", { class: "tag ok" }, "added") : null),
-          h("div", { class: "desc" }, m.summary),
-          h("div", { class: "muted small" }, `⬇ ${fmt(m.downloads || 0)}`, m.follows ? ` · ♥ ${fmt(m.follows)}` : "")));
-    }).concat(more ? [h("div", { class: "row mt-s" }, h("button", { class: "btn small", onclick: () => { st.offset += 20; search(true); } }, "Load more"))] : [])
-      : [h("p", { class: "muted" }, `No ${noun} found for Minecraft ${info.pack.minecraft}.`)]));
-    updateFooter();
+  const resultRow = (m) => {
+    const added = extras.items.some((i) => i.id === m.id);
+    const box = added ? h("span", { class: "tag ok", title: "Already added" }, "✓")
+      : h("input", { type: "checkbox", checked: st.selected.has(m.id), "aria-label": `Select ${m.name}`,
+        onclick: (e) => e.stopPropagation(),
+        onchange: (e) => { if (e.target.checked) { st.selected.set(m.id, m); needs(m); } else st.selected.delete(m.id); updateFooter(); } });
+    return h("div", { class: "result" + (st.active === m.id ? " active" : ""), tabindex: "0", role: "button",
+      onclick: () => showDetails(m), onkeydown: (e) => { if (e.key === "Enter") showDetails(m); } },
+      box, icon(m.icon),
+      h("div", { class: "info" },
+        h("div", { class: "name" }, m.name, m.author ? h("span", { class: "muted small" }, ` by ${m.author}`) : null, added ? h("span", { class: "tag ok" }, "added") : null),
+        h("div", { class: "desc" }, m.summary),
+        h("div", { class: "muted small" }, `⬇ ${fmt(m.downloads || 0)}`, m.follows ? ` · ♥ ${fmt(m.follows)}` : "")));
   };
-  const search = async (append = false) => {
-    const mine = ++seq;
-    if (!append) { st.offset = 0; list.scrollTop = 0; list.replaceChildren(h("p", { class: "muted" }, "Searching…")); }
-    const p = new URLSearchParams({ kind, q: st.q, offset: String(st.offset) });
-    if (st.sort) p.set("sort", st.sort);
-    if (st.category) p.set("category", st.category);
-    let r;
-    try { r = await api(`api/extras/search?${p}`); }
-    catch (e) { list.replaceChildren(h("div", { class: "notice bad" }, e.message)); return; }
-    if (mine !== seq) return;
-    st.results = append ? st.results.concat(r.results) : r.results;
-    renderList(r.results.length === 20);
+  // The results keep coming as the list scrolls (pager.js); new words, sort or category start again.
+  let asked = new URLSearchParams();
+  const pager = resultPager({
+    list,
+    fetchPage: (offset) => { const p = new URLSearchParams(asked); p.set("offset", String(offset)); return api(`api/extras/search?${p}`); },
+    key: (m) => m.id,
+    row: resultRow,
+    empty: () => h("p", { class: "muted" }, `No ${noun} found for Minecraft ${info.pack.minecraft}.`),
+    onPage: () => updateFooter(),
+  });
+  const search = () => {
+    asked = new URLSearchParams({ kind, q: st.q });
+    if (st.sort) asked.set("sort", st.sort);
+    if (st.category) asked.set("category", st.category);
+    pager.reset();
+  };
+  const tick = (id) => {
+    const box = pager.el(id) && pager.el(id).querySelector("input[type=checkbox]");
+    if (box) box.checked = st.selected.has(id);
   };
   const showDetails = async (m) => {
     st.active = m.id;
-    renderList(false);
+    list.querySelectorAll(".result.active").forEach((el) => el.classList.remove("active"));
+    if (pager.el(m.id)) pager.el(m.id).classList.add("active");
     details.replaceChildren(h("p", { class: "muted" }, `Loading ${m.name}…`));
     let p;
     try { p = await api(`api/extras/project?id=${encodeURIComponent(m.id)}`); }
@@ -166,7 +169,9 @@ function openPicker(kind) {
     const added = extras.items.some((i) => i.id === p.id);
     const pick = added ? h("span", { class: "tag ok" }, "added") : h("button", { class: "btn" + (st.selected.has(m.id) ? "" : " primary"), onclick: () => {
       if (st.selected.has(m.id)) st.selected.delete(m.id); else { st.selected.set(m.id, m); needs(m); }
-      renderList(false); showDetails(m);
+      pick.classList.toggle("primary", !st.selected.has(m.id));
+      pick.textContent = t(st.selected.has(m.id) ? "✓ Selected" : "Select");
+      tick(m.id); updateFooter();
     } }, st.selected.has(m.id) ? "✓ Selected" : "Select");
     details.replaceChildren(...[
       h("div", { class: "browse-head" }, icon(p.icon),
@@ -192,9 +197,11 @@ function openPicker(kind) {
     }
     const adds = (extras.deps || []).filter((d) => !before.has(d.name));  // what came along this time
     if (added.length) toast(`Added ${added.join(", ")}` + (adds.length ? `, with ${adds.map((a) => `${a.name} (needed by ${a.needed_by})`).join(", ")}` : ""));
+    const picked = new Set(st.selected.keys());
     st.selected.clear();
     extrasCard.refresh && extrasCard.refresh();
-    renderList(st.results.length && st.results.length % 20 === 0);
+    pager.redraw((m) => picked.has(m.id));  // (now "added"; the rest of the list stays as it is)
+    updateFooter();
   });
   q.addEventListener("input", () => { st.q = q.value.trim(); clearTimeout(timer); timer = setTimeout(() => search(), 350); });
   sort.addEventListener("change", () => { st.sort = sort.value; search(); });
@@ -217,10 +224,13 @@ function openPicker(kind) {
       details));
   document.body.append(rail, panel);
   document.body.classList.add("picking");
+  stopPicker = pager.stop;
   q.focus();
   search();
 }
+let stopPicker = null;  // the open picker's list stops watching and fetching
 function closePicker() {
+  if (stopPicker) { stopPicker(); stopPicker = null; }
   document.body.classList.remove("picking");
   document.querySelectorAll(".jrail, .jpanel").forEach((x) => x.remove());
 }

@@ -369,7 +369,9 @@ window.addEventListener("beforeunload", (e) => { if (wouldLoseWork()) { e.preven
 // catches up at once when it's back: no work for the server, battery or data meanwhile.
 let polls = [];
 function every(ms, fn) { fn(); polls.push(fn); timers.push(setInterval(() => { if (!document.hidden) fn(); }, ms)); }
-function clearTimers() { timers.forEach(clearInterval); timers = []; polls = []; }
+let leaving = [];  // what a page undoes when another one opens (see onLeave)
+function onLeave(fn) { leaving.push(fn); }
+function clearTimers() { timers.forEach(clearInterval); timers = []; polls = []; leaving.forEach((fn) => fn()); leaving = []; }
 document.addEventListener("visibilitychange", () => { if (!document.hidden) polls.forEach((fn) => fn()); });
 
 // -------------------------------------------------------------------- login
@@ -2716,12 +2718,12 @@ function openBrowser(params) {
     },
     changed: () => { closeBrowser(); refresh(); },
   });
-  openSidePane(b.el, "Mod browser");
+  openSidePane(b.el, "Mod browser", b.stop);
   b.start();
 }
 // The page slides left into a narrow rail (click it or press Escape to go back) and ``el``
 // takes the screen: the mod browser, and the Updates tab's "Show why".
-function openSidePane(el, label) {
+function openSidePane(el, label, onClose = null) {
   closeBrowser(true);
   const stage = $("#stage");
   const back = { setup: "setup", new: "setup", mods: "Mods", friends: "Friends", updates: "Updates" }[currentName] || "the page";
@@ -2732,13 +2734,14 @@ function openSidePane(el, label) {
   $("#main").inert = true;
   stage.append(rail, panel);
   stage.classList.add("browsing");
-  browserOpen = { rail, panel, focus };
+  browserOpen = { rail, panel, focus, onClose };
   rail.focus({ preventScroll: true });
 }
 function closeBrowser(instant = false) {
   if (!browserOpen) return;
-  const { rail, panel, focus } = browserOpen;
+  const { rail, panel, focus, onClose } = browserOpen;
   browserOpen = null;
+  if (onClose) onClose();  // (e.g. the mod browser stops watching its list)
   const stage = $("#stage");
   stage.classList.remove("browsing");
   $("#main").inert = false;
@@ -2807,6 +2810,7 @@ views.browse = (params) => {  // a direct #browse link: the browser on its own
   const b = browserPanel(params, null);
   fill($("#main"), b.el);
   b.start();
+  onLeave(b.stop);
   return {};
 };
 
@@ -3353,7 +3357,7 @@ function browserPanel(params, host) {
   const forPlayers = params.get("side") === "client";  // the Friends page: mods for players' computers
   const base = target === "setup" ? "/api/hub/browse" : `/api/servers/${encodeURIComponent(target)}/browse`;
   const st = { q: "", source: "modrinth", sort: "relevance", category: "", env: "", version: params.get("version") || "",
-    offset: 0, total: 0, results: [], selected: new Map(), active: null, early: false, hidden: 0, earlyHidden: 0 };
+    selected: new Map(), active: null, early: false, hidden: 0, earlyHidden: 0 };
   const earlyBox = h("input", { type: "checkbox", onchange: (e) => { st.early = e.target.checked; search(); } });
   const earlyRow = kind === "mod" && !forPlayers ? h("label", { class: "row small early-opt", title: EARLY_WARNING }, earlyBox,
     h("span", {}, "Also show mods with only alpha/beta builds (less stable)")) : null;
@@ -3378,7 +3382,7 @@ function browserPanel(params, host) {
   let cfKey = null;  // whether a CurseForge API key is set (asked once)
   const category = h("select", { "aria-label": "Category" }, h("option", { value: "" }, "All categories"));
   const version = h("input", { value: st.version, placeholder: "Any version", "aria-label": "Minecraft version", class: "narrow" });
-  let timer, seq = 0;
+  let timer;
 
   const fmtNum = (n) => n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? Math.round(n / 1e3) + "k" : String(n);
   // What a ticked mod brings along (the page adds those too).
@@ -3427,64 +3431,86 @@ function browserPanel(params, host) {
         h("li", {}, "Paste it here. Craft Conductor checks it with CurseForge and keeps it in Craft Conductor settings.")),
       h("div", { class: "row" }, input, save)));
   };
-  const search = async (more = false) => {
-    if (st.source === "curseforge") {
-      if (cfKey === null) cfKey = (await api("/api/hub/curseforge").catch(() => ({ set: false }))).set;
-      if (!cfKey) { keyPanel(); st.results = []; updateFooter(); return; }
-    }
-    const mine = ++seq;
-    if (!more) { st.offset = 0; list.scrollTop = 0; }
-    const p = new URLSearchParams({ type: kind, q: st.q, source: st.source, sort: st.sort, offset: String(st.offset) });
+  // The results keep coming as the list scrolls (pager.js): each change of words or filters
+  // starts again from the first page.
+  const query = () => {
+    const p = new URLSearchParams({ type: kind, q: st.q, source: st.source, sort: st.sort });
     if (st.category) p.set("category", st.category);
     if (st.early) p.set("early", "1");
     if (forPlayers) p.set("side", "client");
     if (st.env && st.source === "modrinth") p.set("env", st.env);
     p.set("version", st.version);
     if (loader) p.set("loader", loader);
-    if (!more) fill(list, h("p", { class: "empty" }, "Searching…"));
-    const r = await api(`${base}/search?${p}`).catch((e) => { if (!(e instanceof Unauthorized)) fill(list, h("div", { class: "notice bad" }, e.message)); return null; });
-    if (!r || mine !== seq) return;
-    st.results = more ? st.results.concat(r.results) : r.results;
-    st.total = r.total;
-    st.hidden = (more ? st.hidden : 0) + (r.hidden || 0);
-    st.earlyHidden = (more ? st.earlyHidden : 0) + (r.early_hidden || 0);
-    renderList();
+    return p;
   };
-  const renderList = () => {
-    // Search results the chosen version can't run are left out; say so.
+  let asked = query();  // (fixed for one search: a later page asks exactly what the first did)
+  const pager = resultPager({
+    list,
+    fetchPage: (offset) => { const p = new URLSearchParams(asked); p.set("offset", String(offset)); return api(`${base}/search?${p}`); },
+    key: (m) => `${m.source}:${m.id}`,
+    row: (m) => resultRow(m),
+    empty: () => h("p", { class: "empty" }, "Nothing found. Try other words or fewer filters."),
+    onPage: (r, first) => {
+      st.hidden = (first ? 0 : st.hidden) + (r.hidden || 0);
+      st.earlyHidden = (first ? 0 : st.earlyHidden) + (r.early_hidden || 0);
+      hiddenNote();
+    },
+    failed: (e) => !(e instanceof Unauthorized),
+  });
+  const search = async () => {
+    if (st.source === "curseforge") {
+      if (cfKey === null) cfKey = (await api("/api/hub/curseforge").catch(() => ({ set: false }))).set;
+      if (!cfKey) { pager.stop(); keyPanel(); updateFooter(); return; }
+    }
+    asked = query();
+    st.hidden = st.earlyHidden = 0;
+    pager.reset();
+    updateFooter();
+  };
+  // Search results the chosen version can't run are left out; say so (counting every batch).
+  const hiddenNote = () => {
     const where = `${loader ? loader + " " : ""}Minecraft ${st.version}`;
-    const note = st.version && (st.hidden || st.earlyHidden) ? h("p", { class: "muted small hidden-note" },
+    pager.head.replaceChildren(...(st.version && (st.hidden || st.earlyHidden) ? [h("p", { class: "muted small hidden-note" },
       st.hidden ? `${st.hidden} result(s) hidden: no build for ${where}. ` : "",
       st.earlyHidden ? [`${st.earlyHidden} only ${st.earlyHidden === 1 ? "has" : "have"} alpha/beta builds. `,
-        h("button", { class: "link-btn", onclick: () => { earlyBox.checked = st.early = true; search(); } }, "Show them")] : null) : null;
-    fill(list, note, st.results.length ? st.results.map((m) => {
-      const key = `${m.source}:${m.id}`;
-      const box = kind === "mod" ? h("input", { type: "checkbox", checked: st.selected.has(key), "aria-label": `Select ${m.name}`,
-        onclick: (e) => e.stopPropagation(),
-        onchange: (e) => { if (e.target.checked) { st.selected.set(key, m); needs(m); } else st.selected.delete(key); updateFooter(); } }) : null;
-      return h("div", { class: "result" + (st.active === key ? " active" : ""), tabindex: "0", role: "button",
-        onclick: () => showDetails(m), onkeydown: (e) => { if (e.key === "Enter") showDetails(m); } },
-        box || h("span"),
-        m.icon ? h("img", { src: m.icon, alt: "", loading: "lazy", referrerpolicy: "no-referrer" }) : h("div", { class: "noicon" }),
-        h("div", { class: "info" },
-          h("div", { class: "name" }, m.name, m.author ? h("span", { class: "muted small" }, ` by ${m.author}`) : null, " ", channelTag(m.channel), " ", envTag(m)),
-          h("div", { class: "desc" }, m.summary),
-          h("div", { class: "muted small" }, `⬇ ${fmtNum(m.downloads)}`, m.follows ? ` · ♥ ${fmtNum(m.follows)}` : "",
-            m.updated ? ` · updated ${new Date(m.updated).toLocaleDateString()}` : "")));
-    }).concat(st.results.length < st.total ? [h("div", { class: "row mt-s" }, h("button", { class: "btn small", onclick: () => { st.offset += 20; search(true); } }, "Load more"))] : [])
-      : [h("p", { class: "empty" }, "Nothing found. Try other words or fewer filters.")]);
-    updateFooter();
+        h("button", { class: "link-btn", onclick: () => { earlyBox.checked = st.early = true; search(); } }, "Show them")] : null)] : []));
+  };
+  const resultRow = (m) => {
+    const key = `${m.source}:${m.id}`;
+    const box = kind === "mod" ? h("input", { type: "checkbox", checked: st.selected.has(key), "aria-label": `Select ${m.name}`,
+      onclick: (e) => e.stopPropagation(),
+      onchange: (e) => { if (e.target.checked) { st.selected.set(key, m); needs(m); } else st.selected.delete(key); updateFooter(); } }) : null;
+    return h("div", { class: "result" + (st.active === key ? " active" : ""), tabindex: "0", role: "button",
+      onclick: () => showDetails(m), onkeydown: (e) => { if (e.key === "Enter") showDetails(m); } },
+      box || h("span"),
+      m.icon ? h("img", { src: m.icon, alt: "", loading: "lazy", referrerpolicy: "no-referrer" }) : h("div", { class: "noicon" }),
+      h("div", { class: "info" },
+        h("div", { class: "name" }, m.name, m.author ? h("span", { class: "muted small" }, ` by ${m.author}`) : null, " ", channelTag(m.channel), " ", envTag(m)),
+        h("div", { class: "desc" }, m.summary),
+        h("div", { class: "muted small" }, `⬇ ${fmtNum(m.downloads)}`, m.follows ? ` · ♥ ${fmtNum(m.follows)}` : "",
+          m.updated ? ` · updated ${new Date(m.updated).toLocaleDateString()}` : "")));
+  };
+  // A row's tick and highlight, changed in place (the list isn't drawn again).
+  const tick = (key) => {
+    const box = pager.el(key) && pager.el(key).querySelector("input[type=checkbox]");
+    if (box) box.checked = st.selected.has(key);
+  };
+  const highlight = (key) => {
+    list.querySelectorAll(".result.active").forEach((el) => el.classList.remove("active"));
+    if (pager.el(key)) pager.el(key).classList.add("active");
   };
   const showDetails = async (m) => {
     st.active = `${m.source}:${m.id}`;
-    renderList();
+    highlight(st.active);
     fill(details, h("p", { class: "empty" }, `Loading ${m.name}…`));
     const p = await api(`${base}/project?source=${m.source}&id=${encodeURIComponent(m.id)}`).catch((e) => { toast(e.message, true); return null; });
     if (!p || st.active !== `${m.source}:${m.id}`) return;
     const key = `${p.source}:${p.id}`;
     const pick = kind === "mod" ? h("button", { class: "btn" + (st.selected.has(key) ? "" : " primary"), onclick: () => {
-      if (st.selected.has(key)) st.selected.delete(key); else st.selected.set(key, m);
-      renderList(); showDetails(m);
+      if (st.selected.has(key)) st.selected.delete(key); else { st.selected.set(key, m); needs(m); }
+      pick.classList.toggle("primary", !st.selected.has(key));
+      pick.textContent = t(st.selected.has(key) ? "✓ Selected" : "Select");
+      tick(key); updateFooter();
     } }, st.selected.has(key) ? "✓ Selected" : "Select") : null;
     const versionSel = kind === "modpack" && p.versions.length ? h("select", { "aria-label": "Modpack version" },
       p.versions.map((v) => h("option", { value: v.id }, `${v.name} · Minecraft ${v.minecraft.join(", ")} · ${v.loaders.join(", ")}`))) : null;
@@ -3549,7 +3575,8 @@ function browserPanel(params, host) {
     const r = await act(() => api(`/api/servers/${encodeURIComponent(target)}/mods/add-many`, { method: "POST", body: { mods } }));
     if (!r) return;
     toast(`Added ${r.added.length} mod(s)` + (r.skipped.length ? `; skipped ${r.skipped.map((x) => `${x.name} (${x.reason})`).join(", ")}` : ""), r.skipped.length > 0);
-    st.selected.clear(); renderList();
+    const ticked = [...st.selected.keys()];
+    st.selected.clear(); ticked.forEach(tick); updateFooter();
     if (host) host.changed();
   });
   q.addEventListener("input", () => { st.q = q.value.trim(); clearTimeout(timer); timer = setTimeout(() => search(), 350); });
@@ -3581,7 +3608,7 @@ function browserPanel(params, host) {
       list,
       h("div", { class: "browse-footer" }, count, addBtn)),
     details);
-  return { el, start: () => { q.focus(); loadCategories(); search(); } };
+  return { el, start: () => { q.focus(); loadCategories(); search(); }, stop: () => pager.stop() };
 }
 
 // ------------------------------------------------------------ advanced settings
