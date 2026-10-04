@@ -395,6 +395,10 @@ Everything in Craft Conductor works with the keyboard and a screen reader (NVDA,
 
 **A CurseForge mod can't be downloaded.** Its author blocks downloads by other apps. The Updates page lists it under "Manual downloads needed" with a link: download it and upload it there; Craft Conductor checks it's the right file.
 
+**"NeoForge's download site lists only … right now".** NeoForge's own site sometimes has an incomplete list of its builds for a few hours. A new NeoForge server can't be made until NeoForge fixes it: try again later. Servers that already run NeoForge keep the NeoForge they have, and still get their mod updates.
+
+**"Its file has a name that isn't safe to save".** The mod's author gave that build's file a name that would put it outside the mods folder, or one Windows can't use. Craft Conductor leaves it out (or waits, if the mod is required) until the author fixes it.
+
 **The day theme stays dark.** Your browser is forcing dark mode on pages (Chrome's "Auto Dark Mode for Web Contents", or a dark-mode extension). Craft Conductor 0.8.1 and newer keep the day theme light anyway.
 
 **Windows: "The process cannot access the file because it is being used by another process".** Usually antivirus scanning a new download. Craft Conductor 0.8.2 and newer wait and retry, and show the real reason if a download fails.

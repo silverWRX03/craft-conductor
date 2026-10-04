@@ -62,7 +62,8 @@ sets up your game. See [Joining a friend's server](https://github.com/silverWRX0
 - **[Troubleshooting](https://github.com/silverWRX03/craft-conductor/wiki/Troubleshooting)**, and **Check my setup** on a server's Dashboard.
 - **[Power users](https://github.com/silverWRX03/craft-conductor/wiki/Power-Users)**: the command line, `craft-conductor.toml`, running it as a service, Linux
   servers, Docker and more.
-- [What's new](CHANGELOG.md) · [Report a bug](https://github.com/silverWRX03/craft-conductor/issues/new/choose)
+- [What's new](CHANGELOG.md) · [Report a bug](https://github.com/silverWRX03/craft-conductor/issues/new/choose) ·
+  [Report a security problem](SECURITY.md) (privately, please)
 
 ## What Craft Conductor can't do
 
@@ -125,7 +126,8 @@ pytest
 
 The tests run the full install → upgrade → crash → rollback cycle against a fake `java` and a
 fake server, so they need no network and no Minecraft. See [For maintainers](https://github.com/silverWRX03/craft-conductor/wiki/For-Maintainers)
-for test builds and releases, and [TODO.md](TODO.md) for the roadmap.
+for test builds and releases, [CONTRIBUTING.md](CONTRIBUTING.md) for how changes are made, and
+[TODO.md](TODO.md) for the roadmap.
 
 ## License
 

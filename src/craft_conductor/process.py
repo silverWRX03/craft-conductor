@@ -11,7 +11,7 @@ from collections import deque
 from pathlib import Path
 from typing import Callable
 
-from .desktop import NO_WINDOW
+from .desktop import NO_WINDOW, child_env
 
 log = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ class ServerProcess:
             options["creationflags"] = NO_WINDOW["creationflags"] | extra["creationflags"]
         self.proc = subprocess.Popen(
             self.argv, cwd=self.cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT, text=True, bufsize=1, errors="replace", **options)
+            stderr=subprocess.STDOUT, text=True, bufsize=1, errors="replace", env=child_env(), **options)
         if self.cpu_cores or self.priority != "normal":
             limits.after_start(self.proc.pid, self.cpu_cores)
             log.info("limits: %s, %s priority", f"{self.cpu_cores} CPU core(s)" if self.cpu_cores else "all CPU cores", self.priority)

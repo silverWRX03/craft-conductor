@@ -201,7 +201,7 @@ class Trial:
             blocked = decision.blocked[0] if decision.blocked else None
             why = "; ".join(f"{b.name}: {b.reason}" for b in blocked.blockers) if blocked else "nothing installable"
             if blocked and blocked.loader_version is None:
-                why = f"{self.loader} has no build for Minecraft {blocked.minecraft}"
+                why = blocked.loader_problem
             self.say(f"  ✗ can't be installed: {why}")
             return False, why, None
         result = self.m.apply(decision.plan, verify=True)

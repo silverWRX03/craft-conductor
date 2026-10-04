@@ -1,0 +1,39 @@
+# pip-audit: known vulnerabilities in what Craft Conductor is built and tested with. Its own
+# runtime needs nothing but Python's standard library (the first check keeps it that way
+# honest); the downloads are built with PyInstaller and uv, and tested with pytest.
+# Runs daily as well, because advisories appear without anything changing here.
+name: pip-audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "23 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the build and test tools, as the other workflows do
+        # (keep the PyInstaller range the same as in test.yml, e2e.yml, release.yml and
+        # packaging/build_linux.sh)
+        run: |
+          python -m venv "$RUNNER_TEMP/toolchain"
+          "$RUNNER_TEMP/toolchain/bin/pip" install --disable-pip-version-check -e ".[dev]" "pyinstaller>=6.9,<7" build uv
+          "$RUNNER_TEMP/toolchain/bin/pip" freeze --exclude-editable > "$RUNNER_TEMP/toolchain.txt"
+          cat "$RUNNER_TEMP/toolchain.txt"
+      - run: pip install --disable-pip-version-check "pip-audit>=2.10,<3"
+      - name: Craft Conductor's own dependencies (pyproject.toml)
+        run: pip-audit --strict .
+      - name: The build and test tools
+        run: pip-audit --strict --no-deps --disable-pip -r "$RUNNER_TEMP/toolchain.txt"

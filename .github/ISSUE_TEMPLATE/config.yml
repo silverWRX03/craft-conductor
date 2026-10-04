@@ -1,5 +1,8 @@
 blank_issues_enabled: true
 contact_links:
+  - name: Report a security problem
+    url: https://github.com/silverWRX03/craft-conductor/security/advisories/new
+    about: Privately, please, not in an issue. See SECURITY.md.
   - name: User manual
     url: https://github.com/silverWRX03/craft-conductor/blob/main/src/craft_conductor/webui/manual.md
     about: How to do things in craft-conductor, and fixes for common problems (also in the app under User manual).

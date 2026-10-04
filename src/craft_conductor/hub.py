@@ -256,7 +256,8 @@ class Hub:
             if not re.fullmatch(r"[A-Za-z0-9$./_+=-]{20,120}", key):
                 raise ConfigError("that doesn't look like a CurseForge API key")
             try:
-                self.http.get_json(f"{cf.API}/games/{cf.MINECRAFT_GAME_ID}", headers={"x-api-key": key})
+                # (never a remembered answer: that was for whichever key asked before)
+                self.http.get_json(f"{cf.API}/games/{cf.MINECRAFT_GAME_ID}", headers={"x-api-key": key}, cache=False)
             except Exception as e:
                 raise ConfigError(f"CurseForge didn't accept that key ({e})") from None
         data = self._hub_file()

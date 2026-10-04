@@ -156,6 +156,7 @@ def decision_to_dict(m: Manager, decision, changes) -> dict:
         "blocked": [{
             "minecraft": p.minecraft,
             "loader_missing": p.loader_version is None,
+            "loader_reason": p.loader_reason,  # (only when it says more than "no build yet")
             "blockers": [{"name": b.name, "reason": b.reason, "waiting": b.waiting} for b in p.blockers],
         } for p in decision.blocked],
         "lagging": lagging,
@@ -818,7 +819,8 @@ class Daemon:
             blocked = self.last_check.get("blocked", []) if self.last_check else []
             reasons = [f"{b['name']}: {b['reason']}" for p in blocked[:1] for b in p["blockers"]]
             if blocked and blocked[0].get("loader_missing"):
-                reasons.insert(0, f"{spec.loader} has no build for Minecraft {blocked[0]['minecraft']} yet")
+                reasons.insert(0, blocked[0].get("loader_reason")
+                               or f"{spec.loader} has no build for Minecraft {blocked[0]['minecraft']} yet")
             raise RuntimeError("no Minecraft version works with these choices"
                                + (": " + "; ".join(reasons) if reasons else ""))
         if self.last_check.get("manual"):

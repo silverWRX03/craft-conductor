@@ -7,7 +7,7 @@ import re
 
 from ..config import ModSpec
 from ..http import HttpClient, HttpError
-from .base import CHANNEL_RANK, ModError, ModFile, ModProvider, Project, Unavailable
+from .base import CHANNEL_RANK, ModError, ModFile, ModProvider, Project, Unavailable, safe_file_name
 
 API = "https://api.curseforge.com/v1"
 
@@ -100,6 +100,8 @@ class CurseForgeProvider(ModProvider):
             if not files:
                 continue
             f = max(files, key=lambda f: f.get("fileDate", ""))
+            if not safe_file_name(str(f.get("fileName", ""))):
+                raise Unavailable(f"{project.name} {f.get('displayName', '')}: its file has a name that isn't safe to save")
             # Authors can opt out of third-party downloads; then a person has to fetch
             # the file from the website, and craft-conductor picks it up from the manual folder.
             manual_url = None if f.get("downloadUrl") else manual_download_url(project, f["id"])

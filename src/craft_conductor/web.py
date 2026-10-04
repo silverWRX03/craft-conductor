@@ -2001,7 +2001,8 @@ class Api:
         loader = self.m.loader
         try:
             loader_version = loader.latest_version(version)
-            loader_state = "green" if loader_version else "red"
+            # (red: the loader has nothing for it yet; unknown: its list is incomplete just now)
+            loader_state = "green" if loader_version else "unknown" if loader.missing_reason(version) else "red"
         except HttpError:
             loader_version, loader_state = None, "unknown"
         mods = list(self.m.lock.mods)

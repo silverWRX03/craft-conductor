@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import re
+import time
 from pathlib import Path
 
 from ..http import HttpError
@@ -17,6 +19,14 @@ log = logging.getLogger(__name__)
 
 # Everything the installers create that belongs to the loader, not the world.
 INSTALLER_FILES = ["libraries", "run.sh", "run.bat"]
+
+# NeoForge has published thousands of builds since 2023. A list shorter than this is NeoForge's
+# site having trouble (on 2026-09-28 both of its lists held only "26.3.0.33-beta" for hours),
+# not every older Minecraft version losing its builds.
+INCOMPLETE_LIST = 50
+# What a NeoForge version looks like (21.1.77, 26.3.0.33-beta). Versions go into download
+# addresses and file paths, so anything else in its lists is ignored.
+_VERSION = re.compile(r"\d{1,4}(?:\.\d{1,6}){1,4}(?:-[0-9A-Za-z.]{1,20})?")
 
 
 def neoforge_prefix(minecraft: str) -> str:
@@ -35,15 +45,21 @@ class NeoForgeLoader(Loader):
 
     def _api_versions(self) -> list[str]:
         try:
-            return [str(v) for v in self.http.get_json(NEOFORGE_VERSIONS)["versions"]]
+            return [str(v) for v in self.http.get_json(NEOFORGE_VERSIONS)["versions"] if _VERSION.fullmatch(str(v))]
         except (HttpError, KeyError, TypeError, ValueError) as e:
             log.debug("NeoForge's version list didn't answer (%s)", e)
             return []
 
     def _maven_versions(self) -> list[str]:
-        import re
+        # The full list is large and an update check asks about many Minecraft versions, so it's
+        # kept as long as the HTTP client keeps its other answers.
+        cached = getattr(self, "_maven", None)
+        if cached and time.monotonic() - cached[0] < getattr(self.http, "cache_ttl", 300.0):
+            return cached[1]
         text = self.http.get_text(f"{NEOFORGE_MAVEN}/maven-metadata.xml", limit=4 << 20)
-        return re.findall(r"<version>([^<]{1,40})</version>", text)
+        versions = [v for v in re.findall(r"<version>([^<]{1,40})</version>", text) if _VERSION.fullmatch(v)]
+        self._maven = (time.monotonic(), versions)
+        return versions
 
     def latest_version(self, minecraft: str) -> str | None:
         prefix = neoforge_prefix(minecraft)
@@ -57,6 +73,20 @@ class NeoForgeLoader(Loader):
             # list in its maven-metadata.xml.
             return pick(self._api_versions()) or pick(self._maven_versions())
         return self._safe_latest(fetch)
+
+    def missing_reason(self, minecraft: str) -> str | None:
+        listed = set(self._api_versions())
+        try:
+            listed.update(self._maven_versions())
+        except HttpError:
+            pass
+        if len(listed) >= INCOMPLETE_LIST or any(v.startswith(neoforge_prefix(minecraft)) for v in listed):
+            return None
+        if not listed:
+            return "NeoForge's download site didn't give its list of builds just now: try again later"
+        return (f"NeoForge's download site lists only {len(listed)} build{'' if len(listed) == 1 else 's'} right "
+                f"now, none for Minecraft {minecraft}. Its list is incomplete, which is a problem on NeoForge's "
+                "side that usually clears up within hours: try again later")
 
     def install(self, minecraft: str, version: str, dest: Path, java: str) -> Runtime:
         jar = dest / "neoforge-installer.jar"

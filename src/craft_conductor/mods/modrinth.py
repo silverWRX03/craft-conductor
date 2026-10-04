@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from ..config import ModSpec
 from ..http import HttpClient, HttpError
-from .base import CHANNEL_RANK, ClientOnly, ModError, ModFile, ModProvider, Project, Unavailable
+from .base import CHANNEL_RANK, ClientOnly, ModError, ModFile, ModProvider, Project, Unavailable, safe_file_name
 
 API = "https://api.modrinth.com/v2"
 PLUGIN_LOADERS = ("paper", "spigot", "bukkit", "purpur", "folia")
@@ -108,6 +108,8 @@ class ModrinthProvider(ModProvider):
         if not files:
             raise Unavailable(f"{project.name} {version['version_number']} has no files")
         f = next((f for f in files if f.get("primary")), files[0])
+        if not safe_file_name(str(f["filename"])):
+            raise Unavailable(f"{project.name} {version['version_number']}: its file has a name that isn't safe to save")
         deps = self.required_projects(version)
         return ModFile(
             key=project.key, source=self.source, project_id=project.id, name=project.name,
