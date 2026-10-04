@@ -2085,6 +2085,7 @@ class Api:
                         "channel": None, "required": True, "needed_by": None})
         out.sort(key=lambda m: (order[m["state"]], m["name"].lower()))
         return {"minecraft": version, "installed": self.m.lock.minecraft,
+                "strategy": self.m.config.updates.strategy,
                 "loader": {"name": loader.name, "state": loader_state, "version": loader_version},
                 "mods": out, "counts": {k: sum(m["state"] == k for m in out) for k in order}}
 
