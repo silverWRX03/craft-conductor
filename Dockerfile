@@ -25,4 +25,6 @@ HEALTHCHECK --interval=60s --timeout=5s --start-period=30s \
   CMD python -c "import urllib.request,sys; urllib.request.urlopen('http://127.0.0.1:8765/api/auth', timeout=4)" || exit 1
 # craft-conductor stops every server cleanly (saving worlds) on SIGTERM, i.e. `docker stop`.
 STOPSIGNAL SIGTERM
+# All of the container's own addresses, so Docker can pass the port on; which of the host's
+# addresses it's published on is decided by `-p` (docker-compose.yml: 127.0.0.1 only).
 CMD ["craft-conductor", "start", "--no-browser", "--web-host", "0.0.0.0"]

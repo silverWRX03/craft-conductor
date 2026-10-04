@@ -27,6 +27,9 @@ installer:
 - downloads the newest Craft Conductor for that computer;
 - checks it against the release's checksums;
 - sets it to start at boot (a systemd service);
+- opens the control panel to your home network, since you'll manage it from another computer
+  (`craft-conductor service install --panel --network`; on its own, `craft-conductor` keeps the
+  panel on that computer only, reached through `ssh -L`);
 - prints the address to open and a one-time password.
 
 **Windows 10/11:** open **PowerShell** (Start menu → type "PowerShell") and run:

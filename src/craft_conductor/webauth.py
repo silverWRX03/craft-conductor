@@ -221,7 +221,8 @@ def describe(auth: Auth) -> str:
 
 # ------------------------------------------------------------ paired phones
 DEVICES_FILE = "devices.json"
-PAIR_SECONDS = 300            # a pairing code works once, for five minutes
+PAIR_SECONDS = 300            # a pairing code works once, for five minutes (and can be cancelled before)
+MAX_CODES = 5                 # pairing codes waiting to be used at once (the oldest goes first)
 # Pairing codes are short enough to type (an iPhone's Home Screen app doesn't share Safari's
 # sign-in, so it's paired by typing the code): 12 letters and digits that can't be mixed up,
 # about 59 bits, with five tries per five minutes (web.py).
@@ -285,9 +286,16 @@ class Devices:
             raise ConfigError("unknown role")
         raw = "".join(secrets.choice(CODE_LETTERS) for _ in range(12))
         with self._lock:
-            self._codes = {c: v for c, v in self._codes.items() if v[0] > now}
+            live = sorted(((c, v) for c, v in self._codes.items() if v[0] > now), key=lambda x: x[1][0])
+            self._codes = dict(live[-(MAX_CODES - 1):])
             self._codes[_digest(raw)] = (now + PAIR_SECONDS, role)
         return f"{raw[:4]}-{raw[4:8]}-{raw[8:]}"
+
+    def cancel_codes(self) -> int:
+        """Pairing codes not used yet stop working (e.g. the QR code was shown to the wrong person)."""
+        with self._lock:
+            n, self._codes = len(self._codes), {}
+        return n
 
     def pair(self, code: str, name: str, ip: str, now: float) -> tuple[str, dict]:
         """Use up a pairing code; returns the new phone's key and its record."""
@@ -329,8 +337,10 @@ class Devices:
                  "role": d.get("role") if d.get("role") in ROLES else "helper"} for d in self._read()]
 
     def remove(self, device_id: str | None = None) -> int:
-        """Remove one phone, or all of them (``None``)."""
+        """Remove one phone, or all of them (``None``: pairing codes not used yet stop working too)."""
         with self._lock:
+            if device_id is None:
+                self._codes = {}
             devices = self._read()
             kept = [d for d in devices if device_id is not None and d.get("id") != device_id]
             self._write(kept)

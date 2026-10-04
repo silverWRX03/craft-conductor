@@ -32,6 +32,12 @@ SEARCH_TARGETS = ("urn:schemas-upnp-org:device:InternetGatewayDevice:2",
 SERVICES = ("urn:schemas-upnp-org:service:WANIPConnection:2", "urn:schemas-upnp-org:service:WANIPConnection:1",
             "urn:schemas-upnp-org:service:WANPPPConnection:1")
 LEASE = 2 * 3600  # renewed every half hour while craft-conductor runs; routers drop it by themselves after
+# Shown (and agreed to) before it's switched on, and on the page for as long as it's on. The same
+# words are in the web page (app.js UPNP_WARNING); a test keeps them the same.
+EXPOSURE_WARNING = ("This makes your Minecraft server reachable from the whole internet, not just your friends. "
+                    "Anyone can try to connect, and a weakness in Minecraft or in a mod could put this computer at risk. "
+                    "Only the game ports and the friends' download port are opened; the control panel stays private. "
+                    "Keep the whitelist on, and switch this off when you don't need it.")
 MAX_XML = 256 * 1024
 DESCRIPTION = "craft-conductor"
 

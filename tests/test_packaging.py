@@ -18,7 +18,7 @@ def publish_binary(http, content: bytes, sums_content: bytes | None = None):
     http.files[f"https://dl.test/{name}"] = content
     digest = hashlib.sha256(sums_content if sums_content is not None else content).hexdigest()
     http.files["https://dl.test/SHA256SUMS.txt"] = f"{digest}  {name}\nabc  other-file\n".encode()
-    return selfupdate.Release("0.2.0", "v0.2.0", "https://github.test/r", "", {
+    return selfupdate.Release("99.0.0", "v99.0.0", "https://github.test/r", "", {
         name: f"https://dl.test/{name}", "SHA256SUMS.txt": "https://dl.test/SHA256SUMS.txt"})
 
 
@@ -34,7 +34,7 @@ def test_binary_is_replaced_after_checksum(tmp_path, http):
     exe = folder / "craft-conductor"
     exe.write_bytes(b"old version")
     release = publish_binary(http, b"new version")
-    assert selfupdate.install_binary(release, exe, http) == "installed Craft Conductor 0.2.0"
+    assert selfupdate.install_binary(release, exe, http) == "installed Craft Conductor 99.0.0"
     assert exe.read_bytes() == b"new version"
     if os.name != "nt":
         assert os.access(exe, os.X_OK)
@@ -47,8 +47,9 @@ def test_tampered_binary_is_rejected(tmp_path, http):
     exe = tmp_path / "craft-conductor"
     exe.write_bytes(b"old version")
     release = publish_binary(http, b"evil", sums_content=b"new version")
-    with pytest.raises(HashMismatch):
+    with pytest.raises(selfupdate.VerificationError) as e:
         selfupdate.install_binary(release, exe, http)
+    assert isinstance(e.value.__cause__, HashMismatch) and "nothing was changed" in str(e.value)
     assert exe.read_bytes() == b"old version"
 
 
@@ -213,15 +214,25 @@ def test_panel_service_for_a_computer_without_a_screen(tmp_path, monkeypatch, ca
     monkeypatch.setattr(service, "install", lambda root, **kw: real_install(root, runner=fake, system=False, **kw))
     p = service.plan(home, system=False, panel=True)
     assert p.name == "craft_conductor.service"
-    assert "ExecStart=/home/me/.local/bin/craft-conductor start --no-browser --web-host 0.0.0.0" in p.text
+    # (the unit never names an address: the panel listens where its settings say, at every boot)
+    assert "ExecStart=/home/me/.local/bin/craft-conductor start --no-browser\n" in p.text and "0.0.0.0" not in p.text
     assert "Environment=CRAFT_CONDUCTOR_HOME=" in p.text and str(home) in p.text
 
+    import json
+    hub_json = home / ".craft-conductor" / "hub.json"
+    # Without --network the panel stays on this machine, reached through SSH.
     assert cli.main(["service", "install", "--panel"]) == 0
     out = capsys.readouterr().out
-    assert "http://192.168.1.50:8765/" in out and "first sign-in password: Craft-Conductor-" in out
+    assert "ssh -N -L" in out and "--network" in out and "first sign-in password: Craft-Conductor-" in out
+    from craft_conductor.hub import Hub
+    assert Hub(home).web.host == "127.0.0.1"
+    # Asked for: open to the home network.
+    assert cli.main(["service", "install", "--panel", "--network"]) == 0
+    out = capsys.readouterr().out
+    assert "http://192.168.1.50:8765/" in out
     assert ["systemctl", "--user", "enable", "--now", "craft_conductor.service"] in calls
-    import json
-    assert json.loads((home / ".craft-conductor" / "hub.json").read_text())["web"]["host"] == "0.0.0.0"
+    assert json.loads(hub_json.read_text())["web"]["host"] == "0.0.0.0"
+    assert cli.main(["service", "install", "--panel", "--network", "--local-only"]) == 1  # one or the other
 
 
 def test_the_friends_download_opens_into_joining_and_updates_as_itself(monkeypatch, tmp_path):

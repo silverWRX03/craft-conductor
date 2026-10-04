@@ -12,11 +12,21 @@ its fix will say which version it's in.
 - A mod build whose file name (chosen by its author on Modrinth or CurseForge) pointed outside the mods folder was saved outside it. That build is now left out, with the reason on the Updates page.
 - When NeoForge's download site listed only part of its builds (on 2026-09-28 no NeoForge 1.21.1 server could be made for hours), Craft Conductor said "neoforge has no build for 1.21.1 yet". It now says NeoForge's list is incomplete and to try again later, and servers that already run NeoForge keep the NeoForge they have and carry on with their mod updates.
 
+- A rented server set up with **It's a rented server on the internet** (`craft-conductor service install --panel --local-only`) opened its control panel to the internet anyway once its service started: the service always asked for every address. It now only listens on the server itself, reached through the SSH tunnel, as the guide says.
+- On a computer without a screen, `craft-conductor start` opened the control panel to the whole network by itself. It now stays on that computer (reached through an SSH tunnel, with a one-time password) until you turn on access from other devices or start it with `--web-host 0.0.0.0`.
+
 **Changed**
 - Update checks of NeoForge servers read NeoForge's full list of builds once, instead of once for each newer Minecraft version.
+- Craft Conductor updates itself more carefully: it never installs an older version (or the same one again), and refuses a download that's bigger than published, cut short, doesn't match the release's `SHA256SUMS.txt` or changed after it was checked, so the version you have keeps running. pip and pipx installs now update from the release's checked wheel (pip fetches nothing else) rather than from the source code at the release's tag.
+- `craft-conductor service install --panel` keeps the control panel on that computer unless you add `--network`. **Install on a Linux computer** (the installer) still opens it to your home network, as before. The Docker example and `docker-compose.yml` publish it on `127.0.0.1` only.
+- Switching on **Open the ports on my router by itself (UPnP)** asks first, saying in plain words that it makes your server reachable from the whole internet, and the page says so for as long as it's on. It never forwards the control panel's port or a server's RCON port.
+- Friends' invite links stop working by themselves after 7 days. On the Friends page, **Links work for** picks 1 day, 7 days, 30 days or until you make new ones, the page shows when they stop, and **Post to Discord** says so in the message. Links stay shareable (not single-use), so one posted in a Discord channel works for everyone there.
 
 **Added**
 - [How to report a security problem privately](SECURITY.md) (also offered when you open a new issue), and [how to contribute](CONTRIBUTING.md).
+- An update channel: Craft Conductor settings → About & updates → **Updates**: **Stable versions only** (the default) or **Beta versions too**. Also `[craft-conductor] update_channel` and `craft-conductor self-update --channel beta`. Betas are published as GitHub pre-releases, and Docker's `:latest` stays on the newest stable release (`:beta` for betas).
+- **Stop these links** on the Friends page stops the invite links at once, without making new ones.
+- **Cancel this code** under a phone's pairing QR code stops it before its five minutes are up. Turning off access from other devices cancels codes not used yet too.
 
 ## 0.22.1 (2026-10-04)
 

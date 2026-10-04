@@ -53,6 +53,10 @@ class HashMismatch(Exception):
     pass
 
 
+class TooBig(HashMismatch):
+    """A download went past the size it was allowed (so it isn't the file that was expected)."""
+
+
 class PinMismatch(ConnectionError):
     """A pinned server presented a different certificate: someone may be in the middle."""
 
@@ -212,8 +216,10 @@ class HttpClient:
             return json.loads(data.decode("utf-8")) if data.strip() else None  # (204 No Content)
 
     def download(self, url: str, dest: Path, sha1: str | None = None, sha512: str | None = None,
-                 headers: dict[str, str] | None = None, sha256: str | None = None) -> Path:
-        """Download to ``dest`` atomically, verifying hashes when given."""
+                 headers: dict[str, str] | None = None, sha256: str | None = None,
+                 max_bytes: int | None = None) -> Path:
+        """Download to ``dest`` atomically, verifying hashes when given. With ``max_bytes``, a
+        bigger download is refused as it arrives (it can't fill the disk before the hash is checked)."""
         dest.parent.mkdir(parents=True, exist_ok=True)
         req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, **(headers or {})})
         h1, h256, h512 = hashlib.sha1(), hashlib.sha256(), hashlib.sha512()
@@ -221,7 +227,18 @@ class HttpClient:
         out = os.fdopen(fd, "wb")  # owned from here, so it's always closed (Windows can't delete an open file)
         try:
             with out, self._open(req) as resp:
+                got = 0
+                if max_bytes is not None:
+                    try:
+                        announced = int((getattr(resp, "headers", None) or {}).get("Content-Length") or 0)
+                    except (TypeError, ValueError):
+                        announced = 0
+                    if announced > max_bytes:
+                        raise TooBig(f"{url} is bigger than expected ({announced} bytes)")
                 while chunk := resp.read(1 << 16):
+                    got += len(chunk)
+                    if max_bytes is not None and got > max_bytes:
+                        raise TooBig(f"{url} is bigger than expected")
                     h1.update(chunk)
                     h256.update(chunk)
                     h512.update(chunk)
@@ -257,7 +274,14 @@ def _replace(src: str, dest: Path, tries: int = 8) -> None:
 
 
 def sha1_file(path: Path) -> str:
-    h = hashlib.sha1()
+    return _hash_file(path, hashlib.sha1())
+
+
+def sha256_file(path: Path) -> str:
+    return _hash_file(path, hashlib.sha256())
+
+
+def _hash_file(path: Path, h) -> str:
     with open(path, "rb") as f:
         while chunk := f.read(1 << 16):
             h.update(chunk)

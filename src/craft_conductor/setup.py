@@ -226,9 +226,9 @@ def configure(root: Path, spec: SetupSpec) -> configmod.Config:
     if web_password:
         configmod.set_value(path, "web", "password", json.dumps(web_password))
     if spec.friends:
-        from .clientpack import new_token
+        from .clientpack import make_link
         configmod.set_value(path, "client", "enabled", "true")
-        configmod.set_value(path, "client", "token", json.dumps(new_token()))
+        make_link(path)  # (working for the usual 7 days)
         if spec.client_mods:
             configmod.set_value(path, "client", "mods", json.dumps(spec.client_mods))
     for slug in spec.mods:

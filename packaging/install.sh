@@ -8,6 +8,9 @@
 # It downloads the newest release for this CPU, checks it against the release's SHA256SUMS,
 # puts it in ~/.local/bin (CRAFT_CONDUCTOR_BIN_DIR to change), and runs `craft-conductor service install --panel`,
 # which prints the address to open and a one-time password. Nothing is run as root.
+# Running this script is asking for the control panel to be reachable from your home network
+# (--network; it needs a strong password). CRAFT_CONDUCTOR_PANEL_LOCAL=1 keeps it on this
+# machine instead (a rented server, reached through an SSH tunnel).
 set -eu
 
 REPO="silverWRX03/craft-conductor"
@@ -53,8 +56,11 @@ if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
   if [ "${CRAFT_CONDUCTOR_PANEL_LOCAL:-}" = "1" ]; then
     # A rented server on the internet: the control panel stays on this machine; reach it through SSH.
     "$BIN_DIR/craft-conductor" service install --panel --local-only
+  elif "$BIN_DIR/craft-conductor" service --help 2>/dev/null | grep -q -- "--network"; then
+    # A computer at home, managed from another one: open the panel to the home network.
+    "$BIN_DIR/craft-conductor" service install --panel --network
   else
-    "$BIN_DIR/craft-conductor" service install --panel
+    "$BIN_DIR/craft-conductor" service install --panel  # (older releases opened it to the network by themselves)
   fi
 else
   echo

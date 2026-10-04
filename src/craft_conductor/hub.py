@@ -465,11 +465,13 @@ class Hub:
         self.update_share(restart=True)
 
     def update_share(self, restart: bool = False) -> None:
-        """Run the share server while any server has its friend download switched on."""
+        """Run the share server while any server has its friend download switched on, with a link
+        that still works (it's reachable from the internet: closed when there's nothing to share)."""
         if self.is_single:
             return
         from .share import ShareServer
-        wanted = any(d.m.config.client.enabled for d in list(self.daemons.values()))
+        now = time.time()
+        wanted = any(d.m.config.client.link_works(now) for d in list(self.daemons.values()))
         port = self.share_settings()["port"]
         if self.share and (not wanted or restart or self.share.port != port):
             self.share.stop()
@@ -876,12 +878,18 @@ class Hub:
                                                               if isinstance(x, list) and len(x) == 2]}
 
     def upnp_wanted(self) -> list[tuple[int, str, str]]:
-        """(port, protocol, label) craft-conductor forwards: each server's Minecraft port and friends' downloads."""
+        """(port, protocol, label) craft-conductor forwards: each server's Minecraft port and friends' downloads.
+        Never the control panel's port or a server's RCON port, even if one of those is the same number."""
         from .properties import read_properties
-        out = []
+        out, private = [], {self.web.port}
+        if self.ui is not None and getattr(self.ui, "httpd", None) is not None:
+            private.add(self.ui.httpd.server_address[1])  # (the port it actually listens on)
         for sid, d in sorted(self.daemons.items()):
             try:
-                port = int(read_properties(d.m.server_dir / "server.properties").get("server-port", "25565") or 25565)
+                props = read_properties(d.m.server_dir / "server.properties")
+                port = int(props.get("server-port", "25565") or 25565)
+                if props.get("enable-rcon") == "true":
+                    private.add(int(props.get("rcon.port", "25575") or 25575))
             except (OSError, ValueError):
                 continue
             out.append((port, "TCP", f"Craft Conductor {sid}"[:60]))
@@ -889,7 +897,9 @@ class Hub:
             out.append((self.share_settings()["port"], "TCP", "Craft Conductor friends' downloads"))
         seen, unique = set(), []
         for port, proto, label in out:
-            if (port, proto) not in seen:
+            if port in private:
+                log.warning("not forwarding port %s on the router: the control panel or RCON uses it", port)
+            elif (port, proto) not in seen:
                 seen.add((port, proto))
                 unique.append((port, proto, label))
         return unique
@@ -904,7 +914,7 @@ class Hub:
                 settings["enabled"] = enabled
             wanted = self.upnp_wanted() if settings["enabled"] else []
             status = {"enabled": settings["enabled"], "checked": time.time(), "ports": [], "router": "", "external_ip": "",
-                      "error": "", "warning": ""}
+                      "error": "", "warning": "", "exposure": upnp.EXPOSURE_WARNING if settings["enabled"] else ""}
             mapped = set(settings["mapped"])
             if settings["enabled"] or mapped:
                 try:
@@ -959,7 +969,10 @@ class Hub:
         self._save_hub_file(data)
 
     def upnp_status(self) -> dict:
-        return self._upnp_status or {**self.upnp_settings(), "ports": [], "checked": None, "error": "", "warning": ""}
+        from .upnp import EXPOSURE_WARNING
+        settings = self.upnp_settings()
+        return self._upnp_status or {**settings, "ports": [], "checked": None, "error": "", "warning": "",
+                                     "exposure": EXPOSURE_WARNING if settings["enabled"] else ""}
 
     # ---------------------------------------------------- playit.gg tunnels
     def check_tunnels(self) -> None:
@@ -1025,11 +1038,33 @@ class Hub:
         return out
 
     # ------------------------------------------------------ self-update
+    def update_channel(self) -> str:
+        """Which Craft Conductor releases are offered: stable (the default) or beta too."""
+        if self._single:
+            return self._single.m.config.self_update_channel
+        saved = self._hub_file().get("self_update")
+        return selfupdate.channel_or_default(saved.get("channel") if isinstance(saved, dict) else None)
+
+    def set_update_channel(self, channel: str) -> None:
+        if channel not in selfupdate.CHANNELS:
+            raise ConfigError("the update channel is stable or beta")
+        if self._single:
+            configmod.set_value(self._single.m.config.path, "craft-conductor", "update_channel", json.dumps(channel))
+            self._single.m.reload_config()
+            self._single.self_update = None  # (what was offered may not be on this channel)
+            return
+        data = self._hub_file()
+        saved = data.get("self_update") if isinstance(data.get("self_update"), dict) else {}
+        data["self_update"] = {**saved, "channel": channel}
+        self._save_hub_file(data)
+        self.self_update = None
+        log.info("Craft Conductor updates: %s channel", channel)
+
     def check_self_update(self) -> str:
         if self._single:
             return self._single.check_self_update()
         try:
-            release = selfupdate.check(self.http)
+            release = selfupdate.check(self.http, channel=self.update_channel())
         except Exception as e:
             log.debug("craft-conductor update check failed: %s", e)
             return f"couldn't check for Craft Conductor updates: {e}"
@@ -1050,8 +1085,7 @@ class Hub:
         info = self.self_update
         if not info:
             raise RuntimeError("no craft-conductor update is available")
-        release = selfupdate.Release(info["version"], info["tag"], info["url"], info["notes"], info.get("assets", {}))
-        message = selfupdate.install(release, http=self.http)
+        message = selfupdate.install(selfupdate.Release.from_dict(info), http=self.http)
         running = [d for d in self.daemons.values() if d.proc and d.proc.running]
         if any(d.players for d in running):
             for d in running:

@@ -1,4 +1,4 @@
-# docker compose up -d   (then open http://<this computer>:8765 and sign in with the password below)
+# docker compose up -d   (then open http://localhost:8765 and sign in with the password below)
 services:
   craft-conductor:
     image: ghcr.io/silverwrx03/craft-conductor:latest
@@ -6,7 +6,9 @@ services:
     container_name: craft-conductor
     restart: unless-stopped
     ports:
-      - "8765:8765"         # control panel (don't forward this one on your router)
+      # Control panel: this computer only. To open it from other devices on your network,
+      # use "8765:8765" instead (never forward it on your router).
+      - "127.0.0.1:8765:8765"
       - "25565-25570:25565-25570"  # Minecraft: one port per server
       - "8798:8798"         # friends' downloads
     environment:

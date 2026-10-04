@@ -35,7 +35,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Any, Callable
 
-from . import __version__, backup, config as configmod, configs, licenses, limits, notice, passkeys, serverprops, setup as setupmod, stats, webauth
+from . import __version__, backup, config as configmod, configs, licenses, limits, notice, passkeys, selfupdate, serverprops, setup as setupmod, stats, webauth
 from .config import ConfigError, ModSpec
 from .daemon import Daemon, set_current_server
 from .hub import Hub
@@ -958,6 +958,7 @@ class HubApi:
         r[("POST", "/api/hub/remote/tls")] = self.save_tls
         r[("POST", "/api/hub/devices/pair")] = self.pair_device
         r[("POST", "/api/hub/devices/remove")] = self.remove_device
+        r[("POST", "/api/hub/devices/cancel-pairing")] = self.cancel_pairing
         r[("GET", "/api/hub/discord")] = self.discord_info
         r[("POST", "/api/hub/discord")] = self.save_discord
         r[("GET", "/api/hub/discord/guilds")] = lambda q, b: {"guilds": self._discord().guilds()}
@@ -1013,6 +1014,7 @@ class HubApi:
         r[("GET", "/api/licenses")] = lambda q, b: licenses.as_dict()
         r[("POST", "/api/self-update/check")] = lambda q, b: {"ok": True, "message": self.hub.check_self_update()}
         r[("POST", "/api/self-update/apply")] = self.apply_self_update
+        r[("POST", "/api/self-update/channel")] = self.set_update_channel
         self.routes = r
 
     def overview(self, q, b) -> dict:
@@ -1022,6 +1024,7 @@ class HubApi:
             "single": hub.is_single,
             "notice_accepted": notice.accepted(hub.root),
             "self_update": hub.self_update_info(),
+            "update_channel": hub.update_channel(),
             "auth": self.web.auth.info(),
             "home": str(hub.home),
             "network_access": hub.web.host in ("0.0.0.0", "::"),
@@ -1326,9 +1329,17 @@ class HubApi:
         enabled = b.get("enabled")
         if enabled is not None and not isinstance(enabled, bool):
             raise ApiError(400, "enabled must be true or false")
+        self._upnp_consent(enabled, b)
         status = self.hub.upnp_sync(enabled)
         log.info("automatic port forwarding %s", "on" if status["enabled"] else "off")
         return status
+
+    def _upnp_consent(self, enabled: bool | None, b: dict) -> None:
+        """Opening the router is the owner's decision, made knowing what it means: switching it on
+        needs ``accept`` (the page asks first, showing upnp.EXPOSURE_WARNING)."""
+        from .upnp import EXPOSURE_WARNING
+        if enabled is True and not self.hub.upnp_settings()["enabled"] and b.get("accept") is not True:
+            raise ApiError(400, f"confirm first: {EXPOSURE_WARNING}")
 
     # ---------------------------------------------------- map previews
     def start_preview(self, q, b) -> dict:
@@ -1604,6 +1615,12 @@ class HubApi:
         log.info("made a pairing code for a %s (valid for five minutes)", role)
         return {"url": url, "qr": qr.svg(url), "code": code, "secure": secure, "expires_in": webauth.PAIR_SECONDS}
 
+    def cancel_pairing(self, q, b) -> dict:
+        n = self.web.devices.cancel_codes()
+        if n:
+            log.info("cancelled %d pairing code(s) that weren't used", n)
+        return {"ok": True, "cancelled": n}
+
     def remove_device(self, q, b) -> dict:
         which = b.get("id")
         n = self.web.devices.remove(None if which == "all" else str(which or ""))
@@ -1786,6 +1803,8 @@ class HubApi:
             raise ApiError(400, "first set a strong password (" + webauth.STRONG_RULES + "); "
                                 "PINs can't be used for access from other devices")
         self.hub.save_web(host="0.0.0.0" if enabled else "127.0.0.1")
+        if not enabled:
+            self.web.devices.cancel_codes()  # (a pairing code shown for the network is no use now)
         log.info("network access to the control panel turned %s (applies when Craft Conductor restarts)", "on" if enabled else "off")
         return {"ok": True, "restart_needed": enabled != (self.web.host in ("0.0.0.0", "::"))}
 
@@ -1806,6 +1825,15 @@ class HubApi:
             raise ApiError(409, "a different version is available now; reload the page")
         self.hub.run_job(f"update Craft Conductor to {info['version']}", self.hub.apply_self_update)
         return {"ok": True}
+
+    def set_update_channel(self, q, b) -> dict:
+        """Stable releases only (the default), or betas too; then look on that channel."""
+        channel = b.get("channel")
+        if channel not in selfupdate.CHANNELS:
+            raise ApiError(400, "pick stable or beta")
+        self.hub.set_update_channel(channel)
+        return {"ok": True, "channel": channel, "message": self.hub.check_self_update(),
+                "self_update": self.hub.self_update_info()}
 
 
 class Api:
@@ -1911,6 +1939,7 @@ class Api:
         get("/api/client", self.client)
         post("/api/client", self.save_client)
         post("/api/client/new-link", self.new_client_link)
+        post("/api/client/stop-link", self.stop_client_link)
         post("/api/client/discord", self.post_to_discord)
         post("/api/client/local", self.upload_client_jar)
         post("/api/client/local/remove", self.remove_client_jar)
@@ -1962,6 +1991,7 @@ class Api:
             "notice_accepted": notice.accepted(self.web.hub.root),
             "setup_pending": d.setup_pending,
             "self_update": self.web.hub.self_update_info(),
+            "update_channel": self.web.hub.update_channel(),
             "id": self.sid,
             "auth": self.web.auth.info(),
             "resources": self._resources(),
@@ -2586,8 +2616,8 @@ class Api:
         craft-conductor's invite page with the invite after the #. Each invite carries the share
         certificate's fingerprint, so friends' craft-conductor only ever talks to this computer (over HTTPS)."""
         c = self.m.config.client
-        if not c.token:
-            return {}
+        if not c.link_works(time.time()):
+            return {}  # (none yet, expired or stopped: nothing that would work to hand out)
         from .cli import lan_ip
         from .join import Invite
         hub = self.web.hub
@@ -2643,12 +2673,15 @@ class Api:
         if channel not in {c["id"] for c in bot.channels(guild)}:
             raise ApiError(400, "that channel isn't in that Discord server")
         wanted = [x for x in (b.get("links") or ["internet"]) if x in ("internet", "local")]
+        if not self.m.config.client.link_works(time.time()):
+            raise ApiError(400, "the invite links have expired or were stopped; make new links first")
         links = {k: v for k, v in self._invite_links().items() if k in wanted and v}
         if not links:
             raise ApiError(400, "there's no invite link to post yet"
                            + ("; set your internet address (or use your public IP) first" if "internet" in wanted else ""))
         name = read_properties(self.m.server_dir / "server.properties").get("motd") or self.d.server_id
-        text, embed = invite_message(str(b.get("message", "")), name, self.m.lock.minecraft or "", links)
+        text, embed = invite_message(str(b.get("message", "")), name, self.m.lock.minecraft or "", links,
+                                     expires=self.m.config.client.expires)
         r = bot.post(channel, text, embed)
         hub.remember_discord_channel(guild, channel)
         log.info("posted the friends' invite to Discord")
@@ -2816,6 +2849,7 @@ class Api:
                                     "see Windows Security → Firewall → Advanced settings → Inbound Rules")
             message = "Windows Firewall lets port " + ", ".join(str(p["port"]) for p in ports) + " through now"
         else:  # upnp
+            self.web.hub_api._upnp_consent(True, b)
             st = hub.upnp_sync(True)
             if st["error"]:
                 raise ApiError(400, f"your router didn't do it: {st['error']}")
@@ -2950,11 +2984,15 @@ class Api:
                 preview = self._pack_builder.build(share["address"] or "<your address>")
             except Exception as e:
                 error = str(e)
+        works = c.link_works(time.time())
         return {
             "available": not hub.is_single,
             "enabled": c.enabled, "mods": c.mods, "memory_gb": c.memory_gb,
             "link": self._invite_link() if c.enabled else None,
             "links": self._invite_links() if c.enabled else {},
+            # How long the links work: shared links can't be single-use, so they expire instead.
+            "expires": c.expires or None, "expired": bool(c.enabled and c.token and not works),
+            "link_days": c.link_days, "link_day_choices": list(configmod.LINK_DAYS),
             "share": hub.share_status() if not hub.is_single else None,
             "pack": preview, "pack_error": error,
             "loader": self.m.config.server.loader, "minecraft": self.m.lock.minecraft or "",
@@ -2966,11 +3004,19 @@ class Api:
             raise ApiError(400, "friend downloads need `craft-conductor start` (the server list)")
         path = self.m.config.path
         c = self.m.config.client
+        from .clientpack import checked_link_days, make_link, renew_link
         if "enabled" in b:
             configmod.set_value(path, "client", "enabled", "true" if b["enabled"] is True else "false")
-            if b["enabled"] is True and not c.token:
-                from .clientpack import new_token
-                configmod.set_value(path, "client", "token", json.dumps(new_token()))
+            if b["enabled"] is True and (not c.token or (c.expires and c.expires <= time.time())):
+                make_link(path, c.link_days)  # (switched on again after the old link ran out: a new one)
+        if "link_days" in b:
+            try:
+                if c.link_works(time.time()):
+                    renew_link(path, b["link_days"])  # this link, from now
+                else:  # (a stopped or expired link stays stopped: only new links get it)
+                    configmod.set_value(path, "client", "link_days", str(checked_link_days(b["link_days"])))
+            except ConfigError as e:
+                raise ApiError(400, str(e)) from None
         if "mods" in b:
             mods = b["mods"]
             if not isinstance(mods, list) or not all(isinstance(x, str) and re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", x)
@@ -2991,10 +3037,25 @@ class Api:
         return self.client(q, {})
 
     def new_client_link(self, q, b) -> dict:
-        from .clientpack import new_token
-        configmod.set_value(self.m.config.path, "client", "token", json.dumps(new_token()))
+        from .clientpack import make_link
+        try:
+            make_link(self.m.config.path, b.get("days", self.m.config.client.link_days))
+        except ConfigError as e:
+            raise ApiError(400, str(e)) from None
         self.m.reload_config()
+        self.web.hub.update_share()
         log.info("made a new invite link; the old one no longer works")
+        return self.client(q, {})
+
+    def stop_client_link(self, q, b) -> dict:
+        """Stop the invite link now, without making a new one (friends who set up keep playing)."""
+        from .clientpack import stop_link
+        if not self.m.config.client.token:
+            raise ApiError(404, "there's no invite link to stop")
+        stop_link(self.m.config.path)
+        self.m.reload_config()
+        self.web.hub.update_share()
+        log.info("stopped the invite link; it no longer works")
         return self.client(q, {})
 
     def client_search(self, q, b) -> dict:

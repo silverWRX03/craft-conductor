@@ -147,14 +147,17 @@ def check_token(token: str) -> str:
     return token
 
 
-def invite_message(text: str, name: str, minecraft: str, links: dict[str, str]) -> tuple[str, dict]:
-    """The message: the user's text, and a card with the server and its download links."""
+def invite_message(text: str, name: str, minecraft: str, links: dict[str, str], expires: int = 0) -> tuple[str, dict]:
+    """The message: the user's text, and a card with the server and its download links (and when
+    they stop working: Discord shows the time in each reader's own time zone)."""
     text = text.strip()[:MAX_MESSAGE]
     lines = []
     if links.get("internet"):
         lines.append(f"**[Click here to join]({links['internet']})**")
     if links.get("local"):
         lines.append(f"On the same Wi-Fi/network as the server: [join here]({links['local']})")
+    if expires:
+        lines.append(f"This invite works until <t:{int(expires)}:f> (<t:{int(expires)}:R>).")
     embed = {"title": name[:200], "description": "\n".join(lines)[:3500],
              "footer": {"text": f"Minecraft {minecraft} · open the link, download Craft Conductor and run it: it sets up your game"},
              "color": 0x3BA55C}

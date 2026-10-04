@@ -177,8 +177,14 @@ def test_switching_it_on_and_off_from_the_page(hub_env, router):
     hub, c = hub_env
     login(c)
     assert c.get("/api/hub/upnp")[1]["enabled"] is False
+    # Switching it on is agreed to first, knowing it opens the server to the internet.
     status, r, _ = c.post("/api/hub/upnp", {"enabled": True})
+    assert status == 400 and "whole internet" in r["error"] and not router.mappings
+    assert c.post("/api/servers/alpha/doctor/fix", {"action": "upnp"})[0] in (400, 409) and not router.mappings
+    status, r, _ = c.post("/api/hub/upnp", {"enabled": True, "accept": True})
     assert status == 200 and r["enabled"] and not r["error"], r
+    assert r["exposure"] == upnp.EXPOSURE_WARNING
+    assert c.post("/api/hub/upnp", {})[1]["enabled"]  # (checking again needs no new agreement)
     assert r["router"] == "Test Router" and r["external_ip"] == "203.0.113.7"
     ports = {p["port"] for p in r["ports"] if p["ok"]}
     assert ports and all((p, "TCP") in router.mappings for p in ports)
@@ -188,7 +194,7 @@ def test_switching_it_on_and_off_from_the_page(hub_env, router):
     # off: craft-conductor takes back what it forwarded (and only that)
     router.mappings[(8080, "TCP")] = ("192.168.1.50", "someone else's")
     r = c.post("/api/hub/upnp", {"enabled": False})[1]
-    assert not r["enabled"] and list(router.mappings) == [(8080, "TCP")]
+    assert not r["enabled"] and list(router.mappings) == [(8080, "TCP")] and r["exposure"] == ""
     assert hub.upnp_settings()["mapped"] == []
     assert c.post("/api/hub/upnp", {"enabled": "yes"})[0] == 400
 
@@ -197,7 +203,31 @@ def test_a_router_without_upnp_says_so(hub_env, monkeypatch):
     hub, c = hub_env
     login(c)
     monkeypatch.setattr(upnp, "discover", lambda timeout=3.0: [])
-    r = c.post("/api/hub/upnp", {"enabled": True})[1]
+    r = c.post("/api/hub/upnp", {"enabled": True, "accept": True})[1]
     assert r["enabled"] and "switched off" in r["error"]
     checks = c.get("/api/servers/alpha/doctor")[1]["checks"]
     assert any(x["id"] == "router" and x["status"] == "warn" for x in checks)
+
+
+def test_upnp_is_off_by_default_and_never_opens_the_panel(hub_env):
+    hub, c = hub_env
+    assert hub.upnp_settings()["enabled"] is False and hub.upnp_status()["exposure"] == ""
+    # Even a server whose game port is the control panel's (or its RCON port) isn't forwarded.
+    alpha = hub.daemons["alpha"]
+    props = alpha.m.server_dir / "server.properties"
+    from craft_conductor.properties import write_properties
+    panel = hub.ui.httpd.server_address[1]
+    write_properties(props, {"server-port": str(panel)})
+    assert all(port != panel for port, _, _ in hub.upnp_wanted())
+    write_properties(props, {"server-port": "25600", "enable-rcon": "true", "rcon.port": "25600"})
+    assert all(port != 25600 for port, _, _ in hub.upnp_wanted())
+    write_properties(props, {"enable-rcon": "false"})
+    assert any(port == 25600 for port, _, _ in hub.upnp_wanted())
+
+
+def test_the_page_shows_the_same_warning():
+    from pathlib import Path
+    js = (Path(__file__).resolve().parents[1] / "src" / "craft_conductor" / "webui" / "app.js").read_text(encoding="utf-8")
+    start = js.index("const UPNP_WARNING = ")
+    text = "".join(re.findall(r'"((?:[^"\\]|\\.)*)"', js[start:js.index('";\n', start) + 1]))
+    assert text == upnp.EXPOSURE_WARNING

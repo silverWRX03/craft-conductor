@@ -842,7 +842,7 @@ class Daemon:
     # ------------------------------------------------------- self-update
     def check_self_update(self) -> str:
         try:
-            release = selfupdate.check(self.m.http)
+            release = selfupdate.check(self.m.http, channel=self.m.config.self_update_channel)
         except Exception as e:
             log.debug("craft-conductor update check failed: %s", e)
             return f"couldn't check for Craft Conductor updates: {e}"
@@ -862,8 +862,7 @@ class Daemon:
         info = self.self_update
         if not info:
             raise RuntimeError("no craft-conductor update is available")
-        release = selfupdate.Release(info["version"], info["tag"], info["url"], info["notes"], info.get("assets", {}))
-        message = selfupdate.install(release, http=self.m.http)
+        message = selfupdate.install(selfupdate.Release.from_dict(info), http=self.m.http)
         if self.proc and self.proc.running:
             if self.players:
                 self.proc.say("Server restarting in 1 minute: updating the server manager")

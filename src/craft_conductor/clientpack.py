@@ -22,7 +22,7 @@ import time
 from pathlib import Path
 from urllib.parse import urlparse
 
-from .config import ModSpec
+from .config import DEFAULT_LINK_DAYS, LINK_DAYS, ConfigError, ModSpec
 from .http import sha1_file
 from .mods.base import ModError, ModFile, Unavailable
 from .mods.modrinth import ModrinthProvider
@@ -51,6 +51,47 @@ def local_jars(config) -> list[Path]:
 
 def new_token() -> str:
     return secrets.token_urlsafe(18)
+
+
+# A friends' invite link is shared (in a Discord channel, a group chat), so it's not single-use:
+# everyone with it can set up. Instead it stops working after the time the owner picked (7 days
+# unless they choose otherwise), and the owner can stop it, or replace it, whenever they like.
+def checked_link_days(days) -> int:
+    try:
+        days = int(days)
+    except (TypeError, ValueError):
+        raise ConfigError("pick how long the links work") from None
+    if days not in LINK_DAYS:
+        raise ConfigError("pick how long the links work: 1, 7 or 30 days, or until you make new ones")
+    return days
+
+
+def link_expiry(days: int, now: float | None = None) -> int:
+    """When a link made (or renewed) now stops working; 0 = until a new one is made."""
+    return int((time.time() if now is None else now) + days * 86400) if days else 0
+
+
+def make_link(config_path: Path, days: int = DEFAULT_LINK_DAYS, now: float | None = None) -> None:
+    """A new invite link (the previous one stops working at once), working for ``days``."""
+    from . import config as configmod
+    days = checked_link_days(days)
+    configmod.set_value(config_path, "client", "token", f'"{new_token()}"')
+    configmod.set_value(config_path, "client", "link_days", str(days))
+    configmod.set_value(config_path, "client", "expires", str(link_expiry(days, now)))
+
+
+def renew_link(config_path: Path, days: int, now: float | None = None) -> None:
+    """Keep the link, working for ``days`` from now (or until a new one is made)."""
+    from . import config as configmod
+    days = checked_link_days(days)
+    configmod.set_value(config_path, "client", "link_days", str(days))
+    configmod.set_value(config_path, "client", "expires", str(link_expiry(days, now)))
+
+
+def stop_link(config_path: Path, now: float | None = None) -> None:
+    """The link stops working now (friends who already set up keep playing)."""
+    from . import config as configmod
+    configmod.set_value(config_path, "client", "expires", str(max(1, int(time.time() if now is None else now))))
 
 
 def allowed_url(url: str) -> bool:

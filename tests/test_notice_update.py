@@ -1,7 +1,9 @@
 """First-run notice, craft-conductor self-update, and license listing."""
 
+import hashlib
 import subprocess
 import threading
+from pathlib import Path
 
 import pytest
 
@@ -73,12 +75,14 @@ def test_licenses_listed():
 
 # ------------------------------------------------------------- self-update
 def release(http, tag, **extra):
-    http.json[selfupdate.LATEST] = {"tag_name": tag, "html_url": f"https://github.test/{tag}", "body": "notes", **extra}
+    http.json[selfupdate.RELEASES] = [{"tag_name": tag, "html_url": f"https://github.test/{tag}", "body": "notes", **extra}]
 
 
 def test_version_compare():
-    assert selfupdate.parse_version("v0.10.0") > selfupdate.parse_version("0.9.9")
-    assert selfupdate.parse_version("1.0.0-rc1") == (1, 0, 0)
+    assert selfupdate.newer("v0.10.0", "0.9.9") and not selfupdate.newer("0.9.9", "0.10.0")
+    assert selfupdate.newer("1.0.0", "1.0.0rc1") and selfupdate.newer("1.0.0rc1", "1.0.0b2")
+    assert selfupdate.newer("1.0.0b2", "1.0.0-beta.1") and selfupdate.is_prerelease("1.0.0-rc1")
+    assert not selfupdate.newer("1.0.0", "1.0.0") and selfupdate.version_key("nightly") is None
 
 
 def test_check(http):
@@ -87,32 +91,49 @@ def test_check(http):
     assert selfupdate.check(http, "0.1.0") is None
     release(http, "v0.2.0")
     r = selfupdate.check(http, "0.1.0")
-    assert r.version == "0.2.0" and r.tag == "v0.2.0" and r.notes == "notes"
+    assert r.version == "0.2.0" and r.tag == "v0.2.0" and r.notes == "notes" and not r.prerelease
     release(http, "v0.3.0", prerelease=True)
     assert selfupdate.check(http, "0.1.0") is None
 
 
-def test_install_uses_pip_with_the_release_tag(monkeypatch):
+def publish_wheel(http, content: bytes, version="99.0.0"):
+    name = f"craft_conductor-{version}-py3-none-any.whl"
+    http.files[f"https://dl.test/{name}"] = content
+    http.files["https://dl.test/SHA256SUMS.txt"] = f"{hashlib.sha256(content).hexdigest()}  {name}\n".encode()
+    return selfupdate.Release(version, f"v{version}", "https://github.test/r", "", {
+        name: f"https://dl.test/{name}", "SHA256SUMS.txt": "https://dl.test/SHA256SUMS.txt"})
+
+
+def test_install_uses_pip_with_the_verified_wheel(monkeypatch, http):
+    """pip installs get the release's own wheel, checked against SHA256SUMS.txt, and pip may not
+    fetch anything else (no index, no dependencies): never a git checkout of a tag."""
     monkeypatch.setattr(selfupdate, "install_method", lambda release=None: (True, ""))
     calls = []
 
     def runner(argv, **kw):
-        calls.append(argv)
+        calls.append((argv, Path(argv[-1]).read_bytes()))
         return subprocess.CompletedProcess(argv, 0, "ok", "")
-    r = selfupdate.Release("0.2.0", "v0.2.0", "", "")
-    assert selfupdate.install(r, runner) == "installed Craft Conductor 0.2.0"
-    assert calls[0][1:5] == ["-m", "pip", "install", "--upgrade"]
-    assert calls[0][-1] == "git+https://github.com/silverWRX03/craft-conductor@v0.2.0"
+    r = publish_wheel(http, b"the wheel")
+    assert selfupdate.install(r, runner, http=http) == "installed Craft Conductor 99.0.0"
+    argv, installed = calls[0]
+    assert argv[1:4] == ["-m", "pip", "install"] and {"--no-index", "--no-deps"} <= set(argv)
+    assert installed == b"the wheel" and not any("git+" in a for a in argv)
 
-    failing = lambda argv, **kw: subprocess.CompletedProcess(argv, 1, "", "ERROR: no such tag")  # noqa: E731
-    with pytest.raises(selfupdate.SelfUpdateError, match="no such tag"):
-        selfupdate.install(r, failing)
+    failing = lambda argv, **kw: subprocess.CompletedProcess(argv, 1, "", "ERROR: broken wheel")  # noqa: E731
+    with pytest.raises(selfupdate.SelfUpdateError, match="broken wheel"):
+        selfupdate.install(r, failing, http=http)
+
+    calls.clear()
+    http.files[r.assets[selfupdate.wheel_name(r)]] = b"someone else's wheel"
+    with pytest.raises(selfupdate.VerificationError):
+        selfupdate.install(r, runner, http=http)
+    assert calls == []  # pip never saw it
 
 
 def test_source_checkouts_are_not_self_updated(monkeypatch):
     monkeypatch.setattr(selfupdate, "install_method", lambda release=None: (False, "running from a source checkout"))
     with pytest.raises(selfupdate.SelfUpdateError, match="source checkout"):
-        selfupdate.install(selfupdate.Release("0.2.0", "v0.2.0", "", ""))
+        selfupdate.install(selfupdate.Release("99.0.0", "v99.0.0", "", ""))
 
 
 def test_accepting_in_the_control_panel_lets_its_servers_run(fresh_user, hub_env):

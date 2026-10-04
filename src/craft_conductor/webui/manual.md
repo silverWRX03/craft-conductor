@@ -256,12 +256,12 @@ For power users, **Advanced: invite codes and security** shows the raw invite co
 
 **For friends outside your home:** press **Use my public IP** (or type your address under Craft Conductor settings → Connections → Sharing with friends), and forward two TCP ports on your router to this computer: the Minecraft port (25565 for the first server) and the friends' port (8766 unless you changed it).
 
-- **Let Craft Conductor do it:** **Craft Conductor settings → Connections → Sharing with friends → Open the ports on my router by itself (UPnP)**. Craft Conductor asks the router to forward each server's Minecraft port and the friends' port to this computer, renews that while it runs, and takes the ports back when you switch it off or quit Craft Conductor. It shows which ports worked, your router's internet address, and warns when forwarding can't help (your provider shares one address between homes, called CGNAT, or there are two routers). **Check my setup** shows it too.
+- **Let Craft Conductor do it:** **Craft Conductor settings → Connections → Sharing with friends → Open the ports on my router by itself (UPnP)**. It's off until you switch it on, and it asks you first, because it makes your server reachable from the whole internet, not just your friends: anyone can try to connect, and a weakness in Minecraft or in a mod could put this computer at risk. While it's on, the page says so. Craft Conductor asks the router to forward each server's Minecraft port and the friends' port to this computer (never the control panel's port, or a server's RCON port), renews that while it runs, and takes the ports back when you switch it off or quit Craft Conductor. It shows which ports worked, your router's internet address, and warns when forwarding can't help (your provider shares one address between homes, called CGNAT, or there are two routers). **Check my setup** shows it too. Keep the whitelist on while it's on.
 - **By hand:** many routers have UPnP switched off. The Help page has pictures; every router is different, so check its manual if you get stuck.
 
 **What friends get:** the Minecraft version, mod loader and every mod that runs on players' computers (server-only mods are left out), plus the mods you add under **Mods for players**, and the memory you choose for their Minecraft. Mods that server mods need on players' computers are added by themselves (a message says which and why).
 
-**New links** makes new ones; the old ones stop working. Friends who already set up keep playing, but need a new link to update.
+**How long links work.** Invite links are made to be shared (in a Discord channel, say), so they aren't single-use: everyone with the link can use it. Instead, a link stops working by itself after the time picked under **Links work for**: 1 day, 7 days (the usual), 30 days, or **Until I make new ones**. The page shows when the links stop, and **Post to Discord** says it in the message. Changing it starts the time again from now, and new links use it too. **Stop these links** stops them at once; **New links** makes new ones, and the old ones stop working. Once a link has stopped, nobody can set up with it any more; friends who already set up keep playing, but need a new link to update their game. Want only the people you know to play? Keep the whitelist on: a link lets friends download the setup and **ask to be let in**, and you decide.
 
 **Security:** the link opens Craft Conductor's invite page on GitHub, and the invite itself is after the `#`, which browsers never send anywhere. Friends' Craft Conductor connects to your computer only over HTTPS, and only to your computer: the invite carries the fingerprint of your Craft Conductor's certificate, and anything else is refused. The Craft Conductor program itself always comes from GitHub, never from your server. The friends' port never gives access to the control panel.
 
@@ -313,10 +313,10 @@ Craft Conductor never asks for your Microsoft password: your launcher signs you 
 
 ## Remote access and phones
 
-By default only the server's own computer can open the control panel. **Craft Conductor settings → Connections → Remote access & phones** (also a button on the New server page) lets other devices in:
+By default only the server's own computer can open the control panel: it listens on `127.0.0.1` (this computer only), even on a computer without a screen, until you turn on access from other devices. **Craft Conductor settings → Connections → Remote access & phones** (also a button on the New server page) lets other devices in:
 
 - It needs a **strong password**: 12+ characters with an uppercase letter, a lowercase letter and a special character. PINs don't work from other devices.
-- **Pair a phone** by scanning the QR code with its camera and opening the link. The code works once, for five minutes. The phone signs in by itself afterwards, with its own key. At the **Tailscale, secure** address, the phone then offers to install the app (see The phone app); at other addresses Craft Conductor opens in the phone's browser, and the dialog says so. No secure address yet? **Set up the secure Tailscale address** is right there.
+- **Pair a phone** by scanning the QR code with its camera and opening the link. The code works once, for five minutes; **Cancel this code** stops it sooner (so does turning off access from other devices, removing every phone or changing the password). The phone signs in by itself afterwards, with its own key. At the **Tailscale, secure** address, the phone then offers to install the app (see The phone app); at other addresses Craft Conductor opens in the phone's browser, and the dialog says so. No secure address yet? **Set up the secure Tailscale address** is right there.
 - **Pair with a code:** the code is also shown under the QR code (like `ABCD-EFGH-JKLM`). On the phone's sign-in page, choose **Pair with a code** and type it. That's how an iPhone's Home Screen app is paired: it doesn't share Safari's sign-in.
 - Before making the code, choose what the device may do: **Helper** gets the everyday controls (start, stop, restart, backups, updates, players, and letting in friends who ask); **Viewer** can only look. Neither can change settings, mods or files, use the console or change the password.
 - **Co-admins:** pair the phone or computer of a friend who helps run the server the same way, as a helper or a viewer. What each device does shows in the activity with its name.
@@ -361,6 +361,8 @@ Choose a section from the menu: **Appearance** (Language and Display), **Sounds 
 - **Mod conflicts:** **Share mod conflicts anonymously** (off until you switch it on). When **Find which mods break it** finds a mod that doesn't work, Craft Conductor sends only the mod loader, the Minecraft version and the ids of the mods involved to Craft Conductor's relay, nothing about you or your server. Once three different people report the same conflict, it's on the shared list, and the Mods page warns anyone who has those mods together (everyone gets the warnings, whether they share or not). The list is fetched at most once a day.
 - **Warnings:** how many warnings you've hidden with "Don't ask me again", and **Show all warnings again**.
 - **About Craft Conductor:** the version, **Check for Craft Conductor updates**, the Craft Conductor folder, the notice and open-source licenses. Craft Conductor also checks by itself: when a new version is out, a message offers to install it (it stops your servers cleanly and restarts).
+  - **Updates:** **Stable versions only (recommended)**, the default, or **Beta versions too (early, less tested)**: betas come out before a version is released, for people who like to try things first.
+  - Every update is downloaded completely and checked against the checksum published with it (the release's `SHA256SUMS.txt`) before anything is replaced. If it doesn't match (a damaged, cut-short or tampered download), nothing changes and the version you have keeps running. Craft Conductor never installs an older version than the one you have, so after leaving beta, the next update is the next stable version.
 - The **Light / Dark** slider switches the whole app between themes and remembers your choice. On desktop it is in the top bar; on phones and tablets it is inside the hamburger navigation menu at the top left. Escape or tapping outside closes the menu.
 - Panels, dialogs, settings, mods, backups and the invite pages share the Industrial Silver, Obsidian and Magma theme, with square edges, raised widgets and a recessed console.
 
@@ -384,6 +386,8 @@ Everything in Craft Conductor works with the keyboard and a screen reader (NVDA,
 **Friends can't connect from outside.** Check both ports are forwarded to this computer's local address, that you pressed **Use my public IP** again (home addresses change), and that your internet provider allows it (some don't; Tailscale or a VPN works then).
 
 **"That invite is from an older Craft Conductor."** Invites changed in Craft Conductor 0.9 (to HTTPS). Update Craft Conductor on the server, then send friends the new invite from the Friends page.
+
+**"This invite has expired."** The invite link's time ran out, or the server's owner stopped it. Ask them for a new link (on their Friends page: **New links**). You can still play on the server; the new link is only needed to set up or update your game.
 
 **"The server's security certificate doesn't match the invite."** Craft Conductor refused to connect because the server isn't the one the invite is for. Ask for a new invite; if it happens again, someone may be interfering with the connection (on public Wi-Fi, say).
 
@@ -421,8 +425,9 @@ craft-conductor check / update     # see and apply updates
 craft-conductor backup / restore   # back up or restore a server
 craft-conductor player ...         # kick, ban/pardon, op/deop and whitelist
 craft-conductor web-password       # show or change the sign-in (--set, --pin, --reset)
-craft-conductor service install --panel   # Linux: run craft-conductor at boot
-craft-conductor self-update        # update craft-conductor itself
+craft-conductor service install --panel   # Linux: run craft-conductor at boot (this machine only;
+                                          #   add --network to open the panel to your home network)
+craft-conductor self-update        # update craft-conductor itself (--channel beta for early versions)
 ```
 
 Run `craft-conductor --help` (or `craft-conductor <command> --help`) for everything.
