@@ -52,6 +52,13 @@ Before continuing or starting a feature, check this list: some features wait on 
       not; **Remove** the first (it asks about the server). On the World page's Web map card, only the
       map that has a build for your Minecraft version should have an Add button. On a friend's setup
       page, **More mods** should list only client-side mods. They were tried with a pretend Modrinth.
+- [ ] **Try the shared Java for real** (0.23.0): on a computer with two or more servers on the same
+      Minecraft version, open a server → **Java**: it should say which Java it runs on and why, and
+      the servers should share one copy. If you have Java installed yourself, check it's found and
+      offered (**Use this one**). On Windows, press **Update shared Java** while a server is running:
+      the server keeps running and moves to the new Java at its next start. Old per-server
+      `.craft-conductor/java` folders are pointed out with their size; delete one by hand and check
+      that server still starts. It was only tried with pretend Java installations.
 - [ ] **Windows code signing (optional):** apply to the SignPath Foundation (see
       [docs/code-signing.md](docs/code-signing.md)). Once accepted, add the repository variable
       `SIGNPATH_ORGANIZATION_ID` and the secret `SIGNPATH_API_TOKEN`; releases are then signed
@@ -79,7 +86,17 @@ Before continuing or starting a feature, check this list: some features wait on 
 
 ## For Claude (next work)
 
-In priority order: the top one is next.
+The numbers below are kept as they are, so they don't say the order. What's left, in priority
+order (the first one is next):
+
+**31** continuous mod browsing → **34** Connected Players widget → **33** help drawer →
+**17** scripting hooks and API tokens → **29** roles for other people (RBAC, uses 17) →
+**15** other tunnel services → **19** Velocity networks → **30** Bedrock servers →
+**20** translated manual → **21** servers on hosting panels → **24** one dashboard for
+several computers (after 17 and 29) → the smaller leftovers.
+
+**No releases for now:** the owner releases once most of the roadmap is done. Every change goes
+under "0.23.0 (not released yet)" in CHANGELOG.md; don't bump the version or run `release.yml`.
 
 Done:
 - [x] Renamed to Craft Conductor, with the new "CC" icon (0.16.0).
@@ -155,8 +172,8 @@ Next:
 24. [ ] **One dashboard for several computers** (low priority): link other computers' Craft
         Conductors to one (paired like a phone, with a key they can revoke, limited to Helper or
         Viewer if wanted), list every server on every linked computer on one Servers page, and
-        get all their warnings and phone notifications in one place. Easier after 16 (API
-        tokens); shares the "servers on another machine" groundwork with 20.
+        get all their warnings and phone notifications in one place. Easier after 17 (API
+        tokens); shares the "servers on another machine" groundwork with 21.
 25. [x] **Friends' mods land on the right side:** in server setup's "Play with friends" part,
         a mod picked for players that runs on both sides (client and server) is added to the
         server too, with the mods it requires. When a friend sets up their own copy and opens
@@ -201,10 +218,10 @@ Next:
 Written down so the work can start without re-deriving it. The house rules in CLAUDE.md apply to
 all of them: manual (and wiki screenshots when a screen changes), CHANGELOG, translations
 (`tr/*.txt` style: English¦es¦pt¦fr¦de¦hi¦zh¦vi¦ar¦ko, built into `webui/i18n/*.json`), tests,
-a security then efficiency review, then PR, CI, merge, release. Small items are grouped into one
-release to pay those costs once.
+a security then efficiency review, then PR, CI and merge. Releases are on hold until most of the
+roadmap is done (see above), so finished items collect under the upcoming version.
 
-**14. World generation preview loads the mods' dependencies** — small. Next.
+**14. World generation preview loads the mods' dependencies** — small. Done (0.21.0).
 - The preview (`preview.py`, `Preview`; started by `start_preview` in `web.py`) builds a
   throwaway server from the mods the page sends: `ModSpec`s written to its `craft-conductor.toml`, plus
   Chunky and Fabric API. Check first whether the planner already pulls in each mod's required
@@ -305,7 +322,7 @@ release to pay those costs once.
 - Sounds (23): check the iPhone silent switch on a real phone.
 - Store phone app: only if the installable web app falls short.
 
-**26. Investigate: Windows Firewall exceptions alongside UPnP** — small/medium.
+**26. Investigate: Windows Firewall exceptions alongside UPnP** — small/medium. Done.
 - Today: `doctor.py` only explains the firewall (Windows asks the first time Java accepts
   connections; "Allow an app through firewall → Java"); `upnp.py` opens router ports only.
 - Look into: a "Let it through Windows Firewall" action (in Router and in Check my setup) that
@@ -335,8 +352,9 @@ release to pay those costs once.
 
 ## Additional requests (2026-10-01): implementation briefs
 
-These five items are pending requirements, not implemented features. Their numbering preserves
-the existing roadmap and does not establish a new priority order. Inspect the current code
+Briefs for the items asked for on 2026-10-01. 28 and 32 are done; 29, 30, 31, 33 and 34 are
+still to do. Their numbering preserves the existing roadmap and does not establish a priority
+order (the order is under "For Claude" above). Inspect the current code
 before choosing an implementation. Apply CLAUDE.md when implementing; keep related help,
 translations, documentation, and changelog entries current.
 
