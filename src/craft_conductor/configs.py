@@ -13,6 +13,7 @@ keeps the previous version in ``.craft-conductor/config-backups/``.
 
 from __future__ import annotations
 
+import glob
 import json
 import os
 import re
@@ -21,6 +22,7 @@ import time
 import zipfile
 from pathlib import Path, PurePosixPath
 
+from . import safearchive
 from .properties import read_properties
 
 EXTENSIONS = {".toml": "toml", ".json": "json", ".json5": "json", ".jsonc": "json", ".mcmeta": "json",
@@ -43,8 +45,10 @@ SERVER_FILES = ("purpur.yml", "bukkit.yml", "spigot.yml")
 
 def roots(server_dir: Path) -> list[Path]:
     level = read_properties(server_dir / "server.properties").get("level-name") or "world"
-    return [server_dir / "config", server_dir / "defaultconfigs", server_dir / level / "serverconfig",
-            server_dir / "plugins"]
+    out = [server_dir / "config", server_dir / "defaultconfigs", server_dir / "plugins"]
+    if safearchive.plain_name(level):  # (a level-name like ../.. would reach outside the server)
+        out.insert(2, server_dir / level / "serverconfig")
+    return out
 
 
 def jars(server_dir: Path) -> list[Path]:
@@ -117,9 +121,9 @@ def _stem(rel: str) -> str:
 
 def list_files(server_dir: Path) -> list[str]:
     """Editable config files, as paths relative to the server folder."""
-    out = [name for name in SERVER_FILES if (server_dir / name).is_file()]
+    out = [name for name in SERVER_FILES if (server_dir / name).is_file() and not (server_dir / name).is_symlink()]
     for root in roots(server_dir):
-        if not root.is_dir():
+        if not root.is_dir() or root.is_symlink():  # (links can't be edited here: resolve())
             continue
         for dirpath, dirnames, filenames in os.walk(root):
             dirnames[:] = sorted(d for d in dirnames if not d.startswith("."))
@@ -164,9 +168,20 @@ def resolve(server_dir: Path, rel: str) -> Path:
     p = PurePosixPath(rel.replace("\\", "/"))
     if not rel or rel.startswith(("/", "\\")) or any(x in ("..", "") for x in p.parts) or ":" in rel:
         raise ConfigFileError("that isn't a config file")
+    try:
+        safearchive.parts(rel)  # (control characters, Windows device names...)
+    except safearchive.UnsafeName as e:
+        raise ConfigFileError(f"that isn't a config file: {e}") from None
     path = server_dir.joinpath(*p.parts)
     if path.suffix.lower() not in EXTENSIONS:
         raise ConfigFileError("only text config files can be edited here")
+    # No links on the way: one (put there by a mod, or brought back by a backup) could make the
+    # editor read or write a file anywhere on this computer.
+    step = server_dir
+    for part in p.parts:
+        step = step / part
+        if safearchive.is_link(step):
+            raise ConfigFileError("that file is reached through a link, so it can't be edited here")
     real = path.resolve()
     if rel in SERVER_FILES and real.parent == server_dir.resolve():
         return path
@@ -209,7 +224,7 @@ def write(server_dir: Path, backups: Path, rel: str, text: str, expected_modifie
     target = backups / (rel.replace("/", "__") + f".{stamp}")
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(path, target)
-    olds = sorted(backups.glob(rel.replace("/", "__") + ".*"))
+    olds = sorted(backups.glob(glob.escape(rel.replace("/", "__")) + ".*"))  # ("[x].toml" is a pattern otherwise)
     for old in olds[:-KEEP_BACKUPS]:
         old.unlink(missing_ok=True)
     # keep the file's own line endings
@@ -217,6 +232,13 @@ def write(server_dir: Path, backups: Path, rel: str, text: str, expected_modifie
     if b"\r\n" in original and "\r\n" not in text:
         text = text.replace("\n", "\r\n")
     tmp = path.with_name(f".{path.name}.craft-conductor-tmp")
-    tmp.write_bytes(text.encode("utf-8"))
-    os.replace(tmp, path)
+    tmp.unlink(missing_ok=True)  # (never written through: a link left here could point anywhere)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        with os.fdopen(os.open(tmp, flags, 0o666), "wb") as out:
+            out.write(text.encode("utf-8"))
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
     return {"ok": True, "modified": path.stat().st_mtime, "backup": target.name}

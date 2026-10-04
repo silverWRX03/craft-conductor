@@ -43,6 +43,15 @@ Before continuing or starting a feature, check this list: some features wait on 
 - [ ] **Try automatic port forwarding at home** (craft-conductor settings → Sharing with friends → Router):
       switch it on, look at what it says, then **Test from the internet** in Check my setup. It
       was only tested against a pretend router.
+- [ ] **Try the 0.22.3 safety checks on real computers** (they were only tested on Linux, with a
+      pretend Minecraft): on a clean Windows VM, install the download and make a Fabric server,
+      back it up, **Restore** it while File Explorer has the server folder open (it should say a
+      program is using a file and leave the server as it was), and pull the power (or end the
+      task in Task Manager) during an update, then start Craft Conductor again: the server should
+      be back on its old version. Repeat with the servers under a OneDrive-synced folder and a
+      folder with a non-English name (e.g. `C:\Users\José\Документы\Майнкрафт`), and with
+      Windows Defender (and any other antivirus) watching. Note any "being used by another
+      process" errors or downloads flagged as viruses.
 - [ ] **Windows code signing (optional):** apply to the SignPath Foundation (see
       [docs/code-signing.md](docs/code-signing.md)). Once accepted, add the repository variable
       `SIGNPATH_ORGANIZATION_ID` and the secret `SIGNPATH_API_TOKEN`; releases are then signed

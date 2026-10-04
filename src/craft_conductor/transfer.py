@@ -17,10 +17,10 @@ import shutil
 import time
 import zipfile
 from datetime import datetime, timezone
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Callable
 
-from . import __version__, config as configmod, lock as lockmod
+from . import __version__, config as configmod, lock as lockmod, safearchive
 from .config import ConfigError
 
 log = logging.getLogger(__name__)
@@ -29,6 +29,8 @@ FORMAT = 1
 MANIFEST = "craft-conductor-export.json"
 SKIP_IN_SERVER = {"logs", "crash-reports", "debug", ".craft-conductor"}
 SKIP_NAMES = {"session.lock"}  # the running world's lock; Minecraft makes a new one
+MAX_IMPORT = 1 << 40          # unpacked (worlds and backups included); the disk's free space decides first
+MAX_IMPORT_FILES = 500_000
 
 
 class TransferError(ValueError):
@@ -93,6 +95,7 @@ def export(manager, dest: Path, include_backups: bool = False, say: Callable[[st
 
 
 def read_manifest(archive: Path) -> dict:
+    safearchive.check_zip(archive, MAX_IMPORT_FILES, TransferError)
     try:
         with zipfile.ZipFile(archive) as z:
             names = set(z.namelist())
@@ -110,18 +113,13 @@ def read_manifest(archive: Path) -> dict:
     return data
 
 
-def _member_target(root: Path, name: str) -> Path | None:
-    parts = PurePosixPath(name.replace("\\", "/")).parts
-    if not parts or name.startswith(("/", "\\")) or any(p in ("..", "") for p in parts) or ":" in parts[0]:
-        return None
+def _member_parts(name: str) -> tuple[str, ...]:
+    """Where a member of an export goes, relative to the new server's folder; raises
+    safearchive.UnsafeName for anything outside the places an export holds."""
+    parts = safearchive.parts(name)
     if parts[0] not in ("server", "backups") and name not in (configmod.CONFIG_NAME, lockmod.LOCK_NAME):
-        return None
-    target = root.joinpath(*parts)
-    try:
-        target.resolve().relative_to(root.resolve())
-    except ValueError:
-        return None
-    return target
+        raise safearchive.UnsafeName("it isn't a place Craft Conductor writes to")
+    return parts
 
 
 def import_into(archive: Path, root: Path, say: Callable[[str], None] = log.info) -> dict:
@@ -129,21 +127,28 @@ def import_into(archive: Path, root: Path, say: Callable[[str], None] = log.info
     manifest = read_manifest(archive)
     if root.exists() and any(root.iterdir()):
         raise TransferError(f"{root} isn't empty")
+    with zipfile.ZipFile(archive) as z:
+        infos = [i for i in z.infolist() if not i.is_dir() and i.filename != MANIFEST]
+    if len(infos) > MAX_IMPORT_FILES:  # (the end record understated it)
+        raise TransferError(f"that export holds too many files ({len(infos):,}; at most {MAX_IMPORT_FILES:,})")
+    total = sum(i.file_size for i in infos)
+    if total > MAX_IMPORT:
+        raise TransferError(f"that export is too big to import (it unpacks to {safearchive.size_words(total)})")
+    safearchive.ensure_space(root, total, TransferError, "that server")
     root.mkdir(parents=True, exist_ok=True)
     count = 0
+    skipped = safearchive.Skipped(f"the export {safearchive.printable(archive.name)}")
     try:
         with zipfile.ZipFile(archive) as z:
-            for member in z.infolist():
-                if member.is_dir() or member.filename == MANIFEST:
+            for member in infos:
+                try:
+                    with safearchive.open_new(root, _member_parts(member.filename)) as out, z.open(member) as src:
+                        shutil.copyfileobj(src, out, 1 << 20)
+                except safearchive.UnsafeName as e:
+                    skipped.add(member.filename, str(e))
                     continue
-                target = _member_target(root, member.filename)
-                if target is None:
-                    log.warning("skipped %s in the export (not a place Craft Conductor writes to)", member.filename)
-                    continue
-                target.parent.mkdir(parents=True, exist_ok=True)
-                with z.open(member) as src, open(target, "wb") as out:
-                    shutil.copyfileobj(src, out, 1 << 20)
                 count += 1
+        skipped.log()
         path = root / configmod.CONFIG_NAME
         # The export's folders, wherever they were on the old computer, are now inside root.
         configmod.set_value(path, "server", "dir", '"server"')

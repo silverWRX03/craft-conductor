@@ -33,6 +33,22 @@ Source anchors: [web.py](https://github.com/silverWRX03/craft-conductor/blob/051
 
 Node-agent mutual authentication below is a proposed protocol, not a description of an existing verified implementation. The repository's mod-conflict relay is not a phone-control relay.
 
+### 1.2 Archive, restore and crash-consistency hardening (2026-10-04)
+
+Implemented with regression tests in `tests/security/` (`test_import_hardening.py`, `test_restore_hardening.py`, `test_config_editor_security.py`, `test_console_security.py`, `test_chaos_updates.py`) and per-loader flows in `tests/test_flows.py`. This covers part of WEB-09, WEB-10 and WEB-12 for local archives and files; it is not the full target architecture.
+
+| Area | Now enforced |
+| --- | --- |
+| Archive member names (world `.zip`, `.mrpack` overrides and downloads, server exports, backups) | One rule set (`safearchive.parts`): no absolute, drive, UNC or `..` paths, no `:` (alternate data streams), no Windows device names, no trailing dot/space, no control characters. Skipped members are logged once per archive with names escaped. |
+| Expansion and member-count bombs | Member count and member-list size read from the zip end record before `zipfile` loads the list; declared uncompressed totals capped; free disk space (plus a 256 MB reserve) checked before writing. Restore counts bytes and members while streaming. |
+| Links | Zip imports never create links; writes refuse to pass through existing links (`O_NOFOLLOW` where available); singleplayer world copies skip links and junctions; restore allows links only if they resolve inside the restored `server/` folder; the config editor refuses any linked path component. |
+| `level-name` | Must be a plain folder name before it is used for the world folder, **Replace world**, setup-time world import or the config editor's `serverconfig` folder. |
+| Restore | Staged next to the server, swapped in only after success, old folder put back if the final rename fails; interrupted swaps recovered on the next start. |
+| Update crash consistency | A journal written after the pre-update backup names the backup; recovery on the next start restores it unless `craft-conductor.lock.json` (fsynced) shows the update committed. |
+| Console | One-command APIs reject CR, LF, NUL and other control characters and overlong commands at both the web and stdin boundaries; rejections are logged without the command text. |
+
+Remaining: importing a modpack or server export still runs its code (mods, jars, launch settings) by design; Minecraft-server children can outlive a killed Craft Conductor; TOCTOU races against a local process running as the same user are out of scope.
+
 ## 2. Assets, adversaries, and trust boundaries
 
 ### 2.1 Protected assets

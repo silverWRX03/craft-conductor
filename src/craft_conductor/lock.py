@@ -79,4 +79,6 @@ def save(root: Path, lock: Lock, touch: bool = True) -> None:
     with os.fdopen(fd, "w") as f:
         json.dump(lock.to_dict(), f, indent=2)
         f.write("\n")
+        f.flush()
+        os.fsync(f.fileno())  # (an update counts as finished once this is on disk: manager.py)
     os.replace(tmp, root / LOCK_NAME)

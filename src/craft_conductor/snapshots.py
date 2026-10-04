@@ -171,7 +171,9 @@ def roll_back(archive: Path, m) -> str:
     craft-conductor settings and mod list. The server must be stopped."""
     note = load(archive)
     backup.restore(archive, m.server_dir)
-    if note is None:
+    forget = getattr(m, "forget_interrupted_update", lambda: None)  # (this backup was chosen: an interrupted
+    if note is None:                                                 # update mustn't put another one back)
+        forget()
         return f"restored {archive.name} (an older backup: only the files; run an update check to re-sync the mods)"
     root = m.config.root
     for name, text in ((CONFIG_NAME, note.get("toml")), (lockmod.LOCK_NAME, note.get("lock"))):
@@ -180,5 +182,6 @@ def roll_back(archive: Path, m) -> str:
             tmp.write_text(text)
             os.replace(tmp, root / name)
     m.lock = lockmod.load(root)
+    forget()
     m.reload_config()
     return f"rolled back to {archive.name}: Minecraft {note.get('minecraft')}, {len(note.get('mods', {}))} mod(s)"

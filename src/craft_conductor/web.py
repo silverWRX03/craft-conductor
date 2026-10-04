@@ -38,6 +38,7 @@ from typing import Any, Callable
 from . import __version__, backup, config as configmod, configs, licenses, limits, notice, passkeys, selfupdate, serverprops, setup as setupmod, stats, webauth
 from .config import ConfigError, ModSpec
 from .daemon import Daemon, set_current_server
+from .process import check_command
 from .hub import Hub
 from .minecraft import Mojang
 from .http import HttpError, sha1_file
@@ -2089,8 +2090,16 @@ class Api:
 
     def command(self, q, b) -> dict:
         command = str(b.get("command", "")).strip().lstrip("/")
-        if not command or "\n" in command:
-            raise ApiError(400, "enter a single command")
+        if not command:
+            raise ApiError(400, "enter a command")
+        if "\n" in command or "\r" in command:
+            log.warning("refused a console command from the control panel: it had a line break")
+            raise ApiError(400, "enter a single command (it can't have line breaks)")
+        try:
+            check_command(command)
+        except ValueError as e:
+            log.warning("refused a console command from the control panel: %s", e)
+            raise ApiError(400, str(e)) from None
         self.d.send_command(command)
         return {"ok": True}
 
@@ -3160,7 +3169,8 @@ class Api:
         """One of the server's folders, by name (never an arbitrary path)."""
         cfg, sd = self.m.config, self.m.server_dir
         if what == "world":
-            return sd / (read_properties(sd / "server.properties").get("level-name") or "world")
+            from . import world
+            return world.level_dir(sd)  # (never outside the server: level-name is checked)
         paths = {"server": cfg.root, "files": sd, "mods": sd / "mods", "config": sd / "config", "logs": sd / "logs",
                  "crash": sd / "crash-reports", "backups": cfg.backups.dir, "exports": self.exports_dir,
                  "manual": cfg.manual_dir, "java": cfg.state_dir / "java", "reports": cfg.state_dir / "logs"}
@@ -3289,10 +3299,10 @@ class Api:
         if not re.fullmatch(r"(save:)?[a-f0-9]{16}", choice):
             raise ApiError(400, "pick a world first")
         source = self.web.hub.world_source(choice)
+        dest = self.folder("world")  # (refused now, before anything is touched, if level-name isn't plain)
 
         def run():
             sd, cfg = self.m.server_dir, self.m.config
-            dest = self.folder("world")
             if dest.exists():
                 path = backup.create(sd, cfg.backups.dir, "before-new-world", cfg.backups.exclude)
                 log.info("backed up the old world to %s", path.name)

@@ -7,12 +7,21 @@
 Nothing in the server directory changes until every download has been fetched
 and hash-checked, so a network hiccup or a missing file can never leave the
 server half-upgraded.
+
+If Craft Conductor itself is stopped half-way (the computer turns off, the process is
+killed), ``.craft-conductor/update-in-progress.json`` says which backup to put back: the
+next start does that before anything else (:meth:`Manager.recover`). The update counts
+as finished once the new craft-conductor.lock.json is on disk.
 """
 
 from __future__ import annotations
 
 import copy
+import errno
+import hashlib
+import json
 import logging
+import os
 import shutil
 import time
 from dataclasses import dataclass
@@ -32,6 +41,9 @@ from .planner import Changes, Decision, Plan, Planner
 from .process import ServerProcess
 
 log = logging.getLogger(__name__)
+
+JOURNAL = "update-in-progress.json"
+INTERRUPTED = "Craft Conductor stopped in the middle of this update"
 
 
 class UpgradeError(Exception):
@@ -93,6 +105,111 @@ class Manager:
     @property
     def staging_dir(self) -> Path:
         return self.config.state_dir / "staging"
+
+    # ------------------------------------------------------ interrupted work
+    @property
+    def journal_path(self) -> Path:
+        return self.config.state_dir / JOURNAL
+
+    def _lock_stamp(self) -> str:
+        """craft-conductor.lock.json as it is on disk, in short."""
+        try:
+            return hashlib.sha256((self.config.root / lockmod.LOCK_NAME).read_bytes()).hexdigest()
+        except OSError:
+            return ""
+
+    def _journal_write(self, data: dict) -> None:
+        self.config.state_dir.mkdir(parents=True, exist_ok=True)
+        tmp = self.journal_path.with_name(JOURNAL + ".tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, self.journal_path)
+
+    def _journal_begin(self, title: str, archive: Path | None, plan: Plan) -> None:
+        """Note, before the first server file changes, what to put back if this run is cut off."""
+        self._journal_write({"title": title, "archive": str(archive) if archive else None, "lock": self._lock_stamp(),
+                             "plan": plan.fingerprint, "started": time.time()})
+
+    def _journal_end(self) -> None:
+        try:
+            self.journal_path.unlink(missing_ok=True)
+        except OSError as e:  # (harmless: a note older than the lock file counts as finished)
+            log.warning("couldn't remove %s: %s", self.journal_path.name, e)
+
+    def forget_interrupted_update(self) -> None:
+        """The server was restored by hand (after its lock file was): an interrupted update must not
+        put another backup back, and isn't tried again by itself either."""
+        try:
+            journal = json.loads(self.journal_path.read_text(encoding="utf-8"))
+            plan = str(journal.get("plan") or "")
+        except (OSError, ValueError, TypeError, AttributeError):
+            plan = ""
+        if plan:
+            self.lock = lockmod.load(self.config.root)
+            self.lock.failed_plans[plan] = str(journal.get("error") or INTERRUPTED)[:300]
+            lockmod.save(self.config.root, self.lock, touch=False)
+        self._journal_end()
+
+    def recover(self) -> str | None:
+        """Finish safely whatever a Craft Conductor that was stopped half-way left undone: an
+        update (its backup is put back), a restore or a world swap (the old folder is put back).
+        Run before starting the server or updating it. Returns what was done, if anything."""
+        from . import world
+        done = []
+        if backup.recover(self.server_dir):
+            done.append("the server folder was put back (a restore had been interrupted)")
+        try:
+            if world.recover(world.level_dir(self.server_dir)):
+                done.append("the world was put back (replacing it had been interrupted)")
+        except world.WorldError:
+            pass
+        if self.journal_path.exists():
+            done.append(self._recover_update())
+        message = "; ".join(done) or None
+        if message:
+            self.notifier.send(f"Craft Conductor was stopped in the middle of something: {message}.")
+        return message
+
+    def _recover_update(self) -> str:
+        try:
+            journal = json.loads(self.journal_path.read_text(encoding="utf-8"))
+            title, plan = str(journal.get("title") or "an update"), str(journal.get("plan") or "")
+            archive = Path(journal["archive"]) if journal.get("archive") else None
+            if archive is not None and archive.resolve().parent != self.config.backups.dir.resolve():
+                raise ValueError("its backup isn't in the server's backups folder")
+        except (OSError, ValueError, TypeError, AttributeError, KeyError):
+            log.warning("the note about an interrupted update is damaged; removing it")
+            self._journal_end()
+            return "a damaged note about an interrupted update was removed"
+        shutil.rmtree(self.staging_dir, ignore_errors=True)  # (its downloads, no longer needed either way)
+        if journal.get("lock") != self._lock_stamp():
+            # The new craft-conductor.lock.json was saved: the update had finished, only the note was left.
+            self._journal_end()
+            return f"the update ({title}) had finished"
+        if archive is None:  # (a first install into an empty folder: there was nothing to keep)
+            self._journal_end()
+            log.warning("an install (%s) was interrupted; it starts again from the beginning", title)
+            return f"the interrupted install ({title}) starts again"
+        if not archive.is_file():
+            self._journal_end()
+            log.error("an update (%s) was interrupted, and the backup made before it (%s) is gone: the server may be "
+                      "half-updated; restore a backup on the Backups page", title, archive.name)
+            return (f"the update ({title}) was interrupted and its backup {archive.name} is gone, so the server may be "
+                    "half-updated: restore a backup on the Backups page")
+        log.warning("the update (%s) was interrupted; putting the backup %s back", title, archive.name)
+        try:
+            backup.restore(archive, self.server_dir)
+        except Exception as e:  # (the note stays: the next start tries again)
+            raise UpgradeError(f"Craft Conductor was stopped in the middle of an update ({title}), and putting the "
+                               f"backup {archive.name} back failed: {e}") from e
+        self.lock = lockmod.load(self.config.root)
+        if plan:  # (not tried again by itself; a manual update still can)
+            self.lock.failed_plans[plan] = str(journal.get("error") or INTERRUPTED)[:300]
+            lockmod.save(self.config.root, self.lock, touch=False)
+        self._journal_end()
+        return f"the update ({title}) was interrupted, so the backup {archive.name} was put back"
 
     def reload_config(self) -> None:
         """Re-read craft-conductor.toml (after it was edited, e.g. from the web UI)."""
@@ -310,6 +427,11 @@ class Manager:
         With ``restart`` the upgraded (or rolled back) server is left running and
         returned in :attr:`Result.process`.
         """
+        if make_backup and not (server is not None and server.running):
+            try:
+                self.recover()  # (an earlier update cut off half-way is put right first)
+            except UpgradeError as e:
+                return Result(False, str(e), server)
         changes = plan.changes(self.lock)
         if changes.minecraft and self.lock.installed and plan.minecraft != self.lock.minecraft:
             local = self.unmanaged_jars()
@@ -340,14 +462,34 @@ class Manager:
         # A first install with no world yet has only the setup's own files: its backup is only for
         # putting them back if the install fails, and goes once it worked (not listed as a backup).
         worth_keeping = self.lock.installed or any(self.server_dir.glob("*/level.dat"))
-        if make_backup and self.server_dir.exists() and any(self.server_dir.iterdir()):
-            label = (f"before-install-{plan.minecraft}" if not old_mc else f"before-mod-updates-{plan.minecraft}"
-                     if old_mc == plan.minecraft else f"before-{old_mc}-to-{plan.minecraft}")
-            archive = backup.create(self.server_dir, self.config.backups.dir, label, self.config.backups.exclude)
-            from . import snapshots
-            snapshots.record(archive, self)
-            if worth_keeping:
-                backup.copy_out(archive, self.config.backups.copy_to, self.config.root.name, self.config.backups.copy_keep)
+        try:
+            if make_backup and self.server_dir.exists() and any(self.server_dir.iterdir()):
+                label = (f"before-install-{plan.minecraft}" if not old_mc else f"before-mod-updates-{plan.minecraft}"
+                         if old_mc == plan.minecraft else f"before-{old_mc}-to-{plan.minecraft}")
+                archive = backup.create(self.server_dir, self.config.backups.dir, label, self.config.backups.exclude)
+                from . import snapshots
+                snapshots.record(archive, self)
+                if worth_keeping:
+                    backup.copy_out(archive, self.config.backups.copy_to, self.config.root.name,
+                                    self.config.backups.copy_keep)
+            if make_backup:
+                self._journal_begin(title, archive, plan)
+        except Exception as e:
+            # Nothing in the server folder has changed: start the old version again.
+            shutil.rmtree(self.staging_dir, ignore_errors=True)
+            full = isinstance(e, OSError) and e.errno == errno.ENOSPC
+            message = (f"Update not done ({title}): the backup before it couldn't be made"
+                       + (" because the disk is full; free some space, or keep fewer backups" if full else f": {e}")
+                       + ". Nothing was changed.")
+            log.error("%s", message)
+            proc = None
+            if (restart or was_running) and self.lock.installed:
+                try:
+                    proc = self.start_server()
+                except Exception as e2:
+                    message += f"\nThe server also failed to start again: {e2}"
+            self.notifier.send(message)
+            return Result(False, message, proc)
 
         proc = None
         try:
@@ -368,6 +510,7 @@ class Manager:
             return self._rollback(plan, title, e, archive, (restart or was_running) and make_backup)
         finally:
             shutil.rmtree(self.staging_dir, ignore_errors=True)
+        self._journal_end()  # (the new lock file is saved: the update is done)
 
         if archive is not None and not worth_keeping:
             from . import snapshots
@@ -381,11 +524,26 @@ class Manager:
 
     def _rollback(self, plan: Plan, title: str, error: Exception, archive: Path | None,
                   restart: bool) -> Result:
+        reason = str(error).splitlines()[0][:300] if str(error) else repr(error)
         if archive:
-            backup.restore(archive, self.server_dir)
+            try:
+                backup.restore(archive, self.server_dir)
+            except Exception as e:
+                # The note about this update stays, so the next start puts the backup back first.
+                message = (f"Update failed ({title}): {error}\nPutting the backup {archive.name} back failed too: {e}\n"
+                           "The server wasn't started. If the disk is full, free some space; then start the server: "
+                           "Craft Conductor puts the backup back first.")
+                log.error("%s", message)
+                try:  # (the reason goes into the lock file once the backup is back)
+                    self._journal_write({**json.loads(self.journal_path.read_text(encoding="utf-8")), "error": reason})
+                except (OSError, ValueError, TypeError):
+                    pass
+                self.notifier.send(message)
+                return Result(False, message, None, archive)
         # Remember this exact combination so it is not retried until something changes.
-        self.lock.failed_plans[plan.fingerprint] = str(error).splitlines()[0][:300] if str(error) else repr(error)
+        self.lock.failed_plans[plan.fingerprint] = reason
         lockmod.save(self.config.root, self.lock, touch=False)
+        self._journal_end()
         message = f"Update failed and was rolled back ({title}): {error}"
         proc = None
         if restart and self.lock.installed:

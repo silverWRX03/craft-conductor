@@ -23,7 +23,7 @@ from typing import Any, Callable
 from . import __version__, notice, selfupdate, setup as setupmod
 from .http import HttpError
 from .manager import Manager, ManualDownloadRequired
-from .process import JOINED, LEFT, READY, ServerProcess
+from .process import JOINED, LEFT, READY, ServerProcess, check_command
 
 log = logging.getLogger(__name__)
 
@@ -238,6 +238,7 @@ class Daemon:
     def send_command(self, command: str) -> None:
         if not self.proc or not self.proc.running:
             raise RuntimeError("the server is not running")
+        check_command(command)  # (before it's shown in the console as if it ran)
         self.console.append(text=f"> {command}", source="user")
         self.proc.send(command)
 
@@ -275,6 +276,9 @@ class Daemon:
         if hub is not None:
             hub.check_port(self)
             hub.check_memory(self)
+        # An update, restore or world swap cut off half-way (the computer turned off) is put
+        # right before the server runs on half-changed files.
+        self.m.recover()
         self.want_running = True
         if not self.m.lock.installed:
             log.info("no server installed yet; installing")
@@ -289,6 +293,7 @@ class Daemon:
                 self.check_for_updates(allow_stopped=True)
             except Exception as e:
                 log.warning("update before starting failed (%s); starting the current version", e)
+                self.m.recover()  # (if its backup couldn't be put back, don't start half-updated files)
             if self.proc and self.proc.running:
                 return "updated and started"
         try:
@@ -808,10 +813,8 @@ class Daemon:
         setupmod.whitelist_as_chosen(self.m.server_dir, spec)  # a modpack's server.properties may turn it on
         if spec.world_source is not None:
             from . import world
-            from .properties import read_properties
-            level = read_properties(self.m.server_dir / "server.properties").get("level-name") or "world"
             log.info("bringing in your world")
-            world.install(spec.world_source, self.m.server_dir / level)
+            world.install(spec.world_source, world.level_dir(self.m.server_dir))
         log.info("setting up a %s server (Minecraft %s, %d mod(s))", self.m.config.server.loader,
                  self.m.config.server.minecraft, len(self.m.config.mods))
         self.check_only()
