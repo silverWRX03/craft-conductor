@@ -7,9 +7,11 @@ its fix will say which version it's in.
 ## 0.23.0 (not released yet)
 
 **Fixed**
+- Checkboxes and their labels line up in the Post the invite to Discord dialog, including on narrow screens.
 - Servers set to stay on one Minecraft version no longer claim another update check will unlock a newer version. Update readiness can explicitly check the selected version so its update can be reviewed and applied.
 
 **Added**
+- Discord invites can include Bedrock internet and local join links when Geyser is enabled, with the server address and configured Bedrock port.
 - Friends' mods land on the right side. A mod you pick for players (the friends part of **New server**, or **Mods for players** on the Friends page) that runs on both the client and the server is now also added to the server's own mods, with the mods it requires, and a message says so ("X also runs on the server, so it was added there too, with Y"). The list marks it **also on the server**, and removing it from the players' list asks whether to remove it from the server too. Mods that only run on players' computers stay with the players.
 
 - One shared Java for every server on this computer. Java that Craft Conductor downloads now goes into one folder (`craft-conductor/.craft-conductor/java/`, `/data/.craft-conductor/java/` in Docker) instead of a copy inside each server, so servers that need the same Java share one copy, downloaded once. The **Java** page shows each version's size, which servers use it, and how much sharing saves.

@@ -66,6 +66,52 @@ def test_post_the_invite(hub_env):
     assert c.post("/api/hub/discord", {"token": ""})[0] == 200 and not hub.discord_settings()["set"]
 
 
+def test_post_bedrock_invites(hub_env, monkeypatch):
+    from urllib.parse import parse_qs, urlsplit
+    from craft_conductor import config as configmod
+    from craft_conductor.config import ModSpec
+
+    hub, c = hub_env
+    login(c)
+    sent = fake_discord(hub.http)
+    monkeypatch.setattr("craft_conductor.cli.lan_ip", lambda: "192.168.1.42")
+    c.post("/api/hub/discord", {"token": TOKEN})
+    c.post("/api/servers/alpha/client", {"enabled": True})
+    request = {"guild": GUILD, "channel": CHANNEL, "links": ["bedrock_internet"]}
+    assert c.post("/api/servers/alpha/client/discord", request)[0] == 400
+    assert "bedrock_local" not in c.get("/api/servers/alpha/client")[1]["links"]
+
+    manager = hub.get("alpha").m
+    configmod.append_mod(manager.config.path, ModSpec("modrinth", "geyser", required=False))
+    manager.reload_config()
+    cfg = manager.server_dir / "config/Geyser-Fabric/config.yml"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text("bedrock:\n  port: 19133\nremote:\n  port: 25565\n")
+    hub.save_share(hub.share_settings()["port"], "mc.example.com", "download.example.com:4567")
+    links = c.get("/api/servers/alpha/client")[1]["links"]
+    for kind, host in (("internet", "mc.example.com"), ("local", "192.168.1.42")):
+        fragment = urlsplit(links[f"bedrock_{kind}"]).fragment
+        params = parse_qs(fragment.removeprefix("bedrock?"))
+        assert params["host"] == [host] and params["port"] == ["19133"]
+        assert manager.config.client.token not in links[f"bedrock_{kind}"]
+    status, body, _ = c.post("/api/servers/alpha/client/discord", request)
+    assert status == 200, body
+    embed = sent[-1]["embeds"][0]
+    assert links["bedrock_internet"] in embed["description"]
+    assert "download Craft Conductor" not in embed["footer"]["text"]
+    assert "<t:" not in embed["description"]  # Bedrock address links don't expire with Java downloads.
+    request["links"] = ["internet", "local", "bedrock_internet", "bedrock_local"]
+    assert c.post("/api/servers/alpha/client/discord", request)[0] == 200
+    assert all(link in sent[-1]["embeds"][0]["description"] for link in links.values() if link)
+    assert "Java invite works until <t:" in sent[-1]["embeds"][0]["description"]
+    hub.save_share(hub.share_settings()["port"], "", "download.example.com:4567")
+    assert c.get("/api/servers/alpha/client")[1]["links"]["bedrock_internet"] is None
+    request["links"] = ["bedrock_internet"]
+    assert c.post("/api/servers/alpha/client/discord", request)[0] == 400
+    request["links"] = ["bedrock_local"]
+    assert c.post("/api/servers/alpha/client/discord", request)[0] == 200
+
+
 def test_live_status_message(hub_env):
     """One message in a channel, kept up to date: posted once, edited when something changes,
     posted again if someone deleted it, and "craft-conductor is closed" at the end."""
