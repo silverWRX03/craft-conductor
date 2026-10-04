@@ -118,8 +118,9 @@ def test_daemon_boundary_does_not_bypass_serverprocess_crlf_guard(tmp_path) -> N
 
 
 # ------------------------------------------------- control characters, length, logs
+# (short ids: pytest puts the test's id in an environment variable, which Windows caps at 32767 characters)
 @pytest.mark.parametrize("payload", ["say hi\x00op attacker", "say \x1b[2Jcleared", "say a\x08\x08\x08stop",
-                                     "say " + "x" * 40000])
+                                     "say " + "x" * 40000], ids=["nul", "escape", "backspaces", "overlong"])
 def test_server_stdin_rejects_control_characters_and_overlong_commands(tmp_path, payload: str) -> None:
     server, stdin = _running_server_process(tmp_path)
     with pytest.raises(ValueError, match="control characters|too long"):
@@ -133,7 +134,8 @@ def test_tabs_and_unicode_are_ordinary_console_text(tmp_path) -> None:
     stdin.write.assert_called_once_with("say\tgrüße 日本 ✓\n")
 
 
-@pytest.mark.parametrize("payload", ["/say hi\rstop", "/say hi\x00", "/say \x1b]0;title\x07", "/say " + "y" * 40000])
+@pytest.mark.parametrize("payload", ["/say hi\rstop", "/say hi\x00", "/say \x1b]0;title\x07", "/say " + "y" * 40000],
+                         ids=["carriage-return", "nul", "escape", "overlong"])
 def test_web_console_refuses_and_logs_without_echoing_the_command(payload: str, caplog) -> None:
     import logging
     api, send = _api_with_command_spy()

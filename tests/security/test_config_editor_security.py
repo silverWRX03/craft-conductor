@@ -100,10 +100,21 @@ def test_paths_that_arent_editable_config_files_are_refused_plainly(server: Path
 
 def test_odd_but_ordinary_config_names_still_work(server: Path) -> None:
     name = "config/my mod (1) [beta] ünï 日本.toml"
-    (server / name).write_text("x = 1\n")
+    (server / name).write_bytes(b"x = 1\n")
     assert configs.read(server, name)["text"] == "x = 1\n"
     configs.write(server, server.parent / "bk", name, "x = 2\n")
-    assert (server / name).read_text() == "x = 2\n"
+    assert (server / name).read_bytes() == b"x = 2\n"
+
+
+@pytest.mark.skipif(__import__("os").name == "nt", reason="Windows has no Unix permission bits")
+def test_a_saved_config_file_is_never_world_writable_even_with_a_zero_umask(server: Path) -> None:
+    import os
+    old = os.umask(0)
+    try:
+        configs.write(server, server.parent / "bk", "config/mod.toml", "a = 2\n")
+    finally:
+        os.umask(old)
+    assert not (server / "config" / "mod.toml").stat().st_mode & 0o022
 
 
 def test_the_list_shows_no_file_the_editor_would_refuse(tmp_path: Path, server: Path) -> None:

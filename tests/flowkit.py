@@ -87,6 +87,11 @@ SERVER = textwrap.dedent("""\
         cmd = line.strip()
         if cmd == "list":
             print("[12:00:01] [Server thread/INFO]: There are 0 of a max of 20 players online:", flush=True)
+        elif cmd == "crash-now":  # (a crash: the server process ends by itself, like Minecraft's)
+            print("[Server thread/ERROR]: Encountered an unexpected exception", flush=True)
+            sys.stdout.flush()
+            import os
+            os._exit(3)
         elif cmd.startswith(("save-", "say ")):
             print(f"[12:00:01] [Server thread/INFO]: {cmd}", flush=True)
         elif cmd == "stop":
@@ -239,6 +244,12 @@ def wait_for(condition, timeout: float = 30.0, what: str = "condition") -> None:
             return
         time.sleep(0.05)
     raise AssertionError(f"timed out waiting for {what}")
+
+
+def crash(proc) -> None:
+    """Make a running stand-in server crash, and wait until it has."""
+    proc.send("crash-now")
+    proc.proc.wait(10)
 
 
 class FastEvent(threading.Event):

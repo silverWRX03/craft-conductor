@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import struct
 import zipfile
 from pathlib import Path
@@ -360,3 +361,14 @@ def test_a_world_zipped_with_backslashes_imports(tmp_path: Path) -> None:
     dest = tmp_path / "world"
     world.install(archive, dest)
     assert (dest / "region" / "r.0.0.mca").read_bytes() == b"r"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows has no Unix permission bits")
+def test_unpacked_files_are_never_world_writable_even_with_a_zero_umask(tmp_path: Path) -> None:
+    archive = _zip(tmp_path / "w.zip", {"world/level.dat": b"x"})
+    old = os.umask(0)
+    try:
+        world.install(archive, tmp_path / "world")
+    finally:
+        os.umask(old)
+    assert not (tmp_path / "world" / "level.dat").stat().st_mode & 0o022

@@ -69,8 +69,7 @@ def test_a_server_lives_through_its_whole_life(loader, tmp_path, http, modrinth,
 
         # The server process dies: it's restarted.
         dead = d.proc
-        dead.proc.kill()
-        dead.proc.wait(10)
+        flowkit.crash(dead)
         d._handle_crash()
         flowkit.wait_for(lambda: d.proc is not dead and d.proc.running and d.job is None, what="restart after a crash")
         assert any("crashed" in n and "restarting" in n for n in notes)
@@ -151,12 +150,10 @@ def test_a_server_that_keeps_crashing_is_given_up_on(tmp_path, http, modrinth, f
     try:
         for _ in range(daemonmod.MAX_CRASHES):
             dead = d.proc
-            dead.proc.kill()
-            dead.proc.wait(10)
+            flowkit.crash(dead)
             d._handle_crash()
             flowkit.wait_for(lambda: d.proc is not dead and d.proc.running and d.job is None, what="a restart")
-        d.proc.proc.kill()
-        d.proc.proc.wait(10)
+        flowkit.crash(d.proc)
         d._handle_crash()
         assert not d.want_running
         assert any("not restarting" in n for n in notes)
