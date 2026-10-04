@@ -195,7 +195,9 @@ def test_failed_backup_write_never_becomes_listed_backup(tmp_path: Path, monkeyp
 
     assert backup.list_backups(backups) == []
     assert not list(backups.glob("*.tar.gz"))
-    assert list(backups.glob("*.part"))
+    # Unlike a SIGKILL (above), an exception lets create() remove its unfinished file, so a
+    # failure (a full disk especially) doesn't keep the space.
+    assert not list(backups.glob("*.part"))
 
 
 def test_self_update_hash_mismatch_never_replaces_binary(tmp_path: Path) -> None:

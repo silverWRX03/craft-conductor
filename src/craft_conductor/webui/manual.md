@@ -85,7 +85,7 @@ The mods in these run on the server only, so friends join with plain Minecraft. 
 - **Required** mods decide which Minecraft version the server starts on; every mod holds back upgrades until it supports the new version.
 - **Test these mods** checks they work together before you create the server.
 
-**4. World.** A new world (seed, type, structures, hardcore), or **Import a world**: a singleplayer save or a world `.zip` from any Java version.
+**4. World.** A new world (seed, type, structures, hardcore), or **Import a world**: a singleplayer save or a world `.zip` from any Java version. Files in a `.zip` that would land outside the world's folder, or that Windows can't have (like `NUL` or a name with `:`), are left out, and so are links (shortcuts) in a singleplayer save; the activity log says which. A world bigger than the free disk space is refused before anything is written.
 
 **World generation & map preview** (under the new world's settings) slides open beside the form:
 
@@ -172,7 +172,7 @@ The general warning has **Don't ask me again**; a memory shortage or a heavy ser
 
 ## Console
 
-Minecraft's live output. Type a server command (without the `/`, e.g. `say hello`) and press **Send**; the up/down arrows recall earlier commands. **Logs folder** and **Crash reports** open those folders (on the server's own computer).
+Minecraft's live output. Type a server command (without the `/`, e.g. `say hello`) and press **Send**; the up/down arrows recall earlier commands. One command at a time: a command with a line break or other control characters is refused (a line break would sneak in a second command). **Logs folder** and **Crash reports** open those folders (on the server's own computer).
 
 ## Players
 
@@ -184,7 +184,7 @@ Players online and players who have joined before, with **Op/De-op**, **Kick**, 
 
 ## Mods
 
-Installed mods with their versions: **Download mods** (the mod browser), **Local files**, mark a mod required or optional, **Remove** it (with the mods it needed, if nothing else needs them), and **Mod config files** to edit a mod's settings in the page (with colours for TOML, JSON, YAML and more). **Test these mods** checks a set of mods in a throwaway server, so your world is never touched; if they don't start together, **Find the culprits** adds them back a group at a time until it knows which ones clash. Changes apply at the next restart.
+Installed mods with their versions: **Download mods** (the mod browser), **Local files**, mark a mod required or optional, **Remove** it (with the mods it needed, if nothing else needs them), and **Mod config files** to edit a mod's settings in the page (with colours for TOML, JSON, YAML and more; files reached through a link, such as a config folder shared between servers, are left out, so the editor never changes a file outside the server). **Test these mods** checks a set of mods in a throwaway server, so your world is never touched; if they don't start together, **Find the culprits** adds them back a group at a time until it knows which ones clash. Changes apply at the next restart.
 
 **Known conflicts:** when other people found that mods on this page don't work together (on the same loader and Minecraft version), a warning says which, and how many people reported it. It comes from Craft Conductor's shared list of mod conflicts (see Craft Conductor settings → Connections → Mod conflicts). If your server starts fine, you can ignore it.
 
@@ -201,6 +201,8 @@ Craft Conductor checks for updates by itself and applies them when it's safe:
 - **Mod updates** for your Minecraft version are applied at the next restart.
 - **A new Minecraft version** is only used once every mod supports it. Until then, **Show why** lists every mod in green (ready), yellow (ready, but only with an alpha/beta build) or red (no build yet), and the loader.
 - Before every update Craft Conductor makes a backup; if the new version doesn't start, it rolls back by itself. Players get an in-game countdown first.
+- If that backup can't be made (the disk is full, say), the update isn't done: the server keeps the version it has and is started again, and you're told why.
+- If Craft Conductor is stopped in the middle of an update (the computer turns off or crashes), the next start puts the backup back before the server runs, so it never runs half-updated, and you're told. That update isn't tried again by itself: update from this page to try it again.
 - Once a month, Craft Conductor reminds you which mods are holding the server back, so you can decide to drop them.
 - **Rehearse it on a copy first** (when an update is ready) tries the update before it touches your server. Craft Conductor copies the server and its world (saving is paused for a moment while it copies), installs the update on the copy and runs it for the time you pick under **Watch it for**, on a private port nobody can join. The report says whether it started and how long that took, how well it kept up (TPS: 20 is perfect), how often it fell behind, and which mods wrote warnings or errors in the log (open a mod to see its lines). Then **Update for real** does the real update (with its backup, as always). If the copy didn't start or stopped by itself, the report names the mod it blames; the button becomes **Update anyway**, but it's better to update or remove that mod first. **Apply update ✓** means this exact update has worked on a copy.
 - A rehearsal needs free disk space for a copy of the server, and makes the computer work harder while it runs. While the real server runs, the copy gets less memory if the computer is short of it (the report says so, and the copy may seem slower than the real update will be). The copy is deleted afterwards.
@@ -212,6 +214,8 @@ Craft Conductor checks for updates by itself and applies them when it's safe:
 **Create backup** saves the server (worlds, mods, configs) as a `.tar.gz`, even while it runs. Craft Conductor also backs up before every update. The newest 10 are kept (change it in Settings).
 
 Each backup is a **snapshot** of the whole server: besides the files, Craft Conductor notes the Minecraft version, the mods, the server's settings, its mod config files and Craft Conductor's own settings for it. So the list says, for each backup, **what changed since the one before** (mods added, removed or updated, a new Minecraft, settings, config files, the world's size), and **Roll back to this** (with the server stopped) first lists exactly what it will undo, then puts all of it back: the world, the mods, the configs, and Craft Conductor's settings and mod list. Backups made by Craft Conductor before 0.15 only hold the files: **Restore** puts those back, and an update check then puts the mod list right.
+
+**Restoring safely:** a backup is unpacked next to the server first, and the server is only replaced once that worked. A backup that's damaged or cut short, one holding a file or link that would end up outside the server's folder, or one bigger than the free disk space is refused, and the server is left exactly as it was. A backup cut short (the disk filled up, or Craft Conductor was stopped while making it) is never listed, and its unfinished file is removed.
 
 - **Can be restored:** each backup is read back right after it's made (every file, and the world's `level.dat`), and marked **✓ checked**, or says what's wrong with it (a message tells you too). **Check** reads an older one.
 - **Put back an area…** (with the server stopped) undoes damage in one place, like griefing or a creeper crater, and keeps everything else in the world as it is now. Type two opposite corners (the x and z numbers F3 shows in the game) and pick the Overworld, the Nether or the End. The chunks there go back to how they were in that backup: blocks, chests, animals and villagers; players' inventories don't change. Craft Conductor backs up the world first, so you can undo it.
@@ -402,6 +406,14 @@ Everything in Craft Conductor works with the keyboard and a screen reader (NVDA,
 **"NeoForge's download site lists only … right now".** NeoForge's own site sometimes has an incomplete list of its builds for a few hours. A new NeoForge server can't be made until NeoForge fixes it: try again later. Servers that already run NeoForge keep the NeoForge they have, and still get their mod updates.
 
 **"Its file has a name that isn't safe to save".** The mod's author gave that build's file a name that would put it outside the mods folder, or one Windows can't use. Craft Conductor leaves it out (or waits, if the mod is required) until the author fixes it.
+
+**"The world's folder name (level-name in server.properties) must be a plain folder name".** The world folder setting points outside the server's folder (it can come with a modpack, an imported server or a backup). Pick a plain name, like `world`, under the server's Settings → World folder name.
+
+**"Left … file(s) out of …" in the activity log.** A world, modpack, server export or backup held files with names that could have been written outside their folder, or that Windows can't have (such as `NUL`, or a name with `:`). Those files were skipped and everything else was brought in. If something you need is missing, look at where the file came from.
+
+**"There isn't enough free disk space for …".** Importing, restoring or unpacking it would have filled the disk (Craft Conductor keeps 256 MB free for Minecraft to save the world). Free some space, or delete old backups or exports, and try again.
+
+**"Craft Conductor was stopped in the middle of something".** The computer turned off, or Craft Conductor was closed, during an update, a restore or a world swap. On the next start Craft Conductor put things back the way they were before (from the backup made before the update). If it says the backup couldn't be put back, free some disk space and start the server again, or pick an earlier backup on the Backups page.
 
 **The day theme stays dark.** Your browser is forcing dark mode on pages (Chrome's "Auto Dark Mode for Web Contents", or a dark-mode extension). Craft Conductor 0.8.1 and newer keep the day theme light anyway.
 

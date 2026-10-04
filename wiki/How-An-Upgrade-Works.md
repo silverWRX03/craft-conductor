@@ -35,12 +35,24 @@ ready to update to Minecraft 1.21.4 with fabric 0.16.14:
 2. **Stage:** make sure any manual downloads are present, get the right Java, download
    everything into `.craft-conductor/staging/`, verify hashes, and run the loader installer. If anything fails here, the live server hasn't been touched.
 3. **Warn and stop:** in-game countdown, then a graceful `stop`.
-4. **Back up** the server directory to `backups/` (old backups are pruned).
+4. **Back up** the server directory to `backups/` (old backups are pruned). If the backup
+   can't be made (a full disk), the update stops here and the old version is started again.
+   Then Craft Conductor writes `.craft-conductor/update-in-progress.json`, naming that backup.
 5. **Swap:** remove the old managed mod jars and loader files, then move the new ones in.
 6. **Verify:** boot the server and wait for `Done (…)!`.
-7. **Commit or roll back:** on success, record the new state in `craft-conductor.lock.json`. On
-   failure, restore the backup, restart the old version, and remember the failed
-   combination.
+7. **Commit or roll back:** on success, record the new state in `craft-conductor.lock.json`
+   (written to disk before anything else) and remove the note. On failure, restore the
+   backup, restart the old version, and remember the failed combination.
+
+If Craft Conductor is stopped anywhere in steps 4–7 (the power goes, the process is
+killed), the note is still there on the next start. If `craft-conductor.lock.json` still
+matches the note, the update never finished: the backup is put back before the server
+runs, and the combination is remembered as failed (`craft-conductor update` tries it again).
+If the lock file has changed, the update had finished and only the note is removed. A
+restore or world swap cut off half-way is put right the same way (the old folder is kept
+until the new one is in place). If the backup can't be put back (a full disk, a damaged
+file), the server isn't started on half-updated files: free some space, or restore another
+backup.
 
 > World upgrades are one-way: once a world has been opened in a newer Minecraft
 > version, older versions can't load it. That's why every upgrade makes a full backup

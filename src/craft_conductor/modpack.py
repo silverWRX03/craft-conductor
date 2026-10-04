@@ -21,9 +21,9 @@ import re
 import shutil
 import tempfile
 import zipfile
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
-from . import config as configmod
+from . import config as configmod, safearchive
 from .config import ModSpec
 from .http import HttpClient
 from .mods.base import ModError
@@ -36,22 +36,23 @@ MODRINTH_FILE = re.compile(r"^https://cdn\.modrinth\.com/data/([A-Za-z0-9]{8})/v
 DOWNLOAD_HOSTS = ("https://cdn.modrinth.com/", "https://github.com/", "https://raw.githubusercontent.com/",
                   "https://gitlab.com/")
 MAX_PACK = 512 << 20
+MAX_UNPACKED_PACK = 2 << 30   # the pack's own files (configs, scripts, resource packs), unpacked
+MAX_PACK_FILES = 50_000
+MAX_INDEX = 16 << 20          # modrinth.index.json
+OVERRIDES = ("overrides/", "server-overrides/")  # in this order: the server's own overrides win
 
 
 class ModpackError(ModError):
     pass
 
 
-def _safe_target(base: Path, relative: str) -> Path | None:
-    """``base / relative`` if it stays inside ``base`` (no absolute paths or ``..``)."""
-    parts = PurePosixPath(relative.replace("\\", "/")).parts
-    if not parts or any(p in ("..", "") for p in parts) or relative.startswith(("/", "\\")) or ":" in parts[0]:
-        return None
-    target = base.joinpath(*parts)
+def _safe_target(base: Path, relative: str) -> Path:
+    """``base / relative`` if it stays inside ``base``; raises safearchive.UnsafeName."""
+    target = base.joinpath(*safearchive.parts(relative))
     try:
         target.resolve().relative_to(base.resolve())
     except ValueError:
-        return None
+        raise safearchive.UnsafeName("it would be written through a link to outside the server folder") from None
     return target
 
 
@@ -69,16 +70,56 @@ def version_info(http: HttpClient, version_id: str) -> dict:
 
 
 def read_index(pack: Path) -> tuple[dict, zipfile.ZipFile]:
-    z = zipfile.ZipFile(pack)
+    safearchive.check_zip(pack, MAX_PACK_FILES, ModpackError)
     try:
-        index = json.loads(z.read("modrinth.index.json"))
-    except (KeyError, ValueError) as e:
+        z = zipfile.ZipFile(pack)
+    except (zipfile.BadZipFile, zipfile.LargeZipFile, OSError) as e:
+        raise ModpackError("that file isn't a Modrinth modpack (.mrpack), or it's damaged") from e
+    try:
+        info = z.getinfo("modrinth.index.json")
+        if info.file_size > MAX_INDEX:
+            raise ModpackError("that modpack's list of files is too big")
+        index = json.loads(z.read(info))
+    except (KeyError, ValueError, zipfile.BadZipFile, EOFError) as e:
         z.close()
+        if isinstance(e, ModpackError):
+            raise
         raise ModpackError("that file isn't a Modrinth modpack (no modrinth.index.json)") from e
+    files, deps = index.get("files", []) if isinstance(index, dict) else None, \
+        index.get("dependencies", {}) if isinstance(index, dict) else None
+    if not isinstance(files, list) or not all(isinstance(f, dict) for f in files) or not isinstance(deps, dict):
+        z.close()
+        raise ModpackError("that modpack's modrinth.index.json is damaged")
     if index.get("game") != "minecraft":
         z.close()
         raise ModpackError("that modpack isn't for Minecraft: Java Edition")
     return index, z
+
+
+def _override_members(z: zipfile.ZipFile, server_dir: Path, what: str) -> list[tuple[zipfile.ZipInfo, tuple[str, ...]]]:
+    """The pack's own files to copy (overrides/, then server-overrides/), checked before anything
+    is written: names that could land outside the server folder are left out (and logged), and
+    a pack that unpacks to too much, or more than the disk has room for, is refused."""
+    infos = z.infolist()
+    if len(infos) > MAX_PACK_FILES:  # (the end record understated it)
+        raise ModpackError(f"that modpack holds too many files ({len(infos):,}; at most {MAX_PACK_FILES:,})")
+    skipped = safearchive.Skipped(what)
+    out = []
+    for prefix in OVERRIDES:
+        for member in infos:
+            if member.filename.startswith(prefix) and not member.is_dir():
+                try:
+                    out.append((member, safearchive.parts(member.filename[len(prefix):])))
+                except safearchive.UnsafeName as e:
+                    skipped.add(member.filename, str(e))
+    skipped.log()
+    total = sum(m.file_size for m, _ in out)
+    if total > MAX_UNPACKED_PACK:
+        log.warning("refused %s: its files unpack to %s (at most %s)", what, safearchive.size_words(total),
+                    safearchive.size_words(MAX_UNPACKED_PACK))
+        raise ModpackError(f"that modpack is too big: its files unpack to {safearchive.size_words(total)}")
+    safearchive.ensure_space(server_dir, total, ModpackError, "that modpack")
+    return out
 
 
 def apply(root: Path, version_id: str, http: HttpClient) -> dict:
@@ -100,6 +141,9 @@ def apply_file(root: Path, pack: Path, http: HttpClient, name: str = "") -> dict
             raise ModpackError("the modpack doesn't say which Minecraft version it's for")
         loaders = [LOADER_KEYS[k] for k in deps if k in LOADER_KEYS]
         loader = loaders[0] if loaders else "vanilla"
+        what = f"the modpack {safearchive.printable(name or str(index.get('name') or pack.name))}"
+        # Every check that can refuse the pack happens before the server's settings change.
+        overrides = _override_members(z, configmod.load(root).server.dir, what)
         cfg_path = root / configmod.CONFIG_NAME
         configmod.set_value(cfg_path, "server", "loader", json.dumps(loader))
         configmod.set_value(cfg_path, "server", "minecraft", json.dumps(minecraft))
@@ -110,13 +154,16 @@ def apply_file(root: Path, pack: Path, http: HttpClient, name: str = "") -> dict
         listed = {s.id for s in cfg.mods}
 
         added, local, skipped = [], [], 0
+        unsafe = safearchive.Skipped(f"the downloads listed by {what}")
         for f in index.get("files", []):
             if (f.get("env") or {}).get("server") == "unsupported":
                 skipped += 1
                 continue
             path = str(f.get("path", ""))
-            target = _safe_target(server_dir, path)
-            if target is None:
+            try:
+                target = _safe_target(server_dir, path)
+            except safearchive.UnsafeName as e:
+                unsafe.add(path, str(e))
                 continue
             urls = [u for u in f.get("downloads", []) if isinstance(u, str)]
             m = next((MODRINTH_FILE.match(u) for u in urls if MODRINTH_FILE.match(u)), None)
@@ -135,17 +182,18 @@ def apply_file(root: Path, pack: Path, http: HttpClient, name: str = "") -> dict
             http.download(url, target, sha1=hashes.get("sha1"), sha512=hashes.get("sha512"))
             local.append(path)
 
+        unsafe.log()
         copied = 0
-        for prefix in ("overrides/", "server-overrides/"):  # the server's own overrides win
-            for member in z.infolist():
-                if member.filename.startswith(prefix) and not member.is_dir():
-                    target = _safe_target(server_dir, member.filename[len(prefix):])
-                    if target is None:
-                        continue
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    with z.open(member) as src, open(target, "wb") as out:
-                        shutil.copyfileobj(src, out)
-                    copied += 1
+        blocked = safearchive.Skipped(what)
+        for member, parts in overrides:
+            try:
+                with safearchive.open_new(server_dir, parts) as out, z.open(member) as src:
+                    shutil.copyfileobj(src, out, 1 << 20)
+            except safearchive.UnsafeName as e:
+                blocked.add(member.filename, str(e))
+                continue
+            copied += 1
+        blocked.log()
     title = name or index.get("name", "modpack")
     log.info("applied %s: Minecraft %s, %s, %d mods from Modrinth, %d other files, %d config files",
              title, minecraft, loader, len(added), len(local), copied)

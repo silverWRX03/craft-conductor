@@ -20,6 +20,19 @@ PLAYERS = re.compile(r"There are (\d+) (?:of a max of|/) ?(\d+) players online")
 # Anchored right after the logger prefix so chat ("<Steve> Bob joined the game") can't spoof it.
 JOINED = re.compile(r"\]: ([A-Za-z0-9_]{1,16}) joined the game$")
 LEFT = re.compile(r"\]: ([A-Za-z0-9_]{1,16}) left the game$")
+MAX_COMMAND = 32767  # Minecraft's own limit for a command's text
+_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")  # (tabs are fine; line breaks are refused first)
+
+
+def check_command(command: str) -> None:
+    """Refuse console text that isn't exactly one command: a line break would start a second
+    command, and other control characters (NUL especially) confuse the server's console."""
+    if "\n" in command or "\r" in command:
+        raise ValueError("a console command is one line")
+    if _CONTROL.search(command):
+        raise ValueError("a console command can't contain control characters")
+    if len(command) > MAX_COMMAND:
+        raise ValueError(f"that command is too long (at most {MAX_COMMAND} characters)")
 
 
 class ServerProcess:
@@ -100,14 +113,15 @@ class ServerProcess:
     def send(self, command: str) -> None:
         if not self.running or not self.proc or not self.proc.stdin:
             raise RuntimeError("server is not running")
-        if "\n" in command or "\r" in command:  # (a new line would start a second command)
-            raise ValueError("a console command is one line")
+        check_command(command)
         self.proc.stdin.write(command + "\n")
         self.proc.stdin.flush()
 
     def say(self, message: str) -> None:
+        """Tell everyone on the server. Messages are often built from names Craft Conductor didn't
+        choose (mods, versions, reasons): line breaks and control characters become spaces."""
         if self.running:
-            self.send(f"say {message}")
+            self.send("say " + " ".join(re.sub(r"[\x00-\x1f\x7f]", " ", message).split())[:1000])
 
     def players_online(self, timeout: float = 5) -> int | None:
         """Ask the server how many players are online (None if it doesn't answer)."""

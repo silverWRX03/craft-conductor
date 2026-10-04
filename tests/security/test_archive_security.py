@@ -182,19 +182,12 @@ def test_modpack_override_cannot_follow_preexisting_symlink(
     assert not (outside / "owned.txt").exists(), "override extraction followed a symlink outside server.dir"
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Known security gap on current main: modpack overrides have a compressed-file cap but no "
-        "total uncompressed extraction cap. Remove this xfail after adding an expansion limit."
-    ),
-    strict=False,
-)
 def test_modpack_override_zip_bomb_requires_uncompressed_limit(
     tmp_path: Path, make_config, http, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cfg = make_config()
     # This is a test-scale stand-in for a many-gigabyte expansion bomb.
-    monkeypatch.setattr(modpack, "MAX_UNPACKED_PACK", 1 << 20, raising=False)
+    monkeypatch.setattr(modpack, "MAX_UNPACKED_PACK", 1 << 20)
     pack = _write_modpack(
         tmp_path / "override-bomb.mrpack",
         {"overrides/config/bomb.bin": b"\0" * (2 << 20)},
@@ -216,11 +209,13 @@ def test_backup_restore_rejects_tar_path_traversal_without_touching_live_server(
         _add_tar_bytes(tar, "server/level.dat", b"new")
         _add_tar_bytes(tar, "server/../../escaped.txt", b"owned")
 
-    with pytest.raises(tarfile.FilterError):
+    with pytest.raises(backup.RestoreError, match="outside the server folder") as exc:
         backup.restore(archive, server)
 
+    assert isinstance(exc.value.__cause__, tarfile.FilterError)
     assert (server / "sentinel.txt").read_text() == "old"
     assert not (tmp_path / "escaped.txt").exists()
+    assert not server.with_name("server.restoring").exists(), "a refused restore must not leave its staging behind"
 
 
 def test_backup_restore_absolute_member_cannot_overwrite_outside_restore(tmp_path: Path) -> None:
@@ -239,7 +234,7 @@ def test_backup_restore_absolute_member_cannot_overwrite_outside_restore(tmp_pat
     # cannot write outside the restore staging directory.
     try:
         backup.restore(archive, server)
-    except tarfile.FilterError:
+    except backup.RestoreError:
         pass
 
     assert not outside.exists(), "an absolute tar member wrote outside the restore staging directory"
@@ -257,9 +252,10 @@ def test_backup_restore_rejects_link_outside_destination(tmp_path: Path) -> None
         link.linkname = "../../outside.txt"
         tar.addfile(link)
 
-    with pytest.raises(tarfile.FilterError):
+    with pytest.raises(backup.RestoreError, match="outside the server folder") as exc:
         backup.restore(archive, server)
 
+    assert isinstance(exc.value.__cause__, tarfile.FilterError)
     assert (server / "sentinel.txt").read_text() == "old"
     assert not (tmp_path / "outside.txt").exists()
 
@@ -279,17 +275,10 @@ def test_backup_label_special_characters_cannot_escape_backup_directory(tmp_path
     assert made.name.endswith(backup.SUFFIX)
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Known security gap on current main: backup.restore() relies on tarfile's path/link filter "
-        "but does not cap total uncompressed bytes. Remove this xfail after adding a restore-size limit."
-    ),
-    strict=False,
-)
 def test_backup_restore_bomb_requires_uncompressed_limit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(backup, "MAX_RESTORE_BYTES", 1 << 20, raising=False)
+    monkeypatch.setattr(backup, "MAX_RESTORE_BYTES", 1 << 20)
     archive = tmp_path / "restore-bomb.tar.gz"
     with tarfile.open(archive, "w:gz") as tar:
         _add_tar_bytes(tar, "server/level.dat", b"new")

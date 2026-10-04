@@ -855,7 +855,12 @@ def cmd_restore(args) -> int:
         return 1
     if not args.yes and input(f"replace {m.server_dir} with {archive.name}? [y/N] ").strip().lower() != "y":
         return 1
-    backup.restore(archive, m.server_dir)
+    try:
+        backup.restore(archive, m.server_dir)
+    except backup.RestoreError as e:
+        print(e)
+        return 1
+    m.forget_interrupted_update()
     print(f"restored {archive.name}")
     print("note: craft-conductor.lock.json was not changed; run `craft-conductor update` to re-sync mods with craft-conductor.toml")
     return 0
