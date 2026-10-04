@@ -1384,7 +1384,7 @@ function laggingNotice(lag, installed, always = false) {
     h("strong", {}, lag.due ? `Minecraft ${lag.version} came out ${lag.days} days ago, and ${lag.mods.length === 1 ? "a mod hasn't" : `${lag.mods.length} mods haven't`} caught up`
       : `Minecraft ${lag.version} is out; waiting for ${lag.mods.length === 1 ? "a mod" : `${lag.mods.length} mods`} to support it`),
     h("p", { class: "small" }, `The server stays on Minecraft ${installed} until every mod supports ${lag.version}, so nothing breaks. ` +
-      (lag.due ? "You can wait longer, or remove these mods and update now:" : `craft-conductor reminds you ${lag.remind_days} days after the release if they still haven't. These are:`)),
+      (lag.due ? "You can wait longer, or remove these mods and update now:" : `Craft Conductor reminds you ${lag.remind_days} days after the release if they still haven't. These are:`)),
     h("ul", { class: "small" }, lag.mods.map((m) => h("li", {}, h("strong", {}, m.name), m.required ? h("span", { class: "tag" }, "required") : null,
       h("span", { class: "muted" }, ` — ${m.reason}`)))),
     h("div", { class: "row" },
@@ -3577,20 +3577,33 @@ function routerHelp(opts = {}) {
       h("button", { type: "button", class: "link-btn", onclick: openRemoteAccess }, "Remote access & phones"), " instead."));
 }
 
+// A picture of a screen (webui/screenshots: example servers, retaken by tests/test_screenshots.py),
+// with what it shows underneath. Pressing it opens it full size. (A phone's screen is shown narrow.)
+function screenshot(name, caption) {
+  const src = `/screenshots/${name}.png`;
+  return h("figure", { class: "help-shot" },
+    h("a", { href: src, target: "_blank", rel: "noopener noreferrer", title: "Open it full size" },
+      h("img", { class: "help-img" + (name.startsWith("phone") ? " narrow" : ""), src, alt: caption, loading: "lazy" })),
+    h("figcaption", { class: "muted small" }, caption));
+}
+
 const HELP = [
   ["navigation", "Finding your way", () => [
     h("p", {}, "Help and User manual keep your current page open underneath. Use the contents on the left, then Close Help or Escape to return to the same place, with your unsaved entries intact."),
     h("p", {}, "Craft Conductor settings are grouped into Appearance, Sounds & notifications, Sign-in & security, Connections, and About & updates."),
-    h("img", { class: "help-img", src: "/screenshots/craft-conductor-settings.png", alt: "Craft Conductor settings with section navigation", loading: "lazy" }),
+    screenshot("craft-conductor-settings", "Craft Conductor settings: pick a section on the left."),
     h("p", {}, "Update readiness uses green for releases, yellow for early builds, red for missing builds and gray when compatibility could not be checked. A Minecraft upgrade waits for unverified local files. World-generation mods bring their required mods; if one only has an early build, adding it asks you first."),
     h("p", {}, "Bedrock setup checks both Geyser and Floodgate, and offers compatible early builds with a confirmation when releases are unavailable.")]],
   ["start", "Getting started", () => [
     h("p", {}, "Craft Conductor keeps your Minecraft servers running and up to date by themselves. Make a server under ", h("strong", {}, "New server"),
       ": pick the server type (Fabric, NeoForge, Forge, Quilt, Paper or plain Minecraft), the Minecraft version and your mods, then press ",
       h("strong", {}, "Create my server"), ". Craft Conductor downloads Java, Minecraft, the mod loader and the mods, and checks that the server starts."),
+    screenshot("new-server", "New server: start from a ready-made choice, or pick each step yourself."),
     h("p", {}, "Press ", h("strong", {}, "Start"), " when you want to play. In Minecraft, choose Multiplayer → Add Server and use this computer's address."),
+    screenshot("dashboard", "A running server's Dashboard: how busy it is, who's on, and the live console."),
     h("p", {}, "Something not working? Press ", h("strong", {}, "🩺 Check my setup"), " on the server's Dashboard: it checks the usual causes ",
       "(Java, memory, disk space, the port, the firewall) and says what to do. ", h("strong", {}, "Test from the internet"), " there checks friends outside your home can connect."),
+    screenshot("check-my-setup", "Check my setup: each check with what to do, and a button where Craft Conductor can fix it."),
     h("p", {}, "To play on this computer too, press ", h("strong", {}, "Play on this computer"), " on the server's Dashboard: Craft Conductor sets up Minecraft here ",
       "with the server's mods (it says first whether this computer has the memory for both)."),
     h("p", {}, "Closing this browser tab doesn't stop Craft Conductor: servers keep running and jobs carry on. Open Craft Conductor again from its icon to come back; ",
@@ -3598,6 +3611,9 @@ const HELP = [
   ["friends", "Letting friends join", () => [
     h("p", {}, "On a server's ", h("strong", {}, "Friends"), " page, turn on the friends' download and send the link. Their copy of Craft Conductor sets up ",
       "the right Minecraft version, mod loader and mods in their launcher, and adds your server to their list."),
+    screenshot("friends", "The Friends page: a link for friends on your Wi-Fi, and one for everyone else."),
+    screenshot("invite-page", "What your friend sees when they open the link."),
+    screenshot("friend-setup", "Your friend's Craft Conductor sets up their launchers, and can ask you to let them in."),
     h("p", {}, "Links are shared, so anyone with one can use it: each stops working by itself after the time you pick (7 days unless you change it), and ",
       h("strong", {}, "Stop these links"), " or ", h("strong", {}, "New links"), " stops it sooner. Friends who already set up keep playing; they need a new link to update."),
     h("p", {}, "Friends outside your home also need the router set up (below).")]],
@@ -3605,38 +3621,69 @@ const HELP = [
   ["mods", "Mods and updates", () => [
     h("p", {}, "Every mod you add is kept up to date. A new Minecraft version is only installed once every mod supports it; ",
       "the ", h("strong", {}, "Updates"), " tab says what it's waiting for (", h("strong", {}, "Show why"), ")."),
+    screenshot("mods", "The Mods page: the mods you chose, and what's installed."),
+    screenshot("update-readiness", "Show why: each mod in green (ready), yellow (only a beta build) or red (not yet)."),
     h("p", {}, "Before installing, use ", h("strong", {}, "🧪 Test these mods"), " to check that a set of mods works together.")]],
   ["crash", "When something goes wrong", () => [
     h("p", {}, "If a server won't start or crashes, Craft Conductor says which mod it suspects and writes a report. The message shows where it is ",
       "(in the server's ", h("code", {}, ".craft-conductor/logs"), " folder), and Minecraft's own log is in the server's ", h("code", {}, "logs/latest.log"), "."),
-    h("p", {}, "Every update makes a backup first and rolls back by itself if the new version doesn't start. Backups are on the ", h("strong", {}, "Backups"), " tab.")]],
+    screenshot("dashboard-problem", "A server that didn't start: what went wrong in plain words, with the fix Craft Conductor can make."),
+    h("p", {}, "Every update makes a backup first and rolls back by itself if the new version doesn't start. Backups are on the ", h("strong", {}, "Backups"), " tab."),
+    screenshot("backups", "Backups: each one checked, with what changed since the one before.")]],
   ["headless", "Running Craft Conductor on another computer", () => [
     h("p", {}, "Craft Conductor can run on a spare Linux computer or a Raspberry Pi (64-bit) with no screen, and you manage it from here in the browser. " +
       "The easy way: ", h("a", { href: "#new" }, "New server"), " → ", h("strong", {}, "Install on a Linux computer"),
       " opens SSH in a terminal and installs Craft Conductor there. Or, from your own computer (PowerShell on Windows, Terminal on a Mac or Linux), run one command, using that computer's user and address:"),
+    screenshot("ssh-install", "New server → Install on a Linux computer: its address and a user name, then Connect with SSH."),
     h("pre", { class: "log" }, 'ssh minecraft@192.168.1.50 "curl -fsSL https://raw.githubusercontent.com/silverWRX03/craft-conductor/main/packaging/install.sh | sh"'),
     h("p", {}, "It installs Craft Conductor there, starts it at boot, and prints the address to open and a one-time password. ",
       h("a", { href: "https://github.com/silverWRX03/craft-conductor/blob/main/docs/headless.md", target: "_blank", rel: "noopener noreferrer" }, "Step-by-step guide ↗"),
       " · ", h("a", { href: "https://github.com/silverWRX03/craft-conductor/blob/main/docs/docker.md", target: "_blank", rel: "noopener noreferrer" }, "Docker ↗"))]],
   ["remote", "Using Craft Conductor from your phone", () => [
     h("p", {}, "The hamburger menu at the top left opens navigation. The Light / Dark slider inside it remembers your theme. On desktop the slider is in the top bar. The Dashboard shows CPU, RAM, server-volume Disk usage and Players in four cards, above the boxed Live console."),
+    screenshot("phone", "The Dashboard on a phone."),
     h("p", {}, "Open ", h("button", { type: "button", class: "link-btn", onclick: openRemoteAccess }, "Remote access & phones"),
-      ": set a strong password, allow other devices, and pair your phone by scanning a QR code (it works once, for five minutes). Until then, only this computer can open the control panel. Away from home, use Tailscale rather than opening ports.")]],
+      ": set a strong password, allow other devices, and pair your phone by scanning a QR code (it works once, for five minutes). Until then, only this computer can open the control panel. Away from home, use Tailscale rather than opening ports."),
+    screenshot("remote-access", "Remote access & phones: a strong password, then pair your phone.")]],
   ["keyboard", "Keyboard, screen readers and display", () => [
     h("p", {}, "Everything works with the keyboard: Tab moves, Enter or Space presses, Escape closes a window. The first Tab reaches ",
       h("strong", {}, "Skip to main content"), ". Screen readers read out messages as they appear."),
     h("p", {}, "Bigger text, ", h("strong", {}, "High contrast"), " and ", h("strong", {}, "Less motion"), " are under ",
-      h("a", { href: "#craft-conductor" }, "Craft Conductor settings"), " → Appearance → ", h("strong", {}, "Display"), ".")]],
+      h("a", { href: "#craft-conductor" }, "Craft Conductor settings"), " → Appearance → ", h("strong", {}, "Display"), "."),
+    screenshot("display", "Appearance: language, size, contrast and motion.")]],
 ];
 
 // The user manual (manual.md, part of Craft Conductor): the same text as on GitHub, shown here with a
 // table of contents. Sections link within the page; printing gives a paper copy.
 const MANUAL_ON_GITHUB = "https://github.com/silverWRX03/craft-conductor/wiki/Craft-Conductor-Manual";  // (the same manual, a page a section, with pictures)
+// The pictures under each heading ("See this screen"): [picture, caption]. The wiki shows the same ones
+// (IMAGES in packaging/wiki.py; test_wiki.py keeps the two lists the same).
 const MANUAL_PICTURES = {
-  "Creating a server": ["new-server", "map-preview"], "Dashboard": ["dashboard"], "Console": ["console"],
-  "Players": ["players"], "Updates": ["updates", "update-readiness"], "Mods": ["mods"],
-  "Friends: playing with friends": ["friends"], "Backups": ["backups"], "Java": ["java"],
-  "Settings": ["settings"], "Craft Conductor settings": ["craft-conductor-settings"], "Troubleshooting": ["help"],
+  "Getting started": [["sign-in", "Signing in the first time"], ["choose-password", "Choosing your own password"]],
+  "The guided setup": [["guided-setup", "The guided setup's checklist, in a corner of the page"]],
+  "Creating a server": [["new-server", "New server"], ["mod-browser", "The mod browser"],
+    ["map-preview", "World generation & map preview, with landmarks"]],
+  "On another computer (Linux, over SSH)": [["ssh-install", "Install on a Linux computer or rented server (SSH)"]],
+  "Messages": [["question", "A question waits in the middle of the screen"]],
+  "Your servers": [["servers", "Your servers, and a modded single-player game"]],
+  "Dashboard": [["dashboard", "The Dashboard of a running server"],
+    ["dashboard-problem", "A server that didn't start: what went wrong, and the fix"]],
+  "Performance": [["performance", "Performance, with the last hour's graph"]],
+  "Check my setup": [["check-my-setup", "Check my setup"]],
+  "Console": [["console", "The Console"]],
+  "Players": [["players", "The Players page"], ["player-activity", "Player activity"]],
+  "Mods": [["mods", "Installed mods"]],
+  "Updates": [["updates", "The Updates page, waiting for two mods"], ["update-readiness", "Show why: each mod, ready or not"]],
+  "Backups": [["backups", "Backups, each checked, with what changed since the one before"]],
+  "Java": [["java", "Java versions"]],
+  "Settings": [["settings", "A server's settings"], ["web-map", "World tools and the web map"]],
+  "Friends: playing with friends": [["friends", "Invite links on the Friends page"]],
+  "For friends: joining a server": [["invite-page", "The invite page your friend opens"],
+    ["friend-setup", "Craft Conductor setting up Minecraft on your friend's computer"]],
+  "Remote access and phones": [["remote-access", "Remote access & phones"], ["phone", "On a phone"]],
+  "Craft Conductor settings": [["craft-conductor-settings", "Craft Conductor settings: Connections"],
+    ["display", "Appearance: language, size, contrast and motion"]],
+  "Troubleshooting": [["help", "Help, with its contents on the left"]],
 };
 views.manual = (target = $("#main")) => {
   const body = h("div", { class: "card manual" }, h("p", { class: "empty" }, "Loading the manual…"));
@@ -3655,7 +3702,7 @@ views.manual = (target = $("#main")) => {
       for (const heading of heads) {
         const pictures = MANUAL_PICTURES[heading.textContent.trim()];
         if (pictures) heading.after(h("details", { class: "manual-pictures" }, h("summary", {}, "See this screen"),
-          pictures.map((name) => h("img", { class: "help-img", src: `/screenshots/${name}.png`, alt: heading.textContent, loading: "lazy" }))));
+          pictures.map(([name, caption]) => screenshot(name, caption))));
       }
       fill(toc, h("strong", {}, "Contents"), h("ul", {}, heads.map((el) => h("li", { class: el.tagName === "H3" ? "sub" : null },
         h("a", { href: "#manual", onclick: (e) => { e.preventDefault(); el.scrollIntoView({ behavior: "smooth" }); } }, el.textContent)))));
