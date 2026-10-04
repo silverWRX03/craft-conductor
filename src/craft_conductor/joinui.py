@@ -39,6 +39,7 @@ HEADERS = {
 }
 STATIC = {"": ("join.html", "text/html; charset=utf-8"), "join.js": ("join.js", "text/javascript; charset=utf-8"),
           "rich.js": ("rich.js", "text/javascript; charset=utf-8"),
+          "pager.js": ("pager.js", "text/javascript; charset=utf-8"),
           "style.css": ("style.css", "text/css; charset=utf-8"), "icon.png": ("icon.png", "image/png"),
           "craft-conductor-theme.css": ("craft-conductor-theme.css", "text/css; charset=utf-8"),
           "i18n.js": ("i18n.js", "text/javascript; charset=utf-8"),
@@ -371,10 +372,10 @@ class JoinUI:
                             q = parse_qs(urlparse(self.path).query)
                             if ui.pack is None:
                                 raise ValueError(ui.pack_error or "the server's details haven't loaded")
-                            self._json(200, {"results": search(ui.joiner.http, (q.get("kind") or [""])[0],
-                                                               (q.get("q") or [""])[0], ui.pack,
-                                                               int((q.get("offset") or ["0"])[0] or 0),
-                                                               (q.get("sort") or [""])[0], (q.get("category") or [""])[0])})
+                            self._json(200, search(ui.joiner.http, (q.get("kind") or [""])[0],
+                                                   (q.get("q") or [""])[0], ui.pack,
+                                                   int((q.get("offset") or ["0"])[0] or 0),
+                                                   (q.get("sort") or [""])[0], (q.get("category") or [""])[0]))
                         elif rest == "api/extras/project":  # the details pane
                             from .browse import Browser
                             pid = (parse_qs(urlparse(self.path).query).get("id") or [""])[0]

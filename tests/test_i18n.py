@@ -51,7 +51,7 @@ def test_translations_keep_their_symbols():
 
 def test_the_text_translated_is_on_the_pages():
     """Keys are text the pages actually show (a renamed button needs its translation renamed)."""
-    sources = "".join((WEBUI / n).read_text(encoding="utf-8") for n in ("app.js", "join.js", "index.html", "join.html"))
+    sources = "".join((WEBUI / n).read_text(encoding="utf-8") for n in ("app.js", "join.js", "pager.js", "index.html", "join.html"))
     # (and labels the server sends, like the server settings' names)
     sources += "".join(p.read_text(encoding="utf-8") for p in (ROOT / "src" / "craft_conductor").glob("*.py"))
     missing = [k for k in catalog("es") if k not in sources and k.replace('"', '\\"') not in sources]

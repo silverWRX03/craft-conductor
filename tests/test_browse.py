@@ -81,6 +81,85 @@ def test_project_page_and_categories(http):
     assert Browser(http).categories("modrinth", "mod") == [{"id": "world-generation", "name": "World generation"}]
 
 
+def fake_search(total, seen=None):
+    """Modrinth's search over ``total`` made-up mods, a page at a time (``seen``: the offsets asked)."""
+    def answer(params):
+        start = int(params["offset"])
+        if seen is not None:
+            seen.append(start)
+        hits = [{"project_id": f"P{i:05d}", "slug": f"mod-{i}", "title": f"Mod {i}"}
+                for i in range(start, min(total, start + int(params["limit"])))]
+        return {"total_hits": total, "hits": hits}
+    return answer
+
+
+def test_each_page_says_where_the_next_one_starts(http):
+    """The page keeps asking until "next" is None: at the provider's total, after a short page, or
+    10,000 results deep, whatever it showed."""
+    from craft_conductor.browse import MAX_RESULTS, PAGE, paging
+    seen = []
+    http.json[f"{API}/search"] = fake_search(45, seen)
+    b = Browser(http)
+    first = b.search("modrinth", "mod", "x")
+    assert len(first["results"]) == PAGE == 20 and (first["offset"], first["total"], first["next"]) == (0, 45, 20)
+    assert b.search("modrinth", "mod", "x", offset=20)["next"] == 40
+    last = b.search("modrinth", "mod", "x", offset=40)
+    assert len(last["results"]) == 5 and last["next"] is None
+    assert seen == [0, 20, 40]
+    # A total that's a whole number of pages: no empty page asked for at the end.
+    http.json[f"{API}/search"] = fake_search(40)
+    assert b.search("modrinth", "mod", "x", offset=20)["next"] is None
+    # A short page ends it, even when the total says there's more (totals can be estimates).
+    assert paging(0, 12, 500)["next"] is None and paging(0, 20, 500)["next"] == 20
+    # 10,000 results deep at most (CurseForge refuses more); a deeper offset is brought back.
+    http.json[f"{API}/search"] = fake_search(50_000, seen)
+    deep = b.search("modrinth", "mod", "x", offset=99_999)
+    assert seen[-1] == deep["offset"] == MAX_RESULTS - PAGE and deep["next"] is None
+    assert b.search("modrinth", "mod", "x", offset=MAX_RESULTS - 2 * PAGE)["next"] == MAX_RESULTS - PAGE
+
+
+def test_results_left_out_dont_end_the_list(http, monkeypatch):
+    """A page whose results all lack a build for this version shows nothing, yet more can come:
+    the end comes from what the provider sent, not what's shown."""
+    from craft_conductor.mods.modrinth import ModrinthProvider
+    http.json[f"{API}/search"] = fake_search(100)
+    monkeypatch.setattr(ModrinthProvider, "best_channels", lambda self, ids, loaders, mc, workers=6: {i: None for i in ids})
+    r = Browser(http).search("modrinth", "mod", "x", loader="fabric", version="1.21.1", offset=20)
+    assert r["results"] == [] and r["hidden"] == 20 and r["next"] == 40
+
+
+def test_curseforge_and_hangar_pages_end_too(http):
+    from craft_conductor.mods import curseforge as cf, hangar
+    seen = []
+
+    def curseforge(params, total=30, paginated=True):
+        start = int(params["index"])
+        seen.append((start, int(params["pageSize"])))
+        data = [{"id": i, "slug": f"cf-{i}", "name": f"CF {i}"} for i in range(start, min(total, start + int(params["pageSize"])))]
+        return {"data": data, **({"pagination": {"index": start, "totalCount": total}} if paginated else {})}
+    http.json[f"{cf.API}/mods/search"] = curseforge
+    b = Browser(http, "test-key")
+    assert b.search("curseforge", "mod", "x")["next"] == 20
+    assert b.search("curseforge", "mod", "x", offset=20)["next"] is None
+    # CurseForge refuses index + pageSize past 10,000.
+    http.json[f"{cf.API}/mods/search"] = lambda params: curseforge(params, total=80_000)
+    assert b.search("curseforge", "mod", "x", offset=50_000)["next"] is None
+    assert max(i + n for i, n in seen) <= 10_000
+    # (without its totals: a full page means there may be more, a short one is the end)
+    http.json[f"{cf.API}/mods/search"] = lambda params: curseforge(params, total=25, paginated=False)
+    assert b.search("curseforge", "mod", "x")["next"] == 20
+    assert b.search("curseforge", "mod", "x", offset=20)["next"] is None
+
+    def plugins(params):
+        start = int(params["offset"])
+        return {"pagination": {"count": 23}, "result": [{"name": f"Plugin{i}", "namespace": {"owner": "x", "slug": f"Plugin{i}"}}
+                                                       for i in range(start, min(23, start + int(params["limit"])))]}
+    http.json[f"{hangar.API}/projects"] = plugins
+    assert b.search("hangar", "mod", "x", loader="paper")["next"] == 20
+    end = b.search("hangar", "mod", "x", loader="paper", offset=20)
+    assert len(end["results"]) == 3 and end["next"] is None and end["total"] == 23
+
+
 def make_pack(files, overrides=None, deps=None) -> bytes:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:

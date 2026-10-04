@@ -52,6 +52,13 @@ Before continuing or starting a feature, check this list: some features wait on 
       not; **Remove** the first (it asks about the server). On the World page's Web map card, only the
       map that has a build for your Minecraft version should have an Add button. On a friend's setup
       page, **More mods** should list only client-side mods. They were tried with a pretend Modrinth.
+- [ ] **Try continuous mod browsing for real** (0.23.0): in the mod browser (**Download mods**), scroll
+      down a search and check the list keeps going without jumping, and what you ticked stays ticked.
+      Try it on a slow connection (a phone hotspot, or the browser's developer tools set to "Slow 4G"):
+      **Loading more…** should show at the bottom, then the rows. Search with a Minecraft version that
+      few mods support yet (many "result(s) hidden"): the list should keep going, or offer **Keep
+      looking**. And the friend's setup page on a phone: **Resource packs** or **More mods**, scrolled
+      with a thumb. It was tried with a pretend Modrinth.
 - [ ] **Windows code signing (optional):** apply to the SignPath Foundation (see
       [docs/code-signing.md](docs/code-signing.md)). Once accepted, add the repository variable
       `SIGNPATH_ORGANIZATION_ID` and the secret `SIGNPATH_API_TOKEN`; releases are then signed
@@ -181,8 +188,9 @@ Next:
         with permissions scoped to specific servers and management actions (RBAC).
 30. [ ] **Native Bedrock servers:** support creating and managing Minecraft Bedrock Dedicated
         Servers, alongside the existing Java server types.
-31. [ ] **Continuous mod browsing:** load 20 results initially and prefetch the next 20 around
+31. [x] **Continuous mod browsing:** load 20 results initially and prefetch the next 20 around
         result 12, then repeat as the user scrolls, preserving position and avoiding duplicates.
+        Done in 0.23.0 (not released yet).
 32. [x] **Investigate Maps still not working:** the report is closed: Maps works now (checked on
         the user's real setup).
 33. [ ] **Contextual help drawer:** Help opens the relevant section in a panel that slides in

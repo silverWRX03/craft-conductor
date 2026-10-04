@@ -64,7 +64,9 @@ def test_a_server_lives_through_its_whole_life(loader, tmp_path, http, modrinth,
         # A backup while it runs: saving paused around it, then read back to check it.
         message = d.backup_now("manual")
         assert "(checked)" in message, message
-        assert any("save-off" in line for line in d.proc.lines) and any("save-on" in line for line in d.proc.lines)
+        # (the server echoes commands from its own process, so the lines may come in a moment later)
+        flowkit.wait_for(lambda: any("save-off" in line for line in d.proc.lines) and any("save-on" in line for line in d.proc.lines),
+                         what="saving paused and resumed around the backup")
         manual = backup.list_backups(m.config.backups.dir)[-1]
 
         # The server process dies: it's restarted.
