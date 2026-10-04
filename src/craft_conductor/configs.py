@@ -235,8 +235,9 @@ def write(server_dir: Path, backups: Path, rel: str, text: str, expected_modifie
     tmp.unlink(missing_ok=True)  # (never written through: a link left here could point anywhere)
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
     try:
-        with os.fdopen(os.open(tmp, flags, 0o644), "wb") as out:
+        with os.fdopen(os.open(tmp, flags, 0o600), "wb") as out:
             out.write(text.encode("utf-8"))
+        os.chmod(tmp, path.stat().st_mode & 0o777)  # (saving never changes who can read the file)
         os.replace(tmp, path)
     except BaseException:
         tmp.unlink(missing_ok=True)

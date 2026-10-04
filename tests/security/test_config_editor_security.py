@@ -107,14 +107,16 @@ def test_odd_but_ordinary_config_names_still_work(server: Path) -> None:
 
 
 @pytest.mark.skipif(__import__("os").name == "nt", reason="Windows has no Unix permission bits")
-def test_a_saved_config_file_is_never_world_writable_even_with_a_zero_umask(server: Path) -> None:
+@pytest.mark.parametrize("mode", [0o600, 0o640, 0o644])
+def test_saving_a_config_file_keeps_its_permissions_even_with_a_zero_umask(server: Path, mode: int) -> None:
     import os
+    (server / "config" / "mod.toml").chmod(mode)
     old = os.umask(0)
     try:
         configs.write(server, server.parent / "bk", "config/mod.toml", "a = 2\n")
     finally:
         os.umask(old)
-    assert not (server / "config" / "mod.toml").stat().st_mode & 0o022
+    assert (server / "config" / "mod.toml").stat().st_mode & 0o777 == mode
 
 
 def test_the_list_shows_no_file_the_editor_would_refuse(tmp_path: Path, server: Path) -> None:

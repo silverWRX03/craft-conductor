@@ -364,11 +364,11 @@ def test_a_world_zipped_with_backslashes_imports(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(os.name == "nt", reason="Windows has no Unix permission bits")
-def test_unpacked_files_are_never_world_writable_even_with_a_zero_umask(tmp_path: Path) -> None:
+def test_unpacked_files_are_only_yours_even_with_a_zero_umask(tmp_path: Path) -> None:
     archive = _zip(tmp_path / "w.zip", {"world/level.dat": b"x"})
     old = os.umask(0)
     try:
         world.install(archive, tmp_path / "world")
     finally:
         os.umask(old)
-    assert not (tmp_path / "world" / "level.dat").stat().st_mode & 0o022
+    assert (tmp_path / "world" / "level.dat").stat().st_mode & 0o777 == 0o600

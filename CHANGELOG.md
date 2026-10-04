@@ -23,7 +23,7 @@ its fix will say which version it's in.
 - An update countdown stopped part-way if a message for players contained a line break. Console commands with control characters (a NUL, an escape code) were passed on to the server, and a refused command still showed in the console as if it had run; they're now refused with a message, and not shown.
 
 **Changed**
-- Worlds (`.zip` or a singleplayer save), modpacks, server exports and backups are checked before anything is written: files whose names could land outside their folder or can't exist on Windows (`NUL`, names with `:`, trailing dots) are left out, and links in a singleplayer save aren't copied; the activity log lists what was left out, once per file. Anything that unpacks to more than the free disk space (keeping 256 MB to spare), or holds an unreasonable number of files, is refused with a message saying so, before the server's settings change.
+- Worlds (`.zip` or a singleplayer save), modpacks, server exports and backups are checked before anything is written: files whose names could land outside their folder or can't exist on Windows (`NUL`, names with `:`, trailing dots) are left out, and links in a singleplayer save aren't copied; the activity log lists what was left out, once per file. Anything that unpacks to more than the free disk space (keeping 256 MB to spare), or holds an unreasonable number of files, is refused with a message saying so, before the server's settings change. Files Craft Conductor unpacks are readable only by you, and saving a config file from the Mods page keeps its permissions.
 
 ## 0.22.2 (2026-10-04)
 

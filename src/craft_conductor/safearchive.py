@@ -195,4 +195,4 @@ def open_new(base: Path, names: tuple[str, ...]) -> BinaryIO:
     if target.is_dir():
         raise UnsafeName("a folder of the same name is already there")
     flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
-    return os.fdopen(os.open(target, flags, 0o644), "wb")
+    return os.fdopen(os.open(target, flags, 0o600), "wb")  # (new files: only you; a file replaced keeps its own)
