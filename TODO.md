@@ -49,12 +49,9 @@ Before continuing or starting a feature, check this list: some features wait on 
       and Windows stops warning about craft-conductor.
 - [ ] **Merged pull requests:** comment "Fixed in <version>" on any issues a release fixed
       (none so far).
-- [ ] **Set up the mod-conflict relay** (steps in [relay/README.md](relay/README.md): a free
-      Cloudflare account, a Worker named `craft-conductor-conflicts`, a KV namespace bound as
-      `CONFLICTS`, a secret `SALT`, then paste `relay/worker.js`). Then tell Claude the Worker's
-      address (`https://craft-conductor-conflicts.<you>.workers.dev`; not secret).
-      *Needed before:* sharing mod conflicts works (Claude puts the address in
-      `RELAY` in `src/craft_conductor/conflicts.py` and releases).
+- [x] **Set up the mod-conflict relay:** live at `https://craft-conductor.kyle-r-nordick.workers.dev`
+      (in `RELAY` in `src/craft_conductor/conflicts.py` from 0.22.1). Keep the `SALT` secret to
+      yourself; to update the relay, paste a new `relay/worker.js` under Edit code and Deploy.
 - [ ] **Try the 0.20 features for real:** a Purpur server with a plugin; the sounds on a phone
       (including an iPhone's silent switch, and vibration on Android); adding fingerprint or face
       sign-in on the phone at the Tailscale address and signing in with it. They were only tried
@@ -282,8 +279,6 @@ release to pay those costs once.
 
 **Smaller leftovers**
 - Map landmarks (12): players' bases, and pins on the web map (BlueMap/Dynmap markers).
-- Mod conflict memory (18): put the relay address in `conflicts.RELAY` once it's set up (see
-  For you), and release.
 - Sounds (23): check the iPhone silent switch on a real phone.
 - Store phone app: only if the installable web app falls short.
 

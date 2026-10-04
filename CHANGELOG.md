@@ -6,6 +6,9 @@ its fix will say which version it's in.
 
 ## 0.22.1 (not released yet)
 
+**Added**
+- Craft Conductor's shared list of mod conflicts is online: the Mods page warns when mods you have together are known not to work, and **Share mod conflicts anonymously** (Craft Conductor settings → Connections → Mod conflicts) now sends what Find which mods break it finds.
+
 **Fixed**
 - Translated phone setup instructions include the new Connections section and remain available after the settings reorganization.
 - The world-generation preview could show only a checkerboard even though land and landmarks had been generated.

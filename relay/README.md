@@ -15,14 +15,15 @@ different people and to allow at most 20 reports per address per day.
 ## Setting it up (once)
 
 1. Create a free account at [dash.cloudflare.com](https://dash.cloudflare.com).
-2. **Workers & Pages → Create → Create Worker**, name it `craft-conductor-conflicts`, **Deploy**.
+2. **Workers & Pages → Create → Start with Hello World!** (not "Import a repository"), name it
+   `craft-conductor`, **Deploy**.
 3. **Storage & Databases → KV → Create namespace**, name it `CONFLICTS`.
 4. Open the Worker → **Settings → Bindings → Add → KV namespace**: variable name `CONFLICTS`,
    namespace `CONFLICTS`.
 5. **Settings → Variables and Secrets → Add**: type **Secret**, name `SALT`, value any long random
    text (30+ characters). Keep it to yourself.
 6. **Edit code**: replace everything with [`worker.js`](worker.js), then **Deploy**.
-7. Put the Worker's address (`https://craft-conductor-conflicts.<you>.workers.dev`) in
+7. Put the Worker's address (`https://<worker name>.<you>.workers.dev`) in
    `RELAY` in `src/craft_conductor/conflicts.py`. From the next release, Craft Conductor uses it.
 
 To try a different relay without a new release, set `CRAFT_CONDUCTOR_CONFLICTS_URL` (or `off`).
