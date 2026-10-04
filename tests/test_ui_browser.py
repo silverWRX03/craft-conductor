@@ -18,6 +18,15 @@ def test_browser_regressions(hub_env, modrinth, monkeypatch):
     from craft_conductor import preview
     from test_preview import chunk, write_world
     hub, client = hub_env
+    from craft_conductor import config as configmod
+    from craft_conductor.config import ModSpec
+    from test_manager import update
+    m = hub.get("alpha").m
+    configmod.append_mod(m.config.path, ModSpec("modrinth", "fabric-api"))
+    m.reload_config()
+    assert update(m).ok
+    hub.get("alpha").m.mojang.set_releases(["1.21.1", "1.21.2"])
+    modrinth.version("FAPI", "0.2", ["1.21.2"])
     now = time.time()
     for day in range(1, 8):
         hub.get("alpha").activity.joined("Alex", now - day * 86400)

@@ -6,6 +6,9 @@ its fix will say which version it's in.
 
 ## 0.23.0 (not released yet)
 
+**Fixed**
+- Servers set to stay on one Minecraft version no longer claim another update check will unlock a newer version. Update readiness can explicitly check the selected version so its update can be reviewed and applied.
+
 **Added**
 - Friends' mods land on the right side. A mod you pick for players (the friends part of **New server**, or **Mods for players** on the Friends page) that runs on both the client and the server is now also added to the server's own mods, with the mods it requires, and a message says so ("X also runs on the server, so it was added there too, with Y"). The list marks it **also on the server**, and removing it from the players' list asks whether to remove it from the server too. Mods that only run on players' computers stay with the players.
 

@@ -135,3 +135,36 @@ def test_readiness_for_the_next_minecraft(hub_env, modrinth):
     assert [(m["name"], m["state"]) for m in r["mods"]] == [("Red Mod", "red"), ("Yellow Mod", "yellow"), ("Green Mod", "green")]
     assert r["counts"] == {"red": 1, "yellow": 1, "unknown": 0, "green": 1}
     assert c.get("/api/servers/alpha/updates/readiness?version=1.21;rm")[0] == 400
+
+
+def test_explicit_readiness_check_prepares_upgrade_for_pinned_server(hub_env, modrinth):
+    from test_web import wait_for
+
+    hub, c = hub_env
+    login(c)
+    d = hub.get("alpha")
+    assert c.post("/api/servers/alpha/mods/add", {"id": "fabric-api"})[0] == 200
+    assert update(d.m).ok
+    d.m.mojang.set_releases(["1.21.1", "1.21.2"])
+    assert d.m.config.updates.strategy == "mods-only"
+    modrinth.version("FAPI", "0.2", ["1.21.2"])
+    base = "/api/servers/alpha"
+    ready = c.get(base + "/updates/readiness?version=1.21.2")[1]
+    assert ready["strategy"] == "mods-only"
+    assert ready["counts"]["green"] == len(d.m.lock.mods) == 1
+
+    def check(body):
+        assert c.post(base + "/updates/check", body)[0] == 200
+        wait_for(lambda: d.job is None)
+        return c.get(base + "/updates")[1]["check"]
+
+    assert check({})["up_to_date"]
+    selected = check({"target": "1.21.2"})
+    assert selected["target"] == "1.21.2" and not selected["up_to_date"]
+    assert not selected["manual"] and not selected["blocked"]
+    assert d.m.lock.minecraft == "1.21.1"
+    assert d.m.config.updates.strategy == "mods-only"
+    (d.m.mods_dir / "unverified.jar").write_bytes(b"local file")
+    blocked = check({"target": "1.21.2"})
+    assert blocked["target"] is None
+    assert any(b["name"] == "unverified.jar" for b in blocked["blocked"][0]["blockers"])

@@ -1420,9 +1420,14 @@ function openReadiness(versions, installed) {
       : n.red ? `${n.red} mod${n.red === 1 ? " has" : "s have"} no build for Minecraft ${r.minecraft} yet.`
         : n.unknown || r.loader.state === "unknown" ? "Compatibility could not be confirmed for every file. Check local files on Mods and retry any failed lookups before upgrading."
         : n.yellow ? `Every mod has a build, but ${n.yellow} only ${n.yellow === 1 ? "has" : "have"} alpha/beta builds. Craft Conductor waits for releases unless you allow early builds.`
-          : `Everything is ready for Minecraft ${r.minecraft}. Run a check on the Updates tab to move.`;
+          : `Every installed mod has a release build for Minecraft ${r.minecraft}. Check this version to prepare an update and verify required dependencies.`;
     fill(body,
       h("div", { class: "notice " + (r.loader.state === "red" || n.red ? "bad" : n.yellow || n.unknown || r.loader.state === "unknown" ? "warn" : "ok") }, verdict),
+      r.strategy === "mods-only" ? h("p", { class: "muted small" }, "This server is set to stay on its current Minecraft version. Check now only checks mod updates for that version. You can check this version explicitly below, or change Minecraft version in Settings.") : null,
+      h("button", { class: "btn", onclick: async () => {
+        const result = await act(() => api("/api/updates/check", { method: "POST", body: { target: r.minecraft } }), "Checking selected version…");
+        if (result) closeBrowser();
+      } }, `Check Minecraft ${r.minecraft}`),
       h("ul", { class: "list mt-s" },
         row(r.loader.state, `${r.loader.name[0].toUpperCase()}${r.loader.name.slice(1)} (server type)`,
           r.loader.state === "green" ? `ready (${r.loader.version})` : r.loader.state === "red" ? `no ${r.loader.name} build for Minecraft ${r.minecraft} yet` : "couldn't check it right now"),
@@ -1561,7 +1566,9 @@ views.updates = () => {
     const summary = c.up_to_date
       ? h("div", { class: c.latest === c.installed ? "notice ok" : "notice warn" },
           c.latest === c.installed ? `Up to date on the latest release, Minecraft ${c.installed}.`
-            : [`Up to date on Minecraft ${c.installed}, the newest version your mods support. ${c.latest} is waiting. `,
+            : [s.strategy === "mods-only"
+              ? `Up to date on Minecraft ${c.installed}. This server is set to stay on this version; Check now only checks mod updates. `
+              : `Up to date on Minecraft ${c.installed}, the newest version your mods support. ${c.latest} is waiting. `,
               h("button", { class: "btn small", onclick: () => openReadiness(newer, c.installed) }, "Show why")])
       : c.target
         ? h("div", { class: "notice warn" }, h("strong", {}, c.installed === c.target ? `Ready: mod updates for Minecraft ${c.target}`
@@ -3610,7 +3617,7 @@ const HELP = [
     h("p", {}, "Help and User manual keep your current page open underneath. Use the contents on the left, then Close Help or Escape to return to the same place, with your unsaved entries intact."),
     h("p", {}, "Craft Conductor settings are grouped into Appearance, Sounds & notifications, Sign-in & security, Connections, and About & updates."),
     screenshot("craft-conductor-settings", "Craft Conductor settings: pick a section on the left."),
-    h("p", {}, "Update readiness uses green for releases, yellow for early builds, red for missing builds and gray when compatibility could not be checked. A Minecraft upgrade waits for unverified local files. World-generation mods bring their required mods; if one only has an early build, adding it asks you first. A web map you added (BlueMap or Dynmap) counts like any other mod, and Add BlueMap / Add Dynmap on the World page only appear for a map that has a build for the server's Minecraft."),
+    h("p", {}, "Update readiness uses green for releases, yellow for early builds, red for missing builds and gray when compatibility could not be checked. Check Minecraft … prepares an update for the selected version, even when Settings says to stay on the current version; Check now follows that setting. A Minecraft upgrade waits for unverified local files. World-generation mods bring their required mods; if one only has an early build, adding it asks you first. A web map you added (BlueMap or Dynmap) counts like any other mod, and Add BlueMap / Add Dynmap on the World page only appear for a map that has a build for the server's Minecraft."),
     h("p", {}, "Bedrock setup checks both Geyser and Floodgate, and offers compatible early builds with a confirmation when releases are unavailable.")]],
   ["start", "Getting started", () => [
     h("p", {}, "Craft Conductor keeps your Minecraft servers running and up to date by themselves. Make a server under ", h("strong", {}, "New server"),

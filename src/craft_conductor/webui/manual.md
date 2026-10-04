@@ -196,6 +196,8 @@ Installed mods with their versions: **Download mods** (the mod browser), **Local
 
 **Show why** checks builds for the selected Minecraft version and server type. Green means a release build is available, yellow means only early builds, red means none, and gray means compatibility could not be checked. A failed lookup never means ready. Local JAR files appear as unknown: identify them on **Mods**, or disable them before changing Minecraft versions. Updates to managed mods on the current Minecraft version remain available. Explicitly choosing a Minecraft version still respects the setting to wait for every mod.
 
+If you chose a specific Minecraft version during setup, **Settings → Minecraft version** defaults to **Stay on this version (mods still update)**. **Check now** then checks only updates for the current Minecraft version. In **Show why**, use **Check Minecraft …** to prepare an update to the selected version, including its required dependencies. Return to Updates to review and apply it. This check does not install anything or change your update setting. To follow future compatible Minecraft releases, change **Minecraft version** in Settings.
+
 Craft Conductor checks for updates by itself and applies them when it's safe:
 
 - **Mod updates** for your Minecraft version are applied at the next restart.
