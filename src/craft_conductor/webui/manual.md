@@ -140,9 +140,21 @@ Below the servers, **Modded single-player games** sets up modded Minecraft for p
 
 ## Dashboard
 
-**Start**, **Restart** and **Stop** are at the top of every server page. The Dashboard shows four resource cards: **CPU**, **RAM**, **Disk** (space used and free on the server's filesystem), and **Players**. On a phone these form a 2×2 grid. The boxed **Live console** sits alongside **Connected Players** and **Runtime Parameters** on a wide screen, with those details below it on a phone. Performance, updates and activity remain underneath. Stopping warns players and saves the world first.
+**Start**, **Restart** and **Stop** are at the top of every server page. The Dashboard shows four resource cards: **CPU**, **RAM**, **Disk** (space used and free on the server's filesystem), and **Players**. On a phone these form a 2×2 grid. The boxed **Live console** sits alongside **Connected Players** (see below) and **Runtime Parameters** on a wide screen, with those details below it on a phone. Performance, updates and activity remain underneath. Stopping warns players and saves the world first.
 
 **When something goes wrong** (the server crashed, or didn't start), the Dashboard says what happened in plain words, shows what Minecraft said, and offers the fixes Craft Conductor can do: **Remove** or **Switch off** the mod to blame, **Add** a mod that another one needs, **Give it more memory** when it ran out, **Let Craft Conductor pick the Java version**, **Use a free port**, **Accept the EULA**, or **Open Backups** when the world looks damaged. After a fix, **Start the server**; **Dismiss** hides the message.
+
+### Connected Players
+
+The **Connected Players** card on the Dashboard is a compact way to look after who is on, without leaving the page. The header says how many are on and how many the server allows (**14 / 30**). Each player has a row: a dot (they're online), their head, their name, a **role badge**, their **ping**, and a **Kick** button. With many players the list scrolls inside the card, so the Dashboard doesn't grow.
+
+- **Press a row** to open the other actions: **Message** (a private message to that player; it types a console command, so not on a paired phone), **Make op** / **Remove op**, **Ban** and **More…** (the Players page). Press the row again, or press Escape, to close them. **Kick** asks first, like the other risky buttons, and has **Don't ask me again**.
+- **Role badges** show only what Craft Conductor can tell for sure. **OP** is an operator from the server's `ops.json`; when the level isn't the usual 4 it says so (**OP 2**), and hovering over it says what that level can do. Nothing else is guessed: there's no MOD or group badge, because groups from a permissions plugin such as LuckPerms live in the plugin's own database, which can't be read reliably (or cheaply) from outside while the server runs. There's no "you" badge either, because Craft Conductor doesn't know which Minecraft account is yours.
+- **Ping** is shown, in milliseconds with a word (good under 100, fair under 200, poor above) and a different mark for each, only when the server can tell it. None of the server types Craft Conductor runs shares each player's ping with the console by itself, so today it shows **—** with the reason in its tooltip (and under **Why no ping?** below the list, for touch screens). Craft Conductor doesn't add a mod or plugin to your server only to measure it.
+- **Whitelist** (under the list) opens a small panel: whether the whitelist is on, a switch to turn it on or off, the names on it with **Remove**, and a box to **Add** a name (1 to 16 letters, numbers or `_`, the same check as on the Players page). **Everything else is on the Players page →** links there.
+- **Broadcast** sends a message to everyone online with the server's `say` command, up to 256 characters, in one line: line breaks and control characters are refused, like in the Console. It appears in the console above.
+- **Live:** the list follows joins and leaves within a few seconds, and roles and ping are read every few seconds with one light request for the whole list, not one per player. Rows are updated in place, so the open actions, the keyboard focus, the scroll position and the heads stay put. A screen reader hears who joined or left once, politely ("Mia joined."), not on every refresh.
+- **Phones and roles:** on a paired phone, a **helper** has Kick, Whitelist and Broadcast (and Make op, Ban), a **viewer** sees the list without any buttons. The server refuses them for a viewer, not just the page.
 
 ### Performance
 
@@ -177,7 +189,7 @@ Minecraft's live output. Type a server command (without the `/`, e.g. `say hello
 
 ## Players
 
-Players online and players who have joined before, with **Op/De-op**, **Kick**, **Ban/Pardon** and **Whitelist**. The **Whitelist** card turns it on (only listed players can join) or off. **Add or manage a player** works for people who haven't joined yet.
+Players online and players who have joined before, with **Op/De-op**, **Kick**, **Ban/Pardon** and **Whitelist** (the Dashboard's **Connected Players** card has the quick versions of these). The **Whitelist** card turns it on (only listed players can join) or off. **Add or manage a player** works for people who haven't joined yet.
 
 **Asking to join:** when the whitelist is on, friends setting up with your invite can send their Minecraft name. They appear at the top of the Players page (and the Dashboard says so): **Allow** adds them to the whitelist, **Ignore** drops the request. A browser notification can tell you too (Craft Conductor settings → Sounds & notifications → Notifications). Only someone with your invite can ask, and requests are limited.
 
@@ -336,7 +348,7 @@ By default only the server's own computer can open the control panel: it listens
 - It needs a **strong password**: 12+ characters with an uppercase letter, a lowercase letter and a special character. PINs don't work from other devices.
 - **Pair a phone** by scanning the QR code with its camera and opening the link. The code works once, for five minutes; **Cancel this code** stops it sooner (so does turning off access from other devices, removing every phone or changing the password). The phone signs in by itself afterwards, with its own key. At the **Tailscale, secure** address, the phone then offers to install the app (see The phone app); at other addresses Craft Conductor opens in the phone's browser, and the dialog says so. No secure address yet? **Set up the secure Tailscale address** is right there.
 - **Pair with a code:** the code is also shown under the QR code (like `ABCD-EFGH-JKLM`). On the phone's sign-in page, choose **Pair with a code** and type it. That's how an iPhone's Home Screen app is paired: it doesn't share Safari's sign-in.
-- Before making the code, choose what the device may do: **Helper** gets the everyday controls (start, stop, restart, backups, updates, players, and letting in friends who ask); **Viewer** can only look. Neither can change settings, mods or files, use the console or change the password.
+- Before making the code, choose what the device may do: **Helper** gets the everyday controls (start, stop, restart, backups, updates, players including Kick and the Whitelist, a message to everyone online, and letting in friends who ask); **Viewer** can only look. Neither can change settings, mods or files, use the console or change the password.
 - **Co-admins:** pair the phone or computer of a friend who helps run the server the same way, as a helper or a viewer. What each device does shows in the activity with its name.
 - Each paired phone is listed with when it was last used, and can be signed out on its own; changing the password signs out every phone.
 - Away from home, use **Tailscale** (free) rather than opening the control panel's port on your router. For HTTPS, give Craft Conductor a certificate (for example from `tailscale cert`).

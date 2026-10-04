@@ -121,6 +121,16 @@ const HEADERS = {'X-CRAFT-CONDUCTOR': '1'};
   await page.locator('.cc-telemetry-grid').waitFor();
   await page.waitForTimeout(2500);  // (CPU use needs two readings)
   await shot('dashboard');
+  // The Connected Players card on its own: a row's actions open, and the Whitelist panel under the list.
+  const players = page.locator('.players-card');
+  await players.locator('.prow button.prow-open').nth(4).click();
+  await players.getByRole('button', {name: 'Whitelist', exact: true}).click();
+  await page.waitForTimeout(1500);
+  await tidy();
+  await players.screenshot({path: path.join(out, 'connected-players.png')});
+  console.log('took', 'connected-players');
+  await players.getByRole('button', {name: 'Whitelist', exact: true}).click();
+  await players.locator('.prow button.prow-open').nth(4).click();
   await page.setViewportSize(PHONE);  // (on a phone)
   await page.waitForTimeout(1500);
   await shot('phone');

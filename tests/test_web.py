@@ -271,6 +271,72 @@ def test_web_players_page(running):
     assert c.post("/api/players/action", {"action": "kick", "name": "Alex"})[0] == 400
 
 
+def test_dashboard_connected_players(running):
+    """The Connected Players card: a light call to poll, roles from ops.json, no ping source."""
+    d, c, cfg = running
+    login(c)
+    (cfg.server.dir / "server.properties").write_text("max-players=30\nwhite-list=true\n")
+    (cfg.server.dir / "ops.json").write_text(json.dumps([
+        {"uuid": offline_uuid("Steve"), "name": "Steve", "level": 4}, {"uuid": offline_uuid("Alex"), "name": "Alex", "level": 2}]))
+    (cfg.server.dir / "whitelist.json").write_text(json.dumps([{"uuid": offline_uuid("Sam"), "name": "Sam"}]))
+    for name in ("Steve", "Alex", "Kit"):
+        d._on_line(f"[12:00:00] [Server thread/INFO]: {name} joined the game")
+    before = c.get("/api/console?since=0")[1]["last"]
+    status, body, _ = c.get("/api/players/online")
+    assert status == 200 and body["max"] == 30 and body["whitelist_enabled"] and body["running"]
+    assert [(p["name"], p["op"], p["op_level"], p["ping_ms"]) for p in body["players"]] == [
+        ("Alex", True, 2, None), ("Kit", False, None, None), ("Steve", True, 4, None)]
+    assert body["ping"]["available"] is False and "ping" in body["ping"]["reason"]
+    assert "whitelist" not in body                                   # (the names only when the panel is open)
+    assert c.get("/api/players/online?whitelist=1")[1]["whitelist"] == ["Sam"]
+    for _ in range(3):
+        c.get("/api/players/online")
+    assert c.get(f"/api/console?since={before}")[1]["lines"] == []   # polling the card sends the server nothing
+    d._on_line("[12:00:09] [Server thread/INFO]: Kit left the game")
+    assert [p["name"] for p in c.get("/api/players/online")[1]["players"]] == ["Alex", "Steve"]
+    assert Client(c.base).get("/api/players/online")[0] == 401        # (signed-in only)
+
+
+def test_dashboard_broadcast(running):
+    d, c, cfg = running
+    login(c)
+    status, body, _ = c.post("/api/broadcast", {"message": "  Restart in 5 minutes  "})
+    assert status == 200 and body["ok"]
+    assert any(line["user"] and line["text"] == "> say Restart in 5 minutes" for line in c.get("/api/console?since=0")[1]["lines"])
+    sent = len(c.get("/api/console?since=0")[1]["lines"])
+    for message in ("", "   ", None, 7, "x" * 257, "one\ntwo", "one\r\ntwo", "bell\x07", "nul\x00", "esc\x1b[0m"):
+        status, body, _ = c.post("/api/broadcast", {"message": message})
+        assert status == 400 and body["error"], repr(message)
+    assert c.post("/api/broadcast", {})[0] == 400
+    # (nothing refused reached the server's console)
+    assert not any(line["text"].startswith("> say") and "two" in line["text"] for line in c.get("/api/console?since=0")[1]["lines"])
+    assert len([x for x in c.get("/api/console?since=0")[1]["lines"] if x["user"]]) == 1 and sent
+    assert c.post("/api/server/stop")[0] == 200
+    wait_for(lambda: c.get("/api/status")[1]["state"] == "stopped" and not c.get("/api/status")[1]["job"])
+    status, body, _ = c.post("/api/broadcast", {"message": "anyone?"})
+    assert status == 409 and "isn't running" in body["error"]
+    assert Client(c.base).post("/api/broadcast", {"message": "hi"})[0] == 401
+
+
+def test_dashboard_whitelist_through_the_players_calls(running):
+    """The Dashboard's Whitelist panel uses the Players page's calls: on/off, add, remove."""
+    d, c, cfg = running
+    login(c)
+    assert c.post("/api/server/stop")[0] == 200
+    wait_for(lambda: c.get("/api/status")[1]["state"] == "stopped" and not c.get("/api/status")[1]["job"])
+    (cfg.server.dir / "usercache.json").write_text(json.dumps([{"name": "Sam", "uuid": offline_uuid("Sam")}]))
+    assert c.post("/api/players/action", {"action": "whitelist-on"})[0] == 200
+    assert c.post("/api/players/action", {"action": "whitelist-add", "name": "Sam"})[0] == 200
+    body = c.get("/api/players/online?whitelist=1")[1]
+    assert body["whitelist_enabled"] and body["whitelist"] == ["Sam"] and not body["running"]
+    for bad in ("two words", "Sam\nop Evil", "x" * 17, ""):
+        assert c.post("/api/players/action", {"action": "whitelist-add", "name": bad})[0] == 400, bad
+    assert c.post("/api/players/action", {"action": "whitelist-remove", "name": "Sam"})[0] == 200
+    assert c.post("/api/players/action", {"action": "whitelist-off"})[0] == 200
+    body = c.get("/api/players/online?whitelist=1")[1]
+    assert not body["whitelist_enabled"] and body["whitelist"] == []
+
+
 def test_default_password_and_changing_it(running_default):
     d, c, cfg = running_default
     assert c.get("/api/auth")[1] == {"mode": "password", "default": True, "managed": False, "strong": False, "temporary": False, "local": True, "strong_required": False, "passkeys": False}

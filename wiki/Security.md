@@ -36,7 +36,7 @@ safeguards:
   access, removing every phone and changing the password. Each phone gets
   its own key (only a hash of it is stored) and signs in by itself afterwards.
 - **Phones get the everyday controls only:** start, stop and restart servers, backups,
-  updates and players. They can't change settings, mods or files, use the console or change
+  updates, players (kick, whitelist) and a message to everyone online. They can't change settings, mods or files, use the console or change
   the password.
 - **You stay in charge of every device:** each paired phone is listed with when and where it
   was last used, and can be signed out on its own. Changing the password signs out every

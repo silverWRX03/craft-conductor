@@ -50,6 +50,47 @@ class PlayerError(Exception):
     pass
 
 
+#: The most a broadcast may say (Minecraft's chat box takes 256 characters).
+MAX_BROADCAST = 256
+
+#: Why there is no ping to show. No server type Craft Conductor runs shares each player's ping with
+#: the console on its own (vanilla, Fabric, Quilt, Forge and NeoForge have no such command, and
+#: Paper keeps it inside the server), and Craft Conductor doesn't add mods or plugins to people's
+#: servers for it. A source goes in ``roster(pings=...)`` the day there is one.
+NO_PING_REASON = "Minecraft doesn't share each player's ping with the server console, so Craft Conductor can't show it. (It never adds a mod or plugin only to measure it.)"  # (one piece: it is a key of the page's translations)
+GOOD_PING, FAIR_PING = 100, 200   # milliseconds: under 100 is good, under 200 fair, above poor
+
+
+def ping_state(ms: int) -> str:
+    """good / fair / poor, for the colour (and word) shown next to a player's ping."""
+    return "good" if ms < GOOD_PING else "fair" if ms < FAIR_PING else "poor"
+
+
+def broadcast_text(message: object) -> str:
+    """What may be said to everyone: one line of at most MAX_BROADCAST characters. Line breaks and
+    control characters are refused (not tidied), the console's own rule (process.check_command):
+    the text goes into a ``say`` command, and a second line would be a second command."""
+    from .process import check_command
+    text = message.strip() if isinstance(message, str) else ""
+    if not text:
+        raise PlayerError("write a message to send")
+    if len(text) > MAX_BROADCAST:
+        raise PlayerError(f"that message is too long (at most {MAX_BROADCAST} characters)")
+    try:
+        check_command(text)
+    except ValueError:
+        raise PlayerError("a message is one line" if "\n" in text or "\r" in text
+                          else "a message can't contain control characters") from None
+    return text
+
+
+def op_level(entry: dict) -> int | None:
+    """An ops.json entry's permission level (1 to 4; 4 when the file doesn't say), or None when
+    the file's value makes no sense: then the badge says OP and no more."""
+    level = entry.get("level", 4)
+    return level if isinstance(level, int) and not isinstance(level, bool) and 1 <= level <= 4 else None
+
+
 def offline_uuid(name: str) -> str:
     """The UUID an ``online-mode=false`` server gives a player (Java's nameUUIDFromBytes)."""
     digest = bytearray(hashlib.md5(f"OfflinePlayer:{name}".encode()).digest())
@@ -125,6 +166,35 @@ class Players:
             "known": [{"name": e.get("name"), "uuid": e.get("uuid")} for e in cache[:100]],
             "online_mode": props.get("online-mode", "true") != "false",
         }
+
+    def roster(self, online: set[str] | list[str], pings: dict[str, int] | None = None,
+               whitelist: bool = False) -> dict:
+        """The Dashboard's Connected Players card: who is online, with only what is reliably known
+        about each (operator, and at which level, from ops.json; ping when ``pings`` has a source),
+        the player limit and whether the whitelist is on. Reads two small files and asks the
+        server nothing, so the page can poll it. ``whitelist`` adds the listed names."""
+        props = self.properties
+        ops = {e["name"].lower(): e for e in self._read("ops") if isinstance(e, dict) and isinstance(e.get("name"), str)}
+        has_source = pings is not None     # ({} is a source that hasn't read anyone yet)
+        pings = {k.lower(): v for k, v in (pings or {}).items()}
+        people = []
+        for name in sorted(online, key=str.lower):
+            entry = ops.get(name.lower())
+            ms = pings.get(name.lower())
+            ms = ms if isinstance(ms, int) and not isinstance(ms, bool) and ms >= 0 else None
+            people.append({"name": name, "op": entry is not None, "op_level": op_level(entry) if entry else None,
+                           "ping_ms": ms, "ping_state": ping_state(ms) if ms is not None else None})
+        try:
+            limit = int(props.get("max-players", "20") or 20)
+        except ValueError:
+            limit = 20
+        out = {"running": self.send is not None, "players": people, "max": limit,
+               "whitelist_enabled": props.get("white-list", "false") == "true",
+               "ping": {"available": has_source, "reason": "" if has_source else NO_PING_REASON}}
+        if whitelist:
+            out["whitelist"] = sorted((e["name"] for e in self._read("whitelist")
+                                       if isinstance(e, dict) and isinstance(e.get("name"), str) and e["name"]), key=str.lower)
+        return out
 
     # -------------------------------------------------------------- lookups
     def lookup(self, name: str) -> tuple[str, str]:

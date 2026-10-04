@@ -209,6 +209,62 @@ def test_the_user_manual_is_in_the_app(hub_env):
     assert all(url.startswith("https://") for url in re.findall(r"\]\(([^)]+)\)", body))  # links work from the page
 
 
+def pair_phone(hub, owner, role):
+    """A paired phone with the given role, as seen from another device."""
+    hub.ui.host = "0.0.0.0"  # as if Craft Conductor had restarted with network access on
+    hub.save_share(hub.share_settings()["port"], "mc.example.com")
+    r = owner.post("/api/hub/devices/pair", {"host": "mc.example.com", "role": role})[1]
+    phone = as_other_device(Client(owner.base))
+    assert phone.post("/api/pair", {"code": r["url"].split("#pair=")[1], "name": f"a {role}"})[0] == 200
+    assert phone.get("/api/hub")[1]["role"] == role
+    return phone
+
+
+def test_kick_whitelist_and_broadcast_follow_the_phone_roles(hub_env):
+    """The Dashboard's Kick, Whitelist and Broadcast: a helper's phone may use them (and the Dashboard
+    keeps working there), a viewer's may only look. The server refuses a viewer, not just the page."""
+    from test_web import wait_for
+    hub, c = hub_env
+    login(c)
+    assert c.post("/api/auth/change", {"mode": "password", "secret": STRONG})[0] == 200
+    assert c.post("/api/hub/network", {"enabled": True})[0] == 200
+    helper, viewer = pair_phone(hub, c, "helper"), pair_phone(hub, c, "viewer")
+    assert c.post("/api/servers/alpha/server/start")[0] == 200
+    wait_for(lambda: hub.get("alpha").state == "running", timeout=30)
+    hub.get("alpha")._on_line("[12:00:00] [Server thread/INFO]: Steve joined the game")
+
+    base = "/api/servers/alpha"
+    writes = [("/players/action", {"action": "kick", "name": "Steve"}), ("/players/action", {"action": "whitelist-on"}),
+              ("/players/action", {"action": "whitelist-add", "name": "Sam"}), ("/players/action", {"action": "whitelist-remove", "name": "Sam"}),
+              ("/players/action", {"action": "whitelist-off"}), ("/broadcast", {"message": "hello everyone"})]
+    for path, body in writes:
+        status, r, _ = viewer.post(base + path, body)
+        assert status == 403 and "can't do that" in r["error"], (path, body)
+    # (and with a bad message too: the role is checked before anything else is looked at)
+    assert viewer.post(base + "/broadcast", {"message": "a\nb"})[0] == 403
+    for path, body in writes:
+        assert helper.post(base + path, body)[0] == 200, (path, body)
+    assert helper.post(base + "/broadcast", {"message": "a\nb"})[0] == 400     # (the same rules as the console's)
+    lines = c.get(base + "/console?since=0")[1]["lines"]
+    assert any(x["text"] == "> say hello everyone" for x in lines) and not any("say a" in x["text"] for x in lines)
+
+    # What the Dashboard reads works for both, phones included.
+    for phone in (helper, viewer):
+        for path in ("/status", "/players/online?whitelist=1", "/console?since=0", "/events?since=0", "/players"):
+            assert phone.get(base + path)[0] == 200, path
+    # The console is still the owner's: a phone can't type commands, so the page doesn't offer "Message" there.
+    assert helper.post(base + "/command", {"command": "say hi"})[0] == 403
+
+
+def test_broadcast_is_an_everyday_control_for_phones():
+    from craft_conductor.web import device_allowed
+    assert device_allowed("POST", "/api/broadcast", "helper") and not device_allowed("POST", "/api/broadcast", "viewer")
+    for path in ("/api/players/action", "/api/broadcast"):
+        assert not device_allowed("POST", path, "viewer")
+    assert not device_allowed("POST", "/api/command", "helper")
+    assert device_allowed("GET", "/api/players/online", "viewer") and device_allowed("GET", "/api/players/online", "helper")
+
+
 def test_the_manual_covers_every_page():
     """A new page in the app needs a section in the user manual (kept with every change)."""
     import re

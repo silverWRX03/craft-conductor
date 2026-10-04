@@ -46,7 +46,7 @@ from .java import JavaError
 from .mods import ModError, Unavailable
 from .mods.modrinth import ModrinthProvider, keep_buildable
 from .planner import lowest
-from .players import PlayerError, Players
+from .players import PlayerError, Players, broadcast_text
 from .properties import read_properties, write_properties
 from .skins import SkinError, Skins
 
@@ -59,7 +59,7 @@ DEVICE_COOKIE = "craft_conductor_device"
 # files, the console, settings, Java, mods, exports or the sign-in itself.
 DEVICE_POSTS = {"/api/server/start", "/api/server/stop", "/api/server/restart", "/api/backups/create",
                 "/api/updates/check", "/api/updates/apply", "/api/players/action", "/api/logout",
-                "/api/join-requests/answer"}
+                "/api/join-requests/answer", "/api/broadcast"}
 DEVICE_HIDDEN_GETS = {"/api/configs/file", "/api/hub/passkeys", "/api/export/download", "/api/settings", "/api/hub/curseforge",
                       "/api/hub/discord", "/api/hub/discord/guilds", "/api/hub/discord/channels", "/api/hub/discord/roles",
                       "/api/hub/remote", "/api/hub/saves", "/api/doctor/report"}
@@ -1918,6 +1918,8 @@ class Api:
         post("/api/export/delete", self.delete_export)
         get("/api/export/download", self.exports)  # streamed by the request handler
         get("/api/players", self.players)
+        get("/api/players/online", self.players_online)
+        post("/api/broadcast", self.broadcast)
         get("/api/players/activity", self.player_activity)
         post("/api/players/action", self.player_action)
         get("/api/java", self.java)
@@ -2388,6 +2390,27 @@ class Api:
 
     def players(self, q, b) -> dict:
         return self._players().summary(self.d.players)
+
+    def players_online(self, q, b) -> dict:
+        """The Dashboard's Connected Players card (polled): who is online with their role and ping, the
+        player limit, whether the whitelist is on (and its names with ?whitelist=1). Reads files only."""
+        return self._players().roster(self.d.players, whitelist=q.get("whitelist") == "1")
+
+    def broadcast(self, q, b) -> dict:
+        """A message to everyone online, through the server's ``say``."""
+        try:
+            text = broadcast_text(b.get("message"))
+        except PlayerError as e:
+            log.warning("refused a broadcast from the control panel: %s", e)
+            raise ApiError(400, str(e)) from None
+        if self.d.state != "running":
+            raise ApiError(409, "the server isn't running, so nobody can hear it")
+        try:
+            self.d.send_command(f"say {text}")
+        except RuntimeError:  # (stopped just now)
+            raise ApiError(409, "the server isn't running, so nobody can hear it") from None
+        log.info("broadcast to everyone online (%d characters)", len(text))
+        return {"ok": True, "message": "sent to everyone online"}
 
     def player_activity(self, q, b) -> dict:
         """Who played when (activity.py): the Players page's Player activity."""
