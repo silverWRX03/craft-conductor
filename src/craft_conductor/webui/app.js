@@ -355,15 +355,55 @@ let timers = [];
 // upload on its way, unsaved changes, a form being filled in, a mod test's report. Then the
 // browser asks first ("Leave site?"). Guards go with an element and end when it's gone.
 let uploading = 0;
-let leaveGuards = [];  // [element, () => true when leaving now would lose something]
-function guardLeave(el, check) {
+let leaveGuards = [];  // [element, () => true when leaving now would lose something, {save, discard}?]
+// With `actions` ({save: async () => saved?, discard}), going to another page in Craft Conductor
+// asks first too: save, discard or stay (unsavedGuard, below). Closing the tab only warns.
+function guardLeave(el, check, actions = null) {
   leaveGuards = leaveGuards.filter(([e]) => e.isConnected);
-  leaveGuards.push([el, check]);
+  leaveGuards.push([el, check, actions]);
 }
 function wouldLoseWork() {
   return uploading > 0 || leaveGuards.some(([el, check]) => el.isConnected && check());
 }
 window.addEventListener("beforeunload", (e) => { if (wouldLoseWork()) { e.preventDefault(); e.returnValue = ""; } });
+function unsavedGuard() {
+  const g = leaveGuards.find(([el, check, actions]) => actions && el.isConnected && check());
+  return g ? g[2] : null;
+}
+// Before going to `target` (a #page): settle unsaved changes first. True when it may go now.
+let settling = false;
+async function mayLeaveFor(target) {
+  const guard = unsavedGuard();
+  if (!guard) return true;
+  if (settling) return false;
+  settling = true;
+  const choice = await new Promise((resolve) => {
+    const onKey = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); done(null); } };
+    const done = (v) => { document.removeEventListener("keydown", onKey, true); closeToast("unsaved"); resolve(v); };
+    document.addEventListener("keydown", onKey, true);
+    stickyToast("unsaved", [
+      h("strong", {}, t("You have changes that aren't saved")),
+      h("p", { class: "small" }, t("Save them, or cancel them, before you leave this page.")),
+      h("div", { class: "row mt-s" },
+        h("button", { class: "btn small primary", onclick: () => done("save") }, t("Save settings")),
+        h("button", { class: "btn small", onclick: () => done("discard") }, t("Cancel changes")),
+        h("button", { class: "btn small ghost", onclick: () => done(null) }, t("Stay here")))]);
+  });
+  settling = false;
+  if (choice === "save") return !!(await guard.save());
+  if (choice === "discard") { guard.discard(); return true; }
+  return false;
+}
+// Links within Craft Conductor (the menu, the server list…) wait for the answer before they go.
+// (Help and the user manual open over the page, which stays: no need to ask.)
+document.addEventListener("click", (e) => {
+  const a = e.target.closest && e.target.closest('a[href^="#"]');
+  if (!a || e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || a.target === "_blank") return;
+  const target = a.getAttribute("href");
+  if (target === location.hash || target === "#help" || target === "#manual" || !unsavedGuard()) return;
+  e.preventDefault();
+  mayLeaveFor(target).then((go) => { if (go) location.hash = target; });
+});
 
 // Polling pauses while the page can't be seen (another tab, a phone's screen off) and
 // catches up at once when it's back: no work for the server, battery or data meanwhile.
@@ -2523,16 +2563,30 @@ function webMapCard() {
 views.settings = () => {
   const form = h("form", { class: "card" });
   let edited = false;  // changes not saved yet
-  form.addEventListener("input", () => { edited = true; });
-  form.addEventListener("change", () => { edited = true; });
-  guardLeave(form, () => edited);
+  // Save settings and Cancel stay at the bottom of the screen while the settings are in view.
+  const saveBtn = h("button", { class: "btn primary", type: "submit" }, "Save settings");
+  const cancelBtn = h("button", { class: "btn", type: "button", disabled: true, onclick: () => { setEdited(false); load(); toast("Changes cancelled"); } }, "Cancel");
+  const barNote = h("span", { class: "muted small grow", role: "status" });
+  const bar = h("div", { class: "save-bar" }, saveBtn, cancelBtn, barNote);
+  const setEdited = (on) => {
+    edited = on;
+    cancelBtn.disabled = !on;
+    bar.classList.toggle("edited", on);
+    barNote.textContent = t(on ? "You have changes that aren't saved." : "Memory, port and advanced changes apply at the next restart.");
+  };
+  setEdited(false);
+  form.addEventListener("input", () => setEdited(true));
+  form.addEventListener("change", () => setEdited(true));
+  let save = async () => false;
+  guardLeave(form, () => edited, { save: () => save(), discard: () => setEdited(false) });
   const load = async () => {
     const s = await api("/api/settings").catch(() => null);
     if (!s) return;
     const f = {};
     const sel = (k, opts, labels = {}) => (f[k] = h("select", {}, opts.map((o) => h("option", { value: o }, labels[o] || o))), f[k].value = s[k], f[k]);
     const txt = (k, extra = {}) => (f[k] = h("input", { value: s[k], ...extra }));
-    const chk = (k, text) => h("label", { class: "row" }, (f[k] = h("input", { type: "checkbox", checked: s[k] })), h("span", {}, text));
+    // (each box beside its words, whatever the width: see .checks and .check-row)
+    const chk = (k, text, title) => h("label", { class: "row check-row", title }, (f[k] = h("input", { type: "checkbox", checked: s[k] })), h("span", {}, text));
     const sched = {};
     const advanced = { ...s.properties };
     const advancedEl = h("details", { class: "advanced mt-l" },
@@ -2550,35 +2604,34 @@ views.settings = () => {
           release: "Releases only", beta: "Releases and betas", alpha: "Releases, betas and alphas (least stable)" })),
         h("label", {}, "Check every (e.g. 6h, 30m)", txt("check_interval")),
         h("label", {}, "In-game warnings (minutes, comma separated)", txt("warn_minutes", { value: s.warn_minutes.join(", ") }))),
-      h("div", { class: "grid mt-s" },
+      h("div", { class: "checks mt" },
         chk("auto_upgrade", "Apply updates automatically (a new Minecraft only once every mod supports it)"),
         chk("wait_for_empty", "Wait until nobody is online"),
         chk("verify_boot", "Test-boot and roll back on failure"),
-        chk("rehearse", "Before a new Minecraft goes in by itself, try it on a copy of the server first")),
-      h("div", { class: "grid mt-s" }, chk("find_lag", "When it keeps lagging with players on, find out why by itself (and tell me)")),
+        chk("rehearse", "Before a new Minecraft goes in by itself, try it on a copy of the server first"),
+        chk("find_lag", "When it keeps lagging with players on, find out why by itself (and tell me)")),
       h("h3", { class: "mt-l" }, "Server"),
       h("div", { class: "grid" },
         h("label", {}, "Memory (e.g. 6G)", txt("memory")),
         h("label", {}, "Port players connect to", txt("port", { type: "number", min: 1024, max: 65535 })),
         h("label", {}, "Backups to keep", txt("backups_keep", { type: "number", min: 1 })),
-        h("label", {}, "Discord webhook URL", txt("discord_webhook", { type: "url", placeholder: "https://discord.com/api/webhooks/…" }))),
-      h("div", { class: "grid mt-s" }, chk("restart_on_crash", "Restart after crashes"),
-        h("label", { class: "row", title: "Garbage-collection settings that avoid lag spikes with lots of memory" },
-          (f.aikar_flags = h("input", { type: "checkbox", checked: s.aikar_flags })), h("span", {}, "Use Aikar's flags (smoother with 16 GB+)"))),
-      // Limits (limits.py): CPU cores where the computer allows it, and a lower priority everywhere.
-      h("div", { class: "grid mt-s" },
+        h("label", {}, "Discord webhook URL", txt("discord_webhook", { type: "url", placeholder: "https://discord.com/api/webhooks/…" })),
+        // Limits (limits.py): CPU cores where the computer allows it, and a lower priority everywhere.
         s.can_pin_cores ? h("label", {}, "CPU cores it may use",
           (f.cpu_cores = h("select", {}, h("option", { value: "0" }, t("All ({n})").replace("{n}", s.cpu_count)),
             Array.from({ length: Math.max(0, s.cpu_count - 1) }, (_, i) => h("option", { value: String(i + 1), selected: s.cpu_cores === i + 1 }, String(i + 1))))),
-          h("span", { class: "muted small" }, "Leaves the other cores to the rest of this computer (and other servers). Applies at the next start.")) : null,
-        h("label", { class: "row", title: "Other programs on this computer, and other servers, come first when the CPU is busy" },
+          h("span", { class: "muted small" }, "Leaves the other cores to the rest of this computer (and other servers). Applies at the next start.")) : null),
+      h("div", { class: "checks mt" },
+        chk("restart_on_crash", "Restart after crashes"),
+        chk("aikar_flags", "Use Aikar's flags (smoother with 16 GB+)", "Garbage-collection settings that avoid lag spikes with lots of memory"),
+        h("label", { class: "row check-row", title: "Other programs on this computer, and other servers, come first when the CPU is busy" },
           (f.priority = h("input", { type: "checkbox", checked: s.priority === "low" })), h("span", {}, "Lower priority (the rest of this computer comes first)"))),
       h("h3", { class: "mt-l" }, "Schedule"),
       h("p", { class: "muted small" }, "Times are this computer's. A scheduled restart gives players the in-game countdown first."),
       h("div", { class: "grid" },
         (sched.restart = schedulePicker("Restart the server", s.schedule_restart, "restart", s.schedule_restart_next)).el,
         (sched.backup = schedulePicker("Make a backup", s.schedule_backup, "backup", s.schedule_backup_next)).el),
-      chk("restart_when_empty", "Skip a scheduled restart while players are online"),
+      h("div", { class: "checks mt" }, chk("restart_when_empty", "Skip a scheduled restart while players are online")),
       h("h3", { class: "mt-l" }, "playit.gg tunnel"),
       h("div", { class: "grid" },
         h("label", {}, "This server's playit.gg address (a Minecraft Java tunnel)", txt("tunnel_address", { placeholder: "e.g. name.gl.joinmc.link (optional)", class: "mono" }),
@@ -2592,11 +2645,10 @@ views.settings = () => {
             : "That folder isn't there right now (is the drive plugged in?). Copies are skipped until it is.")),
         h("label", { class: "self-start" }, "Copies to keep there", txt("backup_copy_keep", { type: "number", min: 1 }))),
       advancedEl,
-      h("div", { class: "row mt" }, h("button", { class: "btn primary", type: "submit" }, "Save settings"),
-        h("span", { class: "muted small" }, "Memory, port and advanced changes apply at the next restart.")),
+      bar,
     );
-    form.onsubmit = (e) => {
-      e.preventDefault();
+    form.onsubmit = (e) => { e.preventDefault(); save(); };
+    save = async () => {
       const body = {
         strategy: f.strategy.value, mod_channel: f.mod_channel.value, check_interval: f.check_interval.value.trim(),
         warn_minutes: f.warn_minutes.value.split(",").map((x) => x.trim()).filter(Boolean).map(Number),
@@ -2615,7 +2667,10 @@ views.settings = () => {
       if (gb > AIKAR_ABOVE_GB && !body.aikar_flags) {
         offerAikar(gb, () => { f.aikar_flags.checked = true; act(() => api("/api/settings", { method: "POST", body: { aikar_flags: true } }), "Aikar's flags on").then(load); });
       }
-      act(() => api("/api/settings", { method: "POST", body }), "Settings saved").then((r) => { if (r) edited = false; load(); });
+      const r = await act(() => api("/api/settings", { method: "POST", body }), "Settings saved");
+      if (r) setEdited(false);
+      load();
+      return !!r;
     };
   };
   const danger = h("div", { class: "card danger-zone mt" });
@@ -4139,7 +4194,7 @@ function openRemoteAccess() {
   const close = () => { clearInterval(timer); $("#remote").remove(); };
   document.body.append(h("div", { class: "modal-backdrop", id: "remote", role: "dialog", "aria-modal": "true", "aria-labelledby": "remote-title" },
     h("div", { class: "modal remote" },
-      h("div", { class: "row" }, h("h2", { id: "remote-title", class: "grow" }, "Remote access & phones"), h("button", { class: "btn ghost small", onclick: close }, "Close")),
+      h("div", { class: "row modal-head" }, h("h2", { id: "remote-title", class: "grow" }, "Remote access & phones"), h("button", { class: "btn ghost small", onclick: close }, "Close")),
       body)));
   const step = (n, title, ...kids) => h("section", { class: "remote-step" }, h("h3", {}, `${n}. ${title}`), ...kids);
   const load = async () => {
@@ -4242,7 +4297,7 @@ function openRemoteAccess() {
       : h("p", { class: "empty" }, "No phones paired yet.");
     fill(body,
       step(1, "A strong password", pw),
-      step(2, "Let other devices connect", h("label", { class: "row" }, toggle, h("span", {}, "Allow access to this control panel from other devices (phones, other computers)")),
+      step(2, "Let other devices connect", h("label", { class: "row check-row" }, toggle, h("span", {}, "Allow access to this control panel from other devices (phones, other computers)")),
         !r.strong ? h("p", { class: "small muted" }, "Set a strong password first.") : null, restartNote),
       step(3, "Away from home", ...away, https),
       step(4, "Pair a phone (or a co-admin)",
@@ -6294,6 +6349,7 @@ function route() {
   closeHelp(true);
   closeAppNavigation();
   closeBrowser(true);
+  shownHash = location.hash;
   const hash = (location.hash || "#servers").slice(1);
   document.body.classList.remove("browse-mode");
   if (hash.startsWith("browse")) {  // the mod browser window: no navigation around it
@@ -6323,7 +6379,18 @@ function route() {
   routed = true;
 }
 let routed = false;
-window.addEventListener("hashchange", () => { if (!$("#app").classList.contains("hidden")) route(); });
+// The page on show (the address bar can be ahead of it while unsaved changes are settled).
+let shownHash = location.hash;
+window.addEventListener("hashchange", async () => {
+  if ($("#app").classList.contains("hidden")) return;
+  if (unsavedGuard()) {  // Back, Forward or a typed address: stay on the page until it's settled
+    const target = location.hash;
+    history.replaceState(null, "", shownHash || "#servers");
+    if (!(await mayLeaveFor(target))) return;
+    history.replaceState(null, "", target);
+  }
+  route();
+});
 
 // Responsive application navigation. Existing routes and permissions stay in renderNav().
 const appNavigation = window.matchMedia("(max-width: 1023px)");

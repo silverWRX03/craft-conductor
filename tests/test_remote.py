@@ -307,3 +307,22 @@ def test_paired_devices_have_a_role(tmp_path):
     old[0].pop("role")  # paired with an older craft-conductor
     devices._write(old)
     assert devices.list()[0]["role"] == "helper"
+
+
+def test_a_phone_pairs_at_tailscale_when_serve_was_already_on(hub_env, monkeypatch):
+    """Tailscale Serve was on from before, so Use Tailscale for the phone app was never pressed: the
+    pairing link opened at the ts.net address answered "This address isn't allowed"."""
+    from craft_conductor import tailscale
+    hub, c = hub_env
+    login(c)
+    assert c.post("/api/auth/change", {"mode": "password", "secret": STRONG})[0] == 200
+    name = "laptop.tail1234.ts.net"
+    monkeypatch.setattr(tailscale, "status", lambda port: {"installed": True, "running": True, "name": name, "serving": True})
+    at_tailscale = as_other_device(Client(c.base))
+    at_tailscale.call = (lambda f: (lambda m, p, body=None, headers=None, raw=None: f(m, p, body, {**(headers or {}), "Host": name}, raw)))(at_tailscale.call)
+    assert at_tailscale.get("/")[0] == 421  # (not offered yet: still refused)
+    r = c.post("/api/hub/devices/pair", {"host": name})[1]
+    assert r["secure"] and r["url"].startswith(f"https://{name}/#pair=")
+    assert at_tailscale.get("/")[0] == 200
+    assert at_tailscale.post("/api/pair", {"code": r["code"], "name": "phone"})[0] == 200
+    assert name in hub.web.allowed_hosts and name in hub._hub_file()["web"]["allowed_hosts"]  # (after a restart too)
