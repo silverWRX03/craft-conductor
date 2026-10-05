@@ -2705,6 +2705,15 @@ class Api:
             out["internet"] = Invite(tunnel[0], tunnel[1], c.token, fp).page_link(name)
         elif share["address"]:
             out["internet"] = Invite(share["address"].strip("[]"), share["port"], c.token, fp).page_link(name)
+        bedrock = self.bedrock({}, {})
+        if bedrock["supported"] and bedrock["geyser"]:
+            from .join import INVITE_PAGE
+            from urllib.parse import urlencode
+            # Java and download tunnels are TCP; never advertise them as a Bedrock UDP endpoint.
+            for kind, host in (("local", lan), ("internet", share["address"].strip("[]"))):
+                out[f"bedrock_{kind}"] = (INVITE_PAGE + "#bedrock?" + urlencode({
+                    "host": host, "port": bedrock["port"], "name": name.strip()[:60],
+                })) if host else None
         return out
 
     def upload_client_jar(self, q, handler) -> dict:
@@ -2748,7 +2757,8 @@ class Api:
             raise ApiError(400, "pick a Discord server and channel")
         if channel not in {c["id"] for c in bot.channels(guild)}:
             raise ApiError(400, "that channel isn't in that Discord server")
-        wanted = [x for x in (b.get("links") or ["internet"]) if x in ("internet", "local")]
+        wanted = [x for x in (b.get("links") or ["internet"])
+                  if x in ("internet", "local", "bedrock_internet", "bedrock_local")]
         if not self.m.config.client.link_works(time.time()):
             raise ApiError(400, "the invite links have expired or were stopped; make new links first")
         links = {k: v for k, v in self._invite_links().items() if k in wanted and v}

@@ -309,6 +309,8 @@ With a tunnel set, the Dashboard shows **playit.gg tunnel**: Craft Conductor ask
 
 ### Bedrock players (phones, tablets, consoles)
 
+With Geyser enabled, **Post to Discord** also offers **Bedrock internet link** and **Bedrock local link**. Select either alongside the Java links, or post only Bedrock links. They open a page with the server address, Geyser port and instructions for adding the server in Bedrock; players don't need Craft Conductor. The internet option needs your public address and UDP port forwarding. Java and friends' download tunnels aren't used for Bedrock. Install Geyser before inviting players. Bedrock links contain the server address and port, so they do not expire or stop working when you replace the Java download links.
+
 Friends playing Minecraft on a phone, a tablet, Windows (the Microsoft Store version) or a console can join a Fabric, Quilt, NeoForge, Paper or Purpur server through [Geyser](https://geysermc.org). On the Friends page, press **Let Bedrock players join**: Craft Conductor adds the Geyser and Floodgate mods from Modrinth and offers to install them now (the server restarts after the countdown). Bedrock players then use **Play → Servers → Add Server** with your address and the Bedrock port (19132 unless Geyser's config says otherwise), and sign in with their own Microsoft account; they don't need Java Edition.
 
 The setup checks both mods first. When a compatible Geyser build is labeled beta or alpha, it offers that build with an early-build confirmation. Accepting applies to the bridge mod and its dependencies; other mods keep their existing release policy.

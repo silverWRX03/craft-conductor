@@ -52,3 +52,24 @@ def test_invite_page_decodes_the_full_command_prefix():
     result = subprocess.run(["node", "-e", program], capture_output=True, text=True, check=True)
     assert json.loads(result.stdout) == [
         {"code": invite.code, "name": "Weekend Survival"}, None, None, None]
+
+
+def test_bedrock_invite_page_parser():
+    import json
+    import shutil
+    import subprocess
+    from pathlib import Path
+
+    if shutil.which("node") is None:
+        pytest.skip("needs Node.js")
+    source = (Path(__file__).resolve().parents[1] / "site/join/join.js").read_text(encoding="utf-8")
+    parser = source[source.index("function readBedrockInvite("):source.index("function bedrockCard(")]
+    hashes = ["bedrock?host=mc.example.com&port=19133&name=Friends+%26+family",
+              "bedrock?host=2001%3Adb8%3A%3A1&port=19132", "bedrock?host=evil%2Fpath&port=19132",
+              "bedrock?host=mc.example.com&port=0", "bedrock?host=mc.example.com&port=65536",
+              "bedrock?host=mc.example.com&port=abc", "bedrock?port=19132", "other"]
+    program = parser + "\nconsole.log(JSON.stringify(" + json.dumps(hashes) + ".map(readBedrockInvite)));"
+    result = subprocess.run(["node", "-e", program], capture_output=True, text=True, check=True)
+    assert json.loads(result.stdout) == [
+        {"host": "mc.example.com", "port": 19133, "name": "Friends & family"},
+        {"host": "2001:db8::1", "port": 19132, "name": ""}, None, None, None, None, None, None]

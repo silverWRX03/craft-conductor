@@ -8,6 +8,7 @@ its fix will say which version it's in.
 
 **Fixed**
 - On a paired phone, the Dashboard's **Message** button for a player answered "a paired phone can't do that" (it types a console command, which a phone can't). It isn't offered there any more; Kick, Make op and Ban are.
+- Checkboxes and their labels line up in the Post the invite to Discord dialog, including on narrow screens.
 - Servers set to stay on one Minecraft version no longer claim another update check will unlock a newer version. Update readiness can explicitly check the selected version so its update can be reviewed and applied.
 
 **Added**
@@ -16,6 +17,7 @@ its fix will say which version it's in.
 - **Ping** is shown, with a word and a mark besides the colour (good, fair, poor), wherever the server can say it. None of the server types Craft Conductor runs does that by itself, so it shows **—** with the reason in its tooltip and under **Why no ping?** below the list; Craft Conductor doesn't add a mod or plugin to your server just for this.
 - **Whitelist** under the list opens a small panel: whether the whitelist is on, a switch to turn it on or off, the names on it with **Remove**, and **Add** by name (the Players page's calls and name check). **Broadcast** sends a message to everyone online with the server's `say` command (one line, up to 256 characters; line breaks and control characters are refused, like in the Console) and shows it in the Dashboard's console.
 - The card follows joins and leaves without reloading the Dashboard: rows are updated in place, so the open actions, the keyboard focus, the scroll position and the heads stay put. A screen reader hears who joined or left once, politely, and not on every refresh. A viewer's phone sees the list without any buttons; a helper's phone can Kick, use the Whitelist and Broadcast, and the server refuses all three for a viewer.
+- Discord invites can include Bedrock internet and local join links when Geyser is enabled, with the server address and configured Bedrock port.
 - Friends' mods land on the right side. A mod you pick for players (the friends part of **New server**, or **Mods for players** on the Friends page) that runs on both the client and the server is now also added to the server's own mods, with the mods it requires, and a message says so ("X also runs on the server, so it was added there too, with Y"). The list marks it **also on the server**, and removing it from the players' list asks whether to remove it from the server too. Mods that only run on players' computers stay with the players.
 
 - One shared Java for every server on this computer. Java that Craft Conductor downloads now goes into one folder (`craft-conductor/.craft-conductor/java/`, `/data/.craft-conductor/java/` in Docker) instead of a copy inside each server, so servers that need the same Java share one copy, downloaded once. The **Java** page shows each version's size, which servers use it, and how much sharing saves.

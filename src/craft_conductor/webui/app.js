@@ -3919,6 +3919,7 @@ const HELP = [
       h("strong", {}, "Stop these links"), " or ", h("strong", {}, "New links"), " stops it sooner. Friends who already set up keep playing; they need a new link to update."),
     h("p", {}, "Mods you pick under ", h("strong", {}, "Mods for players"), " that run on both sides (client and server) are added to the server's own mods too, with the mods they need, and a message says so; ",
       "removing one from the players' list asks whether to remove it from the server as well. Mods that only run on players' computers stay with the players."),
+    h("p", {}, "With Geyser enabled, Post to Discord also offers Bedrock internet and local links with the server address, port and joining instructions."),
     h("p", {}, "Friends outside your home also need the router set up (below).")]],
   ["router", "Router setup (port forwarding)", () => [routerHelp()]],
   ["mods", "Mods and updates", () => [
@@ -3981,7 +3982,8 @@ const MANUAL_PICTURES = {
   "Backups": [["backups", "Backups, each checked, with what changed since the one before"]],
   "Java": [["java", "Java versions"]],
   "Settings": [["settings", "A server's settings"], ["web-map", "World tools and the web map"]],
-  "Friends: playing with friends": [["friends", "Invite links on the Friends page"]],
+  "Friends: playing with friends": [["friends", "Invite links on the Friends page"],
+    ["discord-invite", "Posting Java and Bedrock invites to Discord"]],
   "For friends: joining a server": [["invite-page", "The invite page your friend opens"],
     ["friend-setup", "Craft Conductor setting up Minecraft on your friend's computer"]],
   "Remote access and phones": [["remote-access", "Remote access & phones"], ["phone", "On a phone"]],
@@ -4388,8 +4390,13 @@ function openDiscord(links) {
       `${name} is up! Open the link, run the download, and it sets up Minecraft with everything you need to join.`);
     const useInternet = h("input", { type: "checkbox", checked: !!links.internet, disabled: !links.internet });
     const useLocal = h("input", { type: "checkbox", checked: !links.internet && !!links.local, disabled: !links.local });
+    const bedrockEnabled = "bedrock_local" in links;
+    if (bedrockEnabled) message.value = `${name} is up! Open the link for your Minecraft edition to join.`;
+    const useBedrockInternet = h("input", { type: "checkbox", disabled: !links.bedrock_internet });
+    const useBedrockLocal = h("input", { type: "checkbox", disabled: !links.bedrock_local });
     const post = h("button", { class: "btn primary", onclick: async () => {
-      const chosen = [useInternet.checked ? "internet" : null, useLocal.checked ? "local" : null].filter(Boolean);
+      const chosen = [useInternet.checked ? "internet" : null, useLocal.checked ? "local" : null,
+        useBedrockInternet.checked ? "bedrock_internet" : null, useBedrockLocal.checked ? "bedrock_local" : null].filter(Boolean);
       if (!chanSel.value) { toast("Pick a channel", true); return; }
       if (!chosen.length) { toast("Pick at least one link to post", true); return; }
       post.disabled = true;
@@ -4403,8 +4410,13 @@ function openDiscord(links) {
       h("div", { class: "grid" }, h("label", {}, "Discord server", guildSel), h("label", {}, "Channel", chanSel)),
       h("label", { class: "mt-s" }, "Message", message),
       h("div", { class: "mt-s" },
-        h("label", { class: "row" }, useInternet, h("span", {}, "Internet link", links.internet ? "" : " (use your public IP on the Friends page first)")),
-        h("label", { class: "row" }, useLocal, h("span", {}, "Local link (only works on this computer's network)"))),
+        h("label", { class: "row check-row" }, useInternet, h("span", {}, "Internet link", links.internet ? "" : " (use your public IP on the Friends page first)")),
+        h("label", { class: "row check-row mt-s" }, useLocal, h("span", {}, "Local link (only works on this computer's network)")),
+        bedrockEnabled ? [
+          h("label", { class: "row check-row mt-s" }, useBedrockInternet, h("span", {}, "Bedrock internet link", links.bedrock_internet ? "" : " (use your public IP on the Friends page first)")),
+          h("label", { class: "row check-row mt-s" }, useBedrockLocal, h("span", {}, "Bedrock local link (only works on this computer's network)")),
+          h("p", { class: "muted small" }, "Bedrock links show the address and Geyser port. Install Geyser before players join; internet players need that UDP port forwarded on your router.")
+        ] : null),
       h("div", { class: "row mt" }, post, h("span", { class: "muted small grow" }, `Posting as ${info.bot.name}.`)),
       addBot);
     loadChannels();

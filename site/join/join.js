@@ -77,6 +77,28 @@ function readInvite(hash = location.hash.slice(1)) {
   return { code, name: rest.join("/").slice(0, 60) };
 }
 
+function readBedrockInvite(hash = location.hash.slice(1)) {
+  if (!hash.startsWith("bedrock?")) return null;
+  const params = new URLSearchParams(hash.slice(8));
+  const host = params.get("host") || "", port = params.get("port") || "";
+  if (!/^[A-Za-z0-9.:-]{1,253}$/.test(host) || !/^\d{1,5}$/.test(port) || +port < 1 || +port > 65535) return null;
+  return { host, port: +port, name: (params.get("name") || "").slice(0, 60) };
+}
+
+function bedrockCard(invite) {
+  return h("div", { class: "card" },
+    h("h1", {}, invite.name ? t("You're invited to play on {name}", { name: invite.name }) : "You're invited to a Minecraft server"),
+    h("h2", {}, "Join with Minecraft Bedrock Edition"),
+    h("p", {}, "Open Minecraft, then Play → Servers → Add Server. Enter these details and save the server:"),
+    h("p", {}, "Server name: ", h("strong", {}, invite.name || "Minecraft server")),
+    h("p", {}, "Server address: ", h("code", {}, invite.host)),
+    h("p", {}, "Port: ", h("code", {}, String(invite.port))),
+    h("button", { class: "btn", onclick: async () => toast(await copy(invite.host) ? "Address copied" : "Couldn't copy; select the address above") }, "Copy address"),
+    h("p", { class: "muted small" }, "Use your installed Minecraft Bedrock Edition. You don't need to download Craft Conductor."),
+    h("p", { class: "muted small" }, "Xbox, PlayStation and Switch can't add servers directly. Ask the server owner for help joining from a console."),
+    languagePicker());
+}
+
 function detectOS() {
   const ua = navigator.userAgent;
   if (/Windows/i.test(ua)) return "windows";
@@ -91,6 +113,11 @@ async function copy(text) {
 
 function render() {
   const root = document.getElementById("join");
+  const bedrock = readBedrockInvite();
+  if (bedrock) {
+    root.replaceChildren(bedrockCard(bedrock));
+    return;
+  }
   const invite = readInvite();
   if (!invite) {
     root.replaceChildren(pasteCard());
@@ -151,7 +178,7 @@ function render() {
 function fromPasted(text) {
   text = text.trim();
   const hash = text.includes("#") ? text.slice(text.indexOf("#") + 1) : text;
-  if (readInvite(hash)) return hash;
+  if (readInvite(hash) || readBedrockInvite(hash)) return hash;
   const m = text.match(/craft-conductor-[A-Za-z0-9_-]{40,400}/);
   return m && readInvite(m[0]) ? m[0] : null;
 }

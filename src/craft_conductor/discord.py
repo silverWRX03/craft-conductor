@@ -153,12 +153,21 @@ def invite_message(text: str, name: str, minecraft: str, links: dict[str, str], 
     text = text.strip()[:MAX_MESSAGE]
     lines = []
     if links.get("internet"):
-        lines.append(f"**[Click here to join]({links['internet']})**")
+        lines.append(f"Java Edition: **[Click here to join]({links['internet']})**")
     if links.get("local"):
-        lines.append(f"On the same Wi-Fi/network as the server: [join here]({links['local']})")
-    if expires:
-        lines.append(f"This invite works until <t:{int(expires)}:f> (<t:{int(expires)}:R>).")
+        lines.append(f"Java on the same Wi-Fi/network as the server: [join here]({links['local']})")
+    if links.get("bedrock_internet"):
+        lines.append(f"**Bedrock Edition: [join here]({links['bedrock_internet']})**")
+    if links.get("bedrock_local"):
+        lines.append(f"Bedrock on the same Wi-Fi/network: [join here]({links['bedrock_local']})")
+    instructions = []
+    if links.get("internet") or links.get("local"):
+        instructions.append("Java: open the link, download Craft Conductor and run it: it sets up your game")
+    if links.get("bedrock_internet") or links.get("bedrock_local"):
+        instructions.append("Bedrock: open the link for the server address and port")
+    if expires and (links.get("internet") or links.get("local")):
+        lines.append(f"Java invite works until <t:{int(expires)}:f> (<t:{int(expires)}:R>).")
     embed = {"title": name[:200], "description": "\n".join(lines)[:3500],
-             "footer": {"text": f"Minecraft {minecraft} · open the link, download Craft Conductor and run it: it sets up your game"},
+             "footer": {"text": f"Minecraft {minecraft} · " + " · ".join(instructions)},
              "color": 0x3BA55C}
     return text, embed
