@@ -4,6 +4,11 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## Upcoming version (not released yet)
+
+**Fixed**
+- Pairing a phone at the **Tailscale, secure** address opened a page saying "This address isn't allowed… add it to [web] allowed_hosts" when Tailscale was already serving the control panel (for example, set up before Craft Conductor was reinstalled), because **Use Tailscale for the phone app** was never pressed. The Tailscale address is now allowed as soon as Craft Conductor offers it.
+
 ## 0.23.0 (2026-10-05)
 
 **Fixed**

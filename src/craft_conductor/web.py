@@ -1141,6 +1141,8 @@ class HubApi:
     def phone_info(self, q, b) -> dict:
         from . import tailscale
         ts = tailscale.status(self._port()) if q.get("tailscale") == "1" else None
+        if ts and ts["serving"]:
+            self._allow_host(ts["name"])  # (it's offered as the secure address)
         return {"public_key": self.hub.push.public_key(), "devices": self.hub.push.subscriptions(),
                 "tailscale": ts, "secure_url": f"https://{ts['name']}/" if ts and ts["serving"] and ts["name"] else None,
                 "strong": self.web.auth.remote_ready}
@@ -1211,11 +1213,14 @@ class HubApi:
         r = tailscale.serve(port)
         if not r["ok"]:
             return {"ok": False, "message": r["message"], "enable_url": r["enable_url"], "tailscale": st}
-        hosts = sorted(set(self.hub.web.allowed_hosts) | {st["name"]})
-        self.hub.save_web(allowed_hosts=hosts)
-        self.web.hub.web.allowed_hosts = hosts
+        self._allow_host(st["name"])
         log.info("the control panel is on %s over HTTPS (Tailscale)", st["name"])
         return {"ok": True, "url": f"https://{st['name']}/", "tailscale": tailscale.status(port)}
+
+    def _allow_host(self, name: str) -> None:
+        """Let the control panel answer at this host name (Tailscale's address for this computer)."""
+        if name and name not in self.hub.web.allowed_hosts:
+            self.hub.save_web(allowed_hosts=sorted({*self.hub.web.allowed_hosts, name}))
 
     def _guide_state(self) -> dict:
         from . import guide
@@ -1503,6 +1508,7 @@ class HubApi:
         from . import tailscale
         st = tailscale.status(self._port())
         if st["serving"] and st["name"]:  # (HTTPS with a real certificate: the phone app works there; listed first)
+            self._allow_host(st["name"])  # (Serve may have been on already, from before: the address must open)
             out.insert(0, {"label": f"Tailscale, secure ({st['name']}): for the phone app", "host": st["name"], "kind": "tailscale-https"})
         ts = tailscale_ip()
         if ts:
