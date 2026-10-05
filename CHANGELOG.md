@@ -4,8 +4,7 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
-## Upcoming version (not released yet)
-
+## 0.23.1 (2026-10-05)
 **Changed**
 - Server **Settings**: **Save settings** and **Cancel** stay at the bottom of the screen while you scroll, and say when something isn't saved yet. Going to another page with changes not saved asks you to **Save settings** or **Cancel changes** first (or **Stay here**); before, the changes were silently lost.
 - The **Remote access & phones** dialog keeps its title and **Close** at the top while you scroll, so you don't have to scroll back up to close it.
