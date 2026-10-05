@@ -45,6 +45,63 @@ const assert = require('node:assert/strict');
   assert.equal(await page.locator('#main').evaluate(el => el.scrollTop), scroll);
   assert.equal(new URL(page.url()).hash, '#s/alpha/settings');
   await page.locator('#main').evaluate(el => el.scrollTop = 0);
+  // Server settings: each checkbox beside its words at any width, Save settings and Cancel always
+  // in view, and unsaved changes must be saved or cancelled before going to another page.
+  const checkboxesBesideWords = () => page.locator('.checks label').evaluateAll(labels => labels.every(l => {
+    const box = l.querySelector('input').getBoundingClientRect(), words = l.querySelector('span').getBoundingClientRect();
+    return box.right <= words.left && Math.abs(box.top - words.top) < 8;
+  }));
+  const barInView = () => page.locator('.save-bar').evaluate(el => el.getBoundingClientRect().bottom <= innerHeight + 1);
+  assert.equal(await checkboxesBesideWords(), true);
+  assert.equal(await barInView(), true);
+  await page.setViewportSize({width:390,height:844});
+  assert.equal(await checkboxesBesideWords(), true);
+  assert.equal(await barInView(), true);
+  await page.setViewportSize({width:1440,height:1000});
+  const cancel = page.locator('.save-bar').getByRole('button', {name:'Cancel', exact:true});
+  const waitBox = page.getByLabel('Wait until nobody is online', {exact:true});
+  const waited = await waitBox.isChecked();
+  assert.equal(await cancel.isDisabled(), true);
+  await waitBox.click();
+  assert.equal(await cancel.isDisabled(), false);
+  await page.locator('#nav a[href="#s/alpha/dashboard"]').click();
+  await page.locator('#unsaved').waitFor();
+  assert.equal(new URL(page.url()).hash, '#s/alpha/settings');
+  await page.locator('#unsaved').getByRole('button', {name:'Stay here', exact:true}).click();
+  assert.equal(await waitBox.isChecked(), !waited);
+  await page.locator('#nav a[href="#help"]').click();  // (Help opens over the page: nothing to ask)
+  await page.locator('.help-overlay').waitFor();
+  assert.equal(await page.locator('#unsaved').count(), 0);
+  await page.keyboard.press('Escape');
+  await page.locator('.help-overlay').waitFor({state:'detached'});
+  await page.evaluate(() => { location.hash = '#servers'; });  // (Back, or a typed address)
+  await page.locator('#unsaved').waitFor();
+  assert.equal(new URL(page.url()).hash, '#s/alpha/settings');
+  await page.locator('#unsaved').getByRole('button', {name:'Cancel changes', exact:true}).click();
+  await page.waitForFunction(() => location.hash === '#servers' && !document.querySelector('.save-bar'));
+  await go('s/alpha/settings');
+  assert.equal(await waitBox.isChecked(), waited);
+  await waitBox.click();
+  await page.locator('.save-bar').getByRole('button', {name:'Cancel', exact:true}).click();
+  await page.waitForFunction(w => document.querySelector('.save-bar button[type=button]').disabled &&
+    [...document.querySelectorAll('.checks label')].find(l => l.textContent === 'Wait until nobody is online').querySelector('input').checked === w, waited);
+  await page.getByLabel('Port players connect to', {exact:true}).fill('25570');  // (the test's other server has 25565)
+  await waitBox.click();
+  await page.locator('#nav a[href="#s/alpha/dashboard"]').click();
+  await page.locator('#unsaved').getByRole('button', {name:'Save settings', exact:true}).click();
+  await page.waitForFunction(() => location.hash === '#s/alpha/dashboard');
+  await go('s/alpha/settings');
+  assert.equal(await waitBox.isChecked(), !waited);
+  // The Remote access & phones dialog keeps its Close button in view however far it's scrolled.
+  await page.evaluate(() => openRemoteAccess());
+  await page.locator('.remote-step').first().waitFor();
+  await page.locator('#remote .modal').evaluate(el => { el.scrollTop = el.scrollHeight; });
+  const closeShown = () => page.locator('#remote .modal-head button').evaluate(b => {
+    const r = b.getBoundingClientRect();
+    return document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) === b;
+  });
+  assert.equal(await closeShown(), true);
+  await page.locator('#remote').getByRole('button', {name:'Close',exact:true}).click();
   for (const view of ['servers', 's/alpha/dashboard', 's/alpha/console', 's/alpha/players', 's/alpha/updates', 's/alpha/mods', 's/alpha/friends', 's/alpha/backups', 's/alpha/java', 'new']) await go(view);
   await go('s/alpha/dashboard');
   await page.evaluate(() => openDoctor());

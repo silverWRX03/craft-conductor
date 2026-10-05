@@ -254,6 +254,8 @@ Each Minecraft version needs a particular Java. Craft Conductor finds or downloa
 
 The server's version and upgrade choices, memory (with Aikar's flags above 16 GB), port, name and Minecraft's settings.
 
+Nothing changes until you press **Save settings**. It stays at the bottom of the screen with **Cancel** (which puts back what's saved) while you scroll through the settings, and says when you have changes that aren't saved. Going to another page with changes not saved (the menu, another server, the browser's Back button) asks first: **Save settings**, **Cancel changes** or **Stay here**. Help and the user manual open over the page without asking.
+
 **Minecraft version:** **Newest version your mods support** (recommended: it moves up once every mod works on the next one), **Only the newest version** (waits until every mod supports the very newest), or **Stay on this version** (mods still update). **Mod builds to use:** releases only, or betas and alphas too (less stable).
 
 **Limits** (for several servers on one computer), from the next start:
