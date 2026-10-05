@@ -16,6 +16,14 @@ const assert = require('node:assert/strict');
     await page.locator('#app').waitFor({state:'visible'});
     await page.waitForTimeout(600);
   };
+  // Every checkbox on the screen sits beside its words (not above them, nor alone on its line).
+  const misplacedCheckboxes = () => page.evaluate(() => [...document.querySelectorAll('input[type=checkbox]')]
+    .filter(b => b.offsetParent !== null && b.closest('label')).map(b => {
+      const label = b.closest('label'), words = document.createRange();
+      words.setStartAfter(b); words.setEnd(label, label.childNodes.length);
+      const w = [...words.getClientRects()].find(r => r.width > 0 && r.height > 0), box = b.getBoundingClientRect();
+      return !w || (w.left >= box.right - 1 && w.top < box.bottom && w.bottom > box.top) ? null : label.textContent.trim().slice(0, 60);
+    }).filter(Boolean));
   await go('craft-conductor');
   await page.getByRole('button', {name:'Appearance', exact:true}).waitFor();
   assert.equal(await page.locator('.preferences-panel:not(.hidden)').count(), 1);
@@ -47,15 +55,11 @@ const assert = require('node:assert/strict');
   await page.locator('#main').evaluate(el => el.scrollTop = 0);
   // Server settings: each checkbox beside its words at any width, Save settings and Cancel always
   // in view, and unsaved changes must be saved or cancelled before going to another page.
-  const checkboxesBesideWords = () => page.locator('.checks label').evaluateAll(labels => labels.every(l => {
-    const box = l.querySelector('input').getBoundingClientRect(), words = l.querySelector('span').getBoundingClientRect();
-    return box.right <= words.left && Math.abs(box.top - words.top) < 8;
-  }));
   const barInView = () => page.locator('.save-bar').evaluate(el => el.getBoundingClientRect().bottom <= innerHeight + 1);
-  assert.equal(await checkboxesBesideWords(), true);
+  assert.deepEqual(await misplacedCheckboxes(), []);
   assert.equal(await barInView(), true);
   await page.setViewportSize({width:390,height:844});
-  assert.equal(await checkboxesBesideWords(), true);
+  assert.deepEqual(await misplacedCheckboxes(), []);
   assert.equal(await barInView(), true);
   await page.setViewportSize({width:1440,height:1000});
   const cancel = page.locator('.save-bar').getByRole('button', {name:'Cancel', exact:true});
@@ -102,7 +106,10 @@ const assert = require('node:assert/strict');
   });
   assert.equal(await closeShown(), true);
   await page.locator('#remote').getByRole('button', {name:'Close',exact:true}).click();
-  for (const view of ['servers', 's/alpha/dashboard', 's/alpha/console', 's/alpha/players', 's/alpha/updates', 's/alpha/mods', 's/alpha/friends', 's/alpha/backups', 's/alpha/java', 'new']) await go(view);
+  for (const view of ['servers', 's/alpha/dashboard', 's/alpha/console', 's/alpha/players', 's/alpha/updates', 's/alpha/mods', 's/alpha/friends', 's/alpha/backups', 's/alpha/java', 'new']) {
+    await go(view);
+    assert.deepEqual(await misplacedCheckboxes(), [], view);
+  }
   await go('s/alpha/dashboard');
   await page.evaluate(() => openDoctor());
   await page.waitForFunction(() => document.querySelectorAll('.doctor-list li').length > 1);
@@ -170,7 +177,21 @@ const assert = require('node:assert/strict');
   await page.waitForFunction(() => [...document.querySelectorAll('#main button')].some(b => b.textContent === 'Apply update' && !b.disabled));
   await page.getByText('Ready: Minecraft 1.21.1 → 1.21.2', {exact:true}).waitFor();
   await page.setViewportSize({width:390,height:844});
+  // On a phone too: the Mods page, the New server form, the SSH install dialog and Craft Conductor settings.
+  await go('s/alpha/mods');
+  assert.deepEqual(await misplacedCheckboxes(), []);
+  await go('new');
+  await page.locator('button.choice', {hasText: 'Fabric'}).first().click();
+  await page.waitForFunction(() => document.querySelectorAll('#main input[type=checkbox]').length > 5);
+  assert.deepEqual(await misplacedCheckboxes(), []);
+  await page.evaluate(() => openSshInstall());
+  assert.deepEqual(await misplacedCheckboxes(), []);
+  await page.keyboard.press('Escape');
   await go('craft-conductor');
+  for (const section of await page.locator('.preferences-button').all()) {
+    await section.click();
+    assert.deepEqual(await misplacedCheckboxes(), []);
+  }
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.evaluate(() => openHelp());
   await page.waitForTimeout(350);

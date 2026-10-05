@@ -11,7 +11,7 @@ its fix will say which version it's in.
 - The **Remote access & phones** dialog keeps its title and **Close** at the top while you scroll, so you don't have to scroll back up to close it.
 
 **Fixed**
-- On a server's **Settings** page, and for **Allow access to this control panel from other devices**, checkboxes no longer end up above their words (or several lines away from them) on some screen widths: each sits beside its words. The Settings checkboxes are now grouped together under the fields they belong with.
+- Checkboxes no longer end up above their words, or alone on a line, on some screen widths: every checkbox in Craft Conductor now sits beside its words, on a phone too. It showed on a server's **Settings** page, **Allow access to this control panel from other devices**, **It's a rented server on the internet** (Install on a Linux computer), **Also show mods with only alpha/beta builds**, and on a phone in **New server** (**Show beta versions**, **Villages, temples and other structures**, **I accept the Minecraft EULA**). The Settings checkboxes are now grouped together under the fields they belong with.
 - Pairing a phone at the **Tailscale, secure** address opened a page saying "This address isn't allowed… add it to [web] allowed_hosts" when Tailscale was already serving the control panel (for example, set up before Craft Conductor was reinstalled), because **Use Tailscale for the phone app** was never pressed. The Tailscale address is now allowed as soon as Craft Conductor offers it.
 
 ## 0.23.0 (2026-10-05)
