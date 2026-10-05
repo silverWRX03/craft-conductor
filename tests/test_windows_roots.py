@@ -65,6 +65,8 @@ def windows(monkeypatch, site):
         return True
 
     store["can_fetch"] = True
+    handler = next(h for h in httpmod._OPENER.handlers if isinstance(h, httpmod._HTTPSHandler))
+    monkeypatch.setattr(handler, "_context", handler._context)  # (each test starts with the old store)
     monkeypatch.setattr(ssl, "_create_default_https_context", default_context)
     monkeypatch.setattr(httpmod, "_WINDOWS", True, raising=False)
     monkeypatch.setattr(httpmod, "_windows_check_chain", check_chain, raising=False)

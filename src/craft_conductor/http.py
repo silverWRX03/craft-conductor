@@ -155,7 +155,10 @@ class _HTTPSHandler(urllib.request.HTTPSHandler):
             if not fetched:
                 raise
             log.info("asked Windows about %s's certificate; trying again", site[0])
-            return super().https_open(req)  # a new connection reads Windows' store again
+            # Read Windows' store again (Python 3.13 keeps one context from the start; older ones
+            # make one per connection, and from here on reuse this one).
+            self._context = ssl._create_default_https_context()
+            return super().https_open(req)
 
 
 _OPENER = urllib.request.build_opener(_HTTPSHandler)
