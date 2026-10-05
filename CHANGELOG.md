@@ -4,7 +4,7 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
-## 0.23.0 (not released yet)
+## 0.23.0 (2026-10-05)
 
 **Fixed**
 - On a paired phone, the Dashboard's **Message** button for a player answered "a paired phone can't do that" (it types a console command, which a phone can't). It isn't offered there any more; Kick, Make op and Ban are.
