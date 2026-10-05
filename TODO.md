@@ -36,6 +36,12 @@ Before continuing or starting a feature, check this list: some features wait on 
 - [ ] **Try automatic port forwarding at home** (craft-conductor settings → Sharing with friends → Router):
       switch it on, look at what it says, then **Test from the internet** in Check my setup. It
       was only tested against a pretend router.
+- [ ] **Check the Windows certificate fix for real** (#64): on a *new* Windows 11 VM (a fresh one, not the
+      one where the bug happened: that one may have the missing certificate by now), install the test
+      build from the pull request (Actions → the PR's **test** run → Summary → `test-build-craft-conductor-windows-x64.exe`),
+      then **New server** → Fabric, latest Minecraft, a few mods → set it up. It should download Java and
+      finish instead of failing with "certificate verify failed". Then make a vanilla 1.20.1 server (Java 17)
+      the same way. If it still fails, attach the new failure report: its activity lines now say whether Windows was asked about the certificate.
 - [ ] **Try the 0.22.3 safety checks on real computers** (the full plan, with prompts for Claude Code
       on your PC: [docs/real-world-testing.md](docs/real-world-testing.md); they were only tested on Linux, with a
       pretend Minecraft): on a clean Windows VM, install the download and make a Fabric server,
