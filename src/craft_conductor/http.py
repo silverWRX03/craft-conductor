@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import ssl
+import sys
 import tempfile
 import time
 import urllib.error
@@ -89,6 +90,80 @@ def _pinned_opener(fp: str) -> urllib.request.OpenerDirector:
     return urllib.request.build_opener(Handler)
 
 
+_WINDOWS = sys.platform == "win32"
+_asked_windows: set[tuple[str, int]] = set()  # sites Windows was asked about (once each)
+
+
+def _windows_check_chain(der: bytes) -> bool:
+    """Have Windows check a certificate's chain itself. A new Windows has only some of the root
+    certificates it trusts; its own check fetches a missing one from Windows Update into its
+    store, where Python's next connection finds it. (Python only reads the store.)"""
+    import ctypes
+    from ctypes import wintypes
+
+    class EnhkeyUsage(ctypes.Structure):  # CERT_ENHKEY_USAGE (none listed: any usage)
+        _fields_ = [("cUsageIdentifier", wintypes.DWORD), ("rgpszUsageIdentifier", ctypes.c_void_p)]
+
+    class UsageMatch(ctypes.Structure):  # CERT_USAGE_MATCH
+        _fields_ = [("dwType", wintypes.DWORD), ("Usage", EnhkeyUsage)]
+
+    class ChainPara(ctypes.Structure):  # CERT_CHAIN_PARA
+        _fields_ = [("cbSize", wintypes.DWORD), ("RequestedUsage", UsageMatch)]
+
+    crypt32 = ctypes.WinDLL("crypt32")
+    crypt32.CertCreateCertificateContext.restype = ctypes.c_void_p
+    crypt32.CertCreateCertificateContext.argtypes = [wintypes.DWORD, ctypes.c_char_p, wintypes.DWORD]
+    crypt32.CertGetCertificateChain.argtypes = [
+        ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(ChainPara),
+        wintypes.DWORD, ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p)]
+    crypt32.CertFreeCertificateChain.argtypes = [ctypes.c_void_p]
+    crypt32.CertFreeCertificateContext.argtypes = [ctypes.c_void_p]
+    cert = crypt32.CertCreateCertificateContext(0x10001, der, len(der))  # X.509 + PKCS #7 encoding
+    if not cert:
+        return False
+    try:
+        para, chain = ChainPara(cbSize=ctypes.sizeof(ChainPara)), ctypes.c_void_p()
+        if not crypt32.CertGetCertificateChain(None, cert, None, None, ctypes.byref(para), 0, None,
+                                               ctypes.byref(chain)):
+            return False
+        crypt32.CertFreeCertificateChain(chain)
+        return True
+    finally:
+        crypt32.CertFreeCertificateContext(cert)
+
+
+class _HTTPSHandler(urllib.request.HTTPSHandler):
+    """HTTPS that, on Windows, asks Windows for a root certificate it hasn't fetched yet (#64)."""
+
+    def https_open(self, req):
+        try:
+            return super().https_open(req)
+        except urllib.error.URLError as e:
+            if not (_WINDOWS and isinstance(e.reason, ssl.SSLCertVerificationError)):
+                raise
+            u = urllib.parse.urlsplit(req.full_url)  # (each redirect comes here with its own URL)
+            site = (u.hostname or "", u.port or 443)
+            if site in _asked_windows or req.host.lower() != u.netloc.lower():  # (or through a proxy)
+                raise
+            _asked_windows.add(site)
+            try:  # the site's certificate, unchecked: only Windows' own check decides what's trusted
+                der = ssl.PEM_cert_to_DER_cert(ssl.get_server_certificate(site, timeout=req.timeout or 30))
+                fetched = _windows_check_chain(der)
+            except (OSError, ValueError) as why:
+                log.info("couldn't have Windows check %s's certificate: %s", site[0], why)
+                raise e from None
+            if not fetched:
+                raise
+            log.info("asked Windows about %s's certificate; trying again", site[0])
+            # Read Windows' store again (Python 3.13 keeps one context from the start; older ones
+            # make one per connection, and from here on reuse this one).
+            self._context = ssl._create_default_https_context()
+            return super().https_open(req)
+
+
+_OPENER = urllib.request.build_opener(_HTTPSHandler)
+
+
 def with_query(url: str, params: dict[str, Any] | None) -> str:
     if not params:
         return url
@@ -140,7 +215,7 @@ class HttpClient:
                 u = urllib.parse.urlsplit(req.full_url)
                 pinned = self._pins.get(u.netloc.lower())
                 if pinned is None:
-                    return urllib.request.urlopen(req, timeout=self.timeout)
+                    return _OPENER.open(req, timeout=self.timeout)
                 if u.scheme != "https":
                     raise HttpError(req.full_url, None, "that server must be reached over HTTPS")
                 return pinned.open(req, timeout=self.timeout)

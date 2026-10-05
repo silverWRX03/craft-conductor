@@ -263,7 +263,7 @@ def test_http_waits_out_rate_limits(monkeypatch):
             raise reply
         reply.headers = {}
         return reply
-    monkeypatch.setattr(httpmod.urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(httpmod._OPENER, "open", urlopen)
     assert httpmod.HttpClient(cache_ttl=0).get_json("https://api.mojang.com/x") == {"id": "abc"}
     assert slept == [12, 10, 20, 30]  # Retry-After first, then growing waits
 
