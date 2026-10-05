@@ -4,7 +4,7 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
-## 0.23.2 (not released yet)
+## 0.23.2 (2026-10-05)
 
 **Fixed**
 - On a new Windows computer, setting up a server failed while downloading Java, with "certificate verify failed: unable to get local issuer certificate" (#64). Windows only has some of the security certificates it trusts at first and fetches the others the first time it needs one, which Craft Conductor's downloads didn't let it do. Now, when a site's certificate can't be checked, Craft Conductor has Windows check it once (Windows then fetches what's missing from Windows Update) and tries again.
