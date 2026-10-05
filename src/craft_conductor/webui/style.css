@@ -250,6 +250,8 @@ body.setup-mode .actions { display: none; }
 .choice:disabled { opacity: .45; cursor: not-allowed; }
 .modal.compact { max-width: 520px; }
 .modal label { display: grid; gap: 6px; }
+.modal label.check-row { display: flex; flex-wrap: nowrap; align-items: flex-start; gap: 10px; }
+.modal label.check-row > span { min-width: 0; }
 .btn.big { padding: 11px 22px; font-size: 15px; margin-top: 6px; }
 
 /* spacing utilities (inline styles are blocked by the CSP) */
