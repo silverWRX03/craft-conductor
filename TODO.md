@@ -176,8 +176,8 @@ Next:
 25. [x] **Friends' mods land on the right side:** in server setup's "Play with friends" part,
         a mod picked for players that runs on both sides (client and server) is added to the
         server too, with the mods it requires. When a friend sets up their own copy and opens
-        Download mods (Modrinth), they only see client-side-only mods. Done in 0.23.0 (not
-        released yet); the Friends page does the same, and removing asks about the server too.
+        Download mods (Modrinth), they only see client-side-only mods. Shipped in 0.23.0;
+        the Friends page does the same, and removing asks about the server too.
 26. [x] **Investigate: Windows Firewall exceptions alongside UPnP:** when Router (UPnP) opens the
         ports on the router, also let them through Windows Firewall, so friends can connect
         without Windows' own prompt being missed or answered "Cancel". Done as Check my setup's
@@ -187,19 +187,19 @@ Next:
 27. [x] **Web map buttons only when the map mod exists for that version:** show Add BlueMap and
         Add Dynmap (Web map, on the World page) only when the mod has a build for the server's
         Minecraft version and loader; otherwise say it isn't available for that version yet.
-        Done in 0.23.0 (not released yet).
+        Shipped in 0.23.0.
 
 28. [x] **Reuse compatible Java installations:** detect and reuse Java already on the computer
         (or a shared managed runtime) when it matches the selected Minecraft version and loader.
         Download another runtime only when needed, including when container isolation requires it.
-        Done in 0.23.0 (not released yet).
+        Shipped in 0.23.0.
 29. [ ] **Granular roles for external server managers:** give external users individual access
         with permissions scoped to specific servers and management actions (RBAC).
 30. [ ] **Native Bedrock servers:** support creating and managing Minecraft Bedrock Dedicated
         Servers, alongside the existing Java server types.
 31. [x] **Continuous mod browsing:** load 20 results initially and prefetch the next 20 around
         result 12, then repeat as the user scrolls, preserving position and avoiding duplicates.
-        Done in 0.23.0 (not released yet).
+        Shipped in 0.23.0.
 32. [x] **Investigate Maps still not working:** the report is closed: Maps works now (checked on
         the user's real setup).
 33. [ ] **Contextual help drawer:** Help opens the relevant section in a panel that slides in
@@ -207,7 +207,7 @@ Next:
 34. [x] **Dashboard Connected Players widget:** compact player management on the Dashboard,
         with connected count / maximum capacity, player status, names, role badges, live ping,
         per-player KICK, and Whitelist Control and Broadcast footer actions; update without
-        a full Dashboard refresh. Done in 0.23.0 (not released yet). Ping shows "—" on every
+        a full Dashboard refresh. Shipped in 0.23.0. Ping shows "—" on every
         server type (none shares it without adding a mod or plugin), and there is no MOD/group
         or "you" badge: see the pull request for why and the options.
 35. [x] **Size limits when unpacking archives** (security): a modpack's overrides and a backup
