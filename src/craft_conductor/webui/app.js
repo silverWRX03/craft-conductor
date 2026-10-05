@@ -1184,29 +1184,273 @@ async function playHere(btn) {
   }
 }
 
-views.dashboard = () => {
-  const statusBody = h("dl", { class: "kv" });
-  const update = h("div");
-  const events = h("div", { class: "events" });
-  const online = h("div", { class: "online" });
-  const onlineCount = h("span", { class: "muted" });
+// The Dashboard's Connected Players card: one compact row per player (online dot, head, name, role,
+// ping, Kick); a press on the row opens the other actions. Names come from the status the Dashboard
+// already polls; roles and ping come from one light call (/api/players/online, files only), so there is
+// no request per player. Rows are updated in place, never rebuilt: the heads don't flicker, and the
+// focus, the open actions and the scroll position stay where they are. Roles are only what is known
+// for sure (operator, from ops.json, with its level when it isn't 4); ping is shown only when the
+// server can say it, otherwise a dash that says why. The Whitelist and Broadcast panels under the
+// list use the Players page's calls (and the server refuses them for a viewer, not just the page).
+const NAME_OK = /^[A-Za-z0-9_]{1,16}$/;       // (a Minecraft name, as the server checks it)
+const BROADCAST_MAX = 256;                    // (players.MAX_BROADCAST)
+const OP_WORDS = { 1: "can ignore spawn protection", 2: "can use cheat commands like /gamemode and /give",
+  3: "can also kick, ban and op players", 4: "can use every command, including /stop" };
+const PING_MARK = { good: "●", fair: "◐", poor: "▲" };  // (a different shape for each, so colour is never the only sign)
+const PING_WORDS = { good: "good connection", fair: "fair connection", poor: "poor connection" };
+function playersCard(con) {
+  const viewer = !!(hubInfo && hubInfo.role === "viewer");   // look only: the list, none of the buttons
+  const canMessage = !(hubInfo && hubInfo.device);           // (Message types a console command, which a paired phone can't)
+  let names = [], max = 0, state = "stopped", info = null, selected = null, announced = null;
+  let panel = null;                                          // "whitelist" or "broadcast" while one is open
+  const rows = new Map();                                    // name -> its row, kept while the player is on
+  let rowSeq = 0;
+  const count = h("span", { class: "muted" });
+  const live = h("div", { class: "sr-only", role: "status", "aria-live": "polite" });
+  const list = h("ul", { class: "prows" });
+  const scroll = h("div", { class: "player-scroll" }, list);
+  const empty = h("p", { class: "empty" }, "Nobody online right now.");
+  const pingWhy = h("p", { class: "small" });
+  const pingNote = h("details", { class: "muted small hidden" }, h("summary", {}, "Why no ping?"), pingWhy);
   const mapLink = h("div");  // the web map, when there is one and it answers (Settings → Web map)
-  const playerCard = h("div", { class: "card" }, h("h3", {}, "Connected Players ", onlineCount), online, mapLink);
   api("/api/webmap").then((r) => {
     if (r.kind && r.answers) fill(mapLink, h("a", { class: "btn small ghost mt-s", href: hubInfo && hubInfo.local ? r.local_url : r.lan_url || r.local_url,
       target: "_blank", rel: "noopener noreferrer" }, `🗺 ${t("See where everyone is on the map")} ↗`));
   }).catch(() => null);
+
+  const run = async (action, name) => {
+    const CONFIRM = { kick: `Kick ${name}?`, ban: `Ban ${name}? They won't be able to join until pardoned.`,
+      op: `Make ${name} an operator? Operators can run any command, including /stop and /op.` };
+    if (CONFIRM[action] && !(await ask(CONFIRM[action], { id: action === "kick" ? "kick" : null, ok: action === "op" ? "Make operator" : action === "kick" ? "Kick" : "Ban", danger: action !== "op" }))) return;
+    const r = await act(() => api("/api/players/action", { method: "POST", body: { action, name } }));
+    if (r) { toast(r.message); setTimeout(poll, 800); }
+  };
+  const message = async (name) => {
+    const text = prompt(`Message to ${name}:`);
+    if (!text || !text.trim()) return;
+    await act(() => api("/api/command", { method: "POST", body: { command: `tell ${name} ${text.trim().replace(/\s+/g, " ")}` } }), `Sent to ${name}`);
+    con.poll();
+  };
+
+  // ---- rows
+  const open = (name) => {
+    selected = selected === name ? null : name;
+    for (const [n, row] of rows) row.show(n === selected);
+  };
+  const makeRow = (name) => {
+    const dot = h("span", { class: "pdot", "aria-hidden": "true" });
+    const badge = h("span", { class: "badge hidden" });
+    const ping = h("span", { class: "ping none" });
+    const line = [dot, h("span", { class: "sr-only" }, "Online"), playerHead(name, 24), h("span", { class: "pname" }, name), badge, ping];
+    const row = { name, op: false, roleKey: "", pingKey: "?" };
+    if (viewer) {
+      row.li = h("li", { class: "prow" }, h("div", { class: "prow-line" }, h("div", { class: "prow-open" }, line)));
+      row.show = () => null;
+    } else {
+      const id = `prow-${++rowSeq}`;
+      const main = h("button", { type: "button", class: "prow-open", "aria-expanded": "false", "aria-controls": id,
+        title: t("Manage {name}").replace("{name}", name), onclick: () => open(name) }, line);
+      const opBtn = h("button", { class: "btn small", onclick: () => run(row.op ? "deop" : "op", name) });
+      const acts = h("div", { class: "row player-actions hidden", id, role: "group", "aria-label": t("Actions for {name}").replace("{name}", name),
+        onkeydown: (e) => { if (e.key === "Escape") { e.stopPropagation(); open(name); main.focus(); } } },
+      canMessage ? h("button", { class: "btn small", onclick: () => message(name) }, "Message") : null,
+      opBtn,
+      h("button", { class: "btn small danger", onclick: () => run("ban", name) }, "Ban"),
+      h("a", { class: "btn small ghost", href: link("players") }, "More…"));
+      const kick = h("button", { type: "button", class: "btn small", "aria-label": t("Kick {name}").replace("{name}", name),
+        onclick: () => run("kick", name) }, "Kick");
+      row.li = h("li", { class: "prow" }, h("div", { class: "prow-line" }, main, kick), acts);
+      row.show = (on) => { main.setAttribute("aria-expanded", String(on)); acts.classList.toggle("hidden", !on); };
+      row.setOp = (op) => { opBtn.textContent = t(op ? "Remove op" : "Make op"); };
+      row.setOp(false);
+    }
+    row.badge = badge; row.ping = ping;
+    return row;
+  };
+  const showRole = (row, p) => {
+    const op = !!(p && p.op), level = p && p.op ? p.op_level : null;
+    const key = op ? `op:${level}` : "";
+    if (key === row.roleKey) return;
+    row.roleKey = key;
+    row.op = op;
+    if (row.setOp) row.setOp(op);
+    row.badge.classList.toggle("hidden", !op);
+    row.badge.textContent = op ? (level && level !== 4 ? `OP ${level}` : "OP") : "";
+    row.badge.title = !op ? "" : level ? t("Operator, level {level}: {what}").replace("{level}", level).replace("{what}", t(OP_WORDS[level])) : t("Operator");
+  };
+  const showPing = (row, p) => {
+    const ms = p && typeof p.ping_ms === "number" ? p.ping_ms : null;
+    const key = ms === null ? `none:${info ? info.ping.available : ""}` : `${ms}:${p.ping_state}`;
+    if (key === row.pingKey) return;
+    row.pingKey = key;
+    row.ping.className = "ping " + (ms === null ? "none" : p.ping_state);
+    if (ms === null) {
+      const why = info && !info.ping.available ? info.ping.reason : "";
+      row.ping.title = t(why);
+      fill(row.ping, "—", h("span", { class: "sr-only" }, why ? t("Ping isn't available.") : t("Ping not read yet.")));
+    } else {
+      row.ping.title = t(PING_WORDS[p.ping_state]);
+      fill(row.ping, h("span", { "aria-hidden": "true" }, PING_MARK[p.ping_state] + " "), `${ms} ms`, h("span", { class: "sr-only" }, ", " + t(PING_WORDS[p.ping_state])));
+    }
+  };
+
+  // ---- what the screen reader hears: who joined or left, once, not on every poll
+  const announce = () => {
+    const now = new Set(names);
+    if (announced !== null && state === "running") {
+      const joined = names.filter((n) => !announced.has(n)), left = [...announced].filter((n) => !now.has(n));
+      if (joined.length) setTimeout(poll, 0);   // (a new face: its role and ping now, not at the next poll)
+      const who = (l) => l.length <= 3 ? l.join(", ") : t("{n} players").replace("{n}", l.length);
+      const said = [joined.length ? t("{who} joined.").replace("{who}", who(joined)) : "", left.length ? t("{who} left.").replace("{who}", who(left)) : ""].filter(Boolean);
+      if (said.length) live.replaceChildren(document.createTextNode(said.join(" ")));
+    }
+    announced = now;
+  };
+
+  // ---- the list, brought up to date in place
+  const sync = () => {
+    count.textContent = `${names.length} / ${max}`;
+    announce();
+    if (names.length && !info) poll();   // (the first look at who is on: roles now, not at the next poll)
+    const here = new Set(names);
+    if (selected && !here.has(selected)) selected = null;
+    for (const [n, row] of rows) if (!here.has(n)) { row.li.remove(); rows.delete(n); }
+    const byName = new Map(info ? info.players.map((p) => [p.name, p]) : []);
+    let ref = list.firstElementChild;
+    for (const n of names) {
+      let row = rows.get(n);
+      if (!row) { row = makeRow(n); rows.set(n, row); row.show(n === selected); }
+      showRole(row, byName.get(n));
+      showPing(row, byName.get(n));
+      if (row.li === ref) ref = ref.nextElementSibling; else list.insertBefore(row.li, ref);  // (only what is out of place moves)
+    }
+    scroll.classList.toggle("hidden", !names.length);
+    empty.classList.toggle("hidden", !!names.length);
+    const noPing = names.length && info && !info.ping.available;
+    pingNote.classList.toggle("hidden", !noPing);
+    if (noPing) pingWhy.textContent = t(info.ping.reason);
+    if (!names.length) selected = null;
+  };
+
+  // ---- the Whitelist panel
+  const wlSwitch = h("button", { type: "button", role: "switch", "aria-checked": "false", class: "switch", "aria-labelledby": "wl-title",
+    onclick: () => wlAction(wlSwitch.getAttribute("aria-checked") === "true" ? "whitelist-off" : "whitelist-on") }, h("span", { class: "switch-text" }, "Off"));
+  const wlNote = h("span", { class: "muted small" });
+  const wlList = h("ul", { class: "list wl-list" });
+  const wlName = h("input", { placeholder: "Player name", autocomplete: "off", maxlength: 16, "aria-label": "Name to whitelist",
+    onkeydown: (e) => { if (e.key === "Enter" && !e.isComposing) wlAdd(); } });
+  const wlError = h("div", { class: "bad-text small hidden", role: "alert" });
+  let wlKey = "";
+  const wlAction = async (action, name) => {
+    const r = await act(() => api("/api/players/action", { method: "POST", body: name === undefined ? { action } : { action, name } }));
+    if (r) { toast(r.message); poll(); setTimeout(poll, 800); }
+    return r;
+  };
+  const wlAdd = async () => {
+    const name = wlName.value.trim();
+    wlError.classList.toggle("hidden", NAME_OK.test(name));
+    if (!NAME_OK.test(name)) { wlError.textContent = t("A Minecraft name is 1 to 16 letters, numbers or _."); wlName.focus(); return; }
+    if (await wlAction("whitelist-add", name)) wlName.value = "";
+  };
+  const renderWhitelist = () => {
+    if (!info) return;
+    const on = !!info.whitelist_enabled;
+    wlSwitch.setAttribute("aria-checked", String(on));
+    wlSwitch.firstChild.textContent = t(on ? "On" : "Off");
+    wlNote.textContent = t(on ? "Only listed players can join." : "Anyone can join.");
+    if (!info.whitelist) return;
+    const key = info.whitelist.join("\n");
+    if (key === wlKey) return;
+    wlKey = key;
+    fill(wlList, info.whitelist.length ? info.whitelist.map((n) => h("li", {}, h("span", { class: "grow pname" }, n),
+      h("button", { class: "btn small", "aria-label": t("Remove {name} from the whitelist").replace("{name}", n),
+        onclick: () => wlAction("whitelist-remove", n) }, "Remove"))) : h("li", { class: "empty" }, "Nobody whitelisted"));
+  };
+  const wlPanel = h("div", { class: "foot-panel hidden", id: "pc-whitelist", role: "group", "aria-labelledby": "wl-title" },
+    h("div", { class: "row" }, h("strong", { id: "wl-title", class: "grow" }, "Whitelist"), wlSwitch),
+    h("p", { class: "mt-s" }, wlNote),
+    h("div", { class: "wl-scroll" }, wlList),
+    h("div", { class: "row mt-s" }, wlName, h("button", { class: "btn small primary", onclick: wlAdd }, "Add")), wlError,
+    h("p", { class: "small mt-s" }, h("a", { href: link("players") }, "Everything else is on the Players page →")));
+
+  // ---- the Broadcast panel
+  const bcText = h("input", { placeholder: "Message to everyone online", autocomplete: "off", maxlength: BROADCAST_MAX, "aria-label": "Message to everyone online",
+    oninput: () => bcCount.textContent = `${bcText.value.length} / ${BROADCAST_MAX}`,
+    onkeydown: (e) => { if (e.key === "Enter" && !e.isComposing) bcSend(); } });
+  const bcCount = h("span", { class: "muted small bc-count" }, `0 / ${BROADCAST_MAX}`);
+  const bcSendBtn = h("button", { class: "btn small primary", onclick: () => bcSend() }, "Send");
+  const bcNote = h("p", { class: "muted small mt-s" }, "Sent with the server's say command, as one line. It shows in the console above.");
+  const bcSend = async () => {
+    const message = bcText.value.trim();
+    if (!message) return;
+    const r = await act(() => api("/api/broadcast", { method: "POST", body: { message } }));
+    if (r) { bcText.value = ""; bcCount.textContent = `0 / ${BROADCAST_MAX}`; toast(r.message); con.poll(); }
+  };
+  const bcPanel = h("div", { class: "foot-panel hidden", id: "pc-broadcast", role: "group", "aria-label": "Broadcast" },
+    h("div", { class: "row" }, bcText, bcCount, bcSendBtn), bcNote);
+
+  // ---- the footer
+  const toggles = {};
+  const setPanel = (which) => {
+    panel = panel === which ? null : which;
+    for (const [name, [btn, box]] of Object.entries(toggles)) {
+      btn.setAttribute("aria-expanded", String(panel === name));
+      box.classList.toggle("hidden", panel !== name);
+    }
+    if (panel === "whitelist") { renderWhitelist(); poll(); }
+    const field = panel === "whitelist" ? wlName : panel === "broadcast" ? bcText : null;
+    if (field) field.focus();
+  };
+  const footBtn = (which, label, box) => {
+    const btn = h("button", { type: "button", class: "btn small", "aria-expanded": "false", "aria-controls": box.id, onclick: () => setPanel(which) }, label);
+    toggles[which] = [btn, box];
+    return btn;
+  };
+  const foot = viewer ? null : h("div", { class: "row mt-s player-foot" },
+    footBtn("whitelist", "Whitelist", wlPanel), footBtn("broadcast", "Broadcast", bcPanel));
+  for (const box of [wlPanel, bcPanel]) box.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && panel) { e.stopPropagation(); const btn = toggles[panel][0]; setPanel(panel); btn.focus(); }
+  });
+
+  let asking = false, askAgain = false;
+  const poll = async () => {
+    const wantNames = panel === "whitelist";
+    if (!names.length && !wantNames) return;   // (nobody to describe: nothing to ask)
+    if (asking) { askAgain = true; return; }   // (one question at a time; again right after if something changed meanwhile)
+    asking = true;
+    const r = await api(`/api/players/online${wantNames ? "?whitelist=1" : ""}`).catch(() => null);
+    asking = false;
+    if (askAgain) { askAgain = false; setTimeout(poll, 0); }
+    if (!r) return;
+    info = r;
+    sync();
+    if (panel === "whitelist") renderWhitelist();
+  };
+  const set = (list_, max_, state_) => {
+    names = [...list_].sort((a, b) => a.toLowerCase() < b.toLowerCase() ? -1 : a.toLowerCase() > b.toLowerCase() ? 1 : 0);
+    max = max_; state = state_;
+    bcSendBtn.disabled = bcText.disabled = state !== "running";
+    bcText.title = state === "running" ? "" : t("Start the server first");
+    sync();
+  };
+  const el = h("div", { class: "card players-card" }, h("h3", {}, "Connected Players ", count), live, empty, scroll, pingNote,
+    foot, foot ? [wlPanel, bcPanel] : null, mapLink);
+  return { el, set, poll };
+}
+
+views.dashboard = () => {
+  const statusBody = h("dl", { class: "kv" });
+  const update = h("div");
+  const events = h("div", { class: "events" });
   const cpu = meter("CPU"), mem = meter("RAM"), disk = meter("Disk"), players = meter("Players");
   const perf = perfCard();
   const tun = tunnelCard();
   const con = consolePanel({ compact: true });
+  const pc = playersCard(con);
   const lagBanner = h("div");
   const problemBox = h("div");
   let problemShown = "";
   let evSeq = 0;
-  let selected = null;      // player whose actions are open
-  let ops = new Set();
-  let shown = "";           // online list last rendered, to keep head icons from flickering
 
   const gb = (n) => n < 1024 ** 3 ? Math.round(n / 1024 ** 2) + " MB" : (n / 1024 ** 3).toFixed(n >= 10 * 1024 ** 3 ? 0 : 1) + " GB";
   const renderMeters = (s) => {
@@ -1223,49 +1467,6 @@ views.dashboard = () => {
       `of ${r.cpus} CPU core${r.cpus === 1 ? "" : "s"}`);
     mem.set(100 * r.memory_bytes / r.memory_max_bytes, `${gb(r.memory_bytes)} / ${gb(r.memory_max_bytes)}`,
       "used / allowed" + (r.system_memory_bytes ? ` · this computer has ${gb(r.system_memory_bytes)}` : ""));
-  };
-
-  const run = async (action, name) => {
-    const CONFIRM = { kick: `Kick ${name}?`, ban: `Ban ${name}? They won't be able to join until pardoned.`,
-      op: `Make ${name} an operator? Operators can run any command, including /stop and /op.` };
-    if (CONFIRM[action] && !(await ask(CONFIRM[action], { id: action === "kick" ? "kick" : null, ok: action === "op" ? "Make operator" : action === "kick" ? "Kick" : "Ban", danger: action !== "op" }))) return;
-    const r = await act(() => api("/api/players/action", { method: "POST", body: { action, name } }));
-    if (r) { toast(r.message); setTimeout(loadPlayers, 800); }
-  };
-  const message = async (name) => {
-    const text = prompt(`Message to ${name}:`);
-    if (!text || !text.trim()) return;
-    await act(() => api("/api/command", { method: "POST", body: { command: `tell ${name} ${text.trim().replace(/\s+/g, " ")}` } }), `Sent to ${name}`);
-    con.poll();
-  };
-  const renderOnline = (names, max, force = false) => {
-    onlineCount.textContent = `${names.length} / ${max}`;
-    const key = names.join(",") + "|" + selected + "|" + [...ops].join(",");
-    if (key === shown && !force) return;
-    shown = key;
-    if (selected && !names.includes(selected)) selected = null;
-    if (!names.length) { fill(online, h("p", { class: "empty" }, "Nobody online right now.")); return; }
-    fill(online,
-      h("div", { class: "chips" }, names.map((n) => h("button", {
-        type: "button", class: "chip" + (n === selected ? " selected" : ""), title: `Manage ${n}`,
-        "aria-expanded": n === selected ? "true" : "false",
-        onclick: () => { selected = selected === n ? null : n; renderOnline(names, max, true); },
-      }, playerHead(n, 28), h("span", {}, n), ops.has(n.toLowerCase()) ? h("span", { class: "badge" }, "op") : null))),
-      selected ? h("div", { class: "row mt-s player-actions" },
-        h("strong", { class: "grow" }, selected),
-        h("button", { class: "btn small", onclick: () => message(selected) }, "Message"),
-        ops.has(selected.toLowerCase())
-          ? h("button", { class: "btn small", onclick: () => run("deop", selected) }, "Remove op")
-          : h("button", { class: "btn small", onclick: () => run("op", selected) }, "Make op"),
-        h("button", { class: "btn small", onclick: () => run("kick", selected) }, "Kick"),
-        h("button", { class: "btn small danger", onclick: () => run("ban", selected) }, "Ban"),
-        h("a", { class: "btn small ghost", href: link("players") }, "More…")) : null);
-  };
-  const loadPlayers = async () => {
-    const r = await api("/api/players").catch(() => null);
-    if (!r) return;
-    ops = new Set(r.ops.map((o) => (o.name || "").toLowerCase()));
-    if (status) renderOnline(status.players, status.max_players);
   };
 
   // What went wrong (a crash or a failed start), in plain words with the fixes Craft Conductor can do.
@@ -1299,7 +1500,7 @@ views.dashboard = () => {
   const render = (s) => {
     renderProblem(s.problem);
     renderMeters(s);
-    renderOnline(s.players, s.max_players);
+    pc.set(s.players, s.max_players, s.state);
     fill(statusBody,
       h("dt", {}, "State"), h("dd", {}, h("span", { class: "pill " + s.state }, s.state)),
       h("dt", {}, "Uptime"), h("dd", {}, s.uptime ? fmtDuration(s.uptime) : "—"),
@@ -1343,7 +1544,7 @@ views.dashboard = () => {
     h("section", { class: "cc-panel cc-dashboard", "aria-label": "Server dashboard" },
       h("div", { class: "cc-telemetry-grid", "aria-label": "Server telemetry" }, cpu.el, mem.el, disk.el, players.el),
       h("div", { class: "cc-dashboard-layout" }, con.el,
-        h("aside", { class: "cc-dashboard-rail", "aria-label": "Server details" }, playerCard,
+        h("aside", { class: "cc-dashboard-rail", "aria-label": "Server details" }, pc.el,
           card("Runtime Parameters", statusBody,
             h("div", { class: "row mt-s" }, h("button", { class: "btn small", onclick: openDoctor }, "🩺 Check my setup"),
               folderBtn("server", "Server folder"), folderBtn("world", "World folder")))))),
@@ -1359,7 +1560,7 @@ views.dashboard = () => {
   every(30000, perf.load);
   every(60000, () => tun.load());
   every(1000, con.poll);
-  every(5000, loadPlayers);
+  every(5000, pc.poll);
   return { onStatus: render };
 };
 
@@ -3700,6 +3901,7 @@ const HELP = [
     screenshot("new-server", "New server: start from a ready-made choice, or pick each step yourself."),
     h("p", {}, "Press ", h("strong", {}, "Start"), " when you want to play. In Minecraft, choose Multiplayer → Add Server and use this computer's address."),
     screenshot("dashboard", "A running server's Dashboard: how busy it is, who's on, and the live console."),
+    h("p", {}, "The Dashboard's Connected Players card lists who's on. Press a player for more actions, press Kick to remove them, and use Whitelist and Broadcast under the list to manage who may join and to send a message to everyone online."),
     h("p", {}, "Something not working? Press ", h("strong", {}, "🩺 Check my setup"), " on the server's Dashboard: it checks the usual causes ",
       "(Java, memory, disk space, the port, the firewall) and says what to do. ", h("strong", {}, "Test from the internet"), " there checks friends outside your home can connect."),
     screenshot("check-my-setup", "Check my setup: each check with what to do, and a button where Craft Conductor can fix it."),
@@ -3770,6 +3972,7 @@ const MANUAL_PICTURES = {
   "Your servers": [["servers", "Your servers, and a modded single-player game"]],
   "Dashboard": [["dashboard", "The Dashboard of a running server"],
     ["dashboard-problem", "A server that didn't start: what went wrong, and the fix"]],
+  "Connected Players": [["connected-players", "Connected Players: a row's actions open, and the Whitelist panel"]],
   "Performance": [["performance", "Performance, with the last hour's graph"]],
   "Check my setup": [["check-my-setup", "Check my setup"]],
   "Console": [["console", "The Console"]],

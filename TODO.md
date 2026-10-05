@@ -52,6 +52,15 @@ Before continuing or starting a feature, check this list: some features wait on 
       not; **Remove** the first (it asks about the server). On the World page's Web map card, only the
       map that has a build for your Minecraft version should have an Add button. On a friend's setup
       page, **More mods** should list only client-side mods. They were tried with a pretend Modrinth.
+- [ ] **Try the Connected Players card for real** (0.23.0; a server's Dashboard): with several friends
+      online (20 or more if you can), check the list scrolls inside the card, press a row for
+      Message, Make op and Ban, and **Kick** one friend (it asks first). Open **Whitelist** (switch
+      it on and off, add and remove a name) and **Broadcast** a message: friends should see it in
+      the game's chat, and it shows in the Dashboard's console. Have a friend join and leave while
+      you watch (rows stay put, the open actions stay open), and try it with a screen reader. Then
+      do the same from a paired phone (a helper's phone has them all; a viewer's has no buttons).
+      Look at an operator's badge (OP, or OP 2 for a level-2 op in `ops.json`) and at the ping,
+      which should show "—" with a tooltip. It was tried with pretend players only.
 - [ ] **Try continuous mod browsing for real** (0.23.0): in the mod browser (**Download mods**), scroll
       down a search and check the list keeps going without jumping, and what you ticked stays ticked.
       Try it on a slow connection (a phone hotspot, or the browser's developer tools set to "Slow 4G"):
@@ -195,10 +204,12 @@ Next:
         the user's real setup).
 33. [ ] **Contextual help drawer:** Help opens the relevant section in a panel that slides in
         from the right; users can collapse it back to the right without leaving their work.
-34. [ ] **Dashboard Connected Players widget:** compact player management on the Dashboard,
+34. [x] **Dashboard Connected Players widget:** compact player management on the Dashboard,
         with connected count / maximum capacity, player status, names, role badges, live ping,
         per-player KICK, and Whitelist Control and Broadcast footer actions; update without
-        a full Dashboard refresh.
+        a full Dashboard refresh. Done in 0.23.0 (not released yet). Ping shows "—" on every
+        server type (none shares it without adding a mod or plugin), and there is no MOD/group
+        or "you" badge: see the pull request for why and the options.
 35. [x] **Size limits when unpacking archives** (security): a modpack's overrides and a backup
         being restored are unpacked without a limit on their total unpacked size, so a small
         crafted file could fill the disk. Shipped in 0.22.3; the two `xfail`s in
@@ -405,19 +416,3 @@ translations, documentation, and changelog entries current.
   reduced-motion support.
 - Acceptance: Help opens the correct section from each supported context; collapse returns
   to the same work state; keyboard and mobile users can open, read, and close it reliably.
-
-**34. Dashboard Connected Players widget**
-- Goal: upgrade the Dashboard's Connected Players widget into a compact player-management
-  interface, with the requested controls available directly on the Dashboard without requiring
-  a separate player page. This is a pending roadmap item, not an implemented feature.
-- Show the connected player count / maximum server capacity in the header (for example,
-  `14 / 30`).
-- Give each connected player a row with an online/status indicator, Minecraft username,
-  role/permission badge such as OP or MOD, live ping in milliseconds, an optional visual
-  latency state, and a per-player KICK action.
-- Add Whitelist Control and Broadcast actions in the widget's footer: view/manage the server
-  whitelist and send a server-wide message to connected players.
-- Update player status, count, roles, and ping dynamically without a full Dashboard refresh.
-- Acceptance: the header reflects current occupancy and capacity; each player row shows the
-  requested information and KICK action; both footer actions work from the Dashboard; player
-  changes appear dynamically while management stays compact and on the Dashboard.

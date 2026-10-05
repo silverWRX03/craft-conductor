@@ -55,6 +55,7 @@ IMAGES = {
     "Your servers": [("servers.png", "Your servers, and a modded single-player game")],
     "Dashboard": [("dashboard.png", "The Dashboard of a running server"),
                   ("dashboard-problem.png", "A server that didn't start: what went wrong, and the fix")],
+    "Connected Players": [("connected-players.png", "Connected Players: a row's actions open, and the Whitelist panel")],
     "Performance": [("performance.png", "Performance, with the last hour's graph")],
     "Check my setup": [("check-my-setup.png", "Check my setup")],
     "Console": [("console.png", "The Console")],

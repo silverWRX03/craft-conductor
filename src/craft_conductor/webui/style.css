@@ -181,15 +181,38 @@ th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: upp
 .bar-fill { height: 100%; width: 0; background: var(--accent); border-radius: 999px; transition: width .6s ease; }
 .bar-fill.warn { background: var(--warn); }
 .bar-fill.bad { background: var(--danger); }
-.chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.chip { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px 4px 4px; border-radius: 999px;
-  background: var(--panel-2); border: 1px solid var(--border); color: var(--text); font: inherit; cursor: pointer; }
-.chip:hover { border-color: var(--hover-border); }
-.chip.selected { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .head { border-radius: 4px; image-rendering: pixelated; flex-shrink: 0; }
 .badge { font-size: 10.5px; font-weight: 700; text-transform: uppercase; color: var(--warn-strong); background: var(--warn-bg);
   border-radius: 4px; padding: 1px 5px; }
-.player-actions { padding: 10px 12px; background: var(--panel-2); border-radius: var(--radius); }
+.player-actions { padding: 8px 10px; background: var(--panel-2); border-radius: var(--radius); margin: 0 0 6px; }
+
+/* Connected Players: one compact row per player; the list scrolls inside the card, the Dashboard doesn't grow */
+.player-scroll { max-height: 280px; overflow-y: auto; overscroll-behavior: contain; }
+.prows { list-style: none; margin: 0; padding: 0; }
+.prow { border-bottom: 1px solid var(--border); }
+.prow:last-child { border-bottom: 0; }
+.prow-line { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
+.prow-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 4px 6px; background: none; border: 0;
+  border-radius: 6px; color: var(--text); font: inherit; text-align: start; }
+button.prow-open { cursor: pointer; }
+button.prow-open:hover { background: var(--hover-bg); }
+button.prow-open[aria-expanded="true"] { background: var(--selected-bg); }
+button.prow-open:focus-visible, .switch:focus-visible { outline: 2px solid var(--info); outline-offset: -2px; }
+.pdot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok-fg); flex: none; }
+.pname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ping { flex: none; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 3.4em; text-align: end; }
+.ping.good { color: var(--ok-fg); }
+.ping.fair { color: var(--warn-fg); }
+.ping.poor { color: var(--bad-fg); }
+.ping.none { color: var(--muted); }
+.players-card summary { cursor: pointer; margin-top: 8px; }
+.foot-panel { margin-top: 10px; padding: 10px 12px; background: var(--panel-2); border-radius: var(--radius); }
+.wl-scroll { max-height: 180px; overflow-y: auto; overscroll-behavior: contain; margin-top: 8px; }
+.wl-list li { padding: 5px 0; }
+.bc-count { flex: none; font-variant-numeric: tabular-nums; }
+.switch { flex: none; min-width: 52px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg);
+  color: var(--muted); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.switch[aria-checked="true"] { color: var(--ok-strong); background: var(--ok-bg); border-color: var(--ok-border); }
 .console-input input { font-family: var(--mono); }
 
 /* events */

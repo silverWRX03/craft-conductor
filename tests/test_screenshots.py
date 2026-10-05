@@ -49,8 +49,8 @@ MODS = [
     ("bluemap", "BlueMap", "5.4", "bluemap-5.4-fabric.jar", "release"),
     ("xaeros-minimap", "Xaero's Minimap", "24.6.1", "Xaeros_Minimap_24.6.1_Fabric_1.21.jar", "release"),
 ]
-PLAYERS = ["Alex", "Sam_Builds", "KaiCrafts", "Mia", "JordanMC", "Riley", "Noor", "Griefer42"]
-ONLINE = ["Alex", "KaiCrafts", "Mia", "Sam_Builds"]
+PLAYERS = ["Alex", "Sam_Builds", "KaiCrafts", "Mia", "JordanMC", "Riley", "Noor", "Griefer42", "LenaPlays", "Bruno_77"]
+ONLINE = ["Alex", "KaiCrafts", "Mia", "Sam_Builds", "JordanMC", "Riley", "Noor", "LenaPlays", "Bruno_77"]
 
 # A stand-in for Minecraft that looks like it in the console: it starts, takes connections on its
 # port (on this computer only), lets players in, answers the commands Craft Conductor sends, and
@@ -241,7 +241,8 @@ def players_files(server: Path) -> None:
     ids = {name: str(uuid.uuid5(uuid.NAMESPACE_DNS, name)) for name in PLAYERS}
     later = time.strftime("%Y-%m-%d %H:%M:%S +0000", time.gmtime(time.time() + 30 * 86400))
     (server / "usercache.json").write_text(json.dumps([{"name": n, "uuid": u, "expiresOn": later} for n, u in ids.items()]))
-    (server / "ops.json").write_text(json.dumps([{"name": "Alex", "uuid": ids["Alex"], "level": 4, "bypassesPlayerLimit": False}]))
+    (server / "ops.json").write_text(json.dumps([{"name": "Alex", "uuid": ids["Alex"], "level": 4, "bypassesPlayerLimit": False},
+                                                 {"name": "Riley", "uuid": ids["Riley"], "level": 2, "bypassesPlayerLimit": False}]))
     (server / "whitelist.json").write_text(json.dumps([{"name": n, "uuid": ids[n]} for n in PLAYERS if n != "Griefer42"]))
     (server / "banned-players.json").write_text(json.dumps([{
         "name": "Griefer42", "uuid": ids["Griefer42"], "created": "2026-09-21 20:14:03 +0000", "source": "Alex",
