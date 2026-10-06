@@ -2950,6 +2950,105 @@ views.friends = () => {
   return { refresh: reload };
 };
 
+// ---------------------------------------------------------- reusable mod management
+// Server mods, friends' mods and single-player mods all use the same compact summary and
+// right-side drawer. The item source stays the existing resolver/API data: this is presentation,
+// not a second dependency model.
+function modSummaryCounts(items) {
+  const active = (items || []).filter((m) => !m.removed);
+  return {
+    total: active.length,
+    dependencies: active.filter((m) => m.dependency).length,
+    early: active.filter((m) => m.channel === "beta" || m.channel === "alpha").length,
+    removed: (items || []).filter((m) => m.removed).length,
+  };
+}
+function modSummary(items, { noun = "mods", manage = "Manage Mods", open, extra = null } = {}) {
+  const n = modSummaryCounts(items);
+  return h("div", { class: "mod-summary", "data-mod-summary": noun },
+    h("div", { class: "mod-summary-stats" },
+      h("div", {}, h("strong", {}, n.total), ` ${noun} added`),
+      h("div", {}, h("strong", {}, n.dependencies), " added automatically as dependencies"),
+      h("div", {}, h("strong", {}, n.early), " are Beta or Alpha releases"),
+      n.removed ? h("div", { class: "warn-text" }, h("strong", {}, n.removed), " manually removed") : null),
+    extra,
+    h("button", { type: "button", class: "btn", onclick: open }, manage));
+}
+let modManagerOpen = null;
+function closeModManager(instant = false) {
+  if (!modManagerOpen) return;
+  const { backdrop, focus } = modManagerOpen;
+  modManagerOpen = null;
+  $("#main").inert = false;
+  if (!instant && focus && focus.isConnected) focus.focus({ preventScroll: true });
+  if (instant || lessMotion()) { backdrop.remove(); return; }
+  backdrop.classList.add("leaving");
+  setTimeout(() => backdrop.remove(), 220);
+}
+function refreshModManager(owner) {
+  if (modManagerOpen && (!owner || modManagerOpen.owner === owner)) modManagerOpen.render();
+}
+function openModManager({ title, description = "", owner = "", getItems, getHeader = null, onChange = null }) {
+  closeModManager(true);
+  const body = h("div", { class: "mod-manager-body" });
+  const focus = document.activeElement;
+  const render = () => {
+    const items = getItems ? getItems() : [];
+    const counts = modSummaryCounts(items);
+    const rows = items.length ? items.map((m) => {
+      const source = m.source ? m.source[0].toUpperCase() + m.source.slice(1) : "";
+      const minecraft = Array.isArray(m.minecraft) ? m.minecraft.join(", ") : m.minecraft;
+      const loader = Array.isArray(m.loader) ? m.loader.join(", ") : m.loader;
+      const meta = [
+        m.version ? `Version ${m.version}` : null,
+        minecraft ? `Minecraft ${minecraft}` : null,
+        loader ? loader : null,
+        source || null,
+      ].filter(Boolean);
+      const tags = [
+        m.removed ? h("span", { class: "tag warn" }, "manually removed") : null,
+        m.dependency ? h("span", { class: "tag" }, m.neededBy ? `dependency · needed by ${m.neededBy}` : "dependency") : null,
+        !m.dependency && m.origin ? h("span", { class: "tag" }, m.origin) : null,
+        m.channel === "beta" || m.channel === "alpha" ? h("span", { class: "tag warn" }, m.channel) : null,
+        ...(m.tags || []).map((x) => h("span", { class: "tag" }, x)),
+      ];
+      const action = m.removed ? m.restore : m.remove;
+      const actionLabel = m.removed ? "Restore" : (m.removeLabel || "Remove");
+      return h("div", { class: "mod-manager-row" + (m.removed ? " removed" : "") },
+        h("div", { class: "grow" },
+          h("div", { class: "mod-manager-name" }, h("strong", {}, m.name || m.key || "Mod"), tags),
+          meta.length ? h("div", { class: "muted small" }, meta.join(" · ")) : null,
+          m.warning ? h("div", { class: "small bad-text mt-s" }, m.warning) : null,
+          m.detail ? h("div", { class: "muted small mt-s" }, m.detail) : null),
+        action ? h("button", { type: "button", class: "btn small" + (m.removed ? "" : " danger"), onclick: async () => {
+          const changed = await action();
+          if (changed === false) return;
+          if (onChange) onChange();
+          render();
+        } }, actionLabel) : null);
+    }) : [h("p", { class: "empty" }, "No mods selected.")];
+    fill(body,
+      getHeader ? getHeader(counts) : null,
+      h("div", { class: "mod-manager-counts muted small" },
+        `${counts.total} total · ${counts.dependencies} dependencies · ${counts.early} Beta/Alpha` +
+        (counts.removed ? ` · ${counts.removed} manually removed` : "")),
+      h("div", { class: "mod-manager-list" }, rows));
+  };
+  const close = () => closeModManager();
+  const panel = h("section", { class: "mod-manager-drawer", role: "dialog", "aria-modal": "true", "aria-labelledby": "mod-manager-title" },
+    h("div", { class: "mod-manager-head" },
+      h("div", { class: "grow" }, h("h2", { id: "mod-manager-title" }, title),
+        description ? h("p", { class: "muted small" }, description) : null),
+      h("button", { type: "button", class: "btn ghost small", onclick: close }, "Close")),
+    body);
+  const backdrop = h("div", { class: "mod-manager-backdrop", onclick: (e) => { if (e.target === backdrop) close(); } }, panel);
+  $("#main").inert = true;
+  $("#stage").append(backdrop);
+  modManagerOpen = { owner, backdrop, focus, render };
+  render();
+  panel.querySelector("button").focus({ preventScroll: true });
+}
+
 // ------------------------------------------------------------------ mod browser
 // Opened from setup, the Mods page and Friends: the page slides left into a narrow rail
 // (click it or press Escape to go back) and the browser takes the screen, with search,
@@ -3008,7 +3107,8 @@ function closeBrowser(instant = false) {
   setTimeout(() => panel.remove(), 260);
 }
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && helpOpen && !document.querySelector(".modal")) closeHelp();
+  if (e.key === "Escape" && modManagerOpen && !document.querySelector(".modal")) closeModManager();
+  else if (e.key === "Escape" && helpOpen && !document.querySelector(".modal")) closeHelp();
   else if (e.key === "Escape" && browserOpen && !document.querySelector(".modal")) closeBrowser();
 });
 
@@ -6397,6 +6497,7 @@ function renderNav() {
 function route() {
   closeHelp(true);
   closeAppNavigation();
+  closeModManager(true);
   closeBrowser(true);
   shownHash = location.hash;
   const hash = (location.hash || "#servers").slice(1);
