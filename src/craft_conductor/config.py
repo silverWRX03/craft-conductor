@@ -350,7 +350,7 @@ TEMPLATE = """\
 [server]
 dir = "server"                 # server directory (world, config/, mods/, server.properties)
 loader = "{loader}"            # fabric | quilt | neoforge | forge | paper | purpur | vanilla
-minecraft = "{minecraft}"      # version to install on first `craft-conductor update` ("latest" = newest release)
+minecraft = "{minecraft}"      # version a new server is made on, whatever its mods ("latest" = newest release the loader runs)
 memory = "4G"
 jvm_args = []                  # extra JVM flags, e.g. ["-XX:+UseZGC"]
 aikar_flags = false            # Aikar's GC flags: fewer lag spikes with lots of memory (16 GB+)

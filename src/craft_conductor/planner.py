@@ -6,6 +6,19 @@ and every required mod are available. Optional mods that are not ready are dropp
 from the plan and picked up again by a later update, except that moving an installed
 server to a newer Minecraft waits for every mod (``updates.wait_for_all_mods``):
 nothing is removed without the admin saying so.
+
+Which Minecraft versions are candidates depends on the policy:
+
+- ``CREATE`` (nothing installed yet): the version chosen for the new server is fixed, and so
+  are the loader and its build. Mods are resolved around them; when they can't be, the plan
+  says why, and other versions are only ever *suggested* (:meth:`Planner.alternatives`).
+  "latest" means the newest release its loader runs at the time the server is made.
+- ``UPGRADE`` (an installed server): newer versions are weighed against the mods, as
+  ``updates.strategy`` says.
+
+A required dependency is looked for on the site that names it first, then on the other mod
+site (CurseForge and Modrinth), for the same Minecraft version and loader; a mod found on both
+is installed once.
 """
 
 from __future__ import annotations
@@ -20,12 +33,16 @@ from .loaders import Loader
 from .lock import Lock
 from .minecraft import Mojang
 from .mods import ModError, ModFile, ModProvider, Unavailable
-from .mods.base import CHANNEL_RANK, ClientOnly
+from .mods.base import CHANNEL_RANK, MOD_SOURCES, SOURCE_NAMES, ClientOnly, Project, not_checked, same_project
 
 log = logging.getLogger(__name__)
 
-# How far back to look for a compatible version when nothing is installed yet.
+# How far back to look for other versions to suggest when a new server's mods don't work on its own.
 FIRST_INSTALL_LOOKBACK = 25
+SUGGESTIONS = 3
+
+CREATE = "create"    # a new server: its Minecraft version and loader are fixed
+UPGRADE = "upgrade"  # an installed server: newer Minecraft versions are considered (updates.strategy)
 
 
 @dataclass
@@ -38,6 +55,29 @@ class Blocker:
     client_only: bool = False
     config: str | None = None    # "source:id" as listed in craft-conductor.toml, for mods listed there
     waiting: bool = False        # optional, but upgrades wait for every mod (wait_for_all_mods)
+    #: the mod names from this one down to the one that has no build: ["A", "B", "C"] for A needs B needs C
+    chain: list[str] = field(default_factory=list)
+    checked: list[str] = field(default_factory=list)    # the sites looked on for the one that has no build
+    unchecked: list[str] = field(default_factory=list)  # sites that couldn't be asked, and why
+    cause: str = ""  # why the last mod in the chain can't be used (``reason`` says it for this one)
+
+    def explain(self, minecraft: str, loader: str) -> str:
+        """In words, for people: what needs what, and where Craft Conductor looked."""
+        chain = self.chain or [self.name]
+        cause = self.cause or self.reason
+        if len(chain) == 1:
+            text = cause if cause.startswith(chain[0]) else f"{chain[0]}: {cause}"
+        else:
+            needs = "".join(f", which requires {name}" for name in chain[2:])
+            text = (f"{chain[0]} requires {chain[1]}{needs}, but no compatible {chain[-1]} release was found "
+                    f"for Minecraft {minecraft} using {LOADER_NAMES.get(loader, loader)}")
+            if " has no " not in cause:
+                text += f" ({cause})"
+        if self.checked:
+            text += f". Craft Conductor checked {' and '.join(self.checked)}"
+        if self.unchecked:
+            text += f" ({'; '.join(self.unchecked)})"
+        return text + "."
 
 
 @dataclass
@@ -116,6 +156,29 @@ class Decision:
     #: newer versions that were considered and why they were not chosen
     blocked: list[Plan] = field(default_factory=list)
     latest: str | None = None
+    policy: str = UPGRADE
+
+
+LOADER_NAMES = {"fabric": "Fabric", "neoforge": "NeoForge", "forge": "Forge", "quilt": "Quilt", "paper": "Paper",
+                "purpur": "Purpur", "vanilla": "Vanilla"}
+
+
+def newest_release(mojang: Mojang, loader: Loader) -> str:
+    """What "latest" means for a new server: the newest release its loader has a build for
+    (a loader can take days to support a new Minecraft). It depends on the loader chosen, never
+    on the mods. When the loader's own site can't say (an outage), the newest release: the plan
+    then says what's wrong instead of moving to an older Minecraft."""
+    latest = mojang.latest_release()
+    for version in mojang.newer_than(None)[:FIRST_INSTALL_LOOKBACK]:
+        try:
+            if loader.latest_version(version):
+                return version
+            if loader.missing_reason(version):
+                return latest
+        except Exception as e:  # (the plan finds out again, and says why)
+            log.debug("couldn't ask %s about Minecraft %s: %s", loader.name, version, e)
+            return latest
+    return latest
 
 
 def lowest(server: str, mod: str | None) -> str:
@@ -132,6 +195,50 @@ class Planner:
         self.loader = loader
         self.providers = providers
         self.unmanaged = unmanaged or []
+        self._same: dict[tuple[str, str], Project | None] = {}  # (project key, site) -> the same mod there
+
+    @property
+    def policy(self) -> str:
+        return UPGRADE if self.lock.minecraft else CREATE
+
+    def _counterpart(self, project: Project, source: str) -> Project | None:
+        """The same mod on another site (looked up once per check). Raises ModError when that
+        site can't be asked."""
+        key = (project.key, source)
+        if key not in self._same:
+            self._same[key] = self.providers[source].find_same(project)
+        return self._same[key]
+
+    def _elsewhere(self, project: Project, spec: ModSpec, minecraft: str, channel: str,
+                   blocker: Blocker) -> tuple[Project, ModFile] | None:
+        """A required dependency with no build on the site that names it: the same mod on the
+        other mod site, for the same Minecraft and loader. ``blocker`` notes where it looked.
+        Raises :class:`ClientOnly` when the other site says only players need it."""
+        loaders = self.loader.mod_loaders
+        for source in MOD_SOURCES:
+            provider = self.providers.get(source)
+            if source == spec.source or provider is None or not provider.handles(loaders):
+                continue
+            name = SOURCE_NAMES.get(source, source)
+            try:
+                other = self._counterpart(project, source)
+            except ModError as e:
+                blocker.unchecked.append(not_checked(provider, e))
+                continue
+            blocker.checked.append(name)
+            if other is None:
+                continue
+            try:
+                mod = provider.resolve(ModSpec(source, other.id, required=spec.required, dependency_of=spec.dependency_of,
+                                               channel=spec.channel), minecraft, loaders, channel)
+            except ClientOnly:
+                raise  # (only players need it)
+            except (Unavailable, ModError):
+                continue
+            log.info("%s has no build for Minecraft %s on %s; using the one on %s", project.name, minecraft,
+                     SOURCE_NAMES.get(spec.source, spec.source), name)
+            return other, mod
+        return None
 
     def plan_for(self, minecraft: str) -> Plan:
         plan = Plan(minecraft=minecraft, loader=self.loader.name,
@@ -156,7 +263,19 @@ class Planner:
         failed: dict[str, Blocker] = {}
         client_only: set[str] = set()
         listed: dict[str, str] = {}  # project key -> "source:id" in craft-conductor.toml
+        # A dependency's key on the site that names it -> the key it's known by here, when that's
+        # another site's (found there, or the same mod already in the plan from there).
+        alias: dict[str, str] = {}
+        projects: dict[str, Project] = {}  # key -> project, to spot the same mod coming from another site
         queue = deque(self.config.mods)
+
+        def known(project: Project) -> str | None:
+            """The key of the same mod already in the plan from another site, if it is."""
+            for k, other in projects.items():
+                if other.source != project.source and (k in resolved or k in failed or k in client_only) \
+                        and same_project(project, other):
+                    return k
+            return None
 
         while queue:
             spec: ModSpec = queue.popleft()
@@ -166,23 +285,26 @@ class Planner:
                 project = provider.project(spec.id)
             except ModError as e:
                 failed[spec.label] = Blocker(spec.label, spec.id, str(e), spec.required, spec.dependency_of,
-                                             config=config_id)
+                                             config=config_id, checked=[SOURCE_NAMES.get(spec.source, spec.source)])
                 continue
             key = project.key
             if config_id:
                 listed.setdefault(key, config_id)
+            elif key not in projects and (same := known(project)):
+                alias[key] = key = same  # one copy, whichever site it came from first
             if key in resolved or key in failed or key in client_only:
                 # Something required depends on it, so it is required too.
                 if spec.required:
                     if key in resolved:
                         if not resolved[key].required:
                             for dep in resolved[key].dependencies:
-                                queue.append(ModSpec(spec.source, dep, required=True, dependency_of=key,
+                                queue.append(ModSpec(resolved[key].source, dep, required=True, dependency_of=key,
                                                      channel=spec.channel))
                         resolved[key].required = True
                     elif key in failed:
                         failed[key].required = True
                 continue
+            projects[key] = project
             try:
                 mod = provider.resolve(spec, minecraft, self.loader.mod_loaders, lowest(channel, spec.channel))
             except ClientOnly as e:
@@ -191,22 +313,45 @@ class Planner:
                     plan.dropped.append(Blocker(key, project.name, str(e), False, client_only=True, config=config_id))
                 continue
             except Unavailable as e:
-                failed[key] = Blocker(key, project.name, str(e), spec.required, spec.dependency_of, config=config_id)
-                continue
-            resolved[key] = mod
+                blocker = Blocker(key, project.name, str(e), spec.required, spec.dependency_of, config=config_id,
+                                  chain=[project.name], checked=[SOURCE_NAMES.get(spec.source, spec.source)])
+                # The mods you listed come from where you picked them; what they need can come from either site.
+                try:
+                    found = self._elsewhere(project, spec, minecraft, lowest(channel, spec.channel), blocker) \
+                        if spec.dependency_of is not None else None
+                except ClientOnly:
+                    client_only.add(key)
+                    continue
+                if found is None:
+                    failed[key] = blocker
+                    continue
+                other, mod = found
+                alias[key] = mod.key
+                if mod.key in resolved:  # (already here, by another way)
+                    if spec.required and not resolved[mod.key].required:
+                        for dep in resolved[mod.key].dependencies:
+                            queue.append(ModSpec(mod.source, dep, required=True, dependency_of=mod.key, channel=spec.channel))
+                        resolved[mod.key].required = True
+                    continue
+                projects[mod.key] = other
+            resolved[mod.key] = mod
             for dep in mod.dependencies:
-                queue.append(ModSpec(spec.source, dep, required=spec.required, dependency_of=key, channel=spec.channel))
+                queue.append(ModSpec(mod.source, dep, required=spec.required, dependency_of=mod.key, channel=spec.channel))
 
         # A mod whose dependency is unavailable is unavailable too.
         changed = True
         while changed:
             changed = False
             for key, mod in list(resolved.items()):
-                missing = [failed[k] for k in (f"{mod.source}:{d}" for d in mod.dependencies) if k in failed]
+                needs = (alias.get(k, k) for k in (f"{mod.source}:{d}" for d in mod.dependencies))
+                missing = [failed[k] for k in needs if k in failed]
                 if missing:
                     del resolved[key]
                     failed[key] = Blocker(key, mod.name, f"needs {missing[0].name}: {missing[0].reason}",
-                                          mod.required, mod.dependency_of, config=listed.get(key))
+                                          mod.required, mod.dependency_of, config=listed.get(key),
+                                          chain=[mod.name, *(missing[0].chain or [missing[0].name])],
+                                          checked=missing[0].checked, unchecked=missing[0].unchecked,
+                                          cause=missing[0].cause or missing[0].reason)
                     changed = True
 
         plan.mods = sorted(resolved.values(), key=lambda m: m.name.lower())
@@ -223,16 +368,14 @@ class Planner:
         if self.lock.minecraft:
             return self.lock.minecraft
         wanted = self.config.server.minecraft
-        return self.mojang.latest_release() if wanted == "latest" else wanted
+        return newest_release(self.mojang, self.loader) if wanted == "latest" else wanted
 
     def _candidates(self) -> list[str]:
+        if self.policy == CREATE:
+            # A new server is made on the version chosen for it ("latest": the newest release
+            # today), never on another one picked to suit the mods: see alternatives().
+            return [self.current_version()]
         strategy = self.config.updates.strategy
-        if not self.lock.minecraft:
-            wanted = self.config.server.minecraft
-            if wanted != "latest":
-                return [wanted]
-            # Fresh install: newest release that works, looking back a limited distance.
-            return self.mojang.newer_than(None)[:FIRST_INSTALL_LOOKBACK]
         current = self.lock.minecraft
         if strategy == "mods-only" or current not in self.mojang.releases():
             return [current]  # a beta stays a beta until you choose otherwise
@@ -248,10 +391,11 @@ class Planner:
         when someone asks (``retry_failed``) or when nothing is installed yet.
         """
         latest = self.mojang.latest_release()
+        policy = self.policy
         if target:
             plan = self.plan_for(target)
             return Decision(plan=plan if plan.complete else None, blocked=[] if plan.complete else [plan],
-                            latest=latest)
+                            latest=latest, policy=policy)
         blocked = []
         skip_failed = self.lock.installed and not retry_failed
         for version in self._candidates():
@@ -262,6 +406,18 @@ class Planner:
                                              f"it failed ({self.lock.failed_plans[plan.fingerprint]}); "
                                              "update manually to try again", True))
             if plan.complete:
-                return Decision(plan=plan, blocked=blocked, latest=latest)
+                return Decision(plan=plan, blocked=blocked, latest=latest, policy=policy)
             blocked.append(plan)
-        return Decision(plan=None, blocked=blocked, latest=latest)
+        return Decision(plan=None, blocked=blocked, latest=latest, policy=policy)
+
+    def alternatives(self, chosen: str, limit: int = SUGGESTIONS) -> list[str]:
+        """Other releases these mods and this loader would work on, newest first: only to
+        offer when a new server's mods don't work on the version chosen for it. Nothing here
+        changes that version; the person picks one of these, or doesn't."""
+        out = []
+        for version in self.mojang.newer_than(None)[:FIRST_INSTALL_LOOKBACK]:
+            if version != chosen and self.plan_for(version).complete:
+                out.append(version)
+                if len(out) >= limit:
+                    break
+        return out

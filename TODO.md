@@ -74,6 +74,13 @@ Before continuing or starting a feature, check this list: some features wait on 
       few mods support yet (many "result(s) hidden"): the list should keep going, or offer **Keep
       looking**. And the friend's setup page on a phone: **Resource packs** or **More mods**, scrolled
       with a thumb. It was tried with a pretend Modrinth.
+- [ ] **Try the new-server version fix for real** (B6, 0.24.0): **New server** → NeoForge, a specific Minecraft
+      version that Biomes O' Plenty supports but GlitchCore doesn't on one of the two sites, then add Biomes O' Plenty
+      from CurseForge. GlitchCore should come along from the other site, and the server should be made on the version
+      you picked. Then pick a version GlitchCore has no NeoForge build for anywhere: the mod's row should say
+      **Dependency unavailable**, name CurseForge and Modrinth, and offer **Use Minecraft …** without changing the
+      version by itself; **Create my server** anyway should fail with the same explanation. It was tried with a
+      pretend CurseForge and Modrinth only.
 - [ ] **Windows code signing (optional):** apply to the SignPath Foundation (see
       [docs/code-signing.md](docs/code-signing.md)). Once accepted, add the repository variable
       `SIGNPATH_ORGANIZATION_ID` and the secret `SIGNPATH_API_TOKEN`; releases are then signed

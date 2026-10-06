@@ -4,6 +4,16 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.24.0 (not released yet)
+
+**Fixed**
+- Making a new server could put it on an older Minecraft than the one chosen (B6). With a mod whose required mod had no build for the chosen Minecraft and server type (for example Biomes O' Plenty needing GlitchCore on NeoForge), Craft Conductor quietly went back through older Minecraft versions until the mods worked, and made the server on that one. A new server is now always made on the Minecraft version and server type you picked; when a mod can't be used, it says so instead.
+- A mod's required mod was only looked for on the site the mod came from: a CurseForge mod whose required mod had a build on Modrinth only (or the other way round) couldn't be installed. Required mods are now looked for on both CurseForge and Modrinth, for your Minecraft version and server type, and a mod found on both is installed once.
+
+**Changed**
+- **New server → Minecraft version:** the recommended choice is now **Newest release**: the newest Minecraft the server type runs, named under the list. It used to be "Newest version your mods support", which let the mods pick an older Minecraft. The server still upgrades only once every mod supports the next Minecraft.
+- When a mod you pick can't be used on your Minecraft version and server type, its row says **Dependency unavailable** with which mods need which ("Biomes O' Plenty requires GlitchCore, but no compatible GlitchCore release was found for Minecraft 1.21.2 using NeoForge. Craft Conductor checked CurseForge and Modrinth."), the Minecraft versions that appear to work (**Use Minecraft …**, after asking), **Choose another Minecraft version** and **Remove**. Mods picked from CurseForge are checked too. If setup fails for this reason, the message says the same, that your Minecraft version has not been changed, and which versions would work.
+
 ## 0.23.2 (2026-10-05)
 
 **Fixed**

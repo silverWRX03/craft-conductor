@@ -79,6 +79,34 @@ class ClientOnly(Unavailable):
     """The mod does not run on servers; it is skipped rather than treated as a blocker."""
 
 
+#: How each mod site is named to people
+SOURCE_NAMES = {"modrinth": "Modrinth", "curseforge": "CurseForge", "hangar": "Hangar"}
+#: The sites a mod's dependency is looked for on, in this order after the site that names it
+MOD_SOURCES = ("curseforge", "modrinth")
+
+
+def not_checked(provider: ModProvider, error: Exception) -> str:
+    """For people: a site that couldn't be asked about a mod, and why."""
+    name = SOURCE_NAMES.get(provider.source, provider.source)
+    if provider.source == "curseforge" and not getattr(provider, "api_key", "?"):
+        return f"{name} couldn't be checked: no CurseForge API key (Craft Conductor settings → CurseForge)"
+    return f"{name} couldn't be checked: {error}"
+
+
+def _plain(text: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", text.lower())
+
+
+def same_project(a: Project, b: Project) -> bool:
+    """Whether two projects (on different sites, which share no ids) are the same mod: the
+    same name, or the same slug with one name inside the other ("Fabric API" and
+    "Fabric API (Fabric)"), ignoring case, spaces and punctuation."""
+    na, nb = _plain(a.name), _plain(b.name)
+    if not na or not nb:
+        return False
+    return na == nb or (bool(_plain(a.slug)) and _plain(a.slug) == _plain(b.slug) and (na in nb or nb in na))
+
+
 class ModProvider(ABC):
     source: str = ""
 
@@ -93,3 +121,12 @@ class ModProvider(ABC):
     @abstractmethod
     def supported_versions(self, spec: ModSpec, loaders: tuple[str, ...], channel: str) -> set[str]:
         """Every Minecraft version the mod has an acceptable file for."""
+
+    def handles(self, loaders: tuple[str, ...]) -> bool:
+        """Whether this site has files for any of these loaders at all."""
+        return True
+
+    def find_same(self, project: Project) -> Project | None:
+        """The same mod as ``project`` (from another site) here, if this site has it: looked
+        up by its slug, then by its name. Raises :class:`ModError` when the site can't be asked."""
+        return None

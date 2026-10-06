@@ -7,7 +7,7 @@ import re
 
 from ..config import ModSpec
 from ..http import HttpClient, HttpError
-from .base import CHANNEL_RANK, ModError, ModFile, ModProvider, Project, Unavailable, safe_file_name
+from .base import CHANNEL_RANK, ModError, ModFile, ModProvider, Project, Unavailable, safe_file_name, same_project
 
 API = "https://api.curseforge.com/v1"
 
@@ -62,6 +62,23 @@ class CurseForgeProvider(ModProvider):
             raise
         return Project(source=self.source, id=str(m["id"]), slug=m.get("slug", ""), name=m["name"],
                        server_side="unknown")
+
+    def handles(self, loaders: tuple[str, ...]) -> bool:
+        return any(l in LOADER_TYPES for l in loaders)
+
+    def find_same(self, project: Project) -> Project | None:
+        try:
+            for params in ({"slug": project.slug} if project.slug else None, {"searchFilter": project.name, "pageSize": 5}):
+                if not params:
+                    continue
+                for m in self._get("/mods/search", {"gameId": MINECRAFT_GAME_ID, "classId": MODS_CLASS_ID, **params}):
+                    found = Project(source=self.source, id=str(m["id"]), slug=m.get("slug", ""), name=m.get("name", ""),
+                                    server_side="unknown")
+                    if same_project(project, found):
+                        return found
+        except HttpError as e:
+            raise ModError(f"couldn't search CurseForge: {e}") from e
+        return None
 
     def _files(self, project_id: str, loader: str, minecraft: str | None) -> list[dict]:
         out, index = [], 0
