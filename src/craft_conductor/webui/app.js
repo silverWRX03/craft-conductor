@@ -2957,6 +2957,72 @@ views.friends = () => {
     try { localStorage.setItem(key, JSON.stringify([...seen, ...fresh.map((m) => m.project)])); } catch (_) { /* private mode */ }
   };
 
+  const friendModItems = () => {
+    const d = data || {};
+    const pack = d.pack || {};
+    const details = d.mod_details || [];
+    const byProject = new Map();
+    for (const x of details) {
+      if (x.id) byProject.set(`modrinth:${x.id}`, x);
+      if (x.slug) byProject.set(`modrinth:${x.slug}`, x);
+    }
+    const items = [];
+    const add = (m, manual = false) => {
+      const explicit = byProject.get(m.project) || null;
+      const local = !!m.local || (d.local_mods || []).includes(m.filename);
+      const dependency = !!m.needed_by;
+      items.push({
+        key: m.project || `file:${m.filename || m.name}`, name: m.name, source: m.source || (local ? "local" : "modrinth"),
+        version: m.version || "", channel: m.channel || "release", minecraft: pack.minecraft || d.minecraft, loader: pack.loader || d.loader,
+        dependency, neededBy: m.needed_by || "", origin: dependency ? "" : explicit || local ? "selected by you" : "from server",
+        tags: [m.side === "client" ? "players only" : "server + players", manual ? "manual download" : null].filter(Boolean),
+        detail: manual ? "The author requires players to download this file themselves." :
+          dependency ? "" : (!explicit && !local ? "Included because the server needs players to have it." : ""),
+        remove: explicit ? async () => { await removePlayerMod(explicit.slug); return true; }
+          : local ? async () => {
+            if (!(await ask(`Remove ${m.name} from the players' download?`, { ok: "Remove", danger: true }))) return false;
+            const res = await act(() => api("/api/client/local/remove", { method: "POST", body: { name: m.filename || m.name } }), `${m.name} removed`);
+            if (!res) return false;
+            await reload(); return true;
+          } : null,
+      });
+    };
+    for (const m of pack.mods || []) add(m);
+    for (const m of pack.manual || []) add(m, true);
+    if (!(pack.mods || []).length && !(pack.manual || []).length) {
+      for (const x of details) items.push({
+        key: `modrinth:${x.id || x.slug}`, name: x.name, source: "modrinth", origin: "selected by you",
+        minecraft: d.minecraft, loader: d.loader, remove: async () => { await removePlayerMod(x.slug); return true; },
+      });
+      for (const name of d.local_mods || []) items.push({
+        key: `local:${name}`, name, source: "local", origin: "selected by you", tags: ["local file"],
+        remove: async () => {
+          if (!(await ask(`Remove ${name} from the players' download?`, { ok: "Remove", danger: true }))) return false;
+          const res = await act(() => api("/api/client/local/remove", { method: "POST", body: { name } }), `${name} removed`);
+          if (!res) return false;
+          await reload(); return true;
+        },
+      });
+    }
+    return items;
+  };
+  const openFriendMods = () => openModManager({
+    title: "Manage Friends Mods",
+    description: "Everything friends receive, including server-required mods, your extra client mods and automatically added dependencies.",
+    owner: "friends-mods",
+    getItems: friendModItems,
+    getHeader: () => {
+      const d = data || {}, pack = d.pack || {};
+      return [
+        d.pack_error ? h("div", { class: "notice warn mb" }, d.pack_error) : null,
+        (pack.skipped || []).length ? h("div", { class: "notice warn mb" },
+          h("strong", {}, "Left out: "),
+          (pack.skipped || []).map((x) => h("div", { class: "small" }, `${x.name}: ${x.reason}`))) : null,
+      ];
+    },
+    onChange: () => { if (data) render(); },
+  });
+
   const render = () => {
     const d = data;
     if (!d.available) {
