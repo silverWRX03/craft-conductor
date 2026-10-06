@@ -25,14 +25,14 @@ from pathlib import Path
 
 from . import config as configmod, safearchive
 from .config import ModSpec
-from .http import HttpClient
+from .http import HttpClient, HttpError
 from .mods.base import ModError
 from .mods.modrinth import API as MODRINTH
 
 log = logging.getLogger(__name__)
 
 LOADER_KEYS = {"fabric-loader": "fabric", "quilt-loader": "quilt", "neoforge": "neoforge", "forge": "forge"}
-MODRINTH_FILE = re.compile(r"^https://cdn\.modrinth\.com/data/([A-Za-z0-9]{8})/versions/[A-Za-z0-9]{8}/[^/]+$")
+MODRINTH_FILE = re.compile(r"^https://cdn\.modrinth\.com/data/([A-Za-z0-9]{8})/versions/([A-Za-z0-9]{8})/[^/]+$")
 DOWNLOAD_HOSTS = ("https://cdn.modrinth.com/", "https://github.com/", "https://raw.githubusercontent.com/",
                   "https://gitlab.com/")
 MAX_PACK = 512 << 20
@@ -96,6 +96,101 @@ def read_index(pack: Path) -> tuple[dict, zipfile.ZipFile]:
     return index, z
 
 
+def _platform(index: dict) -> tuple[str, str]:
+    """Minecraft and loader declared by a Modrinth pack index."""
+    deps = index.get("dependencies", {})
+    minecraft = str(deps.get("minecraft", ""))
+    loaders = [LOADER_KEYS[k] for k in deps if k in LOADER_KEYS]
+    return minecraft, loaders[0] if loaders else "vanilla"
+
+
+def preview_file(pack: Path, http: HttpClient, name: str = "") -> dict:
+    """Describe the server-side mods a .mrpack would add, without changing a server.
+
+    Paths are the stable identifiers used by the setup UI when a person removes one pack
+    mod. Project/version lookups only enrich the display; a failed metadata lookup does not
+    make an otherwise valid pack impossible to inspect.
+    """
+    index, z = read_index(pack)
+    with z:
+        minecraft, loader = _platform(index)
+        raw = []
+        project_ids, version_ids = [], []
+        client_only = 0
+        for f in index.get("files", []):
+            path = str(f.get("path", ""))
+            if not path.startswith("mods/") or not path.endswith(".jar"):
+                continue
+            env = f.get("env") or {}
+            if env.get("server") == "unsupported":
+                client_only += 1
+                continue
+            urls = [u for u in f.get("downloads", []) if isinstance(u, str)]
+            match = next((MODRINTH_FILE.match(u) for u in urls if MODRINTH_FILE.match(u)), None)
+            pid = match.group(1) if match else None
+            vid = match.group(2) if match else None
+            if pid:
+                project_ids.append(pid)
+            if vid:
+                version_ids.append(vid)
+            raw.append({
+                "path": path,
+                "name": Path(path).stem,
+                "source": "modrinth" if pid else "modpack",
+                "project_id": pid,
+                "version_id": vid,
+                "version": "",
+                "channel": None,
+                "minecraft": [minecraft] if minecraft else [],
+                "loaders": [loader] if loader else [],
+                "server_side": env.get("server", "required"),
+                "client_side": env.get("client", "required"),
+            })
+
+        projects = {}
+        versions = {}
+        try:
+            from .mods.modrinth import ModrinthProvider
+            projects = ModrinthProvider(http).projects(project_ids)
+        except (HttpError, ModError):
+            pass
+        try:
+            if version_ids:
+                data = http.get_json(f"{MODRINTH}/versions", params={"ids": json.dumps(sorted(set(version_ids)))})
+                versions = {v.get("id"): v for v in data if isinstance(v, dict) and v.get("id")}
+        except HttpError:
+            pass
+
+        for m in raw:
+            p = projects.get(m["project_id"]) or {}
+            v = versions.get(m["version_id"]) or {}
+            m["name"] = p.get("title") or m["name"]
+            m["slug"] = p.get("slug") or ""
+            m["version"] = v.get("version_number") or ""
+            m["channel"] = v.get("version_type") or None
+            m["minecraft"] = list(v.get("game_versions") or m["minecraft"])
+            m["loaders"] = list(v.get("loaders") or m["loaders"])
+
+    return {
+        "name": name or str(index.get("name") or pack.name),
+        "minecraft": minecraft,
+        "loader": loader,
+        "mods": raw,
+        "count": len(raw),
+        "client_only": client_only,
+    }
+
+
+def preview(http: HttpClient, version_id: str) -> dict:
+    """Download a Modrinth pack version and return its mod-management preview."""
+    info = version_info(http, version_id)
+    with tempfile.TemporaryDirectory() as tmp:
+        pack = http.download(info["url"], Path(tmp) / "pack.mrpack", sha1=info["sha1"], sha512=info["sha512"])
+        if pack.stat().st_size > MAX_PACK:
+            raise ModpackError("that modpack is too big")
+        return preview_file(pack, http, name=info["name"])
+
+
 def _override_members(z: zipfile.ZipFile, server_dir: Path, what: str) -> list[tuple[zipfile.ZipInfo, tuple[str, ...]]]:
     """The pack's own files to copy (overrides/, then server-overrides/), checked before anything
     is written: names that could land outside the server folder are left out (and logged), and
@@ -122,17 +217,20 @@ def _override_members(z: zipfile.ZipFile, server_dir: Path, what: str) -> list[t
     return out
 
 
-def apply(root: Path, version_id: str, http: HttpClient) -> dict:
-    """Install a modpack version into the server at ``root`` (whose craft-conductor.toml exists)."""
+def apply(root: Path, version_id: str, http: HttpClient, exclude: tuple[str, ...] | list[str] = ()) -> dict:
+    """Install a modpack version into the server at ``root`` (whose craft-conductor.toml exists).
+
+    ``exclude`` contains exact ``mods/*.jar`` paths the user removed in the setup UI.
+    """
     info = version_info(http, version_id)
     with tempfile.TemporaryDirectory() as tmp:
         pack = http.download(info["url"], Path(tmp) / "pack.mrpack", sha1=info["sha1"], sha512=info["sha512"])
         if pack.stat().st_size > MAX_PACK:
             raise ModpackError("that modpack is too big")
-        return apply_file(root, pack, http, name=info["name"])
+        return apply_file(root, pack, http, name=info["name"], exclude=exclude)
 
 
-def apply_file(root: Path, pack: Path, http: HttpClient, name: str = "") -> dict:
+def apply_file(root: Path, pack: Path, http: HttpClient, name: str = "", exclude: tuple[str, ...] | list[str] = ()) -> dict:
     index, z = read_index(pack)
     with z:
         deps = index.get("dependencies", {})
@@ -153,13 +251,17 @@ def apply_file(root: Path, pack: Path, http: HttpClient, name: str = "") -> dict
         server_dir.mkdir(parents=True, exist_ok=True)
         listed = {s.id for s in cfg.mods}
 
-        added, local, skipped = [], [], 0
+        added, local, skipped, removed = [], [], 0, 0
+        excluded = set(exclude)
         unsafe = safearchive.Skipped(f"the downloads listed by {what}")
         for f in index.get("files", []):
             if (f.get("env") or {}).get("server") == "unsupported":
                 skipped += 1
                 continue
             path = str(f.get("path", ""))
+            if path in excluded and path.startswith("mods/") and path.endswith(".jar"):
+                removed += 1
+                continue
             try:
                 target = _safe_target(server_dir, path)
             except safearchive.UnsafeName as e:
@@ -198,4 +300,4 @@ def apply_file(root: Path, pack: Path, http: HttpClient, name: str = "") -> dict
     log.info("applied %s: Minecraft %s, %s, %d mods from Modrinth, %d other files, %d config files",
              title, minecraft, loader, len(added), len(local), copied)
     return {"name": title, "minecraft": minecraft, "loader": loader, "mods": len(added), "files": len(local),
-            "overrides": copied, "client_only": skipped}
+            "overrides": copied, "client_only": skipped, "removed": removed}
