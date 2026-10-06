@@ -33,18 +33,59 @@ const assert = require('node:assert/strict');
 
   // "the new copy": after the restart the page asks the same service, which answers as the new version
   // with nothing left to update (a real restart starts afresh; here the old copy answers for it).
-  const newCopy = {up: false, aborts: 0, version: '9.9.9'};
+  const newCopy = {up: false, aborts: 0, version: '9.9.9', hubVersion: '9.9.9', last: null, authVersion: null};
   await page.route('**/api/self-update?*', async route => {
     if (!newCopy.on) return route.continue();
     if (newCopy.aborts > 0) { newCopy.aborts--; return route.abort('connectionrefused'); }
-    return route.fulfill({json: {version: newCopy.version, matches: true, self_update: null}});
+    return route.fulfill({json: {version: newCopy.version, matches: newCopy.version === '9.9.9', self_update: null, update_result: newCopy.last}});
   });
   await page.route('**/api/hub', async route => {
     const response = await route.fetch();
     if (!newCopy.reloaded) return route.fulfill({response});
     const body = await response.json();
-    return route.fulfill({response, json: {...body, version: newCopy.version, self_update: null}});
+    return route.fulfill({response, json: {...body, version: newCopy.hubVersion, self_update: null, update_result: newCopy.last}});
   });
+
+  // the page's own idea of /api/auth (public), as the other tabs poll it
+  await page.route('**/api/auth', async route => {
+    const response = await route.fetch();
+    if (!newCopy.authVersion) return route.fulfill({response});
+    return route.fulfill({response, json: {...(await response.json()), version: newCopy.authVersion, last_update: newCopy.last}});
+  });
+
+  if (scenario === 'other-tab') {
+    // This tab didn't ask for the update: somebody else does, from another browser.
+    await open('servers');
+    await popup.waitFor();
+    await popup.getByRole('button', {name: 'Later'}).click();
+    await page.evaluate(() => { window.__sameTab = 'still here'; });
+    assert.equal((await post('/api/self-update/apply', {version: '9.9.9'})).status(), 200);
+    await page.locator('#update-elsewhere').waitFor();             // told, without being blocked
+    assert.match(await page.locator('#update-elsewhere').innerText(), /updated from another device/);
+    assert.equal(await screen.count(), 0);                          // (no update screen here: this tab didn't ask)
+    await page.waitForFunction(() => !document.getElementById('update-elsewhere') || /restarting/i.test(document.getElementById('update-elsewhere').innerText), null, {timeout: 20000});
+    // the new version is running: this tab is asked, and stays as it is until the person agrees
+    newCopy.authVersion = '9.9.9'; newCopy.last = {ok: true, from: '0.24.0', to: '9.9.9', at: Date.now() / 1000 + 5};
+    await page.evaluate(() => versionWatch());
+    const launch = page.locator('#self-updated');
+    await launch.waitFor();
+    assert.match(await launch.innerText(), /Craft Conductor has been updated to 9\.9\.9/);
+    await shot('launch');
+    await quiet(2500);
+    assert.equal(await page.evaluate(() => window.__sameTab), 'still here');    // not reloaded by itself
+    newCopy.reloaded = true; newCopy.hubVersion = '9.9.9';
+    const reloaded = page.waitForEvent('load');
+    await launch.getByRole('button', {name: 'Launch the new version'}).click();
+    await reloaded;                                                  // (accepted: the tab refreshes)
+    await page.locator('#app').waitFor({state: 'visible'});
+    assert.equal(await page.evaluate(() => window.__sameTab), undefined);
+    assert.equal(await launch.count(), 0);
+    assert.equal(await dots.count(), 0);
+    assert.equal(popups, 0);
+    assert.equal(context.pages().length, 1);
+    await browser.close();
+    return;
+  }
 
   await open('servers');
   await popup.waitFor();
@@ -75,7 +116,7 @@ const assert = require('node:assert/strict');
     await popup.waitFor({state: 'detached'});
     await shot('about');
     assert.ok(await dots.count() >= 3);
-  } else if (scenario === 'update' || scenario === 'restart-timeout') {
+  } else if (scenario === 'update' || scenario === 'restart-timeout' || scenario === 'revert') {
     // The page's own button, as fast as a hand can be: the update starts once.
     await page.evaluate(() => {
       const u = hubInfo.self_update;
@@ -91,7 +132,21 @@ const assert = require('node:assert/strict');
     await quiet(2500);
     assert.equal(await popup.count(), 0);
     await page.waitForFunction(() => /Restarting Craft Conductor/i.test(document.querySelector("#self-updating-title").innerText + document.querySelector("#self-updating-stage").innerText));
-    if (scenario === 'update') {
+    if (scenario === 'revert') {
+      // The new version never came up, so the old one was put back and restarted: this tab reloads into it, and says so.
+      newCopy.on = true; newCopy.aborts = 3; newCopy.version = '0.24.0';
+      newCopy.last = {ok: false, reverted: true, from: '0.24.0', to: '9.9.9', at: Date.now() / 1000 + 5};
+      newCopy.hubVersion = '0.24.0';
+      const reloaded = page.waitForEvent('load');
+      await page.waitForFunction(() => /waiting for the new version/i.test(document.querySelector('#self-updating').innerText));
+      newCopy.reloaded = true;
+      await reloaded;
+      await page.locator('#app').waitFor({state: 'visible'});
+      await page.getByText("The update to Craft Conductor 9.9.9 didn't work, so Craft Conductor 0.24.0 is back.").waitFor();
+      await shot('reverted');
+      assert.equal(await screen.count(), 0);
+      assert.equal(await popup.count(), 0);
+    } else if (scenario === 'update') {
       // the service goes away (refusing connections), then answers as the new version
       newCopy.on = true; newCopy.aborts = 3;
       newCopy.reloaded = false;

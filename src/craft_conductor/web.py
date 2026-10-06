@@ -579,6 +579,12 @@ class RequestHandler(BaseHTTPRequestHandler):
         path, _, qs = self.path.partition("?")
         self._dispatch("POST", path, urllib.parse.parse_qs(qs))
 
+    def _last_update(self) -> dict | None:
+        """How the last update ended (public: only whether it worked and between which versions): the page
+        that asked for it asks this when the restart has signed everyone out."""
+        r = self.web.hub.update_result()
+        return {k: r.get(k) for k in ("ok", "reverted", "from", "to", "at")} if r else None
+
     def _dispatch(self, method: str, path: str, query: dict[str, list[str]]):
         try:
             if not path.startswith("/api/"):
@@ -597,6 +603,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                 expected = (query.get("expected") or [""])[-1]
                 return self._json(200, {**info, "local": local, "version": __version__,
                                         "matches": selfupdate.same_version(expected, __version__),
+                                        "last_update": self._last_update(),
                                         "strong_required": self.web.remote_on() or (bool(info.get("temporary")) and not local)})
             if path == "/api/login" and method == "POST":
                 token = self.web.login(str(self._body().get("password", "")), self.client_address[0], local)
@@ -1175,6 +1182,7 @@ class HubApi:
             "single": hub.is_single,
             "notice_accepted": notice.accepted(hub.root),
             "self_update": hub.self_update_info(),
+            "update_result": hub.update_result(),
             "update_channel": hub.update_channel(),
             "auth": self.web.auth.info(),
             "home": str(hub.home),
@@ -1969,7 +1977,7 @@ class HubApi:
         """Where the update stands, and (with ?expected=<version>) whether this running copy is that
         version: how the page that asked for an update knows the new one has started."""
         return {"version": __version__, "matches": selfupdate.same_version(q.get("expected", ""), __version__),
-                "self_update": self.hub.self_update_info()}
+                "self_update": self.hub.self_update_info(), "update_result": self.hub.update_result()}
 
     def check_self_update(self, q, b) -> dict:
         """Look for a newer Craft Conductor now (the check button). Whatever is found is returned, Later

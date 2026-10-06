@@ -13,11 +13,23 @@ like `0.23.0b1`. When a new version is out:
   the new version. The same browser tab reconnects and reloads once the new version answers (no new tab),
   and then you sign in again. It's started once, however often the button is pressed. If it fails, the
   screen says why and offers **Try again** (or **Retry connection**, **View update log** and how to
-  restart by hand when the new version didn't start).
+  restart by hand when the old version couldn't be put back).
   **Later** stops the message appearing by itself until Craft Conductor is restarted (then it's offered
   again if the update is still there). It doesn't hide the update: a red dot stays on **Craft Conductor
   settings → About & updates → Check for Craft Conductor updates**, and that button offers the update
   again straight away. The dots go once Craft Conductor is updated or a check finds nothing newer.
+- **Other browsers and phones:** only the browser that pressed **Update now** reloads by itself. Any other
+  open page says the update is under way and, once the new version is running, asks **Launch the new
+  version** (it reloads only when you press it). Phones with notifications on hear when an update is
+  available, when it was installed and when it didn't work; updating is only done in the control panel.
+- **If it doesn't work, the old version comes back.** The version you have is kept aside before anything is
+  replaced (`update-backup/` in the `.craft-conductor` folder). After installing, the new version is started
+  once (`--version`) before Craft Conductor restarts; if that fails the old one is put back at once and
+  keeps running. After the restart, a watcher process run from the *old* version gives the new one 3
+  minutes to confirm it's up and 15 seconds to stay up; otherwise it stops it, puts the old version back
+  (the executable, or the installed package with its metadata), starts it again and records the outcome,
+  which the page and phones then report. The checks before installing (checksum, size, newer version
+  only) are unchanged.
 - **Command line:** `craft-conductor self-update --check` shows what's new, and `craft-conductor self-update`
   installs it after asking. If `craft-conductor run` is managing a server, it hands the update to
   the daemon, which restarts itself.

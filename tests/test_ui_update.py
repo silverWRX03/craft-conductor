@@ -87,3 +87,19 @@ def test_a_failed_update_is_a_message_not_a_loop(hub_env, monkeypatch):
     run_scenario(hub, client, monkeypatch, "failure", failing)
     assert len(calls) == 3  # Update now, Update now (About & updates), Try again: each pressed by a person
     assert hub.updater.snapshot()["phase"] == "failed" and hub.updater.snapshot()["version"] == "9.9.9"
+
+
+def test_other_tabs_are_asked_before_they_reload(hub_env, monkeypatch):
+    """The update is done from one browser: another tab is told, then offered the new version, and only
+    reloads when the person accepts."""
+    hub, client = hub_env
+    calls = []
+    run_scenario(hub, client, monkeypatch, "other-tab", stages_install(calls))
+    assert calls == ["v9.9.9"]
+
+
+def test_an_update_that_was_reverted_reloads_the_tab_and_says_so(hub_env, monkeypatch):
+    hub, client = hub_env
+    calls = []
+    run_scenario(hub, client, monkeypatch, "revert", stages_install(calls))
+    assert calls == ["v9.9.9"]

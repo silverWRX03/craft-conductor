@@ -13,12 +13,18 @@ from pathlib import Path
 
 import pytest
 
-from craft_conductor import cli, notice, selfupdate
+from craft_conductor import cli, notice, rollback, selfupdate
 from craft_conductor.selfupdate import Updater
 
 from test_notice_update import fresh_user, publish_wheel, release, web_daemon  # noqa: F401  (fixtures and helpers)
 from test_hub import login as hub_login
 from test_web import login, wait_for
+
+@pytest.fixture(autouse=True)
+def stand_in_install(monkeypatch):
+    """The installers here are stand-ins: nothing is really installed, so the new version isn't started."""
+    monkeypatch.setattr(rollback, "check_new_version", lambda *a, **k: None)
+
 
 INFO = {"version": "9.9.9", "tag": "v9.9.9", "url": "https://github.test/v9.9.9", "notes": "what's new",
         "current": "0.1.0", "can_install": True, "reason": ""}
@@ -313,3 +319,68 @@ def test_the_update_page_never_opens_a_tab():
     assert "window.open" not in block and "target: \"_blank\"" in block  # (only the release notes link)
     assert block.count("_blank") == block.count("noopener noreferrer")
     assert "location.reload()" in block
+
+
+# ----------------------------------------------------- phones, and every open page, hear how it went
+@pytest.fixture
+def pushes(hub_env, monkeypatch):
+    hub, c = hub_env
+    sent = []
+    monkeypatch.setattr(hub.push, "notify", lambda title, body, url="/", tag="", kind=None: sent.append((body, url, kind)))
+    return hub, c, sent
+
+
+def test_phones_hear_that_an_update_is_available_once(pushes, monkeypatch):
+    hub, c, sent = pushes
+    monkeypatch.setattr(selfupdate, "install_method", lambda release=None: (True, ""))
+    release(hub.http, "v9.9.9")
+    hub.check_self_update()
+    hub.check_self_update()  # (the same release again: nothing new to say)
+    assert len(sent) == 1
+    body, url, kind = sent[0]
+    assert "9.9.9 is available" in body and "on your computer" in body and kind == "updates" and url == "/#craft-conductor"
+
+
+def test_phones_hear_that_the_new_version_is_running(pushes):
+    """The copy that an update installed says so once it's up: phones are told (tapping opens it), and the
+    page that asked, and every other page, can see how it ended."""
+    hub, c, sent = pushes
+    hub_login(c)
+    rollback.write_pending(hub.state_dir, "0.24.0", selfupdate.__version__, ["craft-conductor", "start"])
+    hub.settle_update()
+    hub.settle_update()
+    assert len(sent) == 1 and f"updated to {selfupdate.__version__}" in sent[0][0] and sent[0][2] == "updates"
+    assert rollback.pending(hub.state_dir)["confirmed"]  # (the guard lets the previous version go)
+    seen = c.get("/api/hub")[1]["update_result"]
+    assert seen["ok"] is True and seen["to"] == selfupdate.__version__ and "announced" not in seen
+    anon = type(c)(c.base)
+    assert anon.get("/api/auth")[1]["last_update"]["ok"] is True  # (after the restart signs everyone out)
+
+
+def test_phones_hear_when_an_update_did_not_work(pushes, monkeypatch):
+    hub, c, sent = pushes
+    hub_login(c)
+    hub.updater.offer(dict(INFO))
+    monkeypatch.setattr(selfupdate, "install", lambda r, **kw: (_ for _ in ()).throw(
+        selfupdate.VerificationError("the download doesn't match the release's published checksum")))
+    assert c.post("/api/self-update/apply", {"version": "9.9.9"})[1]["started"] is True
+    wait_for(lambda: hub.updater.snapshot()["phase"] == "failed")
+    wait_for(lambda: sent)
+    body, url, kind = sent[0]
+    assert "didn't work" in body and "checksum" in body and kind == "updates"
+    result = c.get("/api/hub")[1]["update_result"]
+    assert result["ok"] is False and result["to"] == "9.9.9"
+    hub.settle_update()
+    assert len(sent) == 1  # (already told: not again at the next start)
+
+
+def test_a_copy_that_was_put_back_tells_everyone(pushes):
+    hub, c, sent = pushes
+    hub_login(c)
+    rollback.record_result(hub.state_dir, False, selfupdate.__version__, "9.9.9",
+                           f"The update to 9.9.9 didn't work (the new version didn't start in time); Craft Conductor {selfupdate.__version__} is back",
+                           reverted=True)
+    hub.settle_update()
+    assert len(sent) == 1 and "is back" in sent[0][0] and sent[0][1] == "/#craft-conductor"
+    last = type(c)(c.base).get("/api/auth")[1]["last_update"]
+    assert last["ok"] is False and last["reverted"] is True

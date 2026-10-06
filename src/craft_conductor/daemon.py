@@ -20,7 +20,7 @@ from collections import deque
 from pathlib import Path
 from typing import Any, Callable
 
-from . import __version__, notice, selfupdate, setup as setupmod
+from . import __version__, notice, rollback, selfupdate, setup as setupmod
 from .http import HttpError
 from .manager import Manager, ManualDownloadRequired
 from .process import JOINED, LEFT, READY, ServerProcess, check_command
@@ -444,6 +444,8 @@ class Daemon:
                 if self.open_browser:
                     import webbrowser
                     threading.Timer(1.0, webbrowser.open, args=(ui.url,)).start()
+            if not self.hub_managed:
+                self._settle_update()
             return self._loop()
         finally:
             if ui:
@@ -894,12 +896,31 @@ class Daemon:
                                  f"Update from the web UI or with `craft-conductor self-update`.")
         return f"Craft Conductor {release.version} is available"
 
+    def _settle_update(self) -> None:
+        """Up and running: if this is the copy an update was installing, say so (the guard then lets the
+        previous version go); tell whoever listens how the last update ended."""
+        try:
+            outcome = rollback.settle(self.m.config.state_dir, selfupdate.__version__)
+        except Exception:
+            log.exception("couldn't settle the last update")
+            return
+        if outcome:
+            self.m.notifier.send(outcome.get("message") or "Craft Conductor was updated.")
+
     def apply_self_update(self) -> str:
         """Install the accepted update (see Updater.begin), stop the server cleanly, and restart craft-conductor on the new version."""
         u = self.updater
         if not u.in_progress:
             raise RuntimeError("no craft-conductor update is accepted")
-        message = u.run_install(self.m.http)
+        old, new = selfupdate.__version__, (u.release or {}).get("version", "")
+        try:
+            message = u.run_install(self.m.http, self.m.config.state_dir)
+        except Exception as e:
+            note = f"The update to Craft Conductor {new} didn't work: {e}"
+            rollback.record_result(self.m.config.state_dir, False, old, new, note, bool(u.failure and u.failure.get("reverted")))
+            rollback.mark_announced(self.m.config.state_dir)
+            self.m.notifier.send(note[:1000])
+            raise
         if self.proc and self.proc.running:
             if self.players:
                 self.proc.say("Server restarting in 1 minute: updating the server manager")

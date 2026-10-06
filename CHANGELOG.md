@@ -10,6 +10,10 @@ its fix will say which version it's in.
 - A small red dot on **Craft Conductor settings**, **About & updates** and **Check for Craft Conductor updates** while a Craft Conductor update is available, also after you pressed **Later**. **About & updates** now says which version is waiting and has its own **Update now** button.
 - While Craft Conductor updates itself, an **Updating Craft Conductor…** screen shows the step (preparing, downloading with a real progress bar, verifying, installing, restarting) and then **Restarting Craft Conductor…** while the control panel is away. If the update or the restart fails, it says what went wrong, and offers **Try again**, **Retry connection**, **View update log** and how to restart by hand.
 
+- If an update doesn't work, the version you had comes back. Craft Conductor keeps it aside, starts the new version once to check that it runs before restarting, and, after the restart, has a watcher (run from the old version) put the old one back if the new one doesn't come up in three minutes or stops right away. The page that asked for the update reloads into the old version and says so ("The update to Craft Conductor X didn't work, so Craft Conductor Y is back.").
+- Other browsers and computers with Craft Conductor open are told the update is under way and, when the new version is running, asked **Launch the new version**: they reload only when you accept. Phones with notifications on are told when an update is available, when Craft Conductor was updated and when an update didn't work (updating is only done in the control panel).
+- Screenshots of the update message, the red dots, the update screens and the "launch the new version" message in the manual and wiki.
+
 **Changed**
 - **Later** on the update message now lasts until Craft Conductor is restarted (it used to hide that version for good, in this browser). It's offered again by itself after a restart if the update is still there, and **Check for Craft Conductor updates** offers it again at once.
 - **Update now** no longer asks a second question: it closes the message and starts the update.

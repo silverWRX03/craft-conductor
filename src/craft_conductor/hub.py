@@ -21,7 +21,7 @@ import time
 from pathlib import Path
 from typing import Callable
 
-from . import config as configmod, selfupdate, setup as setupmod
+from . import config as configmod, rollback, selfupdate, setup as setupmod
 from .config import ConfigError, WebConfig
 from .daemon import Daemon, SELF_CHECK_INTERVAL, pid_alive, running_pid, set_current_server
 from .http import HttpClient
@@ -1083,7 +1083,10 @@ class Hub:
             self.updater.offer(None)
             return f"Craft Conductor {selfupdate.__version__} is the latest version"
         can, why = selfupdate.install_method(release)
-        self.updater.offer({**release.to_dict(), "current": selfupdate.__version__, "can_install": can, "reason": why})
+        first = self.updater.offer({**release.to_dict(), "current": selfupdate.__version__, "can_install": can, "reason": why})
+        if first:  # (phones are told too; the update itself is done in the control panel)
+            self.update_push(f"Craft Conductor {release.version} is available (you have {selfupdate.__version__}). "
+                             "Open Craft Conductor on your computer to update.", "/#craft-conductor")
         return f"Craft Conductor {release.version} is available"
 
     def self_update_info(self) -> dict | None:
@@ -1106,7 +1109,12 @@ class Hub:
         u = self.updater
         if not u.in_progress:
             raise RuntimeError("no craft-conductor update is accepted")
-        message = u.run_install(self.http)
+        old, new = selfupdate.__version__, (u.release or {}).get("version", "")
+        try:
+            message = u.run_install(self.http, self.state_dir)
+        except Exception as e:
+            self.update_failed(old, new, str(e), bool(u.failure and u.failure.get("reverted")))
+            raise
         running = [d for d in self.daemons.values() if d.proc and d.proc.running]
         if any(d.players for d in running):
             for d in running:
@@ -1118,6 +1126,50 @@ class Hub:
         self.restart_requested = True
         self.stop_requested.set()
         return message
+
+    # What the phones (and Discord) are told about the update. Phones can't update anything: they're told,
+    # and tapping the notification opens Craft Conductor, where it's done.
+    def update_push(self, message: str, url: str = "/") -> None:
+        try:
+            self.push.notify("Craft Conductor", message, url=url, tag="cc_update", kind="updates")
+        except Exception:
+            log.exception("couldn't send the update notification")
+
+    def update_failed(self, old: str, new: str, why: str, reverted: bool) -> None:
+        """An update that didn't work, before the restart (Craft Conductor carries on): recorded, so every
+        open page and phone hears of it once."""
+        message = f"The update to Craft Conductor {new} didn't work: {why}"
+        if reverted:
+            message += f" Craft Conductor {old} is back."
+        rollback.record_result(self.state_dir, False, old, new, message, reverted)
+        rollback.mark_announced(self.state_dir)
+        self.update_push(message[:300], "/#craft-conductor")
+
+    def settle_update(self) -> None:
+        """Called once the control panel is up. If this copy is the one an update was installing, it says so
+        (the guard then lets the previous version go); and the phones hear how the last update ended."""
+        try:
+            outcome = rollback.settle(self.state_dir, selfupdate.__version__)
+        except Exception:
+            log.exception("couldn't settle the last update")
+            return
+        if outcome:
+            if outcome.get("ok"):
+                self.update_push(f"Craft Conductor was updated to {outcome['to']}. Open it to launch the new version.")
+            else:
+                self.update_push(outcome.get("message") or "The Craft Conductor update didn't work.", "/#craft-conductor")
+
+    def update_result(self) -> dict | None:
+        """How the last update ended, for the page (read again only when the file changed: every page asks every 2 s)."""
+        path = self.state_dir / rollback.RESULT
+        try:
+            stamp = path.stat().st_mtime_ns
+        except OSError:
+            return None
+        cached = getattr(self, "_result_cache", None)
+        if cached is None or cached[0] != stamp:
+            cached = self._result_cache = (stamp, rollback.public(rollback.result(self.state_dir)))
+        return cached[1]
 
     def run_job(self, name: str, fn: Callable[[], str]) -> None:
         """Run a hub-level task (like installing an craft-conductor update) in the background."""
@@ -1152,6 +1204,7 @@ class Hub:
             ui = WebUI(self)
             ui.start()
             self.ui = ui
+            self.settle_update()
             if self.open_browser:
                 import webbrowser
                 threading.Timer(1.0, webbrowser.open, args=(ui.url,)).start()

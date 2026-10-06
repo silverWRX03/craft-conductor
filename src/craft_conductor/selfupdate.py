@@ -225,15 +225,17 @@ def _report(progress: Progress | None, stage: str, done: int | None = None, tota
 
 
 def install(release: Release, runner=subprocess.run, http: HttpClient | None = None,
-            current: str = __version__, progress: Progress | None = None) -> str:
+            current: str = __version__, progress: Progress | None = None, backup: Path | None = None) -> str:
+    """Install ``release``. With ``backup``, the running version is kept there first (once the download
+    has been verified, before anything is replaced) so rollback.restore can put it back."""
     _refuse_downgrade(release, current)
     ok, why = install_method(release)
     if not ok:
         raise SelfUpdateError(why)
     http = http or HttpClient()
     if frozen():
-        return install_binary(release, Path(sys.executable), http, current, progress)
-    return install_wheel(release, runner, http, current, progress)
+        return install_binary(release, Path(sys.executable), http, current, progress, backup)
+    return install_wheel(release, runner, http, current, progress, backup)
 
 
 def wheel_name(release: Release) -> str:
@@ -245,8 +247,14 @@ def wheel_name(release: Release) -> str:
     return found[0]
 
 
+def _keep_previous(backup: Path | None, current: str) -> None:
+    if backup is not None:
+        from . import rollback
+        rollback.keep_previous(backup, frozen(), Path(sys.executable), current)
+
+
 def install_wheel(release: Release, runner, http: HttpClient, current: str = __version__,
-                  progress: Progress | None = None) -> str:
+                  progress: Progress | None = None, backup: Path | None = None) -> str:
     """pip/pipx: install the release's wheel, verified, without pip fetching anything else."""
     _refuse_downgrade(release, current)
     name = wheel_name(release)
@@ -254,6 +262,7 @@ def install_wheel(release: Release, runner, http: HttpClient, current: str = __v
     with tempfile.TemporaryDirectory(prefix="craft-conductor-update-") as tmp:
         wheel = _download_verified(release, name, http, Path(tmp), progress)
         _report(progress, "installing")
+        _keep_previous(backup, current)
         proc = runner([sys.executable, "-m", "pip", "install", "--upgrade", "--no-deps", "--no-index",
                        "--disable-pip-version-check", str(wheel)], capture_output=True, text=True)
     if proc.returncode != 0:
@@ -313,7 +322,7 @@ def _download_verified(release: Release, name: str, http: HttpClient, workdir: P
 
 
 def install_binary(release: Release, exe: Path, http: HttpClient, current: str = __version__,
-                   progress: Progress | None = None) -> str:
+                   progress: Progress | None = None, backup: Path | None = None) -> str:
     """Download this platform's executable, verify it, and put it in place of ``exe``."""
     _refuse_downgrade(release, current)
     name = asset_name()
@@ -324,6 +333,7 @@ def install_binary(release: Release, exe: Path, http: HttpClient, current: str =
         with tempfile.TemporaryDirectory(dir=exe.parent, prefix=".craft-conductor-update-") as tmp:
             new = _download_verified(release, name, http, Path(tmp), progress)
             _report(progress, "installing")
+            _keep_previous(backup, current)
             new.chmod(0o755)
             if os.name == "nt":
                 # A running .exe can't be overwritten, but it can be renamed out of the way.
@@ -379,6 +389,7 @@ def restart_env(env: dict[str, str] | None = None) -> dict[str, str]:
 
 
 RESTARTED_ENV = "CRAFT_CONDUCTOR_RESTARTED"
+_GUARDED_STATE: Path | None = None   # the state folder of the update being guarded (see rollback.py)
 
 
 def restarted_after_update() -> bool:
@@ -392,6 +403,9 @@ def restart() -> None:
     """Replace this process with the same craft-conductor command on the new version (never returns)."""
     argv, env = restart_argv(), restart_env()
     env[RESTARTED_ENV] = "1"
+    if _GUARDED_STATE is not None:  # (an update is being guarded: the new copy's time starts now)
+        from . import rollback
+        rollback.mark_restarting(_GUARDED_STATE)
     print("restarting Craft Conductor on the new version...", flush=True)
     if WINDOWS:
         # (Windows has no real exec: os.execv starts another process without quoting paths
@@ -404,9 +418,9 @@ def restart() -> None:
 
 # ------------------------------------------------------------------ the update's state
 IN_PROGRESS = ("downloading", "installing", "restarting")
-STAGES = ("preparing", "downloading", "verifying", "installing", "restarting")
+STAGES = ("preparing", "downloading", "verifying", "installing", "checking", "restarting")
 _PHASE_OF_STAGE = {"preparing": "downloading", "downloading": "downloading", "verifying": "downloading",
-                   "installing": "installing", "restarting": "restarting"}
+                   "installing": "installing", "checking": "installing", "restarting": "restarting"}
 LOG_LINES = 60
 
 
@@ -445,6 +459,7 @@ class Updater:
         self.deferred = ""                 # the version Later was pressed for, in this run
         self.started = 0.0
         self.lines: list[str] = []
+        self._reverted = False
 
     # -- what a check found
     @property
@@ -514,27 +529,65 @@ class Updater:
             self.phase, self.stage = _PHASE_OF_STAGE[stage], stage
             self.done, self.total = (done, total) if stage == "downloading" else (None, None)
 
-    def run_install(self, http: HttpClient) -> str:
+    def run_install(self, http: HttpClient, state_dir: Path | None = None) -> str:
         """Install the accepted release (every check of it is ``install``'s own), reporting progress.
-        A failure is recorded here, with its reason, and raised; success moves to ``restarting``."""
+        With ``state_dir`` the running version is kept aside first and the new one is started once
+        (``--version``) before anything is restarted; if that doesn't work the previous version is put
+        back and this copy carries on (``reverted``). A failure is recorded here, with its reason, and
+        raised; success moves to ``restarting`` with a guard watching the restart (rollback.py)."""
+        global _GUARDED_STATE
+        from . import rollback
         with self._lock:
-            release = Release.from_dict(self.release or {"version": "", "tag": ""})
+            info = dict(self.release or {})
+            release = Release.from_dict(info or {"version": "", "tag": ""})
+        backup = rollback.backup_dir(state_dir) if state_dir is not None else None
+        if backup is not None:
+            rollback.forget(backup)  # (a clean slate: nothing from an earlier try can be put back by mistake)
+        self._reverted = False
         try:
-            message = install(release, http=http, progress=self.step)
+            message = install(release, http=http, progress=self.step, backup=backup)
         except Exception as e:
-            self.fail(str(e) or type(e).__name__)
+            self._put_back(backup, e)
+            self.fail(str(e) or type(e).__name__, reverted=self._reverted)
             raise
+        if backup is not None:
+            self.step("checking")
+            try:
+                rollback.check_new_version(release.version)
+            except rollback.RollbackError as e:
+                self._put_back(backup, e)
+                kept = "put back" if self._reverted else "left in place (the kept copy couldn't be put back: see the update log)"
+                self.fail(f"{e}. Craft Conductor {info.get('current', __version__)} was {kept}.", reverted=self._reverted)
+                raise SelfUpdateError(str(e)) from e
+            rollback.write_pending(state_dir, info.get("current", __version__), release.version, restart_argv())
+            rollback.spawn_guard(state_dir, backup)
+            _GUARDED_STATE = Path(state_dir)
         self.step("restarting")
         return message
 
-    def fail(self, message: str) -> None:
-        """It didn't work: out of "under way", with the reason kept; the release stays available."""
+    def _put_back(self, backup: Path | None, error: BaseException) -> None:
+        """The install or its check failed: put the kept version back (a no-op when nothing was replaced)."""
+        self._reverted = False
+        if backup is None or not (Path(backup) / "plan.json").exists():
+            return
+        from . import rollback
+        try:
+            self._note(rollback.restore(backup))
+            self._reverted = True
+        except rollback.RollbackError as e:
+            self._note(f"rollback failed: {e}")
+        finally:
+            rollback.forget(backup)
+
+    def fail(self, message: str, reverted: bool = False) -> None:
+        """It didn't work: out of "under way", with the reason kept; the release stays available.
+        ``reverted``: the previous version was put back (it was replaced, and is the one running again)."""
         with self._lock:
             self._note(f"failed: {message}")
             self.phase, self.stage, self.error = "failed", "", message
             self.done = self.total = None
             self.failure = {"version": (self.release or {}).get("version", ""), "message": message,
-                            "at": time.time(), "log": list(self.lines)}
+                            "at": time.time(), "log": list(self.lines), "reverted": reverted}
 
     def _note(self, text: str) -> None:
         self.lines = [*self.lines[-(LOG_LINES - 1):], f"{time.strftime('%H:%M:%S')} {text}"]

@@ -1117,6 +1117,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from . import rollback
+    guarded = rollback.run_guard_from_env()  # (the watcher of an update's restart: see rollback.py)
+    if guarded is not None:
+        return guarded
     from . import desktop
     desktop.setup()  # the Windows executable has no command window of its own
     from .mods.curseforge import use_bundled_key
