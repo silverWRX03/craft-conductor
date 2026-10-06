@@ -12,6 +12,11 @@ on:
     - cron: "41 5 * * 3"   # Wednesdays: new queries find old problems too
   workflow_dispatch:
 
+# Share a group only for the same PR; keep all other scans independent.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 

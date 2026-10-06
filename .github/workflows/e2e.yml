@@ -10,6 +10,11 @@ on:
   schedule:
     - cron: "17 6 * * 1"   # Mondays
 
+# Share a group only for the same PR; keep scheduled and manual runs independent.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 
