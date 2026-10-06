@@ -4,7 +4,7 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
-## 0.24.0 (not released yet)
+## 0.24.0 (2026-10-06)
 
 **Fixed**
 - Making a new server could put it on an older Minecraft than the one chosen (B6). With a mod whose required mod had no build for the chosen Minecraft and server type (for example Biomes O' Plenty needing GlitchCore on NeoForge), Craft Conductor quietly went back through older Minecraft versions until the mods worked, and made the server on that one. A new server is now always made on the Minecraft version and server type you picked; when a mod can't be used, it says so instead.
