@@ -3019,7 +3019,9 @@ function openModManager({ title, description = "", owner = "", getItems, getHead
           h("div", { class: "mod-manager-name" }, h("strong", {}, m.name || m.key || "Mod"), tags),
           meta.length ? h("div", { class: "muted small" }, meta.join(" · ")) : null,
           m.warning ? h("div", { class: "small bad-text mt-s" }, m.warning) : null,
-          m.detail ? h("div", { class: "muted small mt-s" }, m.detail) : null),
+          m.detail ? h("div", { class: "muted small mt-s" }, m.detail) : null,
+          m.content ? (typeof m.content === "function" ? m.content() : m.content) : null),
+        m.controls ? (typeof m.controls === "function" ? m.controls() : m.controls) : null,
         action ? h("button", { type: "button", class: "btn small" + (m.removed ? "" : " danger"), onclick: async () => {
           const changed = await action();
           if (changed === false) return;
