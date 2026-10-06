@@ -617,6 +617,12 @@ class RequestHandler(BaseHTTPRequestHandler):
         path, _, qs = self.path.partition("?")
         self._dispatch("POST", path, urllib.parse.parse_qs(qs))
 
+    def _last_update(self) -> dict | None:
+        """How the last update ended (public: only whether it worked and between which versions): the page
+        that asked for it asks this when the restart has signed everyone out."""
+        r = self.web.hub.update_result()
+        return {k: r.get(k) for k in ("ok", "reverted", "from", "to", "at")} if r else None
+
     def _dispatch(self, method: str, path: str, query: dict[str, list[str]]):
         try:
             if not path.startswith("/api/"):
@@ -632,7 +638,10 @@ class RequestHandler(BaseHTTPRequestHandler):
                     info = {**info, "passkeys": False}
                 # (the sign-in dialog lists what a new password needs: a strong one with remote
                 # access on, or when replacing a one-time password from another device)
-                return self._json(200, {**info, "local": local,
+                expected = (query.get("expected") or [""])[-1]
+                return self._json(200, {**info, "local": local, "version": __version__,
+                                        "matches": selfupdate.same_version(expected, __version__),
+                                        "last_update": self._last_update(),
                                         "strong_required": self.web.remote_on() or (bool(info.get("temporary")) and not local)})
             if path == "/api/login" and method == "POST":
                 token = self.web.login(str(self._body().get("password", "")), self.client_address[0], local)
@@ -1204,8 +1213,10 @@ class HubApi:
         r[("POST", "/api/hub/singleplayer/install")] = self.sp_install
         r[("POST", "/api/hub/guide")] = self.guide_action
         r[("GET", "/api/licenses")] = lambda q, b: licenses.as_dict()
-        r[("POST", "/api/self-update/check")] = lambda q, b: {"ok": True, "message": self.hub.check_self_update()}
+        r[("GET", "/api/self-update")] = self.self_update_status
+        r[("POST", "/api/self-update/check")] = self.check_self_update
         r[("POST", "/api/self-update/apply")] = self.apply_self_update
+        r[("POST", "/api/self-update/later")] = self.defer_self_update
         r[("POST", "/api/self-update/channel")] = self.set_update_channel
         self.routes = r
 
@@ -1216,6 +1227,7 @@ class HubApi:
             "single": hub.is_single,
             "notice_accepted": notice.accepted(hub.root),
             "self_update": hub.self_update_info(),
+            "update_result": hub.update_result(),
             "update_channel": hub.update_channel(),
             "auth": self.web.auth.info(),
             "home": str(hub.home),
@@ -2045,16 +2057,36 @@ class HubApi:
         log.info("first-run notice accepted in the web UI")
         return {"ok": True}
 
+    def self_update_status(self, q, b) -> dict:
+        """Where the update stands, and (with ?expected=<version>) whether this running copy is that
+        version: how the page that asked for an update knows the new one has started."""
+        return {"version": __version__, "matches": selfupdate.same_version(q.get("expected", ""), __version__),
+                "self_update": self.hub.self_update_info(), "update_result": self.hub.update_result()}
+
+    def check_self_update(self, q, b) -> dict:
+        """Look for a newer Craft Conductor now (the check button). Whatever is found is returned, Later
+        or not: this is the person asking, not the automatic offer."""
+        message = self.hub.check_self_update()
+        return {"ok": True, "message": message, "self_update": self.hub.self_update_info()}
+
     def apply_self_update(self, q, b) -> dict:
-        info = self.hub.self_update_info()
-        if not info:
-            raise ApiError(404, "no craft-conductor update is available")
-        if not info.get("can_install"):
-            raise ApiError(400, info.get("reason") or "Craft Conductor can't update itself here")
-        if b.get("version") != info["version"]:
-            raise ApiError(409, "a different version is available now; reload the page")
-        self.hub.run_job(f"update Craft Conductor to {info['version']}", self.hub.apply_self_update)
-        return {"ok": True}
+        """Update Now: accepted once. Pressing it again (or from another browser) while it's under way
+        starts nothing and says so."""
+        try:
+            started = self.hub.start_self_update(str(b.get("version") or ""))
+        except LookupError as e:
+            raise ApiError(404, str(e)) from None
+        except ValueError as e:
+            raise ApiError(409, str(e)) from None
+        except selfupdate.SelfUpdateError as e:
+            raise ApiError(400, str(e)) from None
+        return {"ok": True, "started": started, "self_update": self.hub.self_update_info()}
+
+    def defer_self_update(self, q, b) -> dict:
+        """Later: no automatic offer of this update until Craft Conductor is restarted. The update stays
+        available (the red dots, the check button)."""
+        self.hub.updater.defer(str(b.get("version") or "") or None)
+        return {"ok": True, "self_update": self.hub.self_update_info()}
 
     def set_update_channel(self, q, b) -> dict:
         """Stable releases only (the default), or betas too; then look on that channel."""

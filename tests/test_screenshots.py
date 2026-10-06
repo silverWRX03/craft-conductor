@@ -202,7 +202,7 @@ def installed_javas(programs: Path, monkeypatch) -> None:
 def make_server(http, fake_java, root: Path, mods: list[str], **spec):
     """A server set up and installed the way New server does it."""
     from craft_conductor import config as configmod, setup as setupmod
-    setupmod.configure(root, setupmod.SetupSpec.from_dict({"loader": "fabric", "minecraft": "latest", "mods": mods,
+    setupmod.configure(root, setupmod.SetupSpec.from_dict({"loader": "fabric", "minecraft": RELEASES[0], "mods": mods,  # (a server stays on the Minecraft chosen for it)
                                                            "accept_eula": True, **spec}))
     m = docs_manager(configmod.load(root), http)
     decision, _ = m.check()

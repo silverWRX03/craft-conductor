@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from craft_conductor import cli, licenses, notice, selfupdate
+from craft_conductor import cli, licenses, notice, rollback, selfupdate
 from craft_conductor.config import ModSpec
 from craft_conductor.daemon import Daemon
 
@@ -194,6 +194,7 @@ def test_web_self_update(web_daemon, monkeypatch):
                      "can_install": True, "reason": ""}
     assert c.get("/api/status")[1]["self_update"]["version"] == "9.9.9"
     installed = []
+    monkeypatch.setattr(rollback, "check_new_version", lambda *a, **k: None)  # (nothing was really installed to start)
     monkeypatch.setattr(selfupdate, "install", lambda r, **kw: installed.append(r.tag) or f"installed Craft Conductor {r.version}")
     assert c.post("/api/self-update/apply", {"version": "9.9.8"})[0] == 409
     assert c.post("/api/self-update/apply", {"version": "9.9.9"})[0] == 200

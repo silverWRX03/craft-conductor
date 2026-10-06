@@ -1,6 +1,8 @@
 """The web UI's API, served by a real daemon running the fake Minecraft server."""
 
 import json
+
+from craft_conductor import __version__
 import threading
 import time
 import urllib.error
@@ -339,7 +341,8 @@ def test_dashboard_whitelist_through_the_players_calls(running):
 
 def test_default_password_and_changing_it(running_default):
     d, c, cfg = running_default
-    assert c.get("/api/auth")[1] == {"mode": "password", "default": True, "managed": False, "strong": False, "temporary": False, "local": True, "strong_required": False, "passkeys": False}
+    assert c.get("/api/auth")[1] == {"mode": "password", "default": True, "managed": False, "strong": False, "temporary": False, "local": True, "strong_required": False, "passkeys": False,
+                                  "version": __version__, "matches": False, "last_update": None}
     assert c.post("/api/login", {"password": "passw0rd"})[0] == 401
     assert c.post("/api/login", {"password": " password "})[0] == 200  # the default ignores case
     assert c.post("/api/login", {"password": "PASSWORD"})[0] == 200

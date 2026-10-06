@@ -71,7 +71,13 @@ IMAGES = {
                                       ("friend-setup.png", "Craft Conductor setting up Minecraft on your friend's computer")],
     "Remote access and phones": [("remote-access.png", "Remote access & phones"), ("phone.png", "On a phone")],
     "Craft Conductor settings": [("craft-conductor-settings.png", "Craft Conductor settings: Connections"),
-                                 ("display.png", "Appearance: language, size, contrast and motion")],
+                                 ("display.png", "Appearance: language, size, contrast and motion"),
+                                 ("update-available.png", "A Craft Conductor update is available"),
+                                 ("update-dots.png", "About & updates: the red dots, and the update waiting"),
+                                 ("updating.png", "Updating Craft Conductor, with the step it's on"),
+                                 ("update-restarting.png", "Restarting Craft Conductor while the control panel is away"),
+                                 ("update-failed.png", "An update that didn't work"),
+                                 ("update-launch.png", "Another browser is offered the new version")],
     "Troubleshooting": [("help.png", "Help, with its contents on the left")],
 }
 
