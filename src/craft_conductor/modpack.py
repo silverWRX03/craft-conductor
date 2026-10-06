@@ -122,9 +122,9 @@ def preview_file(pack: Path, http: HttpClient, name: str = "") -> dict:
             if not path.startswith("mods/") or not path.endswith(".jar"):
                 continue
             env = f.get("env") or {}
-            if env.get("server") == "unsupported":
+            included_on_server = env.get("server") != "unsupported"
+            if not included_on_server:
                 client_only += 1
-                continue
             urls = [u for u in f.get("downloads", []) if isinstance(u, str)]
             match = next((MODRINTH_FILE.match(u) for u in urls if MODRINTH_FILE.match(u)), None)
             pid = match.group(1) if match else None
@@ -145,6 +145,7 @@ def preview_file(pack: Path, http: HttpClient, name: str = "") -> dict:
                 "loaders": [loader] if loader else [],
                 "server_side": env.get("server", "required"),
                 "client_side": env.get("client", "required"),
+                "included_on_server": included_on_server,
             })
 
         projects = {}
@@ -176,7 +177,7 @@ def preview_file(pack: Path, http: HttpClient, name: str = "") -> dict:
         "minecraft": minecraft,
         "loader": loader,
         "mods": raw,
-        "count": len(raw),
+        "count": sum(1 for m in raw if m["included_on_server"]),
         "client_only": client_only,
     }
 
