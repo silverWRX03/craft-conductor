@@ -5820,7 +5820,7 @@ views["craft-conductor"] = () => {
 const freshSetup = () => ({ target: null, friends: false, loader: null, minecraft: "latest", mods: new Map(), motd: "A Minecraft server",
   properties: null, advancedOpen: false, max_players: 20, difficulty: "normal", gamemode: "survival", port: 25565, memory_gb: null,
   network_access: null, accept_eula: false, submitted: false, prefilled: false, modpack: null, localMods: [], world: null, showBetas: false,
-  aikar: false, clientMods: new Map(), clientLocal: [], companionsSeen: new Set() });  // friends' download: slug -> name; staged files
+  aikar: false, clientMods: new Map(), clientMeta: new Map(), clientLocal: [], companionsSeen: new Set() });  // friends' download: slug -> name; staged files
 const setupState = freshSetup();
 function resetSetup() {
   const keep = { friendsFor: setupState.friendsFor };  // (a server just made with friends opens its Friends page when ready)
@@ -5927,6 +5927,95 @@ function setupCompanions() {
   }
   return out;
 }
+async function loadSetupModpack(pack) {
+  const st = setupState;
+  if (!pack || pack.loading || Array.isArray(pack.mods)) return;
+  pack.loading = true;
+  pack.error = "";
+  if (st.rerender) st.rerender();
+  const r = await api(`/api/hub/modpack/preview?version=${encodeURIComponent(pack.version_id)}`).catch((e) => {
+    if (st.modpack === pack) { pack.error = e.message; pack.loading = false; if (st.rerender) st.rerender(); }
+    return null;
+  });
+  if (!r || st.modpack !== pack) return;
+  pack.mods = r.mods || [];
+  pack.pack_count = r.count || pack.mods.length;
+  pack.client_only = r.client_only || 0;
+  pack.removed = pack.removed instanceof Set ? pack.removed : new Set(pack.removed || []);
+  pack.loading = false;
+  if (st.rerender) st.rerender();
+}
+function setupServerModItems() {
+  const st = setupState;
+  const items = [];
+  const directAliases = new Set();
+  for (const [key] of st.mods) {
+    directAliases.add(key.replace(/^curseforge:/, ""));
+    directAliases.add(key.replace(/^modrinth:/, ""));
+  }
+  if (st.modpack && Array.isArray(st.modpack.mods)) {
+    const removed = st.modpack.removed instanceof Set ? st.modpack.removed : new Set();
+    for (const m of st.modpack.mods) {
+      // If the same project was also explicitly picked, craft-conductor.toml already owns it;
+      // modpack.apply deliberately doesn't add it twice.
+      if (m.project_id && (directAliases.has(m.project_id) || (m.slug && directAliases.has(m.slug)))) continue;
+      items.push({
+        key: `pack:${m.path}`, name: m.name, version: m.version, minecraft: m.minecraft, loader: m.loaders,
+        source: m.source, channel: m.channel, origin: st.modpack.name + " modpack", removed: removed.has(m.path),
+        detail: m.path,
+        remove: async () => {
+          if (!(await ask(`Remove ${m.name} from this modpack setup?\n\nThe modpack stays selected, but leaving out one of its mods can change gameplay or break other pack mods. Craft Conductor will still check the final set before creating the server.`, { ok: "Remove mod", danger: true }))) return false;
+          removed.add(m.path); st.modpack.removed = removed; return true;
+        },
+        restore: async () => { removed.delete(m.path); st.modpack.removed = removed; return true; },
+      });
+    }
+  }
+  for (const m of st.localMods) items.push({
+    key: `local:${m.id}`, name: m.name, source: "local", origin: "selected by you", tags: ["local file"],
+    remove: async () => { st.localMods = st.localMods.filter((x) => x !== m); return true; },
+  });
+  for (const [key, m] of st.mods) {
+    const needers = [...m.by].map((k) => (st.mods.get(k) || {}).name).filter(Boolean);
+    items.push({
+      key, name: m.name, source: key.startsWith("curseforge:") ? "curseforge" : "modrinth",
+      channel: m.channel || "release", minecraft: setupModVersion(), loader: st.loader,
+      dependency: !m.explicit, neededBy: needers.join(", "), origin: m.explicit ? "selected by you" : "",
+      warning: m.bad && !(m.explicit && m.conflict) ? m.bad : "",
+      content: () => m.explicit && m.bad && m.conflict ? setupConflict(key, m) : null,
+      controls: m.explicit ? () => h("label", { class: "row small", title: "Required mods hold back Minecraft upgrades until they support the new version." },
+        h("input", { type: "checkbox", checked: m.required, onchange: (e) => { m.required = e.target.checked; } }), "required") : null,
+      remove: async () => { const before = st.mods.has(key); await setupRemoveMod(key); return before && !st.mods.has(key); },
+    });
+  }
+  return items;
+}
+function setupFriendModItems() {
+  const st = setupState;
+  const items = [];
+  for (const [key, name] of st.clientMods) {
+    const meta = st.clientMeta.get(key) || {};
+    items.push({
+      key, name, source: "modrinth", channel: meta.channel || "release", minecraft: setupModVersion(), loader: st.loader,
+      origin: "selected by you", tags: [setupHasServerMod(key) ? "also on the server" : "players only"],
+      remove: async () => {
+        st.clientMods.delete(key); st.clientMeta.delete(key);
+        if (setupHasServerMod(key) && await ask(`${name} is also one of the server's mods. Remove it from the server too?\n\nCancel keeps it on the server.`, { ok: "Remove from the server" })) await setupRemoveMod(key);
+        return true;
+      },
+    });
+  }
+  for (const m of st.clientLocal) items.push({
+    key: `local:${m.id}`, name: m.name, source: "local", origin: "selected by you", tags: ["local file"],
+    remove: async () => { st.clientLocal = st.clientLocal.filter((x) => x !== m); return true; },
+  });
+  for (const [key, c] of setupCompanions()) items.push({
+    key: `dependency:${key}`, name: c.name, source: "modrinth", dependency: true, neededBy: c.needed_by,
+    minecraft: setupModVersion(), loader: st.loader,
+  });
+  return items;
+}
+
 function setupAnnounceCompanions() {
   const st = setupState;
   if (!st.friends) return;
