@@ -3069,6 +3069,7 @@ function openBrowser(params) {
     },
     pickPack: (pack) => {
       Object.assign(setupState, { modpack: pack, loader: pack.loader, minecraft: pack.minecraft });
+      loadSetupModpack(pack);
       toast(`Modpack chosen: ${pack.name}`);
       closeBrowser();
       if (currentName === "new" || currentName === "setup") refresh(); else location.hash = "#new";
@@ -3877,7 +3878,11 @@ function browserPanel(params, host) {
       const packLoader = (v.loaders.find((l) => ["fabric", "neoforge", "forge", "quilt"].includes(l)) || "vanilla");
       const pack = { project: p.id, version_id: v.id, name: p.name, version: v.name, minecraft: v.minecraft[0], loader: packLoader, icon: p.icon };
       if (host) host.pickPack(pack);
-      else { Object.assign(setupState, { modpack: pack, loader: pack.loader, minecraft: pack.minecraft }); location.hash = "#new"; }
+      else {
+        Object.assign(setupState, { modpack: pack, loader: pack.loader, minecraft: pack.minecraft });
+        loadSetupModpack(pack);
+        location.hash = "#new";
+      }
     } }, "Use this modpack") : null;
     fill(details,
       h("div", { class: "browse-head" },
@@ -3904,7 +3909,11 @@ function browserPanel(params, host) {
       environment: m.environment, channel: m.channel && m.channel !== "release" ? m.channel : null }));
     if (!(await confirmEarly(mods))) return;
     if (forPlayers && target === "setup") {  // a new server: kept with the setup form until it's created
-      for (const m of mods) setupState.clientMods.set(m.slug || m.id, m.name);
+      for (const m of mods) {
+        const key = m.slug || m.id;
+        setupState.clientMods.set(key, m.name);
+        setupState.clientMeta.set(key, { channel: m.channel, environment: m.environment });
+      }
       setupState.friends = true;
       toast(`Added ${mods.map((m) => m.name).join(", ")} to your friends' download`);
       // The ones that also run on the server go in the server's mods too, with what they need.
