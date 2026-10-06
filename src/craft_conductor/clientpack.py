@@ -101,7 +101,7 @@ def allowed_url(url: str) -> bool:
 
 def _entry(m: ModFile, side: str) -> dict:
     return {"name": m.name, "filename": m.filename, "url": m.url, "sha1": m.sha1, "sha512": m.sha512,
-            "project": m.key, "side": side}
+            "project": m.key, "source": m.source, "version": m.version_number, "channel": m.channel, "side": side}
 
 
 class PackBuilder:
