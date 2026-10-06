@@ -2080,11 +2080,144 @@ views.mods = () => {
 
   const cfId = h("input", { placeholder: "CurseForge project id or slug" });
   let info = {};
+  let cfgInfo = null;
   const configsCard = h("div");
+  const overview = h("div");
+
+  const serverConfigButton = (key) => {
+    const installed = (info.installed || []).find((m) => m.key === key);
+    const group = installed && cfgInfo ? (cfgInfo.mods || []).find((g) => g.jar === installed.filename) : null;
+    return group ? h("button", { class: "btn small", title: group.files.join("\n"),
+      onclick: () => openConfigEditor(`${group.name} config`, group.files) },
+      `⚙ Config${group.files.length > 1 ? ` (${group.files.length})` : ""}`) : null;
+  };
+  const serverModItems = () => {
+    const r = info || {};
+    const configured = r.configured || [];
+    const installed = new Map((r.installed || []).map((m) => [m.key, m]));
+    const skipped = new Map((r.skipped || []).map((m) => [m.key, m.reason]));
+    const items = [];
+    const seen = new Set();
+    const needersOf = (key) => configured.filter((c) => (c.deps || []).some((d) => d.key === key));
+    const removeSpecs = async (specs, what) => {
+      for (const x of specs) await api("/api/mods/remove", { method: "POST", body: { source: x.source, id: x.id } }).catch((e) => toast(e.message, true));
+      toast(`Removed ${what}. ${specs.length === 1 ? "It's" : "They're"} uninstalled at the next update, with dependencies nothing else needs.`);
+      await load();
+      return true;
+    };
+    for (const spec of configured) {
+      const inst = installed.get(spec.key);
+      seen.add(spec.key);
+      items.push({
+        key: spec.key, name: spec.name, source: spec.source, version: (inst || spec).version || "",
+        channel: (inst || spec).channel || "release", minecraft: r.minecraft, loader: r.loader,
+        origin: "selected by you", tags: spec.required ? [] : ["optional"],
+        warning: skipped.get(spec.key) || "",
+        detail: inst ? inst.filename : "Added; installed with the next update.",
+        controls: () => h("div", { class: "row wrap" },
+          h("label", { class: "row small", title: "Required mods hold back Minecraft upgrades until they support the new version." },
+            h("input", { type: "checkbox", checked: spec.required, onchange: async (e) => {
+              await act(() => api("/api/mods/required", { method: "POST", body: { source: spec.source, id: spec.id, required: e.target.checked } }));
+              await load();
+            } }), "required"),
+          serverConfigButton(spec.key)),
+        remove: async () => {
+          const shared = (spec.deps || []).map((d) => [d, needersOf(d.key).filter((c) => c.key !== spec.key)]).filter(([, others]) => others.length);
+          const going = (spec.deps || []).filter((d) => !shared.some(([x]) => x.key === d.key));
+          if (!(await ask(`Remove ${spec.name}?` +
+            (going.length ? ` The mods it needs (${going.map((d) => d.name).join(", ")}) go too.` : "") +
+            (shared.length ? ` ${shared.map(([d]) => d.name).join(", ")} ${shared.length === 1 ? "stays" : "stay"}, because other mods need ${shared.length === 1 ? "it" : "them"}.` : "") +
+            " It's uninstalled at the next update.", { ok: "Remove", danger: true }))) return false;
+          const changed = await removeSpecs([spec], spec.name);
+          for (const [d, others] of shared) toast(`${d.name} wasn't removed: ${others.map((c) => c.name).join(" and ")} ${others.length === 1 ? "needs" : "need"} it too.`);
+          return changed;
+        },
+      });
+    }
+    const deps = new Map();
+    for (const spec of configured) for (const d of spec.deps || []) {
+      if (!deps.has(d.key)) deps.set(d.key, { ...d, needers: [] });
+      deps.get(d.key).needers.push(spec);
+    }
+    for (const [key, dep] of deps) {
+      seen.add(key);
+      const inst = installed.get(key);
+      items.push({
+        key, name: dep.name, source: dep.source || (inst || {}).source || "modrinth",
+        version: dep.version || (inst || {}).version || "", channel: dep.channel || (inst || {}).channel || "release",
+        minecraft: r.minecraft, loader: r.loader, dependency: true, neededBy: dep.needers.map((x) => x.name).join(", "),
+        warning: skipped.get(key) || "", detail: inst ? inst.filename : "",
+        controls: () => serverConfigButton(key),
+        remove: async () => {
+          const needers = needersOf(key);
+          if (!(await ask(`${dep.name} is needed by ${needers.map((c) => c.name).join(", ")}, so removing it removes ${needers.length === 1 ? "that mod" : "those mods"} too. Continue?`,
+            { ok: "Remove", danger: true }))) return false;
+          return removeSpecs(needers, needers.map((c) => c.name).join(", "));
+        },
+      });
+    }
+    for (const m of r.installed || []) if (!seen.has(m.key)) items.push({
+      key: m.key, name: m.name, source: m.source, version: m.version, channel: m.channel || "release",
+      minecraft: r.minecraft, loader: r.loader, dependency: !!m.dependency_of,
+      neededBy: m.dependency_of ? ((r.installed || []).find((x) => x.key === m.dependency_of) || {}).name : "",
+      origin: m.dependency_of ? "" : "installed", tags: m.manual ? ["manual download"] : [], detail: m.filename,
+    });
+    for (const [name, on] of [...(r.unmanaged || []).map((x) => [x, true]), ...(r.disabled || []).map((x) => [x, false])]) {
+      items.push({
+        key: `local:${name}`, name, source: "local", origin: "your own file", tags: on ? ["unmanaged"] : ["unmanaged", "off"],
+        detail: "Not updated by Craft Conductor.",
+        controls: () => h("button", { class: "btn small", onclick: async () => {
+          const res = await act(() => api("/api/mods/jar", { method: "POST", body: { name, action: on ? "disable" : "enable" } }));
+          if (res) { toast(res.message); await load(); }
+        } }, on ? "Switch off" : "Switch on"),
+        remove: async () => {
+          if (!(await ask(`Remove ${name}? The file is deleted.`, { ok: "Remove", danger: true }))) return false;
+          const res = await act(() => api("/api/mods/jar", { method: "POST", body: { name, action: "remove" } }));
+          if (!res) return false;
+          toast(res.message); await load(); return true;
+        },
+      });
+    }
+    for (const x of r.skipped || []) if (!seen.has(x.key)) items.push({
+      key: x.key, name: x.key, source: "unknown", warning: x.reason, origin: "not installed",
+    });
+    return items;
+  };
+  const openServerMods = () => openModManager({
+    title: plugins ? "Manage Plugins" : "Manage Mods",
+    description: "Selected files, automatically added dependencies, versions, sources and compatibility details.",
+    owner: "server-mods",
+    getItems: serverModItems,
+    getHeader: () => (info.known_conflicts || []).length ? h("div", { class: "notice warn mb" },
+      h("strong", {}, "Known compatibility reports"),
+      (info.known_conflicts || []).map((x) => h("div", { class: "small" },
+        (x.with.length ? `${x.mod} + ${x.with.join(" + ")}` : `${x.mod} (on its own)`) +
+        " · " + t("reported by {n} people").replace("{n}", x.reports))),
+      h("div", { class: "small muted" }, "From Craft Conductor's shared list of mod conflicts. If the server starts fine, you can ignore this.")) : null,
+    onChange: () => renderServerOverview(),
+  });
+  const renderServerOverview = () => {
+    const items = serverModItems();
+    fill(overview,
+      modSummary(items, { noun: plugins ? "plugins" : "mods", manage: plugins ? "Manage Plugins" : "Manage Mods", open: openServerMods }),
+      h("div", { class: "row mt-s wrap" },
+        testButton({
+          check: ["/api/mods/check", {}],
+          trial: { server },
+          keepWorking: async (res) => {
+            for (const o of res.outliers) await api("/api/mods/remove", { method: "POST", body: { source: o.source, id: o.id } }).catch((e) => toast(e.message, true));
+            toast(`Removed ${res.outliers.map((o) => o.id).join(", ")}. They're uninstalled at the next update.`);
+            load();
+          },
+        }),
+        hubInfo && hubInfo.local ? folderBtn("mods", plugins ? "Plugins folder" : "Mods folder") : null,
+        hubInfo && hubInfo.local ? folderBtn("config", "Config folder") : null));
+  };
   const load = async () => {
     const [r, cfg] = await Promise.all([api("/api/mods").catch(() => null), api("/api/configs").catch(() => null)]);
     if (!r) return;
     info = r;
+    cfgInfo = cfg;
     // Config files, matched to mods by the ids inside their jars.
     const groupByJar = new Map(((cfg && cfg.mods) || []).map((g) => [g.jar, g]));
     const groupFor = (key) => { const x = r.installed.find((m) => m.key === key); return x ? groupByJar.get(x.filename) : null; };
@@ -2151,6 +2284,8 @@ views.mods = () => {
             h("button", { class: "btn small ghost", onclick: async () => (await ask(`Remove ${x}? The file is deleted.`, { ok: "Remove", danger: true })) &&
               act(() => api("/api/mods/jar", { method: "POST", body: { name: x, action: "remove" } })).then((res) => { if (res) { toast(res.message); load(); } }) }, "Remove"))))) : null,
     );
+    renderServerOverview();
+    refreshModManager("server-mods");
   };
 
   const picker = h("input", { type: "file", multiple: true, accept: ".jar", class: "hidden" });
@@ -2179,17 +2314,7 @@ views.mods = () => {
         : h("div", { class: "row mt-s" }, cfId,
           h("button", { class: "btn", onclick: () => cfId.value.trim() && add(cfId.value.trim(), true, "curseforge") }, "Add from CurseForge"))),
     h("div", { class: "mt" }, configsCard),
-    h("div", { class: "grid mt" }, card("Configured (craft-conductor.toml)", configured,
-      h("div", { class: "row mt-s" }, testButton({
-        check: ["/api/mods/check", {}],
-        trial: { server },
-        keepWorking: async (res) => {
-          for (const o of res.outliers) await api("/api/mods/remove", { method: "POST", body: { source: o.source, id: o.id } }).catch((e) => toast(e.message, true));
-          toast(`Removed ${res.outliers.map((o) => o.id).join(", ")}. They're uninstalled at the next update.`);
-          load();
-        },
-      }))),
-      card("Installed", hubInfo && hubInfo.local ? h("div", { class: "row mb" }, folderBtn("mods", "Mods folder"), folderBtn("config", "Config folder")) : null, installed)),
+    h("div", { class: "mt" }, card(plugins ? "Plugins on this server" : "Mods on this server", overview)),
     h("div", { class: "mt" }, sets.el),
   );
   load();
