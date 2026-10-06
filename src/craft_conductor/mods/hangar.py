@@ -94,6 +94,7 @@ class HangarProvider(ModProvider):
                 version_id=str(v.get("id") or v.get("name")), version_number=str(v.get("name", "")),
                 filename=name, url=str(dl.get("downloadUrl") or ""), sha256=info.get("sha256Hash"),
                 dependencies=deps, required=spec.required,
+                channel=_channel((v.get("channel") or {}).get("name", "")),
                 manual_url=f"{WEBSITE}/{(project.slug)}" if external or not dl.get("downloadUrl") else None)
         raise Unavailable(f"{project.name} has no Paper build for Minecraft {minecraft}")
 
