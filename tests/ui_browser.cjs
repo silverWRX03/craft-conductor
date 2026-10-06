@@ -192,6 +192,8 @@ const assert = require('node:assert/strict');
   await page.getByLabel('Allow access to this control panel from other devices (phones, other computers)', {exact:true}).check();
   await page.getByText('Finish creating your server first.', {exact:false}).waitFor();
   assert.equal(await page.evaluate(async () => (await api('/api/hub/remote')).running_on_network), false);
+  if (process.env.CRAFT_UI_REMOTE_SCREENSHOT)
+    await page.screenshot({path: process.env.CRAFT_UI_REMOTE_SCREENSHOT});
   await page.locator('#remote').getByRole('button', {name:'Close', exact:true}).click();
   assert.equal(await page.evaluate(() => setupState.motd), 'Setup handoff');
   await page.getByLabel('I accept the', {exact:false}).check();
