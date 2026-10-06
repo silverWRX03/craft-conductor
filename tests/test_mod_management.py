@@ -6,6 +6,9 @@ of truth.
 """
 
 import json
+import os
+from pathlib import Path
+import subprocess
 import zipfile
 
 import pytest
@@ -118,3 +121,19 @@ def test_setup_only_accepts_mod_file_paths_as_modpack_exclusions():
                 "modpack_exclude": [bad],
                 "accept_eula": True,
             })
+
+
+@pytest.mark.skipif(not os.environ.get("CRAFT_UI_NODE"), reason="optional browser verification")
+def test_mod_summary_and_management_drawer_in_a_real_browser(hub_env, modrinth):
+    """The normal setup view stays compact while the drawer exposes the resolved dependency."""
+    _, client = hub_env
+    modrinth.project("DRAWMAIN", "drawer-main", "Drawer Main")
+    modrinth.version("DRAWMAIN", "1.0", ["1.21.1"], deps=["DRAWLIB"])
+    modrinth.project("DRAWLIB", "drawer-library", "Drawer Library")
+    modrinth.version("DRAWLIB", "1.0-beta", ["1.21.1"], version_type="beta")
+
+    result = subprocess.run(
+        [os.environ["CRAFT_UI_NODE"], str(Path(__file__).with_name("ui_mod_management.cjs")), client.base],
+        capture_output=True, text=True, timeout=180,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
