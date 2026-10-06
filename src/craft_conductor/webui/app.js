@@ -3131,7 +3131,7 @@ views.friends = () => {
 // right-side drawer. The item source stays the existing resolver/API data: this is presentation,
 // not a second dependency model.
 function modSummaryCounts(items) {
-  const active = (items || []).filter((m) => !m.removed);
+  const active = (items || []).filter((m) => !m.removed && !m.excludedFromCount);
   return {
     total: active.length,
     dependencies: active.filter((m) => m.dependency).length,
@@ -6210,15 +6210,17 @@ function setupServerModItems() {
       // If the same project was also explicitly picked, craft-conductor.toml already owns it;
       // modpack.apply deliberately doesn't add it twice.
       if (m.project_id && (directAliases.has(m.project_id) || (m.slug && directAliases.has(m.slug)))) continue;
+      const onServer = m.included_on_server !== false;
       items.push({
         key: `pack:${m.path}`, name: m.name, version: m.version, minecraft: m.minecraft, loader: m.loaders,
         source: m.source, channel: m.channel, origin: st.modpack.name + " modpack", removed: removed.has(m.path),
-        detail: m.path,
-        remove: async () => {
+        excludedFromCount: !onServer, tags: onServer ? [] : ["client only", "not installed on server"],
+        detail: onServer ? m.path : `${m.path} · This modpack marks it client-only, so Craft Conductor already leaves it off the server.`,
+        remove: onServer ? async () => {
           if (!(await ask(`Remove ${m.name} from this modpack setup?\n\nThe modpack stays selected, but leaving out one of its mods can change gameplay or break other pack mods. Craft Conductor will still check the final set before creating the server.`, { ok: "Remove mod", danger: true }))) return false;
           removed.add(m.path); st.modpack.removed = removed; return true;
-        },
-        restore: async () => { removed.delete(m.path); st.modpack.removed = removed; return true; },
+        } : null,
+        restore: onServer ? async () => { removed.delete(m.path); st.modpack.removed = removed; return true; } : null,
       });
     }
   }
@@ -6504,7 +6506,7 @@ views.setup = () => {
     const renderPackSummary = () => {
       if (!st.modpack) { fill(packSummary); return; }
       const removed = st.modpack.removed instanceof Set ? st.modpack.removed.size : 0;
-      const active = Array.isArray(st.modpack.mods) ? Math.max(0, st.modpack.mods.length - removed) : null;
+      const active = Array.isArray(st.modpack.mods) ? Math.max(0, (st.modpack.pack_count || 0) - removed) : null;
       fill(packSummary,
         h("div", { class: "grow" }, h("strong", {}, st.modpack.name), " ", h("span", { class: "tag" }, st.modpack.version || ""),
           h("div", { class: "small muted" },
