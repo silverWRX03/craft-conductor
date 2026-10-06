@@ -6379,7 +6379,10 @@ views.setup = () => {
         friends: !!st.friends, local_mods: st.localMods.map((m) => m.id), world: st.world ? st.world.world : "",
         client_mods: st.friends ? [...st.clientMods.keys()] : [], client_local: st.friends ? st.clientLocal.map((m) => m.id) : [],
         mod_channels: Object.fromEntries([...st.mods].filter(([, m]) => m.explicit && m.channel).map(([k, m]) => [k, m.channel])) };
-      if (st.modpack) body.modpack_version = st.modpack.version_id;
+      if (st.modpack) {
+        body.modpack_version = st.modpack.version_id;
+        body.modpack_exclude = [...(st.modpack.removed instanceof Set ? st.modpack.removed : [])];
+      }
       if (isNew) {
         const r = await act(() => api("/api/hub/create", { method: "POST", body }));
         if (r) {
