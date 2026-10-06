@@ -56,6 +56,8 @@ class ModFile:
     dependencies: list[str] = field(default_factory=list)
     required: bool = True
     dependency_of: str | None = None
+    #: The actual release channel of this file. Older lock files omit it and default to a release.
+    channel: str = "release"
     #: set when the author blocks automatic downloads: a page where a person can download it
     manual_url: str | None = None
 

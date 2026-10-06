@@ -140,6 +140,7 @@ class ModrinthProvider(ModProvider):
             filename=f["filename"], url=f["url"],
             sha1=f.get("hashes", {}).get("sha1"), sha512=f.get("hashes", {}).get("sha512"),
             dependencies=deps, required=spec.required, dependency_of=spec.dependency_of,
+            channel=version.get("version_type", "release"),
         )
 
     def required_projects(self, version: dict) -> list[str]:

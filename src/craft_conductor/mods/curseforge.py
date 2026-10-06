@@ -130,7 +130,7 @@ class CurseForgeProvider(ModProvider):
                 version_id=str(f["id"]), version_number=f.get("displayName", f["fileName"]),
                 filename=f["fileName"], url=f.get("downloadUrl") or "", sha1=sha1,
                 dependencies=deps, required=spec.required, dependency_of=spec.dependency_of,
-                manual_url=manual_url,
+                channel=RELEASE_TYPES.get(f.get("releaseType"), "alpha"), manual_url=manual_url,
             )
         raise Unavailable(f"{project.name} has no {'/'.join(loaders)} build for {minecraft}")
 

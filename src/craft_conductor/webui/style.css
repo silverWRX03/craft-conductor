@@ -401,6 +401,47 @@ body.browse-mode main { padding: 0; overflow: hidden; }
 .rich img { max-width: 100%; height: auto; }
 .rich pre { overflow: auto; background: var(--panel-2); padding: 10px; border-radius: 6px; }
 .rich table { display: block; overflow-x: auto; }
+/* compact mod summaries + reusable right-side management drawer */
+.mod-summary { display: flex; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); }
+.mod-summary-stats { display: flex; gap: 8px 18px; align-items: center; flex-wrap: wrap; min-width: 0; }
+.mod-summary-stats > div { font-size: 13px; color: var(--muted); }
+.mod-summary-stats strong { color: var(--text); font-size: 15px; }
+.mod-manager-backdrop { position: absolute; inset: 0; z-index: 30; display: flex; justify-content: flex-end;
+  background: color-mix(in srgb, #000 46%, transparent); animation: drawer-fade-in .2s ease-out; }
+.mod-manager-backdrop.leaving { animation: drawer-fade-out .2s ease-in forwards; pointer-events: none; }
+.mod-manager-drawer { width: min(760px, calc(100% - 72px)); height: 100%; min-width: 0; display: flex; flex-direction: column;
+  background: var(--panel); border-inline-start: 1px solid var(--border); box-shadow: -16px 0 40px rgba(0,0,0,.28);
+  animation: drawer-in .24s ease-out; }
+.mod-manager-backdrop.leaving .mod-manager-drawer { animation: drawer-out .2s ease-in forwards; }
+.mod-manager-head { display: flex; gap: 14px; align-items: flex-start; padding: 18px 20px; border-bottom: 1px solid var(--border); }
+.mod-manager-head h2 { margin: 0 0 3px; }
+.mod-manager-head p { margin: 0; }
+.mod-manager-body { flex: 1; min-height: 0; overflow: auto; padding: 16px 20px 28px; }
+.mod-manager-counts { padding-bottom: 10px; }
+.mod-manager-list { display: grid; gap: 8px; }
+.mod-manager-row { display: flex; align-items: flex-start; gap: 12px; padding: 12px; border: 1px solid var(--border);
+  border-radius: 9px; background: var(--panel-2); }
+.mod-manager-row.removed { opacity: .72; }
+.mod-manager-name { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; overflow-wrap: anywhere; }
+@keyframes drawer-in { from { transform: translateX(100%); } to { transform: none; } }
+@keyframes drawer-out { from { transform: none; } to { transform: translateX(100%); } }
+@keyframes drawer-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes drawer-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="normal"]) .mod-manager-backdrop,
+  :root:not([data-motion="normal"]) .mod-manager-drawer { animation: none; }
+}
+@media (max-width: 760px) {
+  .mod-summary { align-items: stretch; }
+  .mod-summary > .btn { width: 100%; }
+  .mod-summary-stats { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+  .mod-manager-drawer { width: 100%; }
+  .mod-manager-head, .mod-manager-body { padding-inline: 14px; }
+  .mod-manager-row { flex-wrap: wrap; }
+  .mod-manager-row > .btn { margin-inline-start: auto; }
+}
+
 /* in the page: what was there slides left into a rail, the browser fills the rest */
 .stage { display: flex; flex: 1; min-height: 0; position: relative; overflow: hidden; }
 .stage > main { flex: 1 1 auto; min-width: 0; transition: opacity .25s ease, transform .25s ease; }

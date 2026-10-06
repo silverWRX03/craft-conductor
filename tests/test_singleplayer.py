@@ -67,6 +67,37 @@ def test_the_newest_minecraft_every_mod_supports(hub_env, http, modrinth):
     assert c.post("/api/hub/singleplayer/delete", {"id": "../../x"})[0] == 404
 
 
+def test_singleplayer_preview_exposes_selected_mods_and_dependencies(hub_env, http, modrinth):
+    hub, c = hub_env
+    login(c)
+    mojang(http, ["1.21.1"])
+    http.json["https://meta.fabricmc.net/v2/versions/loader/1.21.1"] = [
+        {"loader": {"version": "0.16.5", "stable": True}}
+    ]
+    modrinth.project("MAIN", "main-mod", "Main Mod", server_side="unsupported")
+    modrinth.version("MAIN", "1.0", ["1.21.1"], deps=["LIB"])
+    modrinth.project("LIB", "library", "Library", server_side="unsupported")
+    modrinth.version("LIB", "2.0", ["1.21.1"])
+
+    status, r, _ = c.post("/api/hub/singleplayer/preview", {
+        "name": "Preview",
+        "loader": "fabric",
+        "minecraft": "1.21.1",
+        "mods": ["main-mod"],
+        "memory_gb": 6,
+    })
+
+    assert status == 200, r
+    assert r["minecraft"] == "1.21.1" and r["loader"] == "fabric"
+    assert [(m["name"], m["selected"], m["needed_by"]) for m in r["mods"]] == [
+        ("Main Mod", True, None),
+        ("Library", False, "Main Mod"),
+    ]
+    assert r["mods"][0]["version"] == "1.0"
+    assert r["mods"][1]["version"] == "2.0"
+    assert all(m["channel"] == "release" for m in r["mods"])
+
+
 def test_launchers_set_up_a_game_without_a_server(tmp_path, http, monkeypatch):
     # Command discovery must not inspect the user's actual launcher installation.
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "local"))

@@ -111,6 +111,7 @@ class SetupSpec:
     friends: bool = False          # make a download that sets up friends' Minecraft for this server
     port_chosen: bool = False      # the port was picked by the person (not just the default)
     modpack_version: str = ""      # a Modrinth modpack version to build the server from
+    modpack_exclude: list[str] = field(default_factory=list)  # exact mods/*.jar paths manually removed from that pack
     local_mods: list[str] = field(default_factory=list)  # uploaded jars waiting in the hub's staging area
     client_mods: list[str] = field(default_factory=list)   # Modrinth slugs for friends' Minecraft only
     client_local: list[str] = field(default_factory=list)  # uploaded jars for friends, in the staging area
@@ -132,6 +133,21 @@ class SetupSpec:
                     raise ConfigError(f"{item!r} is not a valid mod id")
                 if item not in out:
                     out.append(item)
+            return out
+
+        def pack_paths(key: str) -> list[str]:
+            items = d.get(key) or []
+            if not isinstance(items, list) or len(items) > 5000:
+                raise ConfigError(f"{key} must be a list of mod files")
+            out = []
+            for value in items:
+                path = str(value)
+                parts = path.split("/")
+                if len(path) > 500 or "\\" in path or not path.startswith("mods/") or not path.endswith(".jar") \
+                        or any(p in ("", ".", "..") for p in parts):
+                    raise ConfigError(f"{path!r} isn't a mod file from the selected modpack")
+                if path not in out:
+                    out.append(path)
             return out
 
         def number(key: str, lo: int, hi: int, default: int) -> int:
@@ -161,6 +177,7 @@ class SetupSpec:
             friends=d.get("friends") is True,
             port_chosen="port" in d,
             modpack_version=str(d.get("modpack_version") or ""),
+            modpack_exclude=pack_paths("modpack_exclude"),
             local_mods=[str(x) for x in (d.get("local_mods") or []) if isinstance(x, str)],
             client_mods=[str(x) for x in (d.get("client_mods") or []) if isinstance(x, str)],
             client_local=[str(x) for x in (d.get("client_local") or []) if isinstance(x, str)],
