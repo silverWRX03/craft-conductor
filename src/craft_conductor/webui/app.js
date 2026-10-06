@@ -6184,7 +6184,7 @@ function setupCompanions() {
   const out = new Map();
   for (const m of setupState.mods.values()) for (const c of m.companions || []) {
     const k = c.slug || c.id;
-    if (!out.has(k) && !setupState.mods.has(k)) out.set(k, { name: c.name, needed_by: c.needed_by });
+    if (!out.has(k) && !setupState.mods.has(k)) out.set(k, { name: c.name, needed_by: c.needed_by, channel: c.channel || null });
   }
   return out;
 }
@@ -6274,7 +6274,7 @@ function setupFriendModItems() {
   });
   for (const [key, c] of setupCompanions()) items.push({
     key: `dependency:${key}`, name: c.name, source: "modrinth", dependency: true, neededBy: c.needed_by,
-    minecraft: setupModVersion(), loader: st.loader,
+    channel: c.channel || "release", minecraft: setupModVersion(), loader: st.loader,
   });
   return items;
 }
