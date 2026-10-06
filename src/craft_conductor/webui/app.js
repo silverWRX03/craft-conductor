@@ -6412,23 +6412,19 @@ views.setup = () => {
         st.friends = true;
         renderForm();
       });
-      const companions = setupCompanions();
-      const list = st.clientMods.size || st.clientLocal.length || companions.size ? h("ul", { class: "list" },
-        [...st.clientMods].map(([k, name]) => h("li", {}, h("strong", { class: "grow" }, name),
-          h("span", { class: "tag" }, setupHasServerMod(k) ? "also on the server" : "players only"),
-          h("button", { type: "button", class: "btn small danger", onclick: async () => {
-            st.clientMods.delete(k);
-            renderForm();
-            if (setupHasServerMod(k) && await ask(`${name} is also one of the server's mods. Remove it from the server too?\n\nCancel keeps it on the server.`, { ok: "Remove from the server" })) {
-              await setupRemoveMod(k);
-              renderForm();
-            }
-          } }, "Remove"))),
-        st.clientLocal.map((m) => h("li", {}, h("div", { class: "grow" }, h("strong", {}, m.name), h("span", { class: "tag" }, "local file")),
-          h("button", { type: "button", class: "btn small danger", onclick: () => { st.clientLocal = st.clientLocal.filter((x) => x !== m); renderForm(); } }, "Remove"))),
-        [...companions.values()].map((c) => h("li", { class: "dep" }, h("div", { class: "grow" }, "↳ ", h("strong", {}, c.name),
-          h("span", { class: "tag" }, `added automatically: ${c.needed_by} needs it`)))))
-        : h("p", { class: "empty" }, "No extra mods for players yet. Friends get the server's mods either way.");
+      const openFriendMods = () => openModManager({
+        title: "Manage Friends Mods",
+        description: "Extra mods for your friends' Minecraft. Required client-side dependencies are added automatically.",
+        owner: "setup-friend-mods",
+        getItems: setupFriendModItems,
+        onChange: () => renderForm(),
+      });
+      const friendItems = setupFriendModItems();
+      const list = friendItems.length
+        ? modSummary(friendItems, { noun: "Friends Mods", manage: "Manage Friends Mods", open: openFriendMods })
+        : h("div", {},
+          h("p", { class: "empty" }, "No extra mods for players yet. Friends get the server's mods either way."),
+          h("button", { type: "button", class: "btn", onclick: openFriendMods }, "Manage Friends Mods"));
       return card("Friends (optional)",
         h("label", { class: "row check-row" },
           h("input", { type: "checkbox", checked: st.friends, onchange: (e) => { st.friends = e.target.checked; if (st.friends) setupAnnounceCompanions(); renderForm(); } }),
