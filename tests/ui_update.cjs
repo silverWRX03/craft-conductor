@@ -1,6 +1,7 @@
 // Craft Conductor's own update in a real browser: tests/test_ui_update.py starts the hub and runs this.
 // usage: node ui_update.cjs <base url> <scenario>      (later | update | failure | restart-timeout)
 const { chromium } = require(process.env.CRAFT_UI_PLAYWRIGHT);
+const OLD = process.env.CRAFT_UI_VERSION;   // the version that's running (what an update leaves, or is put back to)
 const assert = require('node:assert/strict');
 (async () => {
   const channel = process.env.CRAFT_UI_CHANNEL || (process.platform === 'win32' ? 'msedge' : undefined);
@@ -65,7 +66,7 @@ const assert = require('node:assert/strict');
     assert.equal(await screen.count(), 0);                          // (no update screen here: this tab didn't ask)
     await page.waitForFunction(() => !document.getElementById('update-elsewhere') || /restarting/i.test(document.getElementById('update-elsewhere').innerText), null, {timeout: 20000});
     // the new version is running: this tab is asked, and stays as it is until the person agrees
-    newCopy.authVersion = '9.9.9'; newCopy.last = {ok: true, from: '0.24.0', to: '9.9.9', at: Date.now() / 1000 + 5};
+    newCopy.authVersion = '9.9.9'; newCopy.last = {ok: true, from: OLD, to: '9.9.9', at: Date.now() / 1000 + 5};
     await page.evaluate(() => versionWatch());
     const launch = page.locator('#self-updated');
     await launch.waitFor();
@@ -134,15 +135,15 @@ const assert = require('node:assert/strict');
     await page.waitForFunction(() => /Restarting Craft Conductor/i.test(document.querySelector("#self-updating-title").innerText + document.querySelector("#self-updating-stage").innerText));
     if (scenario === 'revert') {
       // The new version never came up, so the old one was put back and restarted: this tab reloads into it, and says so.
-      newCopy.on = true; newCopy.aborts = 3; newCopy.version = '0.24.0';
-      newCopy.last = {ok: false, reverted: true, from: '0.24.0', to: '9.9.9', at: Date.now() / 1000 + 5};
-      newCopy.hubVersion = '0.24.0';
+      newCopy.on = true; newCopy.aborts = 3; newCopy.version = OLD;
+      newCopy.last = {ok: false, reverted: true, from: OLD, to: '9.9.9', at: Date.now() / 1000 + 5};
+      newCopy.hubVersion = OLD;
       const reloaded = page.waitForEvent('load');
       await page.waitForFunction(() => /waiting for the new version/i.test(document.querySelector('#self-updating').innerText));
       newCopy.reloaded = true;
       await reloaded;
       await page.locator('#app').waitFor({state: 'visible'});
-      await page.getByText("The update to Craft Conductor 9.9.9 didn't work, so Craft Conductor 0.24.0 is back.").waitFor();
+      await page.getByText(`The update to Craft Conductor 9.9.9 didn't work, so Craft Conductor ${OLD} is back.`).waitFor();
       await shot('reverted');
       assert.equal(await screen.count(), 0);
       assert.equal(await popup.count(), 0);

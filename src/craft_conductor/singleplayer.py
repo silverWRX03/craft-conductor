@@ -168,8 +168,11 @@ def _mods(modrinth, slugs, mc, loaders, channel) -> tuple[list[dict], list[dict]
             continue
         included.add(f.key)
         entry = _entry(f, "client")
+        entry["selected"] = spec.dependency_of is None
         if spec.dependency_of:
             entry["needed_by"] = spec.dependency_of
+        else:
+            entry["requested"] = spec.id
         (mods if allowed_url(f.url) else manual).append(entry)
         todo += [ModSpec("modrinth", dep, dependency_of=f.name) for dep in f.dependencies if f"modrinth:{dep}" not in included]
     return mods, manual, missing

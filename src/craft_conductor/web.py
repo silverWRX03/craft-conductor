@@ -180,6 +180,7 @@ class WebUI:
         self.devices = webauth.Devices(hub.state_dir)
         self.passkeys = passkeys.Passkeys(hub.state_dir)
         self.lock = threading.Lock()
+        self.network_lock = threading.Lock()
         self.httpd: ThreadingHTTPServer | None = None
         self._apis: dict[str, Api] = {}
         self.hub_api = HubApi(self)
@@ -241,6 +242,37 @@ class WebUI:
             self.httpd.shutdown()
             self.httpd.server_close()
 
+    def apply_network(self) -> None:
+        """Rebind only the listener; keep sessions, setup jobs and Minecraft alive."""
+        with self.network_lock:
+            target = self.hub.web.host
+            if target == self.host:
+                return
+            if target not in ("127.0.0.1", "localhost", "::1") and not self.auth.remote_ready:
+                raise ApiError(400, "first set a strong password before allowing other devices")
+            old = self.httpd
+            if old is None:
+                raise ApiError(409, "the control panel isn't listening yet")
+            port = old.server_address[1]
+            old.shutdown()
+            old.server_close()
+            try:
+                replacement = _Server((target, port), old.RequestHandlerClass)
+            except OSError as e:
+                # Keep the local panel usable and let the owner retry.
+                replacement = _Server((self.host, port), old.RequestHandlerClass)
+                error = e
+            else:
+                self.host = target
+                error = None
+            replacement.daemon_threads = True
+            replacement.tls_context = old.tls_context
+            replacement.plain_http_reply = old.plain_http_reply
+            self.httpd = replacement
+            threading.Thread(target=replacement.serve_forever, daemon=True, name="web").start()
+            if error:
+                raise ApiError(409, "couldn't apply remote access; the previous connection was restored. Try again.") from error
+
     # ------------------------------------------------------------ sessions
     def login(self, password: str, client: str, local: bool = True) -> str:
         now = time.time()
@@ -293,6 +325,12 @@ class WebUI:
         return token
 
     def change(self, mode: str, secret: str, local: bool) -> str:
+        # Serialize password changes with rebinding and saving network access:
+        # a concurrent switch must never open a listener after accepting a PIN.
+        with self.network_lock:
+            return self._change(mode, secret, local)
+
+    def _change(self, mode: str, secret: str, local: bool) -> str:
         """Change how the panel is protected; signs out everyone else (paired phones too) and
         returns a new session."""
         if self.remote_on() and not (mode == "password" and webauth.strong_password(secret)):
@@ -314,7 +352,7 @@ class WebUI:
 
     def remote_on(self) -> bool:
         """Other devices can reach the panel (network access is on)."""
-        return self.hub.web.host not in ("127.0.0.1", "localhost", "::1")
+        return any(host not in ("127.0.0.1", "localhost", "::1") for host in (self.hub.web.host, self.host))
 
     def reset_to_default(self) -> None:
         self.store.reset()
@@ -961,6 +999,7 @@ def mod_requirements(provider: ModrinthProvider, mod_id: str, loaders: tuple[str
         return {**base, "compatible": False, "reason": f"{project.name} has no build for {where}", "deps": [],
                 "companions": [], "chain": [project.name], "checked": [SOURCE_NAMES.get(root_source, root_source)],
                 "suggestions": suggestions([(root_source, project)]) if minecraft else []}
+    base["channel"] = root.get("channel") or "release"
     deps, companions = [], []
     seen, seen_projects = {project.key}, [project]
     queue = [(src, pid, [(root_source, project)]) for src, pid in root["deps"]]
@@ -985,13 +1024,16 @@ def mod_requirements(provider: ModrinthProvider, mod_id: str, loaders: tuple[str
         seen.add(dep.key)
         seen_projects.append(dep)
         if dep.server_side == "unsupported":  # only players need it: it goes in friends' downloads
-            companions.append({"id": dep.id, "slug": dep.slug, "name": dep.name, "needed_by": needed_by})
+            companion = build(source, dep)
+            companions.append({"id": dep.id, "slug": dep.slug, "name": dep.name, "needed_by": needed_by,
+                               "channel": (companion or {}).get("channel")})
             continue
         checked, unchecked = [], []
         hit = anywhere(source, dep, checked, unchecked)
         used, used_source, found = hit if hit else (dep, source, None)
         if used.server_side == "unsupported":
-            companions.append({"id": used.id, "slug": used.slug, "name": used.name, "needed_by": needed_by})
+            companions.append({"id": used.id, "slug": used.slug, "name": used.name, "needed_by": needed_by,
+                               "channel": (found or {}).get("channel")})
             continue
         if used is not dep:
             seen.add(used.key)
@@ -1092,10 +1134,12 @@ class HubApi:
         r[("GET", "/api/hub/mods/requires")] = lambda q, b: requirements_query(
             ModrinthProvider(self.hub.http), q, curseforge=CurseForgeProvider(self.hub.http, self.curseforge_key_now()))
         r[("GET", "/api/hub/mods/search")] = lambda q, b: search_mods(ModrinthProvider(self.hub.http), q, set(), "fabric")
+        r[("GET", "/api/hub/modpack/preview")] = self.modpack_preview
         r[("POST", "/api/hub/create")] = self.create
         r[("POST", "/api/hub/remote-install")] = self.remote_install
         r[("POST", "/api/hub/remote-install/open")] = self.remote_install_open
         r[("POST", "/api/hub/network")] = self.network
+        r[("POST", "/api/hub/network/apply")] = self.apply_network
         r[("POST", "/api/hub/share")] = self.save_share
         r[("GET", "/api/hub/port")] = self.port_check
         r[("POST", "/api/hub/stage")] = self.stage
@@ -1165,6 +1209,7 @@ class HubApi:
         r[("POST", "/api/hub/singleplayer/edit")] = self.sp_edit
         r[("POST", "/api/hub/singleplayer/delete")] = self.sp_delete
         r[("POST", "/api/hub/singleplayer/check")] = self.sp_check
+        r[("POST", "/api/hub/singleplayer/preview")] = self.sp_preview
         r[("POST", "/api/hub/singleplayer/install")] = self.sp_install
         r[("POST", "/api/hub/guide")] = self.guide_action
         r[("GET", "/api/licenses")] = lambda q, b: licenses.as_dict()
@@ -1192,6 +1237,14 @@ class HubApi:
             "guide": None if hub.is_single else self._guide_state(),
             "health": hub._health.warnings if getattr(hub, "_health", None) else [],  # (checked every minute: health.py)
         }
+
+    def modpack_preview(self, q, b) -> dict:
+        """The mods a selected Modrinth modpack would add, for the setup management drawer."""
+        from . import modpack
+        try:
+            return modpack.preview(self.hub.http, str(q.get("version", "")))
+        except (ModError, HttpError) as e:
+            raise ApiError(400 if isinstance(e, ModError) else 502, str(e)) from None
 
     # ------------------------------------------- modded single-player games
     def _sp(self):
@@ -1244,13 +1297,37 @@ class HubApi:
         except HttpError as e:
             raise ApiError(502, f"couldn't reach Modrinth or Mojang: {e.friendly}") from None
 
+    @staticmethod
+    def _sp_mods(pack: dict) -> list[dict]:
+        """Display-safe resolved mod metadata shared by single-player check and preview."""
+        def one(m, manual=False):
+            return {"name": m["name"], "project": m.get("project"), "source": m.get("source", "modrinth"),
+                    "version": m.get("version", ""), "channel": m.get("channel", "release"),
+                    "needed_by": m.get("needed_by"), "selected": bool(m.get("selected")),
+                    "requested": m.get("requested"), "manual": manual}
+        return [one(m) for m in pack["mods"]] + [one(m, True) for m in pack["manual"]]
+
     def sp_check(self, q, b) -> dict:
         """What installing (or updating) the game now would put in."""
         sp = self._sp()
         game, pack = self._sp_pack(str(b.get("id", "")))
-        return {"id": game["id"], "minecraft": pack["minecraft"], "loader_version": pack["loader_version"],
-                "changes": sp.changes(game.get("installed"), pack), "skipped": pack["skipped"], "manual": pack["manual"],
-                "mods": [{"name": m["name"], "needed_by": m.get("needed_by")} for m in pack["mods"]]}
+        return {"id": game["id"], "minecraft": pack["minecraft"], "loader": pack["loader"],
+                "loader_version": pack["loader_version"], "changes": sp.changes(game.get("installed"), pack),
+                "skipped": pack["skipped"], "manual": pack["manual"], "mods": self._sp_mods(pack)}
+
+    def sp_preview(self, q, b) -> dict:
+        """Resolve unsaved single-player choices so the editor can show dependencies and versions."""
+        sp = self._sp()
+        try:
+            recipe = sp.check_recipe(str(b.get("name") or "Preview"), b.get("loader"), b.get("minecraft"),
+                                     b.get("mods") or [], b.get("memory_gb") or 4)
+            pack = sp.resolve(self.hub, recipe)
+        except sp.SingleplayerError as e:
+            raise ApiError(400, str(e)) from None
+        except HttpError as e:
+            raise ApiError(502, f"couldn't reach Modrinth or Mojang: {e.friendly}") from None
+        return {"minecraft": pack["minecraft"], "loader": pack["loader"], "loader_version": pack["loader_version"],
+                "skipped": pack["skipped"], "mods": self._sp_mods(pack)}
 
     def sp_install(self, q, b) -> dict:
         """Put the game into this computer's launchers (the same page friends use to join), and keep
@@ -1957,14 +2034,21 @@ class HubApi:
         if self.hub.is_single:
             raise ApiError(400, "set [web] host in craft-conductor.toml for `craft-conductor run`")
         enabled = b.get("enabled") is True
-        if enabled and not self.web.auth.remote_ready:
-            raise ApiError(400, "first set a strong password (" + webauth.STRONG_RULES + "); "
-                                "PINs can't be used for access from other devices")
-        self.hub.save_web(host="0.0.0.0" if enabled else "127.0.0.1")
-        if not enabled:
-            self.web.devices.cancel_codes()  # (a pairing code shown for the network is no use now)
-        log.info("network access to the control panel turned %s (applies when Craft Conductor restarts)", "on" if enabled else "off")
+        with self.web.network_lock:
+            if enabled and not self.web.auth.remote_ready:
+                raise ApiError(400, "first set a strong password (" + webauth.STRONG_RULES + "); "
+                                    "PINs can't be used for access from other devices")
+            self.hub.save_web(host="0.0.0.0" if enabled else "127.0.0.1")
+            if not enabled:
+                self.web.devices.cancel_codes()
+        log.info("network access to the control panel saved: %s (waiting for the listener to apply it)", "on" if enabled else "off")
         return {"ok": True, "restart_needed": enabled != (self.web.host in ("0.0.0.0", "::"))}
+
+    def apply_network(self, q, b) -> dict:
+        if self.hub.is_single:
+            raise ApiError(400, "remote access changes need Craft Conductor's server list")
+        self.web.apply_network()
+        return {"ok": True}
 
     def accept_notice(self, q, b) -> dict:
         if b.get("version") != notice.NOTICE_VERSION:
@@ -2339,7 +2423,7 @@ class Api:
             "loader": self.m.config.server.loader,
             "minecraft": lk.minecraft,
             "installed": [{"key": x.key, "name": x.name, "version": x.version_number, "filename": x.filename,
-                           "source": x.source, "dependency_of": x.dependency_of, "manual": x.manual}
+                           "source": x.source, "dependency_of": x.dependency_of, "channel": x.channel, "manual": x.manual}
                           for x in lk.mods],
             "configured": self._configured_with_deps(),
             "skipped": [{"key": k, "reason": v} for k, v in lk.skipped.items()],
@@ -2404,10 +2488,15 @@ class Api:
                     dk = f"{mod.source}:{pid}"
                     if dk in installed and dk not in seen:
                         seen.add(dk)
-                        deps.append({"key": dk, "name": installed[dk].name})
+                        d = installed[dk]
+                        deps.append({"key": dk, "name": d.name, "source": d.source, "version": d.version_number,
+                                     "channel": d.channel, "dependency_of": d.dependency_of})
                         todo.append(dk)
-            out.append({"source": spec.source, "id": spec.id, "required": spec.required, "key": key, "channel": spec.channel,
-                        "name": installed[key].name if key in installed else spec.id, "deps": deps})
+            current = installed.get(key)
+            out.append({"source": spec.source, "id": spec.id, "required": spec.required, "key": key,
+                        "channel": current.channel if current else (spec.channel or "release"),
+                        "version": current.version_number if current else "",
+                        "name": current.name if current else spec.id, "deps": deps})
         return out
 
     def search(self, q, b) -> dict:
@@ -3257,9 +3346,22 @@ class Api:
             except Exception as e:
                 error = str(e)
         works = c.link_works(time.time())
+        mod_details = []
+        if c.mods:
+            try:
+                projects = self._modrinth().projects(list(c.mods))
+                by_name = {}
+                for p in projects.values():
+                    by_name[p.get("id", "")] = p
+                    by_name[p.get("slug", "")] = p
+                mod_details = [{"slug": slug, "id": (by_name.get(slug) or {}).get("id", ""),
+                                "name": (by_name.get(slug) or {}).get("title") or slug}
+                               for slug in c.mods]
+            except (ModError, HttpError):
+                mod_details = [{"slug": slug, "id": "", "name": slug} for slug in c.mods]
         return {
             "available": not hub.is_single,
-            "enabled": c.enabled, "mods": c.mods, "memory_gb": c.memory_gb,
+            "enabled": c.enabled, "mods": c.mods, "mod_details": mod_details, "memory_gb": c.memory_gb,
             "mods_on_server": self._players_mods_on_server(c.mods),
             "link": self._invite_link() if c.enabled else None,
             "links": self._invite_links() if c.enabled else {},

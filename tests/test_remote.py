@@ -20,6 +20,48 @@ def test_password_rules():
         assert not webauth.strong_password(weak)
 
 
+def test_apply_remote_access_preserves_sessions_and_server(hub_env):
+    from test_web import wait_for
+    hub, c = hub_env
+    login(c)
+    assert c.post("/api/auth/change", {"mode": "password", "secret": STRONG})[0] == 200
+    assert c.post("/api/servers/alpha/server/start")[0] == 200
+    wait_for(lambda: hub.get("alpha").state == "running", timeout=30)
+    process = hub.get("alpha").proc
+    port = hub.ui.httpd.server_address[1]
+    assert c.post("/api/hub/network", {"enabled": True})[0] == 200
+    assert hub.ui.host == "127.0.0.1"  # saving during setup doesn't interrupt it
+    assert c.post("/api/hub/network/apply")[0] == 200
+    assert c.get("/api/hub/remote")[1]["running_on_network"]
+    assert hub.ui.httpd.server_address[1] == port
+    assert hub.get("alpha").proc is process and process.running
+    assert not hub.restart_requested and not hub.stop_requested.is_set()
+    assert c.post("/api/hub/network", {"enabled": False})[0] == 200
+    # A pending switch back to localhost must not allow a weak password yet.
+    assert c.post("/api/auth/change", {"mode": "pin", "secret": "4321"})[0] == 400
+    assert c.post("/api/hub/network/apply")[0] == 200
+    assert not c.get("/api/hub/remote")[1]["running_on_network"]
+    assert c.post("/api/auth/change", {"mode": "pin", "secret": "4321"})[0] == 200
+
+
+def test_apply_remote_access_restores_listener_on_bind_failure(hub_env, monkeypatch):
+    from craft_conductor import web
+    hub, c = hub_env
+    login(c)
+    assert c.post("/api/auth/change", {"mode": "password", "secret": STRONG})[0] == 200
+    assert c.post("/api/hub/network", {"enabled": True})[0] == 200
+    original = web._Server
+    def bind(address, handler):
+        if address[0] == "0.0.0.0":
+            raise OSError("test bind failure")
+        return original(address, handler)
+    monkeypatch.setattr(web, "_Server", bind)
+    assert c.post("/api/hub/network/apply")[0] == 409
+    assert c.get("/api/hub/remote")[1]["running_on_network"] is False
+    monkeypatch.setattr(web, "_Server", original)
+    assert c.post("/api/hub/network/apply")[0] == 200
+
+
 def test_qr_code_svg():
     svg = qr.svg("http://192.168.1.20:8765/#pair=abc")
     assert svg.startswith("<svg") and "path" in svg
@@ -71,6 +113,7 @@ def test_remote_access_needs_a_strong_password_and_phones_are_limited(hub_env):
     assert phone.post("/api/servers/alpha/backups/create", {"name": "from phone"})[0] == 200
     for path, body in (("/api/servers/alpha/command", {"command": "op someone"}), ("/api/servers/alpha/settings", {}),
                        ("/api/servers/alpha/mods/add", {"id": "x"}), ("/api/hub/network", {"enabled": False}),
+                       ("/api/hub/network/apply", {}),
                        ("/api/auth/change", {"mode": "password", "secret": STRONG + "x"})):
         assert phone.post(path, body)[0] == 403, path
     assert phone.get("/api/servers/alpha/settings")[0] == 403

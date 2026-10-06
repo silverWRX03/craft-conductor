@@ -2377,11 +2377,144 @@ views.mods = () => {
 
   const cfId = h("input", { placeholder: "CurseForge project id or slug" });
   let info = {};
+  let cfgInfo = null;
   const configsCard = h("div");
+  const overview = h("div");
+
+  const serverConfigButton = (key) => {
+    const installed = (info.installed || []).find((m) => m.key === key);
+    const group = installed && cfgInfo ? (cfgInfo.mods || []).find((g) => g.jar === installed.filename) : null;
+    return group ? h("button", { class: "btn small", title: group.files.join("\n"),
+      onclick: () => openConfigEditor(`${group.name} config`, group.files) },
+      `⚙ Config${group.files.length > 1 ? ` (${group.files.length})` : ""}`) : null;
+  };
+  const serverModItems = () => {
+    const r = info || {};
+    const configured = r.configured || [];
+    const installed = new Map((r.installed || []).map((m) => [m.key, m]));
+    const skipped = new Map((r.skipped || []).map((m) => [m.key, m.reason]));
+    const items = [];
+    const seen = new Set();
+    const needersOf = (key) => configured.filter((c) => (c.deps || []).some((d) => d.key === key));
+    const removeSpecs = async (specs, what) => {
+      for (const x of specs) await api("/api/mods/remove", { method: "POST", body: { source: x.source, id: x.id } }).catch((e) => toast(e.message, true));
+      toast(`Removed ${what}. ${specs.length === 1 ? "It's" : "They're"} uninstalled at the next update, with dependencies nothing else needs.`);
+      await load();
+      return true;
+    };
+    for (const spec of configured) {
+      const inst = installed.get(spec.key);
+      seen.add(spec.key);
+      items.push({
+        key: spec.key, name: spec.name, source: spec.source, version: (inst || spec).version || "",
+        channel: (inst || spec).channel || "release", minecraft: r.minecraft, loader: r.loader,
+        origin: "selected by you", tags: spec.required ? [] : ["optional"],
+        warning: skipped.get(spec.key) || "",
+        detail: inst ? inst.filename : "Added; installed with the next update.",
+        controls: () => h("div", { class: "row wrap" },
+          h("label", { class: "row small", title: "Required mods hold back Minecraft upgrades until they support the new version." },
+            h("input", { type: "checkbox", checked: spec.required, onchange: async (e) => {
+              await act(() => api("/api/mods/required", { method: "POST", body: { source: spec.source, id: spec.id, required: e.target.checked } }));
+              await load();
+            } }), "required"),
+          serverConfigButton(spec.key)),
+        remove: async () => {
+          const shared = (spec.deps || []).map((d) => [d, needersOf(d.key).filter((c) => c.key !== spec.key)]).filter(([, others]) => others.length);
+          const going = (spec.deps || []).filter((d) => !shared.some(([x]) => x.key === d.key));
+          if (!(await ask(`Remove ${spec.name}?` +
+            (going.length ? ` The mods it needs (${going.map((d) => d.name).join(", ")}) go too.` : "") +
+            (shared.length ? ` ${shared.map(([d]) => d.name).join(", ")} ${shared.length === 1 ? "stays" : "stay"}, because other mods need ${shared.length === 1 ? "it" : "them"}.` : "") +
+            " It's uninstalled at the next update.", { ok: "Remove", danger: true }))) return false;
+          const changed = await removeSpecs([spec], spec.name);
+          for (const [d, others] of shared) toast(`${d.name} wasn't removed: ${others.map((c) => c.name).join(" and ")} ${others.length === 1 ? "needs" : "need"} it too.`);
+          return changed;
+        },
+      });
+    }
+    const deps = new Map();
+    for (const spec of configured) for (const d of spec.deps || []) {
+      if (!deps.has(d.key)) deps.set(d.key, { ...d, needers: [] });
+      deps.get(d.key).needers.push(spec);
+    }
+    for (const [key, dep] of deps) {
+      seen.add(key);
+      const inst = installed.get(key);
+      items.push({
+        key, name: dep.name, source: dep.source || (inst || {}).source || "modrinth",
+        version: dep.version || (inst || {}).version || "", channel: dep.channel || (inst || {}).channel || "release",
+        minecraft: r.minecraft, loader: r.loader, dependency: true, neededBy: dep.needers.map((x) => x.name).join(", "),
+        warning: skipped.get(key) || "", detail: inst ? inst.filename : "",
+        controls: () => serverConfigButton(key),
+        remove: async () => {
+          const needers = needersOf(key);
+          if (!(await ask(`${dep.name} is needed by ${needers.map((c) => c.name).join(", ")}, so removing it removes ${needers.length === 1 ? "that mod" : "those mods"} too. Continue?`,
+            { ok: "Remove", danger: true }))) return false;
+          return removeSpecs(needers, needers.map((c) => c.name).join(", "));
+        },
+      });
+    }
+    for (const m of r.installed || []) if (!seen.has(m.key)) items.push({
+      key: m.key, name: m.name, source: m.source, version: m.version, channel: m.channel || "release",
+      minecraft: r.minecraft, loader: r.loader, dependency: !!m.dependency_of,
+      neededBy: m.dependency_of ? ((r.installed || []).find((x) => x.key === m.dependency_of) || {}).name : "",
+      origin: m.dependency_of ? "" : "installed", tags: m.manual ? ["manual download"] : [], detail: m.filename,
+    });
+    for (const [name, on] of [...(r.unmanaged || []).map((x) => [x, true]), ...(r.disabled || []).map((x) => [x, false])]) {
+      items.push({
+        key: `local:${name}`, name, source: "local", origin: "your own file", tags: on ? ["unmanaged"] : ["unmanaged", "off"],
+        detail: "Not updated by Craft Conductor.",
+        controls: () => h("button", { class: "btn small", onclick: async () => {
+          const res = await act(() => api("/api/mods/jar", { method: "POST", body: { name, action: on ? "disable" : "enable" } }));
+          if (res) { toast(res.message); await load(); }
+        } }, on ? "Switch off" : "Switch on"),
+        remove: async () => {
+          if (!(await ask(`Remove ${name}? The file is deleted.`, { ok: "Remove", danger: true }))) return false;
+          const res = await act(() => api("/api/mods/jar", { method: "POST", body: { name, action: "remove" } }));
+          if (!res) return false;
+          toast(res.message); await load(); return true;
+        },
+      });
+    }
+    for (const x of r.skipped || []) if (!seen.has(x.key)) items.push({
+      key: x.key, name: x.key, source: "unknown", warning: x.reason, origin: "not installed",
+    });
+    return items;
+  };
+  const openServerMods = () => openModManager({
+    title: plugins ? "Manage Plugins" : "Manage Mods",
+    description: "Selected files, automatically added dependencies, versions, sources and compatibility details.",
+    owner: "server-mods",
+    getItems: serverModItems,
+    getHeader: () => (info.known_conflicts || []).length ? h("div", { class: "notice warn mb" },
+      h("strong", {}, "Known compatibility reports"),
+      (info.known_conflicts || []).map((x) => h("div", { class: "small" },
+        (x.with.length ? `${x.mod} + ${x.with.join(" + ")}` : `${x.mod} (on its own)`) +
+        " · " + t("reported by {n} people").replace("{n}", x.reports))),
+      h("div", { class: "small muted" }, "From Craft Conductor's shared list of mod conflicts. If the server starts fine, you can ignore this.")) : null,
+    onChange: () => renderServerOverview(),
+  });
+  const renderServerOverview = () => {
+    const items = serverModItems();
+    fill(overview,
+      modSummary(items, { noun: plugins ? "plugins" : "mods", manage: plugins ? "Manage Plugins" : "Manage Mods", open: openServerMods }),
+      h("div", { class: "row mt-s wrap" },
+        testButton({
+          check: ["/api/mods/check", {}],
+          trial: { server },
+          keepWorking: async (res) => {
+            for (const o of res.outliers) await api("/api/mods/remove", { method: "POST", body: { source: o.source, id: o.id } }).catch((e) => toast(e.message, true));
+            toast(`Removed ${res.outliers.map((o) => o.id).join(", ")}. They're uninstalled at the next update.`);
+            load();
+          },
+        }),
+        hubInfo && hubInfo.local ? folderBtn("mods", plugins ? "Plugins folder" : "Mods folder") : null,
+        hubInfo && hubInfo.local ? folderBtn("config", "Config folder") : null));
+  };
   const load = async () => {
     const [r, cfg] = await Promise.all([api("/api/mods").catch(() => null), api("/api/configs").catch(() => null)]);
     if (!r) return;
     info = r;
+    cfgInfo = cfg;
     // Config files, matched to mods by the ids inside their jars.
     const groupByJar = new Map(((cfg && cfg.mods) || []).map((g) => [g.jar, g]));
     const groupFor = (key) => { const x = r.installed.find((m) => m.key === key); return x ? groupByJar.get(x.filename) : null; };
@@ -2448,6 +2581,8 @@ views.mods = () => {
             h("button", { class: "btn small ghost", onclick: async () => (await ask(`Remove ${x}? The file is deleted.`, { ok: "Remove", danger: true })) &&
               act(() => api("/api/mods/jar", { method: "POST", body: { name: x, action: "remove" } })).then((res) => { if (res) { toast(res.message); load(); } }) }, "Remove"))))) : null,
     );
+    renderServerOverview();
+    refreshModManager("server-mods");
   };
 
   const picker = h("input", { type: "file", multiple: true, accept: ".jar", class: "hidden" });
@@ -2476,17 +2611,7 @@ views.mods = () => {
         : h("div", { class: "row mt-s" }, cfId,
           h("button", { class: "btn", onclick: () => cfId.value.trim() && add(cfId.value.trim(), true, "curseforge") }, "Add from CurseForge"))),
     h("div", { class: "mt" }, configsCard),
-    h("div", { class: "grid mt" }, card("Configured (craft-conductor.toml)", configured,
-      h("div", { class: "row mt-s" }, testButton({
-        check: ["/api/mods/check", {}],
-        trial: { server },
-        keepWorking: async (res) => {
-          for (const o of res.outliers) await api("/api/mods/remove", { method: "POST", body: { source: o.source, id: o.id } }).catch((e) => toast(e.message, true));
-          toast(`Removed ${res.outliers.map((o) => o.id).join(", ")}. They're uninstalled at the next update.`);
-          load();
-        },
-      }))),
-      card("Installed", hubInfo && hubInfo.local ? h("div", { class: "row mb" }, folderBtn("mods", "Mods folder"), folderBtn("config", "Config folder")) : null, installed)),
+    h("div", { class: "mt" }, card(plugins ? "Plugins on this server" : "Mods on this server", overview)),
     h("div", { class: "mt" }, sets.el),
   );
   load();
@@ -3129,6 +3254,72 @@ views.friends = () => {
     try { localStorage.setItem(key, JSON.stringify([...seen, ...fresh.map((m) => m.project)])); } catch (_) { /* private mode */ }
   };
 
+  const friendModItems = () => {
+    const d = data || {};
+    const pack = d.pack || {};
+    const details = d.mod_details || [];
+    const byProject = new Map();
+    for (const x of details) {
+      if (x.id) byProject.set(`modrinth:${x.id}`, x);
+      if (x.slug) byProject.set(`modrinth:${x.slug}`, x);
+    }
+    const items = [];
+    const add = (m, manual = false) => {
+      const explicit = byProject.get(m.project) || null;
+      const local = !!m.local || (d.local_mods || []).includes(m.filename);
+      const dependency = !!m.needed_by;
+      items.push({
+        key: m.project || `file:${m.filename || m.name}`, name: m.name, source: m.source || (local ? "local" : "modrinth"),
+        version: m.version || "", channel: m.channel || "release", minecraft: pack.minecraft || d.minecraft, loader: pack.loader || d.loader,
+        dependency, neededBy: m.needed_by || "", origin: dependency ? "" : explicit || local ? "selected by you" : "from server",
+        tags: [m.side === "client" ? "players only" : "server + players", manual ? "manual download" : null].filter(Boolean),
+        detail: manual ? "The author requires players to download this file themselves." :
+          dependency ? "" : (!explicit && !local ? "Included because the server needs players to have it." : ""),
+        remove: explicit ? async () => { await removePlayerMod(explicit.slug); return true; }
+          : local ? async () => {
+            if (!(await ask(`Remove ${m.name} from the players' download?`, { ok: "Remove", danger: true }))) return false;
+            const res = await act(() => api("/api/client/local/remove", { method: "POST", body: { name: m.filename || m.name } }), `${m.name} removed`);
+            if (!res) return false;
+            await reload(); return true;
+          } : null,
+      });
+    };
+    for (const m of pack.mods || []) add(m);
+    for (const m of pack.manual || []) add(m, true);
+    if (!(pack.mods || []).length && !(pack.manual || []).length) {
+      for (const x of details) items.push({
+        key: `modrinth:${x.id || x.slug}`, name: x.name, source: "modrinth", origin: "selected by you",
+        minecraft: d.minecraft, loader: d.loader, remove: async () => { await removePlayerMod(x.slug); return true; },
+      });
+      for (const name of d.local_mods || []) items.push({
+        key: `local:${name}`, name, source: "local", origin: "selected by you", tags: ["local file"],
+        remove: async () => {
+          if (!(await ask(`Remove ${name} from the players' download?`, { ok: "Remove", danger: true }))) return false;
+          const res = await act(() => api("/api/client/local/remove", { method: "POST", body: { name } }), `${name} removed`);
+          if (!res) return false;
+          await reload(); return true;
+        },
+      });
+    }
+    return items;
+  };
+  const openFriendMods = () => openModManager({
+    title: "Manage Friends Mods",
+    description: "Everything friends receive, including server-required mods, your extra client mods and automatically added dependencies.",
+    owner: "friends-mods",
+    getItems: friendModItems,
+    getHeader: () => {
+      const d = data || {}, pack = d.pack || {};
+      return [
+        d.pack_error ? h("div", { class: "notice warn mb" }, d.pack_error) : null,
+        (pack.skipped || []).length ? h("div", { class: "notice warn mb" },
+          h("strong", {}, "Left out: "),
+          (pack.skipped || []).map((x) => h("div", { class: "small" }, `${x.name}: ${x.reason}`))) : null,
+      ];
+    },
+    onChange: () => { if (data) render(); },
+  });
+
   const render = () => {
     const d = data;
     if (!d.available) {
@@ -3160,8 +3351,7 @@ views.friends = () => {
       if (r) { toast(`Your public address is ${r.ip}`); data = await api("/api/client"); render(); }
     } }, links.internet ? "Check my public IP again" : "🌐 Use my public IP");
     const pack = d.pack;
-    const companions = ((pack && pack.mods) || []).filter((m) => m.needed_by);
-    const sideTag = (m) => h("span", { class: "tag" }, m.side === "client" ? "players only" : "server + players");
+    const friendItems = friendModItems();
     fill(body,
       intro,
       h("div", { class: "mt" }, card("Invite links",
@@ -3206,15 +3396,10 @@ views.friends = () => {
           h("a", { href: "#craft-conductor" }, "Craft Conductor settings → Connections → Sharing with friends"), "."))),
       h("div", { class: "mt" }, card("What friends get",
         d.pack_error ? h("div", { class: "notice warn" }, d.pack_error)
-          : !pack ? h("p", { class: "empty" }, "Install the server first; the list appears once it's set up.")
-          : [h("p", {}, `Minecraft ${pack.minecraft} with ${pack.loader === "vanilla" ? "no mod loader" : pack.loader + " " + pack.loader_version}, ${pack.mods.length} mod(s), ${pack.memory_gb} GB of memory.`),
-             pack.mods.length ? h("ul", { class: "list" }, pack.mods.map((m) => h("li", {}, h("span", { class: "grow" }, m.name), sideTag(m)))) : null,
-             pack.manual.length ? h("div", { class: "notice warn mt-s" }, "Players have to download these themselves (their authors block automatic downloads): ",
-               pack.manual.map((m) => m.name).join(", ")) : null,
-             pack.skipped.length ? h("div", { class: "notice warn mt-s" }, pack.skipped.map((x) => `${x.name}: ${x.reason}`).join("; ")) : null],
-        d.mods.length ? h("div", { class: "mt-s" }, h("strong", {}, "Mods you added for players: "),
-          d.mods.map((x) => h("span", { class: "tag" }, x, " ", h("button", { class: "link-btn", "aria-label": `Remove ${x}`,
-            onclick: () => removePlayerMod(x) }, "✕")))) : null,
+          : !pack ? h("p", { class: "empty" }, "Install the server first; the mod summary appears once it's set up.")
+          : [h("p", {}, `Minecraft ${pack.minecraft} with ${pack.loader === "vanilla" ? "no mod loader" : pack.loader + " " + pack.loader_version}, ${friendItems.length} mod(s), ${pack.memory_gb} GB of memory.`),
+             pack.manual.length ? h("div", { class: "notice warn mt-s" }, `${pack.manual.length} mod(s) require a manual download. Open Manage Friends Mods for details.`) : null,
+             pack.skipped.length ? h("div", { class: "notice warn mt-s" }, `${pack.skipped.length} mod(s) are currently left out. Open Manage Friends Mods for details.`) : null],
         h("label", { class: "mt" }, "Memory for friends' Minecraft",
           (() => { const sel = h("select", { onchange: (e) => save({ memory_gb: Number(e.target.value) }, "Saved") },
             [2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32].map((g) => h("option", { value: String(g) }, `${g} GB`))); sel.value = String(d.memory_gb); return sel; })()))),
@@ -3222,30 +3407,122 @@ views.friends = () => {
         h("p", { class: "muted small" }, "Client-side mods like minimaps, recipe viewers or performance mods. The server's own mods that players need are included automatically, and so are the client-side mods they need."),
         h("div", { class: "source-buttons" },
           h("button", { type: "button", class: "btn", onclick: () => openBrowser({ type: "mod", target: server, side: "client", loader: d.loader, version: d.minecraft || "" }) },
-            "🔎 Set up now", h("span", { class: "small muted" }, "Browse mods that run on players' computers")),
+            "🔎 Add Friends Mods", h("span", { class: "small muted" }, "Browse mods that run on players' computers")),
           h("button", { type: "button", class: "btn", onclick: () => picker.click() }, "📁 Local files",
             h("span", { class: "small muted" }, ".jar files on this computer, for players")),
           picker),
-        h("h3", { class: "mt" }, "Your players' mods"),
-        d.mods.length || d.local_mods.length || companions.length ? h("ul", { class: "list" },
-          d.mods.map((x) => h("li", {}, h("strong", { class: "grow" }, x),
-            (d.mods_on_server || []).includes(x) ? h("span", { class: "tag" }, "also on the server") : null,
-            h("button", { class: "btn small danger", onclick: () => removePlayerMod(x) }, "Remove"))),
-          d.local_mods.map((x) => h("li", {}, h("div", { class: "grow" }, h("strong", {}, x), h("span", { class: "tag" }, "local file")),
-            h("button", { class: "btn small danger", onclick: async () => (await ask(`Remove ${x} from the players' download?`, { ok: "Remove", danger: true })) &&
-              act(() => api("/api/client/local/remove", { method: "POST", body: { name: x } }), `${x} removed`).then(reload) }, "Remove"))),
-          companions.map((m) => h("li", { class: "dep" }, h("div", { class: "grow" }, "↳ ", h("strong", {}, m.name),
-            h("span", { class: "tag" }, `added automatically: ${m.needed_by} needs it`)))))
-          : h("p", { class: "empty" }, "None yet. Leave it empty if you like: players get the server's mods either way."),
+        h("div", { class: "mt-s" }, modSummary(friendItems, { noun: "Friends Mods", manage: "Manage Friends Mods", open: openFriendMods })),
         h("div", { class: "row mt-s" }, testButton({ check: ["/api/client/check", {}], trial: null }),
           h("span", { class: "muted small" }, "Checks the server's mods and these together.")))),
     );
     announceCompanions(d);
+    refreshModManager("friends-mods");
   };
   fill($("#main"), h("h2", { class: "view-title" }, "Friends"), body, h("div", { class: "mt" }, bedrockCard()));
   api("/api/client").then((r) => { data = r; render(); }).catch((e) => { if (!(e instanceof Unauthorized)) toast(e.message, true); });
   return { refresh: reload };
 };
+
+// ---------------------------------------------------------- reusable mod management
+// Server mods, friends' mods and single-player mods all use the same compact summary and
+// right-side drawer. The item source stays the existing resolver/API data: this is presentation,
+// not a second dependency model.
+function modSummaryCounts(items) {
+  const active = (items || []).filter((m) => !m.removed && !m.excludedFromCount);
+  return {
+    total: active.length,
+    dependencies: active.filter((m) => m.dependency).length,
+    early: active.filter((m) => m.channel === "beta" || m.channel === "alpha").length,
+    removed: (items || []).filter((m) => m.removed).length,
+  };
+}
+function modSummary(items, { noun = "mods", manage = "Manage Mods", open, extra = null } = {}) {
+  const n = modSummaryCounts(items);
+  return h("div", { class: "mod-summary", "data-mod-summary": noun },
+    h("div", { class: "mod-summary-stats" },
+      h("div", {}, h("strong", {}, n.total), ` ${noun} added`),
+      h("div", {}, h("strong", {}, n.dependencies), " added automatically as dependencies"),
+      h("div", {}, h("strong", {}, n.early), " are Beta or Alpha releases"),
+      n.removed ? h("div", { class: "warn-text" }, h("strong", {}, n.removed), " manually removed") : null),
+    extra,
+    h("button", { type: "button", class: "btn", onclick: open }, manage));
+}
+let modManagerOpen = null;
+function closeModManager(instant = false) {
+  if (!modManagerOpen) return;
+  const { backdrop, focus } = modManagerOpen;
+  modManagerOpen = null;
+  $("#main").inert = false;
+  if (!instant && focus && focus.isConnected) focus.focus({ preventScroll: true });
+  if (instant || lessMotion()) { backdrop.remove(); return; }
+  backdrop.classList.add("leaving");
+  setTimeout(() => backdrop.remove(), 220);
+}
+function refreshModManager(owner) {
+  if (modManagerOpen && (!owner || modManagerOpen.owner === owner)) modManagerOpen.render();
+}
+function openModManager({ title, description = "", owner = "", getItems, getHeader = null, onChange = null }) {
+  closeModManager(true);
+  const body = h("div", { class: "mod-manager-body" });
+  const focus = document.activeElement;
+  const render = () => {
+    const items = getItems ? getItems() : [];
+    const counts = modSummaryCounts(items);
+    const rows = items.length ? items.map((m) => {
+      const source = m.source ? m.source[0].toUpperCase() + m.source.slice(1) : "";
+      const minecraft = Array.isArray(m.minecraft) ? m.minecraft.join(", ") : m.minecraft;
+      const loader = Array.isArray(m.loader) ? m.loader.join(", ") : m.loader;
+      const meta = [
+        m.version ? `Version ${m.version}` : null,
+        minecraft ? `Minecraft ${minecraft}` : null,
+        loader ? loader : null,
+        source || null,
+      ].filter(Boolean);
+      const tags = [
+        m.removed ? h("span", { class: "tag warn" }, "manually removed") : null,
+        m.dependency ? h("span", { class: "tag" }, m.neededBy ? `dependency · needed by ${m.neededBy}` : "dependency") : null,
+        !m.dependency && m.origin ? h("span", { class: "tag" }, m.origin) : null,
+        m.channel === "beta" || m.channel === "alpha" ? h("span", { class: "tag warn" }, m.channel) : null,
+        ...(m.tags || []).map((x) => h("span", { class: "tag" }, x)),
+      ];
+      const action = m.removed ? m.restore : m.remove;
+      const actionLabel = m.removed ? "Restore" : (m.removeLabel || "Remove");
+      return h("div", { class: "mod-manager-row" + (m.removed ? " removed" : "") },
+        h("div", { class: "grow" },
+          h("div", { class: "mod-manager-name" }, h("strong", {}, m.name || m.key || "Mod"), tags),
+          meta.length ? h("div", { class: "muted small" }, meta.join(" · ")) : null,
+          m.warning ? h("div", { class: "small bad-text mt-s" }, m.warning) : null,
+          m.detail ? h("div", { class: "muted small mt-s" }, m.detail) : null,
+          m.content ? (typeof m.content === "function" ? m.content() : m.content) : null),
+        m.controls ? (typeof m.controls === "function" ? m.controls() : m.controls) : null,
+        action ? h("button", { type: "button", class: "btn small" + (m.removed ? "" : " danger"), onclick: async () => {
+          const changed = await action();
+          if (changed === false) return;
+          if (onChange) onChange();
+          render();
+        } }, actionLabel) : null);
+    }) : [h("p", { class: "empty" }, "No mods selected.")];
+    fill(body,
+      getHeader ? getHeader(counts) : null,
+      h("div", { class: "mod-manager-counts muted small" },
+        `${counts.total} total · ${counts.dependencies} dependencies · ${counts.early} Beta/Alpha` +
+        (counts.removed ? ` · ${counts.removed} manually removed` : "")),
+      h("div", { class: "mod-manager-list" }, rows));
+  };
+  const close = () => closeModManager();
+  const panel = h("section", { class: "mod-manager-drawer", role: "dialog", "aria-modal": "true", "aria-labelledby": "mod-manager-title" },
+    h("div", { class: "mod-manager-head" },
+      h("div", { class: "grow" }, h("h2", { id: "mod-manager-title" }, title),
+        description ? h("p", { class: "muted small" }, description) : null),
+      h("button", { type: "button", class: "btn ghost small", onclick: close }, "Close")),
+    body);
+  const backdrop = h("div", { class: "mod-manager-backdrop", onclick: (e) => { if (e.target === backdrop) close(); } }, panel);
+  $("#main").inert = true;
+  $("#stage").append(backdrop);
+  modManagerOpen = { owner, backdrop, focus, render };
+  render();
+  panel.querySelector("button").focus({ preventScroll: true });
+}
 
 // ------------------------------------------------------------------ mod browser
 // Opened from setup, the Mods page and Friends: the page slides left into a narrow rail
@@ -3265,6 +3542,7 @@ function openBrowser(params) {
     },
     pickPack: (pack) => {
       Object.assign(setupState, { modpack: pack, loader: pack.loader, minecraft: pack.minecraft });
+      loadSetupModpack(pack);
       toast(`Modpack chosen: ${pack.name}`);
       closeBrowser();
       if (currentName === "new" || currentName === "setup") refresh(); else location.hash = "#new";
@@ -3305,7 +3583,8 @@ function closeBrowser(instant = false) {
   setTimeout(() => panel.remove(), 260);
 }
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && helpOpen && !document.querySelector(".modal")) closeHelp();
+  if (e.key === "Escape" && modManagerOpen && !document.querySelector(".modal")) closeModManager();
+  else if (e.key === "Escape" && helpOpen && !document.querySelector(".modal")) closeHelp();
   else if (e.key === "Escape" && browserOpen && !document.querySelector(".modal")) closeBrowser();
 });
 
@@ -3419,6 +3698,8 @@ const MAP_LEVELS = [1, 2, 4, 8, 16];  // blocks a pixel the server draws tiles a
 // Landmarks (preview.py): the villages, temples and other structures Minecraft placed, as symbols
 // on the map (named for screen readers and on hover), and a list under it.
 const LANDMARKS_KEY = "craft-conductor-map-landmarks";
+const MAP_AUTO_KEY = "craft-conductor-map-auto";
+let mapAuto = (() => { try { return localStorage.getItem(MAP_AUTO_KEY) === "on"; } catch (_) { return false; } })();
 const landmarksShown = () => { try { return localStorage.getItem(LANDMARKS_KEY) !== "off"; } catch (_) { return true; } };
 function landmarkMark(l) {
   const words = `${t(l.name)}: x ${l.x}, z ${l.z}`;
@@ -3455,7 +3736,10 @@ function mapExplorer(m, info, readout) {
   const frame = h("div", { class: "map-frame map-live", tabindex: "0", "aria-label": "Map: drag to move, scroll to zoom" }, layer, marksLayer, spawn, status);
   const tiles = new Map();
   let regions = new Set(state.regions.map(([x, z]) => `${x},${z}`));
-  const auto = h("input", { type: "checkbox" });
+  const auto = h("input", { type: "checkbox", checked: mapAuto, onchange: () => {
+    mapAuto = auto.checked;
+    try { localStorage.setItem(MAP_AUTO_KEY, mapAuto ? "on" : "off"); } catch (_) { /* private mode */ }
+  } });
   const makeBtn = h("button", { type: "button", class: "btn small" }, "Make this area");
   const size = () => ({ w: frame.clientWidth || 600, hgt: frame.clientHeight || 600 });
 
@@ -3569,7 +3853,7 @@ function mapExplorer(m, info, readout) {
   const moved = () => {
     draw();
     clearTimeout(autoTimer);
-    autoTimer = setTimeout(() => { if (auto.checked && !covered() && !(state.job && state.job.state === "running") && view.bpp <= 4) make(true); }, 900);
+    autoTimer = setTimeout(() => { if (frame.isConnected && auto.checked && !covered() && !(state.job && state.job.state === "running") && view.bpp <= 4) make(true); }, 900);
   };
   frame.addEventListener("pointerdown", (e) => { drag = { x: e.clientX, y: e.clientY }; frame.setPointerCapture(e.pointerId); frame.classList.add("dragging"); });
   frame.addEventListener("pointerup", () => { drag = null; frame.classList.remove("dragging"); });
@@ -4072,7 +4356,11 @@ function browserPanel(params, host) {
       const packLoader = (v.loaders.find((l) => ["fabric", "neoforge", "forge", "quilt"].includes(l)) || "vanilla");
       const pack = { project: p.id, version_id: v.id, name: p.name, version: v.name, minecraft: v.minecraft[0], loader: packLoader, icon: p.icon };
       if (host) host.pickPack(pack);
-      else { Object.assign(setupState, { modpack: pack, loader: pack.loader, minecraft: pack.minecraft }); location.hash = "#new"; }
+      else {
+        Object.assign(setupState, { modpack: pack, loader: pack.loader, minecraft: pack.minecraft });
+        loadSetupModpack(pack);
+        location.hash = "#new";
+      }
     } }, "Use this modpack") : null;
     fill(details,
       h("div", { class: "browse-head" },
@@ -4099,7 +4387,11 @@ function browserPanel(params, host) {
       environment: m.environment, channel: m.channel && m.channel !== "release" ? m.channel : null }));
     if (!(await confirmEarly(mods))) return;
     if (forPlayers && target === "setup") {  // a new server: kept with the setup form until it's created
-      for (const m of mods) setupState.clientMods.set(m.slug || m.id, m.name);
+      for (const m of mods) {
+        const key = m.slug || m.id;
+        setupState.clientMods.set(key, m.name);
+        setupState.clientMeta.set(key, { channel: m.channel, environment: m.environment });
+      }
       setupState.friends = true;
       toast(`Added ${mods.map((m) => m.name).join(", ")} to your friends' download`);
       // The ones that also run on the server go in the server's mods too, with what they need.
@@ -4488,7 +4780,7 @@ function openSshInstall() {
   host.focus();
 }
 
-function openRemoteAccess() {
+function openRemoteAccess({ setup = currentName === "new" || currentName === "setup", onDone = null, doneLabel = "Continue" } = {}) {
   if ($("#remote")) return;
   const body = h("div", {});
   let timer = null;
@@ -4502,6 +4794,7 @@ function openRemoteAccess() {
     const r = await api("/api/hub/remote").catch((e) => { fill(body, h("div", { class: "notice bad" }, e.message)); return null; });
     if (!r) return;
     if (!r.available) { fill(body, h("p", {}, "Remote access is part of Craft Conductor's server list. Start Craft Conductor by double-clicking it (or `craft-conductor start`).")); return; }
+    if (setup && r.configured) setupState.remoteAfterCreate = true;
     // 1. a strong password
     let pw;
     if (r.strong) pw = h("p", { class: "ok-text" }, "✓ Your password is strong enough for remote access.");
@@ -4520,12 +4813,22 @@ function openRemoteAccess() {
         h("div", { class: "row" }, save)];
     }
     // 2. other devices
-    const toggle = h("input", { type: "checkbox", checked: r.network_access, disabled: !r.strong && !r.network_access, onchange: async (e) => {
+    const toggle = h("input", { type: "checkbox", checked: r.configured, disabled: !r.strong && !r.configured, onchange: async (e) => {
       const ok = await act(() => api("/api/hub/network", { method: "POST", body: { enabled: e.target.checked } }));
-      if (ok) toast(ok.restart_needed ? "Saved. Close and reopen Craft Conductor (Quit, then start it again) for this to take effect." : "Saved");
+      if (ok) {
+        if (setup) {
+          setupState.remoteAfterCreate = e.target.checked || ok.restart_needed;
+          if (setupFollowup && setupFollowup.id === server && setupFollowup.phase === "creating")
+            saveSetupFollowup({ ...setupFollowup, remote: setupState.remoteAfterCreate });
+        }
+        toast(setup && ok.restart_needed ? "Saved. Finish creating your server; phone setup comes next. Your work stays here." : "Saved");
+      }
       load();
     } });
-    const restartNote = r.configured !== r.running_on_network ? h("div", { class: "notice warn small mt-s" }, "Close and reopen Craft Conductor (Quit, then start it again) for this to take effect.") : null;
+    const restartNote = r.configured !== r.running_on_network ? h("div", { class: "notice small mt-s" },
+      setup ? "Finish creating your server first. Craft Conductor will apply remote access automatically, then return here for phone setup before Friends. Your setup and servers stay open."
+        : ["Apply this change without closing Craft Conductor. Your servers and work stay open. ",
+          h("button", { class: "btn small", onclick: async () => { await act(() => api("/api/hub/network/apply", { method: "POST" })); load(); } }, "Apply remote access")]) : null;
     // 3. away from home
     const away = [
       h("p", { class: "small" }, "On your home Wi-Fi, a phone reaches this computer directly. To use it away from home, use a private network app instead of opening ports:"),
@@ -4606,11 +4909,13 @@ function openRemoteAccess() {
           "a ", h("strong", {}, "viewer"), " can only look. Neither can change settings, mods or files, or use the console, and what they do shows in the activity with their name. " +
           "Pair a friend who helps run the server the same way, on their own phone or computer. Changing your password signs all devices out."),
         r.addresses.length ? [h("div", { class: "row" }, addr, role, pair), addrNote] : h("p", { class: "small muted" }, "No network address found for this computer."),
-        !r.running_on_network ? h("p", { class: "small muted" }, "Pairing works once access from other devices is on and Craft Conductor has been reopened.") : null,
+        !r.running_on_network ? h("p", { class: "small muted" }, "Pairing works once remote access has been applied.") : null,
         pairBox),
       step(5, "Paired phones", devices,
         r.devices.length > 1 ? h("button", { class: "btn ghost small", onclick: async () => (await ask("Sign out every paired phone?", { ok: "Sign out all", danger: true })) &&
-          act(() => api("/api/hub/devices/remove", { method: "POST", body: { id: "all" } }), "All phones signed out").then(load) }, "Sign out all") : null));
+          act(() => api("/api/hub/devices/remove", { method: "POST", body: { id: "all" } }), "All phones signed out").then(load) }, "Sign out all") : null),
+      onDone ? h("button", { class: "btn primary mt", disabled: r.configured !== r.running_on_network,
+        onclick: () => { close(); onDone(); } }, doneLabel) : null);
   };
   load();
 }
@@ -5328,20 +5633,81 @@ function singleplayerCard() {
 
 function openSpEditor(game, done) {
   const g = game || { name: "", loader: "fabric", minecraft: "latest", mods: [], memory_gb: 6 };
-  const chosen = new Map(g.mods.map((slug) => [slug, slug]));
+  const chosen = new Map(g.mods.map((slug) => [slug, { name: slug, channel: "release" }]));
   const name = h("input", { value: g.name, maxlength: 60, placeholder: "e.g. Cozy modded survival" });
   const loader = h("select", { disabled: !!(game && game.installed) }, SP_LOADERS.map(([v, l]) => h("option", { value: v }, l)));
   loader.value = g.loader;
   const mc = h("select", {}, h("option", { value: "latest" }, "The newest one all the mods support"));
-  api("/api/hub/setup").then((o) => { for (const v of o.versions || []) mc.append(h("option", { value: v }, `Minecraft ${v}`)); mc.value = g.minecraft; }).catch(() => null);
   const memory = h("select", {}, [2, 3, 4, 6, 8, 10, 12, 16].map((n) => h("option", { value: n }, `${n} GB`)));
   memory.value = String(g.memory_gb || 6);
   const q = h("input", { type: "search", placeholder: "Search Modrinth for mods…", "aria-label": "Search" });
   const results = h("div", { class: "browse-results sp-results" });
   const picked = h("div", { class: "sp-picked" });
-  const showPicked = () => fill(picked, chosen.size ? [...chosen].map(([slug, label]) => h("span", { class: "tag sp-mod" }, label, " ",
-    h("button", { type: "button", class: "link-btn", "aria-label": `Remove ${label}`, onclick: () => { chosen.delete(slug); showPicked(); } }, "×")))
-    : h("span", { class: "muted small" }, "No mods yet: search above and press Add."));
+  let resolved = null, previewError = "", previewSeq = 0, previewTimer = null;
+
+  const singleItems = () => {
+    if (resolved && Array.isArray(resolved.mods)) return resolved.mods.map((m) => ({
+      key: m.project || m.requested || m.name, name: m.name, source: m.source || "modrinth",
+      version: m.version || "", channel: m.channel || "release", minecraft: resolved.minecraft, loader: resolved.loader,
+      dependency: !m.selected, neededBy: m.needed_by || "", origin: m.selected ? "selected by you" : "",
+      tags: m.manual ? ["manual download"] : [],
+      remove: m.selected && m.requested ? async () => {
+        chosen.delete(m.requested); resolved = null; renderPicked(); schedulePreview(); return true;
+      } : null,
+    }));
+    return [...chosen].map(([slug, m]) => ({
+      key: slug, name: m.name || slug, source: "modrinth", channel: m.channel || "release",
+      minecraft: mc.value === "latest" ? "newest compatible" : mc.value, loader: loader.value, origin: "selected by you",
+      remove: async () => { chosen.delete(slug); resolved = null; renderPicked(); schedulePreview(); return true; },
+    }));
+  };
+  const openSingleMods = () => openModManager({
+    title: "Manage Single-Player Mods",
+    description: "The resolved game mod set. Libraries Craft Conductor adds automatically are marked as dependencies.",
+    owner: "singleplayer-mods",
+    getItems: singleItems,
+    getHeader: () => [
+      previewError ? h("div", { class: "notice warn mb" }, previewError) : null,
+      resolved && (resolved.skipped || []).length ? h("div", { class: "notice warn mb" },
+        h("strong", {}, "Left out: "),
+        resolved.skipped.map((x) => h("div", { class: "small" }, `${x.name}: ${x.reason}`))) : null,
+    ],
+    onChange: () => renderPicked(),
+  });
+  const renderPicked = () => {
+    const items = singleItems();
+    fill(picked, modSummary(items, {
+      noun: "mods", manage: "Manage Mods", open: openSingleMods,
+      extra: previewError ? h("div", { class: "small warn-text" }, "Compatibility preview needs attention.") :
+        resolved && chosen.size ? h("div", { class: "muted small" }, `Resolved for Minecraft ${resolved.minecraft} with ${resolved.loader} ${resolved.loader_version}.`) : null,
+    }));
+    refreshModManager("singleplayer-mods");
+  };
+  const preview = async () => {
+    const mine = ++previewSeq;
+    if (!chosen.size) {
+      resolved = { mods: [], skipped: [], minecraft: mc.value, loader: loader.value, loader_version: "" };
+      previewError = "";
+      renderPicked();
+      return;
+    }
+    const body = { name: name.value.trim() || "Preview", loader: loader.value, minecraft: mc.value,
+      mods: [...chosen.keys()], memory_gb: Number(memory.value) };
+    const r = await api("/api/hub/singleplayer/preview", { method: "POST", body }).catch((e) => {
+      if (mine === previewSeq) { resolved = null; previewError = e.message; renderPicked(); }
+      return null;
+    });
+    if (!r || mine !== previewSeq) return;
+    resolved = r; previewError = ""; renderPicked();
+  };
+  const schedulePreview = () => { clearTimeout(previewTimer); previewTimer = setTimeout(preview, 180); };
+
+  api("/api/hub/setup").then((o) => {
+    for (const v of o.versions || []) mc.append(h("option", { value: v }, `Minecraft ${v}`));
+    mc.value = g.minecraft;
+    schedulePreview();
+  }).catch(() => null);
+
   let seq = 0, timer;
   const search = async () => {
     const mine = ++seq;
@@ -5351,13 +5717,17 @@ function openSpEditor(game, done) {
     if (!r || mine !== seq) return;
     fill(results, r.results.map((m) => h("div", { class: "result" },
       m.icon ? h("img", { src: m.icon, alt: "", loading: "lazy", referrerpolicy: "no-referrer" }) : h("div", { class: "noicon" }),
-      h("div", { class: "info grow" }, h("div", { class: "name" }, m.name), h("div", { class: "desc" }, m.summary)),
+      h("div", { class: "info grow" }, h("div", { class: "name" }, m.name, " ", channelTag(m.channel)), h("div", { class: "desc" }, m.summary)),
       h("button", { type: "button", class: "btn small", disabled: chosen.has(m.slug || m.id), onclick: (e) => {
-        chosen.set(m.slug || m.id, m.name); e.target.disabled = true; showPicked(); } }, chosen.has(m.slug || m.id) ? "Added" : "Add"))));
+        const key = m.slug || m.id;
+        chosen.set(key, { name: m.name, channel: m.channel || "release" });
+        e.target.disabled = true; resolved = null; renderPicked(); schedulePreview();
+      } }, chosen.has(m.slug || m.id) ? "Added" : "Add"))));
   };
   q.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(search, 350); });
-  loader.addEventListener("change", search);
-  mc.addEventListener("change", search);
+  loader.addEventListener("change", () => { resolved = null; search(); renderPicked(); schedulePreview(); });
+  mc.addEventListener("change", () => { resolved = null; search(); renderPicked(); schedulePreview(); });
+  memory.addEventListener("change", schedulePreview);
   const error = h("p", { class: "error" });
   const save = async (e) => {
     e.preventDefault();
@@ -5385,8 +5755,9 @@ function openSpEditor(game, done) {
       h("p", {}, "Craft Conductor finds a build of every mod (and the mods they need) for the same Minecraft version, then sets the game up in your launcher. When the mods update, Check for updates brings them in; with “the newest one all the mods support”, Minecraft moves up too once every mod is ready."),
       h("p", { class: "muted small" }, "Only mods that run on players' computers are listed. Shaders and resource packs can be added on the launcher page when you install.")))),
     game ? "Edit single-player game" : "New single-player game");
-  showPicked();
+  renderPicked();
   search();
+  schedulePreview();
 }
 
 // A notice people see every time, once they know it: "Don't show again" (see Craft Conductor settings → Sounds & notifications → Warnings).
@@ -6038,10 +6409,10 @@ views["craft-conductor"] = () => {
 const freshSetup = () => ({ target: null, friends: false, loader: null, minecraft: "latest", mods: new Map(), motd: "A Minecraft server",
   properties: null, advancedOpen: false, max_players: 20, difficulty: "normal", gamemode: "survival", port: 25565, memory_gb: null,
   network_access: null, accept_eula: false, submitted: false, prefilled: false, modpack: null, localMods: [], world: null, showBetas: false,
-  aikar: false, clientMods: new Map(), clientLocal: [], companionsSeen: new Set() });  // friends' download: slug -> name; staged files
+  aikar: false, clientMods: new Map(), clientMeta: new Map(), clientLocal: [], companionsSeen: new Set() });  // friends' download: slug -> name; staged files
 const setupState = freshSetup();
 function resetSetup() {
-  const keep = { friendsFor: setupState.friendsFor };  // (a server just made with friends opens its Friends page when ready)
+  const keep = { friendsFor: setupState.friendsFor, remoteAfterCreate: setupState.remoteAfterCreate };
   for (const k of Object.keys(setupState)) delete setupState[k];
   Object.assign(setupState, freshSetup(), keep);
 }
@@ -6069,8 +6440,12 @@ async function confirmEarly(mods) {
 async function setupAddMod(key, name, channel = null, quiet = false) {
   const st = setupState;
   const e = st.mods.get(key);
-  if (e) { e.explicit = true; if (channel && channel !== "release") e.channel = channel; }
-  else st.mods.set(key, { name, required: true, explicit: true, by: new Set(), bad: "", channel: channel && channel !== "release" ? channel : null });
+  if (e) {
+    e.explicit = true;
+    if (channel && channel !== "release") e.channel = channel;
+    if (channel) e.resolvedChannel = channel;
+  } else st.mods.set(key, { name, required: true, explicit: true, by: new Set(), bad: "",
+    channel: channel && channel !== "release" ? channel : null, resolvedChannel: channel || null });
   setupChanged();
   return setupCheckMod(key, quiet);
 }
@@ -6112,6 +6487,7 @@ async function setupCheckMod(key, quiet = false) {
     }
   }
   e.name = r.project.name;
+  e.resolvedChannel = r.channel || null;
   e.bad = r.compatible ? "" : r.reason;
   // What's missing for this Minecraft version and server type (which are left as they are), and
   // the versions that appear to work instead: only offered, never switched to by itself.
@@ -6122,9 +6498,14 @@ async function setupCheckMod(key, quiet = false) {
   const added = [];
   for (const d of r.deps) {
     const dk = d.source === "curseforge" ? `curseforge:${d.id}` : d.slug || d.id;
-    if (!st.mods.has(dk)) { st.mods.set(dk, { name: d.name, required: e.required, explicit: false, by: new Set(), bad: "", channel: e.channel }); added.push(d); }
+    if (!st.mods.has(dk)) {
+      st.mods.set(dk, { name: d.name, required: e.required, explicit: false, by: new Set(), bad: "",
+        channel: e.channel, resolvedChannel: d.channel || null });
+      added.push(d);
+    }
     const dep = st.mods.get(dk);
     dep.by.add(key);
+    dep.resolvedChannel = d.channel || null;
     dep.bad = d.compatible ? "" : `No compatible release for Minecraft ${v}` + (d.checked && d.checked.length ? ` on ${d.checked.join(" or ")}` : "");
     if (!dep.explicit) dep.channel = d.channel && d.channel !== "release" ? d.channel : e.channel;
   }
@@ -6141,10 +6522,101 @@ function setupCompanions() {
   const out = new Map();
   for (const m of setupState.mods.values()) for (const c of m.companions || []) {
     const k = c.slug || c.id;
-    if (!out.has(k) && !setupState.mods.has(k)) out.set(k, { name: c.name, needed_by: c.needed_by });
+    if (!out.has(k) && !setupState.mods.has(k)) out.set(k, { name: c.name, needed_by: c.needed_by, channel: c.channel || null });
   }
   return out;
 }
+async function loadSetupModpack(pack) {
+  const st = setupState;
+  if (!pack || pack.loading || Array.isArray(pack.mods)) return;
+  pack.loading = true;
+  pack.error = "";
+  if (st.rerender) st.rerender();
+  const r = await api(`/api/hub/modpack/preview?version=${encodeURIComponent(pack.version_id)}`).catch((e) => {
+    if (st.modpack === pack) { pack.error = e.message; pack.loading = false; if (st.rerender) st.rerender(); }
+    return null;
+  });
+  if (!r || st.modpack !== pack) return;
+  pack.mods = r.mods || [];
+  pack.pack_count = r.count || pack.mods.length;
+  pack.client_only = r.client_only || 0;
+  pack.removed = pack.removed instanceof Set ? pack.removed : new Set(pack.removed || []);
+  pack.loading = false;
+  if (st.rerender) st.rerender();
+}
+function setupServerModItems() {
+  const st = setupState;
+  const items = [];
+  const directAliases = new Set();
+  for (const [key] of st.mods) {
+    directAliases.add(key.replace(/^curseforge:/, ""));
+    directAliases.add(key.replace(/^modrinth:/, ""));
+  }
+  if (st.modpack && Array.isArray(st.modpack.mods)) {
+    const removed = st.modpack.removed instanceof Set ? st.modpack.removed : new Set();
+    for (const m of st.modpack.mods) {
+      // If the same project was also explicitly picked, craft-conductor.toml already owns it;
+      // modpack.apply deliberately doesn't add it twice.
+      if (m.project_id && (directAliases.has(m.project_id) || (m.slug && directAliases.has(m.slug)))) continue;
+      const onServer = m.included_on_server !== false;
+      items.push({
+        key: `pack:${m.path}`, name: m.name, version: m.version, minecraft: m.minecraft, loader: m.loaders,
+        source: m.source, channel: m.channel, origin: st.modpack.name + " modpack", removed: removed.has(m.path),
+        excludedFromCount: !onServer, tags: onServer ? [] : ["client only", "not installed on server"],
+        detail: onServer ? m.path : `${m.path} · This modpack marks it client-only, so Craft Conductor already leaves it off the server.`,
+        remove: onServer ? async () => {
+          if (!(await ask(`Remove ${m.name} from this modpack setup?\n\nThe modpack stays selected, but leaving out one of its mods can change gameplay or break other pack mods. Craft Conductor will still check the final set before creating the server.`, { ok: "Remove mod", danger: true }))) return false;
+          removed.add(m.path); st.modpack.removed = removed; return true;
+        } : null,
+        restore: onServer ? async () => { removed.delete(m.path); st.modpack.removed = removed; return true; } : null,
+      });
+    }
+  }
+  for (const m of st.localMods) items.push({
+    key: `local:${m.id}`, name: m.name, source: "local", origin: "selected by you", tags: ["local file"],
+    remove: async () => { st.localMods = st.localMods.filter((x) => x !== m); return true; },
+  });
+  for (const [key, m] of st.mods) {
+    const needers = [...m.by].map((k) => (st.mods.get(k) || {}).name).filter(Boolean);
+    items.push({
+      key, name: m.name, source: key.startsWith("curseforge:") ? "curseforge" : "modrinth",
+      channel: m.resolvedChannel || "release", minecraft: setupModVersion(), loader: st.loader,
+      dependency: !m.explicit, neededBy: needers.join(", "), origin: m.explicit ? "selected by you" : "",
+      warning: m.bad && !(m.explicit && m.conflict) ? m.bad : "",
+      content: () => m.explicit && m.bad && m.conflict ? setupConflict(key, m) : null,
+      controls: m.explicit ? () => h("label", { class: "row small", title: "Required mods hold back Minecraft upgrades until they support the new version." },
+        h("input", { type: "checkbox", checked: m.required, onchange: (e) => { m.required = e.target.checked; } }), "required") : null,
+      remove: async () => { const before = st.mods.has(key); await setupRemoveMod(key); return before && !st.mods.has(key); },
+    });
+  }
+  return items;
+}
+function setupFriendModItems() {
+  const st = setupState;
+  const items = [];
+  for (const [key, name] of st.clientMods) {
+    const meta = st.clientMeta.get(key) || {};
+    items.push({
+      key, name, source: "modrinth", channel: meta.channel || "release", minecraft: setupModVersion(), loader: st.loader,
+      origin: "selected by you", tags: [setupHasServerMod(key) ? "also on the server" : "players only"],
+      remove: async () => {
+        st.clientMods.delete(key); st.clientMeta.delete(key);
+        if (setupHasServerMod(key) && await ask(`${name} is also one of the server's mods. Remove it from the server too?\n\nCancel keeps it on the server.`, { ok: "Remove from the server" })) await setupRemoveMod(key);
+        return true;
+      },
+    });
+  }
+  for (const m of st.clientLocal) items.push({
+    key: `local:${m.id}`, name: m.name, source: "local", origin: "selected by you", tags: ["local file"],
+    remove: async () => { st.clientLocal = st.clientLocal.filter((x) => x !== m); return true; },
+  });
+  for (const [key, c] of setupCompanions()) items.push({
+    key: `dependency:${key}`, name: c.name, source: "modrinth", dependency: true, neededBy: c.needed_by,
+    channel: c.channel || "release", minecraft: setupModVersion(), loader: st.loader,
+  });
+  return items;
+}
+
 function setupAnnounceCompanions() {
   const st = setupState;
   if (!st.friends) return;
@@ -6255,12 +6727,43 @@ function offerAikar(gb, accept, decline = () => {}) {
 }
 
 // A new server is ready: its dashboard, or the friends' invite when it was made with friends.
-function setupFinished() {
+const SETUP_FOLLOWUP_KEY = "craft-conductor-setup-followup";
+let setupFollowup = (() => { try { return JSON.parse(sessionStorage.getItem(SETUP_FOLLOWUP_KEY)) || null; } catch (_) { return null; } })();
+function saveSetupFollowup(value) {
+  setupFollowup = value;
+  try { if (value) sessionStorage.setItem(SETUP_FOLLOWUP_KEY, JSON.stringify(value)); else sessionStorage.removeItem(SETUP_FOLLOWUP_KEY); } catch (_) { /* private mode */ }
+}
+let finishingSetup = false;
+async function setupFinished() {
   if (!location.hash.endsWith("/setup")) return;  // already on its way (status and job-done both call this)
+  if (finishingSetup) return;
+  if (setupFollowup && setupFollowup.id === server && setupFollowup.remote) {
+    finishingSetup = true;
+    saveSetupFollowup({ ...setupFollowup, phase: "phones" });
+    await act(() => api("/api/hub/network/apply", { method: "POST" }));
+    location.hash = link("dashboard");
+    resumeSetupFollowup();
+    finishingSetup = false;
+    return;
+  }
+  if (setupFollowup && setupFollowup.id === server) {
+    setupState.friendsFor = setupFollowup.friends ? server : null;
+    saveSetupFollowup(null);
+  }
   if (setupState.friendsFor !== server) { location.hash = link("dashboard"); return; }  // the job's toast says it's ready
   setupState.friendsFor = null;
   toast("Your server is ready. Here's your friends' invite.");
   location.hash = link("friends");
+}
+function resumeSetupFollowup() {
+  const next = setupFollowup;
+  if (!next || next.phase !== "phones" || next.id !== server || PHONE) return;
+  openRemoteAccess({ setup: false, doneLabel: next.friends ? "Continue to Friends" : "Finish setup", onDone: () => {
+    saveSetupFollowup(null);
+    setupState.remoteAfterCreate = false;
+    setupState.friendsFor = null;
+    location.hash = `#s/${next.id}/${next.friends ? "friends" : "dashboard"}`;
+  } });
 }
 
 views.setup = () => {
@@ -6333,41 +6836,31 @@ views.setup = () => {
 
     // Mods
     const selected = h("div");
-    // Each picked mod, with the mods it needs listed under it.
-    const modRows = () => {
-      const rows = [];
-      const shown = new Set();
-      const row = (key, depth) => {
-        const m = st.mods.get(key);
-        if (!m || (depth === 0 && shown.has(key)) || depth > 6) return;  // (mods that need each other)
-        shown.add(key);
-        const needers = [...m.by].filter((k) => st.mods.has(k)).map((k) => st.mods.get(k).name);
-        rows.push(h("li", { class: depth ? "dep" : null },
-          h("div", { class: "grow" }, depth ? "↳ " : null, h("strong", {}, m.name), depth ? null : channelTag(m.channel),
-            key.startsWith("curseforge:") ? h("span", { class: "tag" }, "CurseForge") : null,
-            !m.explicit || needers.length ? h("span", { class: "tag" }, `needed by ${needers.join(", ")}`) : null,
-            m.bad && !(m.explicit && m.conflict) ? h("div", { class: "small bad-text" }, m.bad) : null,
-            m.explicit && m.bad && m.conflict ? setupConflict(key, m) : null),
-          m.explicit ? h("label", { class: "row", title: "Every mod holds back Minecraft upgrades until it supports the new version. A new server is only made when its required mods work on the Minecraft version chosen for it." },
-            h("input", { type: "checkbox", checked: m.required, onchange: (e) => { m.required = e.target.checked; } }), "required") : null,
-          h("button", { type: "button", class: "btn small danger", onclick: async () => { await setupRemoveMod(key); search(); } }, "Remove")));
-        for (const [k, o] of st.mods) if (o.by.has(key) && !o.explicit) row(k, depth + 1);
-      };
-      for (const [k, m] of st.mods) if (m.explicit) row(k, 0);
-      for (const k of st.mods.keys()) row(k, 0);  // anything left over
-      return rows;
-    };
-    st.onChange = () => renderSelected();
+    st.onChange = () => { renderSelected(); refreshModManager("setup-server-mods"); };
     st.rerender = () => renderForm();
-    const renderSelected = () => fill(selected, st.mods.size || st.localMods.length ? h("ul", { class: "list" }, st.localMods.map((m) => h("li", {},
-      h("div", { class: "grow" }, h("strong", {}, m.name), h("span", { class: "tag" }, "local file")),
-      h("button", { type: "button", class: "btn small danger", onclick: () => { st.localMods = st.localMods.filter((x) => x !== m); renderSelected(); } }, "Remove"))),
-      modRows())
-      : h("p", { class: "empty" }, st.modpack ? "No extra mods. The modpack's own mods are added when the server is created."
-        : "Nothing yet. Download mods or add files from this computer above, or leave it empty for an unmodded server."));
+    if (st.modpack && !st.modpack.loading && !Array.isArray(st.modpack.mods)) loadSetupModpack(st.modpack);
+
+    const openSetupMods = () => openModManager({
+      title: runsPlugins(st.loader) ? "Manage Plugins" : "Manage Mods",
+      description: st.modpack
+        ? `Everything this setup will add, including ${st.modpack.name}. Dependencies are marked separately.`
+        : "Everything this setup will add. Dependencies are marked separately.",
+      owner: "setup-server-mods",
+      getItems: setupServerModItems,
+      getHeader: () => st.modpack && st.modpack.error
+        ? h("div", { class: "notice warn mb" }, `Couldn't read the modpack's mod list: ${st.modpack.error}`)
+        : null,
+      onChange: () => { renderSelected(); renderPackSummary(); },
+    });
+    const renderSelected = () => {
+      const items = setupServerModItems();
+      fill(selected, items.length || st.modpack
+        ? modSummary(items, { noun: runsPlugins(st.loader) ? "plugins" : "mods",
+            manage: runsPlugins(st.loader) ? "Manage Plugins" : "Manage Mods", open: openSetupMods })
+        : h("p", { class: "empty" }, "Nothing yet. Download mods or add files from this computer above, or leave it empty for an unmodded server."));
+    };
     const loaderLabel = (opts.loaders.find((l) => l.name === st.loader) || {}).label || st.loader;
     const plugins = runsPlugins(st.loader);
-    renderSelected();
     // Three ways to add mods: files on this computer, the mod browser window, or a whole modpack.
     const picker = h("input", { type: "file", multiple: true, accept: ".jar", class: "hidden" });
     picker.addEventListener("change", async () => {
@@ -6378,6 +6871,7 @@ views.setup = () => {
       }
       picker.value = "";
       renderSelected();
+      refreshModManager("setup-server-mods");
     });
     const sources = h("div", { class: "source-buttons" },
       h("button", { type: "button", class: "btn", onclick: () => picker.click() }, "📁 Local files",
@@ -6387,11 +6881,26 @@ views.setup = () => {
       plugins ? null : h("button", { type: "button", class: "btn", onclick: () => openBrowser({ type: "modpack", target: "setup", loader: st.modpack ? "" : st.loader }) },
         "📦 Modpacks", h("span", { class: "small muted" }, "A ready-made pack of mods")),
       picker);
+    const packSummary = h("div");
+    const renderPackSummary = () => {
+      if (!st.modpack) { fill(packSummary); return; }
+      const removed = st.modpack.removed instanceof Set ? st.modpack.removed.size : 0;
+      const active = Array.isArray(st.modpack.mods) ? Math.max(0, (st.modpack.pack_count || 0) - removed) : null;
+      fill(packSummary,
+        h("div", { class: "grow" }, h("strong", {}, st.modpack.name), " ", h("span", { class: "tag" }, st.modpack.version || ""),
+          h("div", { class: "small muted" },
+            st.modpack.loading ? "Reading the modpack's included mods…"
+              : st.modpack.error ? "The modpack is selected, but its included mod list could not be read yet."
+                : active === null ? `Minecraft ${st.minecraft}, ${loaderLabel}`
+                  : `Adds ${active} mods${removed ? ` · ${removed} manually removed` : ""} · Minecraft ${st.minecraft} · ${loaderLabel}`),
+          h("div", { class: "small muted" }, "The pack stays selected when individual mods are removed; its configs and other setup files are kept.")),
+        h("button", { type: "button", class: "btn small", onclick: openSetupMods }, "Manage Mods"),
+        h("button", { type: "button", class: "btn small danger", onclick: () => { st.modpack = null; st.minecraft = "latest"; renderForm(); } }, "Remove modpack"));
+    };
     const packCard = st.modpack ? h("div", { class: "notice mt-s pack" },
-      st.modpack.icon ? h("img", { src: st.modpack.icon, alt: "", referrerpolicy: "no-referrer" }) : null,
-      h("div", { class: "grow" }, h("strong", {}, st.modpack.name), " ", h("span", { class: "tag" }, st.modpack.version || ""),
-        h("div", { class: "small muted" }, `Minecraft ${st.minecraft}, ${loaderLabel}. The pack decides the version and server type; its mods are installed and kept up to date.`)),
-      h("button", { type: "button", class: "btn small danger", onclick: () => { st.modpack = null; st.minecraft = "latest"; renderForm(); } }, "Remove modpack")) : null;
+      st.modpack.icon ? h("img", { src: st.modpack.icon, alt: "", referrerpolicy: "no-referrer" }) : null, packSummary) : null;
+    renderPackSummary();
+    renderSelected();
     const modsCard = st.loader && opts.loaders.find((l) => l.name === st.loader).mods ? card(plugins ? "3. Plugins" : "3. Mods",
       sources, packCard, h("h3", { class: "mt" }, plugins ? "Your plugins" : "Your mods"), selected,
       h("div", { class: "row mt-s" }, testButton({
@@ -6399,7 +6908,9 @@ views.setup = () => {
           mods: [...st.mods].filter(([k, m]) => m.explicit && !k.startsWith("curseforge:")).map(([k]) => k), channels: earlyChannels() }],
         trial: { loader: st.loader, minecraft: st.minecraft, mods: [...st.mods].filter(([, m]) => m.explicit).map(([k]) => k), channels: earlyChannels() },
         keepWorking: async (res) => { for (const o of res.outliers) await setupRemoveMod(o.source === "curseforge" ? `curseforge:${o.id}` : o.id); },
-      }), h("span", { class: "muted small" }, "Check that these mods work together before creating the server.")),
+      }), h("span", { class: "muted small" }, st.modpack
+        ? "Checks extra mods selected outside the modpack here; the complete final set is checked again when the server is created."
+        : "Check that these mods work together before creating the server.")),
       st.loader === "fabric" || st.loader === "quilt" ? h("p", { class: "muted small" }, "Fabric API is added automatically, since almost every Fabric mod needs it.") : null,
       plugins ? h("p", { class: "muted small" }, "Paper and Purpur run server plugins (Paper, Spigot and Bukkit ones) from their plugins folder. Players join with plain Minecraft: plugins don't need anything on their side.") : null) : null;
 
@@ -6491,18 +7002,26 @@ views.setup = () => {
         friends: !!st.friends, local_mods: st.localMods.map((m) => m.id), world: st.world ? st.world.world : "",
         client_mods: st.friends ? [...st.clientMods.keys()] : [], client_local: st.friends ? st.clientLocal.map((m) => m.id) : [],
         mod_channels: Object.fromEntries([...st.mods].filter(([, m]) => m.explicit && m.channel).map(([k, m]) => [k, m.channel])) };
-      if (st.modpack) body.modpack_version = st.modpack.version_id;
+      if (st.modpack) {
+        body.modpack_version = st.modpack.version_id;
+        body.modpack_exclude = [...(st.modpack.removed instanceof Set ? st.modpack.removed : [])];
+      }
       if (isNew) {
         const r = await act(() => api("/api/hub/create", { method: "POST", body }));
         if (r) {
           setupState.friendsFor = body.friends || body.client_mods.length || body.client_local.length ? r.id : null;
+          saveSetupFollowup({ id: r.id, friends: !!setupState.friendsFor, remote: !!st.remoteAfterCreate, phase: "creating" });
           resetSetup();
           location.hash = `#s/${r.id}/setup`;
         }
         return;
       }
       const r = await act(() => api("/api/setup", { method: "POST", body }));
-      if (r) { st.submitted = true; renderProgress(); }
+      if (r) {
+        saveSetupFollowup({ id: server, friends: !!body.friends, remote: !!st.remoteAfterCreate, phase: "creating" });
+        st.submitted = true;
+        renderProgress();
+      }
     };
 
     // Friends: a download that sets up their Minecraft. "Set up now" opens the mod browser for
@@ -6521,23 +7040,19 @@ views.setup = () => {
         st.friends = true;
         renderForm();
       });
-      const companions = setupCompanions();
-      const list = st.clientMods.size || st.clientLocal.length || companions.size ? h("ul", { class: "list" },
-        [...st.clientMods].map(([k, name]) => h("li", {}, h("strong", { class: "grow" }, name),
-          h("span", { class: "tag" }, setupHasServerMod(k) ? "also on the server" : "players only"),
-          h("button", { type: "button", class: "btn small danger", onclick: async () => {
-            st.clientMods.delete(k);
-            renderForm();
-            if (setupHasServerMod(k) && await ask(`${name} is also one of the server's mods. Remove it from the server too?\n\nCancel keeps it on the server.`, { ok: "Remove from the server" })) {
-              await setupRemoveMod(k);
-              renderForm();
-            }
-          } }, "Remove"))),
-        st.clientLocal.map((m) => h("li", {}, h("div", { class: "grow" }, h("strong", {}, m.name), h("span", { class: "tag" }, "local file")),
-          h("button", { type: "button", class: "btn small danger", onclick: () => { st.clientLocal = st.clientLocal.filter((x) => x !== m); renderForm(); } }, "Remove"))),
-        [...companions.values()].map((c) => h("li", { class: "dep" }, h("div", { class: "grow" }, "↳ ", h("strong", {}, c.name),
-          h("span", { class: "tag" }, `added automatically: ${c.needed_by} needs it`)))))
-        : h("p", { class: "empty" }, "No extra mods for players yet. Friends get the server's mods either way.");
+      const openFriendMods = () => openModManager({
+        title: "Manage Friends Mods",
+        description: "Extra mods for your friends' Minecraft. Required client-side dependencies are added automatically.",
+        owner: "setup-friend-mods",
+        getItems: setupFriendModItems,
+        onChange: () => renderForm(),
+      });
+      const friendItems = setupFriendModItems();
+      const list = friendItems.length
+        ? modSummary(friendItems, { noun: "Friends Mods", manage: "Manage Friends Mods", open: openFriendMods })
+        : h("div", {},
+          h("p", { class: "empty" }, "No extra mods for players yet. Friends get the server's mods either way."),
+          h("button", { type: "button", class: "btn", onclick: openFriendMods }, "Manage Friends Mods"));
       return card("Friends (optional)",
         h("label", { class: "row check-row" },
           h("input", { type: "checkbox", checked: st.friends, onchange: (e) => { st.friends = e.target.checked; if (st.friends) setupAnnounceCompanions(); renderForm(); } }),
@@ -6717,6 +7232,7 @@ function renderNav() {
 function route() {
   closeHelp(true);
   closeAppNavigation();
+  closeModManager(true);
   closeBrowser(true);
   shownHash = location.hash;
   const hash = (location.hash || "#servers").slice(1);
@@ -6806,6 +7322,7 @@ async function start() {
   $("#app").classList.remove("hidden");
   registerWorker();
   route();
+  resumeSetupFollowup();
   phoneBanner();
 }
 start();

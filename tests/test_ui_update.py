@@ -36,7 +36,7 @@ def run_scenario(hub, client, monkeypatch, scenario, install):
     hub.apply_self_update = apply_without_restarting
     result = subprocess.run([os.environ["CRAFT_UI_NODE"], str(Path(__file__).with_name("ui_update.cjs")), client.base, scenario],
                             capture_output=True, text=True, timeout=180,
-                            env={**os.environ, "NODE_PATH": os.environ.get("NODE_PATH", "")})
+                            env={**os.environ, "NODE_PATH": os.environ.get("NODE_PATH", ""), "CRAFT_UI_VERSION": selfupdate.__version__})
     assert result.returncode == 0, result.stdout + result.stderr
 
 
