@@ -3054,8 +3054,7 @@ views.friends = () => {
       if (r) { toast(`Your public address is ${r.ip}`); data = await api("/api/client"); render(); }
     } }, links.internet ? "Check my public IP again" : "🌐 Use my public IP");
     const pack = d.pack;
-    const companions = ((pack && pack.mods) || []).filter((m) => m.needed_by);
-    const sideTag = (m) => h("span", { class: "tag" }, m.side === "client" ? "players only" : "server + players");
+    const friendItems = friendModItems();
     fill(body,
       intro,
       h("div", { class: "mt" }, card("Invite links",
@@ -3100,15 +3099,10 @@ views.friends = () => {
           h("a", { href: "#craft-conductor" }, "Craft Conductor settings → Connections → Sharing with friends"), "."))),
       h("div", { class: "mt" }, card("What friends get",
         d.pack_error ? h("div", { class: "notice warn" }, d.pack_error)
-          : !pack ? h("p", { class: "empty" }, "Install the server first; the list appears once it's set up.")
-          : [h("p", {}, `Minecraft ${pack.minecraft} with ${pack.loader === "vanilla" ? "no mod loader" : pack.loader + " " + pack.loader_version}, ${pack.mods.length} mod(s), ${pack.memory_gb} GB of memory.`),
-             pack.mods.length ? h("ul", { class: "list" }, pack.mods.map((m) => h("li", {}, h("span", { class: "grow" }, m.name), sideTag(m)))) : null,
-             pack.manual.length ? h("div", { class: "notice warn mt-s" }, "Players have to download these themselves (their authors block automatic downloads): ",
-               pack.manual.map((m) => m.name).join(", ")) : null,
-             pack.skipped.length ? h("div", { class: "notice warn mt-s" }, pack.skipped.map((x) => `${x.name}: ${x.reason}`).join("; ")) : null],
-        d.mods.length ? h("div", { class: "mt-s" }, h("strong", {}, "Mods you added for players: "),
-          d.mods.map((x) => h("span", { class: "tag" }, x, " ", h("button", { class: "link-btn", "aria-label": `Remove ${x}`,
-            onclick: () => removePlayerMod(x) }, "✕")))) : null,
+          : !pack ? h("p", { class: "empty" }, "Install the server first; the mod summary appears once it's set up.")
+          : [h("p", {}, `Minecraft ${pack.minecraft} with ${pack.loader === "vanilla" ? "no mod loader" : pack.loader + " " + pack.loader_version}, ${friendItems.length} mod(s), ${pack.memory_gb} GB of memory.`),
+             pack.manual.length ? h("div", { class: "notice warn mt-s" }, `${pack.manual.length} mod(s) require a manual download. Open Manage Friends Mods for details.`) : null,
+             pack.skipped.length ? h("div", { class: "notice warn mt-s" }, `${pack.skipped.length} mod(s) are currently left out. Open Manage Friends Mods for details.`) : null],
         h("label", { class: "mt" }, "Memory for friends' Minecraft",
           (() => { const sel = h("select", { onchange: (e) => save({ memory_gb: Number(e.target.value) }, "Saved") },
             [2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32].map((g) => h("option", { value: String(g) }, `${g} GB`))); sel.value = String(d.memory_gb); return sel; })()))),
@@ -3116,25 +3110,16 @@ views.friends = () => {
         h("p", { class: "muted small" }, "Client-side mods like minimaps, recipe viewers or performance mods. The server's own mods that players need are included automatically, and so are the client-side mods they need."),
         h("div", { class: "source-buttons" },
           h("button", { type: "button", class: "btn", onclick: () => openBrowser({ type: "mod", target: server, side: "client", loader: d.loader, version: d.minecraft || "" }) },
-            "🔎 Set up now", h("span", { class: "small muted" }, "Browse mods that run on players' computers")),
+            "🔎 Add Friends Mods", h("span", { class: "small muted" }, "Browse mods that run on players' computers")),
           h("button", { type: "button", class: "btn", onclick: () => picker.click() }, "📁 Local files",
             h("span", { class: "small muted" }, ".jar files on this computer, for players")),
           picker),
-        h("h3", { class: "mt" }, "Your players' mods"),
-        d.mods.length || d.local_mods.length || companions.length ? h("ul", { class: "list" },
-          d.mods.map((x) => h("li", {}, h("strong", { class: "grow" }, x),
-            (d.mods_on_server || []).includes(x) ? h("span", { class: "tag" }, "also on the server") : null,
-            h("button", { class: "btn small danger", onclick: () => removePlayerMod(x) }, "Remove"))),
-          d.local_mods.map((x) => h("li", {}, h("div", { class: "grow" }, h("strong", {}, x), h("span", { class: "tag" }, "local file")),
-            h("button", { class: "btn small danger", onclick: async () => (await ask(`Remove ${x} from the players' download?`, { ok: "Remove", danger: true })) &&
-              act(() => api("/api/client/local/remove", { method: "POST", body: { name: x } }), `${x} removed`).then(reload) }, "Remove"))),
-          companions.map((m) => h("li", { class: "dep" }, h("div", { class: "grow" }, "↳ ", h("strong", {}, m.name),
-            h("span", { class: "tag" }, `added automatically: ${m.needed_by} needs it`)))))
-          : h("p", { class: "empty" }, "None yet. Leave it empty if you like: players get the server's mods either way."),
+        h("div", { class: "mt-s" }, modSummary(friendItems, { noun: "Friends Mods", manage: "Manage Friends Mods", open: openFriendMods })),
         h("div", { class: "row mt-s" }, testButton({ check: ["/api/client/check", {}], trial: null }),
           h("span", { class: "muted small" }, "Checks the server's mods and these together.")))),
     );
     announceCompanions(d);
+    refreshModManager("friends-mods");
   };
   fill($("#main"), h("h2", { class: "view-title" }, "Friends"), body, h("div", { class: "mt" }, bedrockCard()));
   api("/api/client").then((r) => { data = r; render(); }).catch((e) => { if (!(e instanceof Unauthorized)) toast(e.message, true); });
