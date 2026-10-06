@@ -6213,41 +6213,31 @@ views.setup = () => {
 
     // Mods
     const selected = h("div");
-    // Each picked mod, with the mods it needs listed under it.
-    const modRows = () => {
-      const rows = [];
-      const shown = new Set();
-      const row = (key, depth) => {
-        const m = st.mods.get(key);
-        if (!m || (depth === 0 && shown.has(key)) || depth > 6) return;  // (mods that need each other)
-        shown.add(key);
-        const needers = [...m.by].filter((k) => st.mods.has(k)).map((k) => st.mods.get(k).name);
-        rows.push(h("li", { class: depth ? "dep" : null },
-          h("div", { class: "grow" }, depth ? "↳ " : null, h("strong", {}, m.name), depth ? null : channelTag(m.channel),
-            key.startsWith("curseforge:") ? h("span", { class: "tag" }, "CurseForge") : null,
-            !m.explicit || needers.length ? h("span", { class: "tag" }, `needed by ${needers.join(", ")}`) : null,
-            m.bad && !(m.explicit && m.conflict) ? h("div", { class: "small bad-text" }, m.bad) : null,
-            m.explicit && m.bad && m.conflict ? setupConflict(key, m) : null),
-          m.explicit ? h("label", { class: "row", title: "Every mod holds back Minecraft upgrades until it supports the new version. A new server is only made when its required mods work on the Minecraft version chosen for it." },
-            h("input", { type: "checkbox", checked: m.required, onchange: (e) => { m.required = e.target.checked; } }), "required") : null,
-          h("button", { type: "button", class: "btn small danger", onclick: async () => { await setupRemoveMod(key); search(); } }, "Remove")));
-        for (const [k, o] of st.mods) if (o.by.has(key) && !o.explicit) row(k, depth + 1);
-      };
-      for (const [k, m] of st.mods) if (m.explicit) row(k, 0);
-      for (const k of st.mods.keys()) row(k, 0);  // anything left over
-      return rows;
-    };
-    st.onChange = () => renderSelected();
+    st.onChange = () => { renderSelected(); refreshModManager("setup-server-mods"); };
     st.rerender = () => renderForm();
-    const renderSelected = () => fill(selected, st.mods.size || st.localMods.length ? h("ul", { class: "list" }, st.localMods.map((m) => h("li", {},
-      h("div", { class: "grow" }, h("strong", {}, m.name), h("span", { class: "tag" }, "local file")),
-      h("button", { type: "button", class: "btn small danger", onclick: () => { st.localMods = st.localMods.filter((x) => x !== m); renderSelected(); } }, "Remove"))),
-      modRows())
-      : h("p", { class: "empty" }, st.modpack ? "No extra mods. The modpack's own mods are added when the server is created."
-        : "Nothing yet. Download mods or add files from this computer above, or leave it empty for an unmodded server."));
+    if (st.modpack && !st.modpack.loading && !Array.isArray(st.modpack.mods)) loadSetupModpack(st.modpack);
+
+    const openSetupMods = () => openModManager({
+      title: runsPlugins(st.loader) ? "Manage Plugins" : "Manage Mods",
+      description: st.modpack
+        ? `Everything this setup will add, including ${st.modpack.name}. Dependencies are marked separately.`
+        : "Everything this setup will add. Dependencies are marked separately.",
+      owner: "setup-server-mods",
+      getItems: setupServerModItems,
+      getHeader: () => st.modpack && st.modpack.error
+        ? h("div", { class: "notice warn mb" }, `Couldn't read the modpack's mod list: ${st.modpack.error}`)
+        : null,
+      onChange: () => { renderSelected(); renderPackSummary(); },
+    });
+    const renderSelected = () => {
+      const items = setupServerModItems();
+      fill(selected, items.length || st.modpack
+        ? modSummary(items, { noun: runsPlugins(st.loader) ? "plugins" : "mods",
+            manage: runsPlugins(st.loader) ? "Manage Plugins" : "Manage Mods", open: openSetupMods })
+        : h("p", { class: "empty" }, "Nothing yet. Download mods or add files from this computer above, or leave it empty for an unmodded server."));
+    };
     const loaderLabel = (opts.loaders.find((l) => l.name === st.loader) || {}).label || st.loader;
     const plugins = runsPlugins(st.loader);
-    renderSelected();
     // Three ways to add mods: files on this computer, the mod browser window, or a whole modpack.
     const picker = h("input", { type: "file", multiple: true, accept: ".jar", class: "hidden" });
     picker.addEventListener("change", async () => {
@@ -6258,6 +6248,7 @@ views.setup = () => {
       }
       picker.value = "";
       renderSelected();
+      refreshModManager("setup-server-mods");
     });
     const sources = h("div", { class: "source-buttons" },
       h("button", { type: "button", class: "btn", onclick: () => picker.click() }, "📁 Local files",
@@ -6267,11 +6258,26 @@ views.setup = () => {
       plugins ? null : h("button", { type: "button", class: "btn", onclick: () => openBrowser({ type: "modpack", target: "setup", loader: st.modpack ? "" : st.loader }) },
         "📦 Modpacks", h("span", { class: "small muted" }, "A ready-made pack of mods")),
       picker);
+    const packSummary = h("div");
+    const renderPackSummary = () => {
+      if (!st.modpack) { fill(packSummary); return; }
+      const removed = st.modpack.removed instanceof Set ? st.modpack.removed.size : 0;
+      const active = Array.isArray(st.modpack.mods) ? Math.max(0, st.modpack.mods.length - removed) : null;
+      fill(packSummary,
+        h("div", { class: "grow" }, h("strong", {}, st.modpack.name), " ", h("span", { class: "tag" }, st.modpack.version || ""),
+          h("div", { class: "small muted" },
+            st.modpack.loading ? "Reading the modpack's included mods…"
+              : st.modpack.error ? "The modpack is selected, but its included mod list could not be read yet."
+                : active === null ? `Minecraft ${st.minecraft}, ${loaderLabel}`
+                  : `Adds ${active} mods${removed ? ` · ${removed} manually removed` : ""} · Minecraft ${st.minecraft} · ${loaderLabel}`),
+          h("div", { class: "small muted" }, "The pack stays selected when individual mods are removed; its configs and other setup files are kept.")),
+        h("button", { type: "button", class: "btn small", onclick: openSetupMods }, "Manage Mods"),
+        h("button", { type: "button", class: "btn small danger", onclick: () => { st.modpack = null; st.minecraft = "latest"; renderForm(); } }, "Remove modpack"));
+    };
     const packCard = st.modpack ? h("div", { class: "notice mt-s pack" },
-      st.modpack.icon ? h("img", { src: st.modpack.icon, alt: "", referrerpolicy: "no-referrer" }) : null,
-      h("div", { class: "grow" }, h("strong", {}, st.modpack.name), " ", h("span", { class: "tag" }, st.modpack.version || ""),
-        h("div", { class: "small muted" }, `Minecraft ${st.minecraft}, ${loaderLabel}. The pack decides the version and server type; its mods are installed and kept up to date.`)),
-      h("button", { type: "button", class: "btn small danger", onclick: () => { st.modpack = null; st.minecraft = "latest"; renderForm(); } }, "Remove modpack")) : null;
+      st.modpack.icon ? h("img", { src: st.modpack.icon, alt: "", referrerpolicy: "no-referrer" }) : null, packSummary) : null;
+    renderPackSummary();
+    renderSelected();
     const modsCard = st.loader && opts.loaders.find((l) => l.name === st.loader).mods ? card(plugins ? "3. Plugins" : "3. Mods",
       sources, packCard, h("h3", { class: "mt" }, plugins ? "Your plugins" : "Your mods"), selected,
       h("div", { class: "row mt-s" }, testButton({
@@ -6279,7 +6285,9 @@ views.setup = () => {
           mods: [...st.mods].filter(([k, m]) => m.explicit && !k.startsWith("curseforge:")).map(([k]) => k), channels: earlyChannels() }],
         trial: { loader: st.loader, minecraft: st.minecraft, mods: [...st.mods].filter(([, m]) => m.explicit).map(([k]) => k), channels: earlyChannels() },
         keepWorking: async (res) => { for (const o of res.outliers) await setupRemoveMod(o.source === "curseforge" ? `curseforge:${o.id}` : o.id); },
-      }), h("span", { class: "muted small" }, "Check that these mods work together before creating the server.")),
+      }), h("span", { class: "muted small" }, st.modpack
+        ? "Checks extra mods selected outside the modpack here; the complete final set is checked again when the server is created."
+        : "Check that these mods work together before creating the server.")),
       st.loader === "fabric" || st.loader === "quilt" ? h("p", { class: "muted small" }, "Fabric API is added automatically, since almost every Fabric mod needs it.") : null,
       plugins ? h("p", { class: "muted small" }, "Paper and Purpur run server plugins (Paper, Spigot and Bukkit ones) from their plugins folder. Players join with plain Minecraft: plugins don't need anything on their side.") : null) : null;
 
