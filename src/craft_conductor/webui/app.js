@@ -6102,8 +6102,12 @@ async function confirmEarly(mods) {
 async function setupAddMod(key, name, channel = null, quiet = false) {
   const st = setupState;
   const e = st.mods.get(key);
-  if (e) { e.explicit = true; if (channel && channel !== "release") e.channel = channel; }
-  else st.mods.set(key, { name, required: true, explicit: true, by: new Set(), bad: "", channel: channel && channel !== "release" ? channel : null });
+  if (e) {
+    e.explicit = true;
+    if (channel && channel !== "release") e.channel = channel;
+    if (channel) e.resolvedChannel = channel;
+  } else st.mods.set(key, { name, required: true, explicit: true, by: new Set(), bad: "",
+    channel: channel && channel !== "release" ? channel : null, resolvedChannel: channel || null });
   setupChanged();
   return setupCheckMod(key, quiet);
 }
@@ -6145,6 +6149,7 @@ async function setupCheckMod(key, quiet = false) {
     }
   }
   e.name = r.project.name;
+  e.resolvedChannel = r.channel || null;
   e.bad = r.compatible ? "" : r.reason;
   // What's missing for this Minecraft version and server type (which are left as they are), and
   // the versions that appear to work instead: only offered, never switched to by itself.
@@ -6155,9 +6160,14 @@ async function setupCheckMod(key, quiet = false) {
   const added = [];
   for (const d of r.deps) {
     const dk = d.source === "curseforge" ? `curseforge:${d.id}` : d.slug || d.id;
-    if (!st.mods.has(dk)) { st.mods.set(dk, { name: d.name, required: e.required, explicit: false, by: new Set(), bad: "", channel: e.channel }); added.push(d); }
+    if (!st.mods.has(dk)) {
+      st.mods.set(dk, { name: d.name, required: e.required, explicit: false, by: new Set(), bad: "",
+        channel: e.channel, resolvedChannel: d.channel || null });
+      added.push(d);
+    }
     const dep = st.mods.get(dk);
     dep.by.add(key);
+    dep.resolvedChannel = d.channel || null;
     dep.bad = d.compatible ? "" : `No compatible release for Minecraft ${v}` + (d.checked && d.checked.length ? ` on ${d.checked.join(" or ")}` : "");
     if (!dep.explicit) dep.channel = d.channel && d.channel !== "release" ? d.channel : e.channel;
   }
@@ -6232,7 +6242,7 @@ function setupServerModItems() {
     const needers = [...m.by].map((k) => (st.mods.get(k) || {}).name).filter(Boolean);
     items.push({
       key, name: m.name, source: key.startsWith("curseforge:") ? "curseforge" : "modrinth",
-      channel: m.channel || "release", minecraft: setupModVersion(), loader: st.loader,
+      channel: m.resolvedChannel || "release", minecraft: setupModVersion(), loader: st.loader,
       dependency: !m.explicit, neededBy: needers.join(", "), origin: m.explicit ? "selected by you" : "",
       warning: m.bad && !(m.explicit && m.conflict) ? m.bad : "",
       content: () => m.explicit && m.bad && m.conflict ? setupConflict(key, m) : null,
