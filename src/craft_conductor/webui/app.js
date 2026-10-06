@@ -3122,6 +3122,8 @@ const MAP_LEVELS = [1, 2, 4, 8, 16];  // blocks a pixel the server draws tiles a
 // Landmarks (preview.py): the villages, temples and other structures Minecraft placed, as symbols
 // on the map (named for screen readers and on hover), and a list under it.
 const LANDMARKS_KEY = "craft-conductor-map-landmarks";
+const MAP_AUTO_KEY = "craft-conductor-map-auto";
+let mapAuto = (() => { try { return localStorage.getItem(MAP_AUTO_KEY) === "on"; } catch (_) { return false; } })();
 const landmarksShown = () => { try { return localStorage.getItem(LANDMARKS_KEY) !== "off"; } catch (_) { return true; } };
 function landmarkMark(l) {
   const words = `${t(l.name)}: x ${l.x}, z ${l.z}`;
@@ -3158,7 +3160,10 @@ function mapExplorer(m, info, readout) {
   const frame = h("div", { class: "map-frame map-live", tabindex: "0", "aria-label": "Map: drag to move, scroll to zoom" }, layer, marksLayer, spawn, status);
   const tiles = new Map();
   let regions = new Set(state.regions.map(([x, z]) => `${x},${z}`));
-  const auto = h("input", { type: "checkbox" });
+  const auto = h("input", { type: "checkbox", checked: mapAuto, onchange: () => {
+    mapAuto = auto.checked;
+    try { localStorage.setItem(MAP_AUTO_KEY, mapAuto ? "on" : "off"); } catch (_) { /* private mode */ }
+  } });
   const makeBtn = h("button", { type: "button", class: "btn small" }, "Make this area");
   const size = () => ({ w: frame.clientWidth || 600, hgt: frame.clientHeight || 600 });
 
@@ -3272,7 +3277,7 @@ function mapExplorer(m, info, readout) {
   const moved = () => {
     draw();
     clearTimeout(autoTimer);
-    autoTimer = setTimeout(() => { if (auto.checked && !covered() && !(state.job && state.job.state === "running") && view.bpp <= 4) make(true); }, 900);
+    autoTimer = setTimeout(() => { if (frame.isConnected && auto.checked && !covered() && !(state.job && state.job.state === "running") && view.bpp <= 4) make(true); }, 900);
   };
   frame.addEventListener("pointerdown", (e) => { drag = { x: e.clientX, y: e.clientY }; frame.setPointerCapture(e.pointerId); frame.classList.add("dragging"); });
   frame.addEventListener("pointerup", () => { drag = null; frame.classList.remove("dragging"); });
@@ -4188,7 +4193,7 @@ function openSshInstall() {
   host.focus();
 }
 
-function openRemoteAccess() {
+function openRemoteAccess({ setup = currentName === "new" || currentName === "setup", onDone = null, doneLabel = "Continue" } = {}) {
   if ($("#remote")) return;
   const body = h("div", {});
   let timer = null;
@@ -4202,6 +4207,7 @@ function openRemoteAccess() {
     const r = await api("/api/hub/remote").catch((e) => { fill(body, h("div", { class: "notice bad" }, e.message)); return null; });
     if (!r) return;
     if (!r.available) { fill(body, h("p", {}, "Remote access is part of Craft Conductor's server list. Start Craft Conductor by double-clicking it (or `craft-conductor start`).")); return; }
+    if (setup && r.configured) setupState.remoteAfterCreate = true;
     // 1. a strong password
     let pw;
     if (r.strong) pw = h("p", { class: "ok-text" }, "✓ Your password is strong enough for remote access.");
@@ -4220,12 +4226,22 @@ function openRemoteAccess() {
         h("div", { class: "row" }, save)];
     }
     // 2. other devices
-    const toggle = h("input", { type: "checkbox", checked: r.network_access, disabled: !r.strong && !r.network_access, onchange: async (e) => {
+    const toggle = h("input", { type: "checkbox", checked: r.configured, disabled: !r.strong && !r.configured, onchange: async (e) => {
       const ok = await act(() => api("/api/hub/network", { method: "POST", body: { enabled: e.target.checked } }));
-      if (ok) toast(ok.restart_needed ? "Saved. Close and reopen Craft Conductor (Quit, then start it again) for this to take effect." : "Saved");
+      if (ok) {
+        if (setup) {
+          setupState.remoteAfterCreate = e.target.checked || ok.restart_needed;
+          if (setupFollowup && setupFollowup.id === server && setupFollowup.phase === "creating")
+            saveSetupFollowup({ ...setupFollowup, remote: setupState.remoteAfterCreate });
+        }
+        toast(setup && ok.restart_needed ? "Saved. Finish creating your server; phone setup comes next. Your work stays here." : "Saved");
+      }
       load();
     } });
-    const restartNote = r.configured !== r.running_on_network ? h("div", { class: "notice warn small mt-s" }, "Close and reopen Craft Conductor (Quit, then start it again) for this to take effect.") : null;
+    const restartNote = r.configured !== r.running_on_network ? h("div", { class: "notice small mt-s" },
+      setup ? "Finish creating your server first. Craft Conductor will apply remote access automatically, then return here for phone setup before Friends. Your setup and servers stay open."
+        : ["Apply this change without closing Craft Conductor. Your servers and work stay open. ",
+          h("button", { class: "btn small", onclick: async () => { await act(() => api("/api/hub/network/apply", { method: "POST" })); load(); } }, "Apply remote access")]) : null;
     // 3. away from home
     const away = [
       h("p", { class: "small" }, "On your home Wi-Fi, a phone reaches this computer directly. To use it away from home, use a private network app instead of opening ports:"),
@@ -4306,11 +4322,13 @@ function openRemoteAccess() {
           "a ", h("strong", {}, "viewer"), " can only look. Neither can change settings, mods or files, or use the console, and what they do shows in the activity with their name. " +
           "Pair a friend who helps run the server the same way, on their own phone or computer. Changing your password signs all devices out."),
         r.addresses.length ? [h("div", { class: "row" }, addr, role, pair), addrNote] : h("p", { class: "small muted" }, "No network address found for this computer."),
-        !r.running_on_network ? h("p", { class: "small muted" }, "Pairing works once access from other devices is on and Craft Conductor has been reopened.") : null,
+        !r.running_on_network ? h("p", { class: "small muted" }, "Pairing works once remote access has been applied.") : null,
         pairBox),
       step(5, "Paired phones", devices,
         r.devices.length > 1 ? h("button", { class: "btn ghost small", onclick: async () => (await ask("Sign out every paired phone?", { ok: "Sign out all", danger: true })) &&
-          act(() => api("/api/hub/devices/remove", { method: "POST", body: { id: "all" } }), "All phones signed out").then(load) }, "Sign out all") : null));
+          act(() => api("/api/hub/devices/remove", { method: "POST", body: { id: "all" } }), "All phones signed out").then(load) }, "Sign out all") : null),
+      onDone ? h("button", { class: "btn primary mt", disabled: r.configured !== r.running_on_network,
+        onclick: () => { close(); onDone(); } }, doneLabel) : null);
   };
   load();
 }
@@ -5721,7 +5739,7 @@ const freshSetup = () => ({ target: null, friends: false, loader: null, minecraf
   aikar: false, clientMods: new Map(), clientLocal: [], companionsSeen: new Set() });  // friends' download: slug -> name; staged files
 const setupState = freshSetup();
 function resetSetup() {
-  const keep = { friendsFor: setupState.friendsFor };  // (a server just made with friends opens its Friends page when ready)
+  const keep = { friendsFor: setupState.friendsFor, remoteAfterCreate: setupState.remoteAfterCreate };
   for (const k of Object.keys(setupState)) delete setupState[k];
   Object.assign(setupState, freshSetup(), keep);
 }
@@ -5935,12 +5953,43 @@ function offerAikar(gb, accept, decline = () => {}) {
 }
 
 // A new server is ready: its dashboard, or the friends' invite when it was made with friends.
-function setupFinished() {
+const SETUP_FOLLOWUP_KEY = "craft-conductor-setup-followup";
+let setupFollowup = (() => { try { return JSON.parse(sessionStorage.getItem(SETUP_FOLLOWUP_KEY)) || null; } catch (_) { return null; } })();
+function saveSetupFollowup(value) {
+  setupFollowup = value;
+  try { if (value) sessionStorage.setItem(SETUP_FOLLOWUP_KEY, JSON.stringify(value)); else sessionStorage.removeItem(SETUP_FOLLOWUP_KEY); } catch (_) { /* private mode */ }
+}
+let finishingSetup = false;
+async function setupFinished() {
   if (!location.hash.endsWith("/setup")) return;  // already on its way (status and job-done both call this)
+  if (finishingSetup) return;
+  if (setupFollowup && setupFollowup.id === server && setupFollowup.remote) {
+    finishingSetup = true;
+    saveSetupFollowup({ ...setupFollowup, phase: "phones" });
+    await act(() => api("/api/hub/network/apply", { method: "POST" }));
+    location.hash = link("dashboard");
+    resumeSetupFollowup();
+    finishingSetup = false;
+    return;
+  }
+  if (setupFollowup && setupFollowup.id === server) {
+    setupState.friendsFor = setupFollowup.friends ? server : null;
+    saveSetupFollowup(null);
+  }
   if (setupState.friendsFor !== server) { location.hash = link("dashboard"); return; }  // the job's toast says it's ready
   setupState.friendsFor = null;
   toast("Your server is ready. Here's your friends' invite.");
   location.hash = link("friends");
+}
+function resumeSetupFollowup() {
+  const next = setupFollowup;
+  if (!next || next.phase !== "phones" || next.id !== server || PHONE) return;
+  openRemoteAccess({ setup: false, doneLabel: next.friends ? "Continue to Friends" : "Finish setup", onDone: () => {
+    saveSetupFollowup(null);
+    setupState.remoteAfterCreate = false;
+    setupState.friendsFor = null;
+    location.hash = `#s/${next.id}/${next.friends ? "friends" : "dashboard"}`;
+  } });
 }
 
 views.setup = () => {
@@ -6176,13 +6225,18 @@ views.setup = () => {
         const r = await act(() => api("/api/hub/create", { method: "POST", body }));
         if (r) {
           setupState.friendsFor = body.friends || body.client_mods.length || body.client_local.length ? r.id : null;
+          saveSetupFollowup({ id: r.id, friends: !!setupState.friendsFor, remote: !!st.remoteAfterCreate, phase: "creating" });
           resetSetup();
           location.hash = `#s/${r.id}/setup`;
         }
         return;
       }
       const r = await act(() => api("/api/setup", { method: "POST", body }));
-      if (r) { st.submitted = true; renderProgress(); }
+      if (r) {
+        saveSetupFollowup({ id: server, friends: !!body.friends, remote: !!st.remoteAfterCreate, phase: "creating" });
+        st.submitted = true;
+        renderProgress();
+      }
     };
 
     // Friends: a download that sets up their Minecraft. "Set up now" opens the mod browser for
@@ -6486,6 +6540,7 @@ async function start() {
   $("#app").classList.remove("hidden");
   registerWorker();
   route();
+  resumeSetupFollowup();
   phoneBanner();
 }
 start();

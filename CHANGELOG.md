@@ -4,6 +4,12 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## Unreleased (not released yet)
+
+**Fixed**
+- The map preview remembers **Keep making the map as I move** when you leave and return, including after reopening the page.
+- Remote access can be applied without quitting Craft Conductor. New server setup applies it after successful creation, then continues to phone setup before Friends, keeping your work and running servers intact.
+
 ## 0.24.0 (2026-10-06)
 
 **Fixed**

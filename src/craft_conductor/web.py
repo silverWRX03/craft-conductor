@@ -180,6 +180,7 @@ class WebUI:
         self.devices = webauth.Devices(hub.state_dir)
         self.passkeys = passkeys.Passkeys(hub.state_dir)
         self.lock = threading.Lock()
+        self.network_lock = threading.Lock()
         self.httpd: ThreadingHTTPServer | None = None
         self._apis: dict[str, Api] = {}
         self.hub_api = HubApi(self)
@@ -241,6 +242,37 @@ class WebUI:
             self.httpd.shutdown()
             self.httpd.server_close()
 
+    def apply_network(self) -> None:
+        """Rebind only the listener; keep sessions, setup jobs and Minecraft alive."""
+        with self.network_lock:
+            target = self.hub.web.host
+            if target == self.host:
+                return
+            if target not in ("127.0.0.1", "localhost", "::1") and not self.auth.remote_ready:
+                raise ApiError(400, "first set a strong password before allowing other devices")
+            old = self.httpd
+            if old is None:
+                raise ApiError(409, "the control panel isn't listening yet")
+            port = old.server_address[1]
+            old.shutdown()
+            old.server_close()
+            try:
+                replacement = _Server((target, port), old.RequestHandlerClass)
+            except OSError as e:
+                # Keep the local panel usable and let the owner retry.
+                replacement = _Server((self.host, port), old.RequestHandlerClass)
+                error = e
+            else:
+                self.host = target
+                error = None
+            replacement.daemon_threads = True
+            replacement.tls_context = old.tls_context
+            replacement.plain_http_reply = old.plain_http_reply
+            self.httpd = replacement
+            threading.Thread(target=replacement.serve_forever, daemon=True, name="web").start()
+            if error:
+                raise ApiError(409, "couldn't apply remote access; the previous connection was restored. Try again.") from error
+
     # ------------------------------------------------------------ sessions
     def login(self, password: str, client: str, local: bool = True) -> str:
         now = time.time()
@@ -293,6 +325,12 @@ class WebUI:
         return token
 
     def change(self, mode: str, secret: str, local: bool) -> str:
+        # Serialize password changes with rebinding and saving network access:
+        # a concurrent switch must never open a listener after accepting a PIN.
+        with self.network_lock:
+            return self._change(mode, secret, local)
+
+    def _change(self, mode: str, secret: str, local: bool) -> str:
         """Change how the panel is protected; signs out everyone else (paired phones too) and
         returns a new session."""
         if self.remote_on() and not (mode == "password" and webauth.strong_password(secret)):
@@ -314,7 +352,7 @@ class WebUI:
 
     def remote_on(self) -> bool:
         """Other devices can reach the panel (network access is on)."""
-        return self.hub.web.host not in ("127.0.0.1", "localhost", "::1")
+        return any(host not in ("127.0.0.1", "localhost", "::1") for host in (self.hub.web.host, self.host))
 
     def reset_to_default(self) -> None:
         self.store.reset()
@@ -1087,6 +1125,7 @@ class HubApi:
         r[("POST", "/api/hub/remote-install")] = self.remote_install
         r[("POST", "/api/hub/remote-install/open")] = self.remote_install_open
         r[("POST", "/api/hub/network")] = self.network
+        r[("POST", "/api/hub/network/apply")] = self.apply_network
         r[("POST", "/api/hub/share")] = self.save_share
         r[("GET", "/api/hub/port")] = self.port_check
         r[("POST", "/api/hub/stage")] = self.stage
@@ -1945,14 +1984,21 @@ class HubApi:
         if self.hub.is_single:
             raise ApiError(400, "set [web] host in craft-conductor.toml for `craft-conductor run`")
         enabled = b.get("enabled") is True
-        if enabled and not self.web.auth.remote_ready:
-            raise ApiError(400, "first set a strong password (" + webauth.STRONG_RULES + "); "
-                                "PINs can't be used for access from other devices")
-        self.hub.save_web(host="0.0.0.0" if enabled else "127.0.0.1")
-        if not enabled:
-            self.web.devices.cancel_codes()  # (a pairing code shown for the network is no use now)
-        log.info("network access to the control panel turned %s (applies when Craft Conductor restarts)", "on" if enabled else "off")
+        with self.web.network_lock:
+            if enabled and not self.web.auth.remote_ready:
+                raise ApiError(400, "first set a strong password (" + webauth.STRONG_RULES + "); "
+                                    "PINs can't be used for access from other devices")
+            self.hub.save_web(host="0.0.0.0" if enabled else "127.0.0.1")
+            if not enabled:
+                self.web.devices.cancel_codes()
+        log.info("network access to the control panel saved: %s (waiting for the listener to apply it)", "on" if enabled else "off")
         return {"ok": True, "restart_needed": enabled != (self.web.host in ("0.0.0.0", "::"))}
+
+    def apply_network(self, q, b) -> dict:
+        if self.hub.is_single:
+            raise ApiError(400, "remote access changes need Craft Conductor's server list")
+        self.web.apply_network()
+        return {"ok": True}
 
     def accept_notice(self, q, b) -> dict:
         if b.get("version") != notice.NOTICE_VERSION:
