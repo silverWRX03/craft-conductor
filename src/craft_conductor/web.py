@@ -977,13 +977,16 @@ def mod_requirements(provider: ModrinthProvider, mod_id: str, loaders: tuple[str
         seen.add(dep.key)
         seen_projects.append(dep)
         if dep.server_side == "unsupported":  # only players need it: it goes in friends' downloads
-            companions.append({"id": dep.id, "slug": dep.slug, "name": dep.name, "needed_by": needed_by})
+            companion = build(source, dep)
+            companions.append({"id": dep.id, "slug": dep.slug, "name": dep.name, "needed_by": needed_by,
+                               "channel": (companion or {}).get("channel")})
             continue
         checked, unchecked = [], []
         hit = anywhere(source, dep, checked, unchecked)
         used, used_source, found = hit if hit else (dep, source, None)
         if used.server_side == "unsupported":
-            companions.append({"id": used.id, "slug": used.slug, "name": used.name, "needed_by": needed_by})
+            companions.append({"id": used.id, "slug": used.slug, "name": used.name, "needed_by": needed_by,
+                               "channel": (found or {}).get("channel")})
             continue
         if used is not dep:
             seen.add(used.key)
