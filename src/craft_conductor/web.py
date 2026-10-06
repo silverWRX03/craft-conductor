@@ -952,6 +952,7 @@ def mod_requirements(provider: ModrinthProvider, mod_id: str, loaders: tuple[str
         return {**base, "compatible": False, "reason": f"{project.name} has no build for {where}", "deps": [],
                 "companions": [], "chain": [project.name], "checked": [SOURCE_NAMES.get(root_source, root_source)],
                 "suggestions": suggestions([(root_source, project)]) if minecraft else []}
+    base["channel"] = root.get("channel") or "release"
     deps, companions = [], []
     seen, seen_projects = {project.key}, [project]
     queue = [(src, pid, [(root_source, project)]) for src, pid in root["deps"]]
