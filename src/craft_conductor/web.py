@@ -44,6 +44,7 @@ from .minecraft import Mojang
 from .http import HttpError, sha1_file
 from .java import JavaError
 from .mods import ModError, Unavailable
+from .mods.curseforge import CurseForgeProvider
 from .mods.modrinth import ModrinthProvider, keep_buildable
 from .planner import lowest
 from .players import PlayerError, Players, broadcast_text
@@ -756,6 +757,20 @@ def setup_options(mojang: Mojang) -> dict:
     }
 
 
+def newest_for_loader(http, mojang: Mojang, q: dict) -> dict:
+    """What "Newest release" on the setup page means for a server type: the newest release it
+    has a build for. The mods don't change it."""
+    from .loaders import LOADERS, get_loader
+    from .planner import newest_release
+    loader = q.get("loader", "")
+    if loader not in LOADERS:
+        raise ApiError(400, "unknown server type")
+    try:
+        return {"loader": loader, "minecraft": newest_release(mojang, get_loader(loader, http, mojang))}
+    except HttpError as e:
+        raise ApiError(502, f"couldn't load the list of Minecraft versions: {e}") from None
+
+
 def search_mods(provider: ModrinthProvider, q: dict, listed: set[str], default_loader: str,
                 default_version: str | None = None) -> dict:
     """Modrinth search for the setup and Mods pages; with ``top=1`` and no query, the 20 most popular."""
@@ -825,57 +840,181 @@ def run_check(hub, b: dict, work) -> dict:
     return {"ok": True, "id": job.id}
 
 
+_RELEASE = re.compile(r"\d+(\.\d+)+")
+
+
+def _version_key(version: str) -> tuple[int, ...]:
+    return tuple(int(n) for n in version.split("."))
+
+
 def mod_requirements(provider: ModrinthProvider, mod_id: str, loaders: tuple[str, ...], minecraft: str | None,
-                     channel: str = "release", limit: int = 30) -> dict:
-    """Whether a Modrinth mod has a build for ``minecraft`` (any version when None), and the
-    mods it needs (their dependencies too), so pickers can select them along with it."""
+                     channel: str = "release", limit: int = 30, curseforge=None) -> dict:
+    """Whether a mod has a build for ``minecraft`` (any version when None), and the mods it needs
+    (their dependencies too), so pickers can select them along with it. ``mod_id`` is a Modrinth
+    mod, or with ``curseforge`` (the CurseForge provider) also ``curseforge:<id>``.
+
+    The Minecraft version and loaders are fixed: a mod the picked one needs is looked for on the
+    site that names it, then (with ``curseforge``) as the same mod on the other site. When one
+    can't be found on either, the answer says which chain of mods needs it, where it looked, and
+    which Minecraft versions appear to work instead (``suggestions``, never applied here)."""
+    from .mods.base import SOURCE_NAMES, ModFile, not_checked, same_project
+    from .planner import LOADER_NAMES
+    sites = {"modrinth": provider}
+    if curseforge is not None and curseforge.handles(loaders):
+        sites["curseforge"] = curseforge
+    loader_name = LOADER_NAMES.get(loaders[0], loaders[0]) if loaders else ""
+
     def newest(project_id: str):
         ok = [v for v in provider._versions(project_id, loaders, minecraft) if provider._acceptable(v, channel)
               and (minecraft is None or minecraft in v.get("game_versions", []))]
         return max(ok, key=lambda v: v.get("date_published", "")) if ok else None
 
-    required = provider.required_projects
-
-    project = provider.project(mod_id)
-    info = {"id": project.id, "slug": project.slug, "name": project.name}
-    version = newest(project.id)
-    if version is None:
-        where = f"Minecraft {minecraft}" if minecraft else "this server type"
-        return {"project": info, "compatible": False, "reason": f"{project.name} has no build for {where}", "deps": [],
-                "companions": []}
-    deps, companions, seen = [], [], {project.id}
-    queue = [(pid, project.name) for pid in required(version)]
-    while queue and len(seen) < limit:
-        pid, needed_by = queue.pop(0)
-        if pid in seen:
-            continue
-        seen.add(pid)
+    def build(source: str, project) -> dict | None:
+        """The build of ``project`` that would be used: what it needs, and its channel; or None."""
+        if source == "modrinth":
+            version = newest(project.id)
+            return None if version is None else {
+                "deps": [("modrinth", x) for x in provider.required_projects(version)],
+                "channel": version.get("version_type", "release")}
+        spec = ModSpec(source, project.id)
+        version = minecraft
+        if version is None:  # any version: its newest one
+            found = sorted((v for v in sites[source].supported_versions(spec, loaders, channel) if _RELEASE.fullmatch(v)),
+                           key=_version_key)
+            if not found:
+                return None
+            version = found[-1]
         try:
-            dep = provider.project(pid)
+            f: ModFile = sites[source].resolve(spec, version, loaders, channel)
+        except Unavailable:
+            return None
+        return {"deps": [(source, x) for x in f.dependencies], "channel": None}
+
+    same: dict[tuple[str, str], Any] = {}
+
+    def counterpart(project, source: str):
+        if (project.key, source) not in same:
+            same[(project.key, source)] = sites[source].find_same(project)
+        return same[(project.key, source)]
+
+    def anywhere(source: str, project, checked: list[str], unchecked: list[str]):
+        """(project, site, build) where a build was found, the site that names it first."""
+        checked.append(SOURCE_NAMES.get(source, source))
+        found = build(source, project)
+        if found is not None:
+            return project, source, found
+        for other_source in [s for s in sites if s != source]:
+            name = SOURCE_NAMES.get(other_source, other_source)
+            try:
+                other = counterpart(project, other_source)
+            except ModError as e:
+                unchecked.append(not_checked(sites[other_source], e))
+                continue
+            checked.append(name)
+            if other is not None:
+                found = build(other_source, other)
+                if found is not None:
+                    return other, other_source, found
+        return None
+
+    def suggestions(chain: list) -> list[str]:
+        """Releases every mod in ``chain`` ((site, project), the picked mod first) has a build for."""
+        common: set[str] | None = None
+        for i, (source, project) in enumerate(chain):
+            versions = set()
+            options = [(source, project)]
+            if i:  # (the picked mod comes from where it was picked; what it needs, from either site)
+                for other_source in [s for s in sites if s != source]:
+                    try:
+                        other = counterpart(project, other_source)
+                    except ModError:
+                        other = None
+                    if other is not None:
+                        options.append((other_source, other))
+            for site, proj in options:
+                try:
+                    versions |= sites[site].supported_versions(ModSpec(site, proj.id), loaders, channel)
+                except (ModError, HttpError):
+                    pass
+            common = versions if common is None else common & versions
+        found = [v for v in (common or set()) if _RELEASE.fullmatch(v) and v != minecraft]
+        return sorted(found, key=_version_key, reverse=True)[:3]
+
+    root_source, root_id = ("curseforge", mod_id.split(":", 1)[1]) if mod_id.startswith("curseforge:") else ("modrinth", mod_id)
+    if root_source not in sites:
+        raise ModError("CurseForge mods need a CurseForge API key")
+    project = sites[root_source].project(root_id)
+    info = {"id": project.id, "slug": project.slug, "name": project.name, "source": root_source}
+    base = {"project": info, "minecraft": minecraft, "loader": loader_name, "chain": [], "checked": [], "suggestions": []}
+    root = build(root_source, project)
+    if root is None:
+        where = f"Minecraft {minecraft}" if minecraft else "this server type"
+        return {**base, "compatible": False, "reason": f"{project.name} has no build for {where}", "deps": [],
+                "companions": [], "chain": [project.name], "checked": [SOURCE_NAMES.get(root_source, root_source)],
+                "suggestions": suggestions([(root_source, project)]) if minecraft else []}
+    deps, companions = [], []
+    seen, seen_projects = {project.key}, [project]
+    queue = [(src, pid, [(root_source, project)]) for src, pid in root["deps"]]
+    failure = None
+    while queue and len(seen) < limit:
+        source, pid, chain = queue.pop(0)
+        if f"{source}:{pid}" in seen:
+            continue
+        seen.add(f"{source}:{pid}")
+        needed_by = chain[-1][1].name
+        try:
+            dep = sites[source].project(pid) if source in sites else None
         except ModError as e:
-            return {"project": info, "compatible": False, "reason": f"couldn't check a required mod: {e}",
+            dep, error = None, e
+        else:
+            error = ModError("CurseForge mods need a CurseForge API key") if dep is None else None
+        if dep is None:
+            return {**base, "compatible": False, "reason": f"couldn't check a required mod: {error}",
                     "deps": deps, "companions": companions}
+        if any(same_project(dep, other) for other in seen_projects if other.source != dep.source):
+            continue  # the same mod, already here from the other site
+        seen.add(dep.key)
+        seen_projects.append(dep)
         if dep.server_side == "unsupported":  # only players need it: it goes in friends' downloads
             companions.append({"id": dep.id, "slug": dep.slug, "name": dep.name, "needed_by": needed_by})
             continue
-        dep_version = newest(dep.id)
-        deps.append({"id": dep.id, "slug": dep.slug, "name": dep.name, "needed_by": needed_by,
-                     "compatible": dep_version is not None,
-                     "channel": dep_version.get("version_type", "release") if dep_version else None})
-        if dep_version is not None:
-            queue += [(x, dep.name) for x in required(dep_version)]
+        checked, unchecked = [], []
+        hit = anywhere(source, dep, checked, unchecked)
+        used, used_source, found = hit if hit else (dep, source, None)
+        if used.server_side == "unsupported":
+            companions.append({"id": used.id, "slug": used.slug, "name": used.name, "needed_by": needed_by})
+            continue
+        if used is not dep:
+            seen.add(used.key)
+            seen_projects.append(used)
+        deps.append({"id": used.id, "slug": used.slug, "name": used.name, "needed_by": needed_by, "source": used_source,
+                     "compatible": found is not None, "channel": found["channel"] if found else None,
+                     "checked": checked})
+        if found is None:
+            if failure is None:
+                failure = (chain + [(source, dep)], checked, unchecked)
+            continue
+        queue += [(src, x, chain + [(used_source, used)]) for src, x in found["deps"]]
     if queue:
-        return {"project": info, "compatible": False, "reason": "too many required mods to check; check this set before installing",
+        return {**base, "compatible": False, "reason": "too many required mods to check; check this set before installing",
                 "deps": deps, "companions": companions}
-    return {"project": info, "compatible": all(d["compatible"] for d in deps), "deps": deps, "companions": companions,
-            "reason": next((f"it needs {d['name']}, which has no build for Minecraft {minecraft}"
-                            for d in deps if not d["compatible"]), "")}
+    if failure is None:
+        return {**base, "compatible": True, "deps": deps, "companions": companions, "reason": ""}
+    chain, checked, unchecked = failure
+    names = [p.name for _, p in chain]
+    needs = "".join(f", which requires {n}" for n in names[2:])
+    reason = (f"{names[0]} requires {names[1]}{needs}, but no compatible {names[-1]} release was found for "
+              f"Minecraft {minecraft} using {loader_name}." if minecraft else
+              f"{names[0]} requires {names[1]}{needs}, which has no build for this server type.")
+    reason += f" Craft Conductor checked {' and '.join(checked)}" + (f" ({'; '.join(unchecked)})" if unchecked else "") + "."
+    return {**base, "compatible": False, "deps": deps, "companions": companions, "reason": reason, "chain": names,
+            "checked": checked, "suggestions": suggestions(chain) if minecraft else []}
 
 
-def requirements_query(provider: ModrinthProvider, q: dict, manager=None) -> dict:
+def requirements_query(provider: ModrinthProvider, q: dict, manager=None, curseforge=None) -> dict:
     from .loaders import LOADERS
     mod_id = q.get("id", "")
-    if not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", mod_id):
+    if not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}|curseforge:\d{1,10}", mod_id):
         raise ApiError(400, "bad mod id")
     loader = q.get("loader") or (manager.config.server.loader if manager else "")
     if loader not in LOADERS or not LOADERS[loader].mod_loaders:
@@ -884,8 +1023,11 @@ def requirements_query(provider: ModrinthProvider, q: dict, manager=None) -> dic
     if version is None and manager is not None:
         version = manager.lock.minecraft
     channel = manager.config.updates.mod_channel if manager else "release"
-    return mod_requirements(provider, mod_id, LOADERS[loader].mod_loaders, version or None,
-                            channel=lowest(channel, q.get("channel") if q.get("channel") in ("beta", "alpha") else None))
+    try:
+        return mod_requirements(provider, mod_id, LOADERS[loader].mod_loaders, version or None, curseforge=curseforge,
+                                channel=lowest(channel, q.get("channel") if q.get("channel") in ("beta", "alpha") else None))
+    except ModError as e:
+        raise ApiError(400, str(e)) from None
 
 
 def browse_search(browser, q: dict, manager=None) -> dict:
@@ -937,7 +1079,9 @@ class HubApi:
         r: dict[tuple[str, str], Callable[[dict, dict], Any]] = {}
         r[("GET", "/api/hub")] = self.overview
         r[("GET", "/api/hub/setup")] = self.new_server_options
-        r[("GET", "/api/hub/mods/requires")] = lambda q, b: requirements_query(ModrinthProvider(self.hub.http), q)
+        r[("GET", "/api/hub/setup/newest")] = lambda q, b: newest_for_loader(self.hub.http, self._get_mojang(), q)
+        r[("GET", "/api/hub/mods/requires")] = lambda q, b: requirements_query(
+            ModrinthProvider(self.hub.http), q, curseforge=CurseForgeProvider(self.hub.http, self.curseforge_key_now()))
         r[("GET", "/api/hub/mods/search")] = lambda q, b: search_mods(ModrinthProvider(self.hub.http), q, set(), "fabric")
         r[("POST", "/api/hub/create")] = self.create
         r[("POST", "/api/hub/remote-install")] = self.remote_install
@@ -1783,10 +1927,13 @@ class HubApi:
                  f", playit.gg tunnel {tunnel_text}" if tunnel_text else "")
         return {"ok": True, "share": self.hub.share_status()}
 
-    def new_server_options(self, q, b) -> dict:
+    def _get_mojang(self) -> Mojang:
         if self._mojang is None:
             self._mojang = Mojang(self.hub.http)
-        return {**setup_options(self._mojang), "pending": True, "network_option": False,
+        return self._mojang
+
+    def new_server_options(self, q, b) -> dict:
+        return {**setup_options(self._get_mojang()), "pending": True, "network_option": False,
                 "port": self.hub.free_port(),
                 "server_dir": str(self.hub.home / "servers" / "<name>"), "current": None}
 
@@ -1940,7 +2087,7 @@ class Api:
         get("/api/browse/project", lambda q, b: browse_project(self._browser(), q))
         get("/api/browse/categories", lambda q, b: browse_categories(self._browser(), q))
         post("/api/mods/add-many", self.add_many)
-        get("/api/mods/requires", lambda q, b: requirements_query(self._modrinth(), q, self.m))
+        get("/api/mods/requires", lambda q, b: requirements_query(self._modrinth(), q, self.m, self.m.providers.get("curseforge")))
         post("/api/mods/local", self.upload_local)
         get("/api/client", self.client)
         post("/api/client", self.save_client)
@@ -2264,7 +2411,8 @@ class Api:
             # Only mods that work on this server's Minecraft, and say what comes along with them.
             try:
                 req = mod_requirements(self._modrinth(), project.id, self.m.loader.mod_loaders, self.m.lock.minecraft,
-                                       channel=lowest(self.m.config.updates.mod_channel, early))
+                                       channel=lowest(self.m.config.updates.mod_channel, early),
+                                       curseforge=self.m.providers.get("curseforge"))
             except (ModError, HttpError, Unavailable) as e:
                 raise ApiError(400, f"couldn't check {project.name}'s required mods: {e}") from e
             if req is not None:

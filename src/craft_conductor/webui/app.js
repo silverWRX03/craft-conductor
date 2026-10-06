@@ -2107,7 +2107,7 @@ views.mods = () => {
     const needersOf = (depKey) => r.configured.filter((c) => c.deps.some((d) => d.key === depKey));
     fill(configured, r.configured.length ? h("ul", { class: "list" }, r.configured.flatMap((s) => [h("li", {},
       h("div", { class: "grow" }, h("strong", {}, s.name), h("span", { class: "tag" }, s.source), channelTag(s.channel)),
-      h("label", { class: "row", title: "Every mod holds back Minecraft upgrades until it supports the new version. Required ones also decide the Minecraft version a new server starts on." },
+      h("label", { class: "row", title: "Every mod holds back Minecraft upgrades until it supports the new version." },
         h("input", { type: "checkbox", checked: s.required, onchange: (e) => act(() => api("/api/mods/required", { method: "POST", body: { source: s.source, id: s.id, required: e.target.checked } })) }),
         "required"),
       cfgBtn(groupFor(s.key)),
@@ -3952,7 +3952,8 @@ const HELP = [
   ["start", "Getting started", () => [
     h("p", {}, "Craft Conductor keeps your Minecraft servers running and up to date by themselves. Make a server under ", h("strong", {}, "New server"),
       ": pick the server type (Fabric, NeoForge, Forge, Quilt, Paper or plain Minecraft), the Minecraft version and your mods, then press ",
-      h("strong", {}, "Create my server"), ". Craft Conductor downloads Java, Minecraft, the mod loader and the mods, and checks that the server starts."),
+      h("strong", {}, "Create my server"), ". Craft Conductor downloads Java, Minecraft, the mod loader and the mods, and checks that the server starts. " +
+      "The server is made on the Minecraft version you pick: if a mod, or a mod it needs, has no build for it on Modrinth or CurseForge, Craft Conductor says so and you decide what to change."),
     screenshot("new-server", "New server: start from a ready-made choice, or pick each step yourself."),
     h("p", {}, "Press ", h("strong", {}, "Start"), " when you want to play. In Minecraft, choose Multiplayer → Add Server and use this computer's address."),
     screenshot("dashboard", "A running server's Dashboard: how busy it is, who's on, and the live console."),
@@ -5770,7 +5771,7 @@ async function setupAddAlsoOnServer(key, name, channel) {
 async function setupCheckMod(key, quiet = false) {
   const st = setupState;
   const e = st.mods.get(key);
-  if (!e || !st.loader || key.startsWith("curseforge:")) return;
+  if (!e || !st.loader) return;
   const v = setupModVersion();
   const url = `/api/hub/mods/requires?id=${encodeURIComponent(key)}&loader=${encodeURIComponent(st.loader)}` +
     (v ? `&version=${encodeURIComponent(v)}` : "");
@@ -5792,15 +5793,19 @@ async function setupCheckMod(key, quiet = false) {
   }
   e.name = r.project.name;
   e.bad = r.compatible ? "" : r.reason;
+  // What's missing for this Minecraft version and server type (which are left as they are), and
+  // the versions that appear to work instead: only offered, never switched to by itself.
+  e.conflict = r.compatible || !r.minecraft || !(r.chain && r.chain.length) ? null : { minecraft: r.minecraft, loader: r.loader,
+    chain: r.chain, checked: r.checked || [], suggestions: r.suggestions || [] };
   e.companions = r.companions || [];  // what players need on their computers for it
   if (!quiet) setupAnnounceCompanions();
   const added = [];
   for (const d of r.deps) {
-    const dk = d.slug || d.id;
+    const dk = d.source === "curseforge" ? `curseforge:${d.id}` : d.slug || d.id;
     if (!st.mods.has(dk)) { st.mods.set(dk, { name: d.name, required: e.required, explicit: false, by: new Set(), bad: "", channel: e.channel }); added.push(d); }
     const dep = st.mods.get(dk);
     dep.by.add(key);
-    dep.bad = d.compatible ? "" : `No compatible build for Minecraft ${v}`;
+    dep.bad = d.compatible ? "" : `No compatible release for Minecraft ${v}` + (d.checked && d.checked.length ? ` on ${d.checked.join(" or ")}` : "");
     if (!dep.explicit) dep.channel = d.channel && d.channel !== "release" ? d.channel : e.channel;
   }
   if (added.length && !quiet) {
@@ -5856,6 +5861,43 @@ async function setupRemoveMod(key) {
     if (needers.length) toast(`${name} stays: ${needers.join(" and ")} ${needers.length === 1 ? "needs" : "need"} it too.`);
   }
   setupChanged();
+}
+// "Newest release" for the server type picked: the version a new server is made on (the mods are
+// checked against it, and never change it).
+async function setupFindNewest(loader, then) {
+  const st = setupState;
+  st.newestFor = loader;
+  const r = await api(`/api/hub/setup/newest?loader=${encodeURIComponent(loader)}`).catch(() => null);
+  if (!r || st.loader !== loader || r.minecraft === st.newest) return;
+  st.newest = r.minecraft;
+  if (st.minecraft === "latest") setupRecheckMods();
+  then();
+}
+// A picked mod that can't be used on the chosen Minecraft version and server type: what it needs,
+// where Craft Conductor looked, and what you can do. Changing the version is only ever your choice.
+function setupConflict(key, m) {
+  const st = setupState;
+  const c = m.conflict;
+  const versions = st.modpack ? [] : c.suggestions;  // (a modpack decides its own version)
+  const useVersion = async (v) => {
+    if (!(await ask(`Change the new server's Minecraft version from ${c.minecraft} to ${v}?\n\nYour other mods are checked again for Minecraft ${v}.`, { ok: "Change version" }))) return;
+    st.minecraft = v;
+    setupRecheckMods();
+    if (st.rerender) st.rerender();
+  };
+  const chooseVersion = () => {
+    const select = document.getElementById("setup-version");
+    if (select) { select.scrollIntoView({ block: "center" }); select.focus(); }
+  };
+  return h("div", { class: "notice warn mt-s", role: "status" },
+    h("strong", {}, c.chain.length > 1 ? "Dependency unavailable" : `Not available for Minecraft ${c.minecraft}`),
+    h("div", { class: "small" }, m.bad),
+    h("div", { class: "small" }, "Craft Conductor will not change your Minecraft version automatically."),
+    versions.length ? h("div", { class: "small" }, `Compatible versions appear to be Minecraft ${versions.join(", ")}.`) : null,
+    h("div", { class: "row mt-s" },
+      versions.map((v) => h("button", { type: "button", class: "btn small", onclick: () => useVersion(v) }, `Use Minecraft ${v}`)),
+      st.modpack ? null : h("button", { type: "button", class: "btn small", onclick: chooseVersion }, "Choose another Minecraft version"),
+      h("button", { type: "button", class: "btn small danger", onclick: () => setupRemoveMod(key) }, `Remove ${m.name}`)));
 }
 function setupRecheckMods() {
   // The Minecraft version or server type changed: dependencies and compatibility may differ.
@@ -5947,9 +5989,10 @@ views.setup = () => {
       return;
     }
 
+    if (st.newestFor !== st.loader) setupFindNewest(st.loader, renderForm);
     const betas = opts.betas || [];
-    const version = h("select", { onchange: (e) => { st.minecraft = e.target.value; setupRecheckMods(); renderForm(); } },
-      h("option", { value: "latest" }, st.loader === "vanilla" ? "Newest release (recommended)" : "Newest version your mods support (recommended)"),
+    const version = h("select", { id: "setup-version", onchange: (e) => { st.minecraft = e.target.value; setupRecheckMods(); renderForm(); } },
+      h("option", { value: "latest" }, "Newest release (recommended)"),
       st.showBetas && betas.length ? h("optgroup", { label: "Beta versions (for testing)" }, betas.map((v) => h("option", { value: v }, `Minecraft ${v} (beta)`))) : null,
       h("optgroup", { label: "Releases" }, opts.versions.map((v) => h("option", { value: v }, `Minecraft ${v}`))));
     const isBeta = betas.includes(st.minecraft);
@@ -5983,8 +6026,9 @@ views.setup = () => {
           h("div", { class: "grow" }, depth ? "↳ " : null, h("strong", {}, m.name), depth ? null : channelTag(m.channel),
             key.startsWith("curseforge:") ? h("span", { class: "tag" }, "CurseForge") : null,
             !m.explicit || needers.length ? h("span", { class: "tag" }, `needed by ${needers.join(", ")}`) : null,
-            m.bad ? h("div", { class: "small bad-text" }, m.bad) : null),
-          m.explicit ? h("label", { class: "row", title: "Every mod holds back Minecraft upgrades until it supports the new version. Required ones also decide the Minecraft version a new server starts on." },
+            m.bad && !(m.explicit && m.conflict) ? h("div", { class: "small bad-text" }, m.bad) : null,
+            m.explicit && m.bad && m.conflict ? setupConflict(key, m) : null),
+          m.explicit ? h("label", { class: "row", title: "Every mod holds back Minecraft upgrades until it supports the new version. A new server is only made when its required mods work on the Minecraft version chosen for it." },
             h("input", { type: "checkbox", checked: m.required, onchange: (e) => { m.required = e.target.checked; } }), "required") : null,
           h("button", { type: "button", class: "btn small danger", onclick: async () => { await setupRemoveMod(key); search(); } }, "Remove")));
         for (const [k, o] of st.mods) if (o.by.has(key) && !o.explicit) row(k, depth + 1);
@@ -5994,6 +6038,7 @@ views.setup = () => {
       return rows;
     };
     st.onChange = () => renderSelected();
+    st.rerender = () => renderForm();
     const renderSelected = () => fill(selected, st.mods.size || st.localMods.length ? h("ul", { class: "list" }, st.localMods.map((m) => h("li", {},
       h("div", { class: "grow" }, h("strong", {}, m.name), h("span", { class: "tag" }, "local file")),
       h("button", { type: "button", class: "btn small danger", onclick: () => { st.localMods = st.localMods.filter((x) => x !== m); renderSelected(); } }, "Remove"))),
@@ -6115,7 +6160,8 @@ views.setup = () => {
       if (!st.accept_eula) { toast("Please read and accept the Minecraft EULA first.", true); return; }
       // Only the mods you picked: their dependencies are installed with them (and go with them).
       const bad = [...st.mods.values()].filter((m) => m.bad);
-      if (bad.length && !(await ask(`${bad.map((m) => `${m.name}: ${m.bad}`).join("\n")}\n\nCreate the server anyway?`, { ok: "Create anyway" }))) return;
+      if (bad.length && !(await ask(`${bad.map((m) => `${m.name}: ${m.bad}`).join("\n")}\n\nCraft Conductor won't change your Minecraft version to make ${bad.length === 1 ? "it" : "them"} work: ` +
+        "a required mod that can't be used stops the server from being made (you're told why), and an optional one is left out.\n\nCreate the server anyway?", { ok: "Create anyway" }))) return;
       const mods = [...st.mods].filter(([, m]) => m.explicit && m.required).map(([slug]) => slug);
       const optional = [...st.mods].filter(([, m]) => m.explicit && !m.required).map(([slug]) => slug);
       const body = { loader: st.loader, minecraft: st.minecraft, mods, optional_mods: optional, memory_gb: st.memory_gb,
@@ -6201,8 +6247,10 @@ views.setup = () => {
       h("form", { onsubmit: submit },
         card("1. Server type", loaderCards),
         h("div", { class: "mt" }, card("2. Minecraft version", field("Version", version,
-          "\"Newest\" picks the newest Minecraft your mods work on, and upgrades only once every mod supports the next version: a forever server. " +
-          "Picking a specific version keeps the server on that version (mods still update); you can change this later in Settings."),
+          (st.minecraft === "latest" && st.newest ? `The newest release for this server type is Minecraft ${st.newest}. ` : "") +
+          "\"Newest release\" makes the server on it, then upgrades only once every mod supports the next version: a forever server. " +
+          "Picking a specific version keeps the server on that version (mods still update); you can change this later in Settings. " +
+          "Mods never change the version a new server is made on: when one can't be used, you're told, and you decide."),
           betaToggle, betaNote)),
         modsCard ? h("div", { class: "mt" }, modsCard) : null,
         h("div", { class: "mt" }, worldCard),
@@ -6271,7 +6319,8 @@ views.setup = () => {
       for (const m of c.mods) st.mods.set(m.slug, { name: m.slug, required: m.required, explicit: true, by: new Set(), bad: "" });
       if (c.memory_gb) st.memory_gb = c.memory_gb;
     }
-    st.newest = opts.versions[0] || "";
+    st.newest = opts.versions[0] || "";  // (until the newest for the server type picked is known)
+    st.newestFor = null;
     if (st.mods.size) setupRecheckMods();  // names, dependencies and compatibility
     propDefaults = Object.fromEntries(opts.properties_schema.map((p) => [p.key, p.default]));
     if (!st.properties) st.properties = { ...propDefaults };

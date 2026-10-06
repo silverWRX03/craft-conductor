@@ -157,7 +157,9 @@ def decision_to_dict(m: Manager, decision, changes) -> dict:
             "minecraft": p.minecraft,
             "loader_missing": p.loader_version is None,
             "loader_reason": p.loader_reason,  # (only when it says more than "no build yet")
-            "blockers": [{"name": b.name, "reason": b.reason, "waiting": b.waiting} for b in p.blockers],
+            "blockers": [{"name": b.name, "reason": b.reason, "waiting": b.waiting, "chain": b.chain or [b.name],
+                          "checked": b.checked, "explain": b.explain(p.minecraft, p.loader),
+                          "dependency": b.dependency_of is not None} for b in p.blockers],
         } for p in decision.blocked],
         "lagging": lagging,
     }
@@ -819,13 +821,7 @@ class Daemon:
                  self.m.config.server.minecraft, len(self.m.config.mods))
         self.check_only()
         if not self.last_check or not self.last_check.get("target"):
-            blocked = self.last_check.get("blocked", []) if self.last_check else []
-            reasons = [f"{b['name']}: {b['reason']}" for p in blocked[:1] for b in p["blockers"]]
-            if blocked and blocked[0].get("loader_missing"):
-                reasons.insert(0, blocked[0].get("loader_reason")
-                               or f"{spec.loader} has no build for Minecraft {blocked[0]['minecraft']} yet")
-            raise RuntimeError("no Minecraft version works with these choices"
-                               + (": " + "; ".join(reasons) if reasons else ""))
+            raise RuntimeError(self._setup_conflict(spec))
         if self.last_check.get("manual"):
             names = ", ".join(m["name"] for m in self.last_check["manual"])
             raise RuntimeError(f"these mods must be downloaded by hand first (see the Updates page): {names}")
@@ -841,6 +837,33 @@ class Daemon:
         if self.autostart:
             return f"your server is ready: Minecraft {self.m.lock.minecraft}"
         return f"your server is ready (Minecraft {self.m.lock.minecraft}); press Start to play"
+
+    def _setup_conflict(self, spec: "setupmod.SetupSpec") -> str:
+        """Why a new server can't be made with the choices on the setup page. Its Minecraft version
+        and server type stay as chosen: other versions that would work are only suggested."""
+        from .planner import LOADER_NAMES
+        blocked = (self.last_check or {}).get("blocked", [])[:1]
+        if not blocked:
+            return "no Minecraft version works with these choices"
+        b = blocked[0]
+        minecraft, loader = b["minecraft"], LOADER_NAMES.get(spec.loader, spec.loader)
+        # The mods you picked, each with the chain down to what's missing (which then needn't be said again).
+        reasons = [x["explain"] for x in (b["blockers"] if all(x["dependency"] for x in b["blockers"])
+                                          else [x for x in b["blockers"] if not x["dependency"]])]
+        if b.get("loader_missing"):
+            reasons.insert(0, (b.get("loader_reason") or f"{loader} has no build for Minecraft {minecraft} yet") + ".")
+        text = f"Minecraft {minecraft} with {loader} doesn't work with these choices. " + " ".join(reasons)
+        text += " Your Minecraft version has not been changed."
+        try:
+            others = self.m.planner().alternatives(minecraft)
+        except Exception as e:  # (only a suggestion)
+            log.debug("couldn't look for other Minecraft versions: %s", e)
+            others = []
+        if others:
+            names = " and ".join([", ".join(others[:-1]), others[-1]] if len(others) > 1 else others)
+            text += (f" These choices appear to work on Minecraft {names}: to use one, pick it under "
+                     "Minecraft version and create the server again, or remove the mods that can't be used.")
+        return text
 
     # ------------------------------------------------------- self-update
     def check_self_update(self) -> str:

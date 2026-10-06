@@ -17,6 +17,7 @@ from . import setup as setupmod
 from .config import ConfigError, ModSpec
 from .daemon import Daemon, request_path, request_stop, running_pid, self_update_request_path
 from .manager import Manager, UpgradeError
+from .planner import CREATE
 from .mods import ModError, providers_for
 from .http import HttpClient, HttpError
 from .java import JavaError
@@ -185,7 +186,7 @@ def _print_decision(m: Manager, decision, changes) -> None:
           f"{f' / {m.lock.loader} {m.lock.loader_version}' if m.lock.loader_version else ''}"
           f" - latest release is {decision.latest}")
     for plan in decision.blocked:
-        why = [f"{b.name}: {b.reason}" for b in plan.blockers]
+        why = [b.explain(plan.minecraft, plan.loader) for b in plan.blockers]
         if plan.loader_version is None:
             why.insert(0, plan.loader_problem)
         print(f"\nMinecraft {plan.minecraft} is blocked by:")
@@ -207,6 +208,15 @@ def _print_decision(m: Manager, decision, changes) -> None:
             print(f"download each file and put it in {m.config.manual_dir}:")
             for mod in missing:
                 print(f"  -> {mod.name}: {mod.filename}\n     {mod.manual_url}")
+    elif decision.policy == CREATE:
+        print("\nnothing installed: the Minecraft version and server type in craft-conductor.toml are kept as they are;"
+              " change [server] minecraft, or the mods, to try another combination")
+        try:  # (other versions are only suggested, never used by themselves)
+            others = m.planner().alternatives(decision.blocked[0].minecraft) if decision.blocked else []
+        except Exception:
+            others = []
+        if others:
+            print(f"these choices appear to work on Minecraft {', '.join(others)}")
     else:
         print("\nno installable combination found")
     unmanaged = m.unmanaged_jars()
@@ -292,7 +302,7 @@ def _wizard(root: Path) -> bool:
     print(f"\nWelcome to Craft Conductor! Let's set up your Minecraft server in {root}\n"
           "(Press Enter to take the suggestion in [brackets].)\n")
     loader = _ask("Mod loader: fabric, neoforge, forge, quilt, paper, purpur or vanilla", "fabric", configmod.LOADERS)
-    minecraft = _ask("Minecraft version ('latest' = the newest one your mods support)", "latest")
+    minecraft = _ask("Minecraft version ('latest' = the newest release for this server type)", "latest")
     memory = _ask("Memory for the server, e.g. 4G or 8G", "4G")
     mods = []
     if loader != "vanilla":
@@ -968,7 +978,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("init", help="create craft-conductor.toml")
     s.add_argument("--loader", choices=configmod.LOADERS, default="fabric")
-    s.add_argument("--minecraft", default="latest", help="initial version (default: newest compatible release)")
+    s.add_argument("--minecraft", default="latest", help="initial version, kept whatever the mods (default: the newest release the loader runs)")
     s.add_argument("--server-dir", help="use an existing server directory")
     s.add_argument("--accept-eula", action="store_true", help="accept the Minecraft EULA")
     s.add_argument("--force", action="store_true")
@@ -977,7 +987,7 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("create", help="download and build a complete new server in a new directory")
     s.add_argument("dir", type=Path, help="directory to create the server in")
     s.add_argument("--loader", choices=configmod.LOADERS, default="fabric")
-    s.add_argument("--minecraft", default="latest", help="version (default: newest release your mods support)")
+    s.add_argument("--minecraft", default="latest", help="version, kept whatever the mods (default: the newest release the loader runs)")
     s.add_argument("--mod", action="append", default=[], metavar="SLUG", help="Modrinth mod (repeatable)")
     s.add_argument("--optional-mod", action="append", default=[], metavar="SLUG",
                    help="Modrinth mod that shouldn't block upgrades (repeatable)")

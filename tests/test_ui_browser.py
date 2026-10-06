@@ -39,6 +39,11 @@ def test_browser_regressions(hub_env, modrinth, monkeypatch):
     modrinth.version("LAND", "1.0", ["1.21.1"], deps=["LIB"])
     modrinth.project("LIB", "example-library", "Example required library")
     modrinth.version("LIB", "1.0", ["1.21.1"], version_type="beta")
+    # A mod whose required library has no build for the newest Minecraft (B6): the version stays.
+    modrinth.project("NEEDS", "needs-gone", "Needs Gone")
+    modrinth.version("NEEDS", "1.0", ["1.21.1", "1.21.2"], deps=["GONE"])
+    modrinth.project("GONE", "gone-library", "Gone Library")
+    modrinth.version("GONE", "1.0", ["1.21.1"])
     from craft_conductor.mods.modrinth import API
     hub.http.json[f"{API}/search"] = {"total_hits": 1, "hits": [
         {"project_id": "LAND", "slug": "example-worldgen", "title": "Example world generation",

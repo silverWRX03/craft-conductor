@@ -136,6 +136,24 @@ const assert = require('node:assert/strict');
   await page.evaluate(() => window.addingDependency);
   assert.equal(await page.evaluate(() => setupState.mods.get('example-worldgen').channel), 'beta');
   assert.equal(await page.evaluate(() => setupState.mods.has('example-library')), true);
+  // A required library with no build for the chosen Minecraft: the row explains, and only you change the version.
+  await go('new');
+  await page.locator('.choice', {hasText: 'Lightweight and quick to update'}).click();
+  await page.locator('#setup-version').waitFor();
+  await page.evaluate(() => { setupState.mods.clear(); setupState.minecraft = '1.21.2'; setupState.rerender(); });
+  await page.evaluate(() => setupAddMod('needs-gone', 'Needs Gone'));
+  const conflict = page.locator('.notice.warn', {hasText: 'Dependency unavailable'});
+  await conflict.waitFor();
+  assert.match(await conflict.innerText(), /Needs Gone requires Gone Library, but no compatible Gone Library release was found for Minecraft 1\.21\.2 using Fabric\. Craft Conductor checked Modrinth/);
+  assert.match(await conflict.innerText(), /will not change your Minecraft version automatically/);
+  assert.equal(await page.evaluate(() => setupState.minecraft), '1.21.2');
+  await conflict.getByRole('button', {name: 'Choose another Minecraft version', exact: true}).waitFor();
+  await conflict.getByRole('button', {name: 'Remove Needs Gone', exact: true}).waitFor();
+  await conflict.getByRole('button', {name: 'Use Minecraft 1.21.1', exact: true}).click();
+  await page.getByRole('button', {name: 'Change version', exact: true}).click();
+  await page.waitForFunction(() => setupState.minecraft === '1.21.1' && !setupState.mods.get('needs-gone').bad);
+  assert.equal(await page.locator('#setup-version').inputValue(), '1.21.1');
+  await page.evaluate(() => setupRemoveMod('needs-gone'));
   // Exercise the actual backend preview and render it in the world-generation pane.
   const preview = await page.evaluate(async () => {
     const r = await api('/api/hub/preview', {method:'POST', body:{loader:'fabric', minecraft:'1.21.1', mods:['example-worldgen'], channels:{'example-worldgen':'beta'}, seed:'25698412121455', level_type:'minecraft:normal', structures:true, radius:128}});

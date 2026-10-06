@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import re
 from concurrent.futures import ThreadPoolExecutor
 
 from ..config import ModSpec
 from ..http import HttpClient, HttpError
-from .base import CHANNEL_RANK, ClientOnly, ModError, ModFile, ModProvider, Project, Unavailable, safe_file_name
+from .base import (CHANNEL_RANK, ClientOnly, ModError, ModFile, ModProvider, Project, Unavailable, safe_file_name,
+                   same_project)
 
 API = "https://api.modrinth.com/v2"
 PLUGIN_LOADERS = ("paper", "spigot", "bukkit", "purpur", "folia")
@@ -28,6 +30,27 @@ class ModrinthProvider(ModProvider):
             raise
         return Project(source=self.source, id=p["id"], slug=p["slug"], name=p["title"],
                        server_side=p.get("server_side", "unknown"), client_side=p.get("client_side", "unknown"))
+
+    def find_same(self, project: Project) -> Project | None:
+        try:
+            # (the other site's slug goes in the address: a plain name only, never "." or "..")
+            if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,99}", project.slug or ""):
+                try:
+                    found = self.project(project.slug)
+                    if same_project(project, found):
+                        return found
+                except ModError:
+                    pass  # no project with that slug here
+            data = self.http.get_json(f"{API}/search", params={
+                "query": project.name, "limit": 5, "facets": json.dumps([["project_type:mod"]])})
+        except HttpError as e:
+            raise ModError(f"couldn't search Modrinth: {e}") from e
+        for hit in data.get("hits", []):
+            found = Project(source=self.source, id=hit["project_id"], slug=hit.get("slug", ""), name=hit.get("title", ""),
+                            server_side=hit.get("server_side", "unknown"), client_side=hit.get("client_side", "unknown"))
+            if same_project(project, found):
+                return found
+        return None
 
     def projects(self, ids: list[str]) -> dict[str, dict]:
         """Several projects in one request: id -> project data."""
