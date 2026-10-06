@@ -4,6 +4,21 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.25.0 (not released yet)
+
+**Added**
+- A small red dot on **Craft Conductor settings**, **About & updates** and **Check for Craft Conductor updates** while a Craft Conductor update is available, also after you pressed **Later**. **About & updates** now says which version is waiting and has its own **Update now** button.
+- While Craft Conductor updates itself, an **Updating Craft Conductor…** screen shows the step (preparing, downloading with a real progress bar, verifying, installing, restarting) and then **Restarting Craft Conductor…** while the control panel is away. If the update or the restart fails, it says what went wrong, and offers **Try again**, **Retry connection**, **View update log** and how to restart by hand.
+
+**Changed**
+- **Later** on the update message now lasts until Craft Conductor is restarted (it used to hide that version for good, in this browser). It's offered again by itself after a restart if the update is still there, and **Check for Craft Conductor updates** offers it again at once.
+- **Update now** no longer asks a second question: it closes the message and starts the update.
+
+**Fixed**
+- The update message came back while the update was installing, and again after **Update now** was pressed. Craft Conductor now knows an update is under way and offers nothing, and pressing **Update now** twice (or from two browsers) starts one update only.
+- After an update, the new Craft Conductor opened another browser tab. The tab you already had now reconnects and reloads itself into the new version, and no new tab opens.
+- A failed update (download, checksum, install or restart) left the page saying "reconnecting" or the message coming back; it's now a clear message that you can retry, and the red dot stays.
+
 ## 0.24.0 (2026-10-06)
 
 **Fixed**

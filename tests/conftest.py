@@ -78,7 +78,8 @@ class FakeHttp:
             raise HttpError(url, 404, "HTTP 404")
         return handler(body) if callable(handler) else handler
 
-    def download(self, url, dest: Path, sha1=None, sha512=None, headers=None, sha256=None, max_bytes=None):
+    def download(self, url, dest: Path, sha1=None, sha512=None, headers=None, sha256=None, max_bytes=None,
+                 progress=None):
         if url not in self.files:
             raise HttpError(url, 404, "HTTP 404")
         data = self.files[url]
@@ -91,6 +92,8 @@ class FakeHttp:
             raise HashMismatch(url)
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(data)
+        if progress:
+            progress(len(data), len(data))
         self.downloads.append(url)
         return dest
 

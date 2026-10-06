@@ -84,6 +84,16 @@ p.pair-code { font-size: 1.5em; margin: .4em 0; }
 .sidebar nav a.active { background: var(--panel-2); box-shadow: inset 3px 0 0 var(--accent); }
 .sidebar-foot { margin-top: auto; display: flex; align-items: center; justify-content: space-between; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
+/* A quiet red dot: a Craft Conductor update is available (settings, About & updates, Check for updates) */
+.update-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); flex: none;
+  margin-inline-start: 8px; vertical-align: middle; }
+.update-dot.hidden { display: none; }
+.update-screen progress { width: 100%; }
+.update-steps { list-style: none; margin: 8px 0; padding: 0; }
+.update-steps li { color: var(--muted); }
+.update-steps li.done { color: var(--ok-fg); }
+.update-steps li.now { color: var(--text); font-weight: 600; }
+.update-log { max-height: 200px; overflow: auto; white-space: pre-wrap; padding: 8px; background: var(--panel-2); border-radius: 6px; }
 .content { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; }
 .topbar { display: flex; align-items: center; gap: 16px; padding: 12px 24px; border-bottom: 1px solid var(--border);
   background: var(--panel); flex-wrap: wrap; }

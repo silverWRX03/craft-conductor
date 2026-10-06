@@ -395,7 +395,9 @@ def cmd_start(args) -> int:
         # rather than the built-in one, which only works in a browser on this computer anyway.
         from .webauth import AuthStore
         first_password = AuthStore(hub).first_run_password()
-    browser = not args.no_browser and has_display()
+    # (a restart after an update: the tab that asked for it is still open and reconnects by itself)
+    after_update = selfupdate.restarted_after_update()
+    browser = not args.no_browser and has_display() and not after_update
     port = hub.web.port
     url = f"http://localhost:{port}/"
     if pid := running_hub(home):

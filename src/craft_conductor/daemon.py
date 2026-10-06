@@ -207,7 +207,7 @@ class Daemon:
         self.ops = threading.Lock()     # one job at a time
         self.job: dict | None = None
         self.last_job: dict | None = None
-        self.self_update: dict | None = None     # a newer craft-conductor release, if any
+        self.updater = selfupdate.Updater()      # a newer craft-conductor release, if any, and how its update stands
         self.next_self_check = time.monotonic() + 30
         self.restart_requested = False           # re-exec craft-conductor after exiting (self-update)
         manager.on_line = self._on_line
@@ -521,8 +521,9 @@ class Daemon:
             if idle and sreq.exists():
                 sreq.unlink(missing_ok=True)
                 self.check_self_update()
-                if self.self_update:
-                    self.submit(f"update Craft Conductor to {self.self_update['version']}", self.apply_self_update)
+                info = self.updater.release
+                if info and info.get("can_install") and self.updater.begin(info["version"]):
+                    self.submit(f"update Craft Conductor to {info['version']}", self.apply_self_update)
             if self.m.config.self_update_check and time.monotonic() >= self.next_self_check:
                 self.next_self_check = time.monotonic() + SELF_CHECK_INTERVAL
                 threading.Thread(target=self.check_self_update, daemon=True, name="self-update-check").start()
@@ -866,29 +867,39 @@ class Daemon:
         return text
 
     # ------------------------------------------------------- self-update
+    @property
+    def self_update(self) -> dict | None:
+        """The newer craft-conductor release that was found, if any."""
+        return self.updater.release
+
+    @self_update.setter
+    def self_update(self, info: dict | None) -> None:
+        self.updater.offer(info)
+
     def check_self_update(self) -> str:
+        if self.updater.in_progress:  # (what's being installed isn't offered again)
+            return f"Craft Conductor {self.updater.release['version']} is being installed"
         try:
             release = selfupdate.check(self.m.http, channel=self.m.config.self_update_channel)
         except Exception as e:
             log.debug("craft-conductor update check failed: %s", e)
             return f"couldn't check for Craft Conductor updates: {e}"
         if release is None:
-            self.self_update = None
+            self.updater.offer(None)
             return f"Craft Conductor {selfupdate.__version__} is the latest version"
         can, why = selfupdate.install_method(release)
-        first = self.self_update is None or self.self_update.get("version") != release.version
-        self.self_update = {**release.to_dict(), "current": selfupdate.__version__, "can_install": can, "reason": why}
+        first = self.updater.offer({**release.to_dict(), "current": selfupdate.__version__, "can_install": can, "reason": why})
         if first:
             self.m.notifier.send(f"Craft Conductor {release.version} is available (you have {selfupdate.__version__}). "
                                  f"Update from the web UI or with `craft-conductor self-update`.")
         return f"Craft Conductor {release.version} is available"
 
     def apply_self_update(self) -> str:
-        """Install the new craft-conductor, stop the server cleanly, and restart craft-conductor on the new version."""
-        info = self.self_update
-        if not info:
-            raise RuntimeError("no craft-conductor update is available")
-        message = selfupdate.install(selfupdate.Release.from_dict(info), http=self.m.http)
+        """Install the accepted update (see Updater.begin), stop the server cleanly, and restart craft-conductor on the new version."""
+        u = self.updater
+        if not u.in_progress:
+            raise RuntimeError("no craft-conductor update is accepted")
+        message = u.run_install(self.m.http)
         if self.proc and self.proc.running:
             if self.players:
                 self.proc.say("Server restarting in 1 minute: updating the server manager")

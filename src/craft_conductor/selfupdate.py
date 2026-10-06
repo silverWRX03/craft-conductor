@@ -26,6 +26,9 @@ import re
 import subprocess
 import sys
 import tempfile
+import threading
+import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from importlib import metadata
 from pathlib import Path
@@ -101,6 +104,12 @@ def newer(candidate: str, current: str = __version__) -> bool:
     """Whether ``candidate`` is a newer version than ``current`` (False when either can't be read)."""
     a, b = version_key(candidate), version_key(current)
     return a is not None and b is not None and a > b
+
+
+def same_version(a: str, b: str = __version__) -> bool:
+    """Whether two spellings are one version (0.25.0b1, 0.25.0-beta.1 and v0.25.0b1 are)."""
+    key = version_key(str(a).lstrip("vV"))
+    return key is not None and key == version_key(str(b).lstrip("vV"))
 
 
 def channel_or_default(channel: str | None) -> str:
@@ -204,16 +213,27 @@ def _refuse_downgrade(release: Release, current: str) -> None:
                               "wasn't installed (updates never go back to an older version)")
 
 
+# What the installer tells whoever is watching: (stage, bytes so far, bytes in all). The stages are
+# "preparing", "downloading", "verifying" and "installing"; the numbers are only given while
+# downloading, and only when the size is really known.
+Progress = Callable[[str, "int | None", "int | None"], None]
+
+
+def _report(progress: Progress | None, stage: str, done: int | None = None, total: int | None = None) -> None:
+    if progress is not None:
+        progress(stage, done, total)
+
+
 def install(release: Release, runner=subprocess.run, http: HttpClient | None = None,
-            current: str = __version__) -> str:
+            current: str = __version__, progress: Progress | None = None) -> str:
     _refuse_downgrade(release, current)
     ok, why = install_method(release)
     if not ok:
         raise SelfUpdateError(why)
     http = http or HttpClient()
     if frozen():
-        return install_binary(release, Path(sys.executable), http, current)
-    return install_wheel(release, runner, http, current)
+        return install_binary(release, Path(sys.executable), http, current, progress)
+    return install_wheel(release, runner, http, current, progress)
 
 
 def wheel_name(release: Release) -> str:
@@ -225,13 +245,15 @@ def wheel_name(release: Release) -> str:
     return found[0]
 
 
-def install_wheel(release: Release, runner, http: HttpClient, current: str = __version__) -> str:
+def install_wheel(release: Release, runner, http: HttpClient, current: str = __version__,
+                  progress: Progress | None = None) -> str:
     """pip/pipx: install the release's wheel, verified, without pip fetching anything else."""
     _refuse_downgrade(release, current)
     name = wheel_name(release)
     log.info("installing Craft Conductor %s", release.version)
     with tempfile.TemporaryDirectory(prefix="craft-conductor-update-") as tmp:
-        wheel = _download_verified(release, name, http, Path(tmp))
+        wheel = _download_verified(release, name, http, Path(tmp), progress)
+        _report(progress, "installing")
         proc = runner([sys.executable, "-m", "pip", "install", "--upgrade", "--no-deps", "--no-index",
                        "--disable-pip-version-check", str(wheel)], capture_output=True, text=True)
     if proc.returncode != 0:
@@ -265,25 +287,33 @@ def _expected_sha256(release: Release, name: str, http: HttpClient, workdir: Pat
     return found.pop()
 
 
-def _download_verified(release: Release, name: str, http: HttpClient, workdir: Path) -> Path:
+def _download_verified(release: Release, name: str, http: HttpClient, workdir: Path,
+                       progress: Progress | None = None) -> Path:
     """Download ``name`` into the private ``workdir`` and check it: its published checksum,
     the size GitHub gives for it, and (just before it's used) the checksum of the file on disk."""
+    _report(progress, "preparing")
     sha256 = _expected_sha256(release, name, http, workdir)
     size = release.sizes.get(name)
     if size is not None and not 0 < size <= MAX_DOWNLOAD:
         raise VerificationError(f"{name} in release {release.version} has an impossible size ({size} bytes)")
+    _report(progress, "downloading", 0, size)
+    extra = {}
+    if progress is not None:  # (the fewest arguments: a stand-in downloader needn't know about progress)
+        extra["progress"] = lambda done, total: progress("downloading", done, size or total or None)
     try:
         new = http.download(release.assets[name], workdir / name, sha256=sha256,
-                            max_bytes=size if size is not None else MAX_DOWNLOAD)
+                            max_bytes=size if size is not None else MAX_DOWNLOAD, **extra)
     except HashMismatch as e:
         raise VerificationError(f"the download of {name} doesn't match the release's published checksum "
                                 "(it may be incomplete or tampered with), so nothing was changed") from e
+    _report(progress, "verifying")
     if (size is not None and new.stat().st_size != size) or sha256_file(new) != sha256:
         raise VerificationError(f"the download of {name} changed after it was checked, so nothing was changed")
     return new
 
 
-def install_binary(release: Release, exe: Path, http: HttpClient, current: str = __version__) -> str:
+def install_binary(release: Release, exe: Path, http: HttpClient, current: str = __version__,
+                   progress: Progress | None = None) -> str:
     """Download this platform's executable, verify it, and put it in place of ``exe``."""
     _refuse_downgrade(release, current)
     name = asset_name()
@@ -292,7 +322,8 @@ def install_binary(release: Release, exe: Path, http: HttpClient, current: str =
     log.info("downloading Craft Conductor %s (%s)", release.version, name)
     try:
         with tempfile.TemporaryDirectory(dir=exe.parent, prefix=".craft-conductor-update-") as tmp:
-            new = _download_verified(release, name, http, Path(tmp))
+            new = _download_verified(release, name, http, Path(tmp), progress)
+            _report(progress, "installing")
             new.chmod(0o755)
             if os.name == "nt":
                 # A running .exe can't be overwritten, but it can be renamed out of the way.
@@ -347,9 +378,20 @@ def restart_env(env: dict[str, str] | None = None) -> dict[str, str]:
     return env
 
 
+RESTARTED_ENV = "CRAFT_CONDUCTOR_RESTARTED"
+
+
+def restarted_after_update() -> bool:
+    """True in the copy that an update just restarted. The browser tab that asked for the update is
+    still open and reconnects by itself, so this copy must not open another one. Read once: what
+    this copy starts later isn't "restarted" too."""
+    return bool(os.environ.pop(RESTARTED_ENV, ""))
+
+
 def restart() -> None:
     """Replace this process with the same craft-conductor command on the new version (never returns)."""
     argv, env = restart_argv(), restart_env()
+    env[RESTARTED_ENV] = "1"
     print("restarting Craft Conductor on the new version...", flush=True)
     if WINDOWS:
         # (Windows has no real exec: os.execv starts another process without quoting paths
@@ -358,3 +400,158 @@ def restart() -> None:
         os._exit(0)
         return  # (only reached in tests)
     os.execve(argv[0], argv, env)
+
+
+# ------------------------------------------------------------------ the update's state
+IN_PROGRESS = ("downloading", "installing", "restarting")
+STAGES = ("preparing", "downloading", "verifying", "installing", "restarting")
+_PHASE_OF_STAGE = {"preparing": "downloading", "downloading": "downloading", "verifying": "downloading",
+                   "installing": "installing", "restarting": "restarting"}
+LOG_LINES = 60
+
+
+class UpdateBusy(SelfUpdateError):
+    """An update is already being installed: a second click starts nothing."""
+
+
+class Updater:
+    """Where this running Craft Conductor stands with its own update: the one place that knows, so the
+    web page, the periodic check and the installer never disagree about it.
+
+    ``phase`` is one of
+
+    * ``idle``: nothing newer is known;
+    * ``available``: a newer release is known (``deferred`` says whether the person pressed Later
+      for it: that only quietens the automatic offer, for as long as this copy keeps running);
+    * ``downloading`` / ``installing`` / ``restarting``: the update was accepted and is under way
+      (``stage`` is the finer step: preparing, downloading, verifying, installing, restarting);
+    * ``failed``: it didn't work (``error`` says why); the release is still available, to retry.
+
+    There's no "completed" phase here: when it works this copy ends and the new one starts afresh
+    (``idle``), and it's the new copy answering with the expected version that says it worked.
+    Everything lives in memory on purpose: Later lasts as long as this copy runs, and a restart
+    asks again.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+        self.release: dict | None = None   # what a check found (Release.to_dict + current, can_install, reason)
+        self.phase = "idle"
+        self.stage = ""
+        self.done: int | None = None       # bytes downloaded, while that's what is happening
+        self.total: int | None = None
+        self.error = ""
+        self.failure: dict | None = None   # the last failure: {version, message, at}; kept for diagnosis
+        self.deferred = ""                 # the version Later was pressed for, in this run
+        self.started = 0.0
+        self.lines: list[str] = []
+
+    # -- what a check found
+    @property
+    def in_progress(self) -> bool:
+        return self.phase in IN_PROGRESS
+
+    def offer(self, info: dict | None) -> bool:
+        """A check's result (None: nothing newer). True when this is a newer release than the one
+        known before. While an update is being installed nothing changes: it isn't offered again."""
+        with self._lock:
+            if self.in_progress:
+                return False
+            if info is None:
+                self.release, self.phase, self.error, self.stage = None, "idle", "", ""
+                self.deferred = ""
+                return False
+            first = self.release is None or self.release.get("version") != info.get("version")
+            self.release = dict(info)
+            self.phase, self.stage, self.error = "available", "", ""
+            if first and self.failure and self.failure.get("version") != info.get("version"):
+                self.failure = None
+            return first
+
+    def forget(self) -> None:
+        """What was offered may not apply any more (the channel changed)."""
+        with self._lock:
+            if not self.in_progress:
+                self.release, self.phase, self.error, self.stage, self.deferred = None, "idle", "", "", ""
+
+    # -- Later
+    def defer(self, version: str | None = None) -> bool:
+        """Later: stop offering this release by itself until this copy of Craft Conductor restarts."""
+        with self._lock:
+            if self.release is None or (version and self.release.get("version") != version):
+                return False
+            self.deferred = str(self.release["version"])
+            return True
+
+    # -- installing
+    def begin(self, version: str) -> bool:
+        """Accept the update: False when one is already under way (so a second click, or a second
+        browser, starts nothing). Raises when there's nothing to install, or not that version."""
+        with self._lock:
+            if self.in_progress:
+                return False
+            info = self.release
+            if not info:
+                raise LookupError("no craft-conductor update is available")
+            if not info.get("can_install"):
+                raise SelfUpdateError(info.get("reason") or "Craft Conductor can't update itself here")
+            if version != info["version"]:
+                raise ValueError("a different version is available now; reload the page")
+            self.phase, self.stage, self.error = "downloading", "preparing", ""
+            self.done = self.total = None
+            self.started = time.time()
+            self.lines = []
+            self._note(f"updating Craft Conductor {info.get('current', __version__)} -> {info['version']}")
+            return True
+
+    def step(self, stage: str, done: int | None = None, total: int | None = None) -> None:
+        """The installer's progress (the ``progress`` argument of ``install``)."""
+        with self._lock:
+            if not self.in_progress or stage not in STAGES:
+                return
+            if stage != self.stage:
+                self._note(stage)
+            self.phase, self.stage = _PHASE_OF_STAGE[stage], stage
+            self.done, self.total = (done, total) if stage == "downloading" else (None, None)
+
+    def run_install(self, http: HttpClient) -> str:
+        """Install the accepted release (every check of it is ``install``'s own), reporting progress.
+        A failure is recorded here, with its reason, and raised; success moves to ``restarting``."""
+        with self._lock:
+            release = Release.from_dict(self.release or {"version": "", "tag": ""})
+        try:
+            message = install(release, http=http, progress=self.step)
+        except Exception as e:
+            self.fail(str(e) or type(e).__name__)
+            raise
+        self.step("restarting")
+        return message
+
+    def fail(self, message: str) -> None:
+        """It didn't work: out of "under way", with the reason kept; the release stays available."""
+        with self._lock:
+            self._note(f"failed: {message}")
+            self.phase, self.stage, self.error = "failed", "", message
+            self.done = self.total = None
+            self.failure = {"version": (self.release or {}).get("version", ""), "message": message,
+                            "at": time.time(), "log": list(self.lines)}
+
+    def _note(self, text: str) -> None:
+        self.lines = [*self.lines[-(LOG_LINES - 1):], f"{time.strftime('%H:%M:%S')} {text}"]
+        log.info("update: %s", text)
+
+    # -- what the page is told
+    def snapshot(self) -> dict | None:
+        """The release (None when there's nothing newer) with where the update stands."""
+        with self._lock:
+            if self.release is None:
+                return None
+            info = {**self.release, "phase": self.phase, "stage": self.stage, "error": self.error,
+                    "in_progress": self.in_progress,
+                    "deferred": self.deferred == self.release.get("version"),
+                    "failure": self.failure if self.failure and self.failure.get("version") == self.release.get("version") else None}
+            if self.in_progress:
+                info["started"] = self.started
+                if self.total:
+                    info["progress"] = {"done": self.done or 0, "total": self.total}
+            return info

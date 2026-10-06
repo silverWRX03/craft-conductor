@@ -674,24 +674,232 @@ async function showSecurity(firstTime = false) {
 function promptDismissed() { try { return !!sessionStorage.getItem(PROMPT_KEY); } catch (_) { return false; } }
 
 // ------------------------------------------------------------ craft-conductor self-update
-const DISMISS_KEY = "craft-conductor-dismissed-update";
-function dismissed() { try { return localStorage.getItem(DISMISS_KEY); } catch (_) { return null; } }
-function offerSelfUpdate(u, force = false) {
-  if (!u || (!force && dismissed() === u.version)) return;
-  const later = () => { try { localStorage.setItem(DISMISS_KEY, u.version); } catch (_) {} closeToast("self-update"); };
-  const install = async () => {
-    if (!(await ask(`Update Craft Conductor ${u.current} → ${u.version}?\n\ncraft-conductor installs the update, stops the Minecraft server cleanly (with a 1-minute warning if players are online), and restarts on the new version. You'll need to sign in again afterwards.`, { ok: "Update" }))) return;
-    closeToast("self-update");
-    act(() => api("/api/self-update/apply", { method: "POST", body: { version: u.version } }), "Updating Craft Conductor… this page reconnects when it's back.");
-  };
+// The running Craft Conductor (selfupdate.Updater) is the one source of truth about its update:
+// hubInfo.self_update is null (nothing newer is known) or the release with its `phase` (available,
+// downloading, installing, restarting, failed), whether Later was pressed (`deferred`, which lasts
+// until Craft Conductor restarts) and the last failure. This page only shows what it is told.
+//   * the prompt appears by itself only for an `available`, not deferred update;
+//   * the red dots show while any update is known, Later or not;
+//   * "Update now" swaps the prompt for the update screen at once, and that screen follows the update
+//     through the restart and reloads this same tab when the new version answers.
+const OLD_DISMISS_KEY = "craft-conductor-dismissed-update";  // (earlier versions remembered Later for good)
+try { localStorage.removeItem(OLD_DISMISS_KEY); } catch (_) { /* private mode */ }
+const UPDATE_MARK = "craft-conductor-updating";  // this tab's: {from, to} while an update is under way
+const RESTART_TIMEOUT_MS = 4 * 60 * 1000;        // how long the new copy may take to answer (servers stop first)
+const UPDATE_STAGES = [["preparing", "Preparing update"], ["downloading", "Downloading update"], ["verifying", "Verifying update"],
+  ["installing", "Installing update"], ["restarting", "Restarting Craft Conductor"]];
+let updateWatch = null;  // the update screen's state, while it's open
+
+// The red dot: Craft Conductor settings → About & updates → Check for Craft Conductor updates.
+function updateDot(label = "A Craft Conductor update is available") {
+  return h("span", { class: "update-dot" + (hubInfo && hubInfo.self_update ? "" : " hidden"), "data-update-dot": "", role: "img", "aria-label": label });
+}
+function updateDots() {
+  const on = !!(hubInfo && hubInfo.self_update);
+  for (const el of document.querySelectorAll("[data-update-dot]")) el.classList.toggle("hidden", !on);
+}
+function updateMark() { try { return JSON.parse(sessionStorage.getItem(UPDATE_MARK) || "null"); } catch (_) { return null; } }
+function setUpdateMark(m) { try { if (m) sessionStorage.setItem(UPDATE_MARK, JSON.stringify(m)); else sessionStorage.removeItem(UPDATE_MARK); } catch (_) { /* private mode */ } }
+
+function releaseBlurb(u) {  // a line or two of what's new (text only: it comes from the release page)
+  const text = String(u.notes || "").replace(/[#*`>_\[\]]+/g, "").replace(/\s+/g, " ").trim();
+  return text.length > 220 ? text.slice(0, 220).replace(/\s\S*$/, "") + "…" : text;
+}
+
+// Called with each fresh look at the update. `manual`: the person asked (Check for Craft Conductor
+// updates): offer it even if Later was pressed.
+function offerSelfUpdate(u, manual = false) {
+  if (!u) return;
+  if (u.in_progress) { watchUpdate(u.version, u.current, u); return; }  // (another tab started it, or this page was reloaded)
+  if (updateWatch) return;
+  if (!manual && (u.phase !== "available" || u.deferred)) return;
+  const blurb = releaseBlurb(u);
   stickyToast("self-update", [
     h("strong", {}, `Craft Conductor ${u.version}${u.prerelease ? " (beta)" : ""} is available`),
     h("div", { class: "small muted" }, `You have ${u.current}. `, u.url ? h("a", { href: u.url, target: "_blank", rel: "noopener noreferrer" }, "What's new ↗") : null),
+    blurb ? h("div", { class: "small mt-s" }, blurb) : null,
+    u.can_install ? h("p", { class: "small" }, "Craft Conductor installs the update, stops your Minecraft servers cleanly (with a 1-minute warning if players are online) and restarts on the new version. This page reconnects by itself; you'll need to sign in again.") : null,
     u.can_install ? null : h("div", { class: "small" }, u.reason),
+    u.failure ? h("div", { class: "small bad-text" }, `The last attempt failed: ${u.failure.message}`) : null,
     h("div", { class: "row mt-s" },
-      u.can_install ? h("button", { class: "btn primary small", onclick: install }, "Update now") : null,
-      h("button", { class: "btn small", onclick: later }, "Later")),
+      u.can_install ? h("button", { class: "btn primary small", onclick: () => startSelfUpdate(u) }, "Update now") : null,
+      h("button", { class: "btn small", onclick: () => deferSelfUpdate(u) }, "Later")),
   ]);
+}
+
+// Later: no automatic prompt until Craft Conductor is restarted (Craft Conductor remembers that, not this page).
+async function deferSelfUpdate(u) {
+  closeToast("self-update");
+  try {
+    const r = await api("/api/self-update/later", { method: "POST", body: { version: u.version } });
+    if (hubInfo) hubInfo.self_update = r.self_update;
+  } catch (e) { if (!(e instanceof Unauthorized) && !(e instanceof TypeError)) toast(e.message, true); }  // (TypeError: Craft Conductor isn't answering, as when a restart failed)
+  updateDots();
+}
+
+// Update now: the prompt goes and the update screen takes its place at once; Craft Conductor starts
+// the update once, however many times this is pressed (or from however many browsers).
+async function startSelfUpdate(u) {
+  if (updateWatch) return;
+  closeToast("self-update");
+  const w = watchUpdate(u.version, u.current, { phase: "downloading", stage: "preparing" }, false);
+  try {
+    await api("/api/self-update/apply", { method: "POST", body: { version: u.version } });
+  } catch (e) {
+    if (e instanceof Unauthorized) { closeUpdateScreen(w); return; }
+    updateFailed(w, e.message, null);  // (refused: nothing was started)
+    return;
+  }
+  updateTick(w);
+}
+
+// The update screen. Returns its state; `poll` false waits for the caller to start polling.
+function watchUpdate(expected, from, u, poll = true) {
+  if (updateWatch) return updateWatch;
+  const w = updateWatch = { expected, from, steps: [], down: false, lostAt: null, timer: null, closed: false, box: h("div", { class: "modal compact toast-dialog update-screen" }) };
+  w.overlay = h("div", { class: "modal-backdrop blur", id: "self-updating", role: "alertdialog", "aria-modal": "true", "aria-labelledby": "self-updating-title" }, w.box);
+  document.body.append(w.overlay);
+  setUpdateMark({ from, to: expected });
+  paintUpdate(w, u);
+  if (poll) updateTick(w);
+  return w;
+}
+
+function stepNote(w, text) {  // what the page saw, for "View update log" when Craft Conductor itself can't say
+  if (w.steps[w.steps.length - 1] && w.steps[w.steps.length - 1].text === text) return;
+  w.steps.push({ at: new Date(), text });
+}
+
+function paintUpdate(w, u) {
+  const stage = (u && u.stage) || "preparing";
+  const known = UPDATE_STAGES.findIndex(([k]) => k === stage);
+  const label = (UPDATE_STAGES[known] || UPDATE_STAGES[0])[1];
+  const p = u && u.progress && u.progress.total ? u.progress : null;  // (only when Craft Conductor really knows the size)
+  stepNote(w, label);
+  const key = `${stage}|${p ? Math.floor(100 * p.done / p.total) : ""}`;
+  if (w.view === key) return;  // (nothing new to show: leave the screen alone)
+  w.view = key;
+  fill(w.box,
+    h("h2", { id: "self-updating-title" }, "Updating Craft Conductor…"),
+    h("p", { class: "small muted" }, `${w.from} → ${w.expected}`),
+    h("p", { id: "self-updating-stage", role: "status", "aria-live": "polite" }, label + "…",
+      p ? ` ${Math.min(100, Math.floor(100 * p.done / p.total))}%` : ""),
+    p ? h("progress", { max: p.total, value: p.done, "aria-label": "Downloading update" }) : h("progress", { "aria-label": label }),
+    h("ul", { class: "update-steps small" }, UPDATE_STAGES.map(([k, text], i) =>
+      h("li", { class: i < known ? "done" : i === known ? "now" : "", "aria-current": i === known ? "step" : null }, (i < known ? "✓ " : i === known ? "› " : "· ") + text))),
+    h("p", { class: "small muted" }, "Keep this page open: it reconnects by itself once the new version is running."));
+}
+
+function paintRestarting(w, waitedSeconds) {
+  stepNote(w, "Restarting Craft Conductor (waiting for it to answer)");
+  const key = `restarting|${Math.floor(waitedSeconds / 5)}`;
+  if (w.view === key) return;
+  w.view = key;
+  fill(w.box,
+    h("h2", { id: "self-updating-title" }, "Restarting Craft Conductor…"),
+    h("p", { class: "small muted" }, `${w.from} → ${w.expected}`),
+    h("p", { id: "self-updating-stage", role: "status", "aria-live": "polite" }, "Waiting for the new version to start…"),
+    h("progress", { "aria-label": "Restarting Craft Conductor" }),
+    h("p", { class: "small muted" }, `Your servers are stopped first, which can take a minute. This page reconnects by itself${waitedSeconds > 20 ? ` (waiting ${waitedSeconds} s)` : ""}.`));
+}
+
+// The update didn't work. `log`: lines Craft Conductor kept (null: only what this page saw).
+// `restart`: it was installed but the new copy didn't answer (so: Retry connection, not Try again).
+function updateFailed(w, message, log, restart = false) {
+  if (w.closed) return;
+  clearTimeout(w.timer);
+  w.view = "failed";
+  stepNote(w, `Failed: ${message}`);
+  const lines = log && log.length ? log : w.steps.map((x) => `${x.at.toLocaleTimeString()} ${x.text}`);
+  const how = h("div", { class: "hidden small", id: "update-manual" },
+    h("p", {}, "Close any Craft Conductor window that's still open, then start Craft Conductor again the way you usually do (the shortcut or program you opened it with, or ",
+      h("code", {}, "craft-conductor start"), "). Then press Retry connection."));
+  const logBox = h("pre", { class: "hidden update-log small", id: "update-log" }, lines.join("\n"));
+  const toggle = (el) => el.classList.toggle("hidden");
+  fill(w.box,
+    h("h2", { id: "self-updating-title" }, restart ? "Craft Conductor could not restart after the update." : "The update didn't finish."),
+    h("p", {}, message),
+    restart ? null : h("p", { class: "small muted" }, `Craft Conductor ${w.from} is still running. You can try again, or keep using it.`),
+    h("div", { class: "row mt-s" },
+      restart
+        ? h("button", { class: "btn primary small", onclick: () => retryConnection(w) }, "Retry connection")
+        : h("button", { class: "btn primary small", onclick: () => retryUpdate(w) }, "Try again"),
+      h("button", { class: "btn small", onclick: () => toggle(logBox) }, "View update log"),
+      restart ? h("button", { class: "btn small", onclick: () => toggle(how) }, "Restart Craft Conductor manually") : null,
+      h("button", { class: "btn small ghost", onclick: () => dismissUpdateFailure(w) }, "Close")),
+    how, logBox);
+}
+
+function closeUpdateScreen(w) {
+  w.closed = true;
+  clearTimeout(w.timer);
+  w.overlay.remove();
+  if (updateWatch === w) updateWatch = null;
+  setUpdateMark(null);
+}
+// Close after a failure: don't prompt again by itself (the dots stay, and so does "Check for updates").
+async function dismissUpdateFailure(w) {
+  closeUpdateScreen(w);
+  if (hubInfo && hubInfo.self_update) await deferSelfUpdate(hubInfo.self_update);
+}
+function retryUpdate(w) {
+  const u = hubInfo && hubInfo.self_update;
+  closeUpdateScreen(w);
+  if (u) startSelfUpdate(u);
+}
+function retryConnection(w) {
+  w.lostAt = Date.now();
+  paintRestarting(w, 0);
+  updateTick(w);
+}
+
+// One look at the service: is it the expected version yet? (Craft Conductor itself says what "expected"
+// means: ?expected= is compared there, so 0.25.0-beta.1 and 0.25.0b1 are the same version.)
+async function updateTick(w) {
+  if (w.closed) return;
+  clearTimeout(w.timer);
+  const q = "?expected=" + encodeURIComponent(w.expected);
+  let state = null, up = false, matches = false, version = null;
+  try {
+    const res = await fetch("/api/self-update" + q, { credentials: "same-origin", cache: "no-store", headers: { "X-CRAFT-CONDUCTOR": "1" } });
+    up = true;
+    if (res.ok) {
+      const d = await res.json();
+      version = d.version; matches = !!d.matches; state = d.self_update || null;
+    } else {  // answering, but not saying (the restart signed everyone out): the sign-in page says which version it is
+      const d = await (await fetch("/api/auth" + q, { credentials: "same-origin", cache: "no-store" })).json();
+      version = d.version; matches = !!d.matches;
+    }
+  } catch (_) { /* not answering: restarting */ }
+  if (w.closed) return;
+  if (matches) { finishUpdate(w); return; }
+  const again = (ms) => { w.timer = setTimeout(() => updateTick(w), ms); };
+  if (!up) {
+    w.down = true;
+    if (!w.lostAt) w.lostAt = Date.now();
+    const waited = Math.round((Date.now() - w.lostAt) / 1000);
+    if (waited * 1000 > RESTART_TIMEOUT_MS) { updateFailed(w, "The new version didn't answer in time.", null, true); return; }
+    paintRestarting(w, waited);
+    again(1500);
+  } else if (state && state.in_progress) {
+    paintUpdate(w, state);
+    again(1000);
+  } else if (state && state.phase === "failed") {
+    updateFailed(w, state.error || "The update failed.", state.failure && state.failure.log, false);
+  } else if (w.down) {  // it came back, but not as the new version
+    updateFailed(w, `Craft Conductor started again, but it's still version ${version}, not ${w.expected}.`, null, true);
+  } else if (state) {   // answering, nothing under way, no failure: it ended without installing
+    updateFailed(w, "The update stopped before it was installed.", null, false);
+  } else {              // (signed out, or nothing to say yet: keep looking)
+    again(1500);
+  }
+}
+
+// The new version is answering: this same tab goes to it (no new tab, no new history entry).
+function finishUpdate(w) {
+  w.closed = true;
+  fill(w.box, h("h2", { id: "self-updating-title" }, "Craft Conductor is updated"), h("p", { role: "status" }, `Opening version ${w.expected}…`));
+  location.reload();  // (this tab, not a new one; location.replace of the same address would only move to its #fragment)
 }
 
 // Which versions Craft Conductor offers to update to: stable (the default) or betas too.
@@ -701,8 +909,8 @@ function updateChannelPicker(current) {
       sel.value === "beta" ? "You'll be offered beta versions too" : "You'll only be offered stable versions");
     if (!r) { sel.value = current || "stable"; return; }
     current = r.channel;
-    try { localStorage.removeItem(DISMISS_KEY); } catch (_) {}
     closeToast("self-update");
+    updateDots();
     offerSelfUpdate(r.self_update, true);
   } },
     h("option", { value: "stable" }, "Stable versions only (recommended)"),
@@ -815,6 +1023,15 @@ function renderHealth(warnings) {
     h("button", { class: "btn small ghost", onclick: () => { healthHidden.add(w.id + w.title); renderHealth(warnings); } }, "Hide"))));
 }
 
+// This tab reloaded itself into the new version: say so once. (A mark left by an update that never
+// happened is dropped.)
+function settleUpdateMark(hb) {
+  const m = updateMark();
+  if (!m || updateWatch || (hb.self_update && hb.self_update.in_progress)) return;
+  setUpdateMark(null);
+  if (hb.version === m.to) toast(`Craft Conductor is updated to ${hb.version}`);
+}
+
 // ------------------------------------------------------------------- status
 async function refreshStatus() {
   try { hubInfo = await api("/api/hub"); } catch (e) {
@@ -828,6 +1045,8 @@ async function refreshStatus() {
   $("#quit").classList.toggle("hidden", !!hb.single || (hb.role && hb.role !== "owner"));
   document.body.classList.toggle("viewer", hb.role === "viewer");  // look-only sign-in: no buttons that change things
   if (!hb.notice_accepted) { showNotice(); return; }
+  updateDots();
+  settleUpdateMark(hb);
   offerSelfUpdate(hb.self_update);
   if (hb.auth.default && !hb.auth.managed && !promptDismissed()) showSecurity(true);
   offerGuide(hb);
@@ -3945,7 +4164,7 @@ function screenshot(name, caption) {
 const HELP = [
   ["navigation", "Finding your way", () => [
     h("p", {}, "Help and User manual keep your current page open underneath. Use the contents on the left, then Close Help or Escape to return to the same place, with your unsaved entries intact."),
-    h("p", {}, "Craft Conductor settings are grouped into Appearance, Sounds & notifications, Sign-in & security, Connections, and About & updates."),
+    h("p", {}, "Craft Conductor settings are grouped into Appearance, Sounds & notifications, Sign-in & security, Connections, and About & updates. A small red dot on Craft Conductor settings and About & updates means a Craft Conductor update is waiting: press Check for Craft Conductor updates to install it (Later only stops the message from appearing by itself until Craft Conductor restarts)."),
     screenshot("craft-conductor-settings", "Craft Conductor settings: pick a section on the left."),
     h("p", {}, "Update readiness uses green for releases, yellow for early builds, red for missing builds and gray when compatibility could not be checked. Check Minecraft … prepares an update for the selected version, even when Settings says to stay on the current version; Check now follows that setting. A Minecraft upgrade waits for unverified local files. World-generation mods bring their required mods; if one only has an early build, adding it asks you first. A web map you added (BlueMap or Dynmap) counts like any other mod, and Add BlueMap / Add Dynmap on the World page only appear for a map that has a build for the server's Minecraft."),
     h("p", {}, "Bedrock setup checks both Geyser and Floodgate, and offers compatible early builds with a confirmation when releases are unavailable.")]],
@@ -5612,6 +5831,21 @@ views["craft-conductor"] = () => {
       h("p", { class: "muted small" }, `Servers are kept in ${hb.home}.`)));
   };
   const about = h("div", { class: "mt" });
+  // Where the update stands, from the same place as the dots and the prompt (hubInfo.self_update).
+  const updateStatus = h("div", { class: "mt-s", id: "about-update" });
+  const renderUpdateStatus = () => {
+    const u = hubInfo && hubInfo.self_update;
+    const busy = !!(u && u.in_progress) || !!updateWatch;
+    fill(updateStatus, u
+      ? h("div", { class: "row" },
+        updateDot(),
+        h("span", { class: "grow" }, `Craft Conductor ${u.version}${u.prerelease ? " (beta)" : ""} is available (you have ${u.current}). `,
+          u.url ? h("a", { href: u.url, target: "_blank", rel: "noopener noreferrer" }, "What's new ↗") : null,
+          u.can_install ? null : h("span", { class: "muted" }, ` ${u.reason}`)),
+        u.can_install ? h("button", { class: "btn primary small", disabled: busy, onclick: () => startSelfUpdate(u) }, busy ? "Updating…" : "Update now") : null)
+      : h("p", { class: "muted small" }, "No newer version is known. Check to look again."),
+      u && u.failure && !busy ? h("p", { class: "small bad-text" }, `The last update attempt failed: ${u.failure.message}`) : null);
+  };
   const loadAbout = async () => {
     const [n, lic] = await Promise.all([api("/api/notice").catch(() => null), api("/api/licenses").catch(() => null)]);
     if (!n || !lic) return;
@@ -5626,12 +5860,16 @@ views["craft-conductor"] = () => {
         h("dl", { class: "kv" },
           h("dt", {}, "Version"), h("dd", {}, s.version || ""),
           h("dt", {}, "License"), h("dd", {}, h("a", { href: lic.project.url, target: "_blank", rel: "noopener noreferrer" }, lic.project.license))),
+        updateStatus,
         h("div", { class: "row mt-s" },
           h("button", { class: "btn", onclick: async () => {
-            try { localStorage.removeItem(DISMISS_KEY); } catch (_) {}
-            closeToast("self-update");
-            await act(() => api("/api/self-update/check", { method: "POST", body: {} }), "Checking for a new Craft Conductor version…");
-          } }, "Check for Craft Conductor updates"), s.single ? null : folderBtn("home", "Craft Conductor folder", null, "btn")),
+            const r = await act(() => api("/api/self-update/check", { method: "POST", body: {} }), "Checking for a new Craft Conductor version…");
+            if (!r) return;
+            updateDots();
+            renderUpdateStatus();
+            // (the person asked: offer the update again even after Later)
+            if (r.self_update) offerSelfUpdate(r.self_update, true); else toast(r.message, /^couldn't/.test(r.message));
+          } }, "Check for Craft Conductor updates", updateDot()), s.single ? null : folderBtn("home", "Craft Conductor folder", null, "btn")),
         updateChannelPicker(s.update_channel)),
       h("div", { class: "mt" }, card("What Craft Conductor does and doesn't do",
         h("ul", { class: "notice-points" }, n.points.map((p) => h("li", {}, p))))),
@@ -5699,7 +5937,7 @@ views["craft-conductor"] = () => {
     class: "btn preferences-button", "aria-controls": `preferences-${i}`, "aria-pressed": String(i === 0), onclick: () => {
       panels.forEach((panel, n) => panel.classList.toggle("hidden", n !== i));
       buttons.forEach((button, n) => button.setAttribute("aria-pressed", String(n === i)));
-    } }, title));
+    } }, title, title === "About & updates" ? updateDot() : null));
   fill($("#main"), h("h2", { class: "view-title" }, "Craft Conductor settings"),
     h("p", { class: "muted" }, "Choose a section to find the settings you need."),
     h("div", { class: "preferences-layout" }, h("nav", { class: "preferences-nav", "aria-label": "Settings sections" }, buttons),
@@ -5707,7 +5945,8 @@ views["craft-conductor"] = () => {
   renderSecurity(hubInfo);
   renderSharing(hubInfo);
   loadAbout();
-  return { onHub: (hb) => { renderSecurity(hb); renderSharing(hb); } };
+  renderUpdateStatus();
+  return { onHub: (hb) => { renderSecurity(hb); renderSharing(hb); renderUpdateStatus(); } };
 };
 
 // ------------------------------------------------------------------- setup
@@ -6382,7 +6621,7 @@ function renderNav() {
     a("#help", "Help", currentName === "help"),
     a("#manual", "User manual", currentName === "manual"),
     hb.device ? h("div", { class: "nav-server small", title: "A paired phone has the everyday controls only" }, `📱 ${hb.device} (limited)`)
-      : a("#craft-conductor", "Craft Conductor settings", currentName === "craft-conductor"));
+      : a("#craft-conductor", "Craft Conductor settings", currentName === "craft-conductor", updateDot()));
   const inServer = !!server;
   $(".server-id").classList.toggle("hidden", !inServer);
   $(".actions").classList.toggle("hidden", !inServer);

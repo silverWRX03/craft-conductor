@@ -292,9 +292,10 @@ class HttpClient:
 
     def download(self, url: str, dest: Path, sha1: str | None = None, sha512: str | None = None,
                  headers: dict[str, str] | None = None, sha256: str | None = None,
-                 max_bytes: int | None = None) -> Path:
+                 max_bytes: int | None = None, progress=None) -> Path:
         """Download to ``dest`` atomically, verifying hashes when given. With ``max_bytes``, a
-        bigger download is refused as it arrives (it can't fill the disk before the hash is checked)."""
+        bigger download is refused as it arrives (it can't fill the disk before the hash is checked).
+        ``progress(bytes so far, bytes announced or None)`` is called as it arrives."""
         dest.parent.mkdir(parents=True, exist_ok=True)
         req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, **(headers or {})})
         h1, h256, h512 = hashlib.sha1(), hashlib.sha256(), hashlib.sha512()
@@ -302,16 +303,17 @@ class HttpClient:
         out = os.fdopen(fd, "wb")  # owned from here, so it's always closed (Windows can't delete an open file)
         try:
             with out, self._open(req) as resp:
-                got = 0
-                if max_bytes is not None:
-                    try:
-                        announced = int((getattr(resp, "headers", None) or {}).get("Content-Length") or 0)
-                    except (TypeError, ValueError):
-                        announced = 0
-                    if announced > max_bytes:
-                        raise TooBig(f"{url} is bigger than expected ({announced} bytes)")
+                got, announced = 0, 0
+                try:
+                    announced = int((getattr(resp, "headers", None) or {}).get("Content-Length") or 0)
+                except (TypeError, ValueError):
+                    announced = 0
+                if max_bytes is not None and announced > max_bytes:
+                    raise TooBig(f"{url} is bigger than expected ({announced} bytes)")
                 while chunk := resp.read(1 << 16):
                     got += len(chunk)
+                    if progress is not None:
+                        progress(got, announced or None)
                     if max_bytes is not None and got > max_bytes:
                         raise TooBig(f"{url} is bigger than expected")
                     h1.update(chunk)

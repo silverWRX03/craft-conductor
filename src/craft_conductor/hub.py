@@ -135,7 +135,7 @@ class Hub:
         self.problems: dict[str, dict] = {}      # servers that can't be run here, and why
         self.stop_requested = threading.Event()
         self.restart_requested = False
-        self.self_update: dict | None = None
+        self.updater = selfupdate.Updater()  # where this copy stands with its own update (one source for everything)
         self.open_browser = False
         self.ui = None
         self.share = None           # the share server for friends' downloads, while one is switched on
@@ -151,6 +151,7 @@ class Hub:
         hub.home = daemon.m.config.root
         hub.http = daemon.m.http
         hub._single = daemon
+        hub.updater = daemon.updater
         hub.daemons = {HOME_ID: daemon}
         hub.problems = {}
         hub.join_requests = {}  # summary() also runs for classic single-server dashboards
@@ -1059,41 +1060,53 @@ class Hub:
         if self._single:
             configmod.set_value(self._single.m.config.path, "craft-conductor", "update_channel", json.dumps(channel))
             self._single.m.reload_config()
-            self._single.self_update = None  # (what was offered may not be on this channel)
+            self.updater.forget()  # (what was offered may not be on this channel)
             return
         data = self._hub_file()
         saved = data.get("self_update") if isinstance(data.get("self_update"), dict) else {}
         data["self_update"] = {**saved, "channel": channel}
         self._save_hub_file(data)
-        self.self_update = None
+        self.updater.forget()
         log.info("Craft Conductor updates: %s channel", channel)
 
     def check_self_update(self) -> str:
         if self._single:
             return self._single.check_self_update()
+        if self.updater.in_progress:  # (what's being installed isn't offered again)
+            return f"Craft Conductor {self.updater.release['version']} is being installed"
         try:
             release = selfupdate.check(self.http, channel=self.update_channel())
         except Exception as e:
             log.debug("craft-conductor update check failed: %s", e)
             return f"couldn't check for Craft Conductor updates: {e}"
         if release is None:
-            self.self_update = None
+            self.updater.offer(None)
             return f"Craft Conductor {selfupdate.__version__} is the latest version"
         can, why = selfupdate.install_method(release)
-        self.self_update = {**release.to_dict(), "current": selfupdate.__version__, "can_install": can, "reason": why}
+        self.updater.offer({**release.to_dict(), "current": selfupdate.__version__, "can_install": can, "reason": why})
         return f"Craft Conductor {release.version} is available"
 
     def self_update_info(self) -> dict | None:
-        return self._single.self_update if self._single else self.self_update
+        """The update on offer and where it stands (selfupdate.Updater.snapshot), or None."""
+        return self.updater.snapshot()
+
+    def start_self_update(self, version: str) -> bool:
+        """Accept the update and install it in the background. False when one is already under way:
+        a second click (or a second browser) starts nothing."""
+        if not self.updater.begin(version):
+            return False
+        self.run_job(f"update Craft Conductor to {version}", self.apply_self_update)
+        return True
 
     def apply_self_update(self) -> str:
-        """Install the new craft-conductor, stop every server cleanly, and restart craft-conductor on the new version."""
+        """Install the accepted update (see start_self_update), stop every server cleanly, and
+        restart craft-conductor on the new version."""
         if self._single:
             return self._single.apply_self_update()
-        info = self.self_update
-        if not info:
-            raise RuntimeError("no craft-conductor update is available")
-        message = selfupdate.install(selfupdate.Release.from_dict(info), http=self.http)
+        u = self.updater
+        if not u.in_progress:
+            raise RuntimeError("no craft-conductor update is accepted")
+        message = u.run_install(self.http)
         running = [d for d in self.daemons.values() if d.proc and d.proc.running]
         if any(d.players for d in running):
             for d in running:
