@@ -5315,20 +5315,81 @@ function singleplayerCard() {
 
 function openSpEditor(game, done) {
   const g = game || { name: "", loader: "fabric", minecraft: "latest", mods: [], memory_gb: 6 };
-  const chosen = new Map(g.mods.map((slug) => [slug, slug]));
+  const chosen = new Map(g.mods.map((slug) => [slug, { name: slug, channel: "release" }]));
   const name = h("input", { value: g.name, maxlength: 60, placeholder: "e.g. Cozy modded survival" });
   const loader = h("select", { disabled: !!(game && game.installed) }, SP_LOADERS.map(([v, l]) => h("option", { value: v }, l)));
   loader.value = g.loader;
   const mc = h("select", {}, h("option", { value: "latest" }, "The newest one all the mods support"));
-  api("/api/hub/setup").then((o) => { for (const v of o.versions || []) mc.append(h("option", { value: v }, `Minecraft ${v}`)); mc.value = g.minecraft; }).catch(() => null);
   const memory = h("select", {}, [2, 3, 4, 6, 8, 10, 12, 16].map((n) => h("option", { value: n }, `${n} GB`)));
   memory.value = String(g.memory_gb || 6);
   const q = h("input", { type: "search", placeholder: "Search Modrinth for mods…", "aria-label": "Search" });
   const results = h("div", { class: "browse-results sp-results" });
   const picked = h("div", { class: "sp-picked" });
-  const showPicked = () => fill(picked, chosen.size ? [...chosen].map(([slug, label]) => h("span", { class: "tag sp-mod" }, label, " ",
-    h("button", { type: "button", class: "link-btn", "aria-label": `Remove ${label}`, onclick: () => { chosen.delete(slug); showPicked(); } }, "×")))
-    : h("span", { class: "muted small" }, "No mods yet: search above and press Add."));
+  let resolved = null, previewError = "", previewSeq = 0, previewTimer = null;
+
+  const singleItems = () => {
+    if (resolved && Array.isArray(resolved.mods)) return resolved.mods.map((m) => ({
+      key: m.project || m.requested || m.name, name: m.name, source: m.source || "modrinth",
+      version: m.version || "", channel: m.channel || "release", minecraft: resolved.minecraft, loader: resolved.loader,
+      dependency: !m.selected, neededBy: m.needed_by || "", origin: m.selected ? "selected by you" : "",
+      tags: m.manual ? ["manual download"] : [],
+      remove: m.selected && m.requested ? async () => {
+        chosen.delete(m.requested); resolved = null; renderPicked(); schedulePreview(); return true;
+      } : null,
+    }));
+    return [...chosen].map(([slug, m]) => ({
+      key: slug, name: m.name || slug, source: "modrinth", channel: m.channel || "release",
+      minecraft: mc.value === "latest" ? "newest compatible" : mc.value, loader: loader.value, origin: "selected by you",
+      remove: async () => { chosen.delete(slug); resolved = null; renderPicked(); schedulePreview(); return true; },
+    }));
+  };
+  const openSingleMods = () => openModManager({
+    title: "Manage Single-Player Mods",
+    description: "The resolved game mod set. Libraries Craft Conductor adds automatically are marked as dependencies.",
+    owner: "singleplayer-mods",
+    getItems: singleItems,
+    getHeader: () => [
+      previewError ? h("div", { class: "notice warn mb" }, previewError) : null,
+      resolved && (resolved.skipped || []).length ? h("div", { class: "notice warn mb" },
+        h("strong", {}, "Left out: "),
+        resolved.skipped.map((x) => h("div", { class: "small" }, `${x.name}: ${x.reason}`))) : null,
+    ],
+    onChange: () => renderPicked(),
+  });
+  const renderPicked = () => {
+    const items = singleItems();
+    fill(picked, modSummary(items, {
+      noun: "mods", manage: "Manage Mods", open: openSingleMods,
+      extra: previewError ? h("div", { class: "small warn-text" }, "Compatibility preview needs attention.") :
+        resolved && chosen.size ? h("div", { class: "muted small" }, `Resolved for Minecraft ${resolved.minecraft} with ${resolved.loader} ${resolved.loader_version}.`) : null,
+    }));
+    refreshModManager("singleplayer-mods");
+  };
+  const preview = async () => {
+    const mine = ++previewSeq;
+    if (!chosen.size) {
+      resolved = { mods: [], skipped: [], minecraft: mc.value, loader: loader.value, loader_version: "" };
+      previewError = "";
+      renderPicked();
+      return;
+    }
+    const body = { name: name.value.trim() || "Preview", loader: loader.value, minecraft: mc.value,
+      mods: [...chosen.keys()], memory_gb: Number(memory.value) };
+    const r = await api("/api/hub/singleplayer/preview", { method: "POST", body }).catch((e) => {
+      if (mine === previewSeq) { resolved = null; previewError = e.message; renderPicked(); }
+      return null;
+    });
+    if (!r || mine !== previewSeq) return;
+    resolved = r; previewError = ""; renderPicked();
+  };
+  const schedulePreview = () => { clearTimeout(previewTimer); previewTimer = setTimeout(preview, 180); };
+
+  api("/api/hub/setup").then((o) => {
+    for (const v of o.versions || []) mc.append(h("option", { value: v }, `Minecraft ${v}`));
+    mc.value = g.minecraft;
+    schedulePreview();
+  }).catch(() => null);
+
   let seq = 0, timer;
   const search = async () => {
     const mine = ++seq;
@@ -5338,13 +5399,17 @@ function openSpEditor(game, done) {
     if (!r || mine !== seq) return;
     fill(results, r.results.map((m) => h("div", { class: "result" },
       m.icon ? h("img", { src: m.icon, alt: "", loading: "lazy", referrerpolicy: "no-referrer" }) : h("div", { class: "noicon" }),
-      h("div", { class: "info grow" }, h("div", { class: "name" }, m.name), h("div", { class: "desc" }, m.summary)),
+      h("div", { class: "info grow" }, h("div", { class: "name" }, m.name, " ", channelTag(m.channel)), h("div", { class: "desc" }, m.summary)),
       h("button", { type: "button", class: "btn small", disabled: chosen.has(m.slug || m.id), onclick: (e) => {
-        chosen.set(m.slug || m.id, m.name); e.target.disabled = true; showPicked(); } }, chosen.has(m.slug || m.id) ? "Added" : "Add"))));
+        const key = m.slug || m.id;
+        chosen.set(key, { name: m.name, channel: m.channel || "release" });
+        e.target.disabled = true; resolved = null; renderPicked(); schedulePreview();
+      } }, chosen.has(m.slug || m.id) ? "Added" : "Add"))));
   };
   q.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(search, 350); });
-  loader.addEventListener("change", search);
-  mc.addEventListener("change", search);
+  loader.addEventListener("change", () => { resolved = null; search(); renderPicked(); schedulePreview(); });
+  mc.addEventListener("change", () => { resolved = null; search(); renderPicked(); schedulePreview(); });
+  memory.addEventListener("change", schedulePreview);
   const error = h("p", { class: "error" });
   const save = async (e) => {
     e.preventDefault();
@@ -5372,8 +5437,9 @@ function openSpEditor(game, done) {
       h("p", {}, "Craft Conductor finds a build of every mod (and the mods they need) for the same Minecraft version, then sets the game up in your launcher. When the mods update, Check for updates brings them in; with “the newest one all the mods support”, Minecraft moves up too once every mod is ready."),
       h("p", { class: "muted small" }, "Only mods that run on players' computers are listed. Shaders and resource packs can be added on the launcher page when you install.")))),
     game ? "Edit single-player game" : "New single-player game");
-  showPicked();
+  renderPicked();
   search();
+  schedulePreview();
 }
 
 // A notice people see every time, once they know it: "Don't show again" (see Craft Conductor settings → Sounds & notifications → Warnings).
