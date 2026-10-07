@@ -4397,10 +4397,22 @@ function browserPanel(params, host) {
     } }, st.selected.has(key) ? "✓ Selected" : "Select") : null;
     const versionSel = kind === "modpack" && p.versions.length ? h("select", { "aria-label": "Modpack version" },
       p.versions.map((v) => h("option", { value: v.id }, `${v.name} · Minecraft ${v.minecraft.join(", ")} · ${v.loaders.join(", ")}`))) : null;
-    const usePack = kind === "modpack" ? h("button", { class: "btn primary", disabled: !versionSel, onclick: () => {
+    const usePack = kind === "modpack" ? h("button", { class: "btn primary", disabled: !versionSel, onclick: async (e) => {
       const v = p.versions.find((x) => x.id === versionSel.value);
-      const packLoader = (v.loaders.find((l) => ["fabric", "neoforge", "forge", "quilt"].includes(l)) || "vanilla");
-      const pack = { project: p.id, source: p.source, version_id: v.id, name: p.name, version: v.name, minecraft: v.minecraft[0], loader: packLoader, icon: p.icon };
+      let packLoader = (v.loaders.find((l) => ["fabric", "neoforge", "forge", "quilt"].includes(l)) || "");
+      let packMinecraft = v.minecraft[0] || "";
+      // A CurseForge file's tags often leave out the loader (RLCraft doesn't say Forge): the
+      // pack's own manifest does, so ask for it rather than guessing "vanilla".
+      if (!packLoader || !packMinecraft) {
+        const btn = e.currentTarget;
+        btn.disabled = true;
+        const info = await api(`/api/hub/modpack/preview?version=${encodeURIComponent(v.id)}`).catch((err) => { toast(err.message, true); return null; });
+        btn.disabled = false;
+        if (!info) return;
+        packLoader = info.loader || packLoader;
+        packMinecraft = info.minecraft || packMinecraft;
+      }
+      const pack = { project: p.id, source: p.source, version_id: v.id, name: p.name, version: v.name, minecraft: packMinecraft, loader: packLoader || "vanilla", icon: p.icon };
       if (host) host.pickPack(pack);
       else {
         setupChoosePack(pack);

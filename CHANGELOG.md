@@ -15,6 +15,7 @@ its fix will say which version it's in.
 - The Updates page's **Manual downloads needed** card opens the same panel instead of an **Upload** button for each file.
 
 **Fixed**
+- Choosing a CurseForge modpack such as RLCraft with **Use this modpack** made the New server page switch to Vanilla (no Mods section, wrong Minecraft version) when the pack's files don't name their mod loader on CurseForge. The loader and Minecraft version now come from the pack itself.
 - A new Quilt server on Minecraft 26.1 failed to start ("Unsupported class file major version 69") and was rolled back. Craft Conductor picked an old Quilt Loader (0.24.0) that can't read Minecraft 26.1, because Quilt lists its loaders out of order; it now picks the newest stable Quilt Loader. Single-player Quilt games had the same problem. (#72)
 
 ## 0.25.0 (2026-10-06)
