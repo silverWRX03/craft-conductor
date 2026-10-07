@@ -19,8 +19,9 @@ every file is present, so the server is never left half-upgraded. With `craft-co
 same links go to your Discord notifications when a new version needs them.
 
 In the control panel, a panel slides open on the right with the same links and a box at the bottom to
-drag the downloaded files onto; each one is matched to its mod by CurseForge's checksum. A new server's
-setup waits for them and carries on by itself (see "Mods you download by hand" in the manual).
+drag the downloaded files onto; each one is matched to its mod by CurseForge's checksum. On the New
+server page they're found as soon as a modpack or mods are chosen, and loaded in **Manage Mods** before
+the server is created (see "Mods you download by hand" in the manual).
 
 ---
 [← Power users](Power-Users)

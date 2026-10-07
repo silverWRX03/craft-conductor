@@ -44,6 +44,7 @@ from .minecraft import Mojang
 from .http import HttpError, sha1_file
 from .java import JavaError
 from .mods import ModError, Unavailable
+from .mods.base import safe_file_name
 from .mods.curseforge import CurseForgeProvider
 from .mods.modrinth import ModrinthProvider, keep_buildable
 from .planner import lowest
@@ -117,7 +118,7 @@ SECURITY_HEADERS = {
 FIRST_SIGN_IN_OK = {"/api/auth/change", "/api/logout", "/api/hub", "/api/notice", "/api/notice/accept", "/api/licenses"}
 NOTICE_EXEMPT = {"/api/notice", "/api/notice/accept", "/api/status", "/api/licenses", "/api/auth/change", "/api/hub"}
 # Routes whose request body is a file, streamed to disk rather than parsed as JSON.
-RAW_UPLOADS = {"/api/hub/stage", "/api/mods/local", "/api/client/local"}
+RAW_UPLOADS = {"/api/hub/stage", "/api/hub/manual/stage", "/api/mods/local", "/api/client/local"}
 # Headers a reverse proxy or tunnel adds: a request carrying any of them didn't come straight
 # from a browser on this computer.
 PROXY_HEADERS = ("X-Forwarded-For", "Forwarded", "X-Real-IP", "X-Forwarded-Host", "X-Forwarded-Proto", "Via",
@@ -1143,6 +1144,8 @@ class HubApi:
         r[("POST", "/api/hub/share")] = self.save_share
         r[("GET", "/api/hub/port")] = self.port_check
         r[("POST", "/api/hub/stage")] = self.stage
+        r[("POST", "/api/hub/manual/needed")] = self.manual_needed
+        r[("POST", "/api/hub/manual/stage")] = self.manual_stage
         r[("POST", "/api/hub/open")] = self.open_folder
         r[("POST", "/api/hub/quit")] = self.quit
         r[("GET", "/api/hub/curseforge")] = self.curseforge_info
@@ -1986,6 +1989,48 @@ class HubApi:
             raise ApiError(400, "only .jar and .zip files can be added here")
         return self.hub.stage_upload(handler, name, MAX_ARCHIVE if name.endswith(".zip") else MAX_UPLOAD)
 
+    def manual_needed(self, q, b) -> dict:
+        """Of a new server's chosen modpack and mods, the CurseForge files whose authors don't let
+        other apps download them: the setup page links each one before the server is created."""
+        from . import handdownload
+        mods = b.get("mods") or []
+        if not isinstance(mods, list) or len(mods) > handdownload.MAX_MODS:
+            raise ApiError(400, "too many mods")
+        picked = [(str(m.get("id")), m.get("channel") if isinstance(m.get("channel"), str) else None)
+                  for m in mods if isinstance(m, dict) and re.fullmatch(r"\d{1,10}", str(m.get("id")))]
+        pack = str(b.get("modpack_version") or "")
+        if pack and not re.fullmatch(r"curseforge:\d{1,10}", pack):
+            pack = ""  # (Modrinth packs have nothing to download by hand)
+        exclude = [str(x) for x in (b.get("modpack_exclude") or [])][:5000] if isinstance(b.get("modpack_exclude"), list) else []
+        minecraft = str(b.get("minecraft") or "")
+        if minecraft and not re.fullmatch(r"\d+(\.\d+){1,3}(-[A-Za-z0-9.]+)?|\d{2}w\d{2}[a-z]", minecraft):
+            raise ApiError(400, "that isn't a Minecraft version")
+        if not picked and not pack:
+            return {"mods": []}
+        try:
+            return {"mods": handdownload.needed(self.hub.http, self.curseforge_key_now(), str(b.get("loader") or ""),
+                                                minecraft, picked, pack, exclude)}
+        except (ModError, HttpError) as e:
+            raise ApiError(400 if isinstance(e, ModError) else 502, str(e)) from None
+
+    def manual_stage(self, q, handler) -> dict:
+        """A mod downloaded by hand for a server that isn't made yet: kept (under the name the
+        server will look for) only when CurseForge's checksum says it's a file the page asked for."""
+        from . import handdownload
+        if handler.headers.get("X-CRAFT-CONDUCTOR") != "1":
+            raise ApiError(403, "missing X-CRAFT-CONDUCTOR header")
+        name = safearchive.printable(str(q.get("filename", "")), 100)  # (what it's called on the person's computer)
+        staged = self.hub.stage_upload(handler, "upload.jar", MAX_UPLOAD)
+        folder = self.hub.staging_dir / staged["id"]
+        found = handdownload.match(folder / "upload.jar")
+        if found is None or not safe_file_name(found["filename"]):
+            shutil.rmtree(folder, ignore_errors=True)
+            raise ApiError(400, f"{name} isn't one of the mods to download by hand (or it's another version of it): "
+                                "download it again from its link")
+        (folder / "upload.jar").rename(folder / found["filename"])
+        log.info("received %s, downloaded by hand for a new server", found["filename"])
+        return {"id": staged["id"], "filename": found["filename"], "name": found["name"]}
+
     def port_check(self, q, b) -> dict:
         try:
             port = int(q.get("port", ""))
@@ -2421,6 +2466,8 @@ class Api:
         if spec.client_local:
             from .clientpack import client_dir
             self.web.hub.take_staged(spec.client_local, client_dir(self.m.config))  # friends' own files
+        if spec.manual_files and self.m.config.manual_dir:
+            self.web.hub.take_staged(spec.manual_files, self.m.config.manual_dir)  # mods downloaded by hand
         return self._job("set up server", self.d.run_setup, spec)
 
     # ---------------------------------------------------------------- mods

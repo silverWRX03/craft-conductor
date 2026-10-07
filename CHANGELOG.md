@@ -11,11 +11,14 @@ its fix will say which version it's in.
 - **Downloading mods by hand, in one place.** When a CurseForge mod's author doesn't let other apps download it, a panel slides open on the right with a **Download ↗** link for each file and a box at the bottom: **Drag mods that were downloaded here**. Each dropped file is matched to its mod by CurseForge's checksum (so a renamed file works) and saved for the server.
 
 **Changed**
+- **Mods you download by hand, before the server is made.** On New server, choosing a modpack or CurseForge mods now finds the ones whose authors require downloading them from CurseForge, and **Manage Mods** gets a red dot. Manage Mods lists them at the top with a link to each exact file, and **Load downloaded mods** opens a file picker on your Downloads folder. **Create my server** waits until they're all loaded.
+- **Manage Mods** now slides open as wide as the mod browser and the map preview.
 - Creating a server that needs mods downloaded by hand no longer fails with "these mods must be downloaded by hand first". Setup waits, opens the panel, and carries on by itself once the files are in (**Stop setting up** stops it).
 - The Updates page's **Manual downloads needed** card opens the same panel instead of an **Upload** button for each file.
 
 **Fixed**
 - Choosing a CurseForge modpack such as RLCraft with **Use this modpack** made the New server page switch to Vanilla (no Mods section, wrong Minecraft version) when the pack's files don't name their mod loader on CurseForge. The loader and Minecraft version now come from the pack itself.
+- A server made from RLCraft (and other older CurseForge packs) failed to set up with "… has no forge build for 1.12.2" for mods like Realistic Terrain Generation and Kiwi. Those mods only have beta or alpha builds, and the server only accepted releases; each pack mod now accepts the kind of build the pack uses.
 - A new Quilt server on Minecraft 26.1 failed to start ("Unsupported class file major version 69") and was rolled back. Craft Conductor picked an old Quilt Loader (0.24.0) that can't read Minecraft 26.1, because Quilt lists its loaders out of order; it now picks the newest stable Quilt Loader. Single-player Quilt games had the same problem. (#72)
 
 ## 0.25.0 (2026-10-06)

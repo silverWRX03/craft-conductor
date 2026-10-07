@@ -768,6 +768,8 @@ class Hub:
             cfg = configmod.load(root)
             self.take_staged(spec.local_mods, cfg.server.dir / mods_folder(spec.loader))
             self.take_staged(spec.client_local, client_dir(cfg))  # friends' own files
+            if cfg.manual_dir:
+                self.take_staged(spec.manual_files, cfg.manual_dir)  # mods downloaded by hand (handdownload.py)
             self._attach(sid, root)
             d = self.daemons.get(sid)
             if d is None:

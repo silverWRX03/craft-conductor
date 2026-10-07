@@ -284,7 +284,10 @@ def apply(root: Path, version: str, http: HttpClient, key: str, exclude: tuple[s
                 elif m["path"] in excluded:
                     removed += 1
                 elif ("curseforge", m["project_id"]) not in listed:
-                    configmod.append_mod(cfg_path, ModSpec("curseforge", m["project_id"], required=m["required"]))
+                    # A mod whose file in the pack is a beta or an alpha (many only have those for
+                    # older Minecraft) accepts them, or setup finds "no build" for it.
+                    early = m.get("channel") if m.get("channel") in ("beta", "alpha") else None
+                    configmod.append_mod(cfg_path, ModSpec("curseforge", m["project_id"], required=m["required"], channel=early))
                     listed.add(("curseforge", m["project_id"]))
                     added.append(m["project_id"])
             copied = 0
