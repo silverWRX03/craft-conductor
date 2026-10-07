@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .base import Loader, Runtime, run_installer
+from .base import Loader, Runtime, run_installer, version_key
 
 FABRIC_META = "https://meta.fabricmc.net/v2"
 QUILT_META = "https://meta.quiltmc.org/v3"
@@ -45,11 +45,11 @@ class QuiltLoader(Loader):
     def latest_version(self, minecraft: str) -> str | None:
         def fetch():
             entries = self.http.get_json(f"{QUILT_META}/versions/loader/{minecraft}")
-            for e in entries:
-                v = e["loader"]["version"]
-                if "beta" not in v and "pre" not in v:
-                    return v
-            return None
+            # Unlike Fabric's, this list isn't newest-first (taking the first entry picked an old
+            # loader that can't read Minecraft 26.1's Java 25 classes), so take the highest.
+            stable = [e["loader"]["version"] for e in entries or []]
+            stable = [v for v in stable if "-" not in v]
+            return max(stable, key=version_key) if stable else None
         return self._safe_latest(fetch)
 
     def install(self, minecraft: str, version: str, dest: Path, java: str) -> Runtime:

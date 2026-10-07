@@ -8,7 +8,7 @@ from craft_conductor.java import JavaError
 from craft_conductor.java import JavaManager, parse_major
 from craft_conductor.loaders.base import version_key
 from craft_conductor.loaders.forge import NEOFORGE_VERSIONS, NeoForgeLoader, neoforge_prefix
-from craft_conductor.loaders.fabric import FABRIC_META, FabricLoader
+from craft_conductor.loaders.fabric import FABRIC_META, QUILT_META, FabricLoader, QuiltLoader
 from craft_conductor.process import PLAYERS, READY
 from craft_conductor.rcon import decode, encode
 
@@ -125,6 +125,24 @@ def test_fabric_latest_version(http):
     loader = FabricLoader(http, FakeMojang(http, ["1.21.1"]))
     assert loader.latest_version("1.21.1") == "0.16.10"
     assert loader.latest_version("26.1") is None
+    assert loader.latest_version("9.9") is None  # 404 means unsupported
+
+
+def test_quilt_latest_version_is_the_highest_stable_one(http):
+    # Quilt's list isn't sorted: taking the first stable entry picked 0.24.0, which can't
+    # start Minecraft 26.1.
+    http.json[f"{QUILT_META}/versions/loader/26.1"] = [
+        {"loader": {"version": "0.20.0-beta.9"}},
+        {"loader": {"version": "0.24.0"}},
+        {"loader": {"version": "0.31.0-beta.4"}},
+        {"loader": {"version": "0.30.1"}},
+        {"loader": {"version": "0.18.4-pre.1"}},
+        {"loader": {"version": "0.9.0"}},
+    ]
+    http.json[f"{QUILT_META}/versions/loader/1.21.1"] = [{"loader": {"version": "0.26.0-beta.1"}}]
+    loader = QuiltLoader(http, FakeMojang(http, ["26.1"]))
+    assert loader.latest_version("26.1") == "0.30.1"
+    assert loader.latest_version("1.21.1") is None
     assert loader.latest_version("9.9") is None  # 404 means unsupported
 
 
