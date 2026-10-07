@@ -2652,7 +2652,8 @@ class Api:
                     out.write(chunk)
                     remaining -= len(chunk)
             sha1 = digest.hexdigest()
-            match = next((x for x in waiting if x.get("sha1") and str(x["sha1"]).lower() == sha1), None)                 or next((x for x in waiting if not x.get("sha1") and x["filename"] == name), None)
+            match = (next((x for x in waiting if x.get("sha1") and str(x["sha1"]).lower() == sha1), None)
+                     or next((x for x in waiting if not x.get("sha1") and x["filename"] == name), None))
             if match is None:
                 if any(x["filename"] == name for x in waiting):
                     raise ApiError(400, f"{name} isn't the file CurseForge lists (its checksum is different): "

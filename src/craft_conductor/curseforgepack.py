@@ -43,6 +43,7 @@ _FOLDER = re.compile(r"[A-Za-z0-9_. -]{1,64}")
 BATCH = 500             # files or mods asked about in one request
 CACHE_SECONDS = 3600    # a pack's preview (two downloads) is reused when the server is created
 _previews: dict[int, tuple[float, dict]] = {}
+_names: dict[int, tuple[float, str]] = {}  # mod names for the Friends page (asked on every visit)
 _lock = threading.Lock()
 
 
@@ -85,13 +86,22 @@ class _Api:
 def names(http: HttpClient, key: str, items: list[str]) -> dict[str, str]:
     """``curseforge:<id>`` -> the mod's name, as far as CurseForge answers (empty without a key)."""
     ids = sorted({int(x.split(":", 1)[1]) for x in items if CF_ID.fullmatch(x)})
-    if not ids or not key:
-        return {}
-    try:
-        return {f"curseforge:{i}": str(m.get("name") or "") for i, m in _Api(http, key).mods(ids).items()}
-    except Exception as e:  # (only names: the page shows the ids instead)
-        log.debug("couldn't look up CurseForge mod names: %s", e)
-        return {}
+    now = time.monotonic()
+    with _lock:
+        known = {i: _names[i][1] for i in ids if i in _names and now - _names[i][0] < CACHE_SECONDS}
+    ask = [i for i in ids if i not in known]
+    if ask and key:
+        try:
+            found = {i: str(m.get("name") or "") for i, m in _Api(http, key).mods(ask).items()}
+        except Exception as e:  # (only names: the page shows the ids instead)
+            log.debug("couldn't look up CurseForge mod names: %s", e)
+            found = {}
+        with _lock:
+            if len(_names) > 2000:
+                _names.clear()
+            _names.update({i: (now, n) for i, n in found.items()})
+        known.update(found)
+    return {f"curseforge:{i}": n for i, n in known.items() if n}
 
 
 def _sha1(f: dict) -> str | None:

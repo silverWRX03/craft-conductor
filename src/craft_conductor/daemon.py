@@ -204,6 +204,7 @@ class Daemon:
         self.waiting_for_manual = False       # setup is paused for mods downloaded by hand
         self._manual_arrived = threading.Event()  # a mod downloaded by hand came in (or stop was pressed)
         self._manual_stop = False
+        self._manual_wrong: dict[str, tuple[int, int]] = {}  # files there that aren't the one wanted (not hashed again)
         self.rehearsal = None      # the last update rehearsal (rehearsal.Rehearsal), if any
         self.lag = None            # the last lag finder look (lagfinder.LagFinder), if any
         self._slow = 0             # readings in a row below lagfinder.LAGGY_TPS
@@ -841,7 +842,19 @@ class Daemon:
         folder = self.m.config.manual_dir
         def have(x: dict) -> bool:
             path = folder / x["filename"]
-            return path.is_file() and (not x.get("sha1") or sha1_file(path) == str(x["sha1"]).lower())
+            try:
+                st = path.stat()
+            except OSError:
+                return False
+            seen = (st.st_mtime_ns, st.st_size)
+            if not x.get("sha1"):
+                return path.is_file()
+            if self._manual_wrong.get(x["filename"]) == seen:
+                return False  # (the same wrong file as last time: not hashed again)
+            if sha1_file(path) == str(x["sha1"]).lower():
+                return True
+            self._manual_wrong[x["filename"]] = seen
+            return False
         c["manual"] = [x for x in c["manual"] if not have(x)]
 
     def manual_arrived(self, stop: bool = False) -> None:
