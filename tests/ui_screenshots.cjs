@@ -217,6 +217,59 @@ const HEADERS = {'X-CRAFT-CONDUCTOR': '1'};
   await page.waitForTimeout(1200);
   await shot('friend-setup');
 
+
+  // Craft Conductor's own update: the message, the red dots, the update screen (and a restart that takes
+  // a while), the new version offered to another tab, and an update that didn't work. The service is
+  // played by the page's own requests here: nothing is installed.
+  const release = {version: '0.25.0', tag: 'v0.25.0', prerelease: false, current: '0.24.0', can_install: true, reason: '',
+    url: 'https://github.com/silverWRX03/craft-conductor/releases/tag/v0.25.0', phase: 'available', stage: '', error: '',
+    in_progress: false, deferred: false, failure: null,
+    notes: 'Added: a red dot while an update is waiting. Changed: Later lasts until Craft Conductor restarts. Fixed: the update no longer opens another browser tab.'};
+  const fake = {self_update: release, down: false};
+  await context.route('**/api/hub', async route => {
+    const response = await route.fetch();
+    return route.fulfill({response, json: {...(await response.json()), self_update: fake.self_update, update_result: null}});
+  });
+  await context.route('**/api/self-update?*', async route => {
+    if (fake.down) return route.abort('connectionrefused');
+    return route.fulfill({json: {version: '0.24.0', matches: false, self_update: fake.self_update, update_result: null}});
+  });
+  await context.route('**/api/self-update/later', route => {
+    fake.self_update = {...fake.self_update, deferred: true};
+    return route.fulfill({json: {ok: true, self_update: fake.self_update}});
+  });
+  await go('servers');
+  await page.locator('#self-update').waitFor();
+  await shot('update-available');
+  await page.locator('#self-update').getByRole('button', {name: 'Later', exact: true}).click();
+  await go('craft-conductor');
+  await page.getByRole('button', {name: 'About & updates'}).click();
+  await page.waitForTimeout(500);
+  await shot('update-dots');
+  const stage = async (update, name, down = false) => {
+    fake.self_update = {...release, in_progress: true, ...update};
+    fake.down = down;
+    await page.evaluate(() => { document.getElementById('self-updating') && document.getElementById('self-updating').remove(); updateWatch = null; });
+    await page.evaluate(() => { sessionStorage.setItem('craft-conductor-updating', JSON.stringify({from: '0.24.0', to: '0.25.0'})); return refreshStatus(); });
+    await page.locator('#self-updating').waitFor();
+    await page.waitForTimeout(down ? 2500 : 1500);
+    if (name) await shot(name);
+  };
+  await stage({phase: 'downloading', stage: 'downloading', progress: {done: 38000000, total: 52000000}}, 'updating');
+  await stage({phase: 'restarting', stage: 'restarting'}, 'update-restarting', true);
+  fake.down = false;
+  await stage({phase: 'downloading', stage: 'verifying'}, null);
+  fake.self_update = {...release, phase: 'failed', in_progress: false,
+    error: "the download of craft-conductor-windows-x64.exe doesn't match the release's published checksum (it may be incomplete or tampered with), so nothing was changed",
+    failure: {version: '0.25.0', message: 'the download does not match its checksum', log: ['10:02:11 updating Craft Conductor 0.24.0 -> 0.25.0', '10:02:12 downloading', '10:02:40 verifying', '10:02:41 failed: the download does not match its checksum'], reverted: false}};
+  await page.getByText("The update didn't finish.").waitFor();
+  await page.waitForTimeout(600);
+  await shot('update-failed');
+  await page.evaluate(() => { document.getElementById('self-updating').remove(); updateWatch = null; sessionStorage.removeItem('craft-conductor-updating'); });
+  await page.evaluate(() => offerLaunch('0.25.0'));
+  await page.locator('#self-updated').waitFor();
+  await shot('update-launch');
+
   if (errors.length) throw new Error('page errors: ' + errors.join('; '));
   await browser.close();
 })().catch(e => { console.error(e); process.exit(1); });

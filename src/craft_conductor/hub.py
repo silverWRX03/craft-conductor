@@ -21,7 +21,7 @@ import time
 from pathlib import Path
 from typing import Callable
 
-from . import config as configmod, selfupdate, setup as setupmod
+from . import config as configmod, rollback, selfupdate, setup as setupmod
 from .config import ConfigError, WebConfig
 from .daemon import Daemon, SELF_CHECK_INTERVAL, pid_alive, running_pid, set_current_server
 from .http import HttpClient
@@ -135,7 +135,7 @@ class Hub:
         self.problems: dict[str, dict] = {}      # servers that can't be run here, and why
         self.stop_requested = threading.Event()
         self.restart_requested = False
-        self.self_update: dict | None = None
+        self.updater = selfupdate.Updater()  # where this copy stands with its own update (one source for everything)
         self.open_browser = False
         self.ui = None
         self.share = None           # the share server for friends' downloads, while one is switched on
@@ -151,6 +151,7 @@ class Hub:
         hub.home = daemon.m.config.root
         hub.http = daemon.m.http
         hub._single = daemon
+        hub.updater = daemon.updater
         hub.daemons = {HOME_ID: daemon}
         hub.problems = {}
         hub.join_requests = {}  # summary() also runs for classic single-server dashboards
@@ -1059,41 +1060,61 @@ class Hub:
         if self._single:
             configmod.set_value(self._single.m.config.path, "craft-conductor", "update_channel", json.dumps(channel))
             self._single.m.reload_config()
-            self._single.self_update = None  # (what was offered may not be on this channel)
+            self.updater.forget()  # (what was offered may not be on this channel)
             return
         data = self._hub_file()
         saved = data.get("self_update") if isinstance(data.get("self_update"), dict) else {}
         data["self_update"] = {**saved, "channel": channel}
         self._save_hub_file(data)
-        self.self_update = None
+        self.updater.forget()
         log.info("Craft Conductor updates: %s channel", channel)
 
     def check_self_update(self) -> str:
         if self._single:
             return self._single.check_self_update()
+        if self.updater.in_progress:  # (what's being installed isn't offered again)
+            return f"Craft Conductor {self.updater.release['version']} is being installed"
         try:
             release = selfupdate.check(self.http, channel=self.update_channel())
         except Exception as e:
             log.debug("craft-conductor update check failed: %s", e)
             return f"couldn't check for Craft Conductor updates: {e}"
         if release is None:
-            self.self_update = None
+            self.updater.offer(None)
             return f"Craft Conductor {selfupdate.__version__} is the latest version"
         can, why = selfupdate.install_method(release)
-        self.self_update = {**release.to_dict(), "current": selfupdate.__version__, "can_install": can, "reason": why}
+        first = self.updater.offer({**release.to_dict(), "current": selfupdate.__version__, "can_install": can, "reason": why})
+        if first:  # (phones are told too; the update itself is done in the control panel)
+            self.update_push(f"Craft Conductor {release.version} is available (you have {selfupdate.__version__}). "
+                             "Open Craft Conductor on your computer to update.", "/#craft-conductor")
         return f"Craft Conductor {release.version} is available"
 
     def self_update_info(self) -> dict | None:
-        return self._single.self_update if self._single else self.self_update
+        """The update on offer and where it stands (selfupdate.Updater.snapshot), or None."""
+        return self.updater.snapshot()
+
+    def start_self_update(self, version: str) -> bool:
+        """Accept the update and install it in the background. False when one is already under way:
+        a second click (or a second browser) starts nothing."""
+        if not self.updater.begin(version):
+            return False
+        self.run_job(f"update Craft Conductor to {version}", self.apply_self_update)
+        return True
 
     def apply_self_update(self) -> str:
-        """Install the new craft-conductor, stop every server cleanly, and restart craft-conductor on the new version."""
+        """Install the accepted update (see start_self_update), stop every server cleanly, and
+        restart craft-conductor on the new version."""
         if self._single:
             return self._single.apply_self_update()
-        info = self.self_update
-        if not info:
-            raise RuntimeError("no craft-conductor update is available")
-        message = selfupdate.install(selfupdate.Release.from_dict(info), http=self.http)
+        u = self.updater
+        if not u.in_progress:
+            raise RuntimeError("no craft-conductor update is accepted")
+        old, new = selfupdate.__version__, (u.release or {}).get("version", "")
+        try:
+            message = u.run_install(self.http, self.state_dir)
+        except Exception as e:
+            self.update_failed(old, new, str(e), bool(u.failure and u.failure.get("reverted")))
+            raise
         running = [d for d in self.daemons.values() if d.proc and d.proc.running]
         if any(d.players for d in running):
             for d in running:
@@ -1105,6 +1126,50 @@ class Hub:
         self.restart_requested = True
         self.stop_requested.set()
         return message
+
+    # What the phones (and Discord) are told about the update. Phones can't update anything: they're told,
+    # and tapping the notification opens Craft Conductor, where it's done.
+    def update_push(self, message: str, url: str = "/") -> None:
+        try:
+            self.push.notify("Craft Conductor", message, url=url, tag="cc_update", kind="updates")
+        except Exception:
+            log.exception("couldn't send the update notification")
+
+    def update_failed(self, old: str, new: str, why: str, reverted: bool) -> None:
+        """An update that didn't work, before the restart (Craft Conductor carries on): recorded, so every
+        open page and phone hears of it once."""
+        message = f"The update to Craft Conductor {new} didn't work: {why}"
+        if reverted:
+            message += f" Craft Conductor {old} is back."
+        rollback.record_result(self.state_dir, False, old, new, message, reverted)
+        rollback.mark_announced(self.state_dir)
+        self.update_push(message[:300], "/#craft-conductor")
+
+    def settle_update(self) -> None:
+        """Called once the control panel is up. If this copy is the one an update was installing, it says so
+        (the guard then lets the previous version go); and the phones hear how the last update ended."""
+        try:
+            outcome = rollback.settle(self.state_dir, selfupdate.__version__)
+        except Exception:
+            log.exception("couldn't settle the last update")
+            return
+        if outcome:
+            if outcome.get("ok"):
+                self.update_push(f"Craft Conductor was updated to {outcome['to']}. Open it to launch the new version.")
+            else:
+                self.update_push(outcome.get("message") or "The Craft Conductor update didn't work.", "/#craft-conductor")
+
+    def update_result(self) -> dict | None:
+        """How the last update ended, for the page (read again only when the file changed: every page asks every 2 s)."""
+        path = self.state_dir / rollback.RESULT
+        try:
+            stamp = path.stat().st_mtime_ns
+        except OSError:
+            return None
+        cached = getattr(self, "_result_cache", None)
+        if cached is None or cached[0] != stamp:
+            cached = self._result_cache = (stamp, rollback.public(rollback.result(self.state_dir)))
+        return cached[1]
 
     def run_job(self, name: str, fn: Callable[[], str]) -> None:
         """Run a hub-level task (like installing an craft-conductor update) in the background."""
@@ -1139,6 +1204,7 @@ class Hub:
             ui = WebUI(self)
             ui.start()
             self.ui = ui
+            self.settle_update()
             if self.open_browser:
                 import webbrowser
                 threading.Timer(1.0, webbrowser.open, args=(ui.url,)).start()
