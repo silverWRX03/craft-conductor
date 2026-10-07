@@ -5,6 +5,13 @@ name: invite page
 # Published by each release (release.yml), after its downloads exist, since the page links to
 # them; run it by hand to publish a change to the page alone.
 on:
+  push:
+     branches:
+       - main
+     paths:
+       - "site/**"
+       - "src/craft_conductor/webui/icon.png"
+       - ".github/workflows/pages.yml"
   workflow_call:
   workflow_dispatch:
 
