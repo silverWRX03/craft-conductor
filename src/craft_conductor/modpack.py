@@ -192,8 +192,9 @@ def preview(http: HttpClient, version_id: str) -> dict:
         return preview_file(pack, http, name=info["name"])
 
 
-def _override_members(z: zipfile.ZipFile, server_dir: Path, what: str) -> list[tuple[zipfile.ZipInfo, tuple[str, ...]]]:
-    """The pack's own files to copy (overrides/, then server-overrides/), checked before anything
+def _override_members(z: zipfile.ZipFile, server_dir: Path, what: str,
+                      prefixes: tuple[str, ...] = OVERRIDES) -> list[tuple[zipfile.ZipInfo, tuple[str, ...]]]:
+    """The pack's own files to copy (``prefixes``: overrides/, then server-overrides/), checked before anything
     is written: names that could land outside the server folder are left out (and logged), and
     a pack that unpacks to too much, or more than the disk has room for, is refused."""
     infos = z.infolist()
@@ -201,7 +202,7 @@ def _override_members(z: zipfile.ZipFile, server_dir: Path, what: str) -> list[t
         raise ModpackError(f"that modpack holds too many files ({len(infos):,}; at most {MAX_PACK_FILES:,})")
     skipped = safearchive.Skipped(what)
     out = []
-    for prefix in OVERRIDES:
+    for prefix in prefixes:
         for member in infos:
             if member.filename.startswith(prefix) and not member.is_dir():
                 try:

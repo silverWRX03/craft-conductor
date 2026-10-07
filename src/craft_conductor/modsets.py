@@ -62,7 +62,7 @@ def check(entry: dict) -> dict:
             raise ModSetError("the list has a mod that isn't written right")
         channel = m.get("channel") if m.get("channel") in configmod.CHANNELS else None
         mods.append({"source": m.get("source", "modrinth"), "id": str(m["id"]), "required": bool(m.get("required", True)), "channel": channel})
-    client = [str(x) for x in entry.get("client_mods", []) if MOD_ID.fullmatch(str(x))]
+    client = [str(x) for x in entry.get("client_mods", []) if configmod.CLIENT_MOD.fullmatch(str(x))]
     return {"name": name, "saved": float(entry.get("saved") or time.time()), "minecraft": entry.get("minecraft"),
             "mods": mods, "client_mods": client}
 

@@ -24,8 +24,8 @@ On phones, a hamburger menu contains navigation and the remembered Light / Dark 
   right Java, loader and mods, checked to start before you play.
 - **Keeps it up to date:** it moves to a new Minecraft **once every mod supports it**, with a backup
   first and an automatic rollback if the new version doesn't start.
-- **Finds mods** on Modrinth and CurseForge, adds what they need, and tells you which mod broke a
-  server.
+- **Finds mods and modpacks** on Modrinth and CurseForge, adds what they need, and tells you which mod
+  broke a server.
 - **Gets your friends playing:** one link sets up their launcher with the right version and mods.
 - **Looks after itself:** crash restarts, schedules, backups you can check, and plain-words help when
   something goes wrong.
@@ -97,7 +97,8 @@ an API key. It follows CurseForge's
   takes priority over the built-in one.
 - **Authors' wishes are respected.** When an author doesn't allow downloads by other apps,
   CurseForge gives no download link and Craft Conductor doesn't look for one. It shows you the file's
-  page to download it yourself, then checks that file against CurseForge's checksum.
+  page to download it yourself (you drop the file on its manual downloads panel), then checks that file
+  against CurseForge's checksum. A modpack whose author doesn't allow it isn't installed.
 - **Files come from CurseForge, not from Craft Conductor.** Every mod is downloaded from CurseForge's own
   servers straight to the computer that needs it (yours, or your friends' through their
   invite) and hash-checked. Craft Conductor doesn't host or re-share CurseForge files. A CurseForge
@@ -107,7 +108,7 @@ an API key. It follows CurseForge's
   CurseForge pages ("Open on CurseForge").
 - **Light on the API.** Answers are cached for a few minutes, lookups only happen when you
   search, add mods or check for updates, and nothing is scraped from the website.
-- **Only what's needed.** Craft Conductor reads mod details, files and categories. It sends no
+- **Only what's needed.** Craft Conductor reads mod and modpack details, files and categories. It sends no
   information about you, and doesn't use CurseForge data for anything but installing and
   updating your mods.
 

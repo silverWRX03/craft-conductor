@@ -23,6 +23,11 @@ class ConfigError(Exception):
     pass
 
 
+# A mod for players (``[client] mods``): a Modrinth slug or id, or ``curseforge:<project id>``
+# (a CurseForge modpack's mods that only run on players' computers).
+CLIENT_MOD = re.compile(r"[A-Za-z0-9_.-]{1,100}|curseforge:\d{1,10}")
+
+
 @dataclass
 class ModSpec:
     source: str
@@ -100,7 +105,7 @@ class ClientConfig:
     """The download friends use to set up Minecraft for this server (see clientpack.py)."""
     enabled: bool = False
     token: str = ""                 # secret part of the invite link
-    mods: list[str] = field(default_factory=list)   # extra client-only Modrinth mods (slugs)
+    mods: list[str] = field(default_factory=list)   # extra client-only mods: Modrinth slugs, or curseforge:<id>
     memory_gb: int = 4              # memory the friends' Minecraft gets
     expires: int = 0                # when the invite link stops working (Unix time); 0 = never
     link_days: int = DEFAULT_LINK_DAYS  # how long new links work (one of LINK_DAYS; 0 = until replaced)
@@ -224,9 +229,8 @@ def _schedule(c: dict) -> ScheduleConfig:
 
 def _client(c: dict) -> ClientConfig:
     mods = c.get("mods", [])
-    if not isinstance(mods, list) or not all(isinstance(m, str) and re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", m)
-                                             for m in mods):
-        raise ConfigError("client.mods must be a list of Modrinth project ids or slugs")
+    if not isinstance(mods, list) or not all(isinstance(m, str) and CLIENT_MOD.fullmatch(m) for m in mods):
+        raise ConfigError("client.mods must be a list of Modrinth project ids or slugs, or curseforge:<project id>")
     token = str(c.get("token", ""))
     if token and not re.fullmatch(r"[A-Za-z0-9_-]{16,64}", token):
         raise ConfigError("client.token looks wrong; delete it and Craft Conductor makes a new one")

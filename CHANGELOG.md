@@ -6,6 +6,14 @@ its fix will say which version it's in.
 
 ## Unreleased (not released yet)
 
+**Added**
+- **CurseForge modpacks.** The mod browser's modpacks now have **CurseForge** as a source, next to Modrinth (it was missing). A CurseForge pack sets up the server with its Minecraft version, mod loader, mods and configs. When the pack's author publishes an official server pack, the pack's mods that the server pack leaves out only run on players' computers, so they go in your friends' download instead of on the server.
+- **Downloading mods by hand, in one place.** When a CurseForge mod's author doesn't let other apps download it, a panel slides open on the right with a **Download ↗** link for each file and a box at the bottom: **Drag mods that were downloaded here**. Each dropped file is matched to its mod by CurseForge's checksum (so a renamed file works) and saved for the server.
+
+**Changed**
+- Creating a server that needs mods downloaded by hand no longer fails with "these mods must be downloaded by hand first". Setup waits, opens the panel, and carries on by itself once the files are in (**Stop setting up** stops it).
+- The Updates page's **Manual downloads needed** card opens the same panel instead of an **Upload** button for each file.
+
 **Fixed**
 - A new Quilt server on Minecraft 26.1 failed to start ("Unsupported class file major version 69") and was rolled back. Craft Conductor picked an old Quilt Loader (0.24.0) that can't read Minecraft 26.1, because Quilt lists its loaders out of order; it now picks the newest stable Quilt Loader. Single-player Quilt games had the same problem. (#72)
 
