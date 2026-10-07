@@ -68,7 +68,7 @@ Go to **New server**. One step at a time:
 - **Smooth survival:** Fabric with performance mods (Lithium, FerriteCore, Krypton): less lag, the same game.
 - **New lands to explore:** Fabric with Terralith (new biomes made of vanilla blocks) and performance mods.
 - **Plugins (Paper):** a Paper server to add plugins to.
-- **A modpack:** opens Modrinth's modpacks.
+- **A modpack:** opens the modpacks in the mod browser (Modrinth or CurseForge).
 
 The mods in these run on the server only, so friends join with plain Minecraft. Memory is set for the kind of server, within what this computer has.
 
@@ -84,11 +84,17 @@ The version and server type you pick are what the server is made on. Your mods n
 - **The results keep coming as you scroll:** the first 20 show straight away, and the next 20 load in the background while you're still reading, so the list rarely makes you wait. What you ticked, the mod open on the right and where you were in the list stay put. **Loading more…** at the bottom means the network is slow; **Couldn't load more** has **Try again**; **That's everything** is the end of the search. With a keyboard, Tab through the results (the next ones load as you go) or press **Load more** at the bottom. Results with no build for your Minecraft version are left out and counted at the top ("5 result(s) hidden"); if page after page has nothing to show, the list stops and offers **Keep looking**. A search goes 10,000 results deep at most. Changing the words, filters, sort, source or Minecraft version starts again from the top. The same goes for **Mods for players** on the Friends page.
 - **Runs on** narrows Modrinth mods by where they run: server-side and both (the default for a server), server-side only, or both. Tags show where each one runs.
 - "Also show mods with only alpha/beta builds" includes less stable mods, with a warning.
-- **Local files** adds `.jar` files from your computer. **Modpacks** builds the whole server from a Modrinth modpack.
+- **Local files** adds `.jar` files from your computer. **Modpacks** builds the whole server from a Modrinth or CurseForge modpack (see **Modpacks** below).
 - **Required** mods must work on the Minecraft version you picked for the server to be made; an optional one that doesn't is left out. Every mod holds back upgrades until it supports the new version.
 - **Test these mods** checks they work together before you create the server.
 
 **When a mod can't be used.** If a mod you picked, or a mod it needs, has no build for your Minecraft version and server type on CurseForge or Modrinth, the mod's row says **Dependency unavailable** (or **Not available for Minecraft …** when it's the mod itself), and which mods need which: for example "Biomes O' Plenty requires GlitchCore, but no compatible GlitchCore release was found for Minecraft 1.21.2 using NeoForge. Craft Conductor checked CurseForge and Modrinth." Craft Conductor doesn't change your Minecraft version to make it work. When other versions appear to work, it names them, with a **Use Minecraft …** button for each (it asks first, then checks your other mods again for that version). **Choose another Minecraft version** takes you to the list, and **Remove** takes the mod out. If you press **Create my server** anyway, a required mod that can't be used stops the server from being made, and the page says why, the same way.
+
+**Modpacks.** **Modpacks** (or **A modpack** under Quick start) opens the mod browser on modpacks. Pick **Modrinth** or **CurseForge** as the source (CurseForge needs an API key; the browser asks for one the first time). Pick a pack, choose its version and press **Use this modpack**: the server gets the pack's Minecraft version, mod loader, mods and configs, and stays on that Minecraft version (mods still update). **Manage Mods** lists the pack's mods, marked with its name; **Remove** leaves one out.
+
+- A Modrinth pack says which of its mods only run on players' computers, and those stay off the server.
+- A CurseForge pack doesn't say. When its author publishes an official server pack, Craft Conductor looks at which mods that server pack has: the pack's other mods only run on players' computers, so they go in your friends' download instead of on the server (they appear under **Manage Friends Mods**, marked with the pack's name, and leave again if you pick another pack). Without a server pack, every mod goes on the server; if it won't start, remove the mods that are only for players.
+- Some CurseForge mods have to be downloaded by hand (see **Mods you download by hand** below).
 
 **4. World.** A new world (seed, type, structures, hardcore), or **Import a world**: a singleplayer save or a world `.zip` from any Java version. Files in a `.zip` that would land outside the world's folder, or that Windows can't have (like `NUL` or a name with `:`), are left out, and so are links (shortcuts) in a singleplayer save; the activity log says which. A world bigger than the free disk space is refused before anything is written.
 
@@ -112,6 +118,8 @@ The version and server type you pick are what the server is made on. Your mods n
 **Almost done.** Accept the Minecraft EULA and press **Create my server**. Craft Conductor downloads Java, the loader, Minecraft and the mods, then checks the server starts. The progress stays on the page, and the lower part of the screen shows how to open your router for friends outside your home. When it's ready, the server's Dashboard (or its Friends page) opens.
 
 If setup fails, the page says why and where the detailed report is saved; change your choices and try again.
+
+**Mods you download by hand.** Some CurseForge authors don't let other apps download their mods. When a server needs one, a panel slides open on the right with each mod and a **Download ↗** link to its file on CurseForge. Download the files there, then drag them onto **Drag mods that were downloaded here** at the bottom of the panel (or click it to choose them; several at once is fine). Craft Conductor checks each file against CurseForge's checksum, so it doesn't matter what the file is called, and puts it with the server's mods; a file that isn't one of the mods waiting is refused, with why. While a new server is being created, setup waits for them ("Waiting for 2 mod(s) to be downloaded by hand", with **Download them** to open the panel again) and carries on by itself once they're all in; **Stop setting up** stops it instead. Later, when an update needs one, the Updates page's **Manual downloads needed** card opens the same panel (**Download them by hand**). Copying the files into the server's manual-downloads folder works too.
 
 ### On another computer (Linux, over SSH)
 
@@ -293,7 +301,7 @@ For power users, **Advanced: invite codes and security** shows the raw invite co
 - **Let Craft Conductor do it:** **Craft Conductor settings → Connections → Sharing with friends → Open the ports on my router by itself (UPnP)**. It's off until you switch it on, and it asks you first, because it makes your server reachable from the whole internet, not just your friends: anyone can try to connect, and a weakness in Minecraft or in a mod could put this computer at risk. While it's on, the page says so. Craft Conductor asks the router to forward each server's Minecraft port and the friends' port to this computer (never the control panel's port, or a server's RCON port), renews that while it runs, and takes the ports back when you switch it off or quit Craft Conductor. It shows which ports worked, your router's internet address, and warns when forwarding can't help (your provider shares one address between homes, called CGNAT, or there are two routers). **Check my setup** shows it too. Keep the whitelist on while it's on.
 - **By hand:** many routers have UPnP switched off. The Help page has pictures; every router is different, so check its manual if you get stuck.
 
-**What friends get:** the Minecraft version, mod loader and every mod that runs on players' computers (server-only mods are left out), plus the mods you add under **Mods for players**, and the memory you choose for their Minecraft. Mods that server mods need on players' computers are added by themselves (a message says which and why).
+**What friends get:** the Minecraft version, mod loader and every mod that runs on players' computers (server-only mods are left out), plus the mods you add under **Mods for players**, a CurseForge modpack's mods that its server pack leaves out (see **Modpacks**), and the memory you choose for their Minecraft. Mods that server mods need on players' computers are added by themselves (a message says which and why).
 
 **Mods for players** land on the right side. A mod that only runs on players' computers (a minimap, say) stays in the friends' download. A mod that runs on both sides (a recipe viewer, for example) is also added to the server's own mods, with the mods it needs, resolved the same way as any server mod: a message says "X also runs on the server, so it was added there too, with Y", and the list marks it **also on the server**. If the server has no build of it for its Minecraft version, the message says why, and players still get it. When you **Remove** one from the list, Craft Conductor asks whether to remove it from the server too (**Cancel** keeps it there).
 
@@ -441,7 +449,11 @@ Everything in Craft Conductor works with the keyboard and a screen reader (NVDA,
 
 **Forgot the password.** In a browser on the server's own computer, choose "Reset it to PASSWORD" on the sign-in page, or run `craft-conductor web-password --reset` there.
 
-**A CurseForge mod can't be downloaded.** Its author blocks downloads by other apps. The Updates page lists it under "Manual downloads needed" with a link: download it and upload it there; Craft Conductor checks it's the right file.
+**A CurseForge mod can't be downloaded.** Its author blocks downloads by other apps. A panel slides open with a link to the file: download it from CurseForge and drag it onto the box at the bottom of the panel (see **Mods you download by hand**); Craft Conductor checks it's the right file. The Updates page's **Manual downloads needed** card opens the panel again.
+
+**"… isn't the file CurseForge lists (its checksum is different)".** The file dropped on the manual downloads panel has the right name but isn't the version Craft Conductor needs. Use the panel's **Download ↗** link: it opens that exact file on CurseForge.
+
+**A CurseForge modpack: "the author … doesn't allow other apps to download its modpack file".** The pack's author doesn't allow it, so Craft Conductor can't build a server from it. Try another version of the pack, or another pack.
 
 **"NeoForge's download site lists only … right now".** NeoForge's own site sometimes has an incomplete list of its builds for a few hours. A new NeoForge server can't be made until NeoForge fixes it: try again later. Servers that already run NeoForge keep the NeoForge they have, and still get their mod updates.
 

@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from . import __version__, notice, rollback, selfupdate, setup as setupmod
-from .http import HttpError
+from .http import HttpError, sha1_file
 from .manager import Manager, ManualDownloadRequired
 from .process import JOINED, LEFT, READY, ServerProcess, check_command
 
@@ -31,6 +31,8 @@ CRASH_WINDOW = 600      # seconds
 MAX_CRASHES = 3         # within CRASH_WINDOW before giving up
 EMPTY_RETRY = 300       # seconds between "is anyone online?" checks when waiting for an empty server
 SELF_CHECK_INTERVAL = 24 * 3600
+MANUAL_WAIT = 12 * 3600  # how long setup waits for mods to be downloaded by hand
+MANUAL_POLL = 10         # seconds between looks in the manual-downloads folder while it waits
 
 
 # Which server the current thread is working for, so that with several servers in one
@@ -151,7 +153,7 @@ def decision_to_dict(m: Manager, decision, changes) -> dict:
         "up_to_date": bool(plan and (changes is None or changes.empty)),
         "changes": changes.summary() if changes else [],
         "dropped": [{"name": b.name, "reason": b.reason} for b in plan.dropped] if plan else [],
-        "manual": [{"name": x.name, "filename": x.filename, "url": x.manual_url}
+        "manual": [{"name": x.name, "filename": x.filename, "url": x.manual_url, "sha1": x.sha1}
                    for x in m.missing_manual(plan)] if plan else [],
         "blocked": [{
             "minecraft": p.minecraft,
@@ -199,6 +201,9 @@ class Daemon:
         self.tunnel_status = None  # the last playit.gg tunnel check (tunnel.check)
         self.started_at: float | None = None
         self.last_check: dict | None = None
+        self.waiting_for_manual = False       # setup is paused for mods downloaded by hand
+        self._manual_arrived = threading.Event()  # a mod downloaded by hand came in (or stop was pressed)
+        self._manual_stop = False
         self.rehearsal = None      # the last update rehearsal (rehearsal.Rehearsal), if any
         self.lag = None            # the last lag finder look (lagfinder.LagFinder), if any
         self._slow = 0             # readings in a row below lagfinder.LAGGY_TPS
@@ -801,6 +806,50 @@ class Daemon:
         return self.check_for_updates(force=True, target=version)
 
     # ------------------------------------------------------------ setup
+    def wait_for_manual_downloads(self, limit: float = MANUAL_WAIT) -> None:
+        """Setup pauses while the person downloads the mods whose authors don't let other apps
+        download them (the page's manual downloads panel), and carries on once they're all in:
+        dropped on the panel, or copied into the manual-downloads folder."""
+        waiting = self.last_check["manual"]
+        log.info("waiting for %d mod(s) to be downloaded by hand: %s", len(waiting), ", ".join(m["name"] for m in waiting))
+        self._manual_stop = False
+        self.waiting_for_manual = True
+        deadline = time.monotonic() + limit
+        try:
+            while True:
+                self.refresh_manual()
+                left = self.last_check.get("manual") or []
+                if not left:
+                    break
+                if self._manual_stop:
+                    raise RuntimeError("setup stopped: it was waiting for mods to be downloaded by hand")
+                if time.monotonic() > deadline:
+                    raise RuntimeError("setup stopped after waiting too long for these mods to be downloaded by hand: "
+                                       + ", ".join(m["name"] for m in left))
+                self._manual_arrived.wait(MANUAL_POLL)  # (also looks now and then: files copied in by hand)
+                self._manual_arrived.clear()
+        finally:
+            self.waiting_for_manual = False
+        log.info("every mod downloaded by hand is in; carrying on")
+
+    def refresh_manual(self) -> None:
+        """Drop the mods that are now in the manual-downloads folder (and match CurseForge's
+        checksum) from the ones waiting."""
+        c = self.last_check
+        if not c or not c.get("manual"):
+            return
+        folder = self.m.config.manual_dir
+        def have(x: dict) -> bool:
+            path = folder / x["filename"]
+            return path.is_file() and (not x.get("sha1") or sha1_file(path) == str(x["sha1"]).lower())
+        c["manual"] = [x for x in c["manual"] if not have(x)]
+
+    def manual_arrived(self, stop: bool = False) -> None:
+        """A mod downloaded by hand came in (``stop``: the person stopped the wait)."""
+        if stop:
+            self._manual_stop = True
+        self._manual_arrived.set()
+
     @property
     def setup_pending(self) -> bool:
         return setupmod.is_pending(self.m.config.root)
@@ -810,7 +859,12 @@ class Daemon:
         if self.m.lock.installed:
             raise RuntimeError("this server is already set up")
         setupmod.configure(self.m.config.root, spec)
-        if spec.modpack_version:
+        if spec.modpack_version.startswith("curseforge:"):
+            from . import curseforgepack
+            log.info("downloading the modpack from CurseForge")
+            curseforgepack.apply(self.m.config.root, spec.modpack_version, self.m.http,
+                                 self.m.config.curseforge_api_key, exclude=spec.modpack_exclude)
+        elif spec.modpack_version:
             from . import modpack
             log.info("downloading the modpack")
             modpack.apply(self.m.config.root, spec.modpack_version, self.m.http, exclude=spec.modpack_exclude)
@@ -826,8 +880,7 @@ class Daemon:
         if not self.last_check or not self.last_check.get("target"):
             raise RuntimeError(self._setup_conflict(spec))
         if self.last_check.get("manual"):
-            names = ", ".join(m["name"] for m in self.last_check["manual"])
-            raise RuntimeError(f"these mods must be downloaded by hand first (see the Updates page): {names}")
+            self.wait_for_manual_downloads()
         if self.autostart:
             self.start_server()
         else:

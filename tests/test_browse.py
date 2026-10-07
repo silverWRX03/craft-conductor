@@ -9,6 +9,7 @@ import pytest
 
 from craft_conductor import config as configmod, lock as lockmod, modpack, setup as setupmod
 from craft_conductor.browse import Browser, BrowseError
+from craft_conductor.mods import curseforge as cf
 from craft_conductor.mods.modrinth import API
 
 from test_hub import login
@@ -55,8 +56,12 @@ def test_search_is_normalised_and_filtered(http):
         b.search(sort="random")
     with pytest.raises(BrowseError, match="API key"):
         b.search("curseforge", "mod", "x")
-    with pytest.raises(BrowseError, match="modpacks"):
-        Browser(http, "key").search("curseforge", "modpack", "x")
+    # CurseForge modpacks are searched in CurseForge's modpacks class.
+    http.json[f"{cf.API}/mods/search"] = lambda params: {"data": [
+        {"id": 77, "slug": "big-pack", "name": "Big Pack", "classId": int(params["classId"]),
+         "links": {"websiteUrl": "https://evil.example/"}}], "pagination": {"totalCount": 1}}
+    hit = Browser(http, "key").search("curseforge", "modpack", "x", loader="forge", version="1.20.1")["results"][0]
+    assert hit["kind"] == "modpack" and hit["url"] == "https://www.curseforge.com/minecraft/modpacks/big-pack"
     assert b.sources == ["modrinth"] and Browser(http, "key").sources == ["modrinth", "curseforge"]
 
 

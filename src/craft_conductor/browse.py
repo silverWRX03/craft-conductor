@@ -8,6 +8,7 @@ source the same way. Descriptions come back as Markdown (Modrinth) or HTML
 from __future__ import annotations
 
 import json
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -60,6 +61,14 @@ class BrowseError(Exception):
     pass
 
 
+def _cf_url(m: dict, kind: str = "mod") -> str:
+    """A CurseForge project's page (only ever on curseforge.com)."""
+    url = str((m.get("links") or {}).get("websiteUrl") or "")
+    if url.startswith("https://www.curseforge.com/"):
+        return url
+    return f"https://www.curseforge.com/minecraft/{'modpacks' if kind == 'modpack' else 'mc-mods'}/{m.get('slug', '')}"
+
+
 class Browser:
     def __init__(self, http: HttpClient, curseforge_key: str = ""):
         self.http = http
@@ -93,9 +102,7 @@ class Browser:
                 raise BrowseError("mods for players come from Modrinth; switch the source to Modrinth")
             if plugins:
                 raise BrowseError("Paper plugins come from Modrinth; switch the source to Modrinth")
-            if kind == "modpack":
-                raise BrowseError("CurseForge modpacks aren't supported yet; search Modrinth")
-            return self._cf_search(query, loader, version, category, sort, offset, early)
+            return self._cf_search(query, loader, version, category, sort, offset, early, kind)
         if source == "hangar":
             if not plugins or kind != "mod":
                 raise BrowseError("Hangar has Paper plugins; it's offered for Paper servers")
@@ -153,8 +160,9 @@ class Browser:
         with ThreadPoolExecutor(max_workers=min(6, len(ids))) as pool:
             return dict(zip(ids, pool.map(one, ids)))
 
-    def _cf_search(self, query, loader, version, category, sort, offset, early=False) -> dict:
-        params = {"gameId": cf.MINECRAFT_GAME_ID, "classId": cf.MODS_CLASS_ID, "searchFilter": query,
+    def _cf_search(self, query, loader, version, category, sort, offset, early=False, kind="mod") -> dict:
+        class_id = CF_MODPACKS_CLASS_ID if kind == "modpack" else cf.MODS_CLASS_ID
+        params = {"gameId": cf.MINECRAFT_GAME_ID, "classId": class_id, "searchFilter": query,
                   "index": offset, "pageSize": PAGE, "sortOrder": "desc"}
         if CF_SORT[sort]:
             params["sortField"] = CF_SORT[sort]
@@ -172,11 +180,11 @@ class Browser:
             "downloads": int(m.get("downloadCount", 0)), "follows": 0,
             "updated": m.get("dateModified", ""), "created": m.get("dateReleased", ""),
             "categories": [c.get("name", "") for c in m.get("categories", [])][:4], "versions": [],
-            "kind": "mod", "url": (m.get("links") or {}).get("websiteUrl") or f"{cf.WEBSITE}/{m.get('slug', '')}",
+            "kind": kind, "url": _cf_url(m, kind),
         } for m in data["data"]]
         total = (data.get("pagination") or {}).get("totalCount")
         page = paging(offset, len(hits), int(total) if isinstance(total, int) else offset + len(hits) + (PAGE if len(hits) == PAGE else 0))
-        if loader in cf.LOADER_TYPES and version and hits:
+        if kind == "mod" and loader in cf.LOADER_TYPES and version and hits:
             return {**keep_buildable(self._cf_channels([h["id"] for h in hits], loader, version), hits, early), **page}
         return {"results": hits, "hidden": 0, "early_hidden": 0, **page}
 
@@ -237,7 +245,10 @@ class Browser:
                     "url": f"{HANGAR_SITE}/{ns.get('owner', '')}/{slug}", "loaders": ["paper"], "game_versions": [],
                     "kind": "mod", "versions": []}
         if source == "curseforge":
+            if not project_id.isdigit():
+                raise BrowseError("that isn't a CurseForge project")
             m = self._cf(f"/mods/{project_id}")
+            kind = "modpack" if m.get("classId") == CF_MODPACKS_CLASS_ID else "mod"
             try:
                 body = self._cf(f"/mods/{project_id}/description")
             except (HttpError, BrowseError):
@@ -250,8 +261,8 @@ class Browser:
                 "categories": [c.get("name", "") for c in m.get("categories", [])],
                 "gallery": [{"url": s.get("url", ""), "title": s.get("title", "")} for s in m.get("screenshots", [])][:8],
                 "links": {k: v for k, v in (m.get("links") or {}).items() if isinstance(v, str) and v.startswith("https://")},
-                "url": (m.get("links") or {}).get("websiteUrl") or f"{cf.WEBSITE}/{m.get('slug', '')}",
-                "loaders": [], "game_versions": [], "kind": "mod", "versions": [],
+                "url": _cf_url(m, kind),
+                "loaders": [], "game_versions": [], "kind": kind, "versions": self._cf_pack_versions(m) if kind == "modpack" else [],
             }
         if source != "modrinth":
             raise BrowseError("unknown source")
@@ -282,7 +293,24 @@ class Browser:
                                for v in versions[:25]]
         return out
 
+    def _cf_pack_versions(self, m: dict) -> list[dict]:
+        """A CurseForge modpack's newest files, shaped like Modrinth's modpack versions (the id
+        is ``curseforge:<file id>``, which setup hands to curseforgepack.py)."""
+        files = self._cf(f"/mods/{int(m['id'])}/files", {"pageSize": 25})
+        out = []
+        for f in files:
+            if f.get("isServerPack") or not isinstance(f.get("id"), int):
+                continue
+            versions = [str(v) for v in f.get("gameVersions") or []]
+            out.append({"id": f"curseforge:{f['id']}", "name": f.get("displayName") or f.get("fileName", ""),
+                        "minecraft": [v for v in versions if cf._MC_VERSION.match(v)],
+                        "loaders": [v.lower() for v in versions if v.lower() in cf.LOADER_TYPES],
+                        "date": f.get("fileDate", ""), "server_pack": bool(f.get("serverPackFileId"))})
+        return out
+
     def categories(self, source: str = "modrinth", kind: str = "mod") -> list[dict]:
+        if not re.fullmatch(r"[a-z]{1,20}", kind or "") or source not in ("modrinth", "curseforge", "hangar"):
+            raise BrowseError("unknown source or kind")  # (each answer is kept for a day: no odd keys)
         key = (source, kind)
         cached = self._categories.get(key)
         if cached and time.monotonic() - cached[0] < 86400:
@@ -290,7 +318,8 @@ class Browser:
         if source == "hangar":
             out = [{"id": c, "name": c.replace("_", " ").capitalize()} for c in self.HANGAR_CATEGORIES]
         elif source == "curseforge":
-            data = self._cf("/categories", {"gameId": cf.MINECRAFT_GAME_ID, "classId": cf.MODS_CLASS_ID})
+            data = self._cf("/categories", {"gameId": cf.MINECRAFT_GAME_ID,
+                                            "classId": CF_MODPACKS_CLASS_ID if kind == "modpack" else cf.MODS_CLASS_ID})
             out = sorted(({"id": str(c["id"]), "name": c["name"]} for c in data), key=lambda c: c["name"])
         else:
             data = self.http.get_json(f"{MODRINTH}/tag/category")

@@ -9,7 +9,8 @@ is downloaded by the player straight from Modrinth or CurseForge.
 Which mods go in: every mod the server runs that also runs on clients (Modrinth's
 ``client_side`` isn't "unsupported"; CurseForge doesn't say, so those are included),
 plus client-only extras the server's admin picked (a minimap, JEI, Sodium ...) and
-their required dependencies.
+their required dependencies, and a CurseForge modpack's mods that only run on players' computers
+(``curseforge:<id>`` entries; the pack lists their dependencies itself).
 """
 
 from __future__ import annotations
@@ -23,7 +24,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from .config import DEFAULT_LINK_DAYS, LINK_DAYS, ConfigError, ModSpec
-from .http import sha1_file
+from .http import HttpError, sha1_file
 from .mods.base import ModError, ModFile, Unavailable
 from .mods.modrinth import ModrinthProvider
 
@@ -160,7 +161,7 @@ class PackBuilder:
         todo = [ModSpec("modrinth", dep, dependency_of=names.get(x.key, x.name))
                 for x in ([] if plugins else lk.mods) if x.source == "modrinth"
                 for dep in x.dependencies if f"modrinth:{dep}" not in included]
-        todo += [ModSpec("modrinth", slug) for slug in cfg.client.mods]
+        todo += [ModSpec("modrinth", slug) for slug in cfg.client.mods if not slug.startswith("curseforge:")]
         while todo and loaders:
             spec = todo.pop(0)
             try:
@@ -178,6 +179,27 @@ class PackBuilder:
             (mods if allowed_url(f.url) else manual).append(entry)
             todo += [ModSpec("modrinth", dep, dependency_of=f.name) for dep in f.dependencies
                      if f"modrinth:{dep}" not in included]
+
+        # A CurseForge modpack's mods for players' computers only.
+        curseforge = m.providers.get("curseforge")
+        for item in cfg.client.mods if loaders else []:
+            if not item.startswith("curseforge:"):
+                continue
+            spec = ModSpec("curseforge", item.split(":", 1)[1])
+            try:
+                if curseforge is None:
+                    raise ModError("CurseForge mods need a CurseForge API key")
+                f = curseforge.resolve(spec, lk.minecraft, loaders, cfg.updates.mod_channel)
+            except (Unavailable, ModError, HttpError) as e:
+                skipped.append({"name": item, "reason": str(e)})
+                continue
+            if f.key in included:
+                continue
+            included.add(f.key)
+            if f.manual or not allowed_url(f.url):
+                manual.append({"name": f.name, "filename": f.filename, "url": f.manual_url or f.url, "sha1": f.sha1})
+            else:
+                mods.append(_entry(f, "client"))
 
         # Your own files for players (the share server hands them out).
         for jar in ([] if plugins else local_jars(cfg)):

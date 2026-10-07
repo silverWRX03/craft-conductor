@@ -110,10 +110,10 @@ class SetupSpec:
     properties: dict[str, str] = field(default_factory=dict)  # advanced server.properties settings
     friends: bool = False          # make a download that sets up friends' Minecraft for this server
     port_chosen: bool = False      # the port was picked by the person (not just the default)
-    modpack_version: str = ""      # a Modrinth modpack version to build the server from
+    modpack_version: str = ""      # a Modrinth modpack version (or curseforge:<file id>) to build the server from
     modpack_exclude: list[str] = field(default_factory=list)  # exact mods/*.jar paths manually removed from that pack
     local_mods: list[str] = field(default_factory=list)  # uploaded jars waiting in the hub's staging area
-    client_mods: list[str] = field(default_factory=list)   # Modrinth slugs for friends' Minecraft only
+    client_mods: list[str] = field(default_factory=list)   # friends' Minecraft only: Modrinth slugs, or curseforge:<id>
     client_local: list[str] = field(default_factory=list)  # uploaded jars for friends, in the staging area
     mod_channels: dict = field(default_factory=dict)  # slug -> "beta"/"alpha": mods picked with only early builds
     world: str = ""                # an existing world: an upload's staging id, or "save:<id>" (singleplayer)
@@ -191,14 +191,14 @@ class SetupSpec:
             raise ConfigError(f"{spec.minecraft!r} is not a Minecraft version")
         if spec.difficulty not in DIFFICULTIES or spec.gamemode not in GAMEMODES:
             raise ConfigError("invalid difficulty or game mode")
-        if spec.modpack_version and not re.fullmatch(r"[A-Za-z0-9]{8}", spec.modpack_version):
-            raise ConfigError("that isn't a Modrinth modpack version")
+        if spec.modpack_version and not re.fullmatch(r"[A-Za-z0-9]{8}|curseforge:\d{1,10}", spec.modpack_version):
+            raise ConfigError("that isn't a Modrinth or CurseForge modpack version")
         if spec.world and not re.fullmatch(r"(save:)?[a-f0-9]{16}", spec.world):
             raise ConfigError("that world choice isn't valid; pick the world again")
         if not all(re.fullmatch(r"[a-f0-9]{16}", x) for x in spec.local_mods + spec.client_local):
             raise ConfigError("bad uploaded file reference")
-        if not all(re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", x) for x in spec.client_mods):
-            raise ConfigError("friends' mods must be Modrinth projects")
+        if not all(configmod.CLIENT_MOD.fullmatch(x) for x in spec.client_mods):
+            raise ConfigError("friends' mods must be Modrinth projects or CurseForge modpack mods")
         spec.client_mods = list(dict.fromkeys(spec.client_mods))
         if spec.client_mods or spec.client_local:
             spec.friends = True  # picking mods for friends means making their download

@@ -2116,23 +2116,16 @@ views.updates = () => {
             c.loader_version ? h("span", { class: "muted" }, `  (loader ${c.loader_version})`) : null)
         : h("div", { class: "notice bad" }, "No installable combination of Minecraft, loader and required mods was found.");
 
+    const openManual = () => openManualDownloads({ items: c.manual,
+      onArrived: (r) => { if (!r.left) { closeModManager(); load(); } } });
+    const manualKey = c.manual.map((m) => m.filename).join("|");
+    if (c.manual.length && manualKey !== manualShown) { manualShown = manualKey; openManual(); }  // (slides open once per set)
     const manual = c.manual.length ? card("Manual downloads needed",
-      h("p", { class: "muted" }, "These mod authors don't allow automatic downloads. Download each file from its link, then upload it here (or copy it into the manual-downloads folder)."),
-      folderBtn("manual", "Manual-downloads folder"),
-      h("ul", { class: "list" }, c.manual.map((m) => {
-        const file = h("input", { type: "file", accept: ".jar", class: "hidden" });
-        file.addEventListener("change", async () => {
-          const f = file.files[0];
-          if (!f) return;
-          if (f.name !== m.filename && !(await ask(`The selected file is "${f.name}", expected "${m.filename}". Upload anyway?`, { ok: "Upload" }))) return;
-          await act(() => api(`/api/manual/upload?filename=${encodeURIComponent(m.filename)}`, { method: "POST", raw: f }), `Uploaded ${m.filename}`);
-          load();
-        });
-        return h("li", {},
-          h("div", { class: "grow" }, h("div", {}, h("strong", {}, m.name)), h("code", {}, m.filename)),
-          h("a", { class: "btn", href: m.url, target: "_blank", rel: "noopener noreferrer" }, "Download ↗"),
-          h("button", { class: "btn primary", onclick: () => file.click() }, "Upload"), file);
-      }))) : null;
+      h("p", { class: "muted" }, `${c.manual.length} mod(s) can't be downloaded by Craft Conductor: their authors don't allow other apps to. ` +
+        "Download each from CurseForge and drop the files on the panel (or copy them into the manual-downloads folder)."),
+      h("ul", { class: "list" }, c.manual.map((m) => h("li", {}, h("strong", {}, m.name), " ", h("code", {}, m.filename)))),
+      h("div", { class: "row" }, h("button", { class: "btn primary", onclick: openManual }, "Download them by hand"),
+        folderBtn("manual", "Manual-downloads folder"))) : null;
 
     const changes = c.changes.length ? card("Changes", h("ul", { class: "list" }, c.changes.map((line) =>
       h("li", { class: line.startsWith("+") ? "change-add" : line.startsWith("-") ? "change-rm" : "" }, line)))) : null;
@@ -3260,8 +3253,8 @@ views.friends = () => {
     const details = d.mod_details || [];
     const byProject = new Map();
     for (const x of details) {
-      if (x.id) byProject.set(`modrinth:${x.id}`, x);
-      if (x.slug) byProject.set(`modrinth:${x.slug}`, x);
+      if (x.id) byProject.set(`${x.source || "modrinth"}:${x.id}`, x);
+      if (x.slug) byProject.set(x.source === "curseforge" ? x.slug : `modrinth:${x.slug}`, x);
     }
     const items = [];
     const add = (m, manual = false) => {
@@ -3288,7 +3281,7 @@ views.friends = () => {
     for (const m of pack.manual || []) add(m, true);
     if (!(pack.mods || []).length && !(pack.manual || []).length) {
       for (const x of details) items.push({
-        key: `modrinth:${x.id || x.slug}`, name: x.name, source: "modrinth", origin: "selected by you",
+        key: x.source === "curseforge" ? x.slug : `modrinth:${x.id || x.slug}`, name: x.name, source: x.source || "modrinth", origin: "selected by you",
         minecraft: d.minecraft, loader: d.loader, remove: async () => { await removePlayerMod(x.slug); return true; },
       });
       for (const name of d.local_mods || []) items.push({
@@ -3448,6 +3441,7 @@ function modSummary(items, { noun = "mods", manage = "Manage Mods", open, extra 
     h("button", { type: "button", class: "btn", onclick: open }, manage));
 }
 let modManagerOpen = null;
+let manualShown = "";  // the manual downloads the panel last slid open for (by itself, once)
 function closeModManager(instant = false) {
   if (!modManagerOpen) return;
   const { backdrop, focus } = modManagerOpen;
@@ -3461,7 +3455,7 @@ function closeModManager(instant = false) {
 function refreshModManager(owner) {
   if (modManagerOpen && (!owner || modManagerOpen.owner === owner)) modManagerOpen.render();
 }
-function openModManager({ title, description = "", owner = "", getItems, getHeader = null, onChange = null }) {
+function openModManager({ title, description = "", owner = "", getItems, getHeader = null, onChange = null, footer = null, empty = "No mods selected.", showCounts = true }) {
   closeModManager(true);
   const body = h("div", { class: "mod-manager-body" });
   const focus = document.activeElement;
@@ -3501,10 +3495,10 @@ function openModManager({ title, description = "", owner = "", getItems, getHead
           if (onChange) onChange();
           render();
         } }, actionLabel) : null);
-    }) : [h("p", { class: "empty" }, "No mods selected.")];
+    }) : [h("p", { class: "empty" }, empty)];
     fill(body,
       getHeader ? getHeader(counts) : null,
-      h("div", { class: "mod-manager-counts muted small" },
+      !showCounts ? null : h("div", { class: "mod-manager-counts muted small" },
         `${counts.total} total · ${counts.dependencies} dependencies · ${counts.early} Beta/Alpha` +
         (counts.removed ? ` · ${counts.removed} manually removed` : "")),
       h("div", { class: "mod-manager-list" }, rows));
@@ -3515,13 +3509,63 @@ function openModManager({ title, description = "", owner = "", getItems, getHead
       h("div", { class: "grow" }, h("h2", { id: "mod-manager-title" }, title),
         description ? h("p", { class: "muted small" }, description) : null),
       h("button", { type: "button", class: "btn ghost small", onclick: close }, "Close")),
-    body);
+    body, footer ? h("div", { class: "mod-manager-foot" }, footer) : null);
   const backdrop = h("div", { class: "mod-manager-backdrop", onclick: (e) => { if (e.target === backdrop) close(); } }, panel);
   $("#main").inert = true;
   $("#stage").append(backdrop);
   modManagerOpen = { owner, backdrop, focus, render };
   render();
   panel.querySelector("button").focus({ preventScroll: true });
+}
+
+// Mods whose authors don't let other apps download them (CurseForge): a panel slides in from the
+// right with a link to each file's page and, at the bottom, a box to drop the downloaded files on.
+// The server matches each file to its mod by CurseForge's checksum, so what it's called doesn't matter.
+function openManualDownloads({ items, intro, onArrived = null, onStop = null }) {
+  const got = new Set();
+  const getItems = () => items.map((m) => ({
+    key: m.filename, name: m.name, detail: m.filename,
+    tags: [got.has(m.filename) ? "✓ received" : "waiting for the file"],
+    controls: got.has(m.filename) ? null
+      : h("a", { class: "btn small primary", href: m.url, target: "_blank", rel: "noopener noreferrer" }, "Download ↗"),
+  }));
+  const left = () => items.filter((m) => !got.has(m.filename)).length;
+  const note = h("div", { class: "small mt-s", role: "status" });
+  const take = async (files) => {
+    for (const f of files) {
+      if (!/\.jar$/i.test(f.name)) { toast(`${f.name} isn't a mod (.jar) file`, true); continue; }
+      note.textContent = `Checking ${f.name}…`;
+      try {
+        const r = await api(`/api/manual/upload?filename=${encodeURIComponent(f.name)}`, { method: "POST", raw: f });
+        got.add(r.filename);
+        toast(`${r.name} is in`);
+        if (onArrived) onArrived(r);
+      } catch (e) { if (!(e instanceof Unauthorized)) toast(e.message, true); }
+    }
+    note.textContent = left() ? `${left()} still to go.` : "All the mods are in.";
+    refreshModManager("manual-downloads");
+  };
+  const picker = h("input", { type: "file", accept: ".jar", multiple: true, class: "hidden" });
+  picker.addEventListener("change", () => { take([...picker.files]); picker.value = ""; });
+  const drop = h("div", { class: "drop-zone", tabindex: "0", role: "button", "aria-label": "Drag mods that were downloaded here, or choose the files",
+    onclick: () => picker.click(),
+    onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); picker.click(); } } },
+    h("strong", {}, "Drag mods that were downloaded here"),
+    h("div", { class: "muted small" }, "Or click to choose them. Each file is checked against CurseForge's checksum, so it doesn't matter what it's called."),
+    note);
+  drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
+  drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+  drop.addEventListener("drop", (e) => { e.preventDefault(); drop.classList.remove("over"); take([...e.dataTransfer.files]); });
+  openModManager({
+    title: "Download these mods by hand", owner: "manual-downloads", showCounts: false, empty: "Nothing to download.",
+    description: intro || "Their authors don't let other apps download them. Download each file from CurseForge, then drag it onto the box at the bottom.",
+    getItems,
+    footer: [drop, picker, onStop ? h("div", { class: "row mt-s" }, h("span", { class: "grow muted small" }, "Changed your mind?"),
+      h("button", { type: "button", class: "btn small danger", onclick: onStop }, "Stop setting up")) : null],
+  });
+  // A file dropped beside the box mustn't make the browser open it instead of this page.
+  const backdrop = drop.closest(".mod-manager-backdrop");
+  if (backdrop) for (const type of ["dragover", "drop"]) backdrop.addEventListener(type, (e) => e.preventDefault());
 }
 
 // ------------------------------------------------------------------ mod browser
@@ -3541,7 +3585,8 @@ function openBrowser(params) {
       refresh();
     },
     pickPack: (pack) => {
-      Object.assign(setupState, { modpack: pack, loader: pack.loader, minecraft: pack.minecraft });
+      setupChoosePack(pack);
+      Object.assign(setupState, { loader: pack.loader, minecraft: pack.minecraft });
       loadSetupModpack(pack);
       toast(`Modpack chosen: ${pack.name}`);
       closeBrowser();
@@ -3676,12 +3721,13 @@ const SETUP_PRESETS = [
     loader: "fabric", mods: [["terralith", "Terralith"], ...PERFORMANCE_MODS.slice(0, 2)], memory: [4, 6] },
   { icon: "🧩", name: "Plugins (Paper)", desc: "A fast Paper server for plugins (add them in step 3). Friends join with plain Minecraft.",
     loader: "paper", mods: [], memory: [3, 6] },
-  { icon: "📦", name: "A modpack", desc: "Browse Modrinth's modpacks: the pack decides the version and mods.", modpack: true },
+  { icon: "📦", name: "A modpack", desc: "Browse modpacks on Modrinth or CurseForge: the pack decides the version and mods.", modpack: true },
 ];
 async function applyPreset(p, opts) {
   if (p.modpack) { openBrowser({ type: "modpack", target: "setup", loader: "" }); return; }
   const st = setupState;
-  Object.assign(st, { loader: p.loader, minecraft: "latest", modpack: null, localMods: [], friends: !!p.friends });
+  setupChoosePack(null);
+  Object.assign(st, { loader: p.loader, minecraft: "latest", localMods: [], friends: !!p.friends });
   st.mods.clear();
   const [lo, hi] = p.memory;
   st.memory_gb = Math.max(lo, Math.min(hi, opts.memory_gb || lo));
@@ -4207,7 +4253,7 @@ function browserPanel(params, host) {
   const sort = h("select", { "aria-label": "Sort by" }, [["relevance", "Best match"], ["downloads", "Most downloaded"],
     ["follows", "Most followed"], ["newest", "Newest"], ["updated", "Recently updated"]].map(([v, l]) => h("option", { value: v }, l)));
   const source = h("select", { "aria-label": "Source" }, h("option", { value: "modrinth" }, "Modrinth"),
-    kind === "mod" && noun !== "plugin" && !forPlayers ? h("option", { value: "curseforge" }, "CurseForge") : null,
+    (kind === "mod" || kind === "modpack") && noun !== "plugin" && !forPlayers ? h("option", { value: "curseforge" }, "CurseForge") : null,
     kind === "mod" && noun === "plugin" && !forPlayers ? h("option", { value: "hangar" }, "Hangar (PaperMC)") : null);
   // Modrinth's environment tags: where each mod runs. Server pages list server-side and both,
   // players' pages client-side and both; this narrows it to one of the two.
@@ -4354,10 +4400,11 @@ function browserPanel(params, host) {
     const usePack = kind === "modpack" ? h("button", { class: "btn primary", disabled: !versionSel, onclick: () => {
       const v = p.versions.find((x) => x.id === versionSel.value);
       const packLoader = (v.loaders.find((l) => ["fabric", "neoforge", "forge", "quilt"].includes(l)) || "vanilla");
-      const pack = { project: p.id, version_id: v.id, name: p.name, version: v.name, minecraft: v.minecraft[0], loader: packLoader, icon: p.icon };
+      const pack = { project: p.id, source: p.source, version_id: v.id, name: p.name, version: v.name, minecraft: v.minecraft[0], loader: packLoader, icon: p.icon };
       if (host) host.pickPack(pack);
       else {
-        Object.assign(setupState, { modpack: pack, loader: pack.loader, minecraft: pack.minecraft });
+        setupChoosePack(pack);
+        Object.assign(setupState, { loader: pack.loader, minecraft: pack.minecraft });
         loadSetupModpack(pack);
         location.hash = "#new";
       }
@@ -4371,7 +4418,8 @@ function browserPanel(params, host) {
         h("div", { class: "row" }, pick,
           h("a", { class: "btn ghost", href: p.url, target: "_blank", rel: "noopener noreferrer" }, `Open on ${p.source === "curseforge" ? "CurseForge" : "Modrinth"} ↗`))),
       kind === "modpack" ? h("div", { class: "card mt-s" }, h("label", {}, "Version", versionSel || h("p", { class: "empty" }, "No versions.")),
-        h("p", { class: "muted small" }, "The new server is set up with this pack's Minecraft version, mod loader, server mods and configs, and stays on that Minecraft version."),
+        h("p", { class: "muted small" }, "The new server is set up with this pack's Minecraft version, mod loader, server mods and configs, and stays on that Minecraft version." +
+          (p.source === "curseforge" ? " CurseForge packs don't say which mods are only for players: when the author publishes a server pack, the mods it leaves out go in your friends' download instead." : "")),
         h("div", { class: "row mt-s" }, usePack)) : null,
       p.categories.length ? h("div", { class: "mt-s" }, p.categories.map((c) => h("span", { class: "tag" }, c))) : null,
       p.gallery.length ? h("div", { class: "gallery mt" }, p.gallery.map((g) => h("a", { href: g.url, target: "_blank", rel: "noopener noreferrer" },
@@ -4572,7 +4620,11 @@ const HELP = [
       "the ", h("strong", {}, "Updates"), " tab says what it's waiting for (", h("strong", {}, "Show why"), ")."),
     screenshot("mods", "The Mods page: the mods you chose, and what's installed."),
     screenshot("update-readiness", "Show why: each mod in green (ready), yellow (only a beta build) or red (not yet)."),
-    h("p", {}, "Before installing, use ", h("strong", {}, "🧪 Test these mods"), " to check that a set of mods works together.")]],
+    h("p", {}, "Before installing, use ", h("strong", {}, "🧪 Test these mods"), " to check that a set of mods works together."),
+    h("p", {}, h("strong", {}, "Modpacks"), " come from Modrinth or CurseForge (pick the source in the mod browser). A CurseForge pack's mods that its official server pack leaves out only run on players' computers, so they go in your friends' download instead of on the server."),
+    h("p", {}, "Some CurseForge authors don't let other apps download their mods. A panel then slides open on the right with a ", h("strong", {}, "Download ↗"),
+      " link for each: download the files from CurseForge and drag them onto ", h("strong", {}, "Drag mods that were downloaded here"),
+      " at the bottom. Each file is checked against CurseForge's checksum. A new server's setup waits for them and carries on by itself.")]],
   ["crash", "When something goes wrong", () => [
     h("p", {}, "If a server won't start or crashes, Craft Conductor says which mod it suspects and writes a report. The message shows where it is ",
       "(in the server's ", h("code", {}, ".craft-conductor/logs"), " folder), and Minecraft's own log is in the server's ", h("code", {}, "logs/latest.log"), "."),
@@ -6541,8 +6593,28 @@ async function loadSetupModpack(pack) {
   pack.pack_count = r.count || pack.mods.length;
   pack.client_only = r.client_only || 0;
   pack.removed = pack.removed instanceof Set ? pack.removed : new Set(pack.removed || []);
+  // A CurseForge pack's mods that its server pack leaves out are for players: they go in the
+  // friends' download (and leave it again with the pack).
+  pack.friendKeys = [];
+  for (const m of pack.mods.filter((x) => x.for_friends)) {
+    const key = `curseforge:${m.project_id}`;
+    if (st.clientMods.has(key)) continue;
+    st.clientMods.set(key, m.name);
+    st.clientMeta.set(key, { fromPack: pack.name });
+    pack.friendKeys.push(key);
+  }
+  if (pack.friendKeys.length) {
+    st.friends = true;
+    toast(`${pack.friendKeys.length} of ${pack.name}'s mods are only for players: they're in your friends' download`);
+  }
   pack.loading = false;
   if (st.rerender) st.rerender();
+}
+// Choose another modpack (or none): the old one's mods for players leave the friends' download.
+function setupChoosePack(pack) {
+  const st = setupState;
+  for (const key of (st.modpack && st.modpack.friendKeys) || []) { st.clientMods.delete(key); st.clientMeta.delete(key); }
+  st.modpack = pack;
 }
 function setupServerModItems() {
   const st = setupState;
@@ -6562,8 +6634,11 @@ function setupServerModItems() {
       items.push({
         key: `pack:${m.path}`, name: m.name, version: m.version, minecraft: m.minecraft, loader: m.loaders,
         source: m.source, channel: m.channel, origin: st.modpack.name + " modpack", removed: removed.has(m.path),
-        excludedFromCount: !onServer, tags: onServer ? [] : ["client only", "not installed on server"],
-        detail: onServer ? m.path : `${m.path} · This modpack marks it client-only, so Craft Conductor already leaves it off the server.`,
+        excludedFromCount: !onServer,
+        tags: [...(onServer ? [] : ["client only", "not installed on server"]), ...(m.manual ? ["manual download"] : [])],
+        detail: onServer ? m.path : m.for_friends
+          ? `${m.path} · The pack's server pack leaves it out, so it goes in your friends' download instead of on the server.`
+          : `${m.path} · This modpack marks it client-only, so Craft Conductor already leaves it off the server.`,
         remove: onServer ? async () => {
           if (!(await ask(`Remove ${m.name} from this modpack setup?\n\nThe modpack stays selected, but leaving out one of its mods can change gameplay or break other pack mods. Craft Conductor will still check the final set before creating the server.`, { ok: "Remove mod", danger: true }))) return false;
           removed.add(m.path); st.modpack.removed = removed; return true;
@@ -6597,8 +6672,9 @@ function setupFriendModItems() {
   for (const [key, name] of st.clientMods) {
     const meta = st.clientMeta.get(key) || {};
     items.push({
-      key, name, source: "modrinth", channel: meta.channel || "release", minecraft: setupModVersion(), loader: st.loader,
-      origin: "selected by you", tags: [setupHasServerMod(key) ? "also on the server" : "players only"],
+      key, name, source: key.startsWith("curseforge:") ? "curseforge" : "modrinth", channel: meta.channel || "release",
+      minecraft: setupModVersion(), loader: st.loader,
+      origin: meta.fromPack ? `${meta.fromPack} modpack` : "selected by you", tags: [setupHasServerMod(key) ? "also on the server" : "players only"],
       remove: async () => {
         st.clientMods.delete(key); st.clientMeta.delete(key);
         if (setupHasServerMod(key) && await ask(`${name} is also one of the server's mods. Remove it from the server too?\n\nCancel keeps it on the server.`, { ok: "Remove from the server" })) await setupRemoveMod(key);
@@ -6895,7 +6971,7 @@ views.setup = () => {
                   : `Adds ${active} mods${removed ? ` · ${removed} manually removed` : ""} · Minecraft ${st.minecraft} · ${loaderLabel}`),
           h("div", { class: "small muted" }, "The pack stays selected when individual mods are removed; its configs and other setup files are kept.")),
         h("button", { type: "button", class: "btn small", onclick: openSetupMods }, "Manage Mods"),
-        h("button", { type: "button", class: "btn small danger", onclick: () => { st.modpack = null; st.minecraft = "latest"; renderForm(); } }, "Remove modpack"));
+        h("button", { type: "button", class: "btn small danger", onclick: () => { setupChoosePack(null); st.minecraft = "latest"; renderForm(); } }, "Remove modpack"));
     };
     const packCard = st.modpack ? h("div", { class: "notice mt-s pack" },
       st.modpack.icon ? h("img", { src: st.modpack.icon, alt: "", referrerpolicy: "no-referrer" }) : null, packSummary) : null;
@@ -7116,11 +7192,38 @@ views.setup = () => {
   const renderProgress = () => {
     const events = h("div", { class: "events" });
     let seq = 0;
+    // Setup waits for mods whose authors don't let other apps download them: the panel slides
+    // open by itself the first time, and this notice opens it again.
+    const manualBox = h("div");
+    let manualKey = null;
+    const stopSetup = async () => {
+      if (!(await ask("Stop setting up this server? The mods you've downloaded stay, so you can try again.", { ok: "Stop setting up", danger: true }))) return;
+      closeModManager();
+      await act(() => api("/api/manual/stop", { method: "POST", body: {} }));
+    };
+    const showManual = (wait) => {
+      const key = wait && wait.length ? wait.map((m) => m.filename).join("|") : "";
+      if (key === manualKey) return;
+      const first = manualKey === null || manualKey === "";
+      manualKey = key;
+      if (!key) {
+        fill(manualBox);
+        if (modManagerOpen && modManagerOpen.owner === "manual-downloads") closeModManager();
+        return;
+      }
+      const open = () => openManualDownloads({ items: wait, onStop: stopSetup,
+        intro: "Setup is waiting for these mods: their authors don't let other apps download them. Download each file from CurseForge, then drag it onto the box at the bottom. Setup carries on by itself once they're all in." });
+      fill(manualBox, h("div", { class: "notice warn mt-s" }, h("div", { class: "row" },
+        h("span", { class: "grow" }, `Waiting for ${wait.length} mod(s) to be downloaded by hand.`),
+        h("button", { type: "button", class: "btn primary", onclick: open }, "Download them"))));
+      if (first) open();
+    };
     const panel = h("div", { class: "progress-panel" },
       h("h2", { class: "view-title" }, "Creating your server…"),
       h("div", { class: "notice" }, h("div", { class: "row" }, h("span", { class: "spinner" }),
         h("span", { class: "grow" }, "Downloading Java, the mod loader, Minecraft and your mods, then checking that the server starts. This usually takes a few minutes.")),
         h("div", { class: "small muted mt-s" }, "You can close this page: Craft Conductor keeps going. Open Craft Conductor again and choose See progress on the server.")),
+      manualBox,
       card("What's happening", events),
       // While it installs: what friends outside your home will need (the lower part of the screen).
       h("details", { class: "card mt router-help", open: true }, h("summary", {}, h("strong", {}, "While you wait: letting friends outside your home join")),
@@ -7129,6 +7232,7 @@ views.setup = () => {
     let startedAt = null;  // only this setup's events, not an earlier attempt's
     every(1500, async () => {
       if (!events.isConnected && seq) return;  // slid away (or shown again in a newer panel)
+      showManual(status && status.manual_wait);
       if (startedAt === null) {
         const s = await api("/api/status").catch(() => null);
         if (!s) return;
@@ -7173,6 +7277,7 @@ views.setup = () => {
     onJobDone: () => {
       const last = status && status.last_job;
       if (!last || last.name !== "set up server") return;
+      if (modManagerOpen && modManagerOpen.owner === "manual-downloads") closeModManager(true);
       if (last.ok) setupFinished();
       else { st.submitted = false; clearTimers(); every(2000, refreshStatus); renderForm(last.message); }
     },

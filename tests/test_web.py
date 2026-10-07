@@ -239,12 +239,19 @@ def test_a_blocked_curseforge_file_is_checked_before_it_counts(running, http, mo
     d.m.reload_config()
     d.check_only()
     assert d.last_check["manual"] == [{"name": "Blocked Mod", "filename": "blocked-1.0.jar",
-                                       "url": "https://www.curseforge.com/minecraft/mc-mods/blocked-mod/files/5550001"}]
+                                       "url": "https://www.curseforge.com/minecraft/mc-mods/blocked-mod/files/5550001",
+                                       "sha1": hashlib.sha1(jar).hexdigest()}]
     upload = "/api/manual/upload?filename=blocked-1.0.jar"
     status, body, _ = c.call("POST", upload, raw=b"something else", headers={"Content-Type": "application/octet-stream"})
-    assert status == 400 and "checksum differs" in body["error"]
+    assert status == 400 and "checksum is different" in body["error"]
+    status, body, _ = c.call("POST", "/api/manual/upload?filename=other.jar", raw=b"something else",
+                             headers={"Content-Type": "application/octet-stream"})
+    assert status == 400 and "isn't one of the mods waiting" in body["error"]
     assert not (cfg.manual_dir / "blocked-1.0.jar").exists()
-    assert c.call("POST", upload, raw=jar, headers={"Content-Type": "application/octet-stream"})[0] == 200
+    # Dropped on the panel under another name (the browser saved "blocked-1.0 (1).jar"): the checksum says which mod it is.
+    status, body, _ = c.call("POST", "/api/manual/upload?filename=blocked-1.0%20(1).jar", raw=jar,
+                             headers={"Content-Type": "application/octet-stream"})
+    assert status == 200 and body["filename"] == "blocked-1.0.jar" and body["left"] == 0
     assert (cfg.manual_dir / "blocked-1.0.jar").read_bytes() == jar and d.last_check["manual"] == []
 
 

@@ -434,6 +434,11 @@ body.browse-mode main { padding: 0; overflow: hidden; }
   border-radius: 9px; background: var(--panel-2); }
 .mod-manager-row.removed { opacity: .72; }
 .mod-manager-name { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; overflow-wrap: anywhere; }
+.mod-manager-foot { padding: 14px 20px 18px; border-top: 1px solid var(--border); background: var(--panel); }
+.drop-zone { display: grid; gap: 4px; place-items: center; text-align: center; padding: 22px 16px; cursor: pointer;
+  border: 2px dashed var(--border); border-radius: 10px; background: var(--panel-2); }
+.drop-zone:hover, .drop-zone:focus-visible, .drop-zone.over { border-color: var(--accent); }
+.drop-zone.over { background: color-mix(in srgb, var(--accent) 12%, var(--panel-2)); }
 @keyframes drawer-in { from { transform: translateX(100%); } to { transform: none; } }
 @keyframes drawer-out { from { transform: none; } to { transform: translateX(100%); } }
 @keyframes drawer-fade-in { from { opacity: 0; } to { opacity: 1; } }
@@ -447,7 +452,7 @@ body.browse-mode main { padding: 0; overflow: hidden; }
   .mod-summary > .btn { width: 100%; }
   .mod-summary-stats { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
   .mod-manager-drawer { width: 100%; }
-  .mod-manager-head, .mod-manager-body { padding-inline: 14px; }
+  .mod-manager-head, .mod-manager-body, .mod-manager-foot { padding-inline: 14px; }
   .mod-manager-row { flex-wrap: wrap; }
   .mod-manager-row > .btn { margin-inline-start: auto; }
 }

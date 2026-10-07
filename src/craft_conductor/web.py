@@ -35,7 +35,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Any, Callable
 
-from . import __version__, backup, config as configmod, configs, licenses, limits, notice, passkeys, selfupdate, serverprops, setup as setupmod, stats, webauth
+from . import __version__, backup, config as configmod, configs, licenses, limits, notice, passkeys, safearchive, selfupdate, serverprops, setup as setupmod, stats, webauth
 from .config import ConfigError, ModSpec
 from .daemon import Daemon, set_current_server
 from .process import check_command
@@ -1239,10 +1239,14 @@ class HubApi:
         }
 
     def modpack_preview(self, q, b) -> dict:
-        """The mods a selected Modrinth modpack would add, for the setup management drawer."""
+        """The mods a selected Modrinth or CurseForge modpack would add, for the setup management drawer."""
         from . import modpack
+        version = str(q.get("version", ""))
         try:
-            return modpack.preview(self.hub.http, str(q.get("version", "")))
+            if version.startswith("curseforge:"):
+                from . import curseforgepack
+                return curseforgepack.preview(self.hub.http, self.browser().cf_key, version)
+            return modpack.preview(self.hub.http, version)
         except (ModError, HttpError) as e:
             raise ApiError(400 if isinstance(e, ModError) else 502, str(e)) from None
 
@@ -2132,6 +2136,7 @@ class Api:
         post("/api/mods/jar", self.set_jar)
         post("/api/mods/required", self.set_required)
         post("/api/manual/upload", lambda q, b: None)  # handled specially (raw body)
+        post("/api/manual/stop", self.stop_manual_wait)
         get("/api/players/skin", lambda q, b: None)    # handled specially (an image)
         get("/api/backups", self.backups)
         post("/api/backups/create", self.create_backup)
@@ -2266,6 +2271,8 @@ class Api:
             "resources": self._resources(),
             "disk": self._disk_usage(),
             "problem": d.problem,
+            # Setup paused for mods downloaded by hand: the page's manual downloads panel.
+            "manual_wait": (d.last_check or {}).get("manual") or [] if d.waiting_for_manual else None,
         }
 
     def _disk_usage(self) -> dict | None:
@@ -2458,7 +2465,7 @@ class Api:
         mods = [s.id for s in self.m.config.mods if s.source == "modrinth"]
         channels = {s.id: s.channel for s in self.m.config.mods if s.channel}
         if client:
-            mods += list(self.m.config.client.mods)
+            mods += [x for x in self.m.config.client.mods if not x.startswith("curseforge:")]  # (a Modrinth check)
         minecraft = self.m.lock.minecraft or (None if self.m.config.server.minecraft == "latest" else self.m.config.server.minecraft)
         provider = self._modrinth()
         channel = self.m.config.updates.mod_channel
@@ -2616,13 +2623,16 @@ class Api:
         return {"ok": True}
 
     def upload(self, handler: RequestHandler, q: dict) -> dict:
-        """Receive a manually downloaded mod (for authors who block third-party downloads)."""
+        """Receive a mod downloaded by hand (for authors who don't let other apps download their
+        files). It's matched to the mod waiting for it by CurseForge's checksum, so a renamed
+        file works too (by its name when there's no checksum), and saved in the manual-downloads
+        folder under the name Craft Conductor expects."""
         if handler.headers.get("X-CRAFT-CONDUCTOR") != "1":
             raise ApiError(403, "missing X-CRAFT-CONDUCTOR header")
-        filename = q.get("filename", "")
-        expected = {x["filename"]: x for x in (self.d.last_check or {}).get("manual", [])}
-        if filename not in expected or Path(filename).name != filename:
-            raise ApiError(400, "that file isn't one of the manual downloads Craft Conductor is waiting for")
+        waiting = list((self.d.last_check or {}).get("manual") or [])
+        name = safearchive.printable(str(q.get("filename", "")), 100)  # (what it's called on the person's computer)
+        if not waiting:
+            raise ApiError(400, "Craft Conductor isn't waiting for any mods to be downloaded by hand")
         length = int(handler.headers.get("Content-Length") or 0)
         if not 0 < length <= MAX_UPLOAD:
             raise ApiError(413, "file is empty or too large")
@@ -2630,6 +2640,7 @@ class Api:
         folder.mkdir(parents=True, exist_ok=True)
         handler._body_read = True
         fd, tmp = tempfile.mkstemp(dir=folder, prefix=".upload-")
+        digest = hashlib.sha1()
         try:
             with open(fd, "wb") as out:
                 remaining = length
@@ -2637,26 +2648,33 @@ class Api:
                     chunk = handler.rfile.read(min(1 << 16, remaining))
                     if not chunk:
                         raise ApiError(400, "upload interrupted")
+                    digest.update(chunk)
                     out.write(chunk)
                     remaining -= len(chunk)
-            decision_mod = next((x for x in self._planned_mods() if x.filename == filename), None)
-            if decision_mod and decision_mod.sha1 and sha1_file(Path(tmp)) != decision_mod.sha1.lower():
-                raise ApiError(400, "that file doesn't match the one CurseForge lists (checksum differs); "
-                                    "make sure you downloaded the exact file from the link")
-            shutil.move(tmp, folder / filename)
+            sha1 = digest.hexdigest()
+            match = next((x for x in waiting if x.get("sha1") and str(x["sha1"]).lower() == sha1), None)                 or next((x for x in waiting if not x.get("sha1") and x["filename"] == name), None)
+            if match is None:
+                if any(x["filename"] == name for x in waiting):
+                    raise ApiError(400, f"{name} isn't the file CurseForge lists (its checksum is different): "
+                                        "download it again from its link")
+                raise ApiError(400, f"{name} isn't one of the mods waiting to be downloaded by hand")
+            shutil.move(tmp, folder / match["filename"])
         finally:
             Path(tmp).unlink(missing_ok=True)
-        log.info("received manual download %s", filename)
+        log.info("received %s, downloaded by hand", match["filename"])
         c = self.d.last_check
         if c:
-            c["manual"] = [x for x in c["manual"] if x["filename"] != filename]
-        return {"ok": True}
+            c["manual"] = [x for x in c.get("manual") or [] if x["filename"] != match["filename"]]
+        self.d.manual_arrived()
+        return {"ok": True, "name": match["name"], "filename": match["filename"],
+                "left": len((self.d.last_check or {}).get("manual") or [])}
 
-    def _planned_mods(self):
-        target = (self.d.last_check or {}).get("target")
-        if not target:
-            return []
-        return self.m.planner().plan_for(target).mods
+    def stop_manual_wait(self, q, b) -> dict:
+        """Stop a setup that's waiting for mods to be downloaded by hand."""
+        if not self.d.waiting_for_manual:
+            raise ApiError(400, "setup isn't waiting for mods to be downloaded by hand")
+        self.d.manual_arrived(stop=True)
+        return {"ok": True}
 
     # ------------------------------------------------------------- players
     def _players(self) -> Players:
@@ -3347,18 +3365,25 @@ class Api:
                 error = str(e)
         works = c.link_works(time.time())
         mod_details = []
-        if c.mods:
+        modrinth_mods = [x for x in c.mods if not x.startswith("curseforge:")]
+        if modrinth_mods:
             try:
-                projects = self._modrinth().projects(list(c.mods))
+                projects = self._modrinth().projects(modrinth_mods)
                 by_name = {}
                 for p in projects.values():
                     by_name[p.get("id", "")] = p
                     by_name[p.get("slug", "")] = p
                 mod_details = [{"slug": slug, "id": (by_name.get(slug) or {}).get("id", ""),
-                                "name": (by_name.get(slug) or {}).get("title") or slug}
-                               for slug in c.mods]
+                                "name": (by_name.get(slug) or {}).get("title") or slug, "source": "modrinth"}
+                               for slug in modrinth_mods]
             except (ModError, HttpError):
-                mod_details = [{"slug": slug, "id": "", "name": slug} for slug in c.mods]
+                mod_details = [{"slug": slug, "id": "", "name": slug, "source": "modrinth"} for slug in modrinth_mods]
+        cf_mods = [x for x in c.mods if x.startswith("curseforge:")]
+        if cf_mods:  # (a CurseForge modpack's mods for players)
+            from . import curseforgepack
+            names = curseforgepack.names(self.m.http, self.m.config.curseforge_api_key, cf_mods)
+            mod_details += [{"slug": x, "id": x.split(":", 1)[1], "name": names.get(x) or x, "source": "curseforge"}
+                            for x in cf_mods]
         return {
             "available": not hub.is_single,
             "enabled": c.enabled, "mods": c.mods, "mod_details": mod_details, "memory_gb": c.memory_gb,
@@ -3426,14 +3451,13 @@ class Api:
                 raise ApiError(400, str(e)) from None
         if "mods" in b:
             mods = b["mods"]
-            if not isinstance(mods, list) or not all(isinstance(x, str) and re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", x)
-                                                     for x in mods):
-                raise ApiError(400, "mods must be a list of Modrinth project names")
+            if not isinstance(mods, list) or not all(isinstance(x, str) and configmod.CLIENT_MOD.fullmatch(x) for x in mods):
+                raise ApiError(400, "mods must be a list of Modrinth project names (or curseforge:<project id>)")
             before = list(c.mods)
             mods = list(dict.fromkeys(mods))
             configmod.set_value(path, "client", "mods", json.dumps(mods))
             self.m.reload_config()
-            also, skipped = self._also_on_server([x for x in mods if x not in before])
+            also, skipped = self._also_on_server([x for x in mods if x not in before and not x.startswith("curseforge:")])
             drop = b.get("remove_from_server")
             if drop is not None:  # "remove it from the server too": a mod that's no longer on the players' list
                 if not isinstance(drop, list) or not all(isinstance(x, str) and re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", x)

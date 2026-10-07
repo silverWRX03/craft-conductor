@@ -127,6 +127,31 @@ def test_client_pack_has_what_players_need(modded):
     assert join.validate_pack(p)
 
 
+def test_client_pack_has_a_curseforge_packs_mods_for_players(modded):
+    """A CurseForge modpack's mods that its server pack leaves out (curseforge:<id> in [client] mods):
+    from CurseForge's own servers, or as a manual download when the author keeps them there."""
+    from craft_conductor.mods.base import ModFile, Unavailable
+
+    class FakeCurseForge:
+        def resolve(self, spec, minecraft, loaders, channel):
+            if spec.id == "404":
+                raise Unavailable("Gone Mod has no fabric build for 1.21.1")
+            manual = spec.id == "22"
+            return ModFile(key=f"curseforge:{spec.id}", source="curseforge", project_id=spec.id, name=f"CF {spec.id}",
+                           version_id="1", version_number="1.0", filename=f"cf-{spec.id}.jar",
+                           url="" if manual else f"https://edge.forgecdn.net/files/1/{spec.id}/cf-{spec.id}.jar",
+                           sha1="a" * 40, manual_url="https://www.curseforge.com/minecraft/mc-mods/cf/files/1" if manual else None)
+
+    configmod.set_value(modded.config.path, "client", "mods", '["curseforge:11", "curseforge:22", "curseforge:404"]')
+    modded.reload_config()
+    modded.providers["curseforge"] = FakeCurseForge()
+    p = PackBuilder(modded).build("mc.example.com")
+    assert {x["name"]: x["side"] for x in p["mods"]}["CF 11"] == "client"
+    assert [x["name"] for x in p["manual"]] == ["CF 22"]
+    assert [s["name"] for s in p["skipped"]] == ["curseforge:404"]
+    assert join.validate_pack(p)
+
+
 # ---------------------------------------------------------- joining
 @pytest.fixture
 def launcher(tmp_path):
@@ -368,7 +393,7 @@ def test_new_server_form_takes_friends_mods_and_files(tmp_path):
     setupmod.configure(root, spec)
     cfg = configmod.load(root)
     assert cfg.client.enabled and cfg.client.mods == ["minimap", "jei"]
-    for bad in ({"client_mods": ["curseforge:123"]}, {"client_mods": ["../x"]}, {"client_local": ["nope"]}):
+    for bad in ({"client_mods": ["curseforge:abc"]}, {"client_mods": ["../x"]}, {"client_local": ["nope"]}):
         with pytest.raises(configmod.ConfigError):
             setupmod.SetupSpec.from_dict({"loader": "fabric", "accept_eula": True, **bad})
 
