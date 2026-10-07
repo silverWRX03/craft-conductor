@@ -163,8 +163,9 @@ def test_a_mod_downloaded_by_hand_is_loaded_before_the_server_is_made(hub_env, m
     status, body, _ = c.post("/api/hub/create", {"loader": "fabric", "minecraft": "1.21.1", "motd": "Handmade",
                                                   "manual_files": [staged["id"]], "accept_eula": True})
     assert status == 200, body
-    cfg = configmod.load(hub.home / "servers" / body["id"])
-    assert (cfg.manual_dir / "fancy-client-2.1.jar").read_bytes() == b"fancy jar"
+    d = hub.get(body["id"])
+    wait_for(lambda: d.last_job and d.last_job["name"] == "set up server", timeout=30)  # (setup writes its config meanwhile)
+    assert (d.m.config.manual_dir / "fancy-client-2.1.jar").read_bytes() == b"fancy jar"
     assert not (hub.staging_dir / staged["id"]).exists()
     assert c.post("/api/hub/create", {"loader": "fabric", "manual_files": ["../x"], "accept_eula": True})[0] == 400
 
