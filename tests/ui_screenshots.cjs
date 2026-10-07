@@ -160,6 +160,16 @@ const HEADERS = {'X-CRAFT-CONDUCTOR': '1'};
   await shot('player-activity');
   await go('s/survival/updates');
   await shot('updates');
+  // Mods whose authors don't let other apps download them: the panel that slides open (two example mods).
+  await page.evaluate(() => openManualDownloads({items: [
+    {name: 'Cozy Furniture', filename: 'cozy-furniture-fabric-1.21.1-3.2.0.jar',
+     url: 'https://www.curseforge.com/minecraft/mc-mods/cozy-furniture/files/5550001'},
+    {name: 'Lantern Lights', filename: 'lantern-lights-1.21.1-2.0.4.jar',
+     url: 'https://www.curseforge.com/minecraft/mc-mods/lantern-lights/files/5550002'}]}));
+  await page.locator('.drop-zone').waitFor();
+  await page.waitForTimeout(400);
+  await shot('manual-downloads');
+  await close();
   await page.evaluate(() => openReadiness(['1.21.4', '1.21.1'], '1.21.1'));
   await page.locator('.ready-row').first().waitFor();
   await page.waitForTimeout(500);
