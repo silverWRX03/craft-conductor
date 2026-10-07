@@ -7,6 +7,7 @@ its fix will say which version it's in.
 ## Unreleased (not released yet)
 
 **Fixed**
+- A new Quilt server on Minecraft 26.1 failed to start ("Unsupported class file major version 69") and was rolled back. Craft Conductor picked an old Quilt Loader (0.24.0) that can't read Minecraft 26.1, because Quilt lists its loaders out of order; it now picks the newest stable Quilt Loader. Single-player Quilt games had the same problem. (#72)
 - The map preview remembers **Keep making the map as I move** when you leave and return, including after reopening the page.
 - Remote access can be applied without quitting Craft Conductor. New server setup applies it after successful creation, then continues to phone setup before Friends, keeping your work and running servers intact.
 
