@@ -12,6 +12,7 @@ its fix will say which version it's in.
 
 **Changed**
 - **The map preview starts clean** (New server → World generation & map preview): it shows the land and the spawn point, and no longer marks villages, temples and other structures by itself. Tick **Show Points of Interest** under the map to see them. The first time for a seed it warns that this gives away what players would normally have to discover (an unfair advantage in competitive speedrunning without a set seed, and a "soft cheat" to some Minecraft purists); **Keep Hidden** is the default. Unticking hides them at once, and if they can't be loaded the map still works, with **Try again**.
+- The map preview panel no longer has its own **Villages, temples and other structures** box, which was easy to mistake for showing them on the map. Maps are always made with them (hidden until **Show Points of Interest**); whether the server's world has them stays on the **World** card, and the panel says when it won't. **Use this seed** no longer changes that setting.
 - The world-generation mods next to the map preview, and the mods in a new single-player game, keep coming as you scroll down, as in the mod browser (they stopped after the first 20).
 - Creating a server that needs mods downloaded by hand no longer fails with "these mods must be downloaded by hand first". Setup waits, opens the panel, and carries on by itself once the files are in (**Stop setting up** stops it).
 - The Updates page's **Manual downloads needed** card opens the same panel instead of an **Upload** button for each file.

@@ -1099,5 +1099,6 @@
   "North is up; one pixel is one block, around the spawn point (★).": "위쪽이 북쪽이며, 한 픽셀이 한 블록입니다(스폰 지점 ★ 주변).",
   "Show points of interest on the map?": "지도에 관심 지점을 표시할까요?",
   "They mark the villages, temples, strongholds and other structures this world has, which players would normally have to discover by exploring. The land itself stays the same either way.": "이 세계의 마을, 사원, 요새 등 구조물을 표시합니다. 보통은 플레이어가 탐험하며 직접 찾아야 하는 것들입니다. 땅 자체는 어느 쪽이든 그대로입니다.",
-  "In competitive speedrunning without a set seed, knowing where they are is an unfair advantage, and some Minecraft purists consider looking at them a “soft cheat”.": "시드를 정하지 않은 경쟁 스피드런에서는 위치를 아는 것이 불공정한 이점이며, 일부 Minecraft 순수주의자는 이를 보는 것을 “소프트 치트”로 여깁니다."
+  "In competitive speedrunning without a set seed, knowing where they are is an unfair advantage, and some Minecraft purists consider looking at them a “soft cheat”.": "시드를 정하지 않은 경쟁 스피드런에서는 위치를 아는 것이 불공정한 이점이며, 일부 Minecraft 순수주의자는 이를 보는 것을 “소프트 치트”로 여깁니다.",
+  "The map is made with villages, temples and other structures; this server's world won't have them (World → Villages, temples and other structures).": "지도는 마을, 사원 등 구조물이 있는 상태로 만들어집니다. 이 서버의 세계에는 없습니다(월드 → 마을, 사원 등 구조물)."
 }
