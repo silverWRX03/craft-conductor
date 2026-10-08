@@ -60,6 +60,11 @@ class ModFile:
     channel: str = "release"
     #: set when the author blocks automatic downloads: a page where a person can download it
     manual_url: str | None = None
+    #: a datapack (.zip) for the world's datapacks folder, not a mod for the mods folder
+    datapack: bool = False
+    #: the craft-conductor.toml entry ("source:id") it's installed for, when it came from the other
+    #: site (the mod was picked on Modrinth, which has no build for this Minecraft and loader)
+    listed_as: str | None = None
 
     @property
     def manual(self) -> bool:

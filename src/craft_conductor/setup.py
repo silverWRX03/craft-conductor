@@ -117,6 +117,7 @@ class SetupSpec:
     client_local: list[str] = field(default_factory=list)  # uploaded jars for friends, in the staging area
     manual_files: list[str] = field(default_factory=list)  # mods downloaded by hand from CurseForge, in the staging area
     mod_channels: dict = field(default_factory=dict)  # slug -> "beta"/"alpha": mods picked with only early builds
+    datapacks: list[str] = field(default_factory=list)  # of the mods, ones installed as their datapack build
     world: str = ""                # an existing world: an upload's staging id, or "save:<id>" (singleplayer)
     world_source: Path | None = None  # where that world is, found by the hub (never from the form)
 
@@ -186,7 +187,10 @@ class SetupSpec:
             world=str(d.get("world") or ""),
             mod_channels={str(k): v for k, v in (d.get("mod_channels") or {}).items()
                           if v in ("beta", "alpha")} if isinstance(d.get("mod_channels"), dict) else {},
+            datapacks=slugs("datapacks"),
         )
+        if any(x.startswith("curseforge:") or x not in spec.mods + spec.optional_mods for x in spec.datapacks):
+            raise ConfigError("only the Modrinth mods picked can use their datapack build")
         if spec.loader not in configmod.LOADERS:
             raise ConfigError(f"unknown server type {spec.loader!r}")
         if not re.fullmatch(r"latest|\d+(\.\d+){1,3}(-[A-Za-z0-9.]+)?|\d{2}w\d{2}[a-z]", spec.minecraft):
@@ -215,11 +219,11 @@ class SetupSpec:
         return spec
 
 
-def _mod_spec(item: str, required: bool, channel: str | None = None) -> ModSpec:
+def _mod_spec(item: str, required: bool, channel: str | None = None, datapack: bool = False) -> ModSpec:
     """A mod from the setup form: a Modrinth slug, or ``curseforge:<project id>``."""
     if item.startswith("curseforge:"):
         return ModSpec("curseforge", item.split(":", 1)[1], required=required, channel=channel)
-    return ModSpec("modrinth", item, required=required, channel=channel)
+    return ModSpec("modrinth", item, required=required, channel=channel, datapack=datapack)
 
 
 def whitelist_as_chosen(server_dir: Path, spec: SetupSpec) -> None:
@@ -251,9 +255,11 @@ def configure(root: Path, spec: SetupSpec) -> configmod.Config:
         if spec.client_mods:
             configmod.set_value(path, "client", "mods", json.dumps(spec.client_mods))
     for slug in spec.mods:
-        configmod.append_mod(path, _mod_spec(slug, required=True, channel=spec.mod_channels.get(slug)))
+        configmod.append_mod(path, _mod_spec(slug, required=True, channel=spec.mod_channels.get(slug),
+                                             datapack=slug in spec.datapacks))
     for slug in spec.optional_mods:
-        configmod.append_mod(path, _mod_spec(slug, required=False, channel=spec.mod_channels.get(slug)))
+        configmod.append_mod(path, _mod_spec(slug, required=False, channel=spec.mod_channels.get(slug),
+                                             datapack=slug in spec.datapacks))
     cfg = configmod.load(root)
     cfg.server.dir.mkdir(parents=True, exist_ok=True)
     write_properties(cfg.server.dir / "server.properties", {

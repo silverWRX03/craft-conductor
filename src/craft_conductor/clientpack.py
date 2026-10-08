@@ -138,15 +138,17 @@ class PackBuilder:
         skipped: list[dict] = []
         included: set[str] = set()
 
-        # The server's own mods, unless they only run on servers.
+        # The server's own mods, unless they only run on servers. (A datapack build never: players
+        # get the land the server makes with it.)
+        server_mods = [] if plugins else [x for x in lk.mods if not x.datapack]
         sides = {}
-        ids = [x.project_id for x in lk.mods if x.source == "modrinth" and not plugins]
+        ids = [x.project_id for x in server_mods if x.source == "modrinth"]
         if ids:
             try:
                 sides = {pid: p.get("client_side", "unknown") for pid, p in modrinth.projects(ids).items()}
             except Exception as e:  # can't tell: include them all (a spare server mod is harmless)
                 log.warning("couldn't look up which mods players need (%s); including all of them", e)
-        for x in ([] if plugins else lk.mods):
+        for x in server_mods:
             if x.source == "modrinth" and sides.get(x.project_id) == "unsupported":
                 continue
             included.add(x.key)
@@ -159,7 +161,7 @@ class PackBuilder:
         # then the extras you picked for players; each with its required dependencies.
         names = {x.key: x.name for x in lk.mods}
         todo = [ModSpec("modrinth", dep, dependency_of=names.get(x.key, x.name))
-                for x in ([] if plugins else lk.mods) if x.source == "modrinth"
+                for x in server_mods if x.source == "modrinth"
                 for dep in x.dependencies if f"modrinth:{dep}" not in included]
         todo += [ModSpec("modrinth", slug) for slug in cfg.client.mods if not slug.startswith("curseforge:")]
         while todo and loaders:

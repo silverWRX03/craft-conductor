@@ -88,6 +88,15 @@ p.pair-code { font-size: 1.5em; margin: .4em 0; }
 .update-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); flex: none;
   margin-inline-start: 8px; vertical-align: middle; }
 .update-dot.hidden { display: none; }
+/* A mod manager that needs you (manageButton): it glows lava orange and pulses; a steady glow with
+   less motion (the global rule below ends the pulse on its glowing frame). */
+.btn.attention { border-color: #ff6a13; color: #ffb27a; background: #3a1405; box-shadow: 0 0 0 2px #ff6a13, 0 0 26px 9px #ff4500d9;
+  animation: lava 1.4s ease-in-out infinite alternate; }
+:root[data-theme="day"] .btn.attention { color: #8a2f00; background: #ffe6d6; }
+@keyframes lava { from { box-shadow: 0 0 0 2px #ff6a13, 0 0 12px 3px #ff4500a6; }
+  to { box-shadow: 0 0 0 3px #ffa600, 0 0 26px 9px #ff4500d9; } }
+@media (prefers-reduced-motion: reduce) { :root:not([data-motion="normal"]) .btn.attention { animation: none; } }
+@media (forced-colors: active) { .btn.attention { outline: 3px solid Highlight; outline-offset: 2px; } }
 .update-screen progress { width: 100%; }
 .update-steps { list-style: none; margin: 8px 0; padding: 0; }
 .update-steps li { color: var(--muted); }

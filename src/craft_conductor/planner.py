@@ -159,6 +159,7 @@ class Decision:
     policy: str = UPGRADE
 
 
+DATAPACK_LOADERS = ("datapack",)  # Modrinth's builds of a mod as a datapack (ModSpec.datapack)
 LOADER_NAMES = {"fabric": "Fabric", "neoforge": "NeoForge", "forge": "Forge", "quilt": "Quilt", "paper": "Paper",
                 "purpur": "Purpur", "vanilla": "Vanilla"}
 
@@ -306,7 +307,10 @@ class Planner:
                 continue
             projects[key] = project
             try:
-                mod = provider.resolve(spec, minecraft, self.loader.mod_loaders, lowest(channel, spec.channel))
+                mod = provider.resolve(spec, minecraft, DATAPACK_LOADERS if spec.datapack else self.loader.mod_loaders,
+                                       lowest(channel, spec.channel))
+                if spec.datapack:  # (into the world's datapacks folder; a datapack needs no mods)
+                    mod.datapack, mod.dependencies = True, []
             except ClientOnly as e:
                 client_only.add(key)
                 if spec.dependency_of is None:
@@ -315,10 +319,11 @@ class Planner:
             except Unavailable as e:
                 blocker = Blocker(key, project.name, str(e), spec.required, spec.dependency_of, config=config_id,
                                   chain=[project.name], checked=[SOURCE_NAMES.get(spec.source, spec.source)])
-                # The mods you listed come from where you picked them; what they need can come from either site.
+                # No build on the site that names it (the one it was picked from, or where a mod that
+                # needs it says): the same mod on the other site. A datapack comes from Modrinth only.
                 try:
-                    found = self._elsewhere(project, spec, minecraft, lowest(channel, spec.channel), blocker) \
-                        if spec.dependency_of is not None else None
+                    found = None if spec.datapack else \
+                        self._elsewhere(project, spec, minecraft, lowest(channel, spec.channel), blocker)
                 except ClientOnly:
                     client_only.add(key)
                     continue
@@ -327,6 +332,8 @@ class Planner:
                     continue
                 other, mod = found
                 alias[key] = mod.key
+                if config_id:
+                    mod.listed_as = config_id
                 if mod.key in resolved:  # (already here, by another way)
                     if spec.required and not resolved[mod.key].required:
                         for dep in resolved[mod.key].dependencies:

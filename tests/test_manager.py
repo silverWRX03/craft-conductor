@@ -184,3 +184,28 @@ def test_aikars_flags(make_config, http, modrinth):
     assert argv[1:3] == ["-Xms20G", "-Xmx20G"] and "-XX:G1HeapRegionSize=16M" in argv  # the big-heap variant
     assert argv.index("-XX:+UseG1GC") < argv.index("fake_server.py")
     assert "-XX:G1HeapRegionSize=8M" in aikar(8 * 1024 ** 3)
+
+
+def test_a_mods_datapack_build_goes_in_the_worlds_datapacks_folder(make_config, http, modrinth):
+    """A mod with no build for the server type, used as its datapack (like Terralith on Forge 26.x)."""
+    from craft_conductor import config as configmod
+    modrinth.project("TERRA", "terralith", "Terralith")
+    modrinth.version("TERRA", "2.6d", ["1.21.1"], loaders=("datapack",), filename="Terralith_2.6.zip")
+    cfg = make_config([ModSpec("modrinth", "terralith", datapack=True)])
+    m = manager(cfg, http, ["1.21.1"])
+    server = cfg.server.dir
+    result = update(m)
+    assert result.ok, result.message
+    assert (server / "world" / "datapacks" / "Terralith_2.6.zip").is_file()
+    assert not (server / "mods" / "Terralith_2.6.zip").exists()
+    [mod] = lockmod.load(cfg.root).mods
+    assert mod.datapack and mod.name == "Terralith"
+    # (craft-conductor.toml keeps it)
+    configmod.append_mod(cfg.path, ModSpec("modrinth", "terralith", datapack=True))
+    assert configmod.load(cfg.root).mods[-1].datapack
+    # Taken out: removed from the world's datapacks too
+    configmod.set_mods(cfg.path, [])
+    m.reload_config()
+    result = update(m)
+    assert result.ok, result.message
+    assert not (server / "world" / "datapacks" / "Terralith_2.6.zip").exists()
