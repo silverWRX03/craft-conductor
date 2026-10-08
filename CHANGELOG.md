@@ -17,6 +17,7 @@ its fix will say which version it's in.
 - The Updates page's **Manual downloads needed** card opens the same panel instead of an **Upload** button for each file.
 
 **Fixed**
+- In **Manage Mods** on a new server, **Choose another Minecraft version** (on a mod that isn't available for the chosen version) did nothing. It now closes the panel and takes you to the Minecraft version.
 - A new Quilt server on Minecraft 26.1 failed to start ("Unsupported class file major version 69") and was rolled back. Craft Conductor picked an old Quilt Loader (0.24.0) that can't read Minecraft 26.1, because Quilt lists its loaders out of order; it now picks the newest stable Quilt Loader. Single-player Quilt games had the same problem. (#72)
 
 ## 0.25.0 (2026-10-06)

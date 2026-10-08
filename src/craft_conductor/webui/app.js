@@ -6812,6 +6812,7 @@ function setupConflict(key, m) {
     if (st.rerender) st.rerender();
   };
   const chooseVersion = () => {
+    closeModManager(true);  // (this notice is in Manage Mods, over the page the version is on)
     const select = document.getElementById("setup-version");
     if (select) { select.scrollIntoView({ block: "center" }); select.focus(); }
   };

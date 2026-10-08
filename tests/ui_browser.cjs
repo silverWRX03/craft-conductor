@@ -142,17 +142,29 @@ const assert = require('node:assert/strict');
   await page.locator('#setup-version').waitFor();
   await page.evaluate(() => { setupState.mods.clear(); setupState.minecraft = '1.21.2'; setupState.rerender(); });
   await page.evaluate(() => setupAddMod('needs-gone', 'Needs Gone'));
-  const conflict = page.locator('.notice.warn', {hasText: 'Dependency unavailable'});
+  await page.waitForFunction(() => setupState.mods.get('needs-gone') && setupState.mods.get('needs-gone').conflict);
+  // (the mod's row in Manage Mods explains)
+  const manage = page.getByRole('button', {name: 'Manage Mods', exact: true});
+  const drawer = page.locator('.mod-manager-drawer');
+  await manage.click();
+  const conflict = drawer.locator('.notice.warn', {hasText: 'Dependency unavailable'});
   await conflict.waitFor();
   assert.match(await conflict.innerText(), /Needs Gone requires Gone Library, but no compatible Gone Library release was found for Minecraft 1\.21\.2 using Fabric\. Craft Conductor checked Modrinth/);
   assert.match(await conflict.innerText(), /will not change your Minecraft version automatically/);
   assert.equal(await page.evaluate(() => setupState.minecraft), '1.21.2');
-  await conflict.getByRole('button', {name: 'Choose another Minecraft version', exact: true}).waitFor();
   await conflict.getByRole('button', {name: 'Remove Needs Gone', exact: true}).waitFor();
+  // Choose another Minecraft version: back to the page, at the version picker.
+  await conflict.getByRole('button', {name: 'Choose another Minecraft version', exact: true}).click();
+  await drawer.waitFor({state: 'detached'});
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'setup-version');
+  assert.equal(await page.evaluate(() => setupState.minecraft), '1.21.2');
+  await manage.click();
   await conflict.getByRole('button', {name: 'Use Minecraft 1.21.1', exact: true}).click();
   await page.getByRole('button', {name: 'Change version', exact: true}).click();
   await page.waitForFunction(() => setupState.minecraft === '1.21.1' && !setupState.mods.get('needs-gone').bad);
   assert.equal(await page.locator('#setup-version').inputValue(), '1.21.1');
+  await page.keyboard.press('Escape');
+  await drawer.waitFor({state: 'detached'});
   await page.evaluate(() => setupRemoveMod('needs-gone'));
   // Exercise the actual backend preview and render it in the world-generation pane.
   const preview = await page.evaluate(async () => {
