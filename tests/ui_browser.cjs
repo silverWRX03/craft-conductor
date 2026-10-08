@@ -174,6 +174,50 @@ const assert = require('node:assert/strict');
   await page.locator('.map-tile').first().waitFor();
   await page.waitForFunction(() => [...document.querySelectorAll('.map-tile')].some(img => img.complete && img.naturalWidth > 0));
   assert.equal(await page.locator('.map-spawn').evaluate(el => Number.isFinite(parseFloat(el.style.left))), true);
+  // The world generation mods keep coming as the list scrolls, as in the mod browser.
+  await page.locator('.browse-results .result', {hasText: 'Example world generation'}).waitFor();
+  await page.locator('.browse-results .pager-foot', {hasText: "That's everything"}).waitFor();
+  // A clean map: points of interest stay hidden (and unfetched) until asked for, after a warning.
+  const poiBox = page.getByLabel('Show Points of Interest', {exact: true});
+  const pois = page.locator('.map-mark');
+  let poiAsks = 0;
+  page.on('request', req => { if (req.url().includes('/api/hub/map/poi')) poiAsks++; });
+  await page.waitForTimeout(400);
+  assert.equal(await poiBox.isChecked(), false);
+  assert.equal(await pois.count(), 0);
+  assert.equal(poiAsks, 0);
+  await poiBox.click();
+  const keep = page.getByRole('button', {name: 'Keep Hidden', exact: true});
+  await keep.waitFor();
+  const warning = await page.locator('.modal-backdrop', {has: keep}).innerText();
+  assert.match(warning, /competitive speedrunning without a set seed/);
+  assert.match(warning, /soft cheat/);
+  assert.equal(await page.evaluate(() => document.activeElement.textContent), 'Keep Hidden');  // (the safe answer is the default)
+  await page.keyboard.press('Enter');
+  await keep.waitFor({state: 'detached'});
+  assert.equal(await poiBox.isChecked(), false);
+  assert.equal(poiAsks, 0);
+  await poiBox.click();
+  await page.getByRole('button', {name: 'Show Points of Interest', exact: true}).click();
+  await pois.first().waitFor();
+  assert.equal(await pois.count(), 1);
+  assert.equal(await poiBox.isChecked(), true);
+  await poiBox.click();  // off: gone at once
+  assert.equal(await pois.count(), 0);
+  await poiBox.click();  // on again: no second warning for this world
+  await pois.first().waitFor();
+  assert.equal(await keep.count(), 0);
+  // Points of interest that can't be loaded: a small note with Try again; the map stays.
+  await poiBox.click();
+  await page.route('**/api/hub/map/poi*', route => route.fulfill({status: 500, contentType: 'application/json', body: '{"error": "test"}'}));
+  await poiBox.click();
+  await page.getByText("Couldn't load the points of interest.", {exact: true}).waitFor();
+  assert.equal(await pois.count(), 0);
+  assert.ok(await page.locator('.map-tile').count() > 0);
+  await page.unroute('**/api/hub/map/poi*');
+  await page.getByRole('button', {name: 'Try again', exact: true}).click();
+  await pois.first().waitFor();
+  await poiBox.click();
   await page.waitForTimeout(400);
   await page.getByLabel('Keep making the map as I move').check();
   await page.keyboard.press('Escape');

@@ -206,12 +206,13 @@ function closeToast(id) { const el = document.getElementById(id); if (el) el.rem
 // Questions ("Stop the server?"): in the middle of the screen like other messages that need an
 // answer, and a promise of the answer. The ones people meet again and again have an `id` and a
 // "Don't ask me again" box; Craft Conductor settings → Sounds & notifications → Warnings brings them all back.
+// `safe`: saying no (`cancel`) is the careful answer, so it's the button picked out and focused.
 const SKIP_KEY = "craft-conductor-skip-warnings";
 function skippedWarnings() { try { return JSON.parse(localStorage.getItem(SKIP_KEY) || "[]"); } catch (_) { return []; } }
 function skipWarning(id) { try { localStorage.setItem(SKIP_KEY, JSON.stringify([...new Set([...skippedWarnings(), id])])); } catch (_) { /* private mode */ } }
 function showAllWarnings() { try { localStorage.removeItem(SKIP_KEY); } catch (_) { /* private mode */ } }
 let askCount = 0;
-function ask(message, { id = null, ok = "OK", danger = false } = {}) {
+function ask(message, { id = null, ok = "OK", cancel = "Cancel", danger = false, safe = false } = {}) {
   if (id && skippedWarnings().includes(id)) return Promise.resolve(true);
   return new Promise((resolve) => {
     const boxId = `ask-${++askCount}`;
@@ -225,13 +226,14 @@ function ask(message, { id = null, ok = "OK", danger = false } = {}) {
     };
     document.addEventListener("keydown", onKey, true);
     const [title, ...more] = String(message).split("\n\n").map(t);
+    const no = h("button", { class: `btn small ${safe ? "primary" : "ghost"}`, onclick: () => done(false) }, cancel);
     stickyToast(boxId, [
       h("strong", { class: "pre-line" }, title),
       more.map((t) => h("p", { class: "small pre-line" }, t)),
       again ? h("label", { class: "row small mt-s dont-ask" }, again, "Don't ask me again") : null,
       h("div", { class: "row mt-s" },
-        h("button", { class: `btn small ${danger ? "danger" : "primary"}`, onclick: () => done(true) }, ok),
-        h("button", { class: "btn small ghost", onclick: () => done(false) }, "Cancel"))]);
+        h("button", { class: `btn small${safe ? "" : danger ? " danger" : " primary"}`, onclick: () => done(true) }, ok), no)]);
+    if (safe) no.focus();  // (Enter keeps the careful answer)
   });
 }
 
@@ -3741,33 +3743,98 @@ async function applyPreset(p, opts) {
 // block out to 32 blocks a pixel). "Make this area" asks the private server for the land in
 // view; "Keep making the map as I move" does that by itself.
 const MAP_LEVELS = [1, 2, 4, 8, 16];  // blocks a pixel the server draws tiles at
-// Landmarks (preview.py): the villages, temples and other structures Minecraft placed, as symbols
-// on the map (named for screen readers and on hover), and a list under it.
-const LANDMARKS_KEY = "craft-conductor-map-landmarks";
 const MAP_AUTO_KEY = "craft-conductor-map-auto";
 let mapAuto = (() => { try { return localStorage.getItem(MAP_AUTO_KEY) === "on"; } catch (_) { return false; } })();
-const landmarksShown = () => { try { return localStorage.getItem(LANDMARKS_KEY) !== "off"; } catch (_) { return true; } };
-function landmarkMark(l) {
+
+// Points of interest (preview.py's landmarks): the villages, temples and other structures Minecraft
+// placed. A map starts clean (the land and the spawn): they give away what players would otherwise
+// find by exploring, so they're only fetched (from their own address) once Show Points of Interest
+// is ticked, and the first time for a world (its seed and type) says so. The answer and the tick
+// last for that world until the page is reloaded; every other world starts hidden again.
+const poiAllowed = new Set();  // worlds whose warning was answered "Show"
+const poiShown = new Set();    // worlds whose points of interest are on the map
+const poiWorld = (m) => `${m.seed}\n${m.level_type}`;
+const POI_WARNING = "Show points of interest on the map?\n\n"
+  + "They mark the villages, temples, strongholds and other structures this world has, which players would normally have to discover by exploring. The land itself stays the same either way.\n\n"
+  + "In competitive speedrunning without a set seed, knowing where they are is an unfair advantage, and some Minecraft purists consider looking at them a “soft cheat”.";
+function poiMark(l) {
   const words = `${t(l.name)}: x ${l.x}, z ${l.z}`;
   return h("span", { class: "map-mark", title: words, role: "img", "aria-label": words }, l.symbol);
 }
-function landmarkList(marks, onPick) {
-  if (!marks.length) return h("p", { class: "muted small" }, "No landmarks (villages, temples and the like) in the land made so far.");
+function poiList(marks, onPick) {
+  if (!marks.length) return h("p", { class: "muted small" }, "No points of interest (villages, temples and the like) in the land made so far.");
   const counts = {};
   for (const l of marks) counts[l.name] = (counts[l.name] || 0) + 1;
-  const toggle = h("input", { type: "checkbox", checked: landmarksShown() });
-  toggle.addEventListener("change", () => {
-    try { localStorage.setItem(LANDMARKS_KEY, toggle.checked ? "on" : "off"); } catch (_) { /* private mode */ }
-    document.querySelectorAll(".map-marks").forEach((el) => el.classList.toggle("marks-off", !toggle.checked));
-  });
   return h("details", { class: "small mt-s landmarks" },
-    h("summary", {}, t("Landmarks:") + " " + Object.entries(counts).map(([n, c]) => `${c} × ${t(n)}`).join(", ")),
-    h("label", { class: "row" }, toggle, h("span", {}, "Show them on the map")),
+    h("summary", {}, t("Points of interest:") + " " + Object.entries(counts).map(([n, c]) => `${c} × ${t(n)}`).join(", ")),
     h("ul", { class: "list compact" }, marks.slice(0, 60).map((l) => h("li", {}, h("span", { "aria-hidden": "true" }, l.symbol + " "),
       h("span", { class: "grow" }, t(l.name)),
       onPick ? h("button", { type: "button", class: "link-btn", onclick: () => onPick(l) }, `x ${l.x}, z ${l.z}`) : h("code", {}, `x ${l.x}, z ${l.z}`)))));
 }
-function mapExplorer(m, info, readout) {
+// A map's points of interest: `layer` goes over the map, `controls` (the tick, how loading went and
+// the list) under it. The map never waits for them, and when they can't be loaded only this says so,
+// with Try again. One for each map shown, kept when the still map becomes the explorable one, which
+// calls attach() with where marks go now, and refresh() when it has new land.
+function poiLayer(m) {
+  const world = poiWorld(m);
+  const layer = h("div", { class: "map-layer map-marks" });
+  const box = h("input", { type: "checkbox", checked: poiShown.has(world) });
+  const status = h("span", { class: "small", role: "status" });
+  const listBox = h("div");
+  let marks = [], found = null, gen = 0;
+  let place = () => {}, onPick = null;
+  const placeAll = () => { for (const [l, el] of marks) place(l, el); };
+  const clear = () => {
+    gen++;  // (a reply on its way is dropped)
+    marks = []; found = null;
+    layer.replaceChildren(); listBox.replaceChildren(); status.replaceChildren();
+  };
+  const load = async () => {
+    const mine = ++gen;
+    fill(status, h("span", { class: "muted" }, "Loading points of interest…"));
+    let r;
+    try { r = await api(`/api/hub/map/poi?id=${m.id}`); }
+    catch (e) {
+      if (mine !== gen) return;
+      if (e instanceof Unauthorized) { status.replaceChildren(); return; }
+      fill(status, h("span", { class: "bad-text" }, "Couldn't load the points of interest."), " ",
+        h("button", { type: "button", class: "link-btn", onclick: () => load() }, "Try again"));
+      return;
+    }
+    if (mine !== gen || !box.checked) return;
+    status.replaceChildren();
+    found = r.landmarks || [];
+    marks = found.map((l) => [l, poiMark(l)]);
+    layer.replaceChildren(...marks.map(([, el]) => el));
+    placeAll();
+    fill(listBox, poiList(found, onPick));
+  };
+  box.addEventListener("change", async () => {
+    if (!box.checked) { poiShown.delete(world); clear(); return; }
+    if (!poiAllowed.has(world)) {
+      box.checked = false;  // (until the question is answered)
+      if (!(await ask(POI_WARNING, { ok: "Show Points of Interest", cancel: "Keep Hidden", safe: true }))) return;
+      poiAllowed.add(world);
+      box.checked = true;
+    }
+    poiShown.add(world);
+    load();
+  });
+  if (box.checked) load();
+  return {
+    layer, placeAll,
+    controls: h("div", { class: "poi" }, h("div", { class: "row small" },
+      h("label", { class: "row" }, box, h("span", {}, "Show Points of Interest")), status), listBox),
+    attach(where, pick = null) {
+      place = where; onPick = pick;
+      placeAll();
+      if (found) fill(listBox, poiList(found, onPick));
+    },
+    refresh() { if (box.checked) load(); },
+  };
+}
+
+function mapExplorer(m, info, readout, poi) {
   const id = m.id;
   const home = info.spawn ? { x: info.spawn.x, z: info.spawn.z }
     : info.areas.length ? { x: info.areas[0][0], z: info.areas[0][1] } : { x: 0, z: 0 };
@@ -3776,10 +3843,8 @@ function mapExplorer(m, info, readout) {
   const layer = h("div", { class: "map-layer" });
   const spawn = h("span", { class: "map-spawn", title: "Spawn" });
   const status = h("div", { class: "map-status small" });
-  const marksLayer = h("div", { class: "map-layer map-marks" + (landmarksShown() ? "" : " marks-off") });
-  const marksBox = h("div");
-  let marks = [], marksFrom = null;  // the landmark symbols, and the list they were made from
-  const frame = h("div", { class: "map-frame map-live", tabindex: "0", "aria-label": "Map: drag to move, scroll to zoom" }, layer, marksLayer, spawn, status);
+  const frame = h("div", { class: "map-frame map-live", tabindex: "0", "aria-label": "Map: drag to move, scroll to zoom" }, layer, poi.layer, spawn, status);
+  let left = 0, top = 0;  // the block at the frame's top left corner (from the last draw)
   const tiles = new Map();
   let regions = new Set(state.regions.map(([x, z]) => `${x},${z}`));
   const auto = h("input", { type: "checkbox", checked: mapAuto, onchange: () => {
@@ -3793,7 +3858,7 @@ function mapExplorer(m, info, readout) {
     const { w, hgt } = size();
     const level = MAP_LEVELS.reduce((best, l) => (l <= Math.max(1, view.bpp) ? l : best), 1);
     const span = 256 * level;  // blocks a tile covers
-    const left = view.x - (w / 2) * view.bpp, top = view.z - (hgt / 2) * view.bpp;
+    left = view.x - (w / 2) * view.bpp; top = view.z - (hgt / 2) * view.bpp;
     const want = new Set();
     for (let tx = Math.floor(left / span); tx <= Math.floor((left + w * view.bpp) / span); tx++) {
       for (let tz = Math.floor(top / span); tz <= Math.floor((top + hgt * view.bpp) / span); tz++) {
@@ -3827,16 +3892,7 @@ function mapExplorer(m, info, readout) {
       spawn.style.left = `${(state.spawn.x - left) / view.bpp}px`;
       spawn.style.top = `${(state.spawn.z - top) / view.bpp}px`;
     } else spawn.classList.add("hidden");
-    if (marksFrom !== state.landmarks) {  // (new land, new landmarks)
-      marksFrom = state.landmarks || [];
-      marks = marksFrom.map((l) => [l, landmarkMark(l)]);
-      fill(marksLayer, marks.map(([, el]) => el));
-      fill(marksBox, landmarkList(marksFrom, (l) => { view.x = l.x; view.z = l.z; view.bpp = 0.5; moved(); frame.focus(); }));
-    }
-    for (const [l, el] of marks) {
-      el.style.left = `${(l.x - left) / view.bpp}px`;
-      el.style.top = `${(l.z - top) / view.bpp}px`;
-    }
+    poi.placeAll();
     const r = visibleRadius();
     makeBtn.disabled = !!(state.job && state.job.state === "running");
     makeBtn.title = `About ${estimate(r)} for ${Math.round(r * 2)} × ${Math.round(r * 2)} blocks`;
@@ -3889,7 +3945,7 @@ function mapExplorer(m, info, readout) {
       state = r;
       regions = new Set(r.regions.map(([x, z]) => `${x},${z}`));
       showStatus();
-      if (grew) draw();
+      if (grew) { draw(); poi.refresh(); }  // (new land may have new points of interest: asked for only while they're shown)
       if (!r.job || r.job.state !== "running") { clearInterval(polling); polling = null; draw(); }
     }, 1500);
   };
@@ -3951,16 +4007,20 @@ function mapExplorer(m, info, readout) {
     h("button", { type: "button", class: "btn small", onclick: () => { view.x = home.x; view.z = home.z; view.bpp = 0.5; moved(); } }, "⌖ Back to spawn"),
     makeBtn,
     h("label", { class: "row small" }, auto, h("span", {}, "Keep making the map as I move")));
+  poi.attach((l, el) => {
+    el.style.left = `${(l.x - left) / view.bpp}px`;
+    el.style.top = `${(l.z - top) / view.bpp}px`;
+  }, (l) => { view.x = l.x; view.z = l.z; view.bpp = 0.5; moved(); frame.focus(); });
   showStatus();
   if (state.job && state.job.state === "running") watch();
   setTimeout(draw, 0);
-  return { el: h("div", {}, frame, tools, marksBox) };
+  return { el: h("div", {}, frame, tools) };
 }
 
 function openWorldPanel() {
   const refresh = () => { if (current && current.refresh) current.refresh(); };
   const p = worldPanel({ close: () => { closeBrowser(); refresh(); }, changed: refresh });
-  openSidePane(p.el, "World generation");
+  openSidePane(p.el, "World generation", p.stop);
   p.start();
 }
 
@@ -3992,7 +4052,7 @@ function worldPanel(host) {
   const list = h("div", { class: "browse-results" });
   const q = h("input", { type: "search", placeholder: plugins ? "Search world generation plugins…" : "Search world generation mods…", "aria-label": "Search" });
   const inServer = h("span", { class: "grow muted small" });
-  let results = [], seq = 0, timer;
+  let timer;
   const countMods = () => {
     const all = [...st.mods.values()];
     const n = all.filter((m) => m.explicit).length, needed = all.length - n;
@@ -4000,30 +4060,21 @@ function worldPanel(host) {
       : needed ? `The map is made with all ${n} of the server's ${plugins ? "plugins" : "mods"} and the ${needed} they need.`
         : `The map is made with all ${n} of the server's ${plugins ? "plugins" : "mods"}.`;
   };
-  const search = async () => {
-    if (!moddable) {
-      fill(list, h("p", { class: "empty" }, "Vanilla servers don't run mods. Pick Fabric, NeoForge, Forge, Quilt or Paper under 1. Server type to add world generation mods."));
-      return;
-    }
-    const mine = ++seq;
-    const params = new URLSearchParams({ type: "mod", q: q.value.trim(), source: "modrinth", sort: q.value.trim() ? "relevance" : "downloads",
-      offset: "0", category: "worldgen", version: setupModVersion(), loader: st.loader });
-    fill(list, h("p", { class: "empty" }, "Searching…"));
-    const r = await api(`/api/hub/browse/search?${params}`).catch((e) => { if (!(e instanceof Unauthorized)) fill(list, h("div", { class: "notice bad" }, e.message)); return null; });
-    if (!r || mine !== seq) return;
-    results = r.results;
-    renderList();
-  };
-  const renderList = () => {
-    countMods();
-    fill(list, results.length ? results.map((m) => {
+  // A tick changed the server's mods (and perhaps the ones they need): the rows' ticks follow, in place.
+  const syncTicks = () => list.querySelectorAll("input[data-mod]").forEach((b) => { b.checked = st.mods.has(b.dataset.mod); });
+  // The results keep coming as the list scrolls (pager.js), like the mod browser's.
+  const pager = searchPager({
+    list,
+    url: "/api/hub/browse/search",
+    row: (m) => {
       const key = setupModKey(m);
-      const box = h("input", { type: "checkbox", checked: st.mods.has(key), "aria-label": `Use ${m.name}`, onchange: async (e) => {
+      const box = h("input", { type: "checkbox", checked: st.mods.has(key), "data-mod": key, "aria-label": `Use ${m.name}`, onchange: async (e) => {
         if (e.target.checked) {
           if (!(await confirmEarly([m]))) { e.target.checked = false; return; }
           await setupAddMod(key, m.name, m.channel && m.channel !== "release" ? m.channel : null);
         } else await setupRemoveMod(key);
-        renderList();
+        syncTicks();
+        countMods();
         host.changed();
       } });
       return h("label", { class: "result" }, box,
@@ -4031,7 +4082,18 @@ function worldPanel(host) {
         h("div", { class: "info" }, h("div", { class: "name" }, m.name, " ", channelTag(m.channel)), h("div", { class: "desc" }, m.summary),
           h("a", { class: "small", href: m.url || `https://modrinth.com/mod/${m.slug || m.id}`, target: "_blank", rel: "noopener noreferrer",
             onclick: (e) => e.stopPropagation() }, "About it ↗")));
-    }) : [h("p", { class: "empty" }, "Nothing found for this Minecraft version. Try other words.")]);
+    },
+    empty: () => h("p", { class: "empty" }, "Nothing found for this Minecraft version. Try other words."),
+    failed: (e) => !(e instanceof Unauthorized),
+  });
+  const search = () => {
+    if (!moddable) {
+      pager.stop();
+      fill(list, h("p", { class: "empty" }, "Vanilla servers don't run mods. Pick Fabric, NeoForge, Forge, Quilt or Paper under 1. Server type to add world generation mods."));
+      return;
+    }
+    pager.search({ type: "mod", q: q.value.trim(), source: "modrinth", sort: q.value.trim() ? "relevance" : "downloads",
+      category: "worldgen", version: setupModVersion(), loader: st.loader });
   };
   q.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(search, 350); });
 
@@ -4059,13 +4121,12 @@ function worldPanel(host) {
       spawn.style.left = pct((meta.spawn.x - meta.x) / meta.size);  // (styles set here: the page's CSP allows no inline ones)
       spawn.style.top = pct((meta.spawn.z - meta.z) / meta.size);
     } else spawn.classList.add("hidden");
-    const marks = (meta.landmarks || []).map((l) => {
-      const el = landmarkMark(l);
+    const poi = poiLayer(m);  // (hidden unless asked for: see poiLayer)
+    poi.attach((l, el) => {
       el.style.left = pct((l.x - meta.x) / meta.size);
       el.style.top = pct((l.z - meta.z) / meta.size);
-      return el;
     });
-    const frame = h("div", { class: "map-frame" }, img, h("div", { class: "map-layer map-marks" + (landmarksShown() ? "" : " marks-off") }, marks), spawn);
+    const frame = h("div", { class: "map-frame" }, img, poi.layer, spawn);
     frame.addEventListener("mousemove", (e) => {
       const r = img.getBoundingClientRect();
       const bx = Math.floor(meta.x + (e.clientX - r.left) / r.width * meta.size);
@@ -4085,17 +4146,14 @@ function worldPanel(host) {
           P["generate-structures"] = String(m.structures); structures.checked = m.structures;
           host.changed(); toast(`The server will use seed ${m.seed}`); showMap(m);
         } }, "Use this seed")),
-      frame, readout,
-      h("p", { class: "muted small", id: "map-note" }, "North is up; one pixel is one block, around the spawn point (★). Villages, temples and other landmarks are marked."),
-      meta.landmarks ? h("div", { id: "map-landmarks" }, landmarkList(meta.landmarks, null)) : null,
+      frame, poi.controls, readout,
+      h("p", { class: "muted small", id: "map-note" }, "North is up; one pixel is one block, around the spawn point (★)."),
       strip());
     // The world is still here (the newest preview): make the map explorable.
     api(`/api/hub/map?id=${m.id}`).then((info) => {
       if (shown !== m.id || !frame.isConnected) return;
-      const ex = mapExplorer(m, info, readout);
+      const ex = mapExplorer(m, info, readout, poi);
       frame.replaceWith(ex.el);
-      const listed = document.getElementById("map-landmarks");
-      if (listed) listed.remove();  // (the explorable map has its own list)
       const note = document.getElementById("map-note");
       if (note) note.textContent = t("Drag to move and scroll (or + and −) to zoom. Make this area asks the private server for the land in view; it stops by itself after a few minutes of not being needed.");
     }).catch(() => null);
@@ -4229,7 +4287,7 @@ function worldPanel(host) {
     else fill(right, empty());
     search();
     countMods();
-  } };
+  }, stop: () => pager.stop() };
 }
 
 function browserPanel(params, host) {
@@ -4326,11 +4384,9 @@ function browserPanel(params, host) {
     if (loader) p.set("loader", loader);
     return p;
   };
-  let asked = query();  // (fixed for one search: a later page asks exactly what the first did)
-  const pager = resultPager({
+  const pager = searchPager({
     list,
-    fetchPage: (offset) => { const p = new URLSearchParams(asked); p.set("offset", String(offset)); return api(`${base}/search?${p}`); },
-    key: (m) => `${m.source}:${m.id}`,
+    url: `${base}/search`,
     row: (m) => resultRow(m),
     empty: () => h("p", { class: "empty" }, "Nothing found. Try other words or fewer filters."),
     onPage: (r, first) => {
@@ -4345,9 +4401,8 @@ function browserPanel(params, host) {
       if (cfKey === null) cfKey = (await api("/api/hub/curseforge").catch(() => ({ set: false }))).set;
       if (!cfKey) { pager.stop(); keyPanel(); updateFooter(); return; }
     }
-    asked = query();
     st.hidden = st.earlyHidden = 0;
-    pager.reset();
+    pager.search(query());
     updateFooter();
   };
   // Search results the chosen version can't run are left out; say so (counting every batch).
@@ -4663,7 +4718,7 @@ const MANUAL_PICTURES = {
   "Getting started": [["sign-in", "Signing in the first time"], ["choose-password", "Choosing your own password"]],
   "The guided setup": [["guided-setup", "The guided setup's checklist, in a corner of the page"]],
   "Creating a server": [["new-server", "New server"], ["mod-browser", "The mod browser"],
-    ["map-preview", "World generation & map preview, with landmarks"],
+    ["map-preview", "World generation & map preview: a clean map, points of interest hidden"],
     ["manual-downloads", "Mods to download by hand: a link for each, and the box to drop them on"]],
   "On another computer (Linux, over SSH)": [["ssh-install", "Install on a Linux computer or rented server (SSH)"]],
   "Messages": [["question", "A question waits in the middle of the screen"]],
@@ -5761,22 +5816,24 @@ function openSpEditor(game, done) {
     schedulePreview();
   }).catch(() => null);
 
-  let seq = 0, timer;
-  const search = async () => {
-    const mine = ++seq;
-    const params = new URLSearchParams({ type: "mod", q: q.value.trim(), source: "modrinth", sort: q.value.trim() ? "relevance" : "downloads",
-      offset: "0", loader: loader.value, version: mc.value === "latest" ? "" : mc.value, side: "client" });
-    const r = await api(`/api/hub/browse/search?${params}`).catch(() => null);
-    if (!r || mine !== seq) return;
-    fill(results, r.results.map((m) => h("div", { class: "result" },
+  // The results keep coming as the list scrolls (pager.js), like the mod browser's.
+  let timer;
+  const pager = searchPager({
+    list: results,
+    url: "/api/hub/browse/search",
+    row: (m) => h("div", { class: "result" },
       m.icon ? h("img", { src: m.icon, alt: "", loading: "lazy", referrerpolicy: "no-referrer" }) : h("div", { class: "noicon" }),
       h("div", { class: "info grow" }, h("div", { class: "name" }, m.name, " ", channelTag(m.channel)), h("div", { class: "desc" }, m.summary)),
       h("button", { type: "button", class: "btn small", disabled: chosen.has(m.slug || m.id), onclick: (e) => {
         const key = m.slug || m.id;
         chosen.set(key, { name: m.name, channel: m.channel || "release" });
         e.target.disabled = true; resolved = null; renderPicked(); schedulePreview();
-      } }, chosen.has(m.slug || m.id) ? "Added" : "Add"))));
-  };
+      } }, chosen.has(m.slug || m.id) ? "Added" : "Add")),
+    empty: () => h("p", { class: "empty" }, "Nothing found for this Minecraft version. Try other words."),
+    failed: (e) => !(e instanceof Unauthorized),
+  });
+  const search = () => pager.search({ type: "mod", q: q.value.trim(), source: "modrinth", sort: q.value.trim() ? "relevance" : "downloads",
+    loader: loader.value, version: mc.value === "latest" ? "" : mc.value, side: "client" });
   q.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(search, 350); });
   loader.addEventListener("change", () => { resolved = null; search(); renderPicked(); schedulePreview(); });
   mc.addEventListener("change", () => { resolved = null; search(); renderPicked(); schedulePreview(); });
@@ -5807,7 +5864,7 @@ function openSpEditor(game, done) {
       h("h2", {}, "Your own modded Minecraft"),
       h("p", {}, "Craft Conductor finds a build of every mod (and the mods they need) for the same Minecraft version, then sets the game up in your launcher. When the mods update, Check for updates brings them in; with “the newest one all the mods support”, Minecraft moves up too once every mod is ready."),
       h("p", { class: "muted small" }, "Only mods that run on players' computers are listed. Shaders and resource packs can be added on the launcher page when you install.")))),
-    game ? "Edit single-player game" : "New single-player game");
+    game ? "Edit single-player game" : "New single-player game", () => pager.stop());
   renderPicked();
   search();
   schedulePreview();

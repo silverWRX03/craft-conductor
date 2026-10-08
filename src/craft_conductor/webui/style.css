@@ -778,9 +778,10 @@ html { zoom: var(--zoom); }
 .map-frame.map-live.dragging { cursor: grabbing; }
 .map-frame.map-live:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .map-layer { position: absolute; inset: 0; overflow: hidden; }
-/* Landmarks: a symbol on a small round badge, centred on the spot */
+/* Points of interest (landmarks): a symbol on a small round badge, centred on the spot */
 .map-marks { pointer-events: none; }
-.map-marks.marks-off { display: none; }
+.poi { margin-top: 8px; }
+.poi > .row { flex-wrap: wrap; gap: 10px; }
 .map-mark { position: absolute; width: 20px; height: 20px; margin: -10px 0 0 -10px; display: grid; place-items: center; font-size: 12px;
   line-height: 1; border-radius: 50%; background: #000a; border: 1px solid #fff9; color: #fff; pointer-events: auto; cursor: default; }
 .landmarks ul.list li { padding: 2px 0; border: 0; }

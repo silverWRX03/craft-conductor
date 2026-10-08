@@ -523,7 +523,8 @@ def render(world: Path, center: tuple[int, int], radius: int, spawn: tuple[int, 
            surfaces: Surfaces | None = None) -> tuple[bytes, dict]:
     """A PNG of the ground within ``radius`` blocks of ``center`` (one pixel a block, north up),
     and what the page needs: where it is, the spawn and each chunk's biome. Raises PreviewError
-    (saying what was found) when there's nothing to draw."""
+    (saying what was found) when there's nothing to draw. The landmarks aren't in it: the map
+    starts clean, and the page asks for them separately (see :func:`points_of_interest`)."""
     surfaces = surfaces or Surfaces(world)
     x0, z0 = center[0] - radius, center[1] - radius
     size = radius * 2
@@ -545,9 +546,15 @@ def render(world: Path, center: tuple[int, int], radius: int, spawn: tuple[int, 
                            + (f"; {surfaces.problems[0]}" if surfaces.problems else "") + ")")
     log.info("map preview: drew %d pixel(s) around %s (spawn %s)", painted, center, spawn)
     meta = {"x": x0, "z": z0, "size": size, "spawn": {"x": spawn[0], "z": spawn[1]} if spawn else None,
-            "biomes": {"names": biome_names, "chunk_x": cx0, "chunk_z": cz0, "grid": biome_grid},
-            "landmarks": surfaces.landmarks(x0, z0, x0 + size, z0 + size)}
+            "biomes": {"names": biome_names, "chunk_x": cx0, "chunk_z": cz0, "grid": biome_grid}}
     return png(pixels), meta
+
+
+def points_of_interest(surfaces: Surfaces, meta: dict) -> list[dict]:
+    """The landmarks on a drawn map (``meta`` from :func:`render`): the villages, temples and
+    other structures players would otherwise have to find, so the page only shows them when asked."""
+    x0, z0, size = meta["x"], meta["z"], meta["size"]
+    return surfaces.landmarks(x0, z0, x0 + size, z0 + size)
 
 
 TILE = 256  # a map tile's pixels each way
@@ -624,15 +631,15 @@ class MapSession:
         folder = region_folder(self.world)
         return {"id": self.id, "version": self.version, "areas": self.areas,
                 "spawn": {"x": self.spawn[0], "z": self.spawn[1]} if self.spawn is not None else None,
-                "landmarks": self.landmarks(),
                 "rate": self.rate, "running": bool(self.proc and self.proc.running), "job": self.job,
                 "regions": sorted([int(m.group(1)), int(m.group(2))] for p in folder.glob("r.*.mca")
                                   if (m := re.fullmatch(r"r\.(-?\d+)\.(-?\d+)\.mca", p.name)))
                 if folder.is_dir() else []}
 
     def landmarks(self) -> list[dict]:
-        """The world's landmarks, read again only when land was added (not while it's being made:
-        the page asks every couple of seconds then, and the region files keep changing)."""
+        """The world's landmarks (its points of interest: asked for apart from :meth:`to_dict`, and
+        only while the page shows them), read again only when land was added (not while it's
+        being made: the region files keep changing then)."""
         cached = getattr(self, "_marks", None)
         if cached is None or cached[0] != self.version:
             self._marks = (self.version, self.surfaces.landmarks())
@@ -771,6 +778,7 @@ class Preview:
         self.state, self.step, self.progress = "running", "Getting ready…", None
         self.error = ""
         self.meta: dict | None = None
+        self.landmarks: list[dict] | None = None  # (kept apart from meta: see points_of_interest)
         self.cancel = threading.Event()
         self.started = time.time()
         self.thread = threading.Thread(target=self._run, daemon=True, name=f"preview:{self.id}")
@@ -880,6 +888,7 @@ class Preview:
             self.folder(self.hub).mkdir(parents=True, exist_ok=True)
             self.map_path.write_bytes(image)
             self.meta = meta
+            self.landmarks = self._points_of_interest(session.surfaces, meta)
             self.hub.map_session = session
             self.step, self.state = "Done", "done"
             self._forget_old_maps()
@@ -895,6 +904,16 @@ class Preview:
             self.step, self.state = "Failed", "failed"
             self._keep_log()
             shutil.rmtree(self.folder(self.hub) / "server", ignore_errors=True)  # start clean next time
+
+    @staticmethod
+    def _points_of_interest(surfaces: Surfaces, meta: dict) -> list[dict] | None:
+        """The map's landmarks, kept for when the page asks (by then only the newest map's world is
+        still there). None when they can't be read: the map is fine without them."""
+        try:
+            return points_of_interest(surfaces, meta)
+        except Exception:
+            log.exception("couldn't read the map preview's points of interest")
+            return None
 
     def _keep_log(self) -> None:
         """The failed server's log, kept (as previews/last-failed.log) when its server is removed."""

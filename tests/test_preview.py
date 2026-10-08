@@ -336,6 +336,9 @@ def test_exploring_the_map_from_the_page(hub_env, modrinth, monkeypatch):
         made.append((center, radius))
         r = radius >> 4
         chunks = {(cx, cz): chunk(cx, cz) for cx in range(cx0 - r, cx0 + r) for cz in range(cz0 - r, cz0 + r)}
+        if (1, 1) in chunks:
+            chunks[(1, 1)]["structures"] = {"starts": {"minecraft:village_plains": {
+                "id": "minecraft:village_plains", "ChunkX": 1, "ChunkZ": 1, "Children": []}}}
         write_world(self.world, chunks) if not (self.world / "region").exists() else _add(self.world, chunks)
 
     def _add(world, chunks):
@@ -355,6 +358,11 @@ def test_exploring_the_map_from_the_page(hub_env, modrinth, monkeypatch):
     info = c.get(f"/api/hub/map?id={r['id']}")[1]
     assert info["version"] == 0 and info["regions"] and info["areas"][0][2] == 128
     assert info["spawn"] == {"x": 0, "z": 0}  # browser tile coordinates use named axes
+    # The map starts clean: the village is only at the points-of-interest address.
+    job = c.get(f"/api/hub/preview?id={r['id']}")[1]
+    assert "landmarks" not in info and "landmarks" not in job["map"] and "village" not in repr(job)
+    poi = c.get(f"/api/hub/map/poi?id={r['id']}")[1]
+    assert [(m["kind"], m["x"], m["z"]) for m in poi["landmarks"]] == [("village", 24, 24)] and poi["version"] == 0
     status, png, headers = c.get(f"/api/hub/map/tile?id={r['id']}&s=1&x=0&z=0")
     assert status == 200 and headers["Content-Type"] == "image/png"
     assert c.get(f"/api/hub/map/biome?id={r['id']}&x=5&z=5")[1] == {"biome": "minecraft:plains", "made": True}
@@ -374,6 +382,14 @@ def test_exploring_the_map_from_the_page(hub_env, modrinth, monkeypatch):
     r2 = c.post("/api/hub/preview", body)[1]
     wait_for(lambda: c.get(f"/api/hub/preview?id={r2['id']}")[1]["state"] != "running", timeout=60)
     assert old.closed and c.get(f"/api/hub/map?id={r['id']}")[0] == 404
+    # (the older map's points of interest are the ones it was drawn with)
+    assert [m["kind"] for m in c.get(f"/api/hub/map/poi?id={r['id']}")[1]["landmarks"]] == ["village"]
+    assert c.get("/api/hub/map/poi?id=000000000000")[0] == 404
+    hub.previews[r2["id"]].landmarks = None  # (they couldn't be read: only they are missing)
+    old_session, hub.map_session = hub.map_session, None
+    assert c.get(f"/api/hub/map/poi?id={r2['id']}")[0] == 404
+    assert c.get(f"/api/hub/preview/map?id={r2['id']}")[0] == 200
+    hub.map_session = old_session
     from craft_conductor.web import device_allowed
     assert not device_allowed("POST", "/api/hub/map/explore")
 
@@ -431,8 +447,10 @@ def test_landmarks_are_found_in_the_world(tmp_path):
     chunks[(-2, -2)]["structures"] = {"starts": {
         "towns:castle": {"id": "towns:big_castle", "ChunkX": -2, "ChunkZ": -2}}}  # a mod's: no box, the chunk's middle
     write_world(world, chunks, spawn=(8, 8))
-    image, meta = preview.render(world, (0, 0), 32, (8, 8))
-    marks = {(m["kind"], m["name"], m["x"], m["z"]) for m in meta["landmarks"]}
+    surfaces = preview.Surfaces(world)
+    image, meta = preview.render(world, (0, 0), 32, (8, 8), surfaces)
+    assert "landmarks" not in meta  # (the map starts clean: they're asked for apart)
+    marks = {(m["kind"], m["name"], m["x"], m["z"]) for m in preview.points_of_interest(surfaces, meta)}
     assert marks == {("village", "Village", 25, 25), ("big_castle", "Big castle", -24, -24)}
     assert preview.Surfaces(world).landmarks(0, 0, 32, 32)[0]["symbol"] == "🏠"
     assert preview.landmark_kind("minecraft:ocean_ruin_cold")[1] == "Ocean ruins"
