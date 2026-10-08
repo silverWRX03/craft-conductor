@@ -44,6 +44,16 @@ def test_browser_regressions(hub_env, modrinth, monkeypatch):
     modrinth.version("NEEDS", "1.0", ["1.21.1", "1.21.2"], deps=["GONE"])
     modrinth.project("GONE", "gone-library", "Gone Library")
     modrinth.version("GONE", "1.0", ["1.21.1"])
+    # Like Terralith on Minecraft 26.x (#81): Fabric and NeoForge builds need a library, a datapack
+    # build doesn't, and there's no Forge build; and a players' mod with only a Fabric build.
+    modrinth.project("LITHO", "lithostitched", "Lithostitched")
+    modrinth.version("LITHO", "1.0", ["1.21.1"], loaders=("fabric", "neoforge"))
+    modrinth.project("TERRA", "terralith", "Terralith")
+    modrinth.version("TERRA", "2.6", ["1.21.1"], deps=["LITHO"], loaders=("fabric",))
+    modrinth.version("TERRA", "2.6n", ["1.21.1"], deps=["LITHO"], loaders=("neoforge",))
+    modrinth.version("TERRA", "2.6d", ["1.21.1"], loaders=("datapack",), filename="Terralith_2.6.zip")
+    modrinth.project("ZOOM", "fabric-zoom", "Fabric Zoom", server_side="unsupported")
+    modrinth.version("ZOOM", "1.0", ["1.21.1"], loaders=("fabric",))
     from craft_conductor.mods.modrinth import API
     hub.http.json[f"{API}/search"] = {"total_hits": 1, "hits": [
         {"project_id": "LAND", "slug": "example-worldgen", "title": "Example world generation",

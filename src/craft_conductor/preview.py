@@ -807,7 +807,7 @@ class Preview:
             raise InterruptedError
 
     def fingerprint(self) -> str:
-        mods = sorted(f"{m.source}:{m.id}:{m.channel or ''}" for m in self.mods)
+        mods = sorted(f"{m.source}:{m.id}:{m.channel or ''}{':datapack' if m.datapack else ''}" for m in self.mods)
         return hashlib.sha256(repr((self.loader, self.minecraft, mods)).encode()).hexdigest()[:16]
 
     @staticmethod
@@ -822,7 +822,10 @@ class Preview:
         if mark.is_file() and mark.read_text() == self.fingerprint():
             m = self.hub.make_manager(configmod.load(base))
             self._share_java(m)
-            shutil.rmtree(m.server_dir / "world", ignore_errors=True)
+            world = m.server_dir / "world"  # (a new world for the new seed; datapack builds stay in it)
+            for item in world.iterdir() if world.is_dir() else []:
+                if item.name != "datapacks":
+                    shutil.rmtree(item, ignore_errors=True) if item.is_dir() else item.unlink(missing_ok=True)
         else:
             shutil.rmtree(base, ignore_errors=True)
             spec = setupmod.SetupSpec.from_dict({
@@ -836,7 +839,7 @@ class Preview:
             if self.loader in ("fabric", "quilt") and not any(x.id == "fabric-api" for x in self.mods):
                 extra.insert(0, ModSpec("modrinth", "fabric-api"))  # Chunky (and most Fabric mods) need it
             for s in [*self.mods, *extra]:
-                configmod.append_mod(path, ModSpec(s.source, s.id, required=True, channel=s.channel))
+                configmod.append_mod(path, ModSpec(s.source, s.id, required=True, channel=s.channel, datapack=s.datapack))
             m = self.hub.make_manager(configmod.load(base))
             self._share_java(m)
             self.step = "Downloading Minecraft and the mods…"

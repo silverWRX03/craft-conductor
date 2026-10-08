@@ -244,6 +244,14 @@ class Manager:
         """Where the server loads mods from (plugins/ for Paper)."""
         return self.server_dir / self.loader.mods_folder
 
+    def mod_path(self, mod: ModFile) -> Path:
+        """Where an installed mod's file is: the mods folder, or for a datapack build the world's
+        datapacks folder (the world is made with it the first time the server starts)."""
+        if mod.datapack:
+            from .world import level_dir
+            return level_dir(self.server_dir) / "datapacks" / mod.filename  # (never outside the server)
+        return self.mods_dir / mod.filename
+
     def unmanaged_jars(self) -> list[str]:
         mods_dir = self.mods_dir
         if not mods_dir.is_dir():
@@ -341,7 +349,7 @@ class Manager:
     # --------------------------------------------------------------- staging
     def _local_copy(self, mod: ModFile) -> Path | None:
         """A verified copy of ``mod`` already on disk (installed, or dropped in by hand)."""
-        places = [self.mods_dir / mod.filename]
+        places = [self.mod_path(mod)]
         if mod.manual and self.config.manual_dir:
             places.append(self.config.manual_dir / mod.filename)
         installed = next((m for m in self.lock.mods if m.key == mod.key), None)
@@ -393,9 +401,11 @@ class Manager:
         mods_dir = self.mods_dir
         mods_dir.mkdir(parents=True, exist_ok=True)
         for old in self.lock.mods:
-            (mods_dir / old.filename).unlink(missing_ok=True)
+            self.mod_path(old).unlink(missing_ok=True)
         for mod in plan.mods:
-            shutil.copy2(staged.dir / "mods" / mod.filename, mods_dir / mod.filename)
+            dest = self.mod_path(mod)
+            dest.parent.mkdir(parents=True, exist_ok=True)  # (a datapack's: the world may not exist yet)
+            shutil.copy2(staged.dir / "mods" / mod.filename, dest)
 
         new = copy.deepcopy(self.lock)
         if staged.runtime:

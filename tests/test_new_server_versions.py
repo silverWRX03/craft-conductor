@@ -354,3 +354,46 @@ def test_the_cli_keeps_the_version_and_suggests(make_config, http, curseforge, m
     out = capsys.readouterr().out
     assert f"Minecraft {NEW} is blocked by:" in out and "Biomes O' Plenty requires GlitchCore" in out
     assert "kept as they are" in out and f"appear to work on Minecraft {OLD}" in out
+
+
+def top_mod_on_both_sites(curseforge, modrinth):
+    """Top Mod, picked on Modrinth: no NeoForge build for NEW there; CurseForge has one."""
+    modrinth.project("TOP", "topmod", "Top Mod")
+    modrinth.version("TOP", "1.0", [NEW], loaders=("fabric",))
+    curseforge.project(42, "topmod", "Top Mod")
+    curseforge.file(42, [NEW, "NeoForge"])
+
+
+def test_a_picked_mod_with_no_build_where_it_was_picked_comes_from_the_other_site(make_config, http, curseforge, modrinth):
+    top_mod_on_both_sites(curseforge, modrinth)
+    plan = planner(make_config, http, [ModSpec("modrinth", "topmod")]).decide().plan
+    assert plan is not None and plan.minecraft == NEW
+    [mod] = plan.mods
+    assert (mod.name, mod.source, mod.listed_as) == ("Top Mod", "curseforge", "modrinth:topmod")
+    # (and the setup page's check says where it comes from)
+    r = mod_requirements(ModrinthProvider(http), "topmod", ("neoforge",), NEW, curseforge=cf.CurseForgeProvider(http, KEY))
+    assert r["compatible"] and r["from"]["site"] == "CurseForge" and r["from"]["picked"] == "Modrinth"
+
+
+def terralith(modrinth):
+    """Like Terralith on Minecraft 26.x: Fabric and NeoForge builds need a library; a datapack doesn't."""
+    modrinth.project("LITH", "lithostitched", "Lithostitched")
+    modrinth.version("LITH", "1.0", [NEW], loaders=("fabric", "neoforge"))
+    modrinth.project("TERRA", "terralith", "Terralith")
+    modrinth.version("TERRA", "2.6", [NEW], deps=["LITH"], loaders=("fabric",))
+    modrinth.version("TERRA", "2.6n", [NEW], deps=["LITH"], loaders=("neoforge",))
+    modrinth.version("TERRA", "2.6d", [NEW], loaders=("datapack",), filename="Terralith_2.6.zip")
+    modrinth.version("TERRA", "2.5", [OLD], loaders=("forge",))
+
+
+def test_the_setup_check_says_which_server_types_and_a_datapack_have_it(http, curseforge, modrinth):
+    terralith(modrinth)
+    provider, cfp = ModrinthProvider(http), cf.CurseForgeProvider(http, KEY)
+    r = mod_requirements(provider, "terralith", ("forge",), NEW, curseforge=cfp)
+    assert not r["compatible"] and r["checked"] == ["Modrinth", "CurseForge"]
+    assert r["builds"] == ["neoforge", "fabric"] and r["datapack"] is True and r["suggestions"] == [OLD]
+    # Its datapack build: nothing else needed
+    r = mod_requirements(provider, "terralith", ("forge",), NEW, curseforge=cfp, datapack=True)
+    assert r["compatible"] and r["deps"] == [] and r["loader"] == "Forge"
+    r = mod_requirements(provider, "terralith", ("forge",), OLD, curseforge=cfp, datapack=True)
+    assert not r["compatible"] and r["reason"] == f"Terralith's datapack has no build for Minecraft {OLD}"

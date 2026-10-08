@@ -47,7 +47,7 @@ from .mods import ModError, Unavailable
 from .mods.base import safe_file_name
 from .mods.curseforge import CurseForgeProvider
 from .mods.modrinth import ModrinthProvider, keep_buildable
-from .planner import lowest
+from .planner import DATAPACK_LOADERS, lowest
 from .players import PlayerError, Players, broadcast_text
 from .properties import read_properties, write_properties
 from .skins import SkinError, Skins
@@ -889,6 +889,7 @@ def run_check(hub, b: dict, work) -> dict:
 
 
 _RELEASE = re.compile(r"\d+(\.\d+)+")
+BUILD_LOADERS = ("neoforge", "fabric", "quilt", "forge")  # server types a picked mod may have a build for instead
 
 
 def _version_key(version: str) -> tuple[int, ...]:
@@ -896,21 +897,27 @@ def _version_key(version: str) -> tuple[int, ...]:
 
 
 def mod_requirements(provider: ModrinthProvider, mod_id: str, loaders: tuple[str, ...], minecraft: str | None,
-                     channel: str = "release", limit: int = 30, curseforge=None) -> dict:
+                     channel: str = "release", limit: int = 30, curseforge=None, datapack: bool = False) -> dict:
     """Whether a mod has a build for ``minecraft`` (any version when None), and the mods it needs
     (their dependencies too), so pickers can select them along with it. ``mod_id`` is a Modrinth
     mod, or with ``curseforge`` (the CurseForge provider) also ``curseforge:<id>``.
 
-    The Minecraft version and loaders are fixed: a mod the picked one needs is looked for on the
-    site that names it, then (with ``curseforge``) as the same mod on the other site. When one
-    can't be found on either, the answer says which chain of mods needs it, where it looked, and
-    which Minecraft versions appear to work instead (``suggestions``, never applied here)."""
+    The Minecraft version and loaders are fixed: the picked mod, and each mod it needs, is looked
+    for on the site that names it, then (with ``curseforge``) as the same mod on the other site
+    (``from`` says when the picked one comes from there). When one can't be found on either, the
+    answer says which chain of mods needs it, where it looked, and which Minecraft versions appear
+    to work instead (``suggestions``, never applied here); for the picked mod, also which server
+    types have a build for this Minecraft (``builds``) and whether it has a datapack build
+    (``datapack``). With ``datapack``, it's that datapack build that's checked (Modrinth only)."""
     from .mods.base import SOURCE_NAMES, ModFile, not_checked, same_project
     from .planner import LOADER_NAMES
+    picked_loaders = loaders
+    if datapack:
+        loaders = DATAPACK_LOADERS
     sites = {"modrinth": provider}
-    if curseforge is not None and curseforge.handles(loaders):
+    if curseforge is not None and not datapack and curseforge.handles(loaders):
         sites["curseforge"] = curseforge
-    loader_name = LOADER_NAMES.get(loaders[0], loaders[0]) if loaders else ""
+    loader_name = LOADER_NAMES.get(picked_loaders[0], picked_loaders[0]) if picked_loaders else ""
 
     def newest(project_id: str):
         ok = [v for v in provider._versions(project_id, loaders, minecraft) if provider._acceptable(v, channel)
@@ -988,22 +995,48 @@ def mod_requirements(provider: ModrinthProvider, mod_id: str, loaders: tuple[str
         found = [v for v in (common or set()) if _RELEASE.fullmatch(v) and v != minecraft]
         return sorted(found, key=_version_key, reverse=True)[:3]
 
+    def builds_elsewhere(project) -> dict:
+        """For a picked mod with no build here: the other server types with a build of it for this
+        Minecraft, and whether it has a datapack build (from Modrinth's lists)."""
+        try:
+            on_modrinth = project if project.source == "modrinth" else counterpart(project, "modrinth")
+            if on_modrinth is None:
+                return {}
+            found: set[str] = set()
+            for v in provider._versions(on_modrinth.id, (*BUILD_LOADERS, *DATAPACK_LOADERS), minecraft):
+                if provider._acceptable(v, channel):
+                    found.update(v.get("loaders", []))
+        except (ModError, HttpError):
+            return {}
+        return {"builds": [x for x in BUILD_LOADERS if x in found and x not in picked_loaders],
+                "datapack": "datapack" in found}
+
     root_source, root_id = ("curseforge", mod_id.split(":", 1)[1]) if mod_id.startswith("curseforge:") else ("modrinth", mod_id)
     if root_source not in sites:
-        raise ModError("CurseForge mods need a CurseForge API key")
+        raise ModError("only Modrinth mods have datapack builds here" if datapack else "CurseForge mods need a CurseForge API key")
     project = sites[root_source].project(root_id)
     info = {"id": project.id, "slug": project.slug, "name": project.name, "source": root_source}
-    base = {"project": info, "minecraft": minecraft, "loader": loader_name, "chain": [], "checked": [], "suggestions": []}
-    root = build(root_source, project)
-    if root is None:
+    base = {"project": info, "minecraft": minecraft, "loader": loader_name, "chain": [], "checked": [], "suggestions": [],
+            "builds": [], "datapack": False}
+    checked, unchecked = [], []
+    hit = anywhere(root_source, project, checked, unchecked)  # (where it was picked, then the other site)
+    if hit is None:
         where = f"Minecraft {minecraft}" if minecraft else "this server type"
-        return {**base, "compatible": False, "reason": f"{project.name} has no build for {where}", "deps": [],
-                "companions": [], "chain": [project.name], "checked": [SOURCE_NAMES.get(root_source, root_source)],
-                "suggestions": suggestions([(root_source, project)]) if minecraft else []}
+        what = f"{project.name}'s datapack has no build" if datapack else f"{project.name} has no {loader_name} build".replace("  ", " ")
+        out = {**base, "compatible": False, "reason": f"{what} for {where}", "deps": [], "companions": [],
+               "chain": [project.name], "checked": checked, "unchecked": unchecked,
+               "suggestions": suggestions([(root_source, project)]) if minecraft else []}
+        if minecraft and not datapack:
+            out.update(builds_elsewhere(project))
+        return out
+    used, used_source, root = hit
+    if used is not project:  # (no build where it was picked: the same mod on the other site)
+        base["from"] = {"source": used_source, "id": used.id, "slug": used.slug, "name": used.name,
+                        "site": SOURCE_NAMES.get(used_source, used_source), "picked": SOURCE_NAMES.get(root_source, root_source)}
     base["channel"] = root.get("channel") or "release"
     deps, companions = [], []
-    seen, seen_projects = {project.key}, [project]
-    queue = [(src, pid, [(root_source, project)]) for src, pid in root["deps"]]
+    seen, seen_projects = {project.key, used.key}, [project, used]
+    queue = [] if datapack else [(src, pid, [(used_source, used)]) for src, pid in root["deps"]]
     failure = None
     while queue and len(seen) < limit:
         source, pid, chain = queue.pop(0)
@@ -1077,7 +1110,8 @@ def requirements_query(provider: ModrinthProvider, q: dict, manager=None, cursef
     channel = manager.config.updates.mod_channel if manager else "release"
     try:
         return mod_requirements(provider, mod_id, LOADERS[loader].mod_loaders, version or None, curseforge=curseforge,
-                                channel=lowest(channel, q.get("channel") if q.get("channel") in ("beta", "alpha") else None))
+                                channel=lowest(channel, q.get("channel") if q.get("channel") in ("beta", "alpha") else None),
+                                datapack=q.get("datapack") == "1")
     except ModError as e:
         raise ApiError(400, str(e)) from None
 
@@ -1591,20 +1625,7 @@ class HubApi:
         """A map of a seed with these mods: a throwaway server makes the world (see preview.py)."""
         from . import preview
         self._previews_idle()
-        loader = str(b.get("loader", ""))
-        if loader not in configmod.LOADERS:
-            raise ApiError(400, "pick a server type")
-        items = b.get("mods") or []
-        if not isinstance(items, list) or len(items) > 200:
-            raise ApiError(400, "pick up to 200 mods")
-        mods = []
-        for item in items:
-            source, _, mod_id = str(item).partition(":") if ":" in str(item) else ("modrinth", "", str(item))
-            if source not in configmod.MOD_SOURCES or not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", mod_id):
-                raise ApiError(400, f"{item!r} isn't a mod id")
-            mods.append(ModSpec(source, mod_id, channel=early_channel(b, str(item))))
-        if loader == "vanilla" and mods:
-            raise ApiError(400, "pick a server type that runs mods")
+        loader, mods = self._preview_mods(b)
         try:
             radius = int(b.get("radius", 256))
             p = preview.Preview(self.hub, loader, str(b.get("minecraft") or "latest"), mods, str(b.get("seed") or ""),
@@ -1614,6 +1635,27 @@ class HubApi:
         keep = {k: v for k, v in self.hub.previews.items() if v.state == "done"}
         self.hub.previews = {**dict(list(keep.items())[-preview.KEEP:]), p.id: p.start()}
         return {"ok": True, "id": p.id, "seed": p.seed}
+
+    @staticmethod
+    def _preview_mods(b) -> tuple[str, list[ModSpec]]:
+        """A map preview's server type and mods, from the page: ``mods`` ("slug" or "source:id"),
+        ``channels`` (early builds allowed) and ``datapacks`` (the mods to use as their datapack)."""
+        loader = str(b.get("loader", ""))
+        if loader not in configmod.LOADERS:
+            raise ApiError(400, "pick a server type")
+        items, datapacks = b.get("mods") or [], b.get("datapacks") or []
+        if not isinstance(items, list) or len(items) > 200 or not isinstance(datapacks, list):
+            raise ApiError(400, "pick up to 200 mods")
+        mods = []
+        for item in items:
+            source, _, mod_id = str(item).partition(":") if ":" in str(item) else ("modrinth", "", str(item))
+            if source not in configmod.MOD_SOURCES or not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", mod_id):
+                raise ApiError(400, f"{item!r} isn't a mod id")
+            mods.append(ModSpec(source, mod_id, channel=early_channel(b, str(item)),
+                                datapack=source == "modrinth" and str(item) in datapacks))
+        if loader == "vanilla" and mods:
+            raise ApiError(400, "pick a server type that runs mods")
+        return loader, mods
 
     def _previews_idle(self) -> None:
         if any(p.state == "running" for p in self.hub.previews.values()) or \
@@ -1626,20 +1668,7 @@ class HubApi:
         """Maps of several random seeds side by side (see preview.Gallery)."""
         from . import preview
         self._previews_idle()
-        loader = str(b.get("loader", ""))
-        if loader not in configmod.LOADERS:
-            raise ApiError(400, "pick a server type")
-        items = b.get("mods") or []
-        if not isinstance(items, list) or len(items) > 200:
-            raise ApiError(400, "pick up to 200 mods")
-        mods = []
-        for item in items:
-            source, _, mod_id = str(item).partition(":") if ":" in str(item) else ("modrinth", "", str(item))
-            if source not in configmod.MOD_SOURCES or not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", mod_id):
-                raise ApiError(400, f"{item!r} isn't a mod id")
-            mods.append(ModSpec(source, mod_id, channel=early_channel(b, str(item))))
-        if loader == "vanilla" and mods:
-            raise ApiError(400, "pick a server type that runs mods")
+        loader, mods = self._preview_mods(b)
         count = b.get("count", preview.GALLERY_MAX)
         if not isinstance(count, int) or isinstance(count, bool):
             raise ApiError(400, f"compare 2 to {preview.GALLERY_MAX} seeds")
@@ -2373,20 +2402,24 @@ class Api:
         mods = list(self.m.lock.mods)
         loaders = loader.mod_loaders
         channels: dict[str, str | None] = {}
-        modrinth_ids = [x.project_id for x in mods if x.source == "modrinth" and not x.manual]
+        modrinth_ids = [x.project_id for x in mods if x.source == "modrinth" and not x.manual and not x.datapack]
         from . import webmap
         # A web map that was added but isn't installed yet counts like any installed mod.
         pending_map = None if webmap.installed(mods) else webmap.installed(self.m.config.mods)
         if pending_map and loaders:
             modrinth_ids.append(webmap.MAPS[pending_map]["project"])
+        provider = self.m.providers.get("modrinth")
+        provider = provider if isinstance(provider, ModrinthProvider) else ModrinthProvider(self.m.http)
         if modrinth_ids and loaders:
-            provider = self.m.providers.get("modrinth")
-            channels.update((provider if isinstance(provider, ModrinthProvider) else ModrinthProvider(self.m.http))
-                            .best_channels(modrinth_ids, loaders, version))
+            channels.update(provider.best_channels(modrinth_ids, loaders, version))
+        datapacks = [x.project_id for x in mods if x.datapack]  # (their datapack builds, whatever the server type)
+        pack_channels = provider.best_channels(datapacks, DATAPACK_LOADERS, version) if datapacks else {}
         names = {x.key: x.name for x in mods}
         out = []
         for x in mods:
-            if x.source == "modrinth" and x.project_id in channels:
+            if x.datapack:
+                channel = pack_channels.get(x.project_id, "unknown")
+            elif x.source == "modrinth" and x.project_id in channels:
                 channel = channels[x.project_id]
             else:  # CurseForge and others: ask the provider which versions each channel covers
                 provider = self.m.providers.get(x.source)
@@ -2491,7 +2524,8 @@ class Api:
             "loader": self.m.config.server.loader,
             "minecraft": lk.minecraft,
             "installed": [{"key": x.key, "name": x.name, "version": x.version_number, "filename": x.filename,
-                           "source": x.source, "dependency_of": x.dependency_of, "channel": x.channel, "manual": x.manual}
+                           "source": x.source, "dependency_of": x.dependency_of, "channel": x.channel, "manual": x.manual,
+                           "datapack": x.datapack}
                           for x in lk.mods],
             "configured": self._configured_with_deps(),
             "skipped": [{"key": k, "reason": v} for k, v in lk.skipped.items()],
@@ -2541,7 +2575,8 @@ class Api:
         for spec in self.m.config.mods:
             key = f"{spec.source}:{spec.id}"
             if key not in installed:
-                match = next((x for x in lk.mods if x.source == spec.source and x.project_id == spec.id), None)
+                match = next((x for x in lk.mods if (x.source == spec.source and x.project_id == spec.id)
+                              or x.listed_as == key), None)
                 if match:
                     key = match.key
                 elif spec.source == "modrinth":

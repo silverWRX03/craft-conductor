@@ -37,6 +37,9 @@ class ModSpec:
     dependency_of: str | None = None
     # This mod's own lowest release channel (a mod with only alpha/beta builds), else the server's.
     channel: str | None = None
+    # Its datapack build (Modrinth's "datapack" loader) instead of a mod: for a mod with no build
+    # for the server type (Terralith on Forge 26.x). It goes in the world's datapacks folder.
+    datapack: bool = False
 
     @property
     def label(self) -> str:
@@ -298,7 +301,10 @@ def parse(root: Path, data: dict) -> Config:
             id=str(m["id"]),
             required=bool(m.get("required", True)),
             channel=_choice(m["channel"], CHANNELS, f"mods[{i}].channel") if "channel" in m else None,
+            datapack=bool(m.get("datapack", False)),
         ))
+    if any(m.datapack and m.source != "modrinth" for m in mods):
+        raise ConfigError("datapack = true works for Modrinth mods only")
     if mods and server.loader == "vanilla":
         raise ConfigError("the vanilla loader cannot run mods; set [server] loader or remove [[mods]]")
 
@@ -438,7 +444,8 @@ def render_template(loader: str, minecraft: str) -> str:
 def mod_block(spec: ModSpec) -> str:
     ident = spec.id if spec.id.isdigit() and spec.source == "curseforge" else f'"{spec.id}"'
     channel = f'channel = "{spec.channel}"  # accepts early (unstable) builds\n' if spec.channel in CHANNELS else ""
-    return f'\n[[mods]]\nsource = "{spec.source}"\nid = {ident}\nrequired = {str(spec.required).lower()}\n{channel}'
+    datapack = "datapack = true  # its datapack build, in the world's datapacks folder\n" if spec.datapack else ""
+    return f'\n[[mods]]\nsource = "{spec.source}"\nid = {ident}\nrequired = {str(spec.required).lower()}\n{channel}{datapack}'
 
 
 def append_mod(path: Path, spec: ModSpec) -> None:

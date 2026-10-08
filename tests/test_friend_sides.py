@@ -155,7 +155,7 @@ def test_a_both_sides_mod_the_server_cant_run_is_said_so_and_players_still_get_i
     r = c.post("/api/servers/alpha/client", {"mods": ["oldmod"]})[1]
     assert r["mods"] == ["oldmod"] and r["also_on_server"] == []
     assert [x["name"] for x in r["server_skipped"]] == ["Old Mod"]
-    assert "no build for Minecraft 1.21.1" in r["server_skipped"][0]["reason"]
+    assert "no Fabric build for Minecraft 1.21.1" in r["server_skipped"][0]["reason"]
     assert listed(hub) == set()
 
 

@@ -42,7 +42,7 @@ def test_requirements(http, modrinth):
     # ...they're companions for the friends' download instead
     assert [(c["slug"], c["needed_by"]) for c in r["companions"]] == [("minimap", "Top Mod")]
     old = mod_requirements(p, "oldmod", ("fabric",), "1.21.1")
-    assert not old["compatible"] and "no build for Minecraft 1.21.1" in old["reason"]
+    assert not old["compatible"] and "no Fabric build for Minecraft 1.21.1" in old["reason"]
     assert mod_requirements(p, "oldmod", ("fabric",), None)["compatible"]  # any version
 
 
@@ -57,7 +57,7 @@ def test_mods_page_groups_and_checks(hub_env, modrinth):
     status, body, _ = c.post("/api/servers/alpha/mods/add", {"source": "modrinth", "id": "topmod"})
     assert status == 200 and body["deps"] == ["Mid Lib", "Dep Lib"]
     status, body, _ = c.post("/api/servers/alpha/mods/add", {"source": "modrinth", "id": "oldmod"})
-    assert status == 400 and "no build for Minecraft 1.21.1" in body["error"]  # not for this server's version
+    assert status == 400 and "no Fabric build for Minecraft 1.21.1" in body["error"]  # not for this server's version
 
     alpha = hub.get("alpha")
     assert update(alpha.m).ok

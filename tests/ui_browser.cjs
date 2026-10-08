@@ -150,7 +150,7 @@ const assert = require('node:assert/strict');
   const conflict = drawer.locator('.notice.warn', {hasText: 'Dependency unavailable'});
   await conflict.waitFor();
   assert.match(await conflict.innerText(), /Needs Gone requires Gone Library, but no compatible Gone Library release was found for Minecraft 1\.21\.2 using Fabric\. Craft Conductor checked Modrinth/);
-  assert.match(await conflict.innerText(), /will not change your Minecraft version automatically/);
+  assert.match(await conflict.innerText(), /will not change your server type or Minecraft version automatically/);
   assert.equal(await page.evaluate(() => setupState.minecraft), '1.21.2');
   await conflict.getByRole('button', {name: 'Remove Needs Gone', exact: true}).waitFor();
   // Choose another Minecraft version: back to the page, at the version picker.
@@ -166,6 +166,50 @@ const assert = require('node:assert/strict');
   await page.keyboard.press('Escape');
   await drawer.waitFor({state: 'detached'});
   await page.evaluate(() => setupRemoveMod('needs-gone'));
+  // A new server type the mods don't all have (#81): Manage Mods glows (no red dot) and the page goes
+  // to it; it says what changed and offers the ways out, the datapack too. Then the players' mods.
+  await page.evaluate(() => {
+    setupState.mods.clear(); setupState.clientMods.clear(); setupState.loader = 'fabric'; setupState.minecraft = '1.21.1'; setupState.rerender();
+  });
+  await page.evaluate(() => setupAddMod('terralith', 'Terralith'));
+  await page.waitForFunction(() => setupState.mods.has('lithostitched'));
+  await page.evaluate(() => {
+    setupState.friends = true; setupState.clientMods.set('fabric-zoom', 'Fabric Zoom'); setupState.clientMeta.set('fabric-zoom', {}); setupState.rerender();
+  });
+  const glows = (id) => page.evaluate(id => !!document.querySelector(`#${id}.attention`), id);
+  const inView = (id) => page.waitForFunction(id => {
+    const r = document.getElementById(id).getBoundingClientRect();
+    return r.top >= 0 && r.bottom <= innerHeight;
+  }, id);
+  assert.equal(await glows('setup-manage-mods'), false);
+  assert.equal(await page.locator('#setup-manage-mods .update-dot').count(), 0);
+  await page.evaluate(() => { window.scrollTo(0, 0); setupState.loader = 'forge'; setupRecheckMods(true); setupState.rerender(); });
+  await page.waitForFunction(() => document.querySelector('#setup-manage-mods.attention'));
+  await inView('setup-manage-mods');
+  assert.equal(await glows('setup-manage-friends'), true);
+  assert.equal(await page.evaluate(() => setupState.mods.has('lithostitched')), false);
+  const shot = process.env.CRAFT_UI_ATTENTION_SCREENSHOT;  // (to look at: the glowing button, then the notice)
+  if (shot) await page.screenshot({path: shot});
+  await page.locator('#setup-manage-mods').click();
+  if (shot) { await page.waitForTimeout(400); await page.screenshot({path: shot.replace(/\.png$/, '-drawer.png')}); }
+  assert.match(await drawer.locator('section[aria-label="What changed"]').innerText(),
+    /Lithostitched was removed: Terralith has no build for Forge 1\.21\.1, so nothing needs it now/);
+  const noForge = drawer.locator('.notice.warn', {hasText: 'No Forge build for Minecraft 1.21.1'});
+  assert.match(await noForge.innerText(), /It has NeoForge and Fabric builds for Minecraft 1\.21\.1 and a datapack build/);
+  await noForge.getByRole('button', {name: 'Use NeoForge', exact: true}).waitFor();
+  await noForge.getByRole('button', {name: 'Stay on Forge: use its datapack', exact: true}).click();
+  await drawer.getByText("Terralith uses its datapack build on Forge, in the world's datapacks folder: it doesn't need Lithostitched.", {exact: true}).waitFor();
+  await drawer.locator('.tag', {hasText: 'datapack'}).waitFor();
+  assert.deepEqual(await page.evaluate(() => setupDatapacks()), ['terralith']);
+  await page.keyboard.press('Escape');
+  await drawer.waitFor({state: 'detached'});
+  assert.equal(await glows('setup-manage-mods'), false);  // (nothing left to fix: no glow)
+  await inView('setup-manage-friends');  // then the players' mods
+  assert.equal(await glows('setup-manage-friends'), true);
+  await page.evaluate(() => {
+    setupState.clientMods.clear(); setupState.clientMeta.clear(); setupState.friends = false;
+    setupState.mods.clear(); setupState.loader = 'fabric'; setupState.rerender();
+  });
   // Exercise the actual backend preview and render it in the world-generation pane.
   const preview = await page.evaluate(async () => {
     const r = await api('/api/hub/preview', {method:'POST', body:{loader:'fabric', minecraft:'1.21.1', mods:['example-worldgen'], channels:{'example-worldgen':'beta'}, seed:'25698412121455', level_type:'minecraft:normal', structures:true, radius:128}});
