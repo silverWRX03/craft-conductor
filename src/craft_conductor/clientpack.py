@@ -19,12 +19,14 @@ import base64
 import logging
 import re
 import secrets
+import tempfile
 import time
 from pathlib import Path
 from urllib.parse import urlparse
 
+from . import modcheck
 from .config import DEFAULT_LINK_DAYS, LINK_DAYS, ConfigError, ModSpec
-from .http import HttpError, sha1_file
+from .http import HashMismatch, HttpError, sha1_file
 from .mods.base import ModError, ModFile, Unavailable
 from .mods.modrinth import ModrinthProvider
 
@@ -37,6 +39,8 @@ DOWNLOAD_HOSTS = ("cdn.modrinth.com", "edge.forgecdn.net", "mediafilez.forgecdn.
 CACHE_SECONDS = 300
 CLIENT_DIR = "client-mods"  # next to craft-conductor.toml: your own .jar files for players
 LOCAL_URL = "local:"        # in a pack: served by the share server (share.py fills in the address)
+INFO_CACHE = "mod-info.json"   # in the state folder: what's inside players' mods (modcheck.InfoCache)
+MAX_LOOK_BYTES = 128 << 20     # a players' mod bigger than this isn't downloaded to look into
 JAR_NAME = re.compile(r"[A-Za-z0-9 ()\[\]+_.,'-]{1,120}\.jar")
 
 
@@ -148,8 +152,10 @@ class PackBuilder:
                 sides = {pid: p.get("client_side", "unknown") for pid, p in modrinth.projects(ids).items()}
             except Exception as e:  # can't tell: include them all (a spare server mod is harmless)
                 log.warning("couldn't look up which mods players need (%s); including all of them", e)
+        left_out = []  # (unless a player's mod needs one after all: see _check)
         for x in server_mods:
             if x.source == "modrinth" and sides.get(x.project_id) == "unsupported":
+                left_out.append(x)
                 continue
             included.add(x.key)
             if x.manual or not allowed_url(x.url):
@@ -208,6 +214,8 @@ class PackBuilder:
             mods.append({"name": jar.stem, "filename": jar.name, "url": LOCAL_URL + jar.name, "sha1": sha1_file(jar),
                          "sha512": None, "project": f"local:{jar.name}", "side": "client", "local": True})
 
+        problems = self._check(mods, manual, server_mods, left_out)
+
         from .properties import read_properties
         props = read_properties(m.server_dir / "server.properties")
         icon = m.server_dir / "server-icon.png"
@@ -223,7 +231,85 @@ class PackBuilder:
             "mods": mods,
             "manual": manual,
             "skipped": skipped,
-            "icon": ("data:image/png;base64," + base64.b64encode(icon.read_bytes()).decode())
+            "problems": problems,
+            "icon":("data:image/png;base64," + base64.b64encode(icon.read_bytes()).decode())
                     if icon.is_file() and icon.stat().st_size < 64 * 1024 else None,
             "updated": lk.updated_at,
         }
+
+    def _check(self, mods: list[dict], manual: list[dict], server_mods: list, left_out: list) -> list[dict]:
+        """The mod loader's own check of what players get (modcheck.py), from the files themselves.
+        A mod the server has, and left out because its site says it's for servers only, goes in
+        after all when a player's mod needs it (the site was wrong, and the loader would stop)."""
+        m = self.m
+        lk = m.lock
+        loader = lk.loader
+        if loader not in modcheck.LOADERS:
+            return []
+        local = {x.filename: m.mod_path(x) for x in server_mods}
+        infos, complete = [], not manual  # (a mod to download by hand can't be looked into here)
+        for entry in mods:
+            found = self._read(entry, local, loader)
+            if found is None:
+                complete = False
+            else:
+                infos += found
+        args = dict(loader=loader, minecraft=lk.minecraft, loader_version=lk.loader_version,
+                    java_major=lk.java_major, side="client", complete=complete)
+        problems = modcheck.check(infos, **args)
+        missing = {p.needs: p.mod for p in problems if p.kind == "missing"}
+        added = False
+        for x in left_out:
+            if not missing:
+                break
+            try:
+                found = modcheck.read_file(m.mod_path(x), loader)
+            except OSError:
+                continue
+            gives = {i for f in found if f.side != "server" for i in (f.id, *f.provides)}
+            needed = [missing[i] for i in gives if i in missing]
+            if not needed:
+                continue
+            entry = _entry(x, "both")
+            entry["needed_by"] = needed[0]
+            if x.manual or not allowed_url(x.url):
+                manual.append({"name": x.name, "filename": x.filename, "url": x.manual_url or x.url, "sha1": x.sha1})
+            else:
+                mods.append(entry)
+            infos += found
+            for i in gives:
+                missing.pop(i, None)
+            added = True
+        if added:
+            problems = modcheck.check(infos, **args)
+        return [{"mod": p.mod, "needs": p.needs, "kind": p.kind, "text": p.text} for p in problems]
+
+    def _read(self, entry: dict, local: dict[str, Path], loader: str) -> list[modcheck.ModInfo] | None:
+        """What's in one of the pack's files: the server's own copy, your own file, or (players'
+        mods the server doesn't run) downloaded once to look at. None when it can't be read."""
+        m = self.m
+        path = client_dir(m.config) / entry["filename"] if entry.get("local") else local.get(entry["filename"])
+        if path is not None:
+            try:
+                return modcheck.read_file(path, loader)
+            except OSError:
+                return None
+        key = entry.get("sha1") or entry.get("sha512")
+        if not key or not allowed_url(entry.get("url", "")):
+            return None
+        cache = modcheck.InfoCache(m.config.state_dir / INFO_CACHE)
+        found = cache.get(key, loader)
+        if found is not None:
+            return found
+        try:
+            m.config.state_dir.mkdir(parents=True, exist_ok=True)
+            with tempfile.TemporaryDirectory(dir=m.config.state_dir, prefix="modcheck-") as tmp:
+                dest = Path(tmp) / "mod.jar"
+                m.http.download(entry["url"], dest, sha1=entry.get("sha1"), sha512=entry.get("sha512"),
+                                max_bytes=MAX_LOOK_BYTES)
+                found = modcheck.read_file(dest, loader)
+        except (HttpError, HashMismatch, OSError) as e:
+            log.info("couldn't look into %s to check it: %s", entry.get("name"), e)
+            return None
+        cache.put(key, loader, found)
+        return found

@@ -369,6 +369,11 @@ function render() {
         (p.loader_version && p.loader !== "vanilla" ? ` ${p.loader_version}` : "") +
         (p.mods.length ? ` and ${p.mods.length} mod${p.mods.length === 1 ? "" : "s"} you need too.` : ".")),
       p.mods.length ? h("details", {}, h("summary", {}, "Show the mods"), h("ul", { class: "small" }, p.mods.map((m) => h("li", {}, m)))) : null,
+      (p.problems || []).length ? h("div", { class: "notice warn mt" },
+        h("strong", {}, "Minecraft may not start with these mods yet: "),
+        h("ul", { class: "small" }, p.problems.map((x) => h("li", {}, x))),
+        h("div", { class: "small" }, p.address ? "Let the server's owner know: they can fix it on their Friends page, and you can set up again afterwards."
+          : "Change the game's mods in Craft Conductor, then set it up again.")) : null,
       h("p", { class: "muted small" }, "Craft Conductor downloads Minecraft's mods straight from Modrinth and CurseForge, checks every file, " +
         "and keeps them in a folder of their own: your other worlds and installations aren't touched. It never asks for your " +
         "Microsoft password; your launcher signs you in.")),

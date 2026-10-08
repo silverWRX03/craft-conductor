@@ -3309,6 +3309,7 @@ views.friends = () => {
       const d = data || {}, pack = d.pack || {};
       return [
         d.pack_error ? h("div", { class: "notice warn mb" }, d.pack_error) : null,
+        friendProblems(pack, "mb"),
         (pack.skipped || []).length ? h("div", { class: "notice warn mb" },
           h("strong", {}, "Left out: "),
           (pack.skipped || []).map((x) => h("div", { class: "small" }, `${x.name}: ${x.reason}`))) : null,
@@ -3395,6 +3396,7 @@ views.friends = () => {
         d.pack_error ? h("div", { class: "notice warn" }, d.pack_error)
           : !pack ? h("p", { class: "empty" }, "Install the server first; the mod summary appears once it's set up.")
           : [h("p", {}, `Minecraft ${pack.minecraft} with ${pack.loader === "vanilla" ? "no mod loader" : pack.loader + " " + pack.loader_version}, ${friendItems.length} mod(s), ${pack.memory_gb} GB of memory.`),
+             friendProblems(pack, "mt-s"),
              pack.manual.length ? h("div", { class: "notice warn mt-s" }, `${pack.manual.length} mod(s) require a manual download. Open Manage Friends Mods for details.`) : null,
              pack.skipped.length ? h("div", { class: "notice warn mt-s" }, `${pack.skipped.length} mod(s) are currently left out. Open Manage Friends Mods for details.`) : null],
         h("label", { class: "mt" }, "Memory for friends' Minecraft",
@@ -3421,6 +3423,12 @@ views.friends = () => {
 };
 
 // ---------------------------------------------------------- reusable mod management
+// What the mod loader would refuse on players' computers (clientpack.py runs its check on the files).
+const friendProblems = (pack, spacing) => (pack && (pack.problems || []).length) ? h("div", { class: `notice bad ${spacing}` },
+  h("strong", {}, "Players' Minecraft won't start with these mods: "),
+  pack.problems.map((x) => h("div", { class: "small" }, x.text)),
+  h("div", { class: "small mt-s" }, "Remove the mod that needs something, or pick a version of it that works with the others, in Manage Friends Mods (or on the Mods page for the server's own mods).")) : null;
+
 // Server mods, friends' mods and single-player mods all use the same compact summary and
 // right-side drawer. The item source stays the existing resolver/API data: this is presentation,
 // not a second dependency model.
