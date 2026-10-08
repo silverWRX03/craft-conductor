@@ -115,6 +115,7 @@ class SetupSpec:
     local_mods: list[str] = field(default_factory=list)  # uploaded jars waiting in the hub's staging area
     client_mods: list[str] = field(default_factory=list)   # friends' Minecraft only: Modrinth slugs, or curseforge:<id>
     client_local: list[str] = field(default_factory=list)  # uploaded jars for friends, in the staging area
+    manual_files: list[str] = field(default_factory=list)  # mods downloaded by hand from CurseForge, in the staging area
     mod_channels: dict = field(default_factory=dict)  # slug -> "beta"/"alpha": mods picked with only early builds
     world: str = ""                # an existing world: an upload's staging id, or "save:<id>" (singleplayer)
     world_source: Path | None = None  # where that world is, found by the hub (never from the form)
@@ -181,6 +182,7 @@ class SetupSpec:
             local_mods=[str(x) for x in (d.get("local_mods") or []) if isinstance(x, str)],
             client_mods=[str(x) for x in (d.get("client_mods") or []) if isinstance(x, str)],
             client_local=[str(x) for x in (d.get("client_local") or []) if isinstance(x, str)],
+            manual_files=[str(x) for x in (d.get("manual_files") or []) if isinstance(x, str)],
             world=str(d.get("world") or ""),
             mod_channels={str(k): v for k, v in (d.get("mod_channels") or {}).items()
                           if v in ("beta", "alpha")} if isinstance(d.get("mod_channels"), dict) else {},
@@ -195,7 +197,7 @@ class SetupSpec:
             raise ConfigError("that isn't a Modrinth or CurseForge modpack version")
         if spec.world and not re.fullmatch(r"(save:)?[a-f0-9]{16}", spec.world):
             raise ConfigError("that world choice isn't valid; pick the world again")
-        if not all(re.fullmatch(r"[a-f0-9]{16}", x) for x in spec.local_mods + spec.client_local):
+        if not all(re.fullmatch(r"[a-f0-9]{16}", x) for x in spec.local_mods + spec.client_local + spec.manual_files):
             raise ConfigError("bad uploaded file reference")
         if not all(configmod.CLIENT_MOD.fullmatch(x) for x in spec.client_mods):
             raise ConfigError("friends' mods must be Modrinth projects or CurseForge modpack mods")

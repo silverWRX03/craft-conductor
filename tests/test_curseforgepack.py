@@ -32,9 +32,12 @@ def _sha1(data: bytes) -> list[dict]:
 
 @pytest.fixture(autouse=True)
 def fresh_cache():
-    curseforgepack._previews.clear()
+    from craft_conductor import handdownload
+    for cache in (curseforgepack._previews, handdownload._resolved, handdownload._wanted):
+        cache.clear()
     yield
-    curseforgepack._previews.clear()
+    for cache in (curseforgepack._previews, handdownload._resolved, handdownload._wanted):
+        cache.clear()
 
 
 def serve_pack(http, *, server_pack=True, pack_download=True, overrides="overrides", manifest=None):
@@ -107,6 +110,64 @@ def test_a_curseforge_pack_is_applied(tmp_path, http):
     setupmod.configure(again, setupmod.SetupSpec.from_dict({"loader": "fabric", "accept_eula": True}))
     r = curseforgepack.apply(again, "curseforge:9001", http, "key", exclude=["mods/core-1.0.jar"])
     assert r["removed"] == 1 and configmod.load(again).mods == []
+
+
+def test_a_pack_mod_with_only_early_builds_accepts_them(tmp_path, http):
+    """RLCraft: many of its mods only have beta or alpha builds for 1.12.2. Each pack mod accepts
+    the channel of its file in the pack, or setup says there's "no forge build" for it."""
+    serve_pack(http, server_pack=False)
+    root = tmp_path / "srv"
+    setupmod.configure(root, setupmod.SetupSpec.from_dict({"loader": "fabric", "accept_eula": True}))
+    curseforgepack.apply(root, "curseforge:9001", http, "key")
+    assert {m.id: m.channel for m in configmod.load(root).mods} == {"11": None, "22": "beta"}
+
+
+def serve_blocked_mod(http, data: bytes = b"fancy jar"):
+    """Fancy Client (project 22) on CurseForge: one beta build, whose author keeps it to CurseForge."""
+    http.json[f"{cf.API}/mods/22"] = {"data": {"id": 22, "name": "Fancy Client", "slug": "fancy-client"}}
+    http.json[f"{cf.API}/mods/22/files"] = {"data": [{
+        "id": 2222, "fileName": "fancy-client-2.1.jar", "displayName": "Fancy 2.1", "gameVersions": ["Forge", "1.20.1"],
+        "releaseType": 2, "fileDate": "2026-01-01", "downloadUrl": None, "hashes": _sha1(data), "dependencies": []}]}
+
+
+def test_mods_to_download_by_hand_are_found_before_the_server_is_made(http):
+    from craft_conductor import handdownload
+    serve_pack(http, server_pack=False)
+    serve_blocked_mod(http)
+    found = handdownload.needed(http, "key", "", "", [], "curseforge:9001")
+    assert [(x["name"], x["filename"], x["url"]) for x in found] == [
+        ("Fancy Client", "fancy-client-2.1.jar", f"{cf.WEBSITE}/fancy-client/files/2222")]  # (the exact file)
+    assert handdownload.needed(http, "key", "", "", [], "curseforge:9001", ["mods/fancy-client-2.0.jar"]) == []  # (removed)
+    # A mod picked by itself: found for its own channel (a release-only server wouldn't take it at all).
+    assert handdownload.needed(http, "key", "forge", "1.20.1", [("22", None)]) == []
+    assert [x["filename"] for x in handdownload.needed(http, "key", "forge", "1.20.1", [("22", "beta")])] == ["fancy-client-2.1.jar"]
+
+
+def test_a_mod_downloaded_by_hand_is_loaded_before_the_server_is_made(hub_env, monkeypatch):
+    """Choose a mod its author keeps to CurseForge: the page learns which file to download, takes
+    only that file back, and creating the server puts it where the server looks for it."""
+    from test_hub import login as hub_login
+    hub, c = hub_env
+    hub_login(c)
+    monkeypatch.setenv("CRAFT_CONDUCTOR_CURSEFORGE_API_KEY", "test-key-not-real")
+    serve_blocked_mod(hub.http, b"fancy jar")
+    status, body, _ = c.post("/api/hub/manual/needed", {"loader": "forge", "minecraft": "1.20.1",
+                                                         "mods": [{"id": "22", "channel": "beta"}]})
+    assert status == 200 and [x["filename"] for x in body["mods"]] == ["fancy-client-2.1.jar"], body
+    assert c.post("/api/hub/manual/needed", {"loader": "forge", "minecraft": "../x", "mods": [{"id": "22"}]})[0] == 400
+    # Another file (or another version of it) isn't kept.
+    status, body, _ = c.call("POST", "/api/hub/manual/stage?filename=fancy.jar", raw=b"something else")
+    assert status == 400 and "isn't one of the mods" in body["error"]
+    status, staged, _ = c.call("POST", "/api/hub/manual/stage?filename=Fancy%20(1).jar", raw=b"fancy jar")
+    assert status == 200 and staged["filename"] == "fancy-client-2.1.jar", staged
+    status, body, _ = c.post("/api/hub/create", {"loader": "fabric", "minecraft": "1.21.1", "motd": "Handmade",
+                                                  "manual_files": [staged["id"]], "accept_eula": True})
+    assert status == 200, body
+    d = hub.get(body["id"])
+    wait_for(lambda: d.last_job and d.last_job["name"] == "set up server", timeout=30)  # (setup writes its config meanwhile)
+    assert (d.m.config.manual_dir / "fancy-client-2.1.jar").read_bytes() == b"fancy jar"
+    assert not (hub.staging_dir / staged["id"]).exists()
+    assert c.post("/api/hub/create", {"loader": "fabric", "manual_files": ["../x"], "accept_eula": True})[0] == 400
 
 
 def test_a_pack_its_author_keeps_to_curseforge_isnt_downloaded(http):
