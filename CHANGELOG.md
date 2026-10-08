@@ -12,7 +12,8 @@ its fix will say which version it's in.
 
 **Changed**
 - **Mods you download by hand, before the server is made.** On New server, choosing a modpack or CurseForge mods now finds the ones whose authors require downloading them from CurseForge, and **Manage Mods** gets a red dot. Manage Mods lists them at the top with a link to each exact file, and **Load downloaded mods** opens a file picker on your Downloads folder. **Create my server** waits until they're all loaded.
-- **Manage Mods** now slides open as wide as the mod browser and the map preview.
+- **Manage Mods** now slides open as wide as the mod browser and the map preview, and like them goes back with the **‹ Back to …** bar on the left instead of a **Close** button (the mod browser's **Close** button is gone too).
+- **Use this modpack** keeps the mod browser open while the pack loads ("Loading modpack…", with a message to wait), then goes back to setup with the pack ready.
 - Creating a server that needs mods downloaded by hand no longer fails with "these mods must be downloaded by hand first". Setup waits, opens the panel, and carries on by itself once the files are in (**Stop setting up** stops it).
 - The Updates page's **Manual downloads needed** card opens the same panel instead of an **Upload** button for each file.
 

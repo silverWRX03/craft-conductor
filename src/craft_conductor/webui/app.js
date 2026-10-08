@@ -3509,15 +3509,15 @@ function openModManager({ title, description = "", owner = "", getItems, getHead
   const panel = h("section", { class: "mod-manager-drawer", role: "dialog", "aria-modal": "true", "aria-labelledby": "mod-manager-title" },
     h("div", { class: "mod-manager-head" },
       h("div", { class: "grow" }, h("h2", { id: "mod-manager-title" }, title),
-        description ? h("p", { class: "muted small" }, description) : null),
-      h("button", { type: "button", class: "btn ghost small", onclick: close }, "Close")),
+        description ? h("p", { class: "muted small" }, description) : null)),
     body, footer ? h("div", { class: "mod-manager-foot" }, footer) : null);
-  const backdrop = h("div", { class: "mod-manager-backdrop", onclick: (e) => { if (e.target === backdrop) close(); } }, panel);
+  const rail = backRail(close);
+  const backdrop = h("div", { class: "mod-manager-backdrop", onclick: (e) => { if (e.target === backdrop) close(); } }, rail, panel);
   $("#main").inert = true;
   $("#stage").append(backdrop);
   modManagerOpen = { owner, backdrop, focus, render };
   render();
-  panel.querySelector("button").focus({ preventScroll: true });
+  rail.focus({ preventScroll: true });
 }
 
 // Mods whose authors don't let other apps download them (CurseForge): a panel slides in from the
@@ -3586,11 +3586,11 @@ function openBrowser(params) {
       closeBrowser();
       refresh();
     },
-    pickPack: (pack) => {
+    pickPack: (pack, info = null) => {
       setupChoosePack(pack);
       Object.assign(setupState, { loader: pack.loader, minecraft: pack.minecraft });
-      loadSetupModpack(pack);
-      toast(`Modpack chosen: ${pack.name}`);
+      loadSetupModpack(pack, info);
+      toast(`Modpack loaded: ${pack.name}`);
       closeBrowser();
       if (currentName === "new" || currentName === "setup") refresh(); else location.hash = "#new";
     },
@@ -3601,12 +3601,16 @@ function openBrowser(params) {
 }
 // The page slides left into a narrow rail (click it or press Escape to go back) and ``el``
 // takes the screen: the mod browser, and the Updates tab's "Show why".
+// The "‹ Back to …" bar on the left of the mod picker, the map preview and Manage Mods (their only way back, with Escape).
+function backRail(onclick) {
+  const back = { setup: "setup", new: "setup", mods: "Mods", friends: "Friends", updates: "Updates" }[currentName] || "the page";
+  return h("button", { type: "button", class: "browse-rail", title: `Back to ${back} (Esc)`, "aria-label": `Back to ${back}`, onclick },
+    h("span", { class: "rail-arrow" }, "‹"), h("span", { class: "rail-label" }, `Back to ${back}`));
+}
 function openSidePane(el, label, onClose = null) {
   closeBrowser(true);
   const stage = $("#stage");
-  const back = { setup: "setup", new: "setup", mods: "Mods", friends: "Friends", updates: "Updates" }[currentName] || "the page";
-  const rail = h("button", { type: "button", class: "browse-rail", title: `Back to ${back} (Esc)`, "aria-label": `Back to ${back}`,
-    onclick: () => closeBrowser() }, h("span", { class: "rail-arrow" }, "‹"), h("span", { class: "rail-label" }, `Back to ${back}`));
+  const rail = backRail(() => closeBrowser());
   const panel = h("section", { class: "inpage-browser", "aria-label": label }, el);
   const focus = document.activeElement;
   $("#main").inert = true;
@@ -4399,27 +4403,29 @@ function browserPanel(params, host) {
     } }, st.selected.has(key) ? "✓ Selected" : "Select") : null;
     const versionSel = kind === "modpack" && p.versions.length ? h("select", { "aria-label": "Modpack version" },
       p.versions.map((v) => h("option", { value: v.id }, `${v.name} · Minecraft ${v.minecraft.join(", ")} · ${v.loaders.join(", ")}`))) : null;
-    const usePack = kind === "modpack" ? h("button", { class: "btn primary", disabled: !versionSel, onclick: async (e) => {
+    // The pack is read (downloaded, its mods looked up) while the browser stays open, which takes
+    // a while for a big one; setup comes back once it's loaded, with the pack's own loader and
+    // Minecraft version (a CurseForge file's tags often leave the loader out: RLCraft doesn't say Forge).
+    const usePack = kind === "modpack" ? h("button", { class: "btn primary", disabled: !versionSel, onclick: async () => {
       const v = p.versions.find((x) => x.id === versionSel.value);
-      let packLoader = (v.loaders.find((l) => ["fabric", "neoforge", "forge", "quilt"].includes(l)) || "");
-      let packMinecraft = v.minecraft[0] || "";
-      // A CurseForge file's tags often leave out the loader (RLCraft doesn't say Forge): the
-      // pack's own manifest does, so ask for it rather than guessing "vanilla".
-      if (!packLoader || !packMinecraft) {
-        const btn = e.currentTarget;
-        btn.disabled = true;
-        const info = await api(`/api/hub/modpack/preview?version=${encodeURIComponent(v.id)}`).catch((err) => { toast(err.message, true); return null; });
-        btn.disabled = false;
-        if (!info) return;
-        packLoader = info.loader || packLoader;
-        packMinecraft = info.minecraft || packMinecraft;
-      }
-      const pack = { project: p.id, source: p.source, version_id: v.id, name: p.name, version: v.name, minecraft: packMinecraft, loader: packLoader || "vanilla", icon: p.icon };
-      if (host) host.pickPack(pack);
+      usePack.disabled = versionSel.disabled = true;
+      usePack.textContent = t("Loading modpack…");
+      toast(`Loading ${p.name}: please wait until the modpack is loaded`);
+      const info = await api(`/api/hub/modpack/preview?version=${encodeURIComponent(v.id)}`).catch((err) => {
+        if (!(err instanceof Unauthorized)) toast(err.message, true);
+        return null;
+      });
+      usePack.disabled = versionSel.disabled = false;
+      usePack.textContent = t("Use this modpack");
+      if (!info || !usePack.isConnected) return;  // (failed, or another pack was opened meanwhile)
+      const tagged = v.loaders.find((l) => ["fabric", "neoforge", "forge", "quilt"].includes(l));
+      const pack = { project: p.id, source: p.source, version_id: v.id, name: p.name, version: v.name, icon: p.icon,
+        minecraft: info.minecraft || v.minecraft[0] || "", loader: info.loader || tagged || "vanilla" };
+      if (host) host.pickPack(pack, info);
       else {
         setupChoosePack(pack);
         Object.assign(setupState, { loader: pack.loader, minecraft: pack.minecraft });
-        loadSetupModpack(pack);
+        loadSetupModpack(pack, info);
         location.hash = "#new";
       }
     } }, "Use this modpack") : null;
@@ -4506,7 +4512,7 @@ function browserPanel(params, host) {
       h("div", { class: "browse-filters" },
         h("div", { class: "row" }, h("strong", { class: "grow" }, forPlayers ? "Mods for players" : { modpack: "Modpacks", plugin: "Plugins", mod: "Mods" }[noun]),
           loader ? h("span", { class: "tag" }, loader) : null,
-          host ? h("button", { class: "btn ghost small", onclick: () => host.close() }, "Close") : h("a", { class: "btn ghost small", href: target === "setup" ? "#new" : `#s/${target}/mods` }, "Back")),
+          host ? null : h("a", { class: "btn ghost small", href: target === "setup" ? "#new" : `#s/${target}/mods` }, "Back")),  // (in a side pane: its "Back to …" bar)
         q,
         h("div", { class: "row" }, source, sort),
         envSel ? h("div", { class: "row" }, envSel) : null,
@@ -6594,13 +6600,14 @@ function setupCompanions() {
   }
   return out;
 }
-async function loadSetupModpack(pack) {
+// `loaded`: the pack's preview, when the mod browser already read it.
+async function loadSetupModpack(pack, loaded = null) {
   const st = setupState;
   if (!pack || pack.loading || Array.isArray(pack.mods)) return;
   pack.loading = true;
   pack.error = "";
-  if (st.rerender) st.rerender();
-  const r = await api(`/api/hub/modpack/preview?version=${encodeURIComponent(pack.version_id)}`).catch((e) => {
+  if (st.rerender && !loaded) st.rerender();
+  const r = loaded || await api(`/api/hub/modpack/preview?version=${encodeURIComponent(pack.version_id)}`).catch((e) => {
     if (st.modpack === pack) { pack.error = e.message; pack.loading = false; if (st.rerender) st.rerender(); }
     return null;
   });

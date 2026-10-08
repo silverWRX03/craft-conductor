@@ -454,7 +454,7 @@ body.browse-mode main { padding: 0; overflow: hidden; }
   .mod-summary { align-items: stretch; }
   .mod-summary > .btn { width: 100%; }
   .mod-summary-stats { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
-  .mod-manager-drawer { width: 100%; }
+  .mod-manager-drawer { width: 100%; margin-block-start: 48px; height: calc(100% - 48px); }  /* (under the "Back to …" bar) */
   .mod-manager-head, .mod-manager-body, .mod-manager-foot { padding-inline: 14px; }
   .mod-manager-row { flex-wrap: wrap; }
   .mod-manager-row > .btn { margin-inline-start: auto; }
