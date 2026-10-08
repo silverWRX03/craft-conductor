@@ -136,3 +136,14 @@ function resultPager({ list, fetchPage, row, key, empty, onPage, failed }) {
     },
   };
 }
+
+// The mod lists (the mod browser, World generation's mods, a single-player game's mods, the friend's
+// page): a resultPager over a search address that answers ``url?<words and filters>&offset=N``.
+// search(params) starts again from the first page; every later page asks exactly what the first did.
+// Results are keyed source:id unless ``key`` says otherwise.
+function searchPager({ url, key = (m) => `${m.source}:${m.id}`, ...opts }) {
+  let asked = new URLSearchParams();
+  const pager = resultPager({ ...opts, key,
+    fetchPage: (offset) => { const p = new URLSearchParams(asked); p.set("offset", String(offset)); return api(`${url}?${p}`); } });
+  return { ...pager, search(params) { asked = new URLSearchParams(params); pager.reset(); } };
+}

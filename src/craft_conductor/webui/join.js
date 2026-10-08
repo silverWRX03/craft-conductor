@@ -138,20 +138,19 @@ function openPicker(kind) {
         h("div", { class: "muted small" }, `⬇ ${fmt(m.downloads || 0)}`, m.follows ? ` · ♥ ${fmt(m.follows)}` : "")));
   };
   // The results keep coming as the list scrolls (pager.js); new words, sort or category start again.
-  let asked = new URLSearchParams();
-  const pager = resultPager({
+  const pager = searchPager({
     list,
-    fetchPage: (offset) => { const p = new URLSearchParams(asked); p.set("offset", String(offset)); return api(`api/extras/search?${p}`); },
+    url: "api/extras/search",
     key: (m) => m.id,
     row: resultRow,
     empty: () => h("p", { class: "muted" }, `No ${noun} found for Minecraft ${info.pack.minecraft}.`),
     onPage: () => updateFooter(),
   });
   const search = () => {
-    asked = new URLSearchParams({ kind, q: st.q });
-    if (st.sort) asked.set("sort", st.sort);
-    if (st.category) asked.set("category", st.category);
-    pager.reset();
+    const p = new URLSearchParams({ kind, q: st.q });
+    if (st.sort) p.set("sort", st.sort);
+    if (st.category) p.set("category", st.category);
+    pager.search(p);
   };
   const tick = (id) => {
     const box = pager.el(id) && pager.el(id).querySelector("input[type=checkbox]");
