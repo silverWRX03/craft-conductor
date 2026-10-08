@@ -11,10 +11,13 @@ its fix will say which version it's in.
 - **Downloading mods by hand, in one place.** When a CurseForge mod's author doesn't let other apps download it, a panel slides open on the right with a **Download ↗** link for each file and a box at the bottom: **Drag mods that were downloaded here**. Each dropped file is matched to its mod by CurseForge's checksum (so a renamed file works) and saved for the server.
 
 **Changed**
+- **The map preview starts clean** (New server → World generation & map preview): it shows the land and the spawn point, and no longer marks villages, temples and other structures by itself. Tick **Show Points of Interest** under the map to see them. The first time for a seed it warns that this gives away what players would normally have to discover (an unfair advantage in competitive speedrunning without a set seed, and a "soft cheat" to some Minecraft purists); **Keep Hidden** is the default. Unticking hides them at once, and if they can't be loaded the map still works, with **Try again**.
+- The world-generation mods next to the map preview, and the mods in a new single-player game, keep coming as you scroll down, as in the mod browser (they stopped after the first 20).
 - Creating a server that needs mods downloaded by hand no longer fails with "these mods must be downloaded by hand first". Setup waits, opens the panel, and carries on by itself once the files are in (**Stop setting up** stops it).
 - The Updates page's **Manual downloads needed** card opens the same panel instead of an **Upload** button for each file.
 
 **Fixed**
+- In **Manage Mods** on a new server, **Choose another Minecraft version** (on a mod that isn't available for the chosen version) did nothing. It now closes the panel and takes you to the Minecraft version.
 - A new Quilt server on Minecraft 26.1 failed to start ("Unsupported class file major version 69") and was rolled back. Craft Conductor picked an old Quilt Loader (0.24.0) that can't read Minecraft 26.1, because Quilt lists its loaders out of order; it now picks the newest stable Quilt Loader. Single-player Quilt games had the same problem. (#72)
 
 ## 0.25.0 (2026-10-06)

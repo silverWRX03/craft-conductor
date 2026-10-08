@@ -1184,6 +1184,7 @@ class HubApi:
         r[("GET", "/api/hub/map")] = self.map_info
         r[("GET", "/api/hub/map/tile")] = self.map_tile
         r[("GET", "/api/hub/map/biome")] = self.map_biome
+        r[("GET", "/api/hub/map/poi")] = self.map_poi
         r[("POST", "/api/hub/map/explore")] = self.map_explore
         r[("POST", "/api/hub/map/stop")] = self.map_stop
         r[("GET", "/api/hub/saves")] = self.saves
@@ -1712,6 +1713,19 @@ class HubApi:
         x, z = self._ints(q, "x", "z")
         c = session.surfaces.chunk(x >> 4, z >> 4)
         return {"biome": c.biome if c else "", "made": c is not None}
+
+    def map_poi(self, q, b) -> dict:
+        """A map's points of interest (its landmarks): apart from the map, which starts clean, and
+        asked for only when the page shows them. The explorable world's, with the land made since;
+        an older map's, as they were when it was drawn."""
+        map_id = str(q.get("id") or "")
+        session = self.hub.map_session
+        if session is not None and session.id == map_id:
+            return {"landmarks": session.landmarks(), "version": session.version}
+        p = self._preview(map_id)
+        if p.state != "done" or p.landmarks is None:
+            raise ApiError(404, "this map's points of interest couldn't be read")
+        return {"landmarks": p.landmarks, "version": 0}
 
     def map_explore(self, q, b) -> dict:
         from . import preview

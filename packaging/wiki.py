@@ -49,7 +49,7 @@ IMAGES = {
     "Getting started": [("sign-in.png", "Signing in the first time"), ("choose-password.png", "Choosing your own password")],
     "The guided setup": [("guided-setup.png", "The guided setup's checklist, in a corner of the page")],
     "Creating a server": [("new-server.png", "New server"), ("mod-browser.png", "The mod browser"),
-                          ("map-preview.png", "World generation & map preview, with landmarks"),
+                          ("map-preview.png", "World generation & map preview: a clean map, points of interest hidden"),
                           ("manual-downloads.png", "Mods to download by hand: a link for each, and the box to drop them on")],
     "On another computer (Linux, over SSH)": [("ssh-install.png", "Install on a Linux computer or rented server (SSH)")],
     "Messages": [("question.png", "A question waits in the middle of the screen")],

@@ -54,8 +54,11 @@ def test_browser_regressions(hub_env, modrinth, monkeypatch):
         if os.environ.get("CRAFT_UI_WORLD"):
             shutil.copytree(os.environ["CRAFT_UI_WORLD"], session.world, dirs_exist_ok=True)
             return
-        write_world(session.world, {(x, z): chunk(x, z, block="minecraft:grass_block" if x < 0 else "minecraft:water")
-                                   for x in range(-8, 8) for z in range(-8, 8)}, spawn=(8, 8))
+        chunks = {(x, z): chunk(x, z, block="minecraft:grass_block" if x < 0 else "minecraft:water")
+                  for x in range(-8, 8) for z in range(-8, 8)}
+        chunks[(-2, -2)]["structures"] = {"starts": {"minecraft:village_plains": {  # (a point of interest)
+            "id": "minecraft:village_plains", "ChunkX": -2, "ChunkZ": -2, "Children": []}}}
+        write_world(session.world, chunks, spawn=(8, 8))
     monkeypatch.setattr(preview.MapSession, "generate", generate)
     result = subprocess.run([os.environ["CRAFT_UI_NODE"], str(Path(__file__).with_name("ui_browser.cjs")), client.base],
                             capture_output=True, text=True, timeout=180)
