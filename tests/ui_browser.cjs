@@ -186,6 +186,29 @@ const assert = require('node:assert/strict');
   await page.locator('.map-tile').first().waitFor();
   await page.waitForFunction(() => [...document.querySelectorAll('.map-tile')].some(img => img.complete && img.naturalWidth > 0));
   assert.equal(await page.locator('.map-spawn').evaluate(el => Number.isFinite(parseFloat(el.style.left))), true);
+  // The map panel has no structures box: maps are always made with them, and whether the server's
+  // world has them stays on the World card (the panel says when it won't; Use this seed leaves it).
+  const panel = page.locator('.inpage-browser');
+  assert.equal(await panel.getByText('Villages, temples and other structures', {exact: true}).count(), 0);
+  const noStructures = panel.getByText("this server's world won't have them", {exact: false});
+  assert.equal(await noStructures.count(), 0);
+  await page.keyboard.press('Escape');
+  await panel.waitFor({state: 'detached'});
+  const was = await page.evaluate(() => {
+    const P = setupState.properties, before = {seed: P['level-seed'], structures: P['generate-structures']};
+    P['generate-structures'] = 'false';
+    openWorldPanel();
+    return before;
+  });
+  await noStructures.waitFor();
+  await panel.getByRole('button', {name: 'Use this seed', exact: true}).click();
+  assert.equal(await page.evaluate(() => setupState.properties['level-seed']), '25698412121455');
+  assert.equal(await page.evaluate(() => setupState.properties['generate-structures']), 'false');
+  await page.evaluate(w => {
+    const P = setupState.properties;
+    for (const [k, v] of [['level-seed', w.seed], ['generate-structures', w.structures]]) { if (v === undefined) delete P[k]; else P[k] = v; }
+  }, was);
+  await page.waitForFunction(() => [...document.querySelectorAll('.map-tile')].some(img => img.complete && img.naturalWidth > 0));
   // The world generation mods keep coming as the list scrolls, as in the mod browser.
   await page.locator('.browse-results .result', {hasText: 'Example world generation'}).waitFor();
   await page.locator('.browse-results .pager-foot', {hasText: "That's everything"}).waitFor();

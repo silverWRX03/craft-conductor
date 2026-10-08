@@ -4040,8 +4040,11 @@ function worldPanel(host) {
   const type = h("select", { "aria-label": "World type", onchange: () => { P["level-type"] = type.value; host.changed(); } },
     WORLD_TYPES.map(([v, label]) => h("option", { value: v }, label)));
   type.value = P["level-type"] || "minecraft:normal";
-  const structures = h("input", { type: "checkbox", checked: P["generate-structures"] !== "false",
-    onchange: () => { P["generate-structures"] = String(structures.checked); host.changed(); } });
+  // Maps are always made with villages, temples and other structures (hidden unless Show Points of
+  // Interest is ticked); whether the server's world has them stays on the World card, said here
+  // only when it won't.
+  const noStructures = P["generate-structures"] === "false" ? h("p", { class: "muted small" },
+    "The map is made with villages, temples and other structures; this server's world won't have them (World → Villages, temples and other structures).") : null;
   const size = h("select", { "aria-label": "Map size" }, MAP_SIZES.map(([v, label]) => h("option", { value: String(v) }, label)));
   size.value = String(st.previewSize || 128);
   size.addEventListener("change", () => { st.previewSize = Number(size.value); });
@@ -4143,7 +4146,6 @@ function worldPanel(host) {
         h("div", { class: "muted small" }, `${t(typeName)} · ${m.mods.length ? `${m.mods.length} mod(s)` : "no mods"} · ${biomes} biome(s) in view`)),
         same ? h("span", { class: "tag" }, "✓ The server's seed") : h("button", { type: "button", class: "btn primary", onclick: () => {
           seed.value = P["level-seed"] = m.seed; type.value = P["level-type"] = m.level_type;
-          P["generate-structures"] = String(m.structures); structures.checked = m.structures;
           host.changed(); toast(`The server will use seed ${m.seed}`); showMap(m);
         } }, "Use this seed")),
       frame, poi.controls, readout,
@@ -4213,7 +4215,7 @@ function worldPanel(host) {
     const mins = Math.max(5, Math.round(each * 10 / 60));
     if (!(await ask(`Make maps of 10 random seeds? It takes about ${mins} minutes (each map is a fresh world), and the computer works hard the whole time: the fans may spin up and games may run slower. You can keep setting up the server meanwhile.`,
       { id: "seed-gallery", ok: "Make 10 maps" }))) return;
-    const body = { loader: st.loader, minecraft: st.minecraft, level_type: type.value, structures: structures.checked,
+    const body = { loader: st.loader, minecraft: st.minecraft, level_type: type.value, structures: true,
       radius: Number(size.value), mods: [...st.mods].filter(([, m]) => m.explicit).map(([k]) => k), channels: earlyChannels(), count: 10 };
     const r = await act(() => api("/api/hub/preview/gallery", { method: "POST", body }), null);
     if (!r) return;
@@ -4253,7 +4255,7 @@ function worldPanel(host) {
     poll = setInterval(tick, 1000);
   };
   async function start() {
-    const body = { loader: st.loader, minecraft: st.minecraft, seed: seed.value.trim(), level_type: type.value, structures: structures.checked,
+    const body = { loader: st.loader, minecraft: st.minecraft, seed: seed.value.trim(), level_type: type.value, structures: true,
       radius: Number(size.value), mods: [...st.mods].filter(([, m]) => m.explicit).map(([k]) => k), channels: earlyChannels() };
     const r = await act(() => api("/api/hub/preview", { method: "POST", body }), null);
     if (!r) return;
@@ -4271,7 +4273,7 @@ function worldPanel(host) {
           h("button", { class: "btn ghost small", onclick: () => host.close() }, "Close")),
         h("label", {}, "Seed", h("div", { class: "row" }, seed, dice)),
         h("div", { class: "row" }, type, size),
-        h("label", { class: "row small" }, structures, h("span", {}, "Villages, temples and other structures")),
+        noStructures,
         h("div", { class: "row" }, go, compare),
         h("h3", { class: "mt-s" }, plugins ? "World generation plugins" : "World generation mods"),
         moddable ? q : null),
