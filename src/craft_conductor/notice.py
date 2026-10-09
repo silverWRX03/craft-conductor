@@ -27,7 +27,7 @@ POINTS = [
     "Moving a world to a newer Minecraft version can't be undone. Restoring a backup is the only way back.",
     "Minecraft belongs to Mojang, and each mod belongs to its author. You accept Minecraft's EULA separately.",
     "This software was created with the help of AI (Anthropic's Claude). It is tested, but it may still have mistakes.",
-    "It is free, open-source software (Apache 2.0 license), provided as is, with no warranty.",
+    "It is free, open-source software (GPL-3.0-or-later license), provided as is, with no warranty.",
     "Keep your own copies of anything you can't afford to lose.",
 ]
 assert len(POINTS) <= 10

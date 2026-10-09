@@ -2,7 +2,7 @@
 
 **Status:** Proposed design; not a security certification or completed implementation audit.  
 **Date:** 2026-10-01  
-**Project:** [silverWRX03/craft-conductor](https://github.com/silverWRX03/craft-conductor), Apache-2.0  
+**Project:** [silverWRX03/craft-conductor](https://github.com/silverWRX03/craft-conductor), GPL-3.0-or-later  
 **Repository location:** `docs/security/THREAT_MODEL.md`  
 **Document role:** Security architecture and threat-model design document; not a substitute for a root `SECURITY.md` vulnerability-reporting policy.  
 **Audience:** Maintainers, contributors, security reviewers, and future implementation agents.

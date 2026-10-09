@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-PROJECT = ("Craft Conductor", "Apache-2.0",
+PROJECT = ("Craft Conductor", "GPL-3.0-or-later",
            "https://github.com/silverWRX03/craft-conductor/blob/main/LICENSE")
 
 # (name, how craft-conductor uses it, license, link)

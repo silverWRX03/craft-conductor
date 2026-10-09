@@ -138,5 +138,5 @@ for test builds and releases, [CONTRIBUTING.md](CONTRIBUTING.md) for how changes
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE), and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the
+GPL-3.0-or-later. See [LICENSE](LICENSE), and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the
 licenses of everything Craft Conductor uses or downloads.
