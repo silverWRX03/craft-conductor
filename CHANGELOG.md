@@ -4,12 +4,15 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
-## Unreleased (not released yet)
+## 0.26.0 (2026-10-09)
 
 **Added**
 - **Datapack builds.** When a mod you picked has no build for your server type but has a datapack build on Modrinth (like Terralith on Forge for Minecraft 26.x), its row in **Manage Mods** offers **Stay on Forge: use its datapack**: the datapack goes in the world's datapacks folder, so the world is made with it. It needs no other mods (Terralith's doesn't need Lithostitched), the map preview uses it too, and players don't need it.
 - **CurseForge modpacks.** The mod browser's modpacks now have **CurseForge** as a source, next to Modrinth (it was missing). A CurseForge pack sets up the server with its Minecraft version, mod loader, mods and configs. When the pack's author publishes an official server pack, the pack's mods that the server pack leaves out only run on players' computers, so they go in your friends' download instead of on the server.
 - **Downloading mods by hand, in one place.** When a CurseForge mod's author doesn't let other apps download it, a panel slides open on the right with a **Download ↗** link for each file and a box at the bottom: **Drag mods that were downloaded here**. Each dropped file is matched to its mod by CurseForge's checksum (so a renamed file works) and saved for the server.
+- **Mods that won't start together are found before anyone plays.** Craft Conductor now looks inside each mod file for the mods (and versions of them) it needs, the same check Fabric, Forge and NeoForge do when Minecraft starts. It runs on the New server page (**Create my server** waits until the mods check out), after every change on the Mods and Friends pages, before an update goes in (an update whose mods wouldn't start isn't installed), for single-player games (**Install** waits) and in **Check my setup**. A mod that wouldn't start makes **Manage Mods** (or **Manage Friends Mods**) glow and opens on it, with a version that works when there is one ("Use Iris 1.10.9").
+- **Change version.** Every mod in the mod managers (server, friends, setup, modpacks, single-player) can be held at a version you pick: its builds are listed newest first, release builds always and beta or alpha ones when you ask, with the ones not made for your Minecraft version marked. Updates leave a held mod where it is until you pick **Newest** again.
+- **Friends' invites wait until their Minecraft would start.** While players' mods have a problem, the invite links are paused (friends who open an earlier link are told to try again later) and **Post to Discord** and new links wait.
 
 **Changed**
 - **Manage Mods glows when it needs you.** The red dot is gone: the **Manage Mods** button glows lava orange and pulses (steady with **Less motion**) while a mod can't be used as it is or must be downloaded by hand. After you change the server type or Minecraft version, the page scrolls to it, and it starts with **What changed**: the mods that came or went, and why ("Lithostitched was removed: Terralith has no build for Forge 26.2, so nothing needs it now."). **Manage Friends Mods** does the same for players' mods with no build for the new choice, after the server's.
@@ -23,8 +26,11 @@ its fix will say which version it's in.
 - The world-generation mods next to the map preview, and the mods in a new single-player game, keep coming as you scroll down, as in the mod browser (they stopped after the first 20).
 - Creating a server that needs mods downloaded by hand no longer fails with "these mods must be downloaded by hand first". Setup waits, opens the panel, and carries on by itself once the files are in (**Stop setting up** stops it).
 - The Updates page's **Manual downloads needed** card opens the same panel instead of an **Upload** button for each file.
+- **License.** Craft Conductor moved from Apache-2.0 to GPL-3.0-or-later. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 **Fixed**
+- A friend opening an invite saw a blank box where the server's icon should be, when the server has no `server-icon.png` of its own. It now shows the Craft Conductor icon there instead.
+- A friend's Minecraft stopped with "Incompatible mods found!" on a Fabric server with Terralith: players didn't get Lithostitched, which Terralith needs, because Modrinth says Lithostitched only runs on servers. Players now get it. Mods whose files need a different version of another mod (Iris needing a newer Sodium than there is for the server's Minecraft) are now found before the invite goes out, with the version that works.
 - Switching a new server from Fabric to Forge with Terralith gave no sign anything had changed: Lithostitched quietly disappeared, Manage Mods looked the same, and **Create my server** then failed saying there was no Terralith for that Minecraft. Terralith has no Forge build for Minecraft 26.x; the page now says so as soon as you switch, says what it does have, and offers its datapack. (#81)
 - Choosing a CurseForge modpack such as RLCraft with **Use this modpack** made the New server page switch to Vanilla (no Mods section, wrong Minecraft version) when the pack's files don't name their mod loader on CurseForge. The loader and Minecraft version now come from the pack itself.
 - A server made from RLCraft (and other older CurseForge packs) failed to set up with "… has no forge build for 1.12.2" for mods like Realistic Terrain Generation and Kiwi. Those mods only have beta or alpha builds, and the server only accepted releases; each pack mod now accepts the kind of build the pack uses.

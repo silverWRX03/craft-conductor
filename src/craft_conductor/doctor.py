@@ -113,6 +113,20 @@ def run(m, state: str, *, total_gb: float | None = None, share: dict | None = No
                                 "Craft Conductor downloads it when the server starts; if that fails, see the Java page.",
                                 "java", f"Download Java {lk.java_major or 8} now"))
 
+    # The mods: what the mod loader checks before it starts (modcheck.py)
+    from . import modcheck
+    from .planner import LOADER_NAMES
+    if lk.installed and lk.loader in modcheck.LOADERS:
+        problems = modcheck.check_folder(m.mods_dir, loader=lk.loader, minecraft=lk.minecraft,
+                                         loader_version=lk.loader_version, java_major=lk.java_major, side="server")
+        if problems:
+            more = f" (and {len(problems) - 5} more)" if len(problems) > 5 else ""
+            checks.append(Check("mods", "Mods work together", BAD,
+                                " ".join(p.text for p in problems[:5]) + more + f" {LOADER_NAMES[lk.loader]} won't start the server like this.",
+                                "Add the mod that's missing, or remove (or change the version of) the mod that needs it, on the Mods page."))
+        else:
+            checks.append(Check("mods", "Mods work together", OK, "Every mod has the mods and versions it says it needs."))
+
     # Memory
     total = total_gb if total_gb is not None else total_ram_gb()
     want = server_memory_gb(cfg.server.memory)

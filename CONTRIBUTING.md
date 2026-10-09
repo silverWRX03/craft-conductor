@@ -8,7 +8,7 @@ Thanks for helping! Bug reports, ideas, translations and code are all welcome.
 
 ## What Craft Conductor is (and stays)
 
-- **Free and open source** (Apache-2.0), with no paid dependencies, **no telemetry**, and no
+- **Free and open source** (GPL-3.0-or-later), with no paid dependencies, **no telemetry**, and no
   accounts. It only talks to the services it needs (Mojang, Java's and the loaders' download
   sites, the mod sites, GitHub for its own updates, and its shared list of mod conflicts) and
   sends nothing about the person using it. Anything more, they turn on themselves.
@@ -81,5 +81,5 @@ Maintainers release from `main` with the **release** workflow; the steps are in
 
 ## License
 
-Craft Conductor is Apache-2.0 ([LICENSE](LICENSE)). What you contribute is under the same
+Craft Conductor is GPL-3.0-or-later ([LICENSE](LICENSE)). What you contribute is under the same
 license. Anything new it uses or downloads goes in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

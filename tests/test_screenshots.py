@@ -294,6 +294,18 @@ def test_documentation_screenshots(tmp_path, http, modrinth, fake_java, monkeypa
             nxt = lambda s: s.replace("1.21.1", "1.21.4") if "1.21.1" in s else s.replace(".jar", "+1.21.4.jar")  # noqa: E731
             modrinth.version(slug.upper(), nxt(number + ".jar")[:-4] + ("-beta.1" if newer == "beta" else ""), ["1.21.4"],
                              filename=nxt(filename), version_type=newer)
+    # Shaders for players, for Change version and the file check (mod-versions.png): the newest Iris
+    # needs a Sodium there's no release of for 1.21.1; an older Iris works with the one there is.
+    from test_modcheck import fabric
+    modrinth.project("IRIS", "iris", "Iris Shaders", server_side="unsupported")
+    for number, needs in (("1.8.1+1.21.1", ">=0.5.11 <0.6"), ("1.8.8+1.21.1", "0.6.x")):
+        modrinth.version("IRIS", number, ["1.21.1"], deps=["SODIUM"], filename=f"iris-fabric-{number}.jar",
+                         content=fabric("iris", number, {"sodium": needs}, "Iris"))
+    modrinth.project("SODIUM", "sodium", "Sodium", server_side="unsupported")
+    modrinth.version("SODIUM", "mc1.21.1-0.5.11", ["1.21.1"], filename="sodium-fabric-0.5.11+mc1.21.1.jar",
+                     content=fabric("sodium", "0.5.11+mc1.21.1", name="Sodium", environment="client"))
+    modrinth.version("SODIUM", "mc1.21.4-0.6.0-beta.2", ["1.21.4"], version_type="beta", filename="sodium-fabric-0.6.0-beta.2+mc1.21.4.jar",
+                     content=fabric("sodium", "0.6.0-beta.2+mc1.21.4", name="Sodium", environment="client"))
     lithium = {**http.json[f"{API}/project/LITHIUM"], "description": "No-compromises game logic optimization mod.",
                "body": "Lithium makes the game's own logic faster: mob AI, block ticking, collisions, chunk loading and "
                        "more, while keeping how the game plays exactly the same.\n\n## What it helps\n\n"

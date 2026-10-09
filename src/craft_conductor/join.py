@@ -247,6 +247,9 @@ class Joiner:
                 raise JoinError("the server doesn't recognise this invite any more; ask for a new one") from e
             if e.status == 410:
                 raise JoinError("this invite has expired; ask the server's owner for a new link") from e
+            if e.status == 423:
+                raise JoinError("the server's owner is fixing its mods so that Minecraft starts with them. "
+                                "Try again later (the same invite works)") from e
             raise JoinError(f"couldn't reach the server at {self.invite.host}:{self.invite.port} ({e}). "
                             "Is Craft Conductor running there, and is the share port forwarded?") from e
         return validate_pack(pack, self.invite.url)

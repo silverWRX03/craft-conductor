@@ -169,13 +169,14 @@ class ModrinthFixture:
         self.http.files[url] = content
         n = len(self.versions[pid])
         self.versions[pid].append({
-            "id": vid, "version_number": number, "version_type": version_type,
+            "id": vid, "project_id": pid, "version_number": number, "version_type": version_type,
             "game_versions": list(game_versions), "loaders": list(loaders),
             "date_published": f"2025-02-{n + 1:02d}T00:00:00Z",
             "files": [{"url": url, "filename": filename, "primary": True,
                        "hashes": {"sha1": hashlib.sha1(content).hexdigest()}}],
             "dependencies": [{"project_id": d, "dependency_type": "required"} for d in deps],
         })
+        self.http.json[f"{MODRINTH}/version/{vid}"] = self.versions[pid][-1]  # (one build, by its id)
         self._publish(pid)
         return content
 

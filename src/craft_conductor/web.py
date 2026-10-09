@@ -888,6 +888,31 @@ def run_check(hub, b: dict, work) -> dict:
     return {"ok": True, "id": job.id}
 
 
+FILECHECK_KEEP = 600  # seconds a server's file check answers again without checking (when nothing changed)
+
+
+def list_builds(providers: dict, key: str, loaders: tuple[str, ...], minecraft: str | None) -> dict:
+    """Every build of a mod (``key``: "modrinth:<id or slug>" or "curseforge:<id>", or a plain
+    Modrinth slug) for these loaders, newest first; each marked with whether it's made for
+    ``minecraft``. ``key`` in the answer is the mod's own ("modrinth:<id>"), as held versions use."""
+    source, _, mod_id = key.partition(":") if ":" in key else ("modrinth", "", key)
+    if source not in ("modrinth", "curseforge") or not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_.-]{0,99}", mod_id) or ".." in mod_id:
+        raise ApiError(400, "that isn't a mod")
+    provider = providers.get(source)
+    if provider is None:
+        raise ApiError(400, "that mod site isn't available")
+    try:
+        project = provider.project(mod_id)
+        builds = provider.versions(project, loaders)[:500]
+    except ModError as e:
+        raise ApiError(404, str(e)) from None
+    except HttpError as e:
+        raise ApiError(502, f"couldn't reach {source.capitalize()}: {e.friendly}") from None
+    for v in builds:
+        v["here"] = bool(minecraft) and minecraft in v["minecraft"]
+    return {"key": project.key, "name": project.name, "minecraft": minecraft, "loaders": list(loaders), "versions": builds}
+
+
 _RELEASE = re.compile(r"\d+(\.\d+)+")
 BUILD_LOADERS = ("neoforge", "fabric", "quilt", "forge")  # server types a picked mod may have a build for instead
 
@@ -1205,6 +1230,8 @@ class HubApi:
         r[("GET", "/api/hub/discord/roles")] = lambda q, b: {"roles": self._discord().roles(q.get("guild", ""))}
         r[("POST", "/api/hub/discord/whitelist")] = self.discord_whitelist
         r[("POST", "/api/hub/mods/check")] = self.check_mods
+        r[("POST", "/api/hub/mods/filecheck")] = self.setup_filecheck
+        r[("GET", "/api/hub/mods/versions")] = self.setup_versions
         r[("GET", "/api/hub/mods/check")] = self.check_status
         r[("POST", "/api/hub/trial")] = self.start_trial
         r[("GET", "/api/hub/trial")] = self.trial_status
@@ -1247,6 +1274,8 @@ class HubApi:
         r[("POST", "/api/hub/singleplayer/edit")] = self.sp_edit
         r[("POST", "/api/hub/singleplayer/delete")] = self.sp_delete
         r[("POST", "/api/hub/singleplayer/check")] = self.sp_check
+        r[("POST", "/api/hub/singleplayer/filecheck")] = self.sp_filecheck
+        r[("GET", "/api/hub/singleplayer/versions")] = self.sp_versions
         r[("POST", "/api/hub/singleplayer/preview")] = self.sp_preview
         r[("POST", "/api/hub/singleplayer/install")] = self.sp_install
         r[("POST", "/api/hub/guide")] = self.guide_action
@@ -1302,8 +1331,10 @@ class HubApi:
     def sp_create(self, q, b) -> dict:
         sp = self._sp()
         try:
-            return sp.create(self.hub, name=b.get("name"), loader=b.get("loader"), minecraft=b.get("minecraft"),
+            pins = sp.check_pins(b.get("pins"))
+            game = sp.create(self.hub, name=b.get("name"), loader=b.get("loader"), minecraft=b.get("minecraft"),
                              mods=b.get("mods") or [], memory_gb=b.get("memory_gb"))
+            return sp.save(self.hub, {**game, "pins": pins}) if pins else game
         except sp.SingleplayerError as e:
             raise ApiError(400, str(e)) from None
 
@@ -1316,6 +1347,8 @@ class HubApi:
                                      b.get("memory_gb", game["memory_gb"]))
             if recipe["loader"] != game["loader"] and game.get("installed"):
                 raise sp.SingleplayerError("a game's mod loader can't change once it's installed: make a new game instead")
+            if "pins" in b:
+                recipe["pins"] = sp.check_pins(b.get("pins"))
             return sp.save(self.hub, {**game, **recipe})
         except sp.SingleplayerError as e:
             raise ApiError(400, str(e)) from None
@@ -1344,7 +1377,7 @@ class HubApi:
         """Display-safe resolved mod metadata shared by single-player check and preview."""
         def one(m, manual=False):
             return {"name": m["name"], "project": m.get("project"), "source": m.get("source", "modrinth"),
-                    "version": m.get("version", ""), "channel": m.get("channel", "release"),
+                    "version": m.get("version", ""), "version_id": m.get("version_id"), "channel": m.get("channel", "release"),
                     "needed_by": m.get("needed_by"), "selected": bool(m.get("selected")),
                     "requested": m.get("requested"), "manual": manual}
         return [one(m) for m in pack["mods"]] + [one(m, True) for m in pack["manual"]]
@@ -1354,6 +1387,7 @@ class HubApi:
         sp = self._sp()
         game, pack = self._sp_pack(str(b.get("id", "")))
         return {"id": game["id"], "minecraft": pack["minecraft"], "loader": pack["loader"],
+                "problems": sp.problems(self.hub, game, pack, fixes=False),
                 "loader_version": pack["loader_version"], "changes": sp.changes(game.get("installed"), pack),
                 "skipped": pack["skipped"], "manual": pack["manual"], "mods": self._sp_mods(pack)}
 
@@ -1363,6 +1397,7 @@ class HubApi:
         try:
             recipe = sp.check_recipe(str(b.get("name") or "Preview"), b.get("loader"), b.get("minecraft"),
                                      b.get("mods") or [], b.get("memory_gb") or 4)
+            recipe["pins"] = sp.check_pins(b.get("pins"))
             pack = sp.resolve(self.hub, recipe)
         except sp.SingleplayerError as e:
             raise ApiError(400, str(e)) from None
@@ -1371,12 +1406,46 @@ class HubApi:
         return {"minecraft": pack["minecraft"], "loader": pack["loader"], "loader_version": pack["loader_version"],
                 "skipped": pack["skipped"], "mods": self._sp_mods(pack)}
 
+    def _sp_recipe_pack(self, b: dict) -> tuple[dict, dict]:
+        """A game from the editor (saved or not), resolved: its recipe and its pack."""
+        sp = self._sp()
+        try:
+            recipe = sp.check_recipe(str(b.get("name") or "Preview"), b.get("loader"), b.get("minecraft"),
+                                     b.get("mods") or [], b.get("memory_gb") or 4)
+            recipe["pins"] = sp.check_pins(b.get("pins"))
+            return recipe, sp.resolve(self.hub, recipe)
+        except sp.SingleplayerError as e:
+            raise ApiError(400, str(e)) from None
+        except HttpError as e:
+            raise ApiError(502, f"couldn't reach Modrinth or Mojang: {e.friendly}") from None
+
+    def sp_filecheck(self, q, b) -> dict:
+        """Will the game start with these mods (filecheck.py), with fixes: in the background (poll
+        GET /api/hub/mods/check?id=...)."""
+        sp = self._sp()
+        recipe, pack = self._sp_recipe_pack(b)
+        return run_check(self.hub, {"background": True}, lambda progress: {
+            "minecraft": pack["minecraft"], "problems": sp.problems(self.hub, recipe, pack, progress=progress)})
+
+    def sp_versions(self, q, b) -> dict:
+        """Every build of a mod for a game's mod loader (Change version)."""
+        from .loaders import LOADERS
+        loader = str(q.get("loader", ""))
+        if loader not in self._sp().LOADERS:
+            raise ApiError(400, "pick Fabric, Quilt, NeoForge or Forge")
+        return list_builds({"modrinth": ModrinthProvider(self.hub.http)}, str(q.get("key", "")), LOADERS[loader].mod_loaders,
+                           str(q.get("minecraft") or "") or None)
+
     def sp_install(self, q, b) -> dict:
         """Put the game into this computer's launchers (the same page friends use to join), and keep
         a note of what went in. Only from a browser on this computer (LOCAL_ONLY)."""
         from . import joinui
         sp = self._sp()
         game, pack = self._sp_pack(str(b.get("id", "")))
+        broken = sp.problems(self.hub, game, pack, fixes=False)
+        if broken:  # (the game wouldn't start: fix it in the editor first)
+            raise ApiError(409, "Minecraft wouldn't start with these mods (" + broken[0]["text"].rstrip(".") +
+                           "). Fix it in Edit → Manage Mods first.")
         old = getattr(self.hub, "_play_ui", None)
         if old is not None and not old.done.is_set():
             old.stop()
@@ -1547,6 +1616,36 @@ class HubApi:
         channels = {m: early_channel(b, m) for m in mods if early_channel(b, m)}
         return run_check(self.hub, b, lambda progress: trial.check(provider, LOADERS[loader].mod_loaders, minecraft, mods,
                                                                     progress=progress, channels=channels))
+
+    def setup_versions(self, q, b) -> dict:
+        """Every build of a mod for the server type picked on the setup page (Change version)."""
+        from .loaders import LOADERS
+        loader = str(q.get("loader", ""))
+        if loader not in LOADERS or not LOADERS[loader].mod_loaders:
+            raise ApiError(400, "that server type doesn't run mods")
+        providers = {"modrinth": ModrinthProvider(self.hub.http), "curseforge": CurseForgeProvider(self.hub.http, self.curseforge_key_now())}
+        minecraft = str(q.get("minecraft") or "") or None
+        return list_builds(providers, str(q.get("key", "")), LOADERS[loader].mod_loaders, minecraft)
+
+    def setup_filecheck(self, q, b) -> dict:
+        """Will the setup page's mods start (filecheck.py), on the server and on players' computers,
+        with fixes: in the background (poll GET /api/hub/mods/check?id=...). Create my server
+        waits until the same choices check out."""
+        from . import filecheck
+        try:
+            spec = setupmod.SetupSpec.from_dict({**b, "accept_eula": True})
+        except ConfigError as e:
+            raise ApiError(400, str(e)) from None
+        fingerprint = filecheck.setup_fingerprint(spec)
+
+        def work(progress):
+            result = filecheck.for_setup(self.hub, spec, progress)
+            checked = self.hub.setup_checks
+            if len(checked) >= 20:
+                checked.clear()
+            checked[fingerprint] = result
+            return result
+        return run_check(self.hub, {"background": True}, work)
 
     def check_status(self, q, b) -> dict:
         job = self.hub.checks.get(q.get("id", ""))
@@ -2119,7 +2218,12 @@ class HubApi:
                 "server_dir": str(self.hub.home / "servers" / "<name>"), "current": None}
 
     def create(self, q, b) -> dict:
+        from . import filecheck
         spec = setupmod.SetupSpec.from_dict(b)
+        checked = self.hub.setup_checks.get(filecheck.setup_fingerprint(spec))
+        if checked and checked.get("problems"):  # (the setup page waits for this too)
+            raise ApiError(409, "these mods wouldn't start together (" + checked["problems"][0]["text"].rstrip(".") +
+                           "). Fix it in Manage Mods first.")
         return {"ok": True, "id": self.hub.create(spec)}
 
     def network(self, q, b) -> dict:
@@ -2223,6 +2327,9 @@ class Api:
         post("/api/mods/remove", self.remove_mod)
         post("/api/mods/jar", self.set_jar)
         post("/api/mods/required", self.set_required)
+        get("/api/mods/versions", self.mod_versions)
+        post("/api/mods/pin", self.pin_mod)
+        post("/api/mods/filecheck", self.start_filecheck)
         post("/api/manual/upload", lambda q, b: None)  # handled specially (raw body)
         post("/api/manual/stop", self.stop_manual_wait)
         get("/api/players/skin", lambda q, b: None)    # handled specially (an image)
@@ -2528,6 +2635,10 @@ class Api:
                            "datapack": x.datapack}
                           for x in lk.mods],
             "configured": self._configured_with_deps(),
+            # mods held at one build (Change version): key -> its id, and its number once installed
+            "held": {k: {"version": pin.version, "number": next((x.version_number for x in lk.mods
+                                                                   if x.key == k and x.version_id == pin.version), "")}
+                     for k, pin in self.m.config.pins.items()},
             "skipped": [{"key": k, "reason": v} for k, v in lk.skipped.items()],
             "unmanaged": self.m.unmanaged_jars(),
             "disabled": self.m.disabled_jars(),
@@ -2717,6 +2828,62 @@ class Api:
         configmod.append_mod(self.m.config.path, ModSpec(source, mod_id, required=bool(b.get("required"))))
         self.m.reload_config()
         return {"ok": True}
+
+    # ------------------------------------------------------ Change version, and the file check
+    def mod_versions(self, q, b) -> dict:
+        """Every build of a mod for this server's loader (Change version), marked with whether
+        it's made for this Minecraft, with the one it's held at and the one installed."""
+        cfg, lk = self.m.config, self.m.lock
+        minecraft = lk.minecraft or cfg.server.minecraft
+        found = list_builds(self.m.providers, str(q.get("key", "")), self.m.loader.mod_loaders, minecraft)
+        installed = next((x for x in lk.mods if x.key == found["key"]), None)
+        pin = cfg.pins.get(found["key"])
+        return {**found, "held": pin.version if pin else None, "installed": installed.version_id if installed else None}
+
+    def pin_mod(self, q, b) -> dict:
+        """Hold a mod at a build (``version``), or let it follow the newest again (``version``: null).
+        It's installed with the next update, like any change to the mods."""
+        key, version = str(b.get("key", "")), b.get("version")
+        if not configmod.PIN_KEY.fullmatch(key):
+            raise ApiError(400, "that isn't a mod")
+        minecraft = self.m.lock.minecraft or self.m.config.server.minecraft
+        try:
+            configmod.set_pin(self.m.config.path, key, configmod.Pin(str(version), minecraft) if version else None)
+        except ConfigError as e:
+            raise ApiError(400, str(e)) from None
+        self.m.reload_config()
+        log.info("%s %s", key, f"held at {version}" if version else "follows the newest build again")
+        return {"ok": True}
+
+    def start_filecheck(self, q, b) -> dict:
+        """Will the mods start (filecheck.py): what the next update installs, on the server and on
+        players' computers, with fixes. In the background (poll GET /api/hub/mods/check?id=...)."""
+        from . import filecheck
+        # The same mods, settings and files as last time (and not long ago): the same answer, straight away.
+        key = self._filecheck_key()
+        cached = getattr(self.d, "filecheck_cache", None)
+        if cached and cached[0] == key and time.monotonic() - cached[1] < FILECHECK_KEEP:
+            return cached[2]
+
+        def work(progress=None):
+            result = filecheck.for_server(self.m, progress=progress)
+            self.d.filecheck_cache = (key, time.monotonic(), result)
+            return result
+        if self.web.hub.is_single:
+            return work()
+        return run_check(self.web.hub, {"background": True}, work)
+
+    def _filecheck_key(self) -> tuple:
+        from .clientpack import local_jars
+        cfg, lk = self.m.config, self.m.lock
+
+        def stamp(path: Path):
+            try:
+                return path.stat().st_mtime_ns
+            except OSError:
+                return None
+        jars = sorted(self.m.mods_dir.glob("*.jar")) if self.m.mods_dir.is_dir() else []
+        return (stamp(cfg.path), lk.updated_at, tuple((p.name, stamp(p)) for p in jars + local_jars(cfg)))
 
     def upload(self, handler: RequestHandler, q: dict) -> dict:
         """Receive a mod downloaded by hand (for authors who don't let other apps download their
@@ -3142,6 +3309,7 @@ class Api:
             raise ApiError(400, "set up the Discord bot first")
         if not self.m.config.client.enabled:
             raise ApiError(400, "turn on the friends' download first")
+        self._not_while_broken()
         guild, channel = str(b.get("guild", "")), str(b.get("channel", ""))
         if not (SNOWFLAKE.fullmatch(guild) and SNOWFLAKE.fullmatch(channel)):
             raise ApiError(400, "pick a Discord server and channel")
@@ -3429,6 +3597,9 @@ class Api:
             pack = PackBuilder(self.m).build("localhost" if port == "25565" else f"localhost:{port}")
         except ModError as e:
             raise ApiError(400, str(e))
+        if pack.get("problems"):  # (as for friends: not until Minecraft would start with these mods)
+            raise ApiError(409, "Minecraft wouldn't start with these mods yet (" + pack["problems"][0]["text"].rstrip(".") +
+                           "). Fix it in Manage Friends Mods first.")
         ui = joinui.JoinUI(None, pack=pack, http=self.m.http)
         url = ui.start()
         self.web.hub._play_ui = ui
@@ -3492,6 +3663,10 @@ class Api:
             "link_days": c.link_days, "link_day_choices": list(configmod.LINK_DAYS),
             "share": hub.share_status() if not hub.is_single else None,
             "pack": preview, "pack_error": error,
+            # mods held at one build (Change version): key -> its id, and its number in the players' download
+            "held": {k: {"version": pin.version, "number": next((x.get("version", "") for x in (preview or {}).get("mods", [])
+                                                                   if x.get("project") == k and x.get("version_id") == pin.version), "")}
+                     for k, pin in self.m.config.pins.items()},
             "loader": self.m.config.server.loader, "minecraft": self.m.lock.minecraft or "",
             "local_mods": [p.name for p in local_jars(self.m.config)],
         }
@@ -3579,8 +3754,30 @@ class Api:
             out.update(also_on_server=also, server_skipped=skipped)  # (this save's doing; the page says so once)
         return out
 
+    def _players_problems(self) -> list[dict]:
+        """What would stop players' Minecraft with the mods they get (the friends' download's own
+        check), so that no invite goes out until it's fixed."""
+        if not (self.m.config.client.enabled and self.m.lock.installed):
+            return []
+        from .clientpack import PackBuilder
+        if getattr(self, "_pack_builder", None) is None or self._pack_builder.m is not self.m:
+            self._pack_builder = PackBuilder(self.m)
+        try:
+            share = self.web.hub.share_settings()
+            return self._pack_builder.build(share["address"] or "<your address>").get("problems") or []
+        except Exception as e:  # (can't tell: the Friends page says why)
+            log.info("couldn't check the players' mods: %s", e)
+            return []
+
+    def _not_while_broken(self) -> None:
+        problems = self._players_problems()
+        if problems:
+            raise ApiError(409, "players' Minecraft wouldn't start with these mods yet (" + problems[0]["text"].rstrip(".") +
+                           "). Fix it in Manage Friends Mods first, then send the invite.")
+
     def new_client_link(self, q, b) -> dict:
         from .clientpack import make_link
+        self._not_while_broken()
         try:
             make_link(self.m.config.path, b.get("days", self.m.config.client.link_days))
         except ConfigError as e:

@@ -86,6 +86,11 @@ class ClientOnly(Unavailable):
     """The mod does not run on servers; it is skipped rather than treated as a blocker."""
 
 
+def held_elsewhere(name: str, number: str, minecraft: str) -> Unavailable:
+    return Unavailable(f"{name} is held at {number}, which isn't made for Minecraft {minecraft}: "
+                       "pick another version (Manage Mods → Change version)")
+
+
 #: How each mod site is named to people
 SOURCE_NAMES = {"modrinth": "Modrinth", "curseforge": "CurseForge", "hangar": "Hangar"}
 #: The sites a mod's dependency is looked for on, in this order after the site that names it
@@ -116,6 +121,18 @@ def same_project(a: Project, b: Project) -> bool:
 
 class ModProvider(ABC):
     source: str = ""
+    #: mods held at one build ("source:project id" -> config.Pin), set by whoever made the provider
+    #: (the server's config, a single-player game, the setup page); never changed in place
+    pins: dict = {}
+
+    def held(self, project: Project, minecraft: str):
+        """The build ``project`` is held at, or None. A build that isn't made for ``minecraft`` is
+        fine on the Minecraft version it was picked on (the person chose it), not on another."""
+        return self.pins.get(project.key)
+
+    def versions(self, project: Project, loaders: tuple[str, ...]) -> list[dict]:
+        """Every build for these loaders, newest first: {id, number, channel, date, minecraft, loaders}."""
+        return []
 
     @abstractmethod
     def project(self, mod_id: str) -> Project:

@@ -160,7 +160,7 @@ const assert = require('node:assert/strict');
   assert.equal(await page.evaluate(() => setupState.minecraft), '1.21.2');
   await manage.click();
   await conflict.getByRole('button', {name: 'Use Minecraft 1.21.1', exact: true}).click();
-  await page.getByRole('button', {name: 'Change version', exact: true}).click();
+  await page.getByRole('button', {name: 'Change Minecraft version', exact: true}).click();
   await page.waitForFunction(() => setupState.minecraft === '1.21.1' && !setupState.mods.get('needs-gone').bad);
   assert.equal(await page.locator('#setup-version').inputValue(), '1.21.1');
   await page.keyboard.press('Escape');
@@ -210,6 +210,25 @@ const assert = require('node:assert/strict');
     setupState.clientMods.clear(); setupState.clientMeta.clear(); setupState.friends = false;
     setupState.mods.clear(); setupState.loader = 'fabric'; setupState.rerender();
   });
+  // The same when only the Minecraft version changes: Terralith has nothing at all for 1.21.2.
+  await page.evaluate(() => setupAddMod('terralith', 'Terralith'));
+  await page.waitForFunction(() => setupState.mods.has('lithostitched'));
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.locator('#setup-version').selectOption('1.21.2');
+  await page.waitForFunction(() => document.querySelector('#setup-manage-mods.attention'));
+  await inView('setup-manage-mods');
+  await page.locator('#setup-manage-mods').click();
+  assert.match(await drawer.locator('section[aria-label="What changed"]').innerText(),
+    /Lithostitched was removed: Terralith has no build for Fabric 1\.21\.2, so nothing needs it now/);
+  const noBuild = drawer.locator('.notice.warn', {hasText: 'No Fabric build for Minecraft 1.21.2'});
+  await noBuild.getByRole('button', {name: 'Use Minecraft 1.21.1', exact: true}).click();
+  await page.getByRole('button', {name: 'Change Minecraft version', exact: true}).click();
+  await page.waitForFunction(() => setupState.minecraft === '1.21.1' && setupState.mods.has('lithostitched') && !setupState.mods.get('terralith').bad);
+  await drawer.getByText('Lithostitched was added: Terralith needs it on Fabric 1.21.1.', {exact: true}).waitFor();
+  await page.keyboard.press('Escape');
+  await drawer.waitFor({state: 'detached'});
+  assert.equal(await glows('setup-manage-mods'), false);
+  await page.evaluate(() => { setupState.mods.clear(); setupState.rerender(); });
   // Exercise the actual backend preview and render it in the world-generation pane.
   const preview = await page.evaluate(async () => {
     const r = await api('/api/hub/preview', {method:'POST', body:{loader:'fabric', minecraft:'1.21.1', mods:['example-worldgen'], channels:{'example-worldgen':'beta'}, seed:'25698412121455', level_type:'minecraft:normal', structures:true, radius:128}});

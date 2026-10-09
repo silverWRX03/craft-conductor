@@ -1,6 +1,6 @@
 # Third-party notices and licenses
 
-craft-conductor itself is licensed under the [Apache License 2.0](LICENSE).
+craft-conductor itself is licensed under the [GNU General Public License v3.0 or later](LICENSE).
 
 craft-conductor has **no third-party runtime dependencies**: it uses only Python and its
 standard library. The web UI is hand-written HTML, CSS and JavaScript, with **no
@@ -93,4 +93,4 @@ No account or usage data is sent to any of them. Their terms apply to your use.
 ## AI assistance
 
 Much of craft-conductor was written with the help of AI (Anthropic's Claude). The code is
-covered by the project's Apache-2.0 license like any other contribution.
+covered by the project's GPL-3.0-or-later license like any other contribution.

@@ -7,7 +7,8 @@ import re
 
 from ..config import ModSpec
 from ..http import HttpClient, HttpError
-from .base import CHANNEL_RANK, ModError, ModFile, ModProvider, Project, Unavailable, safe_file_name, same_project
+from .base import (CHANNEL_RANK, ModError, ModFile, ModProvider, Project, Unavailable, held_elsewhere, safe_file_name,
+                   same_project)
 
 API = "https://api.curseforge.com/v1"
 
@@ -109,6 +110,9 @@ class CurseForgeProvider(ModProvider):
 
     def resolve(self, spec: ModSpec, minecraft: str, loaders: tuple[str, ...], channel: str) -> ModFile:
         project = self.project(spec.id)
+        pin = self.held(project, minecraft)
+        if pin is not None:
+            return self._file(project, self._pinned(project, pin, minecraft, loaders), spec)
         for loader in loaders:
             if loader not in LOADER_TYPES:
                 continue
@@ -116,23 +120,55 @@ class CurseForgeProvider(ModProvider):
                      if minecraft in f.get("gameVersions", []) and self._acceptable(f, channel)]
             if not files:
                 continue
-            f = max(files, key=lambda f: f.get("fileDate", ""))
-            if not safe_file_name(str(f.get("fileName", ""))):
-                raise Unavailable(f"{project.name} {f.get('displayName', '')}: its file has a name that isn't safe to save")
-            # Authors can opt out of third-party downloads; then a person has to fetch
-            # the file from the website, and craft-conductor picks it up from the manual folder.
-            manual_url = None if f.get("downloadUrl") else manual_download_url(project, f["id"])
-            sha1 = next((h["value"] for h in f.get("hashes", []) if h.get("algo") == 1), None)
-            deps = [str(d["modId"]) for d in f.get("dependencies", [])
-                    if d.get("relationType") == REQUIRED_DEPENDENCY]
-            return ModFile(
-                key=project.key, source=self.source, project_id=project.id, name=project.name,
-                version_id=str(f["id"]), version_number=f.get("displayName", f["fileName"]),
-                filename=f["fileName"], url=f.get("downloadUrl") or "", sha1=sha1,
-                dependencies=deps, required=spec.required, dependency_of=spec.dependency_of,
-                channel=RELEASE_TYPES.get(f.get("releaseType"), "alpha"), manual_url=manual_url,
-            )
+            return self._file(project, max(files, key=lambda f: f.get("fileDate", "")), spec)
         raise Unavailable(f"{project.name} has no {'/'.join(loaders)} build for {minecraft}")
+
+    def _pinned(self, project: Project, pin, minecraft: str, loaders: tuple[str, ...]) -> dict:
+        try:
+            f = self._get(f"/mods/{project.id}/files/{pin.version}")
+        except HttpError as e:
+            if e.status == 404:
+                raise Unavailable(f"{project.name} is held at a build CurseForge doesn't have any more: pick another version") from e
+            raise
+        tags = {str(v).lower() for v in f.get("gameVersions", [])}
+        named = tags & set(LOADER_TYPES)
+        if str(f.get("modId")) != project.id or (named and not named & set(loaders)):
+            raise Unavailable(f"{project.name} is held at a build that isn't for {'/'.join(loaders)}: pick another version")
+        if minecraft not in f.get("gameVersions", []) and minecraft != pin.minecraft:
+            raise held_elsewhere(project.name, f.get("displayName", pin.version), minecraft)
+        return f
+
+    def versions(self, project: Project, loaders: tuple[str, ...]) -> list[dict]:
+        out, seen = [], set()
+        for loader in loaders:
+            if loader not in LOADER_TYPES:
+                continue
+            for f in self._files(project.id, loader, None):
+                if f["id"] in seen:
+                    continue
+                seen.add(f["id"])
+                out.append({"id": str(f["id"]), "number": f.get("displayName") or f.get("fileName", ""),
+                            "channel": RELEASE_TYPES.get(f.get("releaseType"), "alpha"), "date": f.get("fileDate", ""),
+                            "minecraft": [v for v in f.get("gameVersions", []) if _MC_VERSION.match(v)],
+                            "loaders": [v.lower() for v in f.get("gameVersions", []) if v.lower() in LOADER_TYPES]})
+        return sorted(out, key=lambda v: v["date"], reverse=True)
+
+    def _file(self, project: Project, f: dict, spec: ModSpec) -> ModFile:
+        if not safe_file_name(str(f.get("fileName", ""))):
+            raise Unavailable(f"{project.name} {f.get('displayName', '')}: its file has a name that isn't safe to save")
+        # Authors can opt out of third-party downloads; then a person has to fetch
+        # the file from the website, and craft-conductor picks it up from the manual folder.
+        manual_url = None if f.get("downloadUrl") else manual_download_url(project, f["id"])
+        sha1 = next((h["value"] for h in f.get("hashes", []) if h.get("algo") == 1), None)
+        deps = [str(d["modId"]) for d in f.get("dependencies", [])
+                if d.get("relationType") == REQUIRED_DEPENDENCY]
+        return ModFile(
+            key=project.key, source=self.source, project_id=project.id, name=project.name,
+            version_id=str(f["id"]), version_number=f.get("displayName", f["fileName"]),
+            filename=f["fileName"], url=f.get("downloadUrl") or "", sha1=sha1,
+            dependencies=deps, required=spec.required, dependency_of=spec.dependency_of,
+            channel=RELEASE_TYPES.get(f.get("releaseType"), "alpha"), manual_url=manual_url,
+        )
 
 
 def manual_download_url(project: Project, file_id: int | str) -> str:

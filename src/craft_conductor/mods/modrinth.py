@@ -8,8 +8,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 from ..config import ModSpec
 from ..http import HttpClient, HttpError
-from .base import (CHANNEL_RANK, ClientOnly, ModError, ModFile, ModProvider, Project, Unavailable, safe_file_name,
-                   same_project)
+from .base import (CHANNEL_RANK, ClientOnly, ModError, ModFile, ModProvider, Project, Unavailable, held_elsewhere,
+                   safe_file_name, same_project)
 
 API = "https://api.modrinth.com/v2"
 PLUGIN_LOADERS = ("paper", "spigot", "bukkit", "purpur", "folia")
@@ -109,6 +109,9 @@ class ModrinthProvider(ModProvider):
             raise ClientOnly(f"{project.name} is client-side only")
         if side == "client" and project.client_side == "unsupported":
             raise Unavailable(f"{project.name} only runs on servers")
+        pin = self.held(project, minecraft)
+        if pin is not None:
+            return self._file(project, self._pinned(project, pin, minecraft, loaders), spec)
         try:
             versions = self._versions(project.id, loaders)  # all of them: reused for other Minecraft versions
         except HttpError as e:
@@ -126,7 +129,28 @@ class ModrinthProvider(ModProvider):
         def rank(v):
             loader_rank = min((loaders.index(l) for l in v.get("loaders", []) if l in loaders), default=99)
             return (-loader_rank, v.get("date_published", ""))
-        version = max(candidates, key=rank)
+        return self._file(project, max(candidates, key=rank), spec)
+
+    def _pinned(self, project: Project, pin, minecraft: str, loaders: tuple[str, ...]) -> dict:
+        try:
+            version = self.http.get_json(f"{API}/version/{pin.version}")
+        except HttpError as e:
+            if e.status == 404:
+                raise Unavailable(f"{project.name} is held at a build Modrinth doesn't have any more: pick another version") from e
+            raise
+        if version.get("project_id") != project.id or not set(loaders).intersection(version.get("loaders", [])):
+            raise Unavailable(f"{project.name} is held at a build that isn't for {'/'.join(loaders)}: pick another version")
+        if minecraft not in version.get("game_versions", []) and minecraft != pin.minecraft:
+            raise held_elsewhere(project.name, version.get("version_number", pin.version), minecraft)
+        return version
+
+    def versions(self, project: Project, loaders: tuple[str, ...]) -> list[dict]:
+        out = [{"id": v["id"], "number": v.get("version_number", ""), "channel": v.get("version_type", "release"),
+                "date": v.get("date_published", ""), "minecraft": v.get("game_versions", []), "loaders": v.get("loaders", [])}
+               for v in self._versions(project.id, loaders)]
+        return sorted(out, key=lambda v: v["date"], reverse=True)
+
+    def _file(self, project: Project, version: dict, spec: ModSpec) -> ModFile:
         files = version.get("files", [])
         if not files:
             raise Unavailable(f"{project.name} {version['version_number']} has no files")

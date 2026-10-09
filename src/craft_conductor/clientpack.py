@@ -23,6 +23,7 @@ import time
 from pathlib import Path
 from urllib.parse import urlparse
 
+from . import modcheck
 from .config import DEFAULT_LINK_DAYS, LINK_DAYS, ConfigError, ModSpec
 from .http import HttpError, sha1_file
 from .mods.base import ModError, ModFile, Unavailable
@@ -100,9 +101,13 @@ def allowed_url(url: str) -> bool:
     return u.scheme == "https" and u.hostname in DOWNLOAD_HOSTS
 
 
-def _entry(m: ModFile, side: str) -> dict:
-    return {"name": m.name, "filename": m.filename, "url": m.url, "sha1": m.sha1, "sha512": m.sha512,
-            "project": m.key, "source": m.source, "version": m.version_number, "channel": m.channel, "side": side}
+def _entry(m: ModFile, side: str, path: str | None = None) -> dict:
+    out = {"name": m.name, "filename": m.filename, "url": m.url, "sha1": m.sha1, "sha512": m.sha512,
+           "project": m.key, "source": m.source, "version": m.version_number, "version_id": m.version_id,
+           "channel": m.channel, "side": side}
+    if path:
+        out["path"] = path  # (on this computer: for the file check only, never sent to players)
+    return out
 
 
 class PackBuilder:
@@ -116,7 +121,7 @@ class PackBuilder:
         if not lk.installed:
             raise ModError("the server isn't installed yet")
         key = (lk.updated_at, lk.minecraft, tuple(cfg.client.mods), cfg.client.memory_gb, address,
-               cfg.server.dir, tuple((p.name, p.stat().st_mtime) for p in local_jars(cfg)))
+               cfg.server.dir, tuple((p.name, p.stat().st_mtime) for p in local_jars(cfg)), tuple(sorted(cfg.pins.items())))
         cached = self._cache.get(address)
         if cached and cached[0] == key and time.monotonic() - cached[1] < CACHE_SECONDS:
             return cached[2]
@@ -129,84 +134,11 @@ class PackBuilder:
     def _build(self, address: str) -> dict:
         m = self.m
         lk, cfg = m.lock, m.config
-        modrinth = m.providers.get("modrinth") or ModrinthProvider(m.http)
-        # Paper's plugins only run on the server: players join with plain Minecraft.
+        got = players_mods(m, lk.mods, lk.minecraft, lk.loader_version, lk.java_major)
         plugins = m.loader.mods_folder != "mods"
-        loaders = () if plugins else m.loader.mod_loaders
-        mods: list[dict] = []
-        manual: list[dict] = []
-        skipped: list[dict] = []
-        included: set[str] = set()
-
-        # The server's own mods, unless they only run on servers. (A datapack build never: players
-        # get the land the server makes with it.)
-        server_mods = [] if plugins else [x for x in lk.mods if not x.datapack]
-        sides = {}
-        ids = [x.project_id for x in server_mods if x.source == "modrinth"]
-        if ids:
-            try:
-                sides = {pid: p.get("client_side", "unknown") for pid, p in modrinth.projects(ids).items()}
-            except Exception as e:  # can't tell: include them all (a spare server mod is harmless)
-                log.warning("couldn't look up which mods players need (%s); including all of them", e)
-        for x in server_mods:
-            if x.source == "modrinth" and sides.get(x.project_id) == "unsupported":
-                continue
-            included.add(x.key)
-            if x.manual or not allowed_url(x.url):
-                manual.append({"name": x.name, "filename": x.filename, "url": x.manual_url or x.url, "sha1": x.sha1})
-            else:
-                mods.append(_entry(x, "both"))
-
-        # Mods the server's mods need on players' computers only (the server skips those),
-        # then the extras you picked for players; each with its required dependencies.
-        names = {x.key: x.name for x in lk.mods}
-        todo = [ModSpec("modrinth", dep, dependency_of=names.get(x.key, x.name))
-                for x in server_mods if x.source == "modrinth"
-                for dep in x.dependencies if f"modrinth:{dep}" not in included]
-        todo += [ModSpec("modrinth", slug) for slug in cfg.client.mods if not slug.startswith("curseforge:")]
-        while todo and loaders:
-            spec = todo.pop(0)
-            try:
-                f = modrinth.resolve(spec, lk.minecraft, loaders, cfg.updates.mod_channel, side="client")
-            except (Unavailable, ModError) as e:
-                if spec.dependency_of is None:
-                    skipped.append({"name": spec.id, "reason": str(e)})
-                continue
-            if f.key in included:
-                continue
-            included.add(f.key)
-            entry = _entry(f, "client")
-            if spec.dependency_of:
-                entry["needed_by"] = spec.dependency_of  # a companion another mod needs
-            (mods if allowed_url(f.url) else manual).append(entry)
-            todo += [ModSpec("modrinth", dep, dependency_of=f.name) for dep in f.dependencies
-                     if f"modrinth:{dep}" not in included]
-
-        # A CurseForge modpack's mods for players' computers only.
-        curseforge = m.providers.get("curseforge")
-        for item in cfg.client.mods if loaders else []:
-            if not item.startswith("curseforge:"):
-                continue
-            spec = ModSpec("curseforge", item.split(":", 1)[1])
-            try:
-                if curseforge is None:
-                    raise ModError("CurseForge mods need a CurseForge API key")
-                f = curseforge.resolve(spec, lk.minecraft, loaders, cfg.updates.mod_channel)
-            except (Unavailable, ModError, HttpError) as e:
-                skipped.append({"name": item, "reason": str(e)})
-                continue
-            if f.key in included:
-                continue
-            included.add(f.key)
-            if f.manual or not allowed_url(f.url):
-                manual.append({"name": f.name, "filename": f.filename, "url": f.manual_url or f.url, "sha1": f.sha1})
-            else:
-                mods.append(_entry(f, "client"))
-
-        # Your own files for players (the share server hands them out).
-        for jar in ([] if plugins else local_jars(cfg)):
-            mods.append({"name": jar.stem, "filename": jar.name, "url": LOCAL_URL + jar.name, "sha1": sha1_file(jar),
-                         "sha512": None, "project": f"local:{jar.name}", "side": "client", "local": True})
+        mods, manual, skipped, problems = got["mods"], got["manual"], got["skipped"], got["problems"]
+        for entry in mods:  # (where a file is on this computer isn't for players)
+            entry.pop("path", None)
 
         from .properties import read_properties
         props = read_properties(m.server_dir / "server.properties")
@@ -223,7 +155,153 @@ class PackBuilder:
             "mods": mods,
             "manual": manual,
             "skipped": skipped,
-            "icon": ("data:image/png;base64," + base64.b64encode(icon.read_bytes()).decode())
+            "problems": problems,
+            "icon":("data:image/png;base64," + base64.b64encode(icon.read_bytes()).decode())
                     if icon.is_file() and icon.stat().st_size < 64 * 1024 else None,
             "updated": lk.updated_at,
         }
+
+
+def players_mods(m, server_mods: list, minecraft: str, loader_version: str | None, java_major: int | None,
+                 client_mods: list[str] | None = None) -> dict:
+    """What players' Minecraft gets for ``server_mods`` (the installed ones, or the ones a check
+    is about to install): {"mods", "manual", "skipped", "problems"}.
+
+    The server's mods that also run on players' computers, the mods they need there, the
+    extras picked for players (``client_mods``, else the config's), a CurseForge modpack's
+    players' mods and your own files. Then the mod loader's own check (filecheck.py): a server
+    mod its site calls server-only goes in after all when a player's mod needs it (the site was
+    wrong, and the loader would stop), and what's still wrong is in ``problems``."""
+    cfg = m.config
+    modrinth = m.providers.get("modrinth") or ModrinthProvider(m.http)
+    # Paper's plugins only run on the server: players join with plain Minecraft.
+    plugins = m.loader.mods_folder != "mods"
+    loaders = () if plugins else m.loader.mod_loaders
+    client_mods = cfg.client.mods if client_mods is None else client_mods
+    mods: list[dict] = []
+    manual: list[dict] = []
+    skipped: list[dict] = []
+    included: set[str] = set()
+
+    # The server's own mods, unless they only run on servers. (A datapack build never: players
+    # get the land the server makes with it.)
+    server_mods = [] if plugins else [x for x in server_mods if not x.datapack]
+    sides = {}
+    ids = [x.project_id for x in server_mods if x.source == "modrinth"]
+    if ids:
+        try:
+            sides = {pid: p.get("client_side", "unknown") for pid, p in modrinth.projects(ids).items()}
+        except Exception as e:  # can't tell: include them all (a spare server mod is harmless)
+            log.warning("couldn't look up which mods players need (%s); including all of them", e)
+    left_out = []  # (unless a player's mod needs one after all: see _check_players)
+    for x in server_mods:
+        if x.source == "modrinth" and sides.get(x.project_id) == "unsupported":
+            left_out.append(x)
+            continue
+        included.add(x.key)
+        if x.manual or not allowed_url(x.url):
+            manual.append({"name": x.name, "filename": x.filename, "url": x.manual_url or x.url, "sha1": x.sha1})
+        else:
+            mods.append(_entry(x, "both", _here(m, x)))
+
+    # Mods the server's mods need on players' computers only (the server skips those),
+    # then the extras you picked for players; each with its required dependencies.
+    names = {x.key: x.name for x in server_mods}
+    todo = [ModSpec("modrinth", dep, dependency_of=names.get(x.key, x.name))
+            for x in server_mods if x.source == "modrinth"
+            for dep in x.dependencies if f"modrinth:{dep}" not in included]
+    todo += [ModSpec("modrinth", slug) for slug in client_mods if not slug.startswith("curseforge:")]
+    while todo and loaders:
+        spec = todo.pop(0)
+        try:
+            f = modrinth.resolve(spec, minecraft, loaders, cfg.updates.mod_channel, side="client")
+        except (Unavailable, ModError) as e:
+            if spec.dependency_of is None:
+                skipped.append({"name": spec.id, "reason": str(e)})
+            continue
+        if f.key in included:
+            continue
+        included.add(f.key)
+        entry = _entry(f, "client")
+        if spec.dependency_of:
+            entry["needed_by"] = spec.dependency_of  # a companion another mod needs
+        (mods if allowed_url(f.url) else manual).append(entry)
+        todo += [ModSpec("modrinth", dep, dependency_of=f.name) for dep in f.dependencies
+                 if f"modrinth:{dep}" not in included]
+
+    # A CurseForge modpack's mods for players' computers only.
+    curseforge = m.providers.get("curseforge")
+    for item in client_mods if loaders else []:
+        if not item.startswith("curseforge:"):
+            continue
+        spec = ModSpec("curseforge", item.split(":", 1)[1])
+        try:
+            if curseforge is None:
+                raise ModError("CurseForge mods need a CurseForge API key")
+            f = curseforge.resolve(spec, minecraft, loaders, cfg.updates.mod_channel)
+        except (Unavailable, ModError, HttpError) as e:
+            skipped.append({"name": item, "reason": str(e)})
+            continue
+        if f.key in included:
+            continue
+        included.add(f.key)
+        if f.manual or not allowed_url(f.url):
+            manual.append({"name": f.name, "filename": f.filename, "url": f.manual_url or f.url, "sha1": f.sha1})
+        else:
+            mods.append(_entry(f, "client"))
+
+    # Your own files for players (the share server hands them out).
+    for jar in ([] if plugins else local_jars(cfg)):
+        mods.append({"name": jar.stem, "filename": jar.name, "url": LOCAL_URL + jar.name, "sha1": sha1_file(jar),
+                     "sha512": None, "project": f"local:{jar.name}", "side": "client", "local": True})
+
+    problems = _check_players(m, mods, manual, left_out, minecraft, loader_version, java_major)
+    return {"mods": mods, "manual": manual, "skipped": skipped, "problems": problems}
+
+
+def _here(m, mod) -> str | None:
+    """The server's own copy of an installed mod's file (this exact build), if it has one."""
+    path = m.mod_path(mod)
+    if not path.is_file():
+        return None
+    installed = next((x for x in m.lock.mods if x.key == mod.key), None)
+    return str(path) if installed and installed.version_id == mod.version_id else None
+
+
+def _check_players(m, mods: list[dict], manual: list[dict], left_out: list, minecraft: str,
+                   loader_version: str | None, java_major: int | None) -> list[dict]:
+    from . import filecheck
+    loader = m.loader.name
+    if loader not in modcheck.LOADERS:
+        return []
+    store = filecheck.store_for(m)
+    for entry in mods:  # (your own files, from the folder they're in)
+        if entry.get("local"):
+            entry["path"] = str(client_dir(m.config) / entry["filename"])
+    where = dict(minecraft=minecraft, loader_version=loader_version, java_major=java_major)
+    files = filecheck.Files(mods, loader, store)
+    problems = files.problems("client", **where)
+    missing = {p.needs: p.mod for p in problems if p.kind == "missing"}
+    added = False
+    for x in left_out:
+        if not missing:
+            break
+        entry = _entry(x, "both", _here(m, x))
+        found = filecheck.infos_of(entry, loader, store)
+        gives = {i for f in found or () if f.side != "server" for i in (f.id, *f.provides)}
+        needed = [missing[i] for i in gives if i in missing]
+        if not needed:
+            continue
+        entry["needed_by"] = needed[0]
+        if x.manual or not allowed_url(x.url):
+            manual.append({"name": x.name, "filename": x.filename, "url": x.manual_url or x.url, "sha1": x.sha1})
+        else:
+            mods.append(entry)
+        for i in gives:
+            missing.pop(i, None)
+        added = True
+    if added:
+        problems = filecheck.Files(mods, loader, store).problems("client", **where)
+    if manual:  # (a mod to download by hand can't be looked into here: only what's there is told)
+        problems = [p for p in problems if p.kind != "missing"]
+    return [{"mod": p.mod, "needs": p.needs, "kind": p.kind, "text": p.text} for p in problems]

@@ -203,6 +203,8 @@ class ShareHandler(BaseHTTPRequestHandler):
         except Exception as e:
             log.warning("couldn't build the friend download for %s: %s", sid, e)
             return self._text(503, "The server isn't ready for players yet. Try again later.")  # details stay in the log
+        if pack.get("problems"):  # (Minecraft wouldn't start with these mods: paused until the owner fixes them)
+            return self._text(423, "The server's owner is fixing its mods so that Minecraft starts. Try again later.")
         if m.group(2) == "/pack.json":
             # Your own files come from here: point them at this address, as the friend reached it.
             base = Invite(host, port, token).url

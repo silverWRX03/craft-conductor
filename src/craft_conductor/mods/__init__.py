@@ -9,12 +9,20 @@ from .modrinth import ModrinthProvider
 
 
 def providers_for(config: Config, http: HttpClient) -> dict[str, ModProvider]:
-    return {
+    out = {
         "modrinth": ModrinthProvider(http),
         "curseforge": CurseForgeProvider(http, config.curseforge_api_key),
         "hangar": HangarProvider(http),
     }
+    hold(out, config.pins)
+    return out
 
 
-__all__ = ["ModError", "ModFile", "ModProvider", "Project", "Unavailable", "providers_for",
+def hold(providers: dict[str, ModProvider], pins: dict) -> None:
+    """The mods held at one build (config.Pin by "source:project id"), for each site."""
+    for p in providers.values():
+        p.pins = {k: v for k, v in pins.items() if k.startswith(p.source + ":")}
+
+
+__all__ = ["ModError", "ModFile", "ModProvider", "Project", "Unavailable", "providers_for", "hold",
            "ModrinthProvider", "CurseForgeProvider", "HangarProvider"]

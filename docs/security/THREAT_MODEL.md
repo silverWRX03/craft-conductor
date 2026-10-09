@@ -2,7 +2,7 @@
 
 **Status:** Proposed design; not a security certification or completed implementation audit.  
 **Date:** 2026-10-01  
-**Project:** [silverWRX03/craft-conductor](https://github.com/silverWRX03/craft-conductor), Apache-2.0  
+**Project:** [silverWRX03/craft-conductor](https://github.com/silverWRX03/craft-conductor), GPL-3.0-or-later  
 **Repository location:** `docs/security/THREAT_MODEL.md`  
 **Document role:** Security architecture and threat-model design document; not a substitute for a root `SECURITY.md` vulnerability-reporting policy.  
 **Audience:** Maintainers, contributors, security reviewers, and future implementation agents.
@@ -46,6 +46,7 @@ Implemented with regression tests in `tests/security/` (`test_import_hardening.p
 | Restore | Staged next to the server, swapped in only after success, old folder put back if the final rename fails; interrupted swaps recovered on the next start. |
 | Update crash consistency | A journal written after the pre-update backup names the backup; recovery on the next start restores it unless `craft-conductor.lock.json` (fsynced) shows the update committed. |
 | Console | One-command APIs reject CR, LF, NUL and other control characters and overlong commands at both the web and stdin boundaries; rejections are logged without the command text. |
+| Mod files looked into (the file check: `modcheck.py`, `filecheck.py`, `modfiles.py`) | Only each jar's description is read (`fabric.mod.json`, `mods.toml`, `neoforge.mods.toml`, `MANIFEST.MF`, the bundled-jar list), in memory; nothing is extracted. A description over 1 MB or a bundled jar over 64 MB isn't read, bundling stops 3 levels deep and at 400 jars per file. Files downloaded to look into come only from the mod sites' download hosts (`clientpack.allowed_url`), over HTTPS, checked against the site's hash and refused over 256 MB; they're kept by hash in the hub's `mod-files` folder (oldest removed past 2 GB). Held versions (`[pins]`) accept only plain build ids (no `..`) before they go in a mod site's address. What the files say reaches the pages as text, never HTML. |
 
 Remaining: importing a modpack or server export still runs its code (mods, jars, launch settings) by design; Minecraft-server children can outlive a killed Craft Conductor; TOCTOU races against a local process running as the same user are out of scope.
 

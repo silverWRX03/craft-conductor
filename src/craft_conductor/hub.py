@@ -112,6 +112,7 @@ class Hub:
         self.http = http or HttpClient()
         self.make_manager = make_manager or (lambda cfg: Manager(cfg, http=self.http, echo=False))
         self.trials: dict = {}  # test boots (trial.Trial) by id
+        self.setup_checks: dict = {}  # the setup page's file checks (filecheck.for_setup) by what was checked
         self.previews: dict = {}  # map previews (preview.Preview) by id
         self._push = None  # phone notifications (the installed app): see the push property
         self.gallery = None  # the last seed gallery (preview.Gallery)
@@ -161,6 +162,7 @@ class Hub:
         hub.share = None
         hub.share_error = None
         hub.trials = {}
+        hub.setup_checks = {}
         hub.previews = {}
         hub._push = None
         hub.discord_bot = None
@@ -565,6 +567,7 @@ class Hub:
     def _attach(self, sid: str, root: Path) -> None:
         try:
             m = self.make_manager(configmod.load(root))
+            m.mod_files = self.mod_files  # (files the setup page or a check already downloaded)
         except (ConfigError, OSError, ValueError) as e:
             self.problems[sid] = {"root": str(root), "problem": f"its craft-conductor.toml has a problem: {e}"}
             self.daemons.pop(sid, None)
@@ -707,6 +710,14 @@ class Hub:
     @property
     def staging_dir(self) -> Path:
         return self.state_dir / "staging"
+
+    @property
+    def mod_files(self):
+        """Mod files kept by their hash, for every server here (modfiles.py)."""
+        from .modfiles import Store
+        if getattr(self, "_mod_files", None) is None or self._mod_files.folder != self.state_dir / "mod-files":
+            self._mod_files = Store(self.state_dir / "mod-files", self.http)
+        return self._mod_files
 
     def stage_upload(self, handler, filename: str, max_bytes: int) -> dict:
         """Keep an upload (from the setup page) until the server it's for is created."""

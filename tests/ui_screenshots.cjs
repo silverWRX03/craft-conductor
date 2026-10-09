@@ -177,6 +177,28 @@ const HEADERS = {'X-CRAFT-CONDUCTOR': '1'};
   await close();
   await go('s/survival/mods');
   await shot('mods');
+  // Change version and the file check: a players' mod that wouldn't start, the version that works,
+  // and its builds, on the setup page.
+  await go('new');
+  await page.locator('button.choice', {hasText: 'Lightweight and quick to update'}).click();
+  await page.locator('#setup-version').selectOption('1.21.1');
+  await page.evaluate(async () => {
+    setupState.friends = true;
+    setupState.clientMods.set('iris', 'Iris Shaders');
+    await setupCheckFriendMods();
+    setupState.rerender();
+  });
+  await page.waitForFunction(() => document.querySelector('#setup-manage-friends.attention'), null, {timeout: 30000});
+  await page.locator('#setup-manage-friends').click();
+  const versionsDrawer = page.locator('.mod-manager-drawer');
+  await versionsDrawer.locator('.mod-manager-row.has-problem').first().waitFor();
+  const irisRow = versionsDrawer.locator('.mod-manager-row.has-problem').first();
+  await irisRow.getByRole('button', {name: 'Change version', exact: true}).click();
+  await irisRow.locator('.version-picker select').waitFor();
+  await page.waitForTimeout(500);
+  await shot('mod-versions');
+  await close();
+  await page.evaluate(() => { resetSetup(); });
   await go('s/survival/backups');
   await page.evaluate(() => document.querySelectorAll('#main details').forEach(d => { d.open = true; }));
   await page.waitForTimeout(300);
