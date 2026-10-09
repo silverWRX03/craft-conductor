@@ -99,6 +99,36 @@ def check_recipe(name, loader, minecraft, mods, memory_gb) -> dict:
     return {"name": name, "loader": loader, "minecraft": minecraft, "mods": clean, "memory_gb": memory_gb}
 
 
+def check_pins(raw) -> dict:
+    """Mods held at one build (Change version): {"modrinth:<id>": {"version": ..., "minecraft": ...}}."""
+    from .setup import _pins
+    try:
+        return {k: {"version": v.version, "minecraft": v.minecraft} for k, v in _pins(raw or {}).items()
+                if k.startswith("modrinth:")}
+    except ValueError as e:
+        raise SingleplayerError(str(e)) from None
+
+
+def provider(http, game: dict) -> ModrinthProvider:
+    """Modrinth, with the game's held versions."""
+    from .config import Pin
+    p = ModrinthProvider(http)
+    p.pins = {k: Pin(v["version"], v.get("minecraft", "")) for k, v in (game.get("pins") or {}).items()}
+    return p
+
+
+def problems(hub, game: dict, pack: dict, fixes: bool = True, progress=None) -> list[dict]:
+    """What would stop the game's Minecraft with these mods (filecheck.py), with fixes."""
+    from . import filecheck
+    from .loaders import get_loader
+    from .minecraft import Mojang
+    entries = [{**m, "side": "client"} for m in pack["mods"]]
+    loaders = get_loader(pack["loader"], hub.http, Mojang(hub.http)).mod_loaders
+    return filecheck.check(entries, loader=pack["loader"], minecraft=pack["minecraft"], loader_version=pack["loader_version"],
+                           java_major=pack.get("java_major"), store=hub.mod_files, providers={"modrinth": provider(hub.http, game)},
+                           mod_loaders=loaders, sides=("client",), fixes=fixes, progress=progress)["problems"]
+
+
 def create(hub, **recipe) -> dict:
     if len(games(hub)) >= MAX_GAMES:
         raise SingleplayerError(f"Craft Conductor keeps up to {MAX_GAMES} single-player games; delete one first")
@@ -122,7 +152,7 @@ def resolve(hub, game: dict, channel: str = "release") -> dict:
     http = hub.http
     mojang = Mojang(http)
     loader = get_loader(game["loader"], http, mojang)
-    modrinth = ModrinthProvider(http)
+    modrinth = provider(http, game)
     if game["minecraft"] == "latest":
         candidates = list(reversed(mojang.releases()))[:TRY_VERSIONS]  # (newest first)
     else:

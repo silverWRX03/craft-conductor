@@ -46,6 +46,47 @@ class ModSpec:
         return f"{self.source}:{self.id}"
 
 
+@dataclass(frozen=True)
+class Pin:
+    """A mod held at one build: Modrinth's version id or CurseForge's file id, and the Minecraft
+    version it was picked on (a build made for another one is allowed there, since the person
+    chose it; a different Minecraft waits for another pick)."""
+    version: str
+    minecraft: str = ""
+
+
+PIN_KEY = re.compile(r"(modrinth|curseforge):[A-Za-z0-9]{1,40}")
+PIN_VERSION = re.compile(r"(?!.*\.\.)[A-Za-z0-9][A-Za-z0-9._-]{0,39}")  # (it goes in a web address: never "..")
+
+
+def _pins(raw) -> dict[str, Pin]:
+    out = {}
+    for key, value in (raw.items() if isinstance(raw, dict) else ()):
+        if not PIN_KEY.fullmatch(str(key)) or not isinstance(value, dict):
+            raise ConfigError(f"pins: {key!r} isn't a held mod (\"modrinth:<id>\" = {{ version = \"...\" }})")
+        version, minecraft = str(value.get("version", "")), str(value.get("minecraft", ""))
+        if not PIN_VERSION.fullmatch(version) or not re.fullmatch(r"[A-Za-z0-9.+_-]{0,40}", minecraft):
+            raise ConfigError(f"pins: {key} has no valid version")
+        out[str(key)] = Pin(version, minecraft)
+    return out
+
+
+def pin_literal(pin: Pin) -> str:
+    return f'{{ version = "{pin.version}", minecraft = "{pin.minecraft}" }}'
+
+
+def set_pin(path: Path, key: str, pin: Pin | None) -> None:
+    """Hold a mod at a build (``None``: back to the newest build by itself)."""
+    if not PIN_KEY.fullmatch(key) or (pin is not None and not PIN_VERSION.fullmatch(pin.version)):
+        raise ConfigError(f"{key!r} can't be held at that version")
+    if pin is None:
+        unset_value(path, "pins", f'"{key}"')
+    else:
+        if not re.fullmatch(r"[A-Za-z0-9.+_-]{0,40}", pin.minecraft):
+            raise ConfigError("that isn't a Minecraft version")
+        set_value(path, "pins", f'"{key}"', pin_literal(pin))
+
+
 @dataclass
 class ServerConfig:
     dir: Path
@@ -139,6 +180,8 @@ class Config:
     client: ClientConfig = field(default_factory=ClientConfig)
     schedule: ScheduleConfig = field(default_factory=ScheduleConfig)
     tunnel_address: str = ""   # a playit.gg tunnel friends join through ("host" or "host:port")
+    #: mods held at one version (Manage Mods → Change version): "source:project id" -> Pin
+    pins: dict[str, "Pin"] = field(default_factory=dict)
 
     @property
     def path(self) -> Path:
@@ -351,6 +394,7 @@ def parse(root: Path, data: dict) -> Config:
         client=_client(data.get("client", {})),
         schedule=_schedule(data.get("schedule", {})),
         tunnel_address=_tunnel(data.get("tunnel", {}).get("address", "")),
+        pins=_pins(data.get("pins", {})),
     )
 
 

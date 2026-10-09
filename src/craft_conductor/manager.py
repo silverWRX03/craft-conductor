@@ -35,7 +35,7 @@ from .java import JavaManager
 from .loaders import Loader, Runtime, get_loader
 from .lock import Lock
 from .minecraft import Mojang
-from .mods import ModFile, ModProvider, providers_for
+from .mods import ModFile, ModProvider, hold, providers_for
 from .notify import Notifier
 from .planner import Changes, Decision, Plan, Planner
 from .process import ServerProcess
@@ -87,6 +87,10 @@ class Manager:
         self.mojang = mojang or Mojang(self.http)
         self.loader = loader or get_loader(config.server.loader, self.http, self.mojang)
         self.providers = providers or providers_for(config, self.http)
+        hold(self.providers, config.pins)
+        #: a store of mod files shared by every server (modfiles.Store), set by the hub: a file the
+        #: setup page or a check already downloaded isn't downloaded again
+        self.mod_files = None
         self.java = JavaManager(config, self.http, java_probe)
         self.notifier = notifier or Notifier(self.http, config.discord_webhook)
         self.echo = echo
@@ -227,6 +231,7 @@ class Manager:
         cf = self.providers.get("curseforge")
         if cf is not None and hasattr(cf, "api_key"):
             cf.api_key = new.curseforge_api_key
+        hold(self.providers, new.pins)
 
     # ------------------------------------------------------------- planning
     def planner(self) -> Planner:
@@ -384,6 +389,8 @@ class Manager:
             local = self._local_copy(mod)
             if local:
                 shutil.copy2(local, mods_out / mod.filename)
+            elif self.mod_files is not None and self.mod_files.copy_to(mod.sha1, mods_out / mod.filename):
+                log.info("%s %s was already downloaded", mod.name, mod.version_number)
             else:
                 log.info("downloading %s %s", mod.name, mod.version_number)
                 self.http.download(mod.url, mods_out / mod.filename, sha1=mod.sha1, sha512=mod.sha512, sha256=mod.sha256)
@@ -395,6 +402,22 @@ class Manager:
             log.info("installing %s %s for Minecraft %s", self.loader.name, plan.loader_version, plan.minecraft)
             runtime = self.loader.install(plan.minecraft, plan.loader_version, rt_dir, java)
         return Staged(self.staging_dir, java, info.java_major, runtime)
+
+    def mod_problems(self, staged: Staged, plan: Plan) -> list:
+        """What the mod loader would refuse in the staged mods, with the server's own files
+        (modcheck.py): checked before anything changes."""
+        from . import modcheck
+        if self.loader.name not in modcheck.LOADERS:
+            return []
+        files = sorted((staged.dir / "mods").glob("*.jar")) + [self.mods_dir / n for n in self.unmanaged_jars()]
+        mods, complete = [], True
+        for path in files:
+            try:
+                mods += modcheck.read_file(path, self.loader.name)
+            except OSError:
+                complete = False
+        return modcheck.check(mods, loader=self.loader.name, minecraft=plan.minecraft, loader_version=plan.loader_version,
+                              java_major=staged.java_major, side="server", complete=complete)
 
     def _swap(self, staged: Staged, plan: Plan) -> Lock:
         server = self.server_dir
@@ -464,6 +487,13 @@ class Manager:
         except Exception as e:
             # Nothing has been touched yet; the running server keeps running.
             return Result(False, f"could not prepare update ({title}): {e}", server)
+        problems = self.mod_problems(staged, plan)
+        if problems:  # (the loader would refuse to start: nothing is changed, the server keeps running)
+            shutil.rmtree(self.staging_dir, ignore_errors=True)
+            more = f" (and {len(problems) - 3} more)" if len(problems) > 3 else ""
+            return Result(False, f"could not prepare update ({title}): the mods wouldn't start together. "
+                          + " ".join(p.text for p in problems[:3]) + more
+                          + " Change the version of a mod, or remove it, in Manage Mods.", server)
 
         was_running = server is not None and server.running
         if was_running:

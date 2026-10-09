@@ -160,7 +160,7 @@ const assert = require('node:assert/strict');
   assert.equal(await page.evaluate(() => setupState.minecraft), '1.21.2');
   await manage.click();
   await conflict.getByRole('button', {name: 'Use Minecraft 1.21.1', exact: true}).click();
-  await page.getByRole('button', {name: 'Change version', exact: true}).click();
+  await page.getByRole('button', {name: 'Change Minecraft version', exact: true}).click();
   await page.waitForFunction(() => setupState.minecraft === '1.21.1' && !setupState.mods.get('needs-gone').bad);
   assert.equal(await page.locator('#setup-version').inputValue(), '1.21.1');
   await page.keyboard.press('Escape');

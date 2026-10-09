@@ -215,10 +215,7 @@ class JoinUI:
             "pack": None if p is None else {
                 "name": p["name"], "address": p["address"], "minecraft": p["minecraft"], "loader": p["loader"],
                 "loader_version": p.get("loader_version"), "mods": [m["name"] for m in p.get("mods", [])],
-                "manual": p.get("manual", []),
-                "problems": [str(x.get("text"))[:300] for x in (p.get("problems") or [])[:20] if isinstance(x, dict)]
-                            if isinstance(p.get("problems"), list) else [],
-                "icon": p.get("icon") if str(p.get("icon") or "").startswith("data:image/png;base64,") else None,
+                "manual": p.get("manual", []), "icon": p.get("icon") if str(p.get("icon") or "").startswith("data:image/png;base64,") else None,
                 "quick_play": _supports_quick_play(p["minecraft"]), "memory_gb": int(p.get("memory_gb") or 4),
                 "whitelist": bool(p.get("whitelist")) and self.invite is not None},
             "error": self.pack_error,

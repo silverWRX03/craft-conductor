@@ -2383,6 +2383,41 @@ views.mods = () => {
       onclick: () => openConfigEditor(`${group.name} config`, group.files) },
       `⚙ Config${group.files.length > 1 ? ` (${group.files.length})` : ""}`) : null;
   };
+  // Will what the next update installs start, here and on players' computers (filecheck.py): after
+  // every change. Its problems are on the mods' rows, with the fixes it found.
+  let modCheck = null, checkedFor = "";
+  const checkMods = async () => {
+    if (plugins || !info.loader) return;
+    const sig = JSON.stringify([info.configured, info.held, (info.installed || []).map((m) => m.key + "@" + m.version), info.unmanaged]);
+    if (sig === checkedFor && modCheck && !modCheck.error) return;  // (nothing changed since the last one)
+    checkedFor = sig;
+    modCheck = { running: true };
+    renderServerOverview(); refreshModManager("server-mods");
+    try {
+      const result = await runFileCheck(`mods:${server}`, "/api/mods/filecheck", {}, (j) => {
+        modCheck.progress = j.total ? `${j.done} of ${j.total}` : ""; refreshModManager("server-mods");
+      });
+      if (result === null) return;  // (a newer check took over)
+      modCheck = { result };
+    } catch (e) {
+      modCheck = { error: e.message };
+    }
+    renderServerOverview(); refreshModManager("server-mods");
+  };
+  const held = (key) => (info.held || {})[key] || null;
+  const versionsFor = (key, source) => (source === "modrinth" || source === "curseforge") && key ? {
+    key, held: held(key) ? held(key).version : null,
+    load: () => api(`/api/mods/versions?key=${encodeURIComponent(key)}`),
+    apply: async (version, label) => {
+      const res = await act(() => api("/api/mods/pin", { method: "POST", body: { key, version } }));
+      if (!res) return false;
+      toast(version ? `Version ${label} picked: it's installed with the next update, and updates leave it there.`
+        : "It follows the newest build again, from the next update.");
+      versionLists.delete(key);
+      await load();
+      return true;
+    } } : null;
+  const heldLabel = (key) => held(key) ? held(key).number || "a picked version" : null;
   const serverModItems = () => {
     const r = info || {};
     const configured = r.configured || [];
@@ -2407,6 +2442,8 @@ views.mods = () => {
         tags: [spec.required ? null : "optional", inst && inst.datapack ? "datapack" : null,
           inst && spec.source && inst.source !== spec.source ? `from ${inst.source === "curseforge" ? "CurseForge" : "Modrinth"}` : null].filter(Boolean),
         warning: skipped.get(spec.key) || "",
+        versions: inst && inst.datapack ? null : versionsFor(spec.key, (inst || spec).source), held: heldLabel(spec.key),
+        problems: problemsFor(modCheck && modCheck.result, spec.key, "server"),
         detail: inst ? (inst.datapack ? `${inst.filename}, in the world's datapacks folder` : inst.filename) : "Added; installed with the next update.",
         controls: () => h("div", { class: "row wrap" },
           h("label", { class: "row small", title: "Required mods hold back Minecraft upgrades until they support the new version." },
@@ -2441,6 +2478,8 @@ views.mods = () => {
         version: dep.version || (inst || {}).version || "", channel: dep.channel || (inst || {}).channel || "release",
         minecraft: r.minecraft, loader: r.loader, dependency: true, neededBy: dep.needers.map((x) => x.name).join(", "),
         warning: skipped.get(key) || "", detail: inst ? inst.filename : "",
+        versions: versionsFor(key, dep.source || (inst || {}).source || "modrinth"), held: heldLabel(key),
+        problems: problemsFor(modCheck && modCheck.result, key, "server"),
         controls: () => serverConfigButton(key),
         remove: async () => {
           const needers = needersOf(key);
@@ -2455,11 +2494,13 @@ views.mods = () => {
       minecraft: r.minecraft, loader: r.loader, dependency: !!m.dependency_of,
       neededBy: m.dependency_of ? ((r.installed || []).find((x) => x.key === m.dependency_of) || {}).name : "",
       origin: m.dependency_of ? "" : "installed", tags: m.manual ? ["manual download"] : [], detail: m.filename,
+      versions: m.datapack ? null : versionsFor(m.key, m.source), held: heldLabel(m.key),
+      problems: problemsFor(modCheck && modCheck.result, m.key, "server"),
     });
     for (const [name, on] of [...(r.unmanaged || []).map((x) => [x, true]), ...(r.disabled || []).map((x) => [x, false])]) {
       items.push({
         key: `local:${name}`, name, source: "local", origin: "your own file", tags: on ? ["unmanaged"] : ["unmanaged", "off"],
-        detail: "Not updated by Craft Conductor.",
+        detail: "Not updated by Craft Conductor.", problems: on ? problemsFor(modCheck && modCheck.result, `local:${name}`, "server") : [],
         controls: () => h("button", { class: "btn small", onclick: async () => {
           const res = await act(() => api("/api/mods/jar", { method: "POST", body: { name, action: on ? "disable" : "enable" } }));
           if (res) { toast(res.message); await load(); }
@@ -2482,18 +2523,19 @@ views.mods = () => {
     description: "Selected files, automatically added dependencies, versions, sources and compatibility details.",
     owner: "server-mods",
     getItems: serverModItems,
-    getHeader: () => (info.known_conflicts || []).length ? h("div", { class: "notice warn mb" },
+    getHeader: () => [fileCheckNotice(modCheck, "server", "The server wouldn't start with these mods:"), (info.known_conflicts || []).length ? h("div", { class: "notice warn mb" },
       h("strong", {}, "Known compatibility reports"),
       (info.known_conflicts || []).map((x) => h("div", { class: "small" },
         (x.with.length ? `${x.mod} + ${x.with.join(" + ")}` : `${x.mod} (on its own)`) +
         " · " + t("reported by {n} people").replace("{n}", x.reports))),
-      h("div", { class: "small muted" }, "From Craft Conductor's shared list of mod conflicts. If the server starts fine, you can ignore this.")) : null,
+      h("div", { class: "small muted" }, "From Craft Conductor's shared list of mod conflicts. If the server starts fine, you can ignore this.")) : null],
     onChange: () => renderServerOverview(),
   });
   const renderServerOverview = () => {
     const items = serverModItems();
     fill(overview,
-      modSummary(items, { noun: plugins ? "plugins" : "mods", manage: plugins ? "Manage Plugins" : "Manage Mods", open: openServerMods }),
+      modSummary(items, { noun: plugins ? "plugins" : "mods", manage: plugins ? "Manage Plugins" : "Manage Mods", open: openServerMods,
+        alert: fileCheckBad(modCheck, "server") ? "The server wouldn't start with these mods: open Manage Mods to fix it" : "" }),
       h("div", { class: "row mt-s wrap" },
         testButton({
           check: ["/api/mods/check", {}],
@@ -2580,6 +2622,7 @@ views.mods = () => {
     );
     renderServerOverview();
     refreshModManager("server-mods");
+    checkMods();
   };
 
   const picker = h("input", { type: "file", multiple: true, accept: ".jar", class: "hidden" });
@@ -3219,6 +3262,40 @@ views.friends = () => {
     if (r) { data = r; render(); announceAlsoOnServer(r); }
   };
   const reload = async () => { const r = await api("/api/client").catch(() => null); if (r) { data = r; render(); } };
+  // Will players' Minecraft start with what they get (filecheck.py): after every change to their mods.
+  // Until it does, the invite links are held back (and links already sent are paused).
+  let playersCheck = null, playersFor = "";
+  const checkPlayers = async () => {
+    const d = data || {};
+    if (!d.enabled || !d.pack) return;
+    const sig = JSON.stringify([d.mods, d.held, (d.pack.mods || []).map((m) => m.project + "@" + m.version), d.local_mods]);
+    if (sig === playersFor) return;  // (each set of mods is checked once: again after a change)
+    playersFor = sig;
+    playersCheck = { running: true };
+    refreshModManager("friends-mods");
+    try {
+      const result = await runFileCheck(`players:${server}`, "/api/mods/filecheck", {}, (j) => {
+        playersCheck.progress = j.total ? `${j.done} of ${j.total}` : ""; refreshModManager("friends-mods");
+      });
+      if (result === null) return;
+      playersCheck = { result };
+    } catch (e) {
+      playersCheck = { error: e.message };
+    }
+    render();
+  };
+  const playersBlocked = () => !!(data && data.pack && (data.pack.problems || []).length) || fileCheckBad(playersCheck, "client");
+  const friendVersions = (key, source) => (source === "modrinth" || source === "curseforge") && key && !key.startsWith("local:") ? {
+    key, held: ((data && data.held) || {})[key] ? data.held[key].version : null,
+    load: () => api(`/api/mods/versions?key=${encodeURIComponent(key)}`),
+    apply: async (version, label) => {
+      const res = await act(() => api("/api/mods/pin", { method: "POST", body: { key, version } }));
+      if (!res) return false;
+      toast(version ? `Version ${label} picked for players (a server mod changes with the next update).` : "It follows the newest build again.");
+      versionLists.delete(key);
+      await reload();
+      return true;
+    } } : null;
   // Taking a mod off the players' list; one that was also added to the server asks about that too.
   const removePlayerMod = async (x) => {
     const mods = data.mods.filter((y) => y !== x);
@@ -3270,6 +3347,9 @@ views.friends = () => {
         version: m.version || "", channel: m.channel || "release", minecraft: pack.minecraft || d.minecraft, loader: pack.loader || d.loader,
         dependency, neededBy: m.needed_by || "", origin: dependency ? "" : explicit || local ? "selected by you" : "from server",
         tags: [m.side === "client" ? "players only" : "server + players", manual ? "manual download" : null].filter(Boolean),
+        versions: local ? null : friendVersions(m.project, m.source || "modrinth"),
+        held: ((d.held || {})[m.project] || {}).version ? d.held[m.project].number || "a picked version" : null,
+        problems: problemsFor(playersCheck && playersCheck.result, m.project, "client"),
         detail: manual ? "The author requires players to download this file themselves." :
           dependency ? "" : (!explicit && !local ? "Included because the server needs players to have it." : ""),
         remove: explicit ? async () => { await removePlayerMod(explicit.slug); return true; }
@@ -3309,7 +3389,8 @@ views.friends = () => {
       const d = data || {}, pack = d.pack || {};
       return [
         d.pack_error ? h("div", { class: "notice warn mb" }, d.pack_error) : null,
-        friendProblems(pack, "mb"),
+        playersCheck && (playersCheck.running || playersCheck.error || fileCheckBad(playersCheck, "client"))
+          ? fileCheckNotice(playersCheck, "client", "Players' Minecraft wouldn't start with these mods:") : friendProblems(pack, "mb"),
         (pack.skipped || []).length ? h("div", { class: "notice warn mb" },
           h("strong", {}, "Left out: "),
           (pack.skipped || []).map((x) => h("div", { class: "small" }, `${x.name}: ${x.reason}`))) : null,
@@ -3355,6 +3436,11 @@ views.friends = () => {
       h("div", { class: "mt" }, card("Invite links",
         h("p", { class: "small" }, "Send one of these links (by Discord, text or email). Your friend clicks it, presses ",
           h("strong", {}, "Download"), " and runs the file: Craft Conductor sets up their game. Next time, the link opens their Craft Conductor directly."),
+        playersBlocked() ? h("div", { class: "notice bad", role: "alert" },
+          h("strong", {}, "The invite links are paused: "),
+          "players' Minecraft wouldn't start with these mods yet. Friends who open a link sent earlier are told to try again later. " +
+          "Fix the mods, and the links work again by themselves.",
+          h("div", { class: "row mt-s" }, manageButton("Manage Friends Mods", () => openFriendMods(), { alert: "Fix the players' mods" }))) :
         d.expired ? h("div", { class: "notice warn" }, h("strong", {}, "These links have stopped working. "),
           d.expires ? `They stopped on ${fmtTime(d.expires)}. ` : "",
           "Friends who already set up can still play, but nobody can set up or update their game with the old links. Make new links and send them again.") : [
@@ -3365,7 +3451,7 @@ views.friends = () => {
           h("p", { class: "small" }, d.expires ? `🔒 These links work until ${fmtTime(d.expires)}, then stop by themselves.`
             : "These links work until you make new ones or stop them.")],
         linkLifetime(d, (r) => { data = r; render(); }),
-        h("div", { class: "row mt-s" }, d.expired ? null : findIp,
+        playersBlocked() ? null : h("div", { class: "row mt-s" }, d.expired ? null : findIp,
           !d.expired && (links.internet || links.local) ? h("button", { class: "btn", onclick: () => openDiscord(links) }, "💬 Post to Discord") : null,
           h("button", { class: d.expired ? "btn primary" : "btn ghost", onclick: async () => {
             if (d.expired || await ask("Make new links? The old ones stop working (friends who already set up keep playing, but can't update until they get a new link).", { ok: "Make new links", danger: true })) {
@@ -3377,7 +3463,7 @@ views.friends = () => {
               act(() => api("/api/client/stop-link", { method: "POST", body: {} }), "Links stopped").then((r) => { if (r) { data = r; render(); } });
             }
           } }, "Stop these links") : null),
-        links.internet || links.local ? h("details", { class: "mt-s small" }, h("summary", {}, "Advanced: invite codes and security"),
+        !playersBlocked() && (links.internet || links.local) ? h("details", { class: "mt-s small" }, h("summary", {}, "Advanced: invite codes and security"),
           h("p", { class: "muted" }, "🔒 Friends' Craft Conductor connects to this computer over HTTPS and only to this computer: the invite carries its security fingerprint. " +
             "The link's invite is after the #, which browsers never send anywhere; the page is Craft Conductor's own, on GitHub."),
           h("p", { class: "muted" }, "For ", h("code", {}, "craft-conductor join <code>"), " or pasting into Craft Conductor:"),
@@ -3410,12 +3496,14 @@ views.friends = () => {
           h("button", { type: "button", class: "btn", onclick: () => picker.click() }, "📁 Local files",
             h("span", { class: "small muted" }, ".jar files on this computer, for players")),
           picker),
-        h("div", { class: "mt-s" }, modSummary(friendItems, { noun: "Friends Mods", manage: "Manage Friends Mods", open: openFriendMods })),
+        h("div", { class: "mt-s" }, modSummary(friendItems, { noun: "Friends Mods", manage: "Manage Friends Mods", open: openFriendMods,
+          alert: playersBlocked() ? "Players' Minecraft wouldn't start with these mods: open Manage Friends Mods to fix it" : "" })),
         h("div", { class: "row mt-s" }, testButton({ check: ["/api/client/check", {}], trial: null }),
           h("span", { class: "muted small" }, "Checks the server's mods and these together.")))),
     );
     announceCompanions(d);
     refreshModManager("friends-mods");
+    checkPlayers();
   };
   fill($("#main"), h("h2", { class: "view-title" }, "Friends"), body, h("div", { class: "mt" }, bedrockCard()));
   api("/api/client").then((r) => { data = r; render(); }).catch((e) => { if (!(e instanceof Unauthorized)) toast(e.message, true); });
@@ -3476,7 +3564,7 @@ function closeModManager(instant = false) {
 function refreshModManager(owner) {
   if (modManagerOpen && (!owner || modManagerOpen.owner === owner)) modManagerOpen.render();
 }
-function openModManager({ title, description = "", owner = "", getItems, getHeader = null, onChange = null, onClose = null, footer = null, empty = "No mods selected.", showCounts = true }) {
+function openModManager({ title, description = "", owner = "", getItems, getHeader = null, onChange = null, onClose = null, footer = null, empty = "No mods selected.", showCounts = true, focusProblem = true }) {
   closeModManager(true);
   const body = h("div", { class: "mod-manager-body" });
   const focus = document.activeElement;
@@ -3502,14 +3590,33 @@ function openModManager({ title, description = "", owner = "", getItems, getHead
       ];
       const action = m.removed ? m.restore : m.remove;
       const actionLabel = m.removed ? "Restore" : (m.removeLabel || "Remove");
-      return h("div", { class: "mod-manager-row" + (m.removed ? " removed" : "") },
+      const picking = modManagerOpen && modManagerOpen.picking === m.key;
+      const pick = (open) => { if (modManagerOpen) modManagerOpen.picking = open ? m.key : null; render(); };
+      // A version picked in Change version, or a fix the check offered ("Use Iris 1.10.9").
+      const applied = async (versionId, label) => {
+        const done = await m.versions.apply(versionId, label);
+        if (done === false) return;
+        if (modManagerOpen) modManagerOpen.picking = null;
+        if (onChange) onChange();
+        render();
+      };
+      const problems = m.problems || [];
+      const fixes = m.versions ? problems.flatMap((x) => x.fixes || []).filter((f) => f.key === m.versions.key) : [];
+      return h("div", { class: "mod-manager-row" + (m.removed ? " removed" : "") + (problems.length ? " has-problem" : ""), "data-key": m.key },
         h("div", { class: "grow" },
-          h("div", { class: "mod-manager-name" }, h("strong", {}, m.name || m.key || "Mod"), tags),
+          h("div", { class: "mod-manager-name" }, h("strong", {}, m.name || m.key || "Mod"), tags,
+            m.held ? h("span", { class: "tag warn", title: t("Updates leave it at this version until you pick Newest again (Change version).") }, `held at ${m.held}`) : null),
           meta.length ? h("div", { class: "muted small" }, meta.join(" · ")) : null,
           m.warning ? h("div", { class: "small bad-text mt-s" }, m.warning) : null,
+          problems.map((x) => h("div", { class: "small bad-text mt-s", role: "status" }, "⛔ ", x.text)),
+          fixes.length ? h("div", { class: "row wrap mt-s" }, fixes.map((f) =>
+            h("button", { type: "button", class: "btn small primary", onclick: () => applied(f.version_id, f.version) }, f.text))) : null,
           m.detail ? h("div", { class: "muted small mt-s" }, m.detail) : null,
-          m.content ? (typeof m.content === "function" ? m.content() : m.content) : null),
+          m.content ? (typeof m.content === "function" ? m.content() : m.content) : null,
+          picking ? versionPanel(m, () => pick(false), applied) : null),
         m.controls ? (typeof m.controls === "function" ? m.controls() : m.controls) : null,
+        m.versions && !m.removed ? h("button", { type: "button", class: "btn small", "aria-expanded": String(!!picking),
+          onclick: () => pick(!picking) }, "Change version") : null,
         action ? h("button", { type: "button", class: "btn small" + (m.removed ? "" : " danger"), onclick: async () => {
           const changed = await action();
           if (changed === false) return;
@@ -3534,10 +3641,107 @@ function openModManager({ title, description = "", owner = "", getItems, getHead
   const backdrop = h("div", { class: "mod-manager-backdrop", onclick: (e) => { if (e.target === backdrop) close(); } }, rail, panel);
   $("#main").inert = true;
   $("#stage").append(backdrop);
-  modManagerOpen = { owner, backdrop, focus, render, onClose };
+  modManagerOpen = { owner, backdrop, focus, render, onClose, picking: null };
   render();
   rail.focus({ preventScroll: true });
+  // A mod that won't start with the others: the list opens on it.
+  const first = focusProblem ? body.querySelector(".mod-manager-row.has-problem") : null;
+  if (first) requestAnimationFrame(() => first.scrollIntoView({ block: "center", behavior: lessMotion() ? "auto" : "smooth" }));
 }
+
+// Change version: every build of the mod, newest first. Release builds are always listed; beta and
+// alpha ones when asked for. A build that isn't made for this Minecraft version is marked (it may
+// not start: the check says so). `m.versions`: { key (the mod's own: "modrinth:<id>"), held (its
+// held build's id, or null), load() -> its builds (list_builds in web.py), apply(id or null for the
+// newest, its version number) }.
+const versionLists = new Map();  // mod key -> its builds, while the page is open
+function versionPanel(m, close, applied) {
+  const box = h("div", { class: "version-picker mt-s", role: "group", "aria-label": `Versions of ${m.name}` },
+    h("div", { class: "row small" }, h("span", { class: "spinner" }), t("Loading versions…")));
+  const shown = { beta: false, alpha: false };
+  const CHANNEL = { release: "Release", beta: "Beta", alpha: "Alpha" };
+  const day = (d) => d ? new Date(d).toLocaleDateString() : "";
+  const draw = (data) => {
+    const held = data.versions.find((v) => v.id === data.held);
+    if (held && held.channel !== "release") shown[held.channel] = true;  // (what it's held at is always listed)
+    const builds = data.versions.filter((v) => v.channel === "release" || shown[v.channel]);
+    const select = h("select", { "aria-label": `Version of ${m.name}` },
+      h("option", { value: "" }, t("Newest (updates by itself)")),
+      builds.map((v) => h("option", { value: v.id },
+        `${v.number} · ${CHANNEL[v.channel] || v.channel} · ${day(v.date)}` +
+        (v.here ? "" : ` · ⚠ made for Minecraft ${v.minecraft.slice(-3).join(", ") || "?"}`) +
+        (v.id === data.installed ? ` (${t("installed")})` : ""))));
+    select.value = data.held && builds.some((v) => v.id === data.held) ? data.held : "";
+    const note = h("div", { class: "small", role: "status" });
+    const explain = () => {
+      const v = data.versions.find((x) => x.id === select.value);
+      note.className = "small" + (v && !v.here ? " bad-text" : " muted");
+      note.textContent = !v ? t("Follows the newest build for this Minecraft version, as updates come.")
+        : v.here ? `${m.name} ${v.number} is made for Minecraft ${data.minecraft}. Updates leave it at this version.`
+          : `${m.name} ${v.number} is made for Minecraft ${v.minecraft.join(", ")}, not ${data.minecraft}: it may not start. The check says so before anything is installed.`;
+    };
+    select.addEventListener("change", explain);
+    explain();
+    const chip = (kind, label) => h("button", { type: "button", class: "btn small chip" + (kind === "release" || shown[kind] ? " on" : ""),
+      "aria-pressed": String(kind === "release" || shown[kind]), disabled: kind === "release",
+      title: kind === "release" ? "Release builds are always listed" : null,
+      onclick: () => { shown[kind] = !shown[kind]; draw(data); } }, label);
+    fill(box,
+      h("div", { class: "row wrap version-kinds" }, chip("release", "Show release builds"), chip("beta", "Show beta builds"), chip("alpha", "Show alpha builds")),
+      builds.length ? select : h("p", { class: "muted small" }, t("No builds of this kind for this server type.")),
+      builds.length ? note : null,
+      h("div", { class: "row" },
+        h("button", { type: "button", class: "btn small primary", onclick: async () => {
+          const v = data.versions.find((x) => x.id === select.value);
+          await applied(v ? v.id : null, v ? v.number : null);
+        } }, "Use this version"),
+        h("button", { type: "button", class: "btn small ghost", onclick: close }, "Cancel")));
+  };
+  const key = m.versions.cacheKey || m.versions.key || m.key;
+  (versionLists.has(key) ? Promise.resolve(versionLists.get(key)) : m.versions.load()).then((data) => {
+    versionLists.set(key, data);
+    draw({ ...data, held: m.versions.held !== undefined ? m.versions.held : data.held });
+  }).catch((e) => fill(box, h("div", { class: "small bad-text" }, e.message)));
+  return box;
+}
+
+// Will the mods start: the mod loader's own check, done on the files (filecheck.py). It runs in the
+// background; `onProgress` hears which file it's on. Only the newest run for each `slot` counts.
+const fileChecks = new Map();  // slot -> the newest run's number
+async function runFileCheck(slot, url, body, onProgress = null) {
+  const mine = (fileChecks.get(slot) || 0) + 1;
+  fileChecks.set(slot, mine);
+  const started = await api(url, { method: "POST", body });
+  if (!started.id) return started;  // (a single server answers at once)
+  for (;;) {
+    await new Promise((r) => setTimeout(r, 900));
+    if (fileChecks.get(slot) !== mine) return null;  // (a newer check took over)
+    const j = await api(`/api/hub/mods/check?id=${started.id}`);
+    if (j.state === "running") { if (onProgress) onProgress(j); continue; }
+    if (fileChecks.get(slot) !== mine) return null;
+    if (j.state === "failed") throw new Error(j.error || "the check failed");
+    return j.result;
+  }
+}
+// What a check found about one mod (it complains, or it's the one needed), on `side` (or both).
+const problemsFor = (result, key, side = null) => ((result && result.problems) || [])
+  .filter((p) => (!side || p.side === side) && key && (p.key === key || p.needs_key === key));
+// The notice over a mod list while it's checked, and what it found. `check`: { running, progress,
+// result, error }.
+function fileCheckNotice(check, side, what) {
+  if (!check) return null;
+  if (check.running) return h("div", { class: "notice mb small row", role: "status" }, h("span", { class: "spinner" }),
+    check.progress ? `Checking that the mods start together… (${check.progress})` : t("Checking that the mods start together…"));
+  if (check.error) return h("div", { class: "notice warn mb small" }, `Couldn't check that the mods start together: ${check.error}`);
+  const found = ((check.result && check.result.problems) || []).filter((p) => !side || p.side === side);
+  return found.length ? h("div", { class: "notice bad mb", role: "alert" },
+    h("strong", {}, what),
+    h("ul", { class: "small" }, found.map((p) => h("li", {}, p.text))),
+    h("div", { class: "small" }, "Use a version that's offered, pick one with Change version, or remove the mod.")) : null;
+}
+// Whether a finished check found problems on `side` (or either).
+const fileCheckBad = (check, side = null) => !!(check && !check.running && check.result &&
+  (check.result.problems || []).some((p) => !side || p.side === side));
 
 // Mods whose authors don't let other apps download them (CurseForge): a panel slides in from the
 // right with a link to each file's page and, at the bottom, a box to drop the downloaded files on.
@@ -4715,6 +4919,11 @@ const HELP = [
     screenshot("mods", "The Mods page: the mods you chose, and what's installed."),
     screenshot("update-readiness", "Show why: each mod in green (ready), yellow (only a beta build) or red (not yet)."),
     h("p", {}, "Before installing, use ", h("strong", {}, "🧪 Test these mods"), " to check that a set of mods works together."),
+    h("p", {}, "Craft Conductor also looks inside the mod files after every change, the way the mod loader does before Minecraft starts, on the server and on players' computers. " +
+      "A mod that wouldn't start makes ", h("strong", {}, "Manage Mods"), " (or ", h("strong", {}, "Manage Friends Mods"), ") glow: its row says what's wrong and offers a version that works. ",
+      h("strong", {}, "Change version"), " on any mod lists its builds (release ones always, beta and alpha ones when you ask) and holds it at the one you pick; updates then leave it there. " +
+      "Until the mods check out, a new server isn't created, an update isn't installed and friends' invites wait."),
+    screenshot("mod-versions", "A players' mod that wouldn't start: the version that works, and Change version."),
     h("p", {}, h("strong", {}, "Modpacks"), " come from Modrinth or CurseForge (pick the source in the mod browser). A CurseForge pack's mods that its official server pack leaves out only run on players' computers, so they go in your friends' download instead of on the server."),
     h("p", {}, "Some CurseForge authors don't let other apps download their mods. A panel then slides open on the right with a ", h("strong", {}, "Download ↗"),
       " link for each: download the files from CurseForge and drag them onto ", h("strong", {}, "Drag mods that were downloaded here"),
@@ -4769,7 +4978,7 @@ const MANUAL_PICTURES = {
   "Check my setup": [["check-my-setup", "Check my setup"]],
   "Console": [["console", "The Console"]],
   "Players": [["players", "The Players page"], ["player-activity", "Player activity"]],
-  "Mods": [["mods", "Installed mods"]],
+  "Mods": [["mods", "Installed mods"], ["mod-versions", "A players' mod that wouldn't start: the version that works, and Change version"]],
   "Updates": [["updates", "The Updates page, waiting for two mods"], ["update-readiness", "Show why: each mod, ready or not"]],
   "Backups": [["backups", "Backups, each checked, with what changed since the one before"]],
   "Java": [["java", "Java versions"]],
@@ -5742,6 +5951,13 @@ function singleplayerCard() {
       fill(out, h("div", { class: "row small" }, h("span", { class: "spinner" }), t("Checking Modrinth…")));
       const r = await api("/api/hub/singleplayer/check", { method: "POST", body: { id: g.id } }).catch((e) => { fill(out, h("div", { class: "notice bad small" }, e.message)); return null; });
       if (!r) return;
+      if ((r.problems || []).length) {
+        fill(out, h("div", { class: "notice bad small", role: "alert" },
+          h("strong", {}, "Minecraft wouldn't start with these mods:"),
+          h("ul", { class: "list" }, r.problems.map((p) => h("li", {}, p.text))),
+          h("div", {}, "Press Edit and fix them in Manage Mods (a version that works is offered there), then try again.")));
+        return;
+      }
       fill(out, r.changes.length ? h("div", { class: inst ? "notice warn small" : "notice small" },
         h("strong", {}, inst ? "An update is ready:" : "It will install:"),
         h("ul", { class: "list" }, r.changes.map((c) => h("li", { class: c.startsWith("+") ? "change-add" : c.startsWith("−") ? "change-rm" : "" }, c))),
@@ -5791,6 +6007,37 @@ function openSpEditor(game, done) {
   const results = h("div", { class: "browse-results sp-results" });
   const picked = h("div", { class: "sp-picked" });
   let resolved = null, previewError = "", previewSeq = 0, previewTimer = null;
+  // Held versions (Change version): the mod's own key -> {version, minecraft}; and the file check.
+  const pins = new Map(Object.entries(g.pins || {}));
+  let spCheck = null;
+  const spPins = () => Object.fromEntries(pins);
+  const spVersions = (key) => key && key.startsWith("modrinth:") ? {
+    key, held: pins.has(key) ? pins.get(key).version : null,
+    cacheKey: `${key}|${loader.value}|${resolved ? resolved.minecraft : ""}`,
+    load: () => api(`/api/hub/singleplayer/versions?key=${encodeURIComponent(key)}&loader=${encodeURIComponent(loader.value)}` +
+      (resolved && resolved.minecraft ? `&minecraft=${encodeURIComponent(resolved.minecraft)}` : "")),
+    apply: async (version, label) => {
+      if (version) pins.set(key, { version, minecraft: resolved ? resolved.minecraft : "" });
+      else pins.delete(key);
+      toast(version ? `Version ${label} picked: the game gets it (save to keep it), and updates leave it there.` : "It follows the newest build again (save to keep it).");
+      resolved = null; renderPicked(); schedulePreview();
+      return true;
+    } } : null;
+  const spHeld = (m) => pins.has(m.project) ? (pins.get(m.project).version === m.version_id ? m.version : "a picked version") : null;
+  const checkGame = async (body) => {
+    spCheck = { running: true };
+    refreshModManager("singleplayer-mods");
+    try {
+      const result = await runFileCheck("singleplayer", "/api/hub/singleplayer/filecheck", body, (j) => {
+        if (spCheck && spCheck.running) { spCheck.progress = j.total ? `${j.done} of ${j.total}` : ""; refreshModManager("singleplayer-mods"); }
+      });
+      if (result === null) return;
+      spCheck = { result: { problems: result.problems.map((p) => ({ ...p, side: "client" })) } };
+    } catch (e) {
+      spCheck = { error: e.message };
+    }
+    renderPicked();
+  };
 
   const singleItems = () => {
     if (resolved && Array.isArray(resolved.mods)) return resolved.mods.map((m) => ({
@@ -5798,6 +6045,8 @@ function openSpEditor(game, done) {
       version: m.version || "", channel: m.channel || "release", minecraft: resolved.minecraft, loader: resolved.loader,
       dependency: !m.selected, neededBy: m.needed_by || "", origin: m.selected ? "selected by you" : "",
       tags: m.manual ? ["manual download"] : [],
+      versions: m.manual ? null : spVersions(m.project), held: spHeld(m),
+      problems: problemsFor(spCheck && spCheck.result, m.project),
       remove: m.selected && m.requested ? async () => {
         chosen.delete(m.requested); resolved = null; renderPicked(); schedulePreview(); return true;
       } : null,
@@ -5815,6 +6064,7 @@ function openSpEditor(game, done) {
     getItems: singleItems,
     getHeader: () => [
       previewError ? h("div", { class: "notice warn mb" }, previewError) : null,
+      fileCheckNotice(spCheck, null, "Minecraft wouldn't start with these mods:"),
       resolved && (resolved.skipped || []).length ? h("div", { class: "notice warn mb" },
         h("strong", {}, "Left out: "),
         resolved.skipped.map((x) => h("div", { class: "small" }, `${x.name}: ${x.reason}`))) : null,
@@ -5825,6 +6075,7 @@ function openSpEditor(game, done) {
     const items = singleItems();
     fill(picked, modSummary(items, {
       noun: "mods", manage: "Manage Mods", open: openSingleMods,
+      alert: fileCheckBad(spCheck) ? "Minecraft wouldn't start with these mods: open Manage Mods to fix it" : "",
       extra: previewError ? h("div", { class: "small warn-text" }, "Compatibility preview needs attention.") :
         resolved && chosen.size ? h("div", { class: "muted small" }, `Resolved for Minecraft ${resolved.minecraft} with ${resolved.loader} ${resolved.loader_version}.`) : null,
     }));
@@ -5839,13 +6090,14 @@ function openSpEditor(game, done) {
       return;
     }
     const body = { name: name.value.trim() || "Preview", loader: loader.value, minecraft: mc.value,
-      mods: [...chosen.keys()], memory_gb: Number(memory.value) };
+      mods: [...chosen.keys()], memory_gb: Number(memory.value), pins: spPins() };
     const r = await api("/api/hub/singleplayer/preview", { method: "POST", body }).catch((e) => {
       if (mine === previewSeq) { resolved = null; previewError = e.message; renderPicked(); }
       return null;
     });
     if (!r || mine !== previewSeq) return;
     resolved = r; previewError = ""; renderPicked();
+    checkGame(body);
   };
   const schedulePreview = () => { clearTimeout(previewTimer); previewTimer = setTimeout(preview, 180); };
 
@@ -5880,7 +6132,8 @@ function openSpEditor(game, done) {
   const error = h("p", { class: "error" });
   const save = async (e) => {
     e.preventDefault();
-    const body = { name: name.value.trim(), loader: loader.value, minecraft: mc.value, mods: [...chosen.keys()], memory_gb: Number(memory.value) };
+    const body = { name: name.value.trim(), loader: loader.value, minecraft: mc.value, mods: [...chosen.keys()], memory_gb: Number(memory.value),
+      pins: spPins() };
     try {
       await api(game ? "/api/hub/singleplayer/edit" : "/api/hub/singleplayer", { method: "POST", body: game ? { id: game.id, ...body } : body });
       closeBrowser();
@@ -6559,7 +6812,8 @@ const freshSetup = () => ({ target: null, friends: false, loader: null, minecraf
   properties: null, advancedOpen: false, max_players: 20, difficulty: "normal", gamemode: "survival", port: 25565, memory_gb: null,
   network_access: null, accept_eula: false, submitted: false, prefilled: false, modpack: null, localMods: [], world: null, showBetas: false,
   aikar: false, clientMods: new Map(), clientMeta: new Map(), clientLocal: [], companionsSeen: new Set(),  // friends' download: slug -> name; staged files
-  hand: [], handKey: "", handError: "", handCheck: null, handGot: new Map() });  // mods to download by hand: the files; filename -> staging id
+  hand: [], handKey: "", handError: "", handCheck: null, handGot: new Map(),  // mods to download by hand: the files; filename -> staging id
+  pins: new Map(), fileCheck: null, fileCheckFor: "" });  // held versions (the mod's own key -> {version, number, minecraft}); the file check
 const setupState = freshSetup();
 function resetSetup() {
   const keep = { friendsFor: setupState.friendsFor, remoteAfterCreate: setupState.remoteAfterCreate };
@@ -6572,7 +6826,7 @@ function resetSetup() {
 // Removing a mod removes the dependencies nothing else needs; removing a dependency removes
 // the mods that need it (after asking).
 const setupModKey = (m) => (m.source === "curseforge" ? `curseforge:${m.id}` : m.slug || m.id);
-function setupChanged() { if (setupState.onChange) setupState.onChange(); }
+function setupChanged() { if (setupState.onChange) setupState.onChange(); setupScheduleCheck(); }
 const earlyChannels = () => Object.fromEntries([...setupState.mods].filter(([, m]) => m.channel).map(([k, m]) => [k, m.channel]));
 // The mods picked to use as their datapack build (in the world, not the mods folder).
 const setupDatapacks = () => [...setupState.mods].filter(([, m]) => m.explicit && m.datapack).map(([k]) => k);
@@ -6641,6 +6895,7 @@ async function setupCheckMod(key, quiet = false) {
     }
   }
   e.name = r.project.name;
+  e.projectKey = r.project.id ? `${key.startsWith("curseforge:") ? "curseforge" : "modrinth"}:${r.project.id}` : null;
   e.resolvedChannel = r.channel || null;
   e.bad = r.compatible ? "" : r.reason;
   // What's missing for this Minecraft version and server type (which are left as they are), and
@@ -6663,6 +6918,7 @@ async function setupCheckMod(key, quiet = false) {
     }
     const dep = st.mods.get(dk);
     dep.by.add(key);
+    dep.projectKey = d.id ? `${d.source || "modrinth"}:${d.id}` : dep.projectKey || null;
     dep.resolvedChannel = d.channel || null;
     dep.bad = d.compatible ? "" : `No compatible release for Minecraft ${v}` + (d.checked && d.checked.length ? ` on ${d.checked.join(" or ")}` : "");
     if (!dep.explicit) dep.channel = d.channel && d.channel !== "release" ? d.channel : e.channel;
@@ -6808,6 +7064,9 @@ function setupServerModItems() {
       items.push({
         key: `pack:${m.path}`, name: m.name, version: m.version, minecraft: m.minecraft, loader: m.loaders,
         source: m.source, channel: m.channel, origin: st.modpack.name + " modpack", removed: removed.has(m.path),
+        versions: onServer && m.project_id ? setupVersions(`pack:${m.path}`, `${m.source}:${m.project_id}`, m.source) : null,
+        held: m.project_id ? setupHeld(`${m.source}:${m.project_id}`) : null,
+        problems: m.project_id ? problemsFor(st.fileCheck && st.fileCheck.result, `${m.source}:${m.project_id}`, "server") : [],
         excludedFromCount: !onServer,
         tags: [...(onServer ? [] : ["client only", "not installed on server"]), ...(m.manual ? ["manual download"] : [])],
         detail: onServer ? m.path : m.for_friends
@@ -6833,6 +7092,8 @@ function setupServerModItems() {
       dependency: !m.explicit, neededBy: needers.join(", "), origin: m.explicit ? "selected by you" : "",
       warning: m.bad && !(m.explicit && m.conflict) ? m.bad : "",
       tags: [m.datapack ? "datapack" : null, m.from ? `from ${m.from.site}` : null].filter(Boolean),
+      versions: m.datapack ? null : setupVersions(key, m.projectKey, key.startsWith("curseforge:") ? "curseforge" : "modrinth"),
+      held: setupHeld(m.projectKey), problems: problemsFor(st.fileCheck && st.fileCheck.result, m.projectKey, "server"),
       detail: m.datapack ? "Its datapack build, in the world's datapacks folder: the world is made with it."
         : m.from ? `${m.from.picked} has no build for ${m.where}, so it comes from ${m.from.site}.` : "",
       content: () => m.explicit && m.bad && m.conflict ? setupConflict(key, m) : null,
@@ -6853,6 +7114,8 @@ function setupFriendModItems() {
       minecraft: setupModVersion(), loader: st.loader,
       origin: meta.fromPack ? `${meta.fromPack} modpack` : "selected by you", tags: [setupHasServerMod(key) ? "also on the server" : "players only"],
       warning: meta.bad || "",
+      versions: setupVersions(key, meta.projectKey, key.startsWith("curseforge:") ? "curseforge" : "modrinth"),
+      held: setupHeld(meta.projectKey), problems: problemsFor(st.fileCheck && st.fileCheck.result, meta.projectKey, "client"),
       remove: async () => {
         st.clientMods.delete(key); st.clientMeta.delete(key);
         if (setupHasServerMod(key) && await ask(`${name} is also one of the server's mods. Remove it from the server too?\n\nCancel keeps it on the server.`, { ok: "Remove from the server" })) await setupRemoveMod(key);
@@ -6867,6 +7130,9 @@ function setupFriendModItems() {
   for (const [key, c] of setupCompanions()) items.push({
     key: `dependency:${key}`, name: c.name, source: "modrinth", dependency: true, neededBy: c.needed_by,
     channel: c.channel || "release", minecraft: setupModVersion(), loader: st.loader,
+    versions: c.id ? setupVersions(`dependency:${key}`, `modrinth:${c.id}`, "modrinth") : null,
+    held: c.id ? setupHeld(`modrinth:${c.id}`) : null,
+    problems: c.id ? problemsFor(st.fileCheck && st.fileCheck.result, `modrinth:${c.id}`, "client") : [],
   });
   return items;
 }
@@ -6926,7 +7192,7 @@ function setupConflict(key, m) {
   const c = m.conflict;
   const versions = st.modpack ? [] : c.suggestions;  // (a modpack decides its own version)
   const useVersion = async (v) => {
-    if (!(await ask(`Change the new server's Minecraft version from ${c.minecraft} to ${v}?\n\nYour other mods are checked again for Minecraft ${v}.`, { ok: "Change version" }))) return;
+    if (!(await ask(`Change the new server's Minecraft version from ${c.minecraft} to ${v}?\n\nYour other mods are checked again for Minecraft ${v}.`, { ok: "Change Minecraft version" }))) return;
     st.minecraft = v;
     setupRecheckMods();
     if (st.rerender) st.rerender();
@@ -7019,7 +7285,10 @@ function setupCheckFriendMods() {
     st.clientMeta.set(key, meta);
     const r = await api(`/api/hub/mods/requires?id=${encodeURIComponent(key)}&loader=${encodeURIComponent(st.loader)}` +
       (v ? `&version=${encodeURIComponent(v)}` : "") + (meta.channel && meta.channel !== "release" ? `&channel=${meta.channel}` : "")).catch(() => null);
-    if (r && st.clientMods.has(key)) meta.bad = r.compatible ? "" : r.reason;
+    if (r && st.clientMods.has(key)) {
+      meta.bad = r.compatible ? "" : r.reason;
+      meta.projectKey = r.project && r.project.id ? `${key.startsWith("curseforge:") ? "curseforge" : "modrinth"}:${r.project.id}` : null;
+    }
   }));
 }
 // The mod managers that need you, and why ("" when nothing does): a mod that can't be used as it is
@@ -7028,16 +7297,111 @@ function setupCheckFriendMods() {
 function setupServerAttention() {
   const st = setupState;
   const bad = [...st.mods.values()].filter((m) => m.bad).length, hand = setupHandMissing().length;
-  return [bad ? `${bad} mod(s) can't be used as they are` : "", hand ? `${hand} mod(s) must be downloaded from CurseForge` : ""]
-    .filter(Boolean).join("; ");
+  return [bad ? `${bad} mod(s) can't be used as they are` : "", hand ? `${hand} mod(s) must be downloaded from CurseForge` : "",
+    fileCheckBad(st.fileCheck, "server") ? "the server wouldn't start with these mods" : ""].filter(Boolean).join("; ");
 }
 function setupFriendsAttention() {
   const st = setupState;
   const bad = [...st.clientMods.keys()].filter((k) => (st.clientMeta.get(k) || {}).bad).length;
-  return bad ? `${bad} of the players' mods can't be used as they are` : "";
+  return [bad ? `${bad} of the players' mods can't be used as they are` : "",
+    fileCheckBad(st.fileCheck, "client") ? "players' Minecraft wouldn't start with these mods" : ""].filter(Boolean).join("; ");
 }
 // After a change of server type or version (`changed`), or when Manage Mods is closed: the page
 // scrolls to the mod manager that needs you, the server's first, then the players'.
+// Change version on the setup page: held versions are kept here (by the mod's own key) and go in
+// the new server's settings. `projectKey` is the mod's own key ("modrinth:<id>"), once looked up.
+function setupVersions(rowKey, projectKey, source) {
+  const st = setupState;
+  if (source !== "modrinth" && source !== "curseforge") return null;
+  let own = projectKey;
+  const pin = own ? st.pins.get(own) : null;
+  const lookup = projectKey || (source === "curseforge" || rowKey.startsWith("curseforge:") ? rowKey : `modrinth:${rowKey}`);
+  return {
+    key: projectKey, held: pin ? pin.version : projectKey ? null : undefined,
+    cacheKey: `${lookup}|${st.loader}|${setupModVersion() || ""}`,
+    load: async () => {
+      const d = await api(`/api/hub/mods/versions?key=${encodeURIComponent(lookup)}&loader=${encodeURIComponent(st.loader)}` +
+        (setupModVersion() ? `&minecraft=${encodeURIComponent(setupModVersion())}` : ""));
+      own = d.key;
+      const held = st.pins.get(d.key);
+      return { ...d, held: held ? held.version : null };
+    },
+    apply: async (version, label) => {
+      if (!own) return false;
+      if (version) st.pins.set(own, { version, number: label, minecraft: setupModVersion() || "" });
+      else st.pins.delete(own);
+      toast(version ? `Version ${label} picked: the server is made with it, and updates leave it there.` : "It follows the newest build again.");
+      setupChanged();
+      return true;
+    },
+  };
+}
+const setupHeld = (projectKey) => { const p = projectKey && setupState.pins.get(projectKey); return p ? p.number || "a picked version" : null; };
+const setupPins = () => Object.fromEntries([...setupState.pins].map(([k, p]) => [k, { version: p.version, minecraft: p.minecraft || "" }]));
+
+// Will the new server's mods start, and players' (the mod loader's own check, on the files): checked
+// again a moment after each change. Create my server waits for it; when something's wrong, the mod
+// manager that has it glows and the page goes there.
+function setupCheckBody() {
+  const st = setupState;
+  const body = { loader: st.loader, minecraft: st.minecraft, friends: !!st.friends,
+    mods: [...st.mods].filter(([, m]) => m.explicit && m.required).map(([k]) => k),
+    optional_mods: [...st.mods].filter(([, m]) => m.explicit && !m.required).map(([k]) => k),
+    client_mods: st.friends ? [...st.clientMods.keys()] : [],
+    mod_channels: Object.fromEntries([...st.mods].filter(([, m]) => m.explicit && m.channel).map(([k, m]) => [k, m.channel])),
+    datapacks: setupDatapacks(), pins: setupPins() };
+  if (st.modpack) {
+    body.modpack_version = st.modpack.version_id;
+    body.modpack_exclude = [...(st.modpack.removed instanceof Set ? st.modpack.removed : [])];
+  }
+  return body;
+}
+let setupCheckTimer = null;
+function setupScheduleCheck() {
+  clearTimeout(setupCheckTimer);
+  setupCheckTimer = setTimeout(setupFileCheck, 900);
+}
+async function setupFileCheck() {
+  const st = setupState;
+  const body = setupCheckBody();
+  const moddable = st.loader && st.loader !== "vanilla" && !runsPlugins(st.loader);
+  if (!moddable || (!body.mods.length && !body.optional_mods.length && !body.client_mods.length && !body.modpack_version)) {
+    if (st.fileCheck) { st.fileCheck = null; st.fileCheckFor = ""; setupCheckShown(); }
+    return;
+  }
+  const sig = JSON.stringify(body);
+  if (sig === st.fileCheckFor) return;  // (each set of choices is checked once)
+  st.fileCheckFor = sig;
+  st.fileCheck = { running: true };
+  setupCheckShown();
+  let found;
+  try {
+    const result = await runFileCheck("setup", "/api/hub/mods/filecheck", body, (j) => {
+      if (st.fileCheck && st.fileCheck.running) {
+        st.fileCheck.progress = j.total ? `${j.done} of ${j.total}` : "";
+        refreshModManager("setup-server-mods"); refreshModManager("setup-friend-mods");
+      }
+    });
+    if (result === null || st.fileCheckFor !== sig) return;
+    found = { result };
+  } catch (e) {
+    if (st.fileCheckFor !== sig) return;
+    found = { error: e.message };
+  }
+  st.fileCheck = found;
+  setupCheckShown();
+  if (fileCheckBad(found)) setupAttention({ changed: true });
+}
+function setupCheckShown() {
+  const st = setupState;
+  const players = fileCheckBad(st.fileCheck, "client");
+  if (players !== !!st.playersShownBad && st.rerender) {  // (the friends' card, and its button, are drawn with the form)
+    st.playersShownBad = players;
+    st.rerender();
+  } else if (st.renderCreate) st.renderCreate();
+  if (st.onChange) st.onChange();
+  refreshModManager("setup-friend-mods");
+}
 function setupAttention({ changed = false, afterServer = false } = {}) {
   const which = changed && setupServerAttention() ? "setup-manage-mods"
     : (changed || afterServer) && setupFriendsAttention() ? "setup-manage-friends" : null;
@@ -7231,6 +7595,7 @@ views.setup = () => {
             h("strong", {}, `What changed for ${setupLoaderLabel()} ${setupModVersion()}`.trim()),
             h("ul", { class: "small" }, st.modChanges.map((x) => h("li", {}, x)))) : null,
           st.modpack && st.modpack.error ? h("div", { class: "notice warn mb" }, `Couldn't read the modpack's mod list: ${st.modpack.error}`) : null,
+          fileCheckNotice(st.fileCheck, "server", "The server wouldn't start with these mods:"),
           handSection()],
         onChange: () => { renderSelected(); renderPackSummary(); },
         onClose: () => setupAttention({ afterServer: true }),  // (then the players' mods, if they need you)
@@ -7375,9 +7740,22 @@ views.setup = () => {
     const eula = h("input", { type: "checkbox", checked: st.accept_eula, onchange: (e) => { st.accept_eula = e.target.checked; } });
     const lan = h("input", { type: "checkbox", checked: st.network_access, onchange: (e) => { st.network_access = e.target.checked; } });
 
+    // Create my server waits until the mods are checked, and won't while they wouldn't start.
+    const createBox = h("div", { class: "create-box" });
+    st.renderCreate = () => {
+      const c = st.fileCheck;
+      const bad = fileCheckBad(c);
+      fill(createBox,
+        c && c.running ? h("p", { class: "small row", role: "status" }, h("span", { class: "spinner" }), t("Checking that the mods start together…")) : null,
+        bad ? h("p", { class: "small bad-text", role: "alert" }, "These mods wouldn't start together. Fix them in ",
+          fileCheckBad(c, "server") ? "Manage Mods" : "Manage Friends Mods", " (it glows), then create the server.") : null,
+        h("button", { type: "submit", class: "btn primary big", disabled: !!(c && c.running) || bad }, "Create my server"));
+    };
     const submit = async (e) => {
       e.preventDefault();
       if (!st.accept_eula) { toast("Please read and accept the Minecraft EULA first.", true); return; }
+      if (st.fileCheck && st.fileCheck.running) { toast("Checking that the mods start together; a moment…"); return; }
+      if (fileCheckBad(st.fileCheck)) { toast("These mods wouldn't start together: fix them in the mod manager that glows first.", true); setupAttention({ changed: true }); return; }
       // Mods whose authors require downloading them from CurseForge by hand come first.
       if (st.hand === null && st.handCheck) await st.handCheck;
       if (setupHandMissing().length) {
@@ -7399,7 +7777,8 @@ views.setup = () => {
         friends: !!st.friends, local_mods: st.localMods.map((m) => m.id), world: st.world ? st.world.world : "",
         client_mods: st.friends ? [...st.clientMods.keys()] : [], client_local: st.friends ? st.clientLocal.map((m) => m.id) : [],
         manual_files: (st.hand || []).filter((m) => st.handGot.has(m.filename)).map((m) => st.handGot.get(m.filename)),
-        mod_channels: Object.fromEntries([...st.mods].filter(([, m]) => m.explicit && m.channel).map(([k, m]) => [k, m.channel])), datapacks: setupDatapacks() };
+        mod_channels: Object.fromEntries([...st.mods].filter(([, m]) => m.explicit && m.channel).map(([k, m]) => [k, m.channel])), datapacks: setupDatapacks(),
+        pins: setupPins() };
       if (st.modpack) {
         body.modpack_version = st.modpack.version_id;
         body.modpack_exclude = [...(st.modpack.removed instanceof Set ? st.modpack.removed : [])];
@@ -7443,6 +7822,7 @@ views.setup = () => {
         description: "Extra mods for your friends' Minecraft. Required client-side dependencies are added automatically.",
         owner: "setup-friend-mods",
         getItems: setupFriendModItems,
+        getHeader: () => fileCheckNotice(st.fileCheck, "client", "Players' Minecraft wouldn't start with these mods:"),
         onChange: () => renderForm(),
       });
       const friendItems = setupFriendModItems();
@@ -7509,7 +7889,9 @@ views.setup = () => {
             h("a", { href: "https://aka.ms/MinecraftEULA", target: "_blank", rel: "noopener noreferrer" }, "Minecraft EULA ↗"),
             ", which every Minecraft server must follow.")),
           h("p", { class: "muted small" }, `Your server will be created in ${opts.server_dir}`),
-          h("button", { type: "submit", class: "btn primary big" }, "Create my server")))));
+          createBox))));
+    st.renderCreate();
+    setupScheduleCheck();
   };
 
   const renderProgress = () => {

@@ -118,6 +118,7 @@ class SetupSpec:
     manual_files: list[str] = field(default_factory=list)  # mods downloaded by hand from CurseForge, in the staging area
     mod_channels: dict = field(default_factory=dict)  # slug -> "beta"/"alpha": mods picked with only early builds
     datapacks: list[str] = field(default_factory=list)  # of the mods, ones installed as their datapack build
+    pins: dict = field(default_factory=dict)  # mods held at one build (Change version): "source:id" -> Pin
     world: str = ""                # an existing world: an upload's staging id, or "save:<id>" (singleplayer)
     world_source: Path | None = None  # where that world is, found by the hub (never from the form)
 
@@ -188,6 +189,7 @@ class SetupSpec:
             mod_channels={str(k): v for k, v in (d.get("mod_channels") or {}).items()
                           if v in ("beta", "alpha")} if isinstance(d.get("mod_channels"), dict) else {},
             datapacks=slugs("datapacks"),
+            pins=_pins(d.get("pins")),
         )
         if any(x.startswith("curseforge:") or x not in spec.mods + spec.optional_mods for x in spec.datapacks):
             raise ConfigError("only the Modrinth mods picked can use their datapack build")
@@ -217,6 +219,22 @@ class SetupSpec:
                 and "fabric-api" not in spec.mods + spec.optional_mods:
             spec.mods.insert(0, "fabric-api")
         return spec
+
+
+def _pins(raw) -> dict:
+    """Held versions from the form: {"modrinth:<id>": {"version": ..., "minecraft": ...}} (or just the version)."""
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict) or len(raw) > 500:
+        raise ConfigError("pins must be a list of held versions")
+    out = {}
+    for key, value in raw.items():
+        version, minecraft = (value.get("version"), value.get("minecraft") or "") if isinstance(value, dict) else (value, "")
+        key, version, minecraft = str(key), str(version or ""), str(minecraft)
+        if not configmod.PIN_KEY.fullmatch(key) or not configmod.PIN_VERSION.fullmatch(version)                 or not re.fullmatch(r"[A-Za-z0-9.+_-]{0,40}", minecraft):
+            raise ConfigError(f"{key!r} can't be held at that version")
+        out[key] = configmod.Pin(version, minecraft)
+    return out
 
 
 def _mod_spec(item: str, required: bool, channel: str | None = None, datapack: bool = False) -> ModSpec:
@@ -260,6 +278,8 @@ def configure(root: Path, spec: SetupSpec) -> configmod.Config:
     for slug in spec.optional_mods:
         configmod.append_mod(path, _mod_spec(slug, required=False, channel=spec.mod_channels.get(slug),
                                              datapack=slug in spec.datapacks))
+    for key, pin in spec.pins.items():
+        configmod.set_pin(path, key, configmod.Pin(pin.version, pin.minecraft or (spec.minecraft if spec.minecraft != "latest" else "")))
     cfg = configmod.load(root)
     cfg.server.dir.mkdir(parents=True, exist_ok=True)
     write_properties(cfg.server.dir / "server.properties", {

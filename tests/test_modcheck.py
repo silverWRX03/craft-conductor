@@ -212,19 +212,31 @@ def test_players_mods_that_dont_fit_are_told_and_looked_at_once(make_config, htt
     p = PackBuilder(m).build("mc.example.com")
     assert [x["text"] for x in p["problems"]] == ["Iris 1.11.4 needs Sodium any 0.9.x version, but Sodium 0.8.9 is the one there."]
     # Downloaded only to look inside (and not kept), once: the next build reads what was found.
-    assert (m.config.state_dir / "mod-info.json").is_file() and not list(m.config.state_dir.glob("modcheck-*"))
+    assert len(list((m.config.state_dir / "mod-files").glob("*.jar"))) == 2  # (kept for installing, by hash)
     downloads = len(http.downloads)
     http.files.clear()
     assert PackBuilder(m).build("mc.example.com")["problems"] == p["problems"]
     assert len(http.downloads) == downloads
 
 
-def test_the_doctor_finds_mods_the_server_lacks(make_config, http, modrinth):
+def test_an_update_whose_mods_wouldnt_start_is_refused(make_config, http, modrinth):
+    """Nothing changes on the server: the loader would stop it, so it isn't installed."""
     modrinth.project("TER", "terralith", "Terralith")
     modrinth.version("TER", "2.6.2", ["1.21.1"], content=TERRALITH)  # (its site doesn't say it needs anything)
     cfg = make_config([ModSpec("modrinth", "terralith")])
     m = manager(cfg, http, ["1.21.1"])
+    r = update(m)
+    assert not r.ok and "wouldn't start together" in r.message and "lithostitched" in r.message
+    assert not m.lock.installed and not list(m.mods_dir.glob("*.jar"))
+
+
+def test_the_doctor_finds_mods_the_server_lacks(make_config, http, modrinth):
+    modrinth.project("AAA", "goodmod", "Good Mod")
+    modrinth.version("AAA", "1.0", ["1.21.1"])
+    cfg = make_config([ModSpec("modrinth", "goodmod")])
+    m = manager(cfg, http, ["1.21.1"])
     assert update(m).ok
+    (m.mods_dir / "terralith.jar").write_bytes(TERRALITH)   # (one of your own files)
     found = next(c for c in doctor.run(m, "stopped", total_gb=32) if c.id == "mods")
     assert found.status == doctor.BAD and "lithostitched" in found.detail and "Fabric won't start" in found.detail
     (m.mods_dir / "lithostitched.jar").write_bytes(fabric("lithostitched", "1.6.4"))
