@@ -514,7 +514,7 @@ body.join-page { overflow: auto; }
 .join h2 { margin: 0 0 12px; font-size: 16px; }
 .join-head { display: flex; align-items: center; gap: 16px; }
 .join-head img, .join-head .noicon { width: 64px; height: 64px; border-radius: 10px; image-rendering: pixelated; flex: none; }
-.join-head .noicon { background: var(--panel-2); border: 1px solid var(--border); }
+.join-head .noicon { background: var(--panel-2) url("icon.png") center/36px no-repeat; border: 1px solid var(--border); image-rendering: auto; }
 .launchers { display: grid; gap: 8px; }
 .choice.launcher { display: flex; gap: 12px; align-items: flex-start; text-align: start; cursor: pointer; }
 .choice.launcher input { margin-top: 3px; }
