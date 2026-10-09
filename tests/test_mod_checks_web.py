@@ -122,8 +122,13 @@ def test_create_my_server_waits_until_the_mods_check_out(hub_env, modrinth):
     assert finished(c, c.post("/api/hub/mods/filecheck", body)[1])["problems"] == []
     code, r, _ = c.post("/api/hub/create", body)
     assert code == 200
-    cfg = configmod.load(hub.home / "servers" / r["id"])
-    assert cfg.pins == {"modrinth:IRIS": configmod.Pin("IRIS-1.10.9", "1.21.1")}
+
+    def held():  # (the new server's setup rewrites its settings in the background: read them once they're whole)
+        try:
+            return configmod.load(hub.home / "servers" / r["id"]).pins
+        except configmod.ConfigError:
+            return None
+    wait_for(lambda: held() == {"modrinth:IRIS": configmod.Pin("IRIS-1.10.9", "1.21.1")})
     assert c.post("/api/hub/mods/filecheck", {**body, "pins": {"modrinth:IRIS": "../x"}})[0] == 400
 
 
