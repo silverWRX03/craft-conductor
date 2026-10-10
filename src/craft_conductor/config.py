@@ -521,6 +521,34 @@ def remove_mod(path: Path, source: str, mod_id: str) -> bool:
     return removed
 
 
+def set_mod_required(path: Path, source: str, mod_id: str, required: bool) -> bool:
+    """Set ``required`` in a ``[[mods]]`` block in place: the rest of the block (its channel, its
+    datapack, comments) and its place in the list stay as they are. False if it isn't listed."""
+    lines = path.read_text().splitlines(keepends=True)
+    chunks: list[list[str]] = [[]]
+    for line in lines:
+        if re.match(r"^\s*\[", line):
+            chunks.append([])
+        chunks[-1].append(line)
+    literal = "true" if required else "false"
+    for chunk in chunks:
+        if not (chunk and chunk[0].strip() == "[[mods]]"):
+            continue
+        body = tomllib.loads("".join(chunk[1:]))
+        if str(body.get("id")) != mod_id or body.get("source", "modrinth") != source:
+            continue
+        for i, line in enumerate(chunk):
+            if i and re.match(r"^\s*required\s*=", line):
+                chunk[i] = re.sub(r"^(\s*required\s*=\s*)[^#\s]+", lambda m: m.group(1) + literal, line, count=1)
+                break
+        else:  # (written by hand without it: it was required)
+            at = max(i for i, line in enumerate(chunk) if line.strip())
+            chunk.insert(at + 1, f"required = {literal}\n" if chunk[at].endswith("\n") else f"\nrequired = {literal}\n")
+        path.write_text("".join(line for c in chunks for line in c))
+        return True
+    return False
+
+
 def set_mods(path: Path, specs: list[ModSpec]) -> None:
     """Replace every ``[[mods]]`` block with ``specs``, keeping the rest of the file as it is."""
     lines = path.read_text().splitlines(keepends=True)

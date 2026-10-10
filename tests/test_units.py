@@ -40,6 +40,22 @@ def test_template_loads_and_mod_blocks_round_trip(tmp_path):
     assert "# Craft Conductor configuration" in path.read_text()  # comments survive edits
 
 
+def test_setting_required_changes_only_that(tmp_path):
+    path = tmp_path / "craft-conductor.toml"
+    path.write_text(configmod.render_template("fabric", "1.21.1"))
+    configmod.append_mod(path, ModSpec("modrinth", "betamod", channel="beta"))
+    path.write_text(path.read_text() + '\n[[mods]]\nid = "byhand"  # added by hand\ndatapack = true')
+    configmod.append_mod(path, ModSpec("curseforge", "238222", required=False))
+    assert configmod.set_mod_required(path, "modrinth", "betamod", False)
+    assert configmod.set_mod_required(path, "modrinth", "byhand", False)  # (no `required` line yet)
+    assert configmod.set_mod_required(path, "curseforge", "238222", True)
+    assert not configmod.set_mod_required(path, "modrinth", "238222", True)  # (another site's)
+    mods = configmod.load(tmp_path).mods
+    assert [(m.id, m.required, m.channel, m.datapack) for m in mods] == [
+        ("betamod", False, "beta", False), ("byhand", False, None, True), ("238222", True, None, False)]
+    assert "# added by hand" in path.read_text()
+
+
 def test_invalid_config(tmp_path):
     (tmp_path / "craft-conductor.toml").write_text('[server]\nloader = "bukkit"\n')
     with pytest.raises(ConfigError, match="server.loader"):

@@ -2906,10 +2906,10 @@ class Api:
         return {"ok": True}
 
     def set_required(self, q, b) -> dict:
-        source, mod_id = b.get("source", "modrinth"), str(b.get("id", ""))
-        if not configmod.remove_mod(self.m.config.path, source, mod_id):
+        source, mod_id = str(b.get("source", "modrinth")), str(b.get("id", ""))
+        # (in place: the mod keeps its early-builds channel and its datapack build)
+        if not configmod.set_mod_required(self.m.config.path, source, mod_id, bool(b.get("required"))):
             raise ApiError(404, "not listed in craft-conductor.toml")
-        configmod.append_mod(self.m.config.path, ModSpec(source, mod_id, required=bool(b.get("required"))))
         self.m.reload_config()
         return {"ok": True}
 
@@ -4051,8 +4051,7 @@ class Api:
             configmod.set_value(path, "server", "minecraft", json.dumps(version))
             configmod.set_value(path, "updates", "strategy", '"mods-only"')  # stays on the beta
             for spec in configmod.load(root).mods:  # run with whichever mods support the beta
-                configmod.remove_mod(path, spec.source, spec.id)
-                configmod.append_mod(path, ModSpec(spec.source, spec.id, required=False))
+                configmod.set_mod_required(path, spec.source, spec.id, False)
 
         def run():
             running = self.d.proc and self.d.proc.running

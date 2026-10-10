@@ -91,6 +91,27 @@ def test_setup_and_mods_page_lists(hub_env, modrinth):
     assert r["ok"]
 
 
+def test_the_required_box_keeps_a_mods_channel_and_datapack(hub_env, modrinth):
+    """Ticking or unticking **required** on the Mods page changes only that: a mod allowed early builds
+    keeps them, and one used as its datapack stays a datapack."""
+    hub, c = hub_env
+    login(c)
+    publish(modrinth, hub.http)
+    assert c.post("/api/servers/alpha/mods/add-many", {"mods": [{"source": "modrinth", "id": "betamod", "channel": "beta"}]})[0] == 200
+    alpha = hub.get("alpha")
+    configmod.append_mod(alpha.m.config.path, ModSpec("modrinth", "terralith", datapack=True))
+    alpha.m.reload_config()
+    for mod in ("betamod", "terralith"):
+        assert c.post("/api/servers/alpha/mods/required", {"source": "modrinth", "id": mod, "required": False})[0] == 200
+    specs = {s.id: s for s in configmod.load(alpha.m.config.root).mods}
+    assert (specs["betamod"].required, specs["betamod"].channel) == (False, "beta")
+    assert (specs["terralith"].required, specs["terralith"].datapack) == (False, True)
+    assert c.post("/api/servers/alpha/mods/required", {"source": "modrinth", "id": "betamod", "required": True})[0] == 200
+    specs = {s.id: s for s in configmod.load(alpha.m.config.root).mods}
+    assert (specs["betamod"].required, specs["betamod"].channel) == (True, "beta")
+    assert c.post("/api/servers/alpha/mods/required", {"source": "modrinth", "id": "nope", "required": True})[0] == 404
+
+
 def test_a_mods_own_channel_is_used_for_updates(make_config, http, modrinth):
     modrinth.project("BETA", "betamod", "Beta Mod")
     modrinth.version("BETA", "0.1", ["1.21.1"], version_type="beta")

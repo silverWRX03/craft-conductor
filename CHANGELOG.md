@@ -13,6 +13,7 @@ its fix will say which version it's in.
 **Fixed**
 - On Minecraft 26.x servers, the Dashboard's **Connected Players** and the Players page's **Online now** said nobody was online while players were in the game, and **Player activity** recorded no one. Minecraft 26.x writes joins and leaves to its log differently ("System chat: … joined the game"), and Craft Conductor now reads both forms.
 - On Windows, **Create my server** failed with "'charmap' codec can't encode characters" for a server named in Chinese, Korean, Hindi, Arabic or Vietnamese, or with an emoji. A name with accents (like "Ángel's Café") showed up garbled ("Ã©") once the server had run, and saving the server's Settings could then fail the same way. Server names in any language now work, and read the same in every Minecraft version.
+- Ticking or unticking **required** next to a mod on the Mods page also undid the mod's other settings: a mod added with its early (beta or alpha) builds lost them, so it was dropped (or held the update back) at the next update, and a mod used as its datapack was switched back to the mod build and taken out of the world. The box now changes only that, and the mod keeps its place in the list.
 
 ## 0.26.0 (2026-10-09)
 

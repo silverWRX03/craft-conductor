@@ -18,7 +18,7 @@ fix them, without step-by-step exploit details.
 | BUG-003 | Scheduled backups and restarts are skipped after a job longer than 10 minutes | P3 | High confidence | Open |
 | BUG-004 | Settings in `hub.json` can be silently undone by a concurrent save (UPnP sync) | P3 | High confidence | Open |
 | BUG-005 | Backups of a running server wait a fixed 5 s for the world to be saved | P2 | High confidence | Open |
-| BUG-006 | Ticking "required" on a mod drops its early-builds channel and datapack setting | P2 | Confirmed | Open |
+| BUG-006 | Ticking "required" on a mod drops its early-builds channel and datapack setting | P2 | Confirmed | Fixed |
 
 Severity: P0 critical … P4 informational. Confidence: Confirmed (reproduced), High confidence (code
 and test evidence, no full reproduction), Suspected, Not reproducible.
@@ -113,7 +113,7 @@ and test evidence, no full reproduction), Suspected, Not reproducible.
 
 ### BUG-006: ticking "required" on a mod drops its early-builds channel and datapack setting
 
-- **Severity / confidence:** P2 / Confirmed by reading (test to follow with the fix).
+- **Severity / confidence:** P2 / Confirmed (failing test).
 - **Component:** `web.py` (`Api.set_required`), also `Api.test_beta`'s copy.
 - **Description:** the Mods page's **required** checkbox removes the mod's `[[mods]]` entry and
   writes a new one with only `source`, `id` and `required`, losing `channel` (early builds
@@ -121,7 +121,15 @@ and test evidence, no full reproduction), Suspected, Not reproducible.
 - **Impact:** a mod that only has beta builds stops being installable at the next update (dropped,
   or holding the update back); a mod used as its datapack is switched to the mod build, which the
   server type may not have, and its datapack is taken out of the world.
-- **Status:** Open.
+- **Reproduction:** add a beta-only mod with its early builds (mod browser), untick **required**:
+  `craft-conductor.toml` no longer has `channel = "beta"` for it (test below: `channel` became `None`).
+- **Root cause:** `set_required` re-created the block from three fields instead of editing it.
+- **Fix:** `config.set_mod_required` changes the `required` line inside the mod's own block (adding
+  it when a hand-written block has none); everything else in the block, and its place in the list,
+  stays. The beta test copy (`test_beta`) uses it too, so its mods keep their channel and datapack.
+- **Tests:** `tests/test_early_builds.py::test_the_required_box_keeps_a_mods_channel_and_datapack`
+  (failed before: `(False, None) != (False, 'beta')`), `tests/test_units.py::test_setting_required_changes_only_that`.
+- **Status:** Fixed.
 
 ## Security findings
 
