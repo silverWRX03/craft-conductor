@@ -195,6 +195,7 @@ class Daemon:
         self.activity = Activity(getattr(getattr(manager, "config", None), "state_dir", None))  # who played when (Players page)
         self._sched_last = None  # the last time schedules were looked at
         self._backup_owed = False  # a scheduled backup that came due while another job ran
+        self._restart_owed: float | None = None  # when a scheduled restart came due that hasn't happened yet
         self.meter = None        # recent TPS samples (perf.Meter), made when first asked for
         self.crashed_at = None   # when the server last stopped unexpectedly
         self.problem: dict | None = None  # what went wrong last (explain.py), until it starts fine
@@ -392,33 +393,46 @@ class Daemon:
         return new
 
     # -------------------------------------------------------- schedules
-    def _run_schedules(self) -> None:
-        """Scheduled restarts and backups (craft-conductor.toml [schedule], set on the Settings page)."""
+    def _run_schedules(self, idle: bool = True) -> None:
+        """Scheduled restarts and backups (craft-conductor.toml [schedule], set on the Settings page).
+
+        Looked at on every turn of the loop, busy or not: a time that comes while another job runs
+        (an update, a long backup) is kept and done as soon as that's finished, never skipped. With a
+        backup and a restart due together, the backup is made first, then the server restarts."""
         import datetime as dt
         from . import schedule
         now = dt.datetime.now()
         last, self._sched_last = self._sched_last, now
         sch = self.m.config.schedule
         try:
-            restart = schedule.due(sch.restart, last, now)
-            backup_due = schedule.due(sch.backup, last, now)
+            if schedule.due(sch.backup, last, now):
+                self._backup_owed = True
+            if schedule.due(sch.restart, last, now) and self._restart_owed is None:
+                self._restart_owed = now.timestamp()
         except schedule.CronError as e:  # (checked when saved; a hand-edited file could still be wrong)
             log.warning("schedule: %s", e)
             return
-        if backup_due or self._backup_owed:
-            # Busy (an update or a rehearsal): made as soon as that's done, not skipped.
+        if not idle:
+            return
+        if self._backup_owed:
             self._backup_owed = not self.submit("scheduled backup", self.backup_now, "scheduled")
-        elif restart:
-            if not (self.want_running and self.proc is not None and self.proc.running):
-                return  # nothing to restart
-            if sch.restart_when_empty and self.players:
-                log.info("scheduled restart skipped: %d player(s) online", len(self.players))
-                return
+            return  # (a restart due too comes once the backup is made)
+        if self._restart_owed is None:
+            return
+        due_at, self._restart_owed = self._restart_owed, None
+        if not (self.want_running and self.proc is not None and self.proc.running):
+            return  # nothing to restart
+        if self.started_at is not None and self.started_at >= due_at:
+            return  # it has restarted since (an update did)
+        if sch.restart_when_empty and self.players:
+            log.info("scheduled restart skipped: %d player(s) online", len(self.players))
+            return
 
-            def scheduled_restart():
-                self.m.countdown(self.proc, "Scheduled restart")
-                return self.restart_server()
-            self.submit("scheduled restart", scheduled_restart)
+        def scheduled_restart():
+            self.m.countdown(self.proc, "Scheduled restart")
+            return self.restart_server()
+        if not self.submit("scheduled restart", scheduled_restart):
+            self._restart_owed = due_at  # (something else started just now: next time)
 
     # -------------------------------------------------------- lifecycle
     def run(self, web: bool = False) -> int:
@@ -519,8 +533,8 @@ class Daemon:
                 target = (req.read_text().strip() or None) if requested else None
                 req.unlink(missing_ok=True)
                 self.submit("update check", self.check_for_updates, requested, target)
+            self._run_schedules(idle)  # (busy too: a time that comes meanwhile waits, it isn't skipped)
             if idle:
-                self._run_schedules()
                 self._watch_lag()
             sreq = self_update_request_path(self.m)
             if self.hub_managed:  # the hub checks for and installs craft-conductor updates

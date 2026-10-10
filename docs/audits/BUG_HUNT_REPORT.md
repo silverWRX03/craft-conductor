@@ -14,8 +14,8 @@ fix them, without step-by-step exploit details.
 | ID | Title | Severity | Confidence | Status |
 |---|---|---|---|---|
 | BUG-001 | Server names outside the computer's code page break server creation and settings on Windows | P2 | Confirmed | Fixed |
-| BUG-002 | A scheduled restart is dropped when a scheduled backup is due in the same minute | P2 | Confirmed (by test) | Open |
-| BUG-003 | Scheduled backups and restarts are skipped after a job longer than 10 minutes | P3 | High confidence | Open |
+| BUG-002 | A scheduled restart is dropped when a scheduled backup is due in the same minute | P2 | Confirmed | Fixed |
+| BUG-003 | Scheduled backups and restarts are skipped after a job longer than 10 minutes | P3 | High confidence | Fixed |
 | BUG-004 | Settings in `hub.json` can be silently undone by a concurrent save (UPnP sync) | P3 | High confidence | Open |
 | BUG-005 | Backups of a running server wait a fixed 5 s for the world to be saved | P2 | High confidence | Open |
 | BUG-006 | Ticking "required" on a mod drops its early-builds channel and datapack setting | P2 | Confirmed | Fixed |
@@ -65,15 +65,19 @@ and test evidence, no full reproduction), Suspected, Not reproducible.
 
 ### BUG-002: a scheduled restart is dropped when a scheduled backup is due in the same minute
 
-- **Severity / confidence:** P2 / Confirmed by reading; test to follow with the fix.
+- **Severity / confidence:** P2 / Confirmed (failing test).
 - **Component:** `daemon.py` (`Daemon._run_schedules`).
 - **Description:** when the backup and the restart schedules name the same minute, only the backup
   runs (`if backup_due … elif restart`). The restart's minute has passed by the next look, so it
   never happens.
 - **Impact:** with **Make a backup: every hour** (or every 2 hours) and **Restart the server: every
   day at 4:00**, the nightly restart never happens.
+- **Reproduction:** `tests/test_schedule.py::test_a_restart_and_a_backup_due_together_both_happen`
+  (before the fix: only `["scheduled backup"]` was started, never the restart).
 - **Root cause:** no "owed" restart, unlike the owed backup.
-- **Status:** Open (fix in progress).
+- **Fix:** see BUG-003 (one change): a due restart is remembered until it's done; with a backup due
+  too, the backup goes first and the restart right after it.
+- **Status:** Fixed.
 
 ### BUG-003: scheduled backups and restarts are skipped after a job longer than 10 minutes
 
@@ -83,8 +87,17 @@ and test evidence, no full reproduction), Suspected, Not reproducible.
   more than 10 minutes since the last look as "the computer was asleep" and only checks the
   current minute. A backup or update that takes longer than 10 minutes over a scheduled time
   makes that backup or restart silently not happen, though the code (and its test) intend
-  "made as soon as that's done, not skipped".
-- **Status:** Open.
+  "made as soon as that's done, not skipped". (The existing test simulated "busy" with a refused
+  `submit`, which the real loop never reaches, so it didn't catch this.)
+- **Fix:** the loop looks at the schedules on every turn, busy or not, and only *starts* jobs when
+  idle: a due backup or restart is remembered (`_backup_owed`, `_restart_owed`) and done as soon
+  as the job finishes. "Asleep" (no look for 10 minutes) now only means the computer really slept.
+  An owed restart is dropped when the server restarted after it came due (an update did it), when
+  the server was stopped meanwhile, or (as before) when players are on with "Skip a scheduled
+  restart while players are online". The manual's Schedule paragraph says so.
+- **Tests:** `test_a_time_that_comes_during_a_long_job_isnt_skipped`,
+  `test_an_owed_restart_isnt_done_twice_or_for_nothing` (`tests/test_schedule.py`).
+- **Status:** Fixed.
 
 ### BUG-004: settings in `hub.json` can be silently undone by a concurrent save
 

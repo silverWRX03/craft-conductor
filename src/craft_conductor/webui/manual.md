@@ -293,7 +293,7 @@ Nothing changes until you press **Save settings**. It stays at the bottom of the
 - **CPU cores it may use:** **All** (the default), or a number: the server then only uses that many of the computer's cores, leaving the others for other servers and everything else. Not on Macs (macOS doesn't allow it).
 - **Lower priority:** the computer serves this server after everything else when it's busy. Good for a server friends use now and then, next to your main one.
 
-**Schedule:** restart the server and make backups at set times: **Every day at…**, **Every week on…**, **Every few hours** (backups), or **Custom (cron)** for anything else (five parts: minute, hour, day of the month, month, day of the week; for example `30 5 * * 1-5` is 5:30 on weekdays). Times are this computer's; the next run is shown. A scheduled restart gives players the in-game countdown first, and **Skip a scheduled restart while players are online** leaves them be. The same settings are `[schedule]` in `craft-conductor.toml`.
+**Schedule:** restart the server and make backups at set times: **Every day at…**, **Every week on…**, **Every few hours** (backups), or **Custom (cron)** for anything else (five parts: minute, hour, day of the month, month, day of the week; for example `30 5 * * 1-5` is 5:30 on weekdays). Times are this computer's; the next run is shown. A scheduled restart gives players the in-game countdown first, and **Skip a scheduled restart while players are online** leaves them be. A backup and a restart at the same time both happen, the backup first; one that comes while Craft Conductor is busy (an update, a long backup) happens as soon as that's done. The same settings are `[schedule]` in `craft-conductor.toml`.
 
 **Backup copies:** see Backups.
 
