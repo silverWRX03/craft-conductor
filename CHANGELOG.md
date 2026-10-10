@@ -24,6 +24,7 @@ its fix will say which version it's in.
 - Double-clicking **Create my server** (or pressing Enter twice) sent it twice: the server was made once, but a red message beside it said "port 25566 is already used by another server here … pick another". The button now waits until the server is being made.
 - Double-clicking **Start**, **Restart** or **Stop** at the top of a server's pages pressed it twice: a red "busy: start is running" appeared beside "start: started" (and Stop asked its question twice). Each now counts once.
 - A server could be given the port the control panel or friends' downloads use (in its **Settings**, or on New server despite the red note), and then couldn't start; the friends' download port could likewise be set to a server's port. Both are refused now, with a message saying which port is taken.
+- When another program was using the control panel's port (8765), Craft Conductor showed the address and then stopped with "An attempt was made to access a socket in a way forbidden by its access permissions". It now says that port is taken (or kept by Windows) and what to do.
 
 ## 0.26.0 (2026-10-09)
 

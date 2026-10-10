@@ -140,6 +140,10 @@ class ApiError(Exception):
         self.status = status
 
 
+class PortBusy(OSError):
+    """The control panel couldn't listen on its port: another program has it, or Windows keeps it."""
+
+
 def host_allowed(host_header: str | None, extra: list[str]) -> bool:
     """Whether a request's Host header names this machine (guards against DNS rebinding)."""
     if not host_header:
@@ -223,7 +227,13 @@ class WebUI:
 
         class Handler(RequestHandler):
             web = ui
-        self.httpd = _Server((self.host, self.port), Handler)
+        try:
+            self.httpd = _Server((self.host, self.port), Handler)
+        except OSError as e:
+            raise PortBusy(f"Craft Conductor's control panel couldn't use port {self.port}: another program on this "
+                           f"computer is using it, or Windows keeps that port for itself ({e.strerror or e}). Close the "
+                           f"other program, or start Craft Conductor on another port: craft-conductor start --web-port "
+                           f"{self.port + 5}") from e
         self.httpd.daemon_threads = True
         if self.tls:
             context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)

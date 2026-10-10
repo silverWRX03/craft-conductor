@@ -187,6 +187,22 @@ def test_password_carried_over_by_020_is_replaced(tmp_path):
     assert webauth.AuthStore(Hub(tmp_path)).get().check("mine!")
 
 
+def test_start_when_the_control_panels_port_is_taken(tmp_path, monkeypatch, capsys):
+    """Another program on the control panel's port (or Windows keeping it for itself) gets a message
+    that says so and what to do, not "stopped unexpectedly" with a socket error."""
+    import socket
+    home = tmp_path / "home" / "craft-conductor"
+    monkeypatch.setenv("CRAFT_CONDUCTOR_HOME", str(home))
+    with socket.socket() as other:
+        other.bind(("127.0.0.1", 0))
+        other.listen(1)
+        port = other.getsockname()[1]
+        assert cli.main(["-C", str(tmp_path), "start", "--no-browser", "--web-port", str(port)]) == 1
+    err = capsys.readouterr().err
+    assert f"port {port}" in err and "another program" in err and "--web-port" in err
+    assert "stopped unexpectedly" not in err and "WinError" not in err
+
+
 def test_start_opens_the_server_list(tmp_path, monkeypatch, fake_template, capsys):
     home = tmp_path / "home" / "craft-conductor"
     monkeypatch.setenv("CRAFT_CONDUCTOR_HOME", str(home))

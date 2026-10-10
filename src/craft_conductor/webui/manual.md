@@ -459,6 +459,8 @@ Everything in Craft Conductor works with the keyboard and a screen reader (NVDA,
 
 **"Port ... is busy."** Another program (or another server) uses that port. Pick another on the server's Settings page, or for the friends' port under Craft Conductor settings → Connections → Sharing with friends.
 
+**"Craft Conductor's control panel couldn't use port 8765."** Another program uses the control panel's port, or Windows keeps it for itself (it sets some ports aside for Hyper-V and WSL). Close the other program, or restarting the computer often frees it; otherwise start Craft Conductor on another port from a command prompt (`craft-conductor start --web-port 8770`) and open the address it shows.
+
 **Friends can't connect from outside.** Check both ports are forwarded to this computer's local address, that you pressed **Use my public IP** again (home addresses change), and that your internet provider allows it (some don't; Tailscale or a VPN works then).
 
 **"That invite is from an older Craft Conductor."** Invites changed in Craft Conductor 0.9 (to HTTPS). Update Craft Conductor on the server, then send friends the new invite from the Friends page.

@@ -25,6 +25,7 @@ fix them, without step-by-step exploit details.
 | BUG-010 | Double-clicking Create my server shows a false "port already used" error | P3 | Confirmed | Fixed |
 | BUG-011 | Double-clicking Start, Restart or Stop shows a false "busy" error | P3 | Confirmed | Fixed |
 | BUG-012 | A server can be given Craft Conductor's own port (and the reverse) | P4 | Confirmed | Fixed |
+| BUG-013 | A busy control panel port ends in "stopped unexpectedly" with a socket error | P3 | Confirmed | Fixed (message); auto-fallback is a question |
 
 Severity: P0 critical … P4 informational. Confidence: Confirmed (reproduced), High confidence (code
 and test evidence, no full reproduction), Suspected, Not reproducible.
@@ -276,6 +277,25 @@ and test evidence, no full reproduction), Suspected, Not reproducible.
 - **Tests:** `tests/test_hub.py::test_create_a_server_from_the_web`, `tests/test_friends.py`
   (both failed before).
 - **Status:** Fixed.
+
+### BUG-013: a busy control panel port ends in "stopped unexpectedly" with a socket error
+
+- **Severity / confidence:** P3 / Confirmed (reproduced on Windows).
+- **Component:** `web.py` (`WebUI.start`), `cli.py` (`cmd_start`).
+- **Description:** when the control panel's port (8765) can't be used, because another program has
+  it or Windows keeps it (Hyper-V and WSL set port ranges aside, which can include 8765), Craft
+  Conductor printed the address (and would open the browser there, on the other program) and then
+  stopped with "Craft Conductor stopped unexpectedly: [WinError 10013] An attempt was made to access
+  a socket in a way forbidden by its access permissions".
+- **Fix:** the failed bind becomes `PortBusy` with a message saying the port is taken or kept by
+  Windows and what to do (close the other program, or `--web-port`); `craft-conductor start` shows it
+  through `desktop.show_error` (a message box when there's no console window). The manual's
+  Troubleshooting has the same.
+- **Not done (question for the owner):** for a double-click user, `--web-port` is still hard to
+  use. Falling back to a free port by itself is a behaviour change (the address differs from the
+  documented one), so it's asked rather than done.
+- **Tests:** `tests/test_hub.py::test_start_when_the_control_panels_port_is_taken` (failed before).
+- **Status:** Fixed (the message); open question about the fallback.
 
 ## Security findings
 

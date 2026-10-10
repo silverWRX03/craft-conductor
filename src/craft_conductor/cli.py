@@ -426,7 +426,13 @@ def cmd_start(args) -> int:
     print("\n" + "\n".join(lines) + "\n", flush=True)
     _tag_log_lines()
     hub.open_browser = browser
-    code = hub.run()
+    from .web import PortBusy
+    try:
+        code = hub.run()
+    except PortBusy as e:  # (said in a message box when there's no window to say it in)
+        from . import desktop
+        desktop.show_error(str(e))
+        return 1
     if hub.restart_requested:
         selfupdate.restart()
     return code
