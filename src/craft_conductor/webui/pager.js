@@ -15,8 +15,9 @@ const PAGER_EMPTY_RUN = 3;    // batches in a row with nothing to show (each one
 
 // fetchPage(offset) -> {results, next, ...}; row(item) -> element; key(item) -> string;
 // empty() -> what an empty search shows; onPage(reply, first) after each batch (counts, notes);
-// failed(error) -> false to show nothing (e.g. signed out).
-function resultPager({ list, fetchPage, row, key, empty, onPage, failed }) {
+// failed(error) -> false to show nothing (e.g. signed out); leaveOut(item) -> true for results not to
+// show (e.g. mods already added), counted for onPage as reply.left_out.
+function resultPager({ list, fetchPage, row, key, empty, onPage, failed, leaveOut }) {
   const head = h("div", { class: "pager-head" });   // notes above the results (hidden ones, …)
   const rows = h("div", { class: "pager-rows" });
   const msg = h("span", { class: "muted small" });
@@ -24,6 +25,7 @@ function resultPager({ list, fetchPage, row, key, empty, onPage, failed }) {
   const foot = h("div", { class: "pager-foot", tabindex: "-1" }, msg, btn);
   const live = h("p", { class: "sr-only", "aria-live": "polite" });
   const items = new Map();   // key -> { item, el }
+  const leftOut = new Set(); // keys of results left out (each counted once)
   let gen = 0, next = null, loading = false, error = false, emptyRun = 0, io = null;
 
   const say = (text) => { live.textContent = text; };
@@ -80,9 +82,11 @@ function resultPager({ list, fetchPage, row, key, empty, onPage, failed }) {
     if (mine !== gen) return;  // an older search's answer
     loading = false;
     const fresh = [];
+    r.left_out = 0;
     for (const item of r.results || []) {
       const k = key(item);
-      if (items.has(k)) continue;
+      if (items.has(k) || leftOut.has(k)) continue;
+      if (leaveOut && leaveOut(item)) { leftOut.add(k); r.left_out++; continue; }
       const el = row(item);
       items.set(k, { item, el });
       fresh.push(el);
@@ -113,7 +117,7 @@ function resultPager({ list, fetchPage, row, key, empty, onPage, failed }) {
     reset(searching = "Searching…") {
       gen++;
       if (io) io.disconnect();
-      items.clear();
+      items.clear(); leftOut.clear();
       next = 0; loading = false; error = false; emptyRun = 0;
       head.replaceChildren(); rows.replaceChildren(); say("");
       list.scrollTop = 0;
