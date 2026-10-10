@@ -17,6 +17,7 @@ its fix will say which version it's in.
 - A scheduled restart never happened when a scheduled backup was due at the same minute (for example backups **Every hour** and a restart **Every day at 4:00**): only the backup was made. Both happen now, the backup first.
 - A scheduled backup or restart was silently skipped when Craft Conductor was busy for more than 10 minutes at that time (a long update or backup). It now happens as soon as that's done (a restart isn't repeated if the server restarted meanwhile).
 - Backups (and exports, and the copies made to try a beta or rehearse an update) of a running server waited a fixed 5 seconds for Minecraft to save the world before copying it. A big world on a slow disk can take longer, so a backup could hold half-written parts of the world. Craft Conductor now waits until the server says the world is saved (up to a minute; if it never says so, the backup is still made, with a warning in the activity).
+- A Craft Conductor setting saved while automatic port forwarding (Router, UPnP) was talking to the router could be silently undone: turning off access from other devices, the CurseForge key, the Discord bot, friends' download settings, the update channel or the guided setup's progress went back to what it was before. The control panel kept working with the new setting, but the old one came back the next time Craft Conductor started. Every change to these settings is now saved on its own, and none undoes another.
 
 ## 0.26.0 (2026-10-09)
 

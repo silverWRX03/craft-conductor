@@ -48,11 +48,10 @@ def state(hub) -> dict:
 
 
 def save(hub, **changes) -> dict:
-    data = hub._hub_file()
-    g = {**state(hub), **changes}
-    data["guide"] = g
-    hub._save_hub_file(data)
-    return g
+    def change(data: dict) -> dict:
+        g = data["guide"] = {**state(hub), **changes}
+        return g
+    return hub._update_hub_file(change)
 
 
 def steps(hub) -> dict:

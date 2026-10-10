@@ -142,6 +142,7 @@ class Hub:
         self.share = None           # the share server for friends' downloads, while one is switched on
         self.share_error: str | None = None
         self._lock = threading.RLock()
+        self._hub_lock = threading.RLock()  # hub.json: one change at a time (see _update_hub_file)
         self._web = self._load_web()
         self._apply_curseforge_key()
 
@@ -158,6 +159,7 @@ class Hub:
         hub.join_requests = {}  # summary() also runs for classic single-server dashboards
         hub.stop_requested = daemon.stop_requested
         hub._lock = threading.RLock()
+        hub._hub_lock = threading.RLock()
         hub.ui = None
         hub.share = None
         hub.share_error = None
@@ -199,6 +201,17 @@ class Hub:
         except (OSError, ValueError):
             return {}
 
+    def _update_hub_file(self, change: Callable[[dict], object]) -> object:
+        """Change hub.json: read it, let ``change`` edit what's in it, write it back, all as one step,
+        so two changes at once (a page saving a setting while the router forwarding, which waits for
+        the router, writes down its ports) never undo each other. Nothing is written if ``change``
+        raises. Returns what ``change`` returned. Slow work (network) goes before or after, never in it."""
+        with self._hub_lock:
+            data = self._hub_file()
+            result = change(data)
+            self._save_hub_file(data)
+            return result
+
     def _save_hub_file(self, data: dict) -> None:
         self.state_dir.mkdir(parents=True, exist_ok=True)
         tmp = self.state_dir / (HUB_FILE + ".tmp")
@@ -233,9 +246,7 @@ class Hub:
 
     def save_web(self, **changes) -> None:
         """Remember control panel settings (they apply the next time craft-conductor starts)."""
-        data = self._hub_file()
-        data.setdefault("web", {}).update(changes)
-        self._save_hub_file(data)
+        self._update_hub_file(lambda data: data.setdefault("web", {}).update(changes))
         for key, value in changes.items():  # what's configured now (the running panel keeps its address)
             if hasattr(self.web, key):
                 setattr(self.web, key, value)
@@ -263,15 +274,18 @@ class Hub:
                 self.http.get_json(f"{cf.API}/games/{cf.MINECRAFT_GAME_ID}", headers={"x-api-key": key}, cache=False)
             except Exception as e:
                 raise ConfigError(f"CurseForge didn't accept that key ({e})") from None
-        data = self._hub_file()
+
+        def change(data: dict) -> None:
+            if key:
+                data["curseforge_api_key"] = key
+            else:
+                data.pop("curseforge_api_key", None)
+        self._update_hub_file(change)
         if key:
-            data["curseforge_api_key"] = key
             os.environ["CRAFT_CONDUCTOR_CURSEFORGE_API_KEY"] = key
         else:
-            data.pop("curseforge_api_key", None)
             os.environ.pop("CRAFT_CONDUCTOR_CURSEFORGE_API_KEY", None)
             cf.use_bundled_key()  # back to the built-in one, if this build has one
-        self._save_hub_file(data)
         for d in list(self.daemons.values()):
             try:
                 d.m.reload_config()
@@ -295,12 +309,13 @@ class Hub:
         from .discord import SNOWFLAKE
         if channel and not SNOWFLAKE.fullmatch(channel):
             raise ValueError("that isn't a Discord channel")
-        data = self._hub_file()
-        if "discord" not in data:
-            raise ValueError("add a Discord bot first")
-        data["discord"]["status_channel"] = channel
-        data["discord"].pop("status_message", None)
-        self._save_hub_file(data)
+
+        def change(data: dict) -> None:
+            if "discord" not in data:
+                raise ValueError("add a Discord bot first")
+            data["discord"]["status_channel"] = channel
+            data["discord"].pop("status_message", None)
+        self._update_hub_file(change)
         self._status_sent = None
         if channel:
             threading.Thread(target=self.discord_status, daemon=True, name="discord-status").start()
@@ -331,9 +346,11 @@ class Hub:
                     raise MessageGone()
             except MessageGone:
                 msg = bot.post(channel, "", embed)
-                data = self._hub_file()
-                data.setdefault("discord", {})["status_message"] = msg["id"]
-                self._save_hub_file(data)
+
+                def remember(data: dict) -> None:
+                    if isinstance(data.get("discord"), dict):  # (unless the bot was removed meanwhile)
+                        data["discord"]["status_message"] = msg["id"]
+                self._update_hub_file(remember)
             self._status_sent, self._status_at = sig, time.monotonic()
         except (DiscordError, OSError) as e:
             log.warning("couldn't update the Discord status message: %s", e)
@@ -343,15 +360,12 @@ class Hub:
     def save_discord_token(self, token: str) -> dict | None:
         """Check a bot token with Discord and keep it (empty removes it). Returns the bot."""
         from .discord import Discord, check_token
-        data = self._hub_file()
         if not token.strip():
-            data.pop("discord", None)
-            self._save_hub_file(data)
+            self._update_hub_file(lambda data: data.pop("discord", None))
             return None
         token = check_token(token)
-        bot = Discord(self.http, token).me()
-        data["discord"] = {"token": token, "bot": bot}
-        self._save_hub_file(data)
+        bot = Discord(self.http, token).me()  # (asked before hub.json is opened: it takes a moment)
+        self._update_hub_file(lambda data: data.__setitem__("discord", {"token": token, "bot": bot}))
         return bot
 
     # ------------------------------------------- Whitelist through Discord
@@ -364,11 +378,12 @@ class Hub:
     def set_discord_whitelist(self, enabled: bool, mode: str = "ask", role: str = "") -> None:
         from .discordbot import check_settings
         mode, role = check_settings(mode, role)
-        data = self._hub_file()
-        if "discord" not in data:
-            raise ValueError("add a Discord bot first")
-        data["discord"]["whitelist"] = {"enabled": bool(enabled), "mode": mode, "role": role}
-        self._save_hub_file(data)
+
+        def change(data: dict) -> None:
+            if "discord" not in data:
+                raise ValueError("add a Discord bot first")
+            data["discord"]["whitelist"] = {"enabled": bool(enabled), "mode": mode, "role": role}
+        self._update_hub_file(change)
         old, self.discord_bot = self.discord_bot, None
         if old is not None:
             old.close()
@@ -421,10 +436,10 @@ class Hub:
         return message
 
     def remember_discord_channel(self, guild: str, channel: str) -> None:
-        data = self._hub_file()
-        if "discord" in data:
-            data["discord"].update(guild=guild, channel=channel)
-            self._save_hub_file(data)
+        def change(data: dict) -> None:
+            if "discord" in data:
+                data["discord"].update(guild=guild, channel=channel)
+        self._update_hub_file(change)
 
     # ---------------------------------------------------------- sharing
     # ------------------------------------------------ mod conflict memory
@@ -433,9 +448,7 @@ class Hub:
         return bool(self._hub_file().get("share_conflicts")) and not self.is_single
 
     def set_share_conflicts(self, on: bool) -> None:
-        data = self._hub_file()
-        data["share_conflicts"] = bool(on)
-        self._save_hub_file(data)
+        self._update_hub_file(lambda data: data.__setitem__("share_conflicts", bool(on)))
 
     @property
     def known_conflicts(self):
@@ -461,10 +474,10 @@ class Hub:
             return None
 
     def save_share(self, port: int, address: str, tunnel: str | None = None) -> None:
-        data = self._hub_file()
-        data["share"] = {"port": port, "address": address,
-                         "tunnel": tunnel if tunnel is not None else data.get("share", {}).get("tunnel", "")}
-        self._save_hub_file(data)
+        def change(data: dict) -> None:
+            data["share"] = {"port": port, "address": address,
+                             "tunnel": tunnel if tunnel is not None else data.get("share", {}).get("tunnel", "")}
+        self._update_hub_file(change)
         self.update_share(restart=True)
 
     def update_share(self, restart: bool = False) -> None:
@@ -529,11 +542,12 @@ class Hub:
         root = root.resolve()
         if root == self.home or root.parent == self.home / SERVERS_DIR:
             return
-        data = self._hub_file()
-        extra = [p for p in data.get("extra", []) if isinstance(p, str)]
-        if str(root) not in extra:
-            data["extra"] = extra + [str(root)]
-            self._save_hub_file(data)
+
+        def change(data: dict) -> None:
+            extra = [p for p in data.get("extra", []) if isinstance(p, str)]
+            if str(root) not in extra:
+                data["extra"] = extra + [str(root)]
+        self._update_hub_file(change)
 
     def discover(self) -> dict[str, Path]:
         found: dict[str, Path] = {}
@@ -858,14 +872,15 @@ class Hub:
             if gone:
                 log.info("removed the shared Java %s: no other server uses it", ", ".join(map(str, gone)))
             store = d.m.java.dir
-            data = self._hub_file()
-            data["extra"] = [p for p in data.get("extra", []) if p != str(root)]
+
+            def forget(data: dict) -> None:
+                data["extra"] = [p for p in data.get("extra", []) if p != str(root)]
+                if not delete_files:
+                    data["hidden"] = sorted(set(data.get("hidden", [])) | {str(root)})
+            self._update_hub_file(forget)
             if not delete_files:
-                data["hidden"] = sorted(set(data.get("hidden", [])) | {str(root)})
-                self._save_hub_file(data)
                 log.info("removed server %s from the list; its files are still in %s", sid, root)
                 return f"removed from the list; its files are still in {root}"
-            self._save_hub_file(data)
             if root.parent == self.home / SERVERS_DIR:
                 _rmtree(root)  # craft-conductor's own folder for this server
             else:
@@ -930,7 +945,6 @@ class Hub:
         """Forward the wanted ports (or, switched off, take back the ones craft-conductor forwarded)."""
         from . import upnp
         with self._upnp_lock:
-            data = self._hub_file()
             settings = self.upnp_settings()
             if enabled is not None:
                 settings["enabled"] = enabled
@@ -970,8 +984,9 @@ class Hub:
                 except OSError as e:
                     self._gateway = None
                     status["error"] = f"couldn't look for the router ({e.strerror or e})"
-            data["upnp"] = {"enabled": settings["enabled"], "mapped": [list(x) for x in sorted(mapped)]}
-            self._save_hub_file(data)
+            # (written into hub.json as it is now: anything saved while the router was asked stays)
+            saved = {"enabled": settings["enabled"], "mapped": [list(x) for x in sorted(mapped)]}
+            self._update_hub_file(lambda data: data.__setitem__("upnp", saved))
             self._upnp_status = status
             if status["error"] and settings["enabled"]:
                 log.warning("automatic port forwarding: %s", status["error"])
@@ -986,9 +1001,7 @@ class Hub:
                 upnp.remove(gw, port, proto)
             except upnp.UpnpError as e:
                 log.warning("couldn't take back port %s on the router: %s", port, e)
-        data = self._hub_file()
-        data["upnp"] = {**data.get("upnp", {}), "mapped": []}
-        self._save_hub_file(data)
+        self._update_hub_file(lambda data: data.__setitem__("upnp", {**data.get("upnp", {}), "mapped": []}))
 
     def upnp_status(self) -> dict:
         from .upnp import EXPOSURE_WARNING
@@ -1075,10 +1088,11 @@ class Hub:
             self._single.m.reload_config()
             self.updater.forget()  # (what was offered may not be on this channel)
             return
-        data = self._hub_file()
-        saved = data.get("self_update") if isinstance(data.get("self_update"), dict) else {}
-        data["self_update"] = {**saved, "channel": channel}
-        self._save_hub_file(data)
+
+        def change(data: dict) -> None:
+            saved = data.get("self_update") if isinstance(data.get("self_update"), dict) else {}
+            data["self_update"] = {**saved, "channel": channel}
+        self._update_hub_file(change)
         self.updater.forget()
         log.info("Craft Conductor updates: %s channel", channel)
 

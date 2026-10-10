@@ -16,7 +16,7 @@ fix them, without step-by-step exploit details.
 | BUG-001 | Server names outside the computer's code page break server creation and settings on Windows | P2 | Confirmed | Fixed |
 | BUG-002 | A scheduled restart is dropped when a scheduled backup is due in the same minute | P2 | Confirmed | Fixed |
 | BUG-003 | Scheduled backups and restarts are skipped after a job longer than 10 minutes | P3 | High confidence | Fixed |
-| BUG-004 | Settings in `hub.json` can be silently undone by a concurrent save (UPnP sync) | P3 | High confidence | Open |
+| BUG-004 | Settings in `hub.json` can be silently undone by a concurrent save (UPnP sync) | P3 | Confirmed | Fixed |
 | BUG-005 | Backups of a running server wait a fixed 5 s for the world to be saved | P2 | High confidence | Fixed |
 | BUG-006 | Ticking "required" on a mod drops its early-builds channel and datapack setting | P2 | Confirmed | Fixed |
 
@@ -101,7 +101,7 @@ and test evidence, no full reproduction), Suspected, Not reproducible.
 
 ### BUG-004: settings in `hub.json` can be silently undone by a concurrent save
 
-- **Severity / confidence:** P3 / High confidence.
+- **Severity / confidence:** P3 / Confirmed (failing test).
 - **Component:** `hub.py` (`_hub_file`, `_save_hub_file` and their callers).
 - **Description:** `hub.json` (control panel host and allowed hosts, CurseForge key, Discord bot,
   friends' download settings, router forwarding, update channel, hidden servers) is changed by
@@ -110,8 +110,19 @@ and test evidence, no full reproduction), Suspected, Not reproducible.
   its old copy back.
 - **Impact:** a setting saved during that window is silently reverted, e.g. turning off access
   from other devices: the running panel follows the new setting, but the old one comes back the
-  next time Craft Conductor starts.
-- **Status:** Open.
+  next time Craft Conductor starts. Remote access still needs the strong password, so this is a
+  "the off switch didn't stick" problem rather than an open door.
+- **Reproduction:** `tests/test_upnp.py::test_a_setting_saved_while_the_router_is_slow_stays_saved`:
+  a router that takes a moment to answer, and the panel's host set to `127.0.0.1` meanwhile; before
+  the fix hub.json ended with `0.0.0.0` again.
+- **Root cause:** each writer read hub.json, changed its copy and wrote the whole file back, with no
+  lock; `upnp_sync` held its copy across the router calls.
+- **Fix:** `Hub._update_hub_file(change)` reads, changes and writes hub.json under one lock; every
+  writer (control panel settings, CurseForge key, Discord bot and status message, friends'
+  downloads, mod conflict sharing, extra and hidden server folders, router forwarding, update
+  channel, the guided setup) goes through it, and network calls happen outside it. `upnp_sync`
+  only writes its own part, from the file as it is at that moment.
+- **Status:** Fixed.
 
 ### BUG-005: backups of a running server wait a fixed 5 seconds for the world to be saved
 
