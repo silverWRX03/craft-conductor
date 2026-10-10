@@ -23,6 +23,7 @@ fix them, without step-by-step exploit details.
 | BUG-008 | Saved mod lists forget which mods are datapack builds | P3 | Confirmed | Fixed |
 | BUG-009 | A hand-edited `craft-conductor.toml` in another language breaks on Windows | P3 | Confirmed | Fixed |
 | BUG-010 | Double-clicking Create my server shows a false "port already used" error | P3 | Confirmed | Fixed |
+| BUG-011 | Double-clicking Start, Restart or Stop shows a false "busy" error | P3 | Confirmed | Fixed |
 
 Severity: P0 critical … P4 informational. Confidence: Confirmed (reproduced), High confidence (code
 and test evidence, no full reproduction), Suspected, Not reproducible.
@@ -242,6 +243,21 @@ and test evidence, no full reproduction), Suspected, Not reproducible.
 - **Tests:** `tests/ui_browser.cjs` (run by `tests/test_ui_browser.py` with `CRAFT_UI_NODE` and
   `CRAFT_UI_PLAYWRIGHT` set) now double-clicks the button and checks for exactly one create request
   and no error: it failed before the fix (`['POST', 'POST']`). All 20 opt-in browser tests pass.
+- **Status:** Fixed.
+
+### BUG-011: double-clicking Start, Restart or Stop shows a false "busy" error
+
+- **Severity / confidence:** P3 / Confirmed (reproduced in a real browser).
+- **Component:** `webui/app.js` (the header's `#btn-start`, `#btn-restart`, `#btn-stop`).
+- **Description:** the buttons were only disabled when the next status came back, so a
+  double-click sent a second request, which the server refused as busy.
+- **Impact:** a red "⚠ busy: start is running" next to "✓ start: started" on the most-used
+  buttons; Stop's "Stop the server?" question could be asked twice.
+- **Fix:** `pressOnce` disables the pressed button at once (a disabled button gets no second click);
+  the status, refreshed after the press and every 2 seconds anyway, then sets what can be pressed.
+- **Tests:** new opt-in browser test `tests/test_ui_power_buttons.py` (`ui_power_buttons.cjs`):
+  double-clicks each button and expects exactly `['start', 'restart', 'stop']`, no "busy" error,
+  one Stop question. It failed before the fix (`start` and `restart` each sent twice).
 - **Status:** Fixed.
 
 ## Security findings

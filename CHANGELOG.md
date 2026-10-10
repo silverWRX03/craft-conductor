@@ -22,6 +22,7 @@ its fix will say which version it's in.
 - On Windows, a `craft-conductor.toml` edited by hand with a comment or a folder name in another language (Chinese, or accents like "Música") could make the server show as unavailable ("can't decode byte"), or point **Also copy every backup to** at a folder with a garbled name, so backup copies quietly stopped. The file is now read and written as UTF-8, as TOML files are meant to be.
 - Restoring a **Saved mod list** (or going back with its "Before …" list) turned mods used as their datapack back into regular mods, so they weren't installed at the next update and their datapack left the world. Saved lists now keep that, like a mod's early builds.
 - Double-clicking **Create my server** (or pressing Enter twice) sent it twice: the server was made once, but a red message beside it said "port 25566 is already used by another server here … pick another". The button now waits until the server is being made.
+- Double-clicking **Start**, **Restart** or **Stop** at the top of a server's pages pressed it twice: a red "busy: start is running" appeared beside "start: started" (and Stop asked its question twice). Each now counts once.
 
 ## 0.26.0 (2026-10-09)
 

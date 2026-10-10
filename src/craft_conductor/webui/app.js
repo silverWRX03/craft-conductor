@@ -1183,14 +1183,25 @@ async function memoryOkToStart(sid, name) {
     + "\n\n" + t("It may slow right down, or a server may crash. Give servers less memory (Settings → Memory), or stop one first."),
   { ok: "Start anyway", id: "memory-start" });
 }
-$("#btn-start").addEventListener("click", async () => {
+// Start, Stop and Restart count once per press: the button is off from the moment it's pressed, so a
+// double-click's second press does nothing (rather than a "busy: start is running" error), and the
+// status (refreshed every 2 seconds anyway) then says what can be pressed.
+function pressOnce(handler) {
+  return async (e) => {
+    const btn = e.currentTarget;
+    if (btn.disabled) return;
+    btn.disabled = true;
+    try { await handler(); } finally { refreshStatus(); }
+  };
+}
+$("#btn-start").addEventListener("click", pressOnce(async () => {
   if (!server || await memoryOkToStart(server, (status && (status.motd || status.id)) || server))
-    act(() => api("/api/server/start", { method: "POST" }));
-});
-$("#btn-stop").addEventListener("click", async () => {
-  if (await ask("Stop the server? Players will be disconnected.", { id: "stop-server", ok: "Stop" })) act(() => api("/api/server/stop", { method: "POST" }));
-});
-$("#btn-restart").addEventListener("click", () => act(() => api("/api/server/restart", { method: "POST" })));
+    await act(() => api("/api/server/start", { method: "POST" }));
+}));
+$("#btn-stop").addEventListener("click", pressOnce(async () => {
+  if (await ask("Stop the server? Players will be disconnected.", { id: "stop-server", ok: "Stop" })) await act(() => api("/api/server/stop", { method: "POST" }));
+}));
+$("#btn-restart").addEventListener("click", pressOnce(() => act(() => api("/api/server/restart", { method: "POST" }))));
 
 // -------------------------------------------------------------------- views
 const views = {};
