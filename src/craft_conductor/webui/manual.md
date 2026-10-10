@@ -30,7 +30,7 @@ Help shows a picture of the screen with each topic, and in the User manual, **Se
 
 1. Download Craft Conductor for your computer from the [releases page](https://github.com/silverWRX03/craft-conductor/releases/latest): Windows, Mac (Apple silicon) or Linux.
 2. Open it. On Windows, if SmartScreen says it "protected your PC", choose **More info → Run anyway** (Craft Conductor isn't code-signed). On a Mac, the first time, see **On a Mac** just below.
-3. The control panel opens in your browser. Read and accept the notice (what Craft Conductor does and doesn't do).
+3. Craft Conductor opens in your browser. Until you've made a server, the downloaded program first offers to set up your Minecraft for a friend's server (**Join a friend's Minecraft server**): to run your own, press **Run my own server** under **Or run a Minecraft server of your own**, and the control panel opens in a new tab. Read and accept the notice (what Craft Conductor does and doesn't do).
 4. Sign in with the password `PASSWORD` (in capitals). Craft Conductor asks you to choose your own right away: a password, or a 4–8 digit PIN. A PIN only works in a browser on the server's own computer. Under the boxes, **Your password needs** lists what it must have and ticks each one off as you type: a password needs 4 or more characters (and can't be `PASSWORD`), a PIN 4 to 8 digits, and both boxes must match. To use Craft Conductor from your phone or another computer, the password must be **strong**: 12 or more characters, with an uppercase letter, a lowercase letter and a special character (like ! ? # %). With remote access on, that's what the list asks for.
 
 **On a Mac:** macOS blocks apps from the internet that aren't notarized, so the first time, open **Terminal** and run:
