@@ -203,6 +203,48 @@ def test_start_when_the_control_panels_port_is_taken(tmp_path, monkeypatch, caps
     assert "stopped unexpectedly" not in err and "WinError" not in err
 
 
+def test_a_taken_usual_port_moves_the_control_panel(tmp_path, monkeypatch, capsys, caplog):
+    """The usual port taken (and not chosen by hand): the control panel uses the next free port
+    this time, says so, and a second start of Craft Conductor opens that address."""
+    import socket
+    import subprocess
+    import sys
+    import threading
+    from craft_conductor.hub import hub_panel_path, hub_pid_path, running_panel
+    from test_web import wait_for
+    home = tmp_path / "home" / "craft-conductor"
+    monkeypatch.setenv("CRAFT_CONDUCTOR_HOME", str(home))
+    with socket.socket() as other:
+        other.bind(("127.0.0.1", 0))
+        other.listen(1)
+        taken = other.getsockname()[1]
+        hub = Hub(home, tick=0.1)
+        assert not hub.web_port_chosen
+        hub.web.port = taken  # (as if it were the usual port)
+        t = threading.Thread(target=hub.run, daemon=True)
+        t.start()
+        try:
+            wait_for(lambda: hub.ui is not None and hub.ui.httpd is not None and running_panel(home))
+            port = hub.ui.httpd.server_address[1]
+            assert taken < port <= taken + 30 and port != hub.share_settings()["port"]
+            assert running_panel(home) == f"http://localhost:{port}/"
+            assert f"port {taken} is taken" in caplog.text and f"on port {port} this time" in caplog.text
+        finally:
+            hub.stop_requested.set()
+            t.join(30)
+    assert not hub_panel_path(home).exists()
+    # Opening Craft Conductor again while it runs (another process) opens the address it's really on.
+    sleeper = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    try:
+        hub_pid_path(home).write_text(str(sleeper.pid))
+        hub_panel_path(home).write_text("http://localhost:8790/", encoding="utf-8")
+        assert cli.main(["-C", str(tmp_path), "start", "--no-browser"]) == 0
+        assert f"already running (pid {sleeper.pid}): http://localhost:8790/" in capsys.readouterr().out
+    finally:
+        sleeper.kill()
+        sleeper.wait(10)
+
+
 def test_start_opens_the_server_list(tmp_path, monkeypatch, fake_template, capsys):
     home = tmp_path / "home" / "craft-conductor"
     monkeypatch.setenv("CRAFT_CONDUCTOR_HOME", str(home))

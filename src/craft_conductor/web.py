@@ -144,6 +144,9 @@ class PortBusy(OSError):
     """The control panel couldn't listen on its port: another program has it, or Windows keeps it."""
 
 
+FALLBACK_PORTS = 30  # ports after the usual one tried when it's taken (WebUI.start's fallback)
+
+
 def host_allowed(host_header: str | None, extra: list[str]) -> bool:
     """Whether a request's Host header names this machine (guards against DNS rebinding)."""
     if not host_header:
@@ -222,7 +225,9 @@ class WebUI:
         host = "localhost" if self.host in ("127.0.0.1", "0.0.0.0", "::") else self.host
         return f"{'https' if self.tls else 'http'}://{host}:{self.httpd.server_address[1] if self.httpd else self.port}/"
 
-    def start(self) -> None:
+    def start(self, fallback: bool = False) -> None:
+        """Listen on the control panel's port. With ``fallback`` (the usual port, not one chosen by
+        hand) a port that's taken is no dead end: the next free one is used this time, and said so."""
         ui = self
 
         class Handler(RequestHandler):
@@ -230,10 +235,12 @@ class WebUI:
         try:
             self.httpd = _Server((self.host, self.port), Handler)
         except OSError as e:
-            raise PortBusy(f"Craft Conductor's control panel couldn't use port {self.port}: another program on this "
-                           f"computer is using it, or Windows keeps that port for itself ({e.strerror or e}). Close the "
-                           f"other program, or start Craft Conductor on another port: craft-conductor start --web-port "
-                           f"{self.port + 5}") from e
+            self.httpd = self._another_port(Handler, e) if fallback else None
+            if self.httpd is None:
+                raise PortBusy(f"Craft Conductor's control panel couldn't use port {self.port}: another program on this "
+                               f"computer is using it, or Windows keeps that port for itself ({e.strerror or e}). Close "
+                               f"the other program, or start Craft Conductor on another port: craft-conductor start "
+                               f"--web-port {self.port + 5}") from e
         self.httpd.daemon_threads = True
         if self.tls:
             context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -247,6 +254,24 @@ class WebUI:
                 self.hub.web.tls_cert = ""
         threading.Thread(target=self.httpd.serve_forever, daemon=True, name="web").start()
         log.info("web UI at %s - password: %s", self.url, webauth.describe(self.auth))
+
+    def _another_port(self, handler, error: OSError):
+        """A listener on the next free port after the usual one, leaving out the ones Craft Conductor
+        uses for other things (friends' downloads, the SSH tunnel to a rented server); None if
+        there's none."""
+        from .remoteinstall import LOCAL_PORT
+        skip = {LOCAL_PORT, *self.hub.reserved_ports()}
+        for port in range(self.port + 1, min(self.port + 1 + FALLBACK_PORTS, 65536)):
+            if port in skip:
+                continue
+            try:
+                server = _Server((self.host, port), handler)
+            except OSError:
+                continue
+            log.warning("port %s is taken (%s), so the control panel is on port %s this time", self.port,
+                        error.strerror or error, port)
+            return server
+        return None
 
     def stop(self) -> None:
         if self.httpd:
@@ -2202,7 +2227,7 @@ class HubApi:
             port = int(b.get("port", 8766))
         except (TypeError, ValueError):
             raise ApiError(400, "the port must be a number") from None
-        if not 1024 <= port <= 65535 or port == self.web.port:
+        if not 1024 <= port <= 65535 or port in (self.web.port, self._port()):
             raise ApiError(400, "pick a port between 1024 and 65535 that the control panel isn't using")
         if (server := self.hub.ports().get(port)) is not None:
             raise ApiError(400, f"port {port} is a Minecraft server's port here ({server}); pick another")
@@ -3256,7 +3281,7 @@ class Api:
         except (TypeError, ValueError):
             raise ApiError(400, "the port must be a number") from None
         props = read_properties(self.m.server_dir / "server.properties")
-        taken = set(self.web.hub.ports().keys()) | {int(props.get("server-port", "25565") or 25565), self.web.port}
+        taken = set(self.web.hub.ports().keys()) | {int(props.get("server-port", "25565") or 25565)} | self.web.hub.reserved_ports()
         try:
             message = webmap.set_port(self.m.server_dir, kind, self.m.lock.loader or self.m.config.server.loader, new, taken)
         except webmap.WebMapError as e:

@@ -25,7 +25,7 @@ fix them, without step-by-step exploit details.
 | BUG-010 | Double-clicking Create my server shows a false "port already used" error | P3 | Confirmed | Fixed |
 | BUG-011 | Double-clicking Start, Restart or Stop shows a false "busy" error | P3 | Confirmed | Fixed |
 | BUG-012 | A server can be given Craft Conductor's own port (and the reverse) | P4 | Confirmed | Fixed |
-| BUG-013 | A busy control panel port ends in "stopped unexpectedly" with a socket error | P3 | Confirmed | Fixed (message); auto-fallback is a question |
+| BUG-013 | A busy control panel port ends in "stopped unexpectedly" with a socket error | P3 | Confirmed | Fixed |
 
 Severity: P0 critical … P4 informational. Confidence: Confirmed (reproduced), High confidence (code
 and test evidence, no full reproduction), Suspected, Not reproducible.
@@ -291,11 +291,17 @@ and test evidence, no full reproduction), Suspected, Not reproducible.
   Windows and what to do (close the other program, or `--web-port`); `craft-conductor start` shows it
   through `desktop.show_error` (a message box when there's no console window). The manual's
   Troubleshooting has the same.
-- **Not done (question for the owner):** for a double-click user, `--web-port` is still hard to
-  use. Falling back to a free port by itself is a behaviour change (the address differs from the
-  documented one), so it's asked rather than done.
-- **Tests:** `tests/test_hub.py::test_start_when_the_control_panels_port_is_taken` (failed before).
-- **Status:** Fixed (the message); open question about the fallback.
+- **Fallback (the owner's decision, Q2):** when the port wasn't chosen by hand (`--web-port`, or a
+  port saved in `hub.json`), the control panel uses the next free port after it that time (skipping
+  the friends' download port and the SSH tunnel port), logs a warning, opens that address, and
+  notes it in `.craft-conductor/panel-url`, so opening Craft Conductor again goes to the right
+  address. The share and web map port checks compare with the real panel port. Caveat (accepted):
+  a phone set up through Tailscale only reaches the usual port. `craft-conductor run` (its port is
+  in `craft-conductor.toml`) keeps the message only.
+- **Tests:** `tests/test_hub.py::test_start_when_the_control_panels_port_is_taken` (a chosen port:
+  the message; failed before), `test_a_taken_usual_port_moves_the_control_panel` (the fallback,
+  the recorded address, and a second start opening it).
+- **Status:** Fixed.
 
 ## Security findings
 
@@ -356,12 +362,11 @@ update verification, IP-literal and `.local` Host names, per-server authorizatio
 
 - **Q1. First double-click on a new computer.** The standalone download opens the friend's page
   ("Join a friend's Minecraft server", with "Run my own server" further down) until a server
-  exists (`cli._first_run_joining`), while the README and the manual's Getting started say the
-  control panel opens. Keep it and change the docs, show a neutral "host or join?" choice, or
-  open the control panel (friends still get the join page from the `craft-conductor-join-...`
-  download, an invite in the file name, or a copied invite)?
-- **Q2. Busy control panel port (BUG-013).** Fall back to a free port by itself (the address then
-  differs from the documented 8765), or keep the message only?
+  exists (`cli._first_run_joining`), while the README and the manual's Getting started said the
+  control panel opens. Decided: keep the behaviour; the README and the manual now say to press
+  **Run my own server**. Done.
+- **Q2. Busy control panel port (BUG-013).** Decided: fall back to a free port when the port wasn't
+  chosen by hand. Done.
 - **Q3. Servers after a Craft Conductor update.** An update stops every server and they stay
   stopped until Start is pressed. Start again the ones that were running?
 - **Q4. Single-player world in use (N9).** Refuse to copy a world that's open in Minecraft, with a

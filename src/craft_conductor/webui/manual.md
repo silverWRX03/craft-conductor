@@ -459,7 +459,7 @@ Everything in Craft Conductor works with the keyboard and a screen reader (NVDA,
 
 **"Port ... is busy."** Another program (or another server) uses that port. Pick another on the server's Settings page, or for the friends' port under Craft Conductor settings → Connections → Sharing with friends.
 
-**"Craft Conductor's control panel couldn't use port 8765."** Another program uses the control panel's port, or Windows keeps it for itself (it sets some ports aside for Hyper-V and WSL). Close the other program, or restarting the computer often frees it; otherwise start Craft Conductor on another port from a command prompt (`craft-conductor start --web-port 8770`) and open the address it shows.
+**The control panel is on another port (like 8767).** When another program uses the control panel's usual port (8765), or Windows keeps it for itself (it sets some ports aside for Hyper-V and WSL), Craft Conductor uses the next free port that time, says so in its window, and opens that address; opening Craft Conductor again goes there too. A phone set up through Tailscale only reaches the usual port: close the other program, or restart the computer, and the next start is back on 8765. If you chose the port yourself (`craft-conductor start --web-port …`), it's kept, and Craft Conductor says when it can't use it ("couldn't use port …") instead of moving.
 
 **Friends can't connect from outside.** Check both ports are forwarded to this computer's local address, that you pressed **Use my public IP** again (home addresses change), and that your internet provider allows it (some don't; Tailscale or a VPN works then).
 

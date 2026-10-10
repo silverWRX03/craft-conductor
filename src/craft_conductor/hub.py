@@ -45,6 +45,20 @@ def hub_stop_path(home: Path) -> Path:
     return home / configmod.STATE_DIR / "hub-stop-requested"
 
 
+def hub_panel_path(home: Path) -> Path:
+    """The control panel's address while Craft Conductor runs (its port can differ from the usual one)."""
+    return home / configmod.STATE_DIR / "panel-url"
+
+
+def running_panel(home: Path) -> str | None:
+    """The address of the control panel a running Craft Conductor listens on, if it said."""
+    try:
+        url = hub_panel_path(home).read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    return url if re.fullmatch(r"https?://[A-Za-z0-9.\[\]:-]{1,260}:\d{1,5}/", url) else None
+
+
 def running_hub(home: Path) -> int | None:
     try:
         pid = int(hub_pid_path(home).read_text().strip())
@@ -160,6 +174,7 @@ class Hub:
         hub.stop_requested = daemon.stop_requested
         hub._lock = threading.RLock()
         hub._hub_lock = threading.RLock()
+        hub.web_port_chosen = True  # (`craft-conductor run`: its craft-conductor.toml says the port)
         hub.ui = None
         hub.share = None
         hub.share_error = None
@@ -234,6 +249,8 @@ class Hub:
             except ConfigError:
                 pass
         saved = self._hub_file().get("web", {})
+        # The control panel's port was chosen (not the usual one): it's kept even when it's taken.
+        self.web_port_chosen = web.port != WebConfig().port or (isinstance(saved, dict) and "port" in saved)
         if isinstance(saved, dict):
             web.host = str(saved.get("host", web.host))
             web.port = int(saved.get("port", web.port))
@@ -1234,8 +1251,9 @@ class Hub:
         try:
             self.scan()
             ui = WebUI(self)
-            ui.start()
+            ui.start(fallback=not self.web_port_chosen)
             self.ui = ui
+            hub_panel_path(self.home).write_text(ui.url, encoding="utf-8")  # (opening Craft Conductor again finds it)
             self.settle_update()
             if self.open_browser:
                 import webbrowser
@@ -1294,6 +1312,7 @@ class Hub:
                 except Exception:
                     log.exception("couldn't take the ports back on the router")
             self._stop_all()
+            hub_panel_path(self.home).unlink(missing_ok=True)
             hub_pid_path(self.home).unlink(missing_ok=True)
 
     def _stop_all(self) -> None:
