@@ -4382,7 +4382,7 @@ class Api:
             if clash:
                 raise ApiError(400, f"port {port} is already used by another server here ({clash})")
         path = self.m.config.path
-        original = path.read_text()
+        original = path.read_bytes()  # (put back exactly as it was if anything goes wrong)
         try:
             for key, value in b.items():
                 if key not in self.SETTINGS:
@@ -4402,10 +4402,10 @@ class Api:
                 if literal is None:
                     raise ApiError(400, f"{key} must be true or false")
                 configmod.set_value(path, table, toml_key, literal)
-            configmod.parse(self.m.config.root, tomllib.loads(path.read_text()))  # validate
+            configmod.parse(self.m.config.root, tomllib.loads(configmod.read_text(path)))  # validate
             self.m.reload_config()
         except Exception:
-            path.write_text(original)
+            path.write_bytes(original)
             raise
         props = self.m.server_dir / "server.properties"
         existing = read_properties(props)

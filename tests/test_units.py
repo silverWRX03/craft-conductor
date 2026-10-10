@@ -56,6 +56,34 @@ def test_setting_required_changes_only_that(tmp_path):
     assert "# added by hand" in path.read_text()
 
 
+def test_a_hand_edited_config_in_any_language(tmp_path):
+    """craft-conductor.toml is UTF-8 (TOML's rule), whatever this computer's own encoding: a comment in
+    Chinese, or a backup folder with accents, edited by hand, reads as written and survives the
+    page's changes. A file an old editor saved in this computer's own encoding is still read."""
+    path = tmp_path / "craft-conductor.toml"
+    usb = tmp_path / "Música"
+    template = configmod.render_template("fabric", "1.21.1")
+    assert template.count("\n[backups]\n") == 1
+    text = template.replace("\n[backups]\n", f'\n[backups]\n# 每天备份\ncopy_to = "{usb.as_posix()}"\n')
+    path.write_bytes(text.encode("utf-8"))
+    assert configmod.load(tmp_path).backups.copy_to == usb
+    configmod.set_value(path, "server", "memory", '"6G"')
+    configmod.append_mod(path, ModSpec("modrinth", "lithium"))
+    after = path.read_bytes().decode("utf-8")
+    assert "# 每天备份" in after and configmod.load(tmp_path).server.memory == "6G"
+    import locale
+    legacy = locale.getpreferredencoding(False)
+    try:
+        "é".encode(legacy)
+    except (UnicodeEncodeError, LookupError):
+        return  # (this computer's own encoding can't hold it: nothing to check)
+    path.write_bytes((configmod.render_template("fabric", "1.21.1") + "\n# copias de seguridad: Música\n").encode(legacy))
+    if legacy.lower().replace("-", "") not in ("utf8",):
+        assert configmod.load(tmp_path).server.loader == "fabric"
+        configmod.set_value(path, "server", "memory", '"5G"')
+        assert "Música" in path.read_bytes().decode("utf-8")
+
+
 def test_invalid_config(tmp_path):
     (tmp_path / "craft-conductor.toml").write_text('[server]\nloader = "bukkit"\n')
     with pytest.raises(ConfigError, match="server.loader"):

@@ -97,12 +97,12 @@ def restore(cfg, name: str, minecraft: str | None = None) -> str:
     entry = check(entry)
     save(cfg, f"Before {name}"[:60], minecraft)
     path = cfg.path
-    original = path.read_text()
+    original = path.read_bytes()  # (put back exactly as it was if anything goes wrong)
     try:
         configmod.set_mods(path, [ModSpec(m["source"], m["id"], required=m["required"], channel=m["channel"]) for m in entry["mods"]])
         configmod.set_value(path, "client", "mods", json.dumps(entry["client_mods"]))
-        configmod.parse(cfg.root, tomllib.loads(path.read_text()))  # still a valid config
+        configmod.parse(cfg.root, tomllib.loads(configmod.read_text(path)))  # still a valid config
     except Exception:
-        path.write_text(original)
+        path.write_bytes(original)
         raise
     return f"switched to {name!r}: {len(entry['mods'])} mod(s), installed with the next update"
