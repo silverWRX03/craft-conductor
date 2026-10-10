@@ -1,6 +1,6 @@
 # Bug hunt report (October 2026)
 
-**Status:** in progress (this file is kept current while the investigation runs).
+**Status:** first pass complete; open questions below. Kept current while work continues.
 **Branch:** `audit/comprehensive-bug-hunt-2026-10`, from `main` at `11f9721` (0.26.0 + the 26.x player fix).
 **Scope:** the whole application: server lifecycle, mods and modpacks, backups and restores, the
 control panel and its API, friends' downloads, self-updates, and the web page.
@@ -299,20 +299,103 @@ and test evidence, no full reproduction), Suspected, Not reproducible.
 
 ## Security findings
 
-Reviewed so far: the control panel's request handling (Host check, sign-in, sessions, the
-`X-CRAFT-CONDUCTOR` header, paired-phone permissions, local-only routes, uploads), the friends'
-download server (`share.py`), the friend side (`join.py`), the HTTP client and certificate
-pinning, archive extraction (`safearchive.py`, `backup.py`), and the self-updater. No new
-exploitable vulnerability has been confirmed. BUG-004 has a security side (an "off" for remote
-access that doesn't last). Known gaps already recorded in `docs/security/THREAT_MODEL.md`
-(checksum-only update verification, IP-literal and `.local` Host names) are not repeated as findings.
+**No new exploitable vulnerability was confirmed.** Reviewed by reading, with the existing
+security tests (`tests/security/`) passing:
 
-## Unresolved questions
+- **Control panel** (`web.py`, `webauth.py`): Host check against DNS rebinding, session cookies
+  (HttpOnly, SameSite=Strict), the `X-CRAFT-CONDUCTOR` header on every POST, sign-in throttling,
+  the first-password and PIN rules, paired-phone roles and hidden routes, local-only routes,
+  upload names and sizes, the console's one-line rule. Nothing found beyond the known gaps.
+- **Passkeys** (`passkeys.py`, `webpush.verify`): single-use challenges bound to the address,
+  origin check, user-verification flag, counter; ECDSA verification checks `r`/`s` ranges and the
+  point at infinity; RSA builds and compares the whole expected encoding.
+- **Friends' downloads** (`share.py`, `join.py`, `joinui.py`, `clientpack.py`): 144-bit invite
+  secrets with expiry, certificate pinning, mods only from the mod sites' CDNs over HTTPS and
+  hash-checked, file names checked; the friend's local page checks Host, a secret in every URL
+  and the custom header.
+- **Archives** (`safearchive.py`, `backup.py`, `world.py`, `transfer.py`, `modpack.py`): one name
+  rule set, no links, bomb and disk-space limits, staged restores.
+- **Self-update** (`selfupdate.py`, `rollback.py`): never a downgrade, size and checksum checks,
+  the old version kept and put back by a guard process.
+- **Commands** (`firewall.py`, `remoteinstall.py`, `process.py`): argument lists, strict host and
+  user names (no leading `-`), base64-encoded PowerShell with escaped labels.
+- **Web pages** (`app.js`, `rich.js`, `site/join/`): DOM built from text nodes, an allowlist
+  sanitizer for mod descriptions, links and pictures limited to web addresses, strict CSP.
+- **CI** (`.github/workflows/`): no `pull_request_target`; write tokens only on `main` or release
+  runs; the release version reaches scripts through an environment variable.
 
-None yet.
+Security-relevant items: BUG-004 (turning remote access off could be undone at the next start);
+BUG-007 (wiped ban lists let banned players back). Hardening notes (not vulnerabilities): N7, N8,
+N12, N13, N14 below. Gaps already recorded in `docs/security/THREAT_MODEL.md` (checksum-only
+update verification, IP-literal and `.local` Host names, per-server authorization) aren't repeated.
 
-## Remaining risks and limitations
+## Notes not fixed (P4 / informational)
 
-- Only Windows was tested locally; Linux and macOS rely on CI.
-- Behaviour that needs real Minecraft, real routers or real mod sites was reviewed by reading and
-  tested with the project's stand-ins only.
+| ID | Note | Why it isn't fixed here |
+|---|---|---|
+| N1 | `POST /api/java/install` with a non-number `major` answers 500 "internal error" (API only; the page always sends a number) | Cosmetic |
+| N2 | **Restore** accepts any file in the backups folder by name (a non-backup is then refused as damaged), unlike the other backup actions | Harmless |
+| N3 | Deleting a server can race with its daemon starting a job in the same 2-second tick | Rare; the server is being deleted anyway |
+| N4 | A crash restart is dropped if a job is started from the page in the second the crash is handled (the server stays stopped; Start works) | Rare |
+| N5 | A legacy server kept directly in the home folder shares its update staging folder with the hub's upload staging, which every update empties | Legacy layout (0.1-0.3) only |
+| N6 | An uploaded world `.zip` stays in the staging folder after setup until the 1-day cleanup | Disk space only |
+| N7 | A server export includes `craft-conductor.toml` as it is (a Discord webhook or CurseForge key travels with it); the diagnostic report removes them | Needs a decision (Q5) |
+| N8 | Windows Firewall rules added by **Let them through Windows Firewall** aren't removed when a server is deleted or its port changes | Removing needs another administrator prompt: a UX decision |
+| N9 | A single-player world that's open in Minecraft isn't detected before it's copied to a server (the copy may be inconsistent) | Suspected; needs real Minecraft to verify (Q4) |
+| N10 | When a mod is dropped because one of its dependencies is unavailable, its other (available) dependencies are still installed | Unneeded library mods only |
+| N11 | Other job buttons (Backups, Updates: Apply update ...) can still show a "busy" error on a double-click, like BUG-011 | Same remedy if wanted; not changed without looking at each |
+| N12 | CI and release use third-party actions by major tag (not commit SHA) and install PyInstaller/`build` by version range | Supply-chain hardening (threat model UPD-05) |
+| N13 | Self-updates are verified against `SHA256SUMS.txt` from the same release | Known (threat model UPD-01) |
+| N14 | The mod-conflict relay can be fed fake conflicts by someone with three or more addresses (shown as warnings only) | Design limit |
+| N15 | The opt-in browser regression failed once in about nine runs (passed 5/5 when repeated) | Intermittent; not traced |
+| N16 | Installing Java renames the unpacked folder once; on Windows an antivirus scan holding a file could make that fail (downloads retry, this doesn't) | Suspected; not reproduced |
+| N17 | Every server's update check clears the HTTP cache shared with the page's mod browser | Efficiency only |
+| N18 | A dependency missing on one site is replaced by "the same mod" on the other, matched by name/slug, which could match a different mod with the same name | Design trade-off |
+
+## Unresolved questions (decisions for the owner)
+
+- **Q1. First double-click on a new computer.** The standalone download opens the friend's page
+  ("Join a friend's Minecraft server", with "Run my own server" further down) until a server
+  exists (`cli._first_run_joining`), while the README and the manual's Getting started say the
+  control panel opens. Keep it and change the docs, show a neutral "host or join?" choice, or
+  open the control panel (friends still get the join page from the `craft-conductor-join-...`
+  download, an invite in the file name, or a copied invite)?
+- **Q2. Busy control panel port (BUG-013).** Fall back to a free port by itself (the address then
+  differs from the documented 8765), or keep the message only?
+- **Q3. Servers after a Craft Conductor update.** An update stops every server and they stay
+  stopped until Start is pressed. Start again the ones that were running?
+- **Q4. Single-player world in use (N9).** Refuse to copy a world that's open in Minecraft, with a
+  message? Needs testing with real Minecraft on each platform.
+- **Q5. Secrets in exports (N7).** Leave the Discord webhook and CurseForge key out of exports
+  (to be entered again on the new computer), or keep exports complete?
+
+## Testing results
+
+- **Last full run** (this branch, Windows, Python 3.12.6): `pytest -q`: **763 passed, 31 skipped,
+  0 failed** (baseline 743 / 30 / 0; the new opt-in browser test counts as skipped without
+  `CRAFT_UI_NODE`). Later commits were checked with the affected test files.
+- **Browser tests** (opt-in, Playwright with Edge): all 21 pass, including the new
+  `test_ui_power_buttons.py`; see N15.
+- **Not run:** the end-to-end check with real Minecraft, Java and mod sites (`e2e.yml`, CI on pull
+  requests); Linux and macOS (CI); builds (CI only, by the project's rule).
+- **CI:** not run yet: the branch hasn't been pushed (waiting for the owner's go-ahead).
+
+## Coverage and limitations
+
+Read in full or in depth: `web.py`, `daemon.py`, `manager.py`, `hub.py`, `backup.py`,
+`process.py`, `properties.py`, `config.py` (editing), `players.py`, `modsets.py`, `planner.py`,
+`mods/modrinth.py`, `mods/base.py`, `share.py`, `join.py`, `joinui.py` (request handling),
+`http.py`, `selfupdate.py`, `rollback.py`, `safearchive.py`, `world.py`, `transfer.py`,
+`webauth.py`, `passkeys.py`, `upnp.py` (discovery), `remoteinstall.py`, `java.py` (installing),
+`schedule.py`, `setup.py`, `cli.py` (start, join), `desktop.py`, the workflows, `site/join/`,
+`relay/worker.js`, and in `app.js` the element helper, sign-in, power buttons and New server.
+
+Skimmed or not reviewed in depth: `curseforge.py`, `curseforgepack.py`, `handdownload.py`,
+`launchers.py`, `friendextras.py`, `singleplayer.py`, `preview.py`, `trial.py`, `rehearsal.py`,
+`lagfinder.py`, `filecheck.py`, `modcheck.py`, the loaders, `discordbot.py`, `push.py`,
+`tunnel.py`, `tailscale.py`, `service.py`, `health.py`, `limits.py`, and most of `app.js`
+(8,300 lines). Their existing tests pass.
+
+Limits: only Windows was tested here; nothing ran against real Minecraft, routers, Discord or
+the mod sites (the project's stand-ins only); the threat model's target architecture (per-server
+authorization, signed updates, node agents) is a roadmap, not a defect list.
