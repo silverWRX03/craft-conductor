@@ -93,6 +93,45 @@ def test_server_properties_editing(tmp_path):
     assert path.read_text().startswith("#Minecraft")
 
 
+@pytest.mark.parametrize("name", ["我的服务器", "Máy chủ của tôi", "Café ☕", "Ángel's world 🎮", r"Me\You"])
+def test_a_server_name_in_any_language(tmp_path, name):
+    """A Java properties file: names are written as \\u escapes (plain ASCII, so every Minecraft reads
+    them the same, whatever this computer's own text encoding), and read back as they were typed."""
+    from craft_conductor.properties import read_properties, write_properties
+    path = tmp_path / "server.properties"
+    write_properties(path, {"motd": name})
+    assert read_properties(path)["motd"] == name
+    path.read_bytes().decode("ascii")  # (Windows' own encoding can't hold most of these)
+    if "\\" in name:  # (Java reads a lone backslash as an escape)
+        assert "motd=Me\\\\You" in path.read_text()
+
+
+def test_server_properties_as_minecraft_writes_them(tmp_path):
+    """Minecraft keeps server.properties in UTF-8 (older ones: ISO-8859-1, with \\u escapes); a value it
+    escaped (https\\://) means what it says. Lines craft-conductor doesn't change stay byte for byte."""
+    from craft_conductor.properties import read_properties, write_properties
+    path = tmp_path / "server.properties"
+    utf8 = "#Minecraft server properties\r\nmotd=Ángel's Café\r\nresource-pack=https\\://example.com/a.zip\r\nserver-port=25565\r\n"
+    path.write_bytes(utf8.encode("utf-8"))
+    assert read_properties(path) == {"motd": "Ángel's Café", "resource-pack": "https://example.com/a.zip",
+                                     "server-port": "25565"}
+    write_properties(path, {"server-port": "25566"})
+    assert path.read_bytes().split(b"\n")[:3] == utf8.encode("utf-8").split(b"\n")[:3]
+    assert read_properties(path)["server-port"] == "25566"
+    old = b"motd=Caf\xe9 \\u00e0 la plage \\uD83C\\uDFAE\nlevel-name=world\n"  # (ISO-8859-1)
+    path.write_bytes(old)
+    assert read_properties(path)["motd"] == "Café à la plage 🎮"
+    write_properties(path, {"level-name": "world2"})
+    assert path.read_bytes().startswith(b"motd=Caf\xe9 ") and read_properties(path)["level-name"] == "world2"
+
+
+def test_a_new_server_named_in_any_language(tmp_path):
+    from craft_conductor import setup as setupmod
+    from craft_conductor.properties import read_properties
+    cfg = setupmod.configure(tmp_path, setupmod.SetupSpec(motd="我的服务器", accept_eula=True))
+    assert read_properties(cfg.server.dir / "server.properties")["motd"] == "我的服务器"
+
+
 def test_neoforge_versions(http):
     assert neoforge_prefix("1.21.1") == "21.1."
     assert neoforge_prefix("1.21") == "21.0."

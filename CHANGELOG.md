@@ -12,6 +12,7 @@ its fix will say which version it's in.
 
 **Fixed**
 - On Minecraft 26.x servers, the Dashboard's **Connected Players** and the Players page's **Online now** said nobody was online while players were in the game, and **Player activity** recorded no one. Minecraft 26.x writes joins and leaves to its log differently ("System chat: … joined the game"), and Craft Conductor now reads both forms.
+- On Windows, **Create my server** failed with "'charmap' codec can't encode characters" for a server named in Chinese, Korean, Hindi, Arabic or Vietnamese, or with an emoji. A name with accents (like "Ángel's Café") showed up garbled ("Ã©") once the server had run, and saving the server's Settings could then fail the same way. Server names in any language now work, and read the same in every Minecraft version.
 
 ## 0.26.0 (2026-10-09)
 
