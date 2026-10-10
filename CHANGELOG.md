@@ -16,6 +16,7 @@ its fix will say which version it's in.
 - Ticking or unticking **required** next to a mod on the Mods page also undid the mod's other settings: a mod added with its early (beta or alpha) builds lost them, so it was dropped (or held the update back) at the next update, and a mod used as its datapack was switched back to the mod build and taken out of the world. The box now changes only that, and the mod keeps its place in the list.
 - A scheduled restart never happened when a scheduled backup was due at the same minute (for example backups **Every hour** and a restart **Every day at 4:00**): only the backup was made. Both happen now, the backup first.
 - A scheduled backup or restart was silently skipped when Craft Conductor was busy for more than 10 minutes at that time (a long update or backup). It now happens as soon as that's done (a restart isn't repeated if the server restarted meanwhile).
+- Backups (and exports, and the copies made to try a beta or rehearse an update) of a running server waited a fixed 5 seconds for Minecraft to save the world before copying it. A big world on a slow disk can take longer, so a backup could hold half-written parts of the world. Craft Conductor now waits until the server says the world is saved (up to a minute; if it never says so, the backup is still made, with a warning in the activity).
 
 ## 0.26.0 (2026-10-09)
 

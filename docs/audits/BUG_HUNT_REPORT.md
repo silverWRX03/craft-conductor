@@ -17,7 +17,7 @@ fix them, without step-by-step exploit details.
 | BUG-002 | A scheduled restart is dropped when a scheduled backup is due in the same minute | P2 | Confirmed | Fixed |
 | BUG-003 | Scheduled backups and restarts are skipped after a job longer than 10 minutes | P3 | High confidence | Fixed |
 | BUG-004 | Settings in `hub.json` can be silently undone by a concurrent save (UPnP sync) | P3 | High confidence | Open |
-| BUG-005 | Backups of a running server wait a fixed 5 s for the world to be saved | P2 | High confidence | Open |
+| BUG-005 | Backups of a running server wait a fixed 5 s for the world to be saved | P2 | High confidence | Fixed |
 | BUG-006 | Ticking "required" on a mod drops its early-builds channel and datapack setting | P2 | Confirmed | Fixed |
 
 Severity: P0 critical … P4 informational. Confidence: Confirmed (reproduced), High confidence (code
@@ -122,7 +122,17 @@ and test evidence, no full reproduction), Suspected, Not reproducible.
   modded world on a slow disk can take longer.
 - **Impact:** the backup can hold region files Minecraft was still writing; the backup check reads
   the archive but can't tell a half-written chunk.
-- **Status:** Open.
+- **Root cause:** a fixed `time.sleep(5)` after `save-all flush`, copied into four places (backup,
+  export, beta test copy, update rehearsal), while the map preview already waited for the answer.
+- **Fix:** `ServerProcess.pause_saving()` sends `save-off`, then `save-all flush`, and waits for the
+  server's "Saved the game" ("Saved the world" before 1.13) for up to 60 s; without the answer the
+  copy still goes ahead (the old behaviour), with a warning. `resume_saving()` is in a `finally`,
+  so `save-on` follows even when the save step itself fails. The four copies use it; the preview
+  uses the same `save_all()`. The tests' stand-in servers now answer `save-all` as Minecraft does.
+- **Tests:** `tests/test_units.py`: `test_a_running_server_is_copied_once_it_says_the_world_is_saved`
+  (both wordings, a 1.5 s save), `test_a_server_that_never_says_its_saved_is_still_copied`; the
+  flow and chaos tests still check `save-off`/`save-on` around a live backup.
+- **Status:** Fixed.
 
 ### BUG-006: ticking "required" on a mod drops its early-builds channel and datapack setting
 

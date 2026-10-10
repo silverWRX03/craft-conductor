@@ -341,18 +341,16 @@ class Daemon:
         and copied to the backup copy folder if one is set."""
         from . import backup
         cfg = self.m.config
-        running = self.proc is not None and self.proc.running
-        if running:
-            self.proc.send("save-off")
-            self.proc.send("save-all flush")
-            time.sleep(5)
+        proc = self.proc if self.proc is not None and self.proc.running else None
         try:
+            if proc:
+                proc.pause_saving()
             path = backup.create(self.m.server_dir, cfg.backups.dir, label, cfg.backups.exclude)
             from . import snapshots
             snapshots.record(path, self.m)
         finally:
-            if running and self.proc.running:
-                self.proc.send("save-on")
+            if proc:
+                proc.resume_saving()
         backup.prune(cfg.backups.dir, cfg.backups.keep)
         # Read it back (it's still in the computer's cache, so this is quick): a backup that
         # can't be restored is worse than none, and it's better to know now.

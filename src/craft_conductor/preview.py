@@ -681,7 +681,7 @@ class MapSession:
         else:
             raise PreviewError("making the world took too long; try a smaller area")
         report("Saving the world…", None)
-        proc.ask("save-all flush", lambda ls: True if any("Saved the game" in x for x in ls) else None, timeout=60)
+        proc.save_all()
         chunks = (2 * radius // 16 + 1) ** 2
         took = max(1.0, time.monotonic() - started)
         self.rate = round(chunks / took, 1)

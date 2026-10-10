@@ -4054,17 +4054,15 @@ class Api:
                 configmod.set_mod_required(path, spec.source, spec.id, False)
 
         def run():
-            running = self.d.proc and self.d.proc.running
-            if running:
-                self.d.proc.send("save-off")
-                self.d.proc.send("save-all flush")
-                time.sleep(5)
+            proc = self.d.proc if self.d.proc and self.d.proc.running else None
             tmp = hub.staging_dir / f"beta-{time.time_ns()}"
             try:
+                if proc:
+                    proc.pause_saving()
                 archive = transfer.export(self.m, tmp / "copy.zip")
             finally:
-                if running and self.d.proc and self.d.proc.running:
-                    self.d.proc.send("save-on")
+                if proc:
+                    proc.resume_saving()
             try:
                 sid = hub.import_archive(archive, f"{name} (beta {version})", prepare)
             finally:
@@ -4161,18 +4159,16 @@ class Api:
         include_backups = bool(b.get("backups"))
 
         def run():
-            running = self.d.proc and self.d.proc.running
-            if running:  # write everything to disk and hold it there while copying
-                self.d.proc.send("save-off")
-                self.d.proc.send("save-all flush")
-                time.sleep(5)
+            proc = self.d.proc if self.d.proc and self.d.proc.running else None
             try:
+                if proc:  # write everything to disk and hold it there while copying
+                    proc.pause_saving()
                 from .properties import read_properties
                 name = read_properties(self.m.server_dir / "server.properties").get("motd") or self.sid
                 path = transfer.export(self.m, self.exports_dir / transfer.export_name(name), include_backups)
             finally:
-                if running and self.d.proc and self.d.proc.running:
-                    self.d.proc.send("save-on")
+                if proc:
+                    proc.resume_saving()
             return f"exported to {path.name}"
         return self._job("export", run)
 

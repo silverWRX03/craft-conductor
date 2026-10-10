@@ -346,6 +346,56 @@ def test_http_waits_out_rate_limits(monkeypatch):
         httpmod.HttpClient(cache_ttl=0).get_json("https://api.mojang.com/y")
 
 
+SLOW_SAVER = """
+import sys, time
+print("[12:00:00] [Server thread/INFO]: Done (0.1s)! For help, type \\"help\\"", flush=True)
+for line in sys.stdin:
+    cmd = line.strip()
+    print(f"[12:00:01] [Server thread/INFO]: {cmd}", flush=True)
+    if cmd == "save-all flush" and WORD:
+        time.sleep(1.5)  # (a big world on a slow disk)
+        print("[12:00:03] [Server thread/INFO]: Saved the " + WORD, flush=True)
+    elif cmd == "stop":
+        sys.exit(0)
+"""
+
+
+@pytest.mark.parametrize("word", ["game", "world"])  # ("world": Minecraft 1.12 and older)
+def test_a_running_server_is_copied_once_it_says_the_world_is_saved(tmp_path, word):
+    """Before a backup or an export, saving is paused and the whole world written out: the copy waits
+    for the server to say it's done, not for a fixed few seconds that a big world can outlast."""
+    import sys
+    import time as _time
+    from craft_conductor.process import ServerProcess
+    proc = ServerProcess([sys.executable, "-c", SLOW_SAVER.replace("WORD", repr(word))], tmp_path, echo=False)
+    proc.start()
+    try:
+        assert proc.wait_ready(20)
+        started = _time.monotonic()
+        assert proc.pause_saving()
+        assert _time.monotonic() - started >= 1.4
+        assert any(line.endswith("Saved the " + word) for line in proc.lines)
+        proc.resume_saving()
+    finally:
+        proc.stop(10)
+    assert [line.rsplit(": ", 1)[1] for line in proc.lines if line.endswith(("save-off", "save-on", "flush"))] == \
+        ["save-off", "save-all flush", "save-on"]
+
+
+def test_a_server_that_never_says_its_saved_is_still_copied(tmp_path, monkeypatch, caplog):
+    import sys
+    from craft_conductor import process
+    monkeypatch.setattr(process, "SAVE_TIMEOUT", 1)
+    proc = process.ServerProcess([sys.executable, "-c", SLOW_SAVER.replace("WORD", "''")], tmp_path, echo=False)
+    proc.start()
+    try:
+        assert proc.wait_ready(20)
+        assert proc.pause_saving() is False
+        assert "didn't say it had saved the world" in caplog.text
+    finally:
+        proc.stop(10)
+
+
 def test_process_stats():
     import os
     import time as _time
