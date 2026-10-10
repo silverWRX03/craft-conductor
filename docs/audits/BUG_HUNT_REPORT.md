@@ -20,6 +20,8 @@ fix them, without step-by-step exploit details.
 | BUG-005 | Backups of a running server wait a fixed 5 s for the world to be saved | P2 | High confidence | Fixed |
 | BUG-006 | Ticking "required" on a mod drops its early-builds channel and datapack setting | P2 | Confirmed | Fixed |
 | BUG-007 | Ban lists with non-ASCII reasons read as empty on Windows, then wiped by the next edit | P2 | Confirmed | Fixed |
+| BUG-008 | Saved mod lists forget which mods are datapack builds | P3 | Confirmed | Fixed |
+| BUG-009 | A hand-edited `craft-conductor.toml` in another language breaks on Windows | P3 | Confirmed | Fixed |
 
 Severity: P0 critical … P4 informational. Confidence: Confirmed (reproduced), High confidence (code
 and test evidence, no full reproduction), Suspected, Not reproducible.
@@ -59,9 +61,7 @@ and test evidence, no full reproduction), Suspected, Not reproducible.
 - **Tests:** `tests/test_units.py`: `test_a_server_name_in_any_language` (5 names),
   `test_server_properties_as_minecraft_writes_them`, `test_a_new_server_named_in_any_language`.
   They failed before the fix (6 failures) and pass after it.
-- **Related, not fixed here:** `craft-conductor.toml` is also read in the locale encoding. Values the
-  app writes are ASCII-escaped, so only hand-edited non-ASCII text is affected (recorded as a
-  follow-up, see "Remaining risks").
+- **Related:** `craft-conductor.toml` had the same problem for hand-edited text (BUG-009).
 - **Status:** Fixed.
 
 ### BUG-002: a scheduled restart is dropped when a scheduled backup is due in the same minute
@@ -192,6 +192,39 @@ and test evidence, no full reproduction), Suspected, Not reproducible.
   `test_a_list_that_cant_be_read_isnt_replaced` (both failed before the fix).
 - **Status:** Fixed.
 
+### BUG-008: saved mod lists forget which mods are datapack builds
+
+- **Severity / confidence:** P3 / Confirmed (failing test).
+- **Component:** `modsets.py` (Saved mod lists: save, restore, import).
+- **Description:** a saved list kept each mod's source, id, required and channel, but not
+  `datapack` (added in 0.26.0). Restoring a list, including the automatic "Before …" list used to
+  undo a switch, wrote every mod back as a regular mod.
+- **Impact:** as BUG-006 for each datapack mod: it's looked for as a mod for the server type,
+  which it has no build for, and its datapack leaves the world at the next update.
+- **Fix:** lists record `datapack`; a loaded list accepts it for Modrinth mods only; restore writes it back.
+- **Tests:** `tests/test_modsets.py::test_a_saved_list_keeps_each_mods_settings` (failed before:
+  `('terralith', True, None, False) != ('terralith', True, None, True)`).
+- **Status:** Fixed.
+
+### BUG-009: a hand-edited `craft-conductor.toml` in another language breaks on Windows
+
+- **Severity / confidence:** P3 / Confirmed (reproduced on Windows; failing test).
+- **Component:** `config.py` (`load` and the editing helpers), `snapshots.py`, `modsets.py`,
+  `web.py` (`save_settings`).
+- **Description:** TOML files are UTF-8, but `craft-conductor.toml` was read and written in the
+  computer's own encoding. Values the app writes are ASCII-escaped, so only text edited by hand
+  (the wiki's Power users pages describe doing so) is affected.
+- **Impact:** on Windows, a UTF-8 comment or value with some characters (Chinese, "Á" …) made the
+  server "unavailable" with "'charmap' codec can't decode byte 0x8f"; others were misread, e.g.
+  `copy_to = "D:\Música"` became "MÃºsica", so backup copies quietly stopped (the folder "isn't there").
+- **Fix:** `config.read_text` reads UTF-8 (a byte-order mark tolerated; a file saved by an old
+  editor in the computer's own encoding still read), `config.write_text` writes UTF-8; every
+  reader and writer of the file uses them, and the "put it back if saving fails" copies are kept
+  as bytes, so they're restored exactly.
+- **Tests:** `tests/test_units.py::test_a_hand_edited_config_in_any_language` (failed before with
+  the `UnicodeDecodeError`).
+- **Status:** Fixed.
+
 ## Security findings
 
 Reviewed so far: the control panel's request handling (Host check, sign-in, sessions, the
@@ -211,4 +244,3 @@ None yet.
 - Only Windows was tested locally; Linux and macOS rely on CI.
 - Behaviour that needs real Minecraft, real routers or real mod sites was reviewed by reading and
   tested with the project's stand-ins only.
-- `craft-conductor.toml` is read and written in the locale encoding (see BUG-001, related).
