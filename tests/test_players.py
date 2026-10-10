@@ -177,6 +177,46 @@ def test_roster_survives_a_hand_edited_file(server, http):
     assert Players(server, http).roster({"Alex"})["players"][0]["op"] is False
 
 
+BANS = [  # as Minecraft writes banned-players.json: UTF-8, whatever the reason's language
+    {"uuid": "ec561538-f3fd-461d-aff5-086b22154bce", "name": "Alex", "created": "2026-10-01 12:00:00 +0000",
+     "source": "Server", "expires": "forever", "reason": "破坏建筑"},
+    {"uuid": "8667ba71-b85a-4004-af54-457a9734eed7", "name": "Steve", "created": "2026-10-02 12:00:00 +0000",
+     "source": "Server", "expires": "forever", "reason": "Ángel's base, АНТИЧИТ"},
+]
+
+
+def test_bans_in_any_language_survive_an_edit(server, http):
+    """A ban list with reasons in Chinese, Spanish or Russian is read as it is (on Windows it used to
+    come back empty), and banning someone else while the server is stopped keeps every ban."""
+    (server / "banned-players.json").write_bytes(json.dumps(BANS, ensure_ascii=False, indent=2).encode("utf-8"))
+    (server / "usercache.json").write_text(json.dumps(
+        [{"name": "Kit", "uuid": "0f1c7d4e-2b9a-4c31-9a77-2d3c4b5a6f70", "expiresOn": "2030-01-01 00:00:00 +0000"}]))
+    p = Players(server, http)
+    assert [(b["name"], b["reason"]) for b in p.summary()["bans"]] == [("Alex", "破坏建筑"), ("Steve", "Ángel's base, АНТИЧИТ")]
+    p.act("ban", "Kit", "spam")
+    saved = json.loads((server / "banned-players.json").read_text(encoding="utf-8"))
+    assert [(b["name"], b["reason"]) for b in saved] == [("Alex", "破坏建筑"), ("Steve", "Ángel's base, АНТИЧИТ"), ("Kit", "spam")]
+    p.act("pardon", "Alex")
+    assert [b["name"] for b in json.loads((server / "banned-players.json").read_text(encoding="utf-8"))] == ["Steve", "Kit"]
+
+
+def test_a_list_that_cant_be_read_isnt_replaced(server, http):
+    """A damaged ops.json (or ban list, or whitelist) isn't treated as empty and overwritten by the
+    next change made while the server is stopped: that would wipe every op, ban or name on it."""
+    (server / "usercache.json").write_text(json.dumps(
+        [{"name": "Kit", "uuid": "0f1c7d4e-2b9a-4c31-9a77-2d3c4b5a6f70", "expiresOn": "2030-01-01 00:00:00 +0000"}]))
+    damaged = b'[{"uuid": "ec561538-f3fd-461d-aff5-086b22154bce", "name": "Alex", "level": 4}, {"uuid": '
+    for name, action in (("ops.json", "op"), ("banned-players.json", "ban"), ("whitelist.json", "whitelist-add")):
+        (server / name).write_bytes(damaged)
+        with pytest.raises(PlayerError, match=name):
+            Players(server, http).act(action, "Kit")
+        assert (server / name).read_bytes() == damaged
+    # Odd entries someone typed in by hand are kept as they are, not a reason to fail.
+    (server / "ops.json").write_text(json.dumps(["Steve", {"name": None}, {"name": "Alex", "uuid": "x", "level": 4}]))
+    Players(server, http).act("deop", "Alex")
+    assert read(server, "ops.json") == ["Steve", {"name": None}]
+
+
 def test_roster_without_files_or_server(server, http):
     roster = Players(server / "nowhere", http).roster(set())
     assert roster == {"running": False, "players": [], "max": 20, "whitelist_enabled": False,

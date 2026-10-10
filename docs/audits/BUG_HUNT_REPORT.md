@@ -19,6 +19,7 @@ fix them, without step-by-step exploit details.
 | BUG-004 | Settings in `hub.json` can be silently undone by a concurrent save (UPnP sync) | P3 | Confirmed | Fixed |
 | BUG-005 | Backups of a running server wait a fixed 5 s for the world to be saved | P2 | High confidence | Fixed |
 | BUG-006 | Ticking "required" on a mod drops its early-builds channel and datapack setting | P2 | Confirmed | Fixed |
+| BUG-007 | Ban lists with non-ASCII reasons read as empty on Windows, then wiped by the next edit | P2 | Confirmed | Fixed |
 
 Severity: P0 critical … P4 informational. Confidence: Confirmed (reproduced), High confidence (code
 and test evidence, no full reproduction), Suspected, Not reproducible.
@@ -163,6 +164,32 @@ and test evidence, no full reproduction), Suspected, Not reproducible.
   stays. The beta test copy (`test_beta`) uses it too, so its mods keep their channel and datapack.
 - **Tests:** `tests/test_early_builds.py::test_the_required_box_keeps_a_mods_channel_and_datapack`
   (failed before: `(False, None) != (False, 'beta')`), `tests/test_units.py::test_setting_required_changes_only_that`.
+- **Status:** Fixed.
+
+### BUG-007: ban lists with non-ASCII reasons read as empty on Windows, then wiped by the next edit
+
+- **Severity / confidence:** P2 / Confirmed (reproduced on Windows; failing tests).
+- **Component:** `players.py` (`Players._read`, `_offline`).
+- **Description:** `ops.json`, `whitelist.json`, `banned-players.json` and `banned-ips.json` were
+  read in the computer's own encoding, and any file that couldn't be read was treated as empty.
+  When the server is stopped, Craft Conductor edits these files directly: it read the list,
+  changed it and wrote it back.
+- **Impact:** a ban reason in Chinese or Russian, or with letters like "Á" (UTF-8 bytes that
+  cp1252 can't decode), made the Players page show no bans, and the next ban, unban, op or
+  whitelist change made while the server was stopped wrote back a list with only that change:
+  every earlier ban was wiped, so banned players could join again. The same happened for any
+  damaged or half-written list. A hand-typed odd entry (`"Steve"` instead of an object) made those
+  changes fail with an internal error.
+- **Reproduction:** a `banned-players.json` with bans for Alex (reason "破坏建筑") and Steve, then
+  `Players(server_dir).act("ban", "Kit")` with the server stopped: the file then held only Kit.
+- **Root cause:** `json.loads(path.read_text())` (locale encoding) inside
+  `except (FileNotFoundError, ValueError): return []`, used both for showing and for changing.
+- **Fix:** the lists are read as UTF-8 (a byte-order mark is tolerated) and written as UTF-8, as
+  Minecraft does. For a change, a file that's there but can't be read (or isn't a list) is refused
+  with a message naming it, and left untouched; for showing, it still reads as empty. Odd entries
+  are kept as they are and skipped when matching names.
+- **Tests:** `tests/test_players.py::test_bans_in_any_language_survive_an_edit`,
+  `test_a_list_that_cant_be_read_isnt_replaced` (both failed before the fix).
 - **Status:** Fixed.
 
 ## Security findings
