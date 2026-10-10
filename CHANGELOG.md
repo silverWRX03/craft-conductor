@@ -4,6 +4,12 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## Unreleased (not released yet)
+
+**Added**
+- **Server mods that run on both sides go to friends too.** A Modrinth mod you add to the server with the mod browser (or the World generation mods on New server) that also runs on players' computers is added to your friends' mods, with the mods it needs that run on both sides, and a message says so ("Xaero's Minimap also runs on players' computers, so it was added to your friends' mods too"), the way a mod picked for players that runs on both sides already went on the server. Removing it from the server asks whether to remove it, and the mods that went with it, from friends' mods too. Removing a mod from friends' mods and the server likewise asks about the mods it needed that are in friends' mods.
+- **The mod browser leaves out what you already have.** Mods already on the server or in your friends' mods (picked, or there because another mod needs them) no longer show in the mod browser's results; the top of the list says how many were left out ("2 already added, hidden").
+
 ## 0.26.0 (2026-10-09)
 
 **Added**

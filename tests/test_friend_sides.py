@@ -193,6 +193,92 @@ def test_plain_minecraft_and_plugin_servers_add_nothing(hub_env, modrinth):
     assert listed(hub) == set()
 
 
+def players(hub):
+    m = hub.get("alpha").m
+    m.reload_config()
+    return m.config.client.mods
+
+
+def test_a_server_mod_that_runs_on_both_sides_goes_in_friends_mods_too(hub_env, modrinth):
+    hub, c = hub_env
+    login(c)
+    publish(modrinth)
+    modrinth.project("SRV", "server-tool", "Server Tool", client_side="unsupported", server_side="required")
+    modrinth.version("SRV", "1.0", ["1.21.1"])
+    many = "/api/servers/alpha/mods/add-many"
+    # A server-only mod stays on the server.
+    r = c.post(many, {"mods": [{"source": "modrinth", "id": "server-tool"}]})[1]
+    assert r["added"] == ["Server Tool"] and "for_players" not in r and players(hub) == []
+    # One that runs on both sides goes in friends' mods too: as craft-conductor.toml names it, with the
+    # mods it needs that run on both sides (by project id). The friends' download is off: it says so.
+    r = c.post(many, {"mods": [{"source": "modrinth", "id": "recipes"}]})[1]
+    assert r["for_players"] == [{"name": "Recipe Viewer", "deps": ["Recipe Library"]}] and r["friends_on"] is False
+    assert players(hub) == ["recipes", "LIB"]
+    # Each list knows the other has them: removing it from the server asks about both.
+    m = hub.get("alpha").m
+    assert update(m).ok
+    configured = {x["id"]: x for x in c.get("/api/servers/alpha/mods")[1]["configured"]}
+    assert configured["recipes"]["for_players"] == "recipes" and configured["server-tool"]["for_players"] is None
+    assert [d["for_players"] for d in configured["recipes"]["deps"]] == ["LIB"]
+    assert c.get("/api/servers/alpha/mods")[1]["players_mods"] == ["recipes", "LIB"]
+    # (and the other way: the Friends page asks about the server for the mod itself)
+    assert c.get("/api/servers/alpha/client")[1]["mods_on_server"] == ["recipes"]
+
+
+def test_removing_it_from_friends_and_the_server_names_the_mods_it_needed_that_friends_have(hub_env, modrinth):
+    hub, c = hub_env
+    login(c)
+    publish(modrinth)
+    c.post("/api/servers/alpha/mods/add-many", {"mods": [{"source": "modrinth", "id": "recipes"}]})
+    assert update(hub.get("alpha").m).ok
+    base = "/api/servers/alpha/client"
+    r = c.post(base, {"mods": ["LIB"]})[1]  # (taken off the players' list alone: nothing to ask yet)
+    assert "players_deps" not in r
+    r = c.post(base, {"mods": ["LIB"], "remove_from_server": ["recipes"]})[1]
+    assert r["players_deps"] == [{"id": "LIB", "name": "Recipe Library"}] and listed(hub) == set()
+    # A library another server mod still needs isn't offered.
+    modrinth.project("TWO", "second", "Second Viewer", client_side="required", server_side="optional")
+    modrinth.version("TWO", "1.0", ["1.21.1"], deps=["LIB"])
+    c.post("/api/servers/alpha/mods/add-many", {"mods": [{"source": "modrinth", "id": "recipes"}, {"source": "modrinth", "id": "second"}]})
+    assert update(hub.get("alpha").m).ok
+    r = c.post(base, {"mods": ["LIB", "second"], "remove_from_server": ["recipes"]})[1]
+    assert r["players_deps"] == []
+
+
+def test_a_mod_already_in_friends_mods_isnt_added_again(hub_env, modrinth):
+    hub, c = hub_env
+    login(c)
+    publish(modrinth)
+    c.post("/api/servers/alpha/client", {"mods": ["recipe-lib"]})  # (the library, by its slug)
+    hub.get("alpha").m.reload_config()
+    r = c.post("/api/servers/alpha/mods/add-many", {"mods": [{"source": "modrinth", "id": "recipes"}]})[1]
+    assert r["for_players"] == [{"name": "Recipe Viewer", "deps": []}]
+    assert players(hub) == ["recipe-lib", "recipes"]
+
+
+def test_plain_minecraft_and_plugin_servers_put_nothing_in_friends_mods(hub_env, modrinth):
+    hub, c = hub_env
+    login(c)
+    publish(modrinth)
+    m = hub.get("alpha").m
+    m.loader.mods_folder = "plugins"  # (a server type for plugins: players join with plain Minecraft)
+    r = c.post("/api/servers/alpha/mods/add-many", {"mods": [{"source": "modrinth", "id": "recipes"}]})[1]
+    assert r["added"] == ["Recipe Viewer"] and "for_players" not in r and players(hub) == []
+
+
+def test_the_mod_browser_leaves_out_mods_already_added(hub_env, modrinth):
+    hub, c = hub_env
+    login(c)
+    publish(modrinth)
+    c.post("/api/servers/alpha/client", {"mods": ["minimap"]})
+    c.post("/api/servers/alpha/mods/add", {"id": "recipes"})
+    assert update(hub.get("alpha").m).ok
+    keys = set(c.get("/api/servers/alpha/browse/added")[1]["keys"])
+    # The server's mods as listed and as installed (with what they need), and friends' mods.
+    assert {"modrinth:recipes", "modrinth:REC", "modrinth:LIB", "modrinth:minimap"} <= keys
+    assert "modrinth:OLD" not in keys
+
+
 def test_a_name_from_modrinth_is_never_written_to_the_config_unchecked(hub_env, http, modrinth):
     """A slug is the site's answer (and can hold quote marks): only a plain name goes into craft-conductor.toml."""
     hub, c = hub_env

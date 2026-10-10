@@ -934,6 +934,7 @@ def mod_requirements(provider: ModrinthProvider, mod_id: str, loaders: tuple[str
     to work instead (``suggestions``, never applied here); for the picked mod, also which server
     types have a build for this Minecraft (``builds``) and whether it has a datapack build
     (``datapack``). With ``datapack``, it's that datapack build that's checked (Modrinth only)."""
+    from .browse import environment
     from .mods.base import SOURCE_NAMES, ModFile, not_checked, same_project
     from .planner import LOADER_NAMES
     picked_loaders = loaders
@@ -1040,7 +1041,9 @@ def mod_requirements(provider: ModrinthProvider, mod_id: str, loaders: tuple[str
     if root_source not in sites:
         raise ModError("only Modrinth mods have datapack builds here" if datapack else "CurseForge mods need a CurseForge API key")
     project = sites[root_source].project(root_id)
-    info = {"id": project.id, "slug": project.slug, "name": project.name, "source": root_source}
+    # (``environment``: where it runs, from Modrinth's tags; a mod on both sides also goes in friends' mods)
+    info = {"id": project.id, "slug": project.slug, "name": project.name, "source": root_source,
+            "environment": environment(project.client_side, project.server_side)}
     base = {"project": info, "minecraft": minecraft, "loader": loader_name, "chain": [], "checked": [], "suggestions": [],
             "builds": [], "datapack": False}
     checked, unchecked = [], []
@@ -1099,7 +1102,7 @@ def mod_requirements(provider: ModrinthProvider, mod_id: str, loaders: tuple[str
             seen_projects.append(used)
         deps.append({"id": used.id, "slug": used.slug, "name": used.name, "needed_by": needed_by, "source": used_source,
                      "compatible": found is not None, "channel": found["channel"] if found else None,
-                     "checked": checked})
+                     "checked": checked, "environment": environment(used.client_side, used.server_side)})
         if found is None:
             if failure is None:
                 failure = (chain + [(source, dep)], checked, unchecked)
@@ -2402,6 +2405,7 @@ class Api:
         get("/api/browse/search", lambda q, b: browse_search(self._browser(), q, self.m))
         get("/api/browse/project", lambda q, b: browse_project(self._browser(), q))
         get("/api/browse/categories", lambda q, b: browse_categories(self._browser(), q))
+        get("/api/browse/added", self.browse_added)
         post("/api/mods/add-many", self.add_many)
         get("/api/mods/requires", lambda q, b: requirements_query(self._modrinth(), q, self.m, self.m.providers.get("curseforge")))
         post("/api/mods/local", self.upload_local)
@@ -2635,6 +2639,8 @@ class Api:
                            "datapack": x.datapack}
                           for x in lk.mods],
             "configured": self._configured_with_deps(),
+            # friends' mods (the Friends page's players' list): taking a mod off the server asks about them
+            "players_mods": [] if self.web.hub.is_single else self.m.config.client.mods,
             # mods held at one build (Change version): key -> its id, and its number once installed
             "held": {k: {"version": pin.version, "number": next((x.version_number for x in lk.mods
                                                                    if x.key == k and x.version_id == pin.version), "")}
@@ -2682,6 +2688,13 @@ class Api:
         """The mods in craft-conductor.toml, each with the dependencies installed for it (several mods can share one)."""
         lk = self.m.lock
         installed = {x.key: x for x in lk.mods}
+        # The entry in friends' mods for the same mod (as craft-conductor.toml names it, or by its
+        # project id): removing it from the server asks about that one too.
+        players = [] if self.web.hub.is_single else self.m.config.client.mods
+
+        def for_players(*names: str) -> str | None:
+            return next((x for x in players if x in names), None)
+
         out = []
         for spec in self.m.config.mods:
             key = f"{spec.source}:{spec.id}"
@@ -2704,13 +2717,15 @@ class Api:
                         seen.add(dk)
                         d = installed[dk]
                         deps.append({"key": dk, "name": d.name, "source": d.source, "version": d.version_number,
-                                     "channel": d.channel, "dependency_of": d.dependency_of})
+                                     "channel": d.channel, "dependency_of": d.dependency_of,
+                                     "for_players": for_players(d.project_id) if d.source == "modrinth" else None})
                         todo.append(dk)
             current = installed.get(key)
             out.append({"source": spec.source, "id": spec.id, "required": spec.required, "key": key,
                         "channel": current.channel if current else (spec.channel or "release"),
                         "version": current.version_number if current else "",
-                        "name": current.name if current else spec.id, "deps": deps})
+                        "name": current.name if current else spec.id, "deps": deps,
+                        "for_players": for_players(spec.id, key.split(":", 1)[1]) if spec.source == "modrinth" else None})
         return out
 
     def search(self, q, b) -> dict:
@@ -2736,11 +2751,23 @@ class Api:
             raise ApiError(409, f"{project.name} is already listed")
         early = b.get("channel") if b.get("channel") in ("beta", "alpha") else None  # picked with only early builds
         deps = self._list_server_mod(source, project, bool(b.get("required", True)), early)
-        return {"ok": True, "name": project.name, "deps": deps}
+        out = {"ok": True, "name": project.name, "deps": [d["name"] for d in deps]}
+        from .browse import environment
+        if source == "modrinth" and environment(project.client_side, project.server_side) == "both":
+            # What the mod browser also puts in friends' mods: the mod as craft-conductor.toml names it
+            # (so each list knows the other has it), and the mods it needs that run on both sides, by
+            # their project ids (the ids the installed mods are known by).
+            listed = next((s.id for s in reversed(self.m.config.mods) if s.source == "modrinth" and s.id in (project.slug, project.id)),
+                          project.id)
+            out["for_players"] = [{"id": listed, "name": project.name, "ids": [project.id, project.slug]}] + [
+                {"id": d["id"], "name": d["name"], "ids": [d["id"], d["slug"]]}
+                for d in deps if d.get("source") == "modrinth" and d.get("environment") == "both" and d.get("id")]
+        return out
 
-    def _list_server_mod(self, source: str, project, required: bool, early: str | None = None) -> list[str]:
-        """Put a mod in craft-conductor.toml (it's installed with the next update); returns the names of the
-        mods it needs, which come along. A Modrinth mod without a build for this server is refused."""
+    def _list_server_mod(self, source: str, project, required: bool, early: str | None = None) -> list[dict]:
+        """Put a mod in craft-conductor.toml (it's installed with the next update); returns the mods it
+        needs, which come along (mod_requirements' answers: name, id, slug, environment...). A Modrinth
+        mod without a build for this server is refused."""
         deps = []
         if source == "modrinth" and self.m.loader.mod_loaders:
             # Only mods that work on this server's Minecraft, and say what comes along with them.
@@ -2753,7 +2780,7 @@ class Api:
             if req is not None:
                 if not req["compatible"] and self.m.lock.minecraft:
                     raise ApiError(400, f"can't add {project.name}: " + (req["reason"] or "no compatible build"))
-                deps = [d["name"] for d in req["deps"]]
+                deps = req["deps"]
         # The name written to craft-conductor.toml comes from the site's answer (Modrinth allows quote marks in a
         # slug): only a plain name is written, else the project's id, else it's refused.
         ident = next((x for x in (project.slug, project.id) if x and re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", x)), None)
@@ -2761,29 +2788,86 @@ class Api:
             raise ApiError(400, f"{project.name} has a name that isn't safe to save, so it can't be added")
         configmod.append_mod(self.m.config.path, ModSpec(source, ident, required=required, channel=early))
         self.m.reload_config()
-        log.info("added %s%s", project.name, f" (with {', '.join(deps)})" if deps else "")
+        log.info("added %s%s", project.name, f" (with {', '.join(d['name'] for d in deps)})" if deps else "")
         return deps
 
     def _browser(self):
         from .browse import Browser
         return Browser(self.m.http, self.m.config.curseforge_api_key)
 
+    def browse_added(self, q, b) -> dict:
+        """What the mod browser leaves out: every mod already on the server (picked, or installed
+        because another needs it) or in friends' mods (picked for players, or in their download),
+        as "source:id" (and "source:slug" where that's how it's listed)."""
+        keys = {f"{s.source}:{s.id}" for s in self.m.config.mods}
+        for x in self.m.lock.mods:
+            keys.add(x.key)
+            if x.listed_as:
+                keys.add(x.listed_as)
+        if not self.web.hub.is_single:
+            c = self.m.config.client
+            keys |= {x if x.startswith("curseforge:") else f"modrinth:{x}" for x in c.mods}
+            if c.enabled and self.m.lock.installed:
+                from .clientpack import PackBuilder
+                if getattr(self, "_pack_builder", None) is None or self._pack_builder.m is not self.m:
+                    self._pack_builder = PackBuilder(self.m)
+                try:  # (the Friends page's own list, cached: what players' computers get)
+                    pack = self._pack_builder.build(self.web.hub.share_settings()["address"] or "<your address>")
+                    keys |= {x["project"] for x in pack.get("mods", []) if x.get("project")}
+                except Exception as e:
+                    log.info("couldn't list the players' mods for the mod browser: %s", e)
+        return {"keys": sorted(keys)}
+
     def add_many(self, q, b) -> dict:
         """Add the mods ticked in the mod browser."""
         items = b.get("mods")
         if not isinstance(items, list) or not 0 < len(items) <= 100:
             raise ApiError(400, "pick between 1 and 100 mods")
-        added, skipped = [], []
+        added, skipped, both = [], [], []
         for item in items:
             if not isinstance(item, dict):
                 continue
             try:
-                added.append(self.add_mod(q, {"source": item.get("source", "modrinth"), "id": item.get("id"),
-                                              "required": b.get("required", True) is not False,
-                                              "channel": item.get("channel")})["name"])
+                r = self.add_mod(q, {"source": item.get("source", "modrinth"), "id": item.get("id"),
+                                     "required": b.get("required", True) is not False, "channel": item.get("channel")})
             except (ApiError, ModError, ConfigError) as e:
                 skipped.append({"name": item.get("name") or item.get("id"), "reason": str(e)})
-        return {"ok": True, "added": added, "skipped": skipped}
+                continue
+            added.append(r["name"])
+            if r.get("for_players"):
+                both.append(r["for_players"])
+        out = {"ok": True, "added": added, "skipped": skipped}
+        if both:
+            out.update(self._also_for_players(both))
+        return out
+
+    def _also_for_players(self, picked: list[list[dict]]) -> dict:
+        """Mods picked for the server that run on both sides go in friends' mods too (the players'
+        list on the Friends page), with the mods they need that also run on both sides, the way a
+        mod picked for players that runs on both sides goes on the server. They're added even while
+        the friends' download is off, so they're there when it's switched on. Returns what was added
+        (each picked mod with what came along), for the page to say so once."""
+        if self.web.hub.is_single or not self.m.loader.mod_loaders or self.m.loader.mods_folder != "mods":
+            return {}
+        c = self.m.config.client
+        mods = list(c.mods)
+        announced = []
+        for group in picked:
+            new = []
+            for x in group:
+                if not configmod.CLIENT_MOD.fullmatch(x["id"]) or any(i and i in mods for i in (x["id"], *x["ids"])):
+                    continue  # (already one of the players' mods)
+                mods.append(x["id"])
+                new.append(x)
+            if new:
+                announced.append({"name": group[0]["name"], "deps": [x["name"] for x in new if x is not group[0]]})
+        if mods == c.mods:
+            return {}
+        configmod.set_value(self.m.config.path, "client", "mods", json.dumps(mods))
+        self.m.reload_config()
+        self.web.hub.update_share()
+        log.info("added %s to the players' mods too (they run on both sides)", ", ".join(x["name"] for x in announced))
+        return {"for_players": announced, "friends_on": c.enabled}
 
     def upload_local(self, q, handler) -> dict:
         """A mod jar from this computer ("Local files"). If Modrinth knows it, it becomes a normal
@@ -3700,7 +3784,7 @@ class Api:
             except ApiError as e:
                 skipped.append({"name": project.name, "reason": str(e)})
                 continue
-            added.append({"name": project.name, "deps": deps})
+            added.append({"name": project.name, "deps": [d["name"] for d in deps]})
         return added, skipped
 
     def save_client(self, q, b) -> dict:
@@ -3735,9 +3819,17 @@ class Api:
                 if not isinstance(drop, list) or not all(isinstance(x, str) and re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", x)
                                                          for x in drop):
                     raise ApiError(400, "remove_from_server must be a list of mod names")
+                configured = self._configured_with_deps() if drop else []
+                removed = set()
                 for x in drop:
                     if x not in mods and configmod.remove_mod(path, "modrinth", x):
+                        removed.add(x)
                         log.info("removed %s from the server's mods too (it left the players' list)", x)
+                # The mods only they needed that are in friends' mods too: the page asks about those next.
+                kept = [s for s in configured if not (s["source"] == "modrinth" and s["id"] in removed)]
+                needed = {s["key"] for s in kept} | {d["key"] for s in kept for d in s["deps"]}
+                players_deps = {d["for_players"]: d["name"] for s in configured if s["source"] == "modrinth" and s["id"] in removed
+                                for d in s["deps"] if d["for_players"] in mods and d["key"] not in needed}
         if "memory_gb" in b:
             try:
                 memory = int(b["memory_gb"])
@@ -3752,6 +3844,8 @@ class Api:
         out = self.client(q, {})
         if "mods" in b:
             out.update(also_on_server=also, server_skipped=skipped)  # (this save's doing; the page says so once)
+            if b.get("remove_from_server") is not None:
+                out["players_deps"] = [{"id": k, "name": v} for k, v in players_deps.items()]
         return out
 
     def _players_problems(self) -> list[dict]:

@@ -2418,6 +2418,25 @@ views.mods = () => {
       return true;
     } } : null;
   const heldLabel = (key) => held(key) ? held(key).number || "a picked version" : null;
+  // After mods are taken off the server: the ones also in friends' mods (with the mods only they
+  // needed) are asked about in one question; Cancel keeps them for friends.
+  const friendsToo = async (specs) => {
+    const configured = info.configured || [];
+    const gone = new Set(specs.map((s) => s.key));
+    const stays = (key) => configured.some((c) => !gone.has(c.key) && (c.key === key || (c.deps || []).some((d) => d.key === key)));
+    const entries = new Map();  // entry in friends' mods -> its name
+    for (const s of specs) {
+      if (s.for_players) entries.set(s.for_players, s.name);
+      for (const d of s.deps || []) if (d.for_players && !stays(d.key)) entries.set(d.for_players, d.name);
+    }
+    if (!entries.size) return;
+    const names = listNames([...entries.values()]);
+    const them = entries.size === 1 ? "it" : "them";
+    if (!(await ask(`${names} ${entries.size === 1 ? "is" : "are"} also in your friends' mods. Remove ${them} from their download too?\n\nCancel keeps ${them} for friends.`,
+      { ok: "Remove from friends' mods" }))) return;
+    await act(() => api("/api/client", { method: "POST", body: { mods: (info.players_mods || []).filter((x) => !entries.has(x)) } }),
+      `${names} removed from your friends' mods`);
+  };
   const serverModItems = () => {
     const r = info || {};
     const configured = r.configured || [];
@@ -2461,6 +2480,7 @@ views.mods = () => {
             " It's uninstalled at the next update.", { ok: "Remove", danger: true }))) return false;
           const changed = await removeSpecs([spec], spec.name);
           for (const [d, others] of shared) toast(`${d.name} wasn't removed: ${others.map((c) => c.name).join(" and ")} ${others.length === 1 ? "needs" : "need"} it too.`);
+          await friendsToo([spec]);
           return changed;
         },
       });
@@ -2485,7 +2505,9 @@ views.mods = () => {
           const needers = needersOf(key);
           if (!(await ask(`${dep.name} is needed by ${needers.map((c) => c.name).join(", ")}, so removing it removes ${needers.length === 1 ? "that mod" : "those mods"} too. Continue?`,
             { ok: "Remove", danger: true }))) return false;
-          return removeSpecs(needers, needers.map((c) => c.name).join(", "));
+          const changed = await removeSpecs(needers, needers.map((c) => c.name).join(", "));
+          await friendsToo(needers);
+          return changed;
         },
       });
     }
@@ -2571,7 +2593,8 @@ views.mods = () => {
     const removeMods = async (specs, what) => {
       for (const x of specs) await api("/api/mods/remove", { method: "POST", body: { source: x.source, id: x.id } }).catch((e) => toast(e.message, true));
       toast(`Removed ${what}. ${specs.length === 1 ? "It's" : "They're"} uninstalled at the next update, with dependencies nothing else needs.`);
-      load();
+      await load();
+      await friendsToo(specs);
     };
     const needersOf = (depKey) => r.configured.filter((c) => c.deps.some((d) => d.key === depKey));
     fill(configured, r.configured.length ? h("ul", { class: "list" }, r.configured.flatMap((s) => [h("li", {},
@@ -3260,6 +3283,7 @@ views.friends = () => {
   const save = async (changes, message) => {
     const r = await act(() => api("/api/client", { method: "POST", body: changes }), message);
     if (r) { data = r; render(); announceAlsoOnServer(r); }
+    return r;
   };
   const reload = async () => { const r = await api("/api/client").catch(() => null); if (r) { data = r; render(); } };
   // Will players' Minecraft start with what they get (filecheck.py): after every change to their mods.
@@ -3296,13 +3320,21 @@ views.friends = () => {
       await reload();
       return true;
     } } : null;
-  // Taking a mod off the players' list; one that was also added to the server asks about that too.
+  // Taking a mod off the players' list; one that was also added to the server asks about that too,
+  // and then about the mods only it needed on the server that are in friends' mods as well.
   const removePlayerMod = async (x) => {
     const mods = data.mods.filter((y) => y !== x);
     const alsoOnServer = (data.mods_on_server || []).includes(x);
     await save({ mods }, `${x} removed`);
-    if (alsoOnServer && await ask(`${x} is also one of the server's mods. Remove it from the server too?\n\nCancel keeps it on the server.`, { ok: "Remove from the server" }))
-      await save({ mods, remove_from_server: [x] }, `${x} removed from the server`);
+    if (!alsoOnServer || !(await ask(`${x} is also one of the server's mods. Remove it from the server too?\n\nCancel keeps it on the server.`, { ok: "Remove from the server" }))) return;
+    const r = await save({ mods, remove_from_server: [x] }, `${x} removed from the server`);
+    const deps = (r && r.players_deps) || [];
+    if (!deps.length) return;
+    const names = listNames(deps.map((d) => d.name));
+    const them = deps.length === 1 ? "it" : "them";
+    if (await ask(`${x} needed ${names} on the server, and ${deps.length === 1 ? "it's" : "they're"} also in your friends' mods. Remove ${them} from their download too?\n\nCancel keeps ${them} for friends.`,
+      { ok: "Remove from friends' mods" }))
+      await save({ mods: mods.filter((y) => !deps.some((d) => d.id === y)) }, `${names} removed from your friends' mods`);
   };
   // Your own mod files for players (e.g. ones that aren't on Modrinth).
   const picker = h("input", { type: "file", multiple: true, accept: ".jar", class: "hidden" });
@@ -3804,7 +3836,7 @@ function openBrowser(params) {
   const b = browserPanel(new URLSearchParams(params), {
     close: () => closeBrowser(),
     addMods: (mods) => {
-      for (const m of mods) setupAddMod(setupModKey(m), m.name, m.channel);
+      setupAddFromBrowser(mods);
       toast(`${mods.length} mod(s) added`);
       closeBrowser();
       refresh();
@@ -4302,7 +4334,8 @@ function worldPanel(host) {
         if (e.target.checked) {
           if (!(await confirmEarly([m]))) { e.target.checked = false; return; }
           await setupAddMod(key, m.name, m.channel && m.channel !== "release" ? m.channel : null);
-        } else await setupRemoveMod(key);
+          setupAlsoForFriends(key);
+        } else await setupRemoveServerMod(key);
         syncTicks();
         countMods();
         host.changed();
@@ -4527,7 +4560,16 @@ function browserPanel(params, host) {
   const forPlayers = params.get("side") === "client";  // the Friends page: mods for players' computers
   const base = target === "setup" ? "/api/hub/browse" : `/api/servers/${encodeURIComponent(target)}/browse`;
   const st = { q: "", source: "modrinth", sort: "relevance", category: "", env: "", version: params.get("version") || "",
-    selected: new Map(), active: null, early: false, hidden: 0, earlyHidden: 0 };
+    selected: new Map(), active: null, early: false, hidden: 0, earlyHidden: 0, addedHidden: 0 };
+  // Mods already on the server or in friends' mods ("source:id" or "source:slug"): left out of the results.
+  let added = new Set();
+  const isAdded = (m) => added.has(`${m.source}:${m.id}`) || (!!m.slug && added.has(`${m.source}:${m.slug}`));
+  const loadAdded = async () => {
+    if (kind !== "mod") return;
+    if (target === "setup") { added = setupAddedKeys(); return; }
+    const r = await api(`/api/servers/${encodeURIComponent(target)}/browse/added`).catch(() => null);
+    added = new Set((r && r.keys) || []);
+  };
   const earlyBox = h("input", { type: "checkbox", onchange: (e) => { st.early = e.target.checked; search(); } });
   const earlyRow = kind === "mod" && !forPlayers ? h("label", { class: "row small early-opt", title: EARLY_WARNING }, earlyBox,
     h("span", {}, "Also show mods with only alpha/beta builds (less stable)")) : null;
@@ -4617,10 +4659,12 @@ function browserPanel(params, host) {
     list,
     url: `${base}/search`,
     row: (m) => resultRow(m),
+    leaveOut: isAdded,
     empty: () => h("p", { class: "empty" }, "Nothing found. Try other words or fewer filters."),
     onPage: (r, first) => {
       st.hidden = (first ? 0 : st.hidden) + (r.hidden || 0);
       st.earlyHidden = (first ? 0 : st.earlyHidden) + (r.early_hidden || 0);
+      st.addedHidden = (first ? 0 : st.addedHidden) + (r.left_out || 0);
       hiddenNote();
     },
     failed: (e) => !(e instanceof Unauthorized),
@@ -4630,16 +4674,19 @@ function browserPanel(params, host) {
       if (cfKey === null) cfKey = (await api("/api/hub/curseforge").catch(() => ({ set: false }))).set;
       if (!cfKey) { pager.stop(); keyPanel(); updateFooter(); return; }
     }
-    st.hidden = st.earlyHidden = 0;
+    st.hidden = st.earlyHidden = st.addedHidden = 0;
     pager.search(query());
     updateFooter();
   };
-  // Search results the chosen version can't run are left out; say so (counting every batch).
+  // Search results the chosen version can't run, and mods already added, are left out; say so
+  // (counting every batch).
   const hiddenNote = () => {
     const where = `${loader ? loader + " " : ""}Minecraft ${st.version}`;
-    pager.head.replaceChildren(...(st.version && (st.hidden || st.earlyHidden) ? [h("p", { class: "muted small hidden-note" },
-      st.hidden ? `${st.hidden} result(s) hidden: no build for ${where}. ` : "",
-      st.earlyHidden ? [`${st.earlyHidden} only ${st.earlyHidden === 1 ? "has" : "have"} alpha/beta builds. `,
+    const builds = st.version && (st.hidden || st.earlyHidden);
+    pager.head.replaceChildren(...(builds || st.addedHidden ? [h("p", { class: "muted small hidden-note" },
+      st.addedHidden ? `${st.addedHidden} already added, hidden. ` : "",
+      builds && st.hidden ? `${st.hidden} result(s) hidden: no build for ${where}. ` : "",
+      builds && st.earlyHidden ? [`${st.earlyHidden} only ${st.earlyHidden === 1 ? "has" : "have"} alpha/beta builds. `,
         h("button", { class: "link-btn", onclick: () => { earlyBox.checked = st.early = true; search(); } }, "Show them")] : null)] : []));
   };
   const resultRow = (m) => {
@@ -4759,15 +4806,22 @@ function browserPanel(params, host) {
     }
     if (target === "setup") {
       if (host) { host.addMods(mods); return; }
-      for (const m of mods) setupAddMod(setupModKey(m), m.name, m.channel);
+      setupAddFromBrowser(mods);
       location.hash = "#new";
       return;
     }
     const r = await act(() => api(`/api/servers/${encodeURIComponent(target)}/mods/add-many`, { method: "POST", body: { mods } }));
     if (!r) return;
     toast(`Added ${r.added.length} mod(s)` + (r.skipped.length ? `; skipped ${r.skipped.map((x) => `${x.name} (${x.reason})`).join(", ")}` : ""), r.skipped.length > 0);
-    const ticked = [...st.selected.keys()];
-    st.selected.clear(); ticked.forEach(tick); updateFooter();
+    announceForPlayers(r);
+    const ticked = [...st.selected.entries()];
+    st.selected.clear(); updateFooter();
+    for (const [key, m] of ticked) {  // the ones added leave the list (still open on its own page)
+      if (!r.added.includes(m.name)) { tick(key); continue; }
+      added.add(key);
+      if (pager.el(key)) { pager.el(key).remove(); st.addedHidden++; }
+    }
+    hiddenNote();
     if (host) host.changed();
   });
   q.addEventListener("input", () => { st.q = q.value.trim(); clearTimeout(timer); timer = setTimeout(() => search(), 350); });
@@ -4799,7 +4853,7 @@ function browserPanel(params, host) {
       list,
       h("div", { class: "browse-footer" }, count, addBtn)),
     details);
-  return { el, start: () => { q.focus(); loadCategories(); search(); }, stop: () => pager.stop() };
+  return { el, start: () => { q.focus(); loadCategories(); loadAdded().then(search); }, stop: () => pager.stop() };
 }
 
 // ------------------------------------------------------------ advanced settings
@@ -4909,7 +4963,9 @@ const HELP = [
     h("p", {}, "Links are shared, so anyone with one can use it: each stops working by itself after the time you pick (7 days unless you change it), and ",
       h("strong", {}, "Stop these links"), " or ", h("strong", {}, "New links"), " stops it sooner. Friends who already set up keep playing; they need a new link to update."),
     h("p", {}, "Mods you pick under ", h("strong", {}, "Mods for players"), " that run on both sides (client and server) are added to the server's own mods too, with the mods they need, and a message says so; ",
-      "removing one from the players' list asks whether to remove it from the server as well. Mods that only run on players' computers stay with the players."),
+      "removing one from the players' list asks whether to remove it from the server as well (and then about the mods it needed there that friends have too). Mods that only run on players' computers stay with the players. " +
+      "The other way round, a mod added to the server with the mod browser that runs on both sides goes in your friends' mods too, with the mods it needs, and removing it from the server asks about friends. " +
+      "The mod browser leaves out mods already on the server or in your friends' mods."),
     h("p", {}, "With Geyser enabled, Post to Discord also offers Bedrock internet and local links with the server address, port and joining instructions."),
     h("p", {}, "Friends outside your home also need the router set up (below).")]],
   ["router", "Router setup (port forwarding)", () => [routerHelp()]],
@@ -6865,6 +6921,75 @@ function announceAlsoOnServer(r) {
   for (const x of r.also_on_server || []) toast(alsoOnServerMessage(x.name, x.deps));
   for (const x of r.server_skipped || []) toast(`${x.name} runs on the server too, but couldn't be added there: ${x.reason}`, true);
 }
+// And the other way: a mod picked for the server (mod browser, World step) that runs on both sides
+// goes in friends' mods too, with the mods it needs that also run on both sides. It's added even
+// while the friends' download is off, so it's there when that's switched on.
+const alsoForFriendsMessage = (name, needs, off) =>
+  `${name} also runs on players' computers, so it was added to your friends' mods too` +
+  (needs && needs.length ? `, with ${needs.join(", ")}` : "") + (off ? " (the friends' download is off)" : "");
+function announceForPlayers(r) {
+  for (const x of r.for_players || []) toast(alsoForFriendsMessage(x.name, x.deps, !r.friends_on));
+}
+function setupAlsoForFriends(key) {
+  const st = setupState;
+  const e = st.mods.get(key);
+  if (!e || !e.explicit || e.environment !== "both" || key.startsWith("curseforge:") || !st.loader || runsPlugins(st.loader)) return;
+  const put = (k, name, projectKey, channel) => {
+    if (st.clientMods.has(k)) return false;
+    st.clientMods.set(k, name);
+    st.clientMeta.set(k, { channel, environment: "both", projectKey });
+    return true;
+  };
+  const picked = put(key, e.name, e.projectKey, e.channel);
+  const needs = (e.bothDeps || []).filter((d) => put(d.slug || d.id, d.name, `modrinth:${d.id}`, null)).map((d) => d.name);
+  if (picked || needs.length) toast(alsoForFriendsMessage(e.name, needs, !st.friends));
+}
+// Mods from the mod browser's "Add selected": each checked (as it always is), then into friends'
+// mods too when it runs on both sides.
+function setupAddFromBrowser(mods) {
+  return Promise.all(mods.map(async (m) => {
+    const key = setupModKey(m);
+    await setupAddMod(key, m.name, m.channel);
+    setupAlsoForFriends(key);
+  }));
+}
+// Taking a mod off the server (with the mods only it needed): any of them in friends' mods too are
+// asked about, in one question.
+async function setupRemoveServerMod(key) {
+  const st = setupState;
+  const before = [...st.mods.keys()];
+  await setupRemoveMod(key);
+  const gone = before.filter((k) => !st.mods.has(k) && st.clientMods.has(k));
+  if (!gone.length) return;
+  const names = gone.map((k) => st.clientMods.get(k));
+  const them = gone.length === 1 ? "it" : "them";
+  if (!(await ask(`${listNames(names)} ${gone.length === 1 ? "is" : "are"} also in your friends' mods. Remove ${them} from their download too?\n\nCancel keeps ${them} for friends.`,
+    { ok: "Remove from friends' mods" }))) return;
+  for (const k of gone) { st.clientMods.delete(k); st.clientMeta.delete(k); }
+  toast(`${listNames(names)} removed from your friends' mods`);
+  setupChanged();
+}
+const listNames = (names) => names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+// Everything already on the new server or in friends' mods, for the mod browser to leave out.
+function setupAddedKeys() {
+  const st = setupState;
+  const out = new Set();
+  const add = (source, id) => { if (id) out.add(`${source}:${id}`); };
+  const addKey = (k) => { if (k.includes(":")) out.add(k); else { add("modrinth", k); add("hangar", k); } };
+  for (const [k, m] of st.mods) {
+    addKey(k);
+    if (m.projectKey) out.add(m.projectKey);
+    if (m.from) { add(m.from.source, m.from.id); add(m.from.source, m.from.slug); }
+  }
+  for (const meta of st.clientMeta.values()) if (meta.projectKey) out.add(meta.projectKey);
+  for (const k of [...st.clientMods.keys(), ...setupCompanions().keys()]) addKey(k);
+  const pack = st.modpack;
+  if (pack && Array.isArray(pack.mods)) {
+    const removed = pack.removed instanceof Set ? pack.removed : new Set();
+    for (const m of pack.mods) if (!removed.has(m.path)) { add(m.source, m.project_id); add(m.source, m.slug); }
+  }
+  return out;
+}
 const setupHasServerMod = (key) => { const e = setupState.mods.get(key); return !!(e && e.explicit); };
 async function setupAddAlsoOnServer(key, name, channel) {
   const added = await setupAddMod(key, name, channel, true);  // (quietly: the one toast says what came along)
@@ -6906,6 +7031,9 @@ async function setupCheckMod(key, quiet = false) {
   e.from = r.from || null;  // (no build where it was picked: the same mod from the other site)
   e.where = `${r.loader} ${r.minecraft || ""}`.trim();
   e.needs = r.deps.map((d) => d.name);  // (what it needs here: "What changed" compares them)
+  // Where it runs, and the mods it needs that run on both sides: what goes in friends' mods with it.
+  e.environment = r.project.environment || "";
+  e.bothDeps = r.deps.filter((d) => d.source !== "curseforge" && d.environment === "both" && d.id);
   e.companions = r.companions || [];  // what players need on their computers for it
   if (!quiet) setupAnnounceCompanions();
   const added = [];
@@ -7099,7 +7227,7 @@ function setupServerModItems() {
       content: () => m.explicit && m.bad && m.conflict ? setupConflict(key, m) : null,
       controls: m.explicit ? () => h("label", { class: "row small", title: "Required mods hold back Minecraft upgrades until they support the new version." },
         h("input", { type: "checkbox", checked: m.required, onchange: (e) => { m.required = e.target.checked; } }), "required") : null,
-      remove: async () => { const before = st.mods.has(key); await setupRemoveMod(key); return before && !st.mods.has(key); },
+      remove: async () => { const before = st.mods.has(key); await setupRemoveServerMod(key); return before && !st.mods.has(key); },
     });
   }
   return items;
@@ -7112,13 +7240,14 @@ function setupFriendModItems() {
     items.push({
       key, name, source: key.startsWith("curseforge:") ? "curseforge" : "modrinth", channel: meta.channel || "release",
       minecraft: setupModVersion(), loader: st.loader,
-      origin: meta.fromPack ? `${meta.fromPack} modpack` : "selected by you", tags: [setupHasServerMod(key) ? "also on the server" : "players only"],
+      origin: meta.fromPack ? `${meta.fromPack} modpack` : "selected by you", tags: [st.mods.has(key) ? "also on the server" : "players only"],
       warning: meta.bad || "",
       versions: setupVersions(key, meta.projectKey, key.startsWith("curseforge:") ? "curseforge" : "modrinth"),
       held: setupHeld(meta.projectKey), problems: problemsFor(st.fileCheck && st.fileCheck.result, meta.projectKey, "client"),
       remove: async () => {
         st.clientMods.delete(key); st.clientMeta.delete(key);
-        if (setupHasServerMod(key) && await ask(`${name} is also one of the server's mods. Remove it from the server too?\n\nCancel keeps it on the server.`, { ok: "Remove from the server" })) await setupRemoveMod(key);
+        // (and then about the mods only it needed that are in friends' mods too)
+        if (setupHasServerMod(key) && await ask(`${name} is also one of the server's mods. Remove it from the server too?\n\nCancel keeps it on the server.`, { ok: "Remove from the server" })) await setupRemoveServerMod(key);
         return true;
       },
     });
