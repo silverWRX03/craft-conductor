@@ -18,8 +18,9 @@ log = logging.getLogger(__name__)
 READY = re.compile(r"\]: Done \([\d.,]+s\)!|^Done \([\d.,]+s\)!")
 PLAYERS = re.compile(r"There are (\d+) (?:of a max of|/) ?(\d+) players online")
 # Anchored right after the logger prefix so chat ("<Steve> Bob joined the game") can't spoof it.
-JOINED = re.compile(r"\]: ([A-Za-z0-9_]{1,16}) joined the game$")
-LEFT = re.compile(r"\]: ([A-Za-z0-9_]{1,16}) left the game$")
+# Minecraft 26.x logs these as system chat ("]: System chat: Steve joined the game").
+JOINED = re.compile(r"\]: (?:System chat: )?([A-Za-z0-9_]{1,16}) joined the game$")
+LEFT = re.compile(r"\]: (?:System chat: )?([A-Za-z0-9_]{1,16}) left the game$")
 MAX_COMMAND = 32767  # Minecraft's own limit for a command's text
 _CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")  # (tabs are fine; line breaks are refused first)
 

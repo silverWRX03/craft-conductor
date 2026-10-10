@@ -262,6 +262,13 @@ def test_web_players_page(running):
     d._on_line("[12:00:01] [Server thread/INFO]: <Steve> Alex joined the game")  # chat can't fake a join
     status, body, _ = c.get("/api/players")
     assert status == 200 and body["online"] == ["Steve"] and body["running"]
+    # Minecraft 26.x logs joins and leaves as system chat; a player's chat still can't fake one.
+    d._on_line("[10:47:15] [Server thread/INFO]: System chat: silverWRX joined the game")
+    d._on_line("[10:47:16] [Server thread/INFO]: <Steve> System chat: Alex joined the game")
+    d._on_line("[10:47:17] [Server thread/INFO]: [Not Secure] <Steve> Alex joined the game")
+    assert sorted(c.get("/api/players")[1]["online"]) == ["Steve", "silverWRX"]
+    d._on_line("[10:50:00] [Server thread/INFO]: System chat: silverWRX left the game")
+    assert c.get("/api/players")[1]["online"] == ["Steve"]
 
     status, body, _ = c.post("/api/players/action", {"action": "op", "name": "Steve"})
     assert status == 200 and body["message"] == "sent: op Steve"
