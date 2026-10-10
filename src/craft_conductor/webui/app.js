@@ -7878,10 +7878,22 @@ views.setup = () => {
         c && c.running ? h("p", { class: "small row", role: "status" }, h("span", { class: "spinner" }), t("Checking that the mods start together…")) : null,
         bad ? h("p", { class: "small bad-text", role: "alert" }, "These mods wouldn't start together. Fix them in ",
           fileCheckBad(c, "server") ? "Manage Mods" : "Manage Friends Mods", " (it glows), then create the server.") : null,
-        h("button", { type: "submit", class: "btn primary big", disabled: !!(c && c.running) || bad }, "Create my server"));
+        h("button", { type: "submit", class: "btn primary big", disabled: !!(c && c.running) || bad || !!st.creating }, "Create my server"));
     };
+    // Once: a double-click (or Enter pressed twice) while the server is being made sends nothing more.
     const submit = async (e) => {
       e.preventDefault();
+      if (st.creating) return;
+      st.creating = true;
+      st.renderCreate();
+      try {
+        await create();
+      } finally {
+        st.creating = false;
+        if (typeof st.renderCreate === "function") st.renderCreate();  // (gone once a new server's setup was reset)
+      }
+    };
+    const create = async () => {
       if (!st.accept_eula) { toast("Please read and accept the Minecraft EULA first.", true); return; }
       if (st.fileCheck && st.fileCheck.running) { toast("Checking that the mods start together; a moment…"); return; }
       if (fileCheckBad(st.fileCheck)) { toast("These mods wouldn't start together: fix them in the mod manager that glows first.", true); setupAttention({ changed: true }); return; }

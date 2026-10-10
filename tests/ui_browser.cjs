@@ -339,8 +339,15 @@ const assert = require('node:assert/strict');
   await page.locator('#remote').getByRole('button', {name:'Close', exact:true}).click();
   assert.equal(await page.evaluate(() => setupState.motd), 'Setup handoff');
   await page.getByLabel('I accept the', {exact:false}).check();
-  await page.getByRole('button', {name:'Create my server', exact:true}).click();
+  // A double-click makes one server, and no "port already used" error beside it.
+  const creates = [];
+  const countCreate = r => { if (r.url().endsWith('/api/hub/create')) creates.push(r.method()); };
+  page.on('request', countCreate);
+  await page.getByRole('button', {name:'Create my server', exact:true}).dblclick();
   await page.getByRole('button', {name:'Continue to Friends', exact:true}).waitFor({timeout:60000});
+  page.off('request', countCreate);
+  assert.deepEqual(creates, ['POST']);
+  assert.equal(await page.getByText('is already used by another server here', {exact:false}).count(), 0);
   assert.equal(await page.evaluate(async () => (await api('/api/hub/remote')).running_on_network), true);
   const createdServer = await page.evaluate(() => server);
   // Refresh at the phone step resumes it without creating a duplicate server.

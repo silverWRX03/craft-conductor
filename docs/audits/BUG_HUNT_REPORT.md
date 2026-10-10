@@ -22,6 +22,7 @@ fix them, without step-by-step exploit details.
 | BUG-007 | Ban lists with non-ASCII reasons read as empty on Windows, then wiped by the next edit | P2 | Confirmed | Fixed |
 | BUG-008 | Saved mod lists forget which mods are datapack builds | P3 | Confirmed | Fixed |
 | BUG-009 | A hand-edited `craft-conductor.toml` in another language breaks on Windows | P3 | Confirmed | Fixed |
+| BUG-010 | Double-clicking Create my server shows a false "port already used" error | P3 | Confirmed | Fixed |
 
 Severity: P0 critical … P4 informational. Confidence: Confirmed (reproduced), High confidence (code
 and test evidence, no full reproduction), Suspected, Not reproducible.
@@ -223,6 +224,24 @@ and test evidence, no full reproduction), Suspected, Not reproducible.
   as bytes, so they're restored exactly.
 - **Tests:** `tests/test_units.py::test_a_hand_edited_config_in_any_language` (failed before with
   the `UnicodeDecodeError`).
+- **Status:** Fixed.
+
+### BUG-010: double-clicking Create my server shows a false "port already used" error
+
+- **Severity / confidence:** P3 / Confirmed (reproduced in a real browser, Edge, with Playwright).
+- **Component:** `webui/app.js` (the New server form's submit handler).
+- **Description:** the form's submit handler had no in-flight guard and the button stayed
+  enabled, so a double-click (or Enter pressed twice) sent `POST /api/hub/create` twice.
+- **Impact:** the server is made once (the second request is refused because the first one just
+  took the port), but a red "port 25566 is already used by another server here (…); pick another"
+  appears next to "your server is ready", inviting a beginner to change the port and try again.
+  For a server set up from `craft-conductor run`, the second request answered "busy" the same way.
+- **Root cause:** `submit` started the request without marking the form busy.
+- **Fix:** `submit` marks the form busy before its first `await`, ignores further submissions while
+  busy, and keeps **Create my server** disabled until the request has finished.
+- **Tests:** `tests/ui_browser.cjs` (run by `tests/test_ui_browser.py` with `CRAFT_UI_NODE` and
+  `CRAFT_UI_PLAYWRIGHT` set) now double-clicks the button and checks for exactly one create request
+  and no error: it failed before the fix (`['POST', 'POST']`). All 20 opt-in browser tests pass.
 - **Status:** Fixed.
 
 ## Security findings
