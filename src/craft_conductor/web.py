@@ -2194,6 +2194,8 @@ class HubApi:
             raise ApiError(400, "the port must be a number") from None
         if not 1024 <= port <= 65535 or port == self.web.port:
             raise ApiError(400, "pick a port between 1024 and 65535 that the control panel isn't using")
+        if (server := self.hub.ports().get(port)) is not None:
+            raise ApiError(400, f"port {port} is a Minecraft server's port here ({server}); pick another")
         address = str(b.get("address", "")).strip()
         if address and not re.fullmatch(r"[A-Za-z0-9.-]{1,253}|\[[0-9A-Fa-f:]{2,45}\]|[0-9A-Fa-f:]{2,45}", address):
             raise ApiError(400, "the address should be a host name or IP address, without http:// or a port")
@@ -4381,6 +4383,8 @@ class Api:
             clash = self.web.hub.ports(exclude=self.sid).get(port)
             if clash:
                 raise ApiError(400, f"port {port} is already used by another server here ({clash})")
+            if port in self.web.hub.reserved_ports():
+                raise ApiError(400, f"Craft Conductor itself uses port {port} (the control panel or friends' downloads); pick another")
         path = self.m.config.path
         original = path.read_bytes()  # (put back exactly as it was if anything goes wrong)
         try:

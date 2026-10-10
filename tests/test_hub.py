@@ -131,6 +131,13 @@ def test_create_a_server_from_the_web(hub_env):
     # Two servers can't be given the same port...
     status, body, _ = c.post("/api/servers/my-world/settings", {"port": 25565})
     assert status == 400 and "alpha" in body["error"]
+    # ...nor one Craft Conductor itself listens on (the control panel, friends' downloads): the server
+    # couldn't start on it.
+    for port in (hub.ui.httpd.server_address[1], hub.share_settings()["port"]):
+        status, body, _ = c.post("/api/servers/my-world/settings", {"port": port})
+        assert status == 400 and "Craft Conductor itself" in body["error"], body
+        status, body, _ = c.post("/api/hub/create", {"loader": "vanilla", "motd": "Clash", "port": port, "accept_eula": True})
+        assert status == 400 and "Craft Conductor itself" in body["error"], body
     assert c.post("/api/servers/my-world/settings", {"port": 25600})[0] == 200
     settings = c.get("/api/servers/my-world/settings")[1]
     assert settings["port"] == 25600 and settings["properties"]["view-distance"] == "12"

@@ -24,6 +24,7 @@ fix them, without step-by-step exploit details.
 | BUG-009 | A hand-edited `craft-conductor.toml` in another language breaks on Windows | P3 | Confirmed | Fixed |
 | BUG-010 | Double-clicking Create my server shows a false "port already used" error | P3 | Confirmed | Fixed |
 | BUG-011 | Double-clicking Start, Restart or Stop shows a false "busy" error | P3 | Confirmed | Fixed |
+| BUG-012 | A server can be given Craft Conductor's own port (and the reverse) | P4 | Confirmed | Fixed |
 
 Severity: P0 critical … P4 informational. Confidence: Confirmed (reproduced), High confidence (code
 and test evidence, no full reproduction), Suspected, Not reproducible.
@@ -258,6 +259,22 @@ and test evidence, no full reproduction), Suspected, Not reproducible.
 - **Tests:** new opt-in browser test `tests/test_ui_power_buttons.py` (`ui_power_buttons.cjs`):
   double-clicks each button and expects exactly `['start', 'restart', 'stop']`, no "busy" error,
   one Stop question. It failed before the fix (`start` and `restart` each sent twice).
+- **Status:** Fixed.
+
+### BUG-012: a server can be given Craft Conductor's own port (and the reverse)
+
+- **Severity / confidence:** P4 / Confirmed (failing tests).
+- **Component:** `web.py` (`Api.save_settings`, `HubApi.save_share`), `hub.py` (`Hub.create`).
+- **Description:** a server's Minecraft port was only checked against other servers' ports. The
+  setup page shows "craft-conductor itself uses this port" in red but still creates the server, and
+  a server's Settings accepted the control panel's or the friends' download port without a word;
+  the friends' download port could be set to a server's port.
+- **Impact:** the server (or the friends' download) can't start: the port is taken. Unlikely, but
+  confusing when it happens.
+- **Fix:** both are refused with a message naming the port's use; a port the person didn't pick
+  moves to a free one, as for other servers' ports.
+- **Tests:** `tests/test_hub.py::test_create_a_server_from_the_web`, `tests/test_friends.py`
+  (both failed before).
 - **Status:** Fixed.
 
 ## Security findings

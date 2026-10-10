@@ -786,6 +786,11 @@ class Hub:
                     other = self.ports()[spec.port]
                     raise ConfigError(f"port {spec.port} is already used by another server here ({other}); pick another")
                 spec.port = self.free_port(spec.port)  # two servers can't share a port
+            if spec.port in self.reserved_ports():  # (the server couldn't start on it)
+                if spec.port_chosen:
+                    raise ConfigError(f"Craft Conductor itself uses port {spec.port} (the control panel or friends' "
+                                      "downloads); pick another")
+                spec.port = self.free_port(spec.port)
             spec.network_access = False  # the hub's own setting decides who can open the panel
             spec.world_source = self.world_source(spec.world)  # before any files are written
             setupmod.configure(root, spec)

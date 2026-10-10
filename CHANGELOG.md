@@ -23,6 +23,7 @@ its fix will say which version it's in.
 - Restoring a **Saved mod list** (or going back with its "Before …" list) turned mods used as their datapack back into regular mods, so they weren't installed at the next update and their datapack left the world. Saved lists now keep that, like a mod's early builds.
 - Double-clicking **Create my server** (or pressing Enter twice) sent it twice: the server was made once, but a red message beside it said "port 25566 is already used by another server here … pick another". The button now waits until the server is being made.
 - Double-clicking **Start**, **Restart** or **Stop** at the top of a server's pages pressed it twice: a red "busy: start is running" appeared beside "start: started" (and Stop asked its question twice). Each now counts once.
+- A server could be given the port the control panel or friends' downloads use (in its **Settings**, or on New server despite the red note), and then couldn't start; the friends' download port could likewise be set to a server's port. Both are refused now, with a message saying which port is taken.
 
 ## 0.26.0 (2026-10-09)
 
