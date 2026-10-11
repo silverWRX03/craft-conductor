@@ -34,6 +34,7 @@ log = logging.getLogger(__name__)
 SERVERS_DIR = "servers"
 HUB_FILE = "hub.json"
 HOME_ID = "main"           # the server kept directly in the home folder (craft-conductor 0.1-0.3)
+START_AFTER_UPDATE = "start_after_update"  # hub.json: the servers to start again after Craft Conductor updates
 SCAN_EVERY = 5.0
 
 
@@ -1164,17 +1165,48 @@ class Hub:
         except Exception as e:
             self.update_failed(old, new, str(e), bool(u.failure and u.failure.get("reverted")))
             raise
-        running = [d for d in self.daemons.values() if d.proc and d.proc.running]
-        if any(d.players for d in running):
-            for d in running:
-                d.proc.say("Server stopping in 1 minute: updating the server manager")
+        running = {sid: d for sid, d in self.daemons.items() if d.proc and d.proc.running}
+        # They're stopped for the update and started again on the new version (start_after_update).
+        if running:
+            self._update_hub_file(lambda data: data.__setitem__(START_AFTER_UPDATE, {"servers": sorted(running), "at": time.time()}))
+        if any(d.players for d in running.values()):
+            for d in running.values():
+                d.proc.say("Server restarting in 1 minute: updating the server manager")
             self.stop_requested.wait(60)
-        for d in running:
-            d.proc.say("Stopping now!")
+        for d in running.values():
+            d.proc.say("Restarting now!")
         log.info("%s; restarting Craft Conductor", message)
         self.restart_requested = True
         self.stop_requested.set()
         return message
+
+    START_AFTER_UPDATE_WAIT = 600     # seconds after the update at most: a guard that never let go doesn't hold them back
+    START_AFTER_UPDATE_EXPIRY = 3600  # an older note (Craft Conductor was closed meanwhile) starts nothing by surprise
+
+    def start_after_update(self) -> bool:
+        """Start again the servers that were running before Craft Conductor updated itself (they were
+        stopped for it), once the update's guard has let the previous version go (rollback.py), so
+        that putting the previous version back never meets servers already running. True while
+        that's still to come (the loop asks again)."""
+        noted = self._hub_file().get(START_AFTER_UPDATE)
+        if not noted:
+            return False
+        at = noted.get("at") if isinstance(noted, dict) else None
+        waited = time.time() - at if isinstance(at, (int, float)) else self.START_AFTER_UPDATE_EXPIRY + 1
+        if waited <= self.START_AFTER_UPDATE_EXPIRY and rollback.pending(self.state_dir) is not None \
+                and waited < self.START_AFTER_UPDATE_WAIT:
+            return True  # (the new version is still proving itself)
+        self._update_hub_file(lambda data: data.pop(START_AFTER_UPDATE, None))
+        if waited > self.START_AFTER_UPDATE_EXPIRY:
+            log.info("not starting the servers that ran before the last update of Craft Conductor: that was a while ago")
+            return False
+        for sid in noted.get("servers", []) if isinstance(noted, dict) else []:
+            d = self.daemons.get(str(sid))
+            if d is None or d.setup_pending or (d.proc and d.proc.running):
+                continue
+            if d.submit("start", d.start_server):
+                log.info("starting %s again: it was running before Craft Conductor updated", sid)
+        return False
 
     # What the phones (and Discord) are told about the update. Phones can't update anything: they're told,
     # and tapping the notification opens Craft Conductor, where it's done.
@@ -1263,6 +1295,7 @@ class Hub:
             next_tunnels = time.monotonic() + 60
             next_upnp = time.monotonic() + 15
             next_health = time.monotonic() + 30
+            after_update = START_AFTER_UPDATE in self._hub_file()  # (servers stopped for an update of Craft Conductor)
             while not self.stop_requested.is_set():
                 if hub_stop_path(self.home).exists():
                     hub_stop_path(self.home).unlink(missing_ok=True)
@@ -1273,6 +1306,8 @@ class Hub:
                     next_scan = now + SCAN_EVERY
                     self.scan()
                     self.update_share()
+                    if after_update:
+                        after_update = self.start_after_update()
                 if now >= next_self_check:
                     next_self_check = now + SELF_CHECK_INTERVAL
                     self.run_job("craft-conductor update check", self.check_self_update)

@@ -367,8 +367,12 @@ update verification, IP-literal and `.local` Host names, per-server authorizatio
   **Run my own server**. Done.
 - **Q2. Busy control panel port (BUG-013).** Decided: fall back to a free port when the port wasn't
   chosen by hand. Done.
-- **Q3. Servers after a Craft Conductor update.** An update stops every server and they stay
-  stopped until Start is pressed. Start again the ones that were running?
+- **Q3. Servers after a Craft Conductor update.** An update stopped every server and they stayed
+  stopped until Start was pressed. Decided: start again the ones that were running. Done: the
+  running servers are noted in `hub.json` before the restart; the new copy (or the previous one, if
+  the update guard puts it back) starts them once the guard has let go (at most 10 minutes later),
+  and a note older than an hour starts nothing. Test:
+  `tests/test_self_update_flow.py::test_servers_that_ran_start_again_after_an_update`.
 - **Q4. Single-player world in use (N9).** Refuse to copy a world that's open in Minecraft, with a
   message? Needs testing with real Minecraft on each platform.
 - **Q5. Secrets in exports (N7).** Leave the Discord webhook and CurseForge key out of exports
