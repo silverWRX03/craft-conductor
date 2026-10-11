@@ -409,6 +409,8 @@ update verification, IP-literal and `.local` Host names, per-server authorizatio
 | N17 | Every server's update check clears the HTTP cache shared with the page's mod browser | Efficiency only |
 | N18 | A dependency missing on one site is replaced by "the same mod" on the other, matched by name/slug, which could match a different mod with the same name | Design trade-off |
 | N19 | `craft-conductor.toml` can hold secrets (`[web] password` in clear text, the friends' invite token, a Discord webhook, a CurseForge key) but is written with the default permissions, unlike `hub.json` (0600). CodeQL reports this as `py/clear-text-storage-sensitive-data` (alerts #12 and #33 on `main`; with BUG-009's `config.write_text` the same flow is reported at the helper instead) | Pre-existing; restricting the file's permissions (or hashing the `[web] password`) changes behaviour for power users and Docker setups: a decision |
+| N20 | **Use Tailscale for the phone app** (and turning it off) replaces whatever else this computer serves on Tailscale's HTTPS port 443 | Rare; only matters for people who use `tailscale serve` for something else |
+| N21 | `craft-conductor service install` writes the folder path into the systemd unit as it is; a `%` in it would be read as a systemd specifier | Very rare folder names |
 
 ## Unresolved questions (decisions for the owner)
 
@@ -439,7 +441,11 @@ update verification, IP-literal and `.local` Host names, per-server authorizatio
   `test_ui_power_buttons.py`; see N15.
 - **Not run:** the end-to-end check with real Minecraft, Java and mod sites (`e2e.yml`, CI on pull
   requests); Linux and macOS (CI); builds (CI only, by the project's rule).
-- **CI:** not run yet: the branch hasn't been pushed (waiting for the owner's go-ahead).
+- **CI (pull request #86):** on commit `167f01a`, `pytest` passed on Linux (3.11, 3.12, 3.13), macOS
+  and Windows; the builds for all four platforms, the Docker image and all seven e2e runs (real
+  Minecraft, Java and mod sites: Fabric, NeoForge, Forge, Paper and vanilla on Linux, Fabric on
+  Windows and macOS) passed too. The first run had found one test of mine that only held on
+  Windows (line endings, fixed in `167f01a`). CodeQL reports the alert BUG-009 moved (N19).
 
 ## Coverage and limitations
 
