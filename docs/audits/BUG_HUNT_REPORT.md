@@ -27,6 +27,7 @@ fix them, without step-by-step exploit details.
 | BUG-012 | A server can be given Craft Conductor's own port (and the reverse) | P4 | Confirmed | Fixed |
 | BUG-013 | A busy control panel port ends in "stopped unexpectedly" with a socket error | P3 | Confirmed | Fixed |
 | BUG-014 | Quitting during a mod test or map preview leaves its server running | P3 | Confirmed | Fixed |
+| BUG-015 | On Windows, Broadcast and console commands lose non-English text before it reaches the server | P3 | Confirmed (sending side) | Open: needs a real-server check |
 
 Severity: P0 critical … P4 informational. Confidence: Confirmed (reproduced), High confidence (code
 and test evidence, no full reproduction), Suspected, Not reproducible.
@@ -337,6 +338,29 @@ and test evidence, no full reproduction), Suspected, Not reproducible.
   the tests' limit only; the slow test server answers `stop` as Minecraft does.
 - **Status:** Fixed.
 
+### BUG-015: on Windows, Broadcast and console commands lose non-English text
+
+- **Severity / confidence:** P3 / Confirmed on Craft Conductor's side; how each server type reads
+  its console is not verified here.
+- **Component:** `process.py` (`ServerProcess.start`: `Popen(text=True, errors="replace")`).
+- **Description:** commands are written to the server's console input in the computer's own
+  encoding (cp1252 on most Windows computers), with unencodable characters replaced. Reproduced:
+  `say Café 大家好` reaches the server as the bytes `say Caf\xe9 ???`.
+- **Impact:** on Windows, a **Broadcast** (Dashboard → Connected Players) or console command in
+  Chinese, Korean, Hindi, Arabic or Vietnamese arrives as question marks; accented letters arrive
+  as cp1252 bytes, which a server reading UTF-8 shows as `\ufffd`. Console output is decoded the same
+  way, so chat in those languages may show garbled in the Console. Linux and macOS (UTF-8) aren't
+  affected.
+- **Why it isn't fixed here:** the fix is to talk to the console in the encoding the server uses.
+  Vanilla Minecraft (and so Fabric, Quilt, Forge and NeoForge) reads console input as UTF-8 as far
+  as known; Paper and Purpur use their own console reader, and older versions and Java releases
+  differ (other server managers ended up making it a setting). Changing it without checking could
+  make accented text worse on some servers, and checking needs real servers (running one here means
+  accepting Mojang's EULA). Suggested check, on Windows: a Broadcast and a chat line in Chinese and
+  with accents, on Fabric 1.21.1, a 26.x server, and Paper; then use UTF-8 for the console where it
+  works (`Popen(encoding="utf-8")`, and `-Dstdout.encoding=UTF-8` for Java 18+ if needed).
+- **Status:** Open (decision Q6 below).
+
 ## Hardening (not a confirmed bug)
 
 ### H1: CurseForge builds are checked for the server's loader by their own tags
@@ -431,6 +455,8 @@ update verification, IP-literal and `.local` Host names, per-server authorizatio
   message? Needs testing with real Minecraft on each platform.
 - **Q5. Secrets in exports (N7).** Leave the Discord webhook and CurseForge key out of exports
   (to be entered again on the new computer), or keep exports complete?
+- **Q6. The console's encoding on Windows (BUG-015).** Verify with real servers and switch the
+  console to UTF-8 for the server types where it works, or leave it until someone reports it?
 
 ## Testing results
 
