@@ -357,6 +357,7 @@ update verification, IP-literal and `.local` Host names, per-server authorizatio
 | N16 | Installing Java renames the unpacked folder once; on Windows an antivirus scan holding a file could make that fail (downloads retry, this doesn't) | Suspected; not reproduced |
 | N17 | Every server's update check clears the HTTP cache shared with the page's mod browser | Efficiency only |
 | N18 | A dependency missing on one site is replaced by "the same mod" on the other, matched by name/slug, which could match a different mod with the same name | Design trade-off |
+| N19 | `craft-conductor.toml` can hold secrets (`[web] password` in clear text, the friends' invite token, a Discord webhook, a CurseForge key) but is written with the default permissions, unlike `hub.json` (0600). CodeQL reports this as `py/clear-text-storage-sensitive-data` (alerts #12 and #33 on `main`; with BUG-009's `config.write_text` the same flow is reported at the helper instead) | Pre-existing; restricting the file's permissions (or hashing the `[web] password`) changes behaviour for power users and Docker setups: a decision |
 
 ## Unresolved questions (decisions for the owner)
 
