@@ -26,17 +26,18 @@ def server_name(props: dict[str, str], default: str = "") -> str:
     return " ".join(_CONTROL.sub(" ", props.get("motd", "")).split()) or default
 
 
-def _read_lines(path: Path) -> tuple[list[str], str]:
-    """The file's lines, and the encoding it's in (to write it back in)."""
+def _read_lines(path: Path) -> tuple[list[str], str, str]:
+    """The file's lines, and the encoding and line ending it has (to write it back with)."""
     raw = path.read_bytes()
     try:
         text, encoding = raw.decode("utf-8"), "utf-8"
     except UnicodeDecodeError:
         text, encoding = raw.decode("latin-1"), "latin-1"
+    newline = "\r\n" if "\r\n" in text else "\n" if "\n" in text else os.linesep
     lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     if lines and lines[-1] == "":
         lines.pop()
-    return lines, encoding
+    return lines, encoding, newline
 
 
 def _unescape(value: str) -> str:
@@ -93,7 +94,7 @@ def read_properties(path: Path) -> dict[str, str]:
     cached = _cache.get(str(path))
     if cached and cached[0] == stamp:
         return dict(cached[1])
-    lines, _ = _read_lines(path)
+    lines, _, _ = _read_lines(path)
     props = {}
     for line in lines:
         if line and not line.startswith("#") and "=" in line:
@@ -107,7 +108,7 @@ def read_properties(path: Path) -> dict[str, str]:
 
 def write_properties(path: Path, updates: dict[str, str]) -> None:
     """Set keys in ``server.properties``. Minecraft fills in every other default on first start."""
-    lines, encoding = _read_lines(path) if path.exists() else ([], "utf-8")
+    lines, encoding, newline = _read_lines(path) if path.exists() else ([], "utf-8", os.linesep)
     remaining = {k: _escape(str(v)) for k, v in updates.items()}
     for i, line in enumerate(lines):
         if line and not line.startswith("#") and "=" in line:
@@ -118,5 +119,5 @@ def write_properties(path: Path, updates: dict[str, str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     # Replace the file in one step, so nothing ever reads it half-written.
     tmp = path.with_name(f".{path.name}.tmp")
-    tmp.write_text("\n".join(lines) + "\n", encoding=encoding)
+    tmp.write_text(newline.join(lines) + newline, encoding=encoding, newline="")  # (the file's own line endings)
     os.replace(tmp, path)

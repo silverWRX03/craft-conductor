@@ -166,7 +166,8 @@ def test_server_properties_as_minecraft_writes_them(tmp_path):
     path.write_bytes(old)
     assert read_properties(path)["motd"] == "Café à la plage 🎮"
     write_properties(path, {"level-name": "world2"})
-    assert path.read_bytes().startswith(b"motd=Caf\xe9 ") and read_properties(path)["level-name"] == "world2"
+    assert path.read_bytes().split(b"\n")[0] == old.split(b"\n")[0]  # (still ISO-8859-1, and still LF on Windows)
+    assert read_properties(path)["level-name"] == "world2" and b"\r" not in path.read_bytes()
 
 
 def test_a_two_line_motd_is_one_name(tmp_path):
