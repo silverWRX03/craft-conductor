@@ -182,6 +182,19 @@ def test_a_two_line_motd_is_one_name(tmp_path):
     assert server_name({}, "alpha") == "alpha" and server_name({"motd": " \n "}, "alpha") == "alpha"
 
 
+def test_a_coloured_motd_is_a_plain_name(tmp_path):
+    """Colour codes in a motd (``§6``, escaped as ``\\u00A7`` by older Minecraft) colour it in
+    Minecraft's server list; the server's name is the plain text, so typing it to delete the server
+    doesn't take a ``§``."""
+    from craft_conductor.properties import read_properties, server_name
+    path = tmp_path / "server.properties"
+    path.write_bytes(b"motd=\\u00A76Gold \\u00A7lServer\\u00A7r\n")
+    assert server_name(read_properties(path)) == "Gold Server"
+    path.write_bytes("motd=§aGreen§r §x§f§f§0§0§0§0Hex\n".encode("utf-8"))  # (as 1.17+ writes it)
+    assert server_name(read_properties(path)) == "Green Hex"
+    assert server_name({"motd": "§a§l"}, "alpha") == "alpha"
+
+
 def test_a_new_server_named_in_any_language(tmp_path):
     from craft_conductor import setup as setupmod
     from craft_conductor.properties import read_properties

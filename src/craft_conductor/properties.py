@@ -17,13 +17,15 @@ from pathlib import Path
 _cache: dict[str, tuple[tuple, dict[str, str]]] = {}  # path -> (its stat when read, what it said)
 _ESCAPES = {"t": "\t", "n": "\n", "r": "\r", "f": "\f"}
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
+_FORMATTING = re.compile(r"§.?", re.DOTALL)  # Minecraft's colour and style codes (§a, §l, ...)
 
 
 def server_name(props: dict[str, str], default: str = "") -> str:
     """A server's name as Craft Conductor shows and sends it (the server list, invites, friends'
-    launchers): its motd on one line. A two-line motd (``\\n`` in the file) shows as one, and no
-    other control character gets through; ``default`` when there's no motd."""
-    return " ".join(_CONTROL.sub(" ", props.get("motd", "")).split()) or default
+    launchers): its motd as one line of plain text. A two-line motd (``\\n`` in the file) shows as
+    one, colour codes (``§a``) are left out, and no other control character gets through;
+    ``default`` when there's nothing left."""
+    return " ".join(_CONTROL.sub(" ", _FORMATTING.sub("", props.get("motd", ""))).split()) or default
 
 
 def _read_lines(path: Path) -> tuple[list[str], str, str]:
