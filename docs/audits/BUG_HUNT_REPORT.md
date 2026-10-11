@@ -1,6 +1,6 @@
 # Bug hunt report (October 2026)
 
-**Status:** first pass complete; open questions below. Kept current while work continues.
+**Status:** first pass complete; Q1-Q3 decided and done, Q4-Q5 open.
 **Branch:** `audit/comprehensive-bug-hunt-2026-10`, from `main` at `11f9721` (0.26.0 + the 26.x player fix).
 **Scope:** the whole application: server lifecycle, mods and modpacks, backups and restores, the
 control panel and its API, friends' downloads, self-updates, and the web page.
@@ -380,9 +380,9 @@ update verification, IP-literal and `.local` Host names, per-server authorizatio
 
 ## Testing results
 
-- **Last full run** (this branch, Windows, Python 3.12.6): `pytest -q`: **763 passed, 31 skipped,
-  0 failed** (baseline 743 / 30 / 0; the new opt-in browser test counts as skipped without
-  `CRAFT_UI_NODE`). Later commits were checked with the affected test files.
+- **Final full run** (this branch at `667c6a3`, Windows, Python 3.12.6): `pytest -q`: **766 passed,
+  31 skipped, 0 failed** (baseline 743 / 30 / 0: 23 new regression tests; the new opt-in browser
+  test counts as skipped without `CRAFT_UI_NODE`).
 - **Browser tests** (opt-in, Playwright with Edge): all 21 pass, including the new
   `test_ui_power_buttons.py`; see N15.
 - **Not run:** the end-to-end check with real Minecraft, Java and mod sites (`e2e.yml`, CI on pull
