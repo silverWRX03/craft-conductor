@@ -1,6 +1,6 @@
 # Bug hunt report (October 2026)
 
-**Status:** first pass complete; Q1-Q3 decided and done, Q4-Q5 open.
+**Status:** first pass complete; Q1-Q3 decided and done, Q4-Q7 open.
 **Branch:** `audit/comprehensive-bug-hunt-2026-10`, from `main` at `11f9721` (0.26.0 + the 26.x player fix).
 **Scope:** the whole application: server lifecycle, mods and modpacks, backups and restores, the
 control panel and its API, friends' downloads, self-updates, and the web page.
@@ -75,9 +75,12 @@ and test evidence, no full reproduction), Suspected, Not reproducible.
   takes one setting per line. Fixed with `properties.server_name` (the motd on one line, used
   wherever it serves as the name; the playit.gg check keeps the raw motd, which now matches what
   the server reports), and on the friend's side `validate_pack` puts the pack's name on one line
-  and the Prism writer keeps each value on its line, whatever the server's version. Tests:
-  `test_a_two_line_motd_is_one_name`, `test_a_two_line_motd_is_listed_on_one_line`,
-  `test_a_server_name_on_two_lines_stays_one_setting`.
+  and the Prism writer keeps each value on its line, whatever the server's version. Likewise, a
+  coloured motd now reads as `§a…` (on `main`: `\u00A7a…`, or `Â§a…` on Windows), so
+  `server_name` also leaves out Minecraft's colour codes, as `tunnel.py` already did for the motd
+  a server reports: the name is plain text, and confirming **Delete everything** doesn't take a
+  `§`. Tests: `test_a_two_line_motd_is_one_name`, `test_a_coloured_motd_is_a_plain_name`,
+  `test_a_two_line_motd_is_listed_on_one_line`, `test_a_server_name_on_two_lines_stays_one_setting`.
 
 ### BUG-002: a scheduled restart is dropped when a scheduled backup is due in the same minute
 
@@ -405,6 +408,27 @@ security tests (`tests/security/`) passing:
 - **CI** (`.github/workflows/`): no `pull_request_target`; write tokens only on `main` or release
   runs; the release version reaches scripts through an environment variable.
 
+**CodeQL's open alerts on `main`** (#7 to #34) were each looked at, and none is an exploitable flaw:
+
+- `js/client-side-request-forgery` (#8, #9) and `js/unvalidated-dynamic-method-call` (#7) in
+  `app.js`: the router only accepts a server id made of `a-z`, `0-9` and `-`, and a page name from a
+  fixed list, so the address bar can't steer an API call or a view.
+- `js/user-controlled-bypass` (#10, #11): the page decides whether to show the sign-in form; the
+  server enforces sign-in.
+- `py/clear-text-logging-sensitive-data` (#15 to #18): `webauth.describe` never prints a chosen
+  password (only the public default, or a description). The one-time first password is shown on
+  the console on purpose, for computers without a screen.
+- `py/polynomial-redos` (#34, `selfupdate.version_key`): a full match from the start. A
+  200,000-character hostile version string takes under 0.04 s, and the input is this project's own
+  release tags.
+- `py/insecure-protocol` (#20): `ssl.create_default_context()`, which requires TLS 1.2 or later
+  on Python 3.10 and later. #21 is a test.
+- `py/bind-socket-all-network-interfaces` (#19): a bind that only checks whether a port is free,
+  closed straight away.
+- `py/clear-text-storage-sensitive-data`: #14 is the release build writing the CurseForge key into
+  the build, by design; #12 and #33 are N19.
+- `actions/unpinned-tag` (#23 to #28): N12. `py/incomplete-url-substring-sanitization` (#22) is a test.
+
 Security-relevant items: BUG-004 (turning remote access off could be undone at the next start);
 BUG-007 (wiped ban lists let banned players back). Hardening notes (not vulnerabilities): N7, N8,
 N12, N13, N14 below. Gaps already recorded in `docs/security/THREAT_MODEL.md` (checksum-only
@@ -432,7 +456,7 @@ update verification, IP-literal and `.local` Host names, per-server authorizatio
 | N16 | Installing Java renames the unpacked folder once; on Windows an antivirus scan holding a file could make that fail (downloads retry, this doesn't) | Suspected; not reproduced |
 | N17 | Every server's update check clears the HTTP cache shared with the page's mod browser | Efficiency only |
 | N18 | A dependency missing on one site is replaced by "the same mod" on the other, matched by name/slug, which could match a different mod with the same name | Design trade-off |
-| N19 | `craft-conductor.toml` can hold secrets (`[web] password` in clear text, the friends' invite token, a Discord webhook, a CurseForge key) but is written with the default permissions, unlike `hub.json` (0600). CodeQL reports this as `py/clear-text-storage-sensitive-data` (alerts #12 and #33 on `main`; with BUG-009's `config.write_text` the same flow is reported at the helper instead) | Pre-existing; restricting the file's permissions (or hashing the `[web] password`) changes behaviour for power users and Docker setups: a decision |
+| N19 | `craft-conductor.toml` can hold secrets (`[web] password` in clear text, the friends' invite token, a Discord webhook, a CurseForge key) but is written with the default permissions, unlike `hub.json` (0600). CodeQL reports this as `py/clear-text-storage-sensitive-data` (alerts #12 and #33 on `main`; with BUG-009's `config.write_text` the same flow is reported at the helper instead) | Pre-existing; restricting the file's permissions (or hashing the `[web] password`) changes behaviour for power users and Docker setups: a decision (Q7) |
 | N20 | **Use Tailscale for the phone app** (and turning it off) replaces whatever else this computer serves on Tailscale's HTTPS port 443 | Rare; only matters for people who use `tailscale serve` for something else |
 | N21 | `craft-conductor service install` writes the folder path into the systemd unit as it is; a `%` in it would be read as a systemd specifier | Very rare folder names |
 
@@ -457,21 +481,26 @@ update verification, IP-literal and `.local` Host names, per-server authorizatio
   (to be entered again on the new computer), or keep exports complete?
 - **Q6. The console's encoding on Windows (BUG-015).** Verify with real servers and switch the
   console to UTF-8 for the server types where it works, or leave it until someone reports it?
+- **Q7. Secrets in `craft-conductor.toml` (N19).** Make the file readable by its owner only on
+  Linux and macOS (as `hub.json` already is), store the `[web] password` as a hash, both, or
+  leave it? Either changes things for people who edit the file by hand or mount it in Docker.
 
 ## Testing results
 
-- **Final full run** (this branch at `667c6a3`, Windows, Python 3.12.6): `pytest -q`: **766 passed,
-  31 skipped, 0 failed** (baseline 743 / 30 / 0: 23 new regression tests; the new opt-in browser
+- **Final full run** (this branch at `c3a438a`, Windows, Python 3.12.6): `pytest -q`: **772 passed,
+  31 skipped, 0 failed** (baseline 743 / 30 / 0: 29 new regression tests; the new opt-in browser
   test counts as skipped without `CRAFT_UI_NODE`).
 - **Browser tests** (opt-in, Playwright with Edge): all 21 pass, including the new
-  `test_ui_power_buttons.py`; see N15.
-- **Not run:** the end-to-end check with real Minecraft, Java and mod sites (`e2e.yml`, CI on pull
-  requests); Linux and macOS (CI); builds (CI only, by the project's rule).
-- **CI (pull request #86):** on commit `167f01a`, `pytest` passed on Linux (3.11, 3.12, 3.13), macOS
-  and Windows; the builds for all four platforms, the Docker image and all seven e2e runs (real
-  Minecraft, Java and mod sites: Fabric, NeoForge, Forge, Paper and vanilla on Linux, Fabric on
-  Windows and macOS) passed too. The first run had found one test of mine that only held on
-  Windows (line endings, fixed in `167f01a`). CodeQL reports the alert BUG-009 moved (N19).
+  `test_ui_power_buttons.py`; the browser regression then passed five runs in a row (see N15).
+- **Not run locally:** Linux and macOS, the end-to-end check with real Minecraft, Java and mod
+  sites, and builds (CI only, by the project's rule). CI ran them all (below).
+- **CI (pull request #86):** on commit `8d278f7`, `pytest` passed on Linux (3.11, 3.12, 3.13), macOS
+  and Windows; the builds for all four platforms, the Docker image, `pip-audit` and all seven e2e
+  runs (real Minecraft, Java and mod sites: Fabric, NeoForge, Forge, Paper and vanilla on Linux,
+  Fabric on Windows and macOS) passed too. An earlier run had found one test of mine that only held
+  on Windows (line endings, fixed in `167f01a`). CodeQL's only new alert (#35) is the one BUG-009
+  moved (N19). The commits after `8d278f7` (colour codes, this report) are checked by the pull
+  request's CI as well.
 
 ## Coverage and limitations
 
