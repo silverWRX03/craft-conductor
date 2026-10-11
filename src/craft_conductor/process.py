@@ -16,6 +16,8 @@ from .desktop import NO_WINDOW, child_env
 log = logging.getLogger(__name__)
 
 READY = re.compile(r"\]: Done \([\d.,]+s\)!|^Done \([\d.,]+s\)!")
+SAVED = re.compile(r"Saved the (?:game|world)")  # save-all's answer ("world" before Minecraft 1.13)
+SAVE_TIMEOUT = 60  # seconds a big world on a slow disk may take to be written out
 PLAYERS = re.compile(r"There are (\d+) (?:of a max of|/) ?(\d+) players online")
 # Anchored right after the logger prefix so chat ("<Steve> Bob joined the game") can't spoof it.
 # Minecraft 26.x logs these as system chat ("]: System chat: Steve joined the game").
@@ -157,6 +159,29 @@ class ServerProcess:
                         return result
                 self._line_cond.wait(timeout=0.5)
         return None
+
+    def save_all(self, timeout: float | None = None) -> bool:
+        """Have the server write the whole world to disk (``save-all flush``) and wait until it says
+        it has (at most ``timeout`` seconds, SAVE_TIMEOUT by default). False if it didn't say so in time."""
+        return bool(self.ask("save-all flush", lambda lines: True if any(SAVED.search(x) for x in lines) else None,
+                             timeout=SAVE_TIMEOUT if timeout is None else timeout))
+
+    def pause_saving(self) -> bool:
+        """Before a running server's files are copied (a backup, an export, a copy to try something
+        on): saving off, so nothing changes them meanwhile, and the whole world written out first,
+        waiting for the server to say it's done (a fixed pause could be too short for a big world on
+        a slow disk). If it doesn't say so in time the copy still goes ahead, with a warning."""
+        self.send("save-off")
+        saved = self.save_all()
+        if not saved:
+            log.warning("the server didn't say it had saved the world within %d seconds; copying its files anyway",
+                        SAVE_TIMEOUT)
+        return saved
+
+    def resume_saving(self) -> None:
+        """Saving on again, after pause_saving (if the server is still running)."""
+        if self.running:
+            self.send("save-on")
 
     def stop(self, timeout: float = 120) -> int | None:
         """Stop gracefully with ``stop``; terminate, then kill, if it hangs."""

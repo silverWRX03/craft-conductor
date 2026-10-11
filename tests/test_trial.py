@@ -36,6 +36,43 @@ def test_diagnosis_names_the_mod(tmp_path):
     assert diagnose(["Done (1.2s)! For help"], None, mods).suspects == []
 
 
+def test_quitting_stops_a_mod_test_s_server(hub_env, monkeypatch):
+    """Quitting Craft Conductor while a mod test is booting its throwaway server stops that server too:
+    it's a process of its own, which used to keep running afterwards (its port, its memory)."""
+    import os
+    import signal
+    import conftest
+    from craft_conductor.daemon import pid_alive
+    from craft_conductor.hub import hub_pid_path
+    # (slow to start, and it says where it runs; like Minecraft, it still stops when told to)
+    starting = ("import os, sys, pathlib, threading, time\n"
+                "pathlib.Path('server.pid').write_text(str(os.getpid()))\n"
+                "def _watch():\n"
+                "    for _line in sys.stdin:\n"
+                "        if _line.strip() == 'stop':\n"
+                "            os._exit(0)\n"
+                "threading.Thread(target=_watch, daemon=True).start()\n")
+    slow = conftest.FAKE_SERVER.replace("import sys, pathlib\n", starting).replace(
+        'print("[12:00:00] [Server thread/INFO]: Done', 'time.sleep(120)\nprint("[12:00:00] [Server thread/INFO]: Done', 1)
+    assert slow != conftest.FAKE_SERVER
+    monkeypatch.setattr(conftest, "FAKE_SERVER", slow)  # (the test's server: slow to start)
+    hub, c = hub_env
+    login(c)
+    status, r, _ = c.post("/api/hub/trial", {"loader": "fabric", "minecraft": "1.21.1", "mods": ["goodmod"]})
+    assert status == 200, r
+    pid_file = hub.state_dir / "trials" / r["id"] / "server" / "server.pid"
+    wait_for(lambda: pid_file.exists() and pid_file.read_text().strip(), timeout=60)
+    pid = int(pid_file.read_text())
+    try:
+        assert pid_alive(pid)
+        hub.stop_requested.set()  # (Quit)
+        wait_for(lambda: not hub_pid_path(hub.home).exists(), timeout=90)
+        wait_for(lambda: not pid_alive(pid), timeout=15)
+    finally:
+        if pid_alive(pid):
+            os.kill(pid, signal.SIGTERM)
+
+
 def test_quick_check_finds_declared_conflicts(http, modrinth):
     modrinth.project("AAA", "goodmod", "Good Mod")
     modrinth.version("AAA", "1.0", ["1.21.1"])

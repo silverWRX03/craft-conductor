@@ -52,6 +52,25 @@ def test_prism_instance(tmp_path, joiner):
     assert not (inst / ".minecraft" / "mods" / "a.jar").exists()
 
 
+def test_a_server_name_on_two_lines_stays_one_setting(tmp_path, joiner):
+    """A two-line motd (or a name from a server you don't trust) reaches a friend's launchers as one
+    line: in Prism's instance.cfg, a line break would start another setting of its own."""
+    raw = pack(mods=[])
+    raw["name"] = "Welcome!\nJvmArgs=-XX:+Wrong\r\tSecond\x00line"
+    checked = join.validate_pack(raw)
+    assert checked["name"] == "Welcome! JvmArgs=-XX:+Wrong Second line"
+    prism = tmp_path / "PrismLauncher"
+    launchers.install_prism(joiner, checked, "weekend-survival", prism)
+    cfg = (prism / "instances" / "craft-conductor-weekend-survival" / "instance.cfg").read_text(encoding="utf-8")
+    assert "\nJvmArgs=" not in cfg and "name=Welcome! JvmArgs=-XX:+Wrong Second line\n" in cfg
+    # (and a name given straight to the installer, as a local pack could be, is kept on its line too)
+    launchers.install_prism(joiner, {**checked, "name": "One\nIconKey=x"}, "weekend-survival", prism)
+    cfg = (prism / "instances" / "craft-conductor-weekend-survival" / "instance.cfg").read_text(encoding="utf-8")
+    assert "\nIconKey=" not in cfg and "name=One IconKey=x\n" in cfg
+    with pytest.raises(join.JoinError, match="name"):
+        join.validate_pack({**pack(mods=[]), "name": "\n\t\x01"})
+
+
 def test_modrinth_pack(tmp_path, joiner):
     path = launchers.build_mrpack(joiner, pack(mods=mods()), tmp_path)
     assert path.name == "Weekend Survival.mrpack"

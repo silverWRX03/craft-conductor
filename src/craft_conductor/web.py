@@ -49,7 +49,7 @@ from .mods.curseforge import CurseForgeProvider
 from .mods.modrinth import ModrinthProvider, keep_buildable
 from .planner import DATAPACK_LOADERS, lowest
 from .players import PlayerError, Players, broadcast_text
-from .properties import read_properties, write_properties
+from .properties import read_properties, server_name, write_properties
 from .skins import SkinError, Skins
 
 log = logging.getLogger(__name__)
@@ -140,6 +140,13 @@ class ApiError(Exception):
         self.status = status
 
 
+class PortBusy(OSError):
+    """The control panel couldn't listen on its port: another program has it, or Windows keeps it."""
+
+
+FALLBACK_PORTS = 30  # ports after the usual one tried when it's taken (WebUI.start's fallback)
+
+
 def host_allowed(host_header: str | None, extra: list[str]) -> bool:
     """Whether a request's Host header names this machine (guards against DNS rebinding)."""
     if not host_header:
@@ -218,12 +225,22 @@ class WebUI:
         host = "localhost" if self.host in ("127.0.0.1", "0.0.0.0", "::") else self.host
         return f"{'https' if self.tls else 'http'}://{host}:{self.httpd.server_address[1] if self.httpd else self.port}/"
 
-    def start(self) -> None:
+    def start(self, fallback: bool = False) -> None:
+        """Listen on the control panel's port. With ``fallback`` (the usual port, not one chosen by
+        hand) a port that's taken is no dead end: the next free one is used this time, and said so."""
         ui = self
 
         class Handler(RequestHandler):
             web = ui
-        self.httpd = _Server((self.host, self.port), Handler)
+        try:
+            self.httpd = _Server((self.host, self.port), Handler)
+        except OSError as e:
+            self.httpd = self._another_port(Handler, e) if fallback else None
+            if self.httpd is None:
+                raise PortBusy(f"Craft Conductor's control panel couldn't use port {self.port}: another program on this "
+                               f"computer is using it, or Windows keeps that port for itself ({e.strerror or e}). Close "
+                               f"the other program, or start Craft Conductor on another port: craft-conductor start "
+                               f"--web-port {self.port + 5}") from e
         self.httpd.daemon_threads = True
         if self.tls:
             context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -237,6 +254,24 @@ class WebUI:
                 self.hub.web.tls_cert = ""
         threading.Thread(target=self.httpd.serve_forever, daemon=True, name="web").start()
         log.info("web UI at %s - password: %s", self.url, webauth.describe(self.auth))
+
+    def _another_port(self, handler, error: OSError):
+        """A listener on the next free port after the usual one, leaving out the ones Craft Conductor
+        uses for other things (friends' downloads, the SSH tunnel to a rented server); None if
+        there's none."""
+        from .remoteinstall import LOCAL_PORT
+        skip = {LOCAL_PORT, *self.hub.reserved_ports()}
+        for port in range(self.port + 1, min(self.port + 1 + FALLBACK_PORTS, 65536)):
+            if port in skip:
+                continue
+            try:
+                server = _Server((self.host, port), handler)
+            except OSError:
+                continue
+            log.warning("port %s is taken (%s), so the control panel is on port %s this time", self.port,
+                        error.strerror or error, port)
+            return server
+        return None
 
     def stop(self) -> None:
         if self.httpd:
@@ -2192,8 +2227,10 @@ class HubApi:
             port = int(b.get("port", 8766))
         except (TypeError, ValueError):
             raise ApiError(400, "the port must be a number") from None
-        if not 1024 <= port <= 65535 or port == self.web.port:
+        if not 1024 <= port <= 65535 or port in (self.web.port, self._port()):
             raise ApiError(400, "pick a port between 1024 and 65535 that the control panel isn't using")
+        if (server := self.hub.ports().get(port)) is not None:
+            raise ApiError(400, f"port {port} is a Minecraft server's port here ({server}); pick another")
         address = str(b.get("address", "")).strip()
         if address and not re.fullmatch(r"[A-Za-z0-9.-]{1,253}|\[[0-9A-Fa-f:]{2,45}\]|[0-9A-Fa-f:]{2,45}", address):
             raise ApiError(400, "the address should be a host name or IP address, without http:// or a port")
@@ -2455,7 +2492,7 @@ class Api:
             "mods": len(lk.mods),
             "players": sorted(d.players),
             "max_players": int(props.get("max-players", "20") or 20),
-            "motd": props.get("motd", ""),
+            "motd": server_name(props),
             "port": props.get("server-port", "25565"),
             "server_dir": str(m.server_dir),
             "strategy": m.config.updates.strategy,
@@ -2906,10 +2943,10 @@ class Api:
         return {"ok": True}
 
     def set_required(self, q, b) -> dict:
-        source, mod_id = b.get("source", "modrinth"), str(b.get("id", ""))
-        if not configmod.remove_mod(self.m.config.path, source, mod_id):
+        source, mod_id = str(b.get("source", "modrinth")), str(b.get("id", ""))
+        # (in place: the mod keeps its early-builds channel and its datapack build)
+        if not configmod.set_mod_required(self.m.config.path, source, mod_id, bool(b.get("required"))):
             raise ApiError(404, "not listed in craft-conductor.toml")
-        configmod.append_mod(self.m.config.path, ModSpec(source, mod_id, required=bool(b.get("required"))))
         self.m.reload_config()
         return {"ok": True}
 
@@ -3244,7 +3281,7 @@ class Api:
         except (TypeError, ValueError):
             raise ApiError(400, "the port must be a number") from None
         props = read_properties(self.m.server_dir / "server.properties")
-        taken = set(self.web.hub.ports().keys()) | {int(props.get("server-port", "25565") or 25565), self.web.port}
+        taken = set(self.web.hub.ports().keys()) | {int(props.get("server-port", "25565") or 25565)} | self.web.hub.reserved_ports()
         try:
             message = webmap.set_port(self.m.server_dir, kind, self.m.lock.loader or self.m.config.server.loader, new, taken)
         except webmap.WebMapError as e:
@@ -3339,7 +3376,7 @@ class Api:
         from .join import Invite
         hub = self.web.hub
         share, fp = hub.share_settings(), hub.share_fingerprint()
-        name = read_properties(self.m.server_dir / "server.properties").get("motd", "")
+        name = server_name(read_properties(self.m.server_dir / "server.properties"))
         lan = lan_ip()
         out = {"local": Invite(lan, share["port"], c.token, fp).page_link(name) if lan else None, "internet": None}
         if (tunnel := hub.share_tunnel()) is not None:  # friends outside reach the downloads through playit.gg
@@ -3407,7 +3444,7 @@ class Api:
         if not links:
             raise ApiError(400, "there's no invite link to post yet"
                            + ("; set your internet address (or use your public IP) first" if "internet" in wanted else ""))
-        name = read_properties(self.m.server_dir / "server.properties").get("motd") or self.d.server_id
+        name = server_name(read_properties(self.m.server_dir / "server.properties"), self.d.server_id)
         text, embed = invite_message(str(b.get("message", "")), name, self.m.lock.minecraft or "", links,
                                      expires=self.m.config.client.expires)
         r = bot.post(channel, text, embed)
@@ -4044,28 +4081,25 @@ class Api:
         version = str(b.get("version", ""))
         if version not in self.m.mojang.betas():
             raise ApiError(400, "pick one of the beta versions in the list")
-        name = read_properties(self.m.server_dir / "server.properties").get("motd") or self.sid
+        name = server_name(read_properties(self.m.server_dir / "server.properties"), self.sid)
 
         def prepare(root: Path) -> None:
             path = root / configmod.CONFIG_NAME
             configmod.set_value(path, "server", "minecraft", json.dumps(version))
             configmod.set_value(path, "updates", "strategy", '"mods-only"')  # stays on the beta
             for spec in configmod.load(root).mods:  # run with whichever mods support the beta
-                configmod.remove_mod(path, spec.source, spec.id)
-                configmod.append_mod(path, ModSpec(spec.source, spec.id, required=False))
+                configmod.set_mod_required(path, spec.source, spec.id, False)
 
         def run():
-            running = self.d.proc and self.d.proc.running
-            if running:
-                self.d.proc.send("save-off")
-                self.d.proc.send("save-all flush")
-                time.sleep(5)
+            proc = self.d.proc if self.d.proc and self.d.proc.running else None
             tmp = hub.staging_dir / f"beta-{time.time_ns()}"
             try:
+                if proc:
+                    proc.pause_saving()
                 archive = transfer.export(self.m, tmp / "copy.zip")
             finally:
-                if running and self.d.proc and self.d.proc.running:
-                    self.d.proc.send("save-on")
+                if proc:
+                    proc.resume_saving()
             try:
                 sid = hub.import_archive(archive, f"{name} (beta {version})", prepare)
             finally:
@@ -4162,18 +4196,16 @@ class Api:
         include_backups = bool(b.get("backups"))
 
         def run():
-            running = self.d.proc and self.d.proc.running
-            if running:  # write everything to disk and hold it there while copying
-                self.d.proc.send("save-off")
-                self.d.proc.send("save-all flush")
-                time.sleep(5)
+            proc = self.d.proc if self.d.proc and self.d.proc.running else None
             try:
+                if proc:  # write everything to disk and hold it there while copying
+                    proc.pause_saving()
                 from .properties import read_properties
-                name = read_properties(self.m.server_dir / "server.properties").get("motd") or self.sid
+                name = server_name(read_properties(self.m.server_dir / "server.properties"), self.sid)
                 path = transfer.export(self.m, self.exports_dir / transfer.export_name(name), include_backups)
             finally:
-                if running and self.d.proc and self.d.proc.running:
-                    self.d.proc.send("save-on")
+                if proc:
+                    proc.resume_saving()
             return f"exported to {path.name}"
         return self._job("export", run)
 
@@ -4386,8 +4418,10 @@ class Api:
             clash = self.web.hub.ports(exclude=self.sid).get(port)
             if clash:
                 raise ApiError(400, f"port {port} is already used by another server here ({clash})")
+            if port in self.web.hub.reserved_ports():
+                raise ApiError(400, f"Craft Conductor itself uses port {port} (the control panel or friends' downloads); pick another")
         path = self.m.config.path
-        original = path.read_text()
+        original = path.read_bytes()  # (put back exactly as it was if anything goes wrong)
         try:
             for key, value in b.items():
                 if key not in self.SETTINGS:
@@ -4407,10 +4441,10 @@ class Api:
                 if literal is None:
                     raise ApiError(400, f"{key} must be true or false")
                 configmod.set_value(path, table, toml_key, literal)
-            configmod.parse(self.m.config.root, tomllib.loads(path.read_text()))  # validate
+            configmod.parse(self.m.config.root, tomllib.loads(configmod.read_text(path)))  # validate
             self.m.reload_config()
         except Exception:
-            path.write_text(original)
+            path.write_bytes(original)
             raise
         props = self.m.server_dir / "server.properties"
         existing = read_properties(props)

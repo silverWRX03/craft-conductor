@@ -57,7 +57,7 @@ def export_name(name: str) -> str:
 def export(manager, dest: Path, include_backups: bool = False, say: Callable[[str], None] = log.info) -> Path:
     """Write the server to ``dest`` (a .zip). The server should be stopped."""
     cfg, lk = manager.config, manager.lock
-    from .properties import read_properties
+    from .properties import read_properties, server_name
     props = read_properties(manager.server_dir / "server.properties")
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_name(f".{dest.name}.part")
@@ -65,7 +65,7 @@ def export(manager, dest: Path, include_backups: bool = False, say: Callable[[st
     try:
         with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED, compresslevel=5, allowZip64=True) as z:
             z.writestr(MANIFEST, json.dumps({
-                "format": FORMAT, "name": props.get("motd") or cfg.root.name, "folder": cfg.root.name,
+                "format": FORMAT, "name": server_name(props, cfg.root.name), "folder": cfg.root.name,
                 "minecraft": lk.minecraft, "loader": lk.loader, "craft-conductor": __version__,
                 "exported": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                 "backups": include_backups}, indent=2))

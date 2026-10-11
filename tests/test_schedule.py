@@ -64,6 +64,84 @@ def test_backup_copies(tmp_path):
     assert sorted(p.name for p in (usb / "Survival").iterdir()) == ["20260922-040000-scheduled.tar.gz", "20260923-040000-scheduled.tar.gz"]
 
 
+def _scheduled_daemon(tmp_path, monkeypatch, restart="", backup="", when_empty=False):
+    """A daemon (its loop not running) with these schedules, a stand-in for the running server, and
+    a clock to move: what it would start is listed in ``jobs``."""
+    from types import SimpleNamespace
+    from craft_conductor.config import ScheduleConfig
+    from craft_conductor.daemon import Daemon
+    clock = [T]
+    monkeypatch.setattr(schedule.dt, "datetime", type("FakeNow", (dt.datetime,), {"now": classmethod(lambda cls: clock[0])}))
+    m = SimpleNamespace(config=SimpleNamespace(state_dir=tmp_path, schedule=ScheduleConfig(restart, backup, when_empty)))
+    d = Daemon(m, autostart=False)
+    d.proc = SimpleNamespace(running=True, stopping=False)
+    d.want_running = True
+    jobs = []
+    monkeypatch.setattr(d, "submit", lambda name, fn, *a: jobs.append(name) or True)
+    return d, clock, jobs
+
+
+def test_a_restart_and_a_backup_due_together_both_happen(tmp_path, monkeypatch):
+    """Backups every hour and a restart every night at 4:00: at 4:00 the backup is made, then the
+    server restarts (it used to skip the restart, every night)."""
+    d, clock, jobs = _scheduled_daemon(tmp_path, monkeypatch, restart="0 4 * * *", backup="0 * * * *")
+    d._sched_last = T - dt.timedelta(minutes=1)
+    d._run_schedules()
+    assert jobs == ["scheduled backup"]
+    clock[0] = T + dt.timedelta(minutes=1)  # (the backup's job is done)
+    d._run_schedules()
+    assert jobs == ["scheduled backup", "scheduled restart"]
+    clock[0] = T + dt.timedelta(minutes=2)
+    d._run_schedules()
+    assert jobs == ["scheduled backup", "scheduled restart"]  # once
+
+
+def test_a_time_that_comes_during_a_long_job_isnt_skipped(tmp_path, monkeypatch):
+    """A backup due at 4:00 while an update runs from 3:58 to 4:20 is made at 4:20 (it used to be
+    skipped: 20 minutes without a look counted as the computer having been asleep)."""
+    d, clock, jobs = _scheduled_daemon(tmp_path, monkeypatch, backup="0 4 * * *")
+    d._sched_last = T - dt.timedelta(minutes=2)
+    for minute in range(0, 20):  # (the loop looks every couple of seconds, busy or not)
+        clock[0] = T + dt.timedelta(minutes=minute)
+        d._run_schedules(idle=False)
+    assert jobs == []
+    clock[0] = T + dt.timedelta(minutes=20)
+    d._run_schedules()
+    assert jobs == ["scheduled backup"]
+    # Asleep for hours (no look at all): a time that passed meanwhile isn't made up.
+    d._sched_last = T + dt.timedelta(minutes=21)
+    clock[0] = T + dt.timedelta(days=1, hours=3)
+    d._run_schedules()
+    assert jobs == ["scheduled backup"]
+
+
+def test_an_owed_restart_isnt_done_twice_or_for_nothing(tmp_path, monkeypatch):
+    """A restart that came due during a long job isn't done once the server was restarted since (the
+    update itself did), nor while players are on with "skip while players are online", nor for a
+    server that was stopped meanwhile."""
+    d, clock, jobs = _scheduled_daemon(tmp_path, monkeypatch, restart="0 4 * * *")
+    d._sched_last = T - dt.timedelta(minutes=1)
+    d._run_schedules(idle=False)  # 4:00, while an update runs
+    d.started_at = (T + dt.timedelta(minutes=5)).timestamp()  # (the update started the new version at 4:05)
+    clock[0] = T + dt.timedelta(minutes=6)
+    d._run_schedules()
+    assert jobs == []
+    clock[0] = T + dt.timedelta(days=1)
+    d._run_schedules(idle=False)  # the next night, busy again
+    d.players = {"Steve"}
+    d.m.config.schedule.restart_when_empty = True
+    clock[0] = T + dt.timedelta(days=1, minutes=3)
+    d._run_schedules()
+    assert jobs == []
+    d.players = set()
+    clock[0] = T + dt.timedelta(days=2)
+    d._run_schedules(idle=False)
+    d.want_running = False  # (stopped by hand meanwhile)
+    clock[0] = T + dt.timedelta(days=2, minutes=1)
+    d._run_schedules()
+    assert jobs == []
+
+
 def test_settings_and_the_daemon(hub_env, monkeypatch):
     hub, c = hub_env
     login(c)

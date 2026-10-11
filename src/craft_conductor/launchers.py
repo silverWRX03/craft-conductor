@@ -181,7 +181,9 @@ def install_prism(joiner: "Joiner", pack: dict, slug: str, data_dir: Path) -> di
                 "JoinServerOnLaunchAddress": pack["address"], "OverrideMemory": "true",
                 "MaxMemAlloc": str(memory), "MinMemAlloc": old.get("MinMemAlloc", "512")})
     old.setdefault("iconKey", "default")
-    cfg.write_text("[General]\n" + "".join(f"{k}={v}\n" for k, v in old.items()), encoding="utf-8")
+    # (one setting per line: a value with a line break would start another setting)
+    cfg.write_text("[General]\n" + "".join(f"{k}={' '.join(str(v).splitlines())}\n" for k, v in old.items()),
+                   encoding="utf-8")
     fetched, removed = joiner.sync_mods(pack, game)
     if pack["address"]:
         joiner.add_server(pack, game)

@@ -17,7 +17,7 @@ import re
 import time
 from pathlib import Path
 
-from . import backup, lock as lockmod
+from . import backup, config as configmod, lock as lockmod
 from .config import CONFIG_NAME
 from .properties import read_properties
 
@@ -61,7 +61,7 @@ def describe(m) -> dict:
 
     def text(name: str) -> str | None:
         try:
-            return (root / name).read_text()
+            return configmod.read_text(root / name)
         except OSError:
             return None
     return {
@@ -179,7 +179,7 @@ def roll_back(archive: Path, m) -> str:
     for name, text in ((CONFIG_NAME, note.get("toml")), (lockmod.LOCK_NAME, note.get("lock"))):
         if text is not None:
             tmp = root / (name + ".rollback")
-            tmp.write_text(text)
+            configmod.write_text(tmp, text)
             os.replace(tmp, root / name)
     m.lock = lockmod.load(root)
     forget()

@@ -140,12 +140,12 @@ class PackBuilder:
         for entry in mods:  # (where a file is on this computer isn't for players)
             entry.pop("path", None)
 
-        from .properties import read_properties
+        from .properties import read_properties, server_name
         props = read_properties(m.server_dir / "server.properties")
         icon = m.server_dir / "server-icon.png"
         return {
             "format": FORMAT,
-            "name": props.get("motd") or cfg.root.name,
+            "name": server_name(props, cfg.root.name),
             "minecraft": lk.minecraft,
             "loader": "vanilla" if plugins else lk.loader,
             "loader_version": None if plugins else lk.loader_version,

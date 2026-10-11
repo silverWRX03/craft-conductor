@@ -1,0 +1,523 @@
+# Bug hunt report (October 2026)
+
+**Status:** first pass complete; Q1-Q3 decided and done, Q4-Q7 open.
+**Branch:** `audit/comprehensive-bug-hunt-2026-10`, from `main` at `11f9721` (0.26.0 + the 26.x player fix).
+**Scope:** the whole application: server lifecycle, mods and modpacks, backups and restores, the
+control panel and its API, friends' downloads, self-updates, and the web page.
+
+This report records what was looked at, what was found, what was fixed, and what is still open.
+It is not a claim that every bug was found. Security findings are described at the level needed to
+fix them, without step-by-step exploit details.
+
+## Summary
+
+| ID | Title | Severity | Confidence | Status |
+|---|---|---|---|---|
+| BUG-001 | Server names outside the computer's code page break server creation and settings on Windows | P2 | Confirmed | Fixed |
+| BUG-002 | A scheduled restart is dropped when a scheduled backup is due in the same minute | P2 | Confirmed | Fixed |
+| BUG-003 | Scheduled backups and restarts are skipped after a job longer than 10 minutes | P3 | High confidence | Fixed |
+| BUG-004 | Settings in `hub.json` can be silently undone by a concurrent save (UPnP sync) | P3 | Confirmed | Fixed |
+| BUG-005 | Backups of a running server wait a fixed 5 s for the world to be saved | P2 | High confidence | Fixed |
+| BUG-006 | Ticking "required" on a mod drops its early-builds channel and datapack setting | P2 | Confirmed | Fixed |
+| BUG-007 | Ban lists with non-ASCII reasons read as empty on Windows, then wiped by the next edit | P2 | Confirmed | Fixed |
+| BUG-008 | Saved mod lists forget which mods are datapack builds | P3 | Confirmed | Fixed |
+| BUG-009 | A hand-edited `craft-conductor.toml` in another language breaks on Windows | P3 | Confirmed | Fixed |
+| BUG-010 | Double-clicking Create my server shows a false "port already used" error | P3 | Confirmed | Fixed |
+| BUG-011 | Double-clicking Start, Restart or Stop shows a false "busy" error | P3 | Confirmed | Fixed |
+| BUG-012 | A server can be given Craft Conductor's own port (and the reverse) | P4 | Confirmed | Fixed |
+| BUG-013 | A busy control panel port ends in "stopped unexpectedly" with a socket error | P3 | Confirmed | Fixed |
+| BUG-014 | Quitting during a mod test or map preview leaves its server running | P3 | Confirmed | Fixed |
+| BUG-015 | On Windows, Broadcast and console commands lose non-English text before it reaches the server | P3 | Confirmed (sending side) | Open: needs a real-server check |
+
+Severity: P0 critical … P4 informational. Confidence: Confirmed (reproduced), High confidence (code
+and test evidence, no full reproduction), Suspected, Not reproducible.
+
+## Testing environment and baseline
+
+- Windows 11 Pro 23H2 (10.0.22631), Python 3.12.6 (project `.venv`), Node 24.21.0. Locale encoding cp1252.
+- Linux and macOS: **not tested locally**; CI (`test.yml`) runs Linux 3.11–3.13, Windows and macOS 3.12.
+- Baseline on `11f9721`: `pytest -q`: **743 passed, 30 skipped, 0 failed** (6 min 12 s).
+  Skipped: browser tests (opt-in, "optional browser verification"), symlink tests (Windows needs a
+  privilege), Unix permission-bit tests, Linux-only CPU affinity, shell-script Java stand-ins,
+  Web Push vectors (no `cryptography`), documentation screenshots (on request).
+- No build was made locally: test builds come from CI (`test.yml` → `package`).
+
+## Findings
+
+### BUG-001: server names outside the computer's code page break server creation and settings on Windows
+
+- **Severity / confidence:** P2 / Confirmed (reproduced on Windows, cp1252).
+- **Component:** `properties.py` (`server.properties` reading and writing).
+- **Description:** `server.properties` was read and written in the computer's own text encoding
+  (cp1252 on most Windows computers), not as the Java properties file it is.
+- **Impact:** on Windows, **Create my server** fails with "'charmap' codec can't encode characters"
+  for a name in Chinese, Korean, Hindi, Arabic, Vietnamese, or with an emoji (the app is translated
+  into these languages). The failure happens after `craft-conductor.toml` is written, leaving a
+  half-made server folder. A name with accents shows up garbled ("CafÃ©") once Minecraft has
+  rewritten the file in UTF-8, and some (like "Á") then make every later change to
+  `server.properties` (port, settings) fail.
+- **Reproduction:** on Windows, `write_properties(path, {"motd": "我的服务器"})` raises
+  `UnicodeEncodeError`; a UTF-8 file containing `motd=Ángel's Café` reads back as `Ã�ngel's CafÃ©`,
+  and `write_properties(path, {"server-port": "25566"})` then raises `UnicodeEncodeError`.
+- **Root cause:** `Path.read_text()` / `write_text()` without an encoding, and no Java escaping.
+  Minecraft reads the file as UTF-8, falling back to ISO-8859-1, and understands `\uXXXX` escapes.
+- **Fix:** read the file the way Minecraft does (UTF-8, else ISO-8859-1), unescape Java escapes
+  (`\uXXXX`, `\:` …) when reading, write changed values as plain-ASCII Java escapes, and write the
+  file back in the encoding it was read in, so untouched lines stay byte for byte.
+- **Tests:** `tests/test_units.py`: `test_a_server_name_in_any_language` (5 names),
+  `test_server_properties_as_minecraft_writes_them`, `test_a_new_server_named_in_any_language`.
+  They failed before the fix (6 failures) and pass after it.
+- **Related:** `craft-conductor.toml` had the same problem for hand-edited text (BUG-009).
+- **Status:** Fixed.
+- **Follow-up (found during this audit, before release):** decoding Java escapes means a two-line
+  motd (`\n` in the file, as many servers have) gives the server's name a line break. That name is
+  typed to confirm **Delete everything**, and goes to friends, whose Prism Launcher `instance.cfg`
+  takes one setting per line. Fixed with `properties.server_name` (the motd on one line, used
+  wherever it serves as the name; the playit.gg check keeps the raw motd, which now matches what
+  the server reports), and on the friend's side `validate_pack` puts the pack's name on one line
+  and the Prism writer keeps each value on its line, whatever the server's version. Likewise, a
+  coloured motd now reads as `§a…` (on `main`: `\u00A7a…`, or `Â§a…` on Windows), so
+  `server_name` also leaves out Minecraft's colour codes, as `tunnel.py` already did for the motd
+  a server reports: the name is plain text, and confirming **Delete everything** doesn't take a
+  `§`. Tests: `test_a_two_line_motd_is_one_name`, `test_a_coloured_motd_is_a_plain_name`,
+  `test_a_two_line_motd_is_listed_on_one_line`, `test_a_server_name_on_two_lines_stays_one_setting`.
+
+### BUG-002: a scheduled restart is dropped when a scheduled backup is due in the same minute
+
+- **Severity / confidence:** P2 / Confirmed (failing test).
+- **Component:** `daemon.py` (`Daemon._run_schedules`).
+- **Description:** when the backup and the restart schedules name the same minute, only the backup
+  runs (`if backup_due … elif restart`). The restart's minute has passed by the next look, so it
+  never happens.
+- **Impact:** with **Make a backup: every hour** (or every 2 hours) and **Restart the server: every
+  day at 4:00**, the nightly restart never happens.
+- **Reproduction:** `tests/test_schedule.py::test_a_restart_and_a_backup_due_together_both_happen`
+  (before the fix: only `["scheduled backup"]` was started, never the restart).
+- **Root cause:** no "owed" restart, unlike the owed backup.
+- **Fix:** see BUG-003 (one change): a due restart is remembered until it's done; with a backup due
+  too, the backup goes first and the restart right after it.
+- **Status:** Fixed.
+
+### BUG-003: scheduled backups and restarts are skipped after a job longer than 10 minutes
+
+- **Severity / confidence:** P3 / High confidence.
+- **Component:** `daemon.py` (`_loop`, `_run_schedules`), `schedule.due`.
+- **Description:** schedules are only looked at while no job runs. `schedule.due` treats a gap of
+  more than 10 minutes since the last look as "the computer was asleep" and only checks the
+  current minute. A backup or update that takes longer than 10 minutes over a scheduled time
+  makes that backup or restart silently not happen, though the code (and its test) intend
+  "made as soon as that's done, not skipped". (The existing test simulated "busy" with a refused
+  `submit`, which the real loop never reaches, so it didn't catch this.)
+- **Fix:** the loop looks at the schedules on every turn, busy or not, and only *starts* jobs when
+  idle: a due backup or restart is remembered (`_backup_owed`, `_restart_owed`) and done as soon
+  as the job finishes. "Asleep" (no look for 10 minutes) now only means the computer really slept.
+  An owed restart is dropped when the server restarted after it came due (an update did it), when
+  the server was stopped meanwhile, or (as before) when players are on with "Skip a scheduled
+  restart while players are online". The manual's Schedule paragraph says so.
+- **Tests:** `test_a_time_that_comes_during_a_long_job_isnt_skipped`,
+  `test_an_owed_restart_isnt_done_twice_or_for_nothing` (`tests/test_schedule.py`).
+- **Status:** Fixed.
+
+### BUG-004: settings in `hub.json` can be silently undone by a concurrent save
+
+- **Severity / confidence:** P3 / Confirmed (failing test).
+- **Component:** `hub.py` (`_hub_file`, `_save_hub_file` and their callers).
+- **Description:** `hub.json` (control panel host and allowed hosts, CurseForge key, Discord bot,
+  friends' download settings, router forwarding, update channel, hidden servers) is changed by
+  read-modify-write with no lock. Router forwarding (`upnp_sync`, every 30 minutes in the
+  background when it's on) reads the file, talks to the router for several seconds, then writes
+  its old copy back.
+- **Impact:** a setting saved during that window is silently reverted, e.g. turning off access
+  from other devices: the running panel follows the new setting, but the old one comes back the
+  next time Craft Conductor starts. Remote access still needs the strong password, so this is a
+  "the off switch didn't stick" problem rather than an open door.
+- **Reproduction:** `tests/test_upnp.py::test_a_setting_saved_while_the_router_is_slow_stays_saved`:
+  a router that takes a moment to answer, and the panel's host set to `127.0.0.1` meanwhile; before
+  the fix hub.json ended with `0.0.0.0` again.
+- **Root cause:** each writer read hub.json, changed its copy and wrote the whole file back, with no
+  lock; `upnp_sync` held its copy across the router calls.
+- **Fix:** `Hub._update_hub_file(change)` reads, changes and writes hub.json under one lock; every
+  writer (control panel settings, CurseForge key, Discord bot and status message, friends'
+  downloads, mod conflict sharing, extra and hidden server folders, router forwarding, update
+  channel, the guided setup) goes through it, and network calls happen outside it. `upnp_sync`
+  only writes its own part, from the file as it is at that moment.
+- **Status:** Fixed.
+
+### BUG-005: backups of a running server wait a fixed 5 seconds for the world to be saved
+
+- **Severity / confidence:** P2 / High confidence (not reproducible without a large real world).
+- **Component:** `daemon.py` (`backup_now`), `web.py` (export, beta test copy).
+- **Description:** before copying a running server, Craft Conductor sends `save-off` and
+  `save-all flush`, then sleeps 5 seconds, whether or not Minecraft has finished saving. A large
+  modded world on a slow disk can take longer.
+- **Impact:** the backup can hold region files Minecraft was still writing; the backup check reads
+  the archive but can't tell a half-written chunk.
+- **Root cause:** a fixed `time.sleep(5)` after `save-all flush`, copied into four places (backup,
+  export, beta test copy, update rehearsal), while the map preview already waited for the answer.
+- **Fix:** `ServerProcess.pause_saving()` sends `save-off`, then `save-all flush`, and waits for the
+  server's "Saved the game" ("Saved the world" before 1.13) for up to 60 s; without the answer the
+  copy still goes ahead (the old behaviour), with a warning. `resume_saving()` is in a `finally`,
+  so `save-on` follows even when the save step itself fails. The four copies use it; the preview
+  uses the same `save_all()`. The tests' stand-in servers now answer `save-all` as Minecraft does.
+- **Tests:** `tests/test_units.py`: `test_a_running_server_is_copied_once_it_says_the_world_is_saved`
+  (both wordings, a 1.5 s save), `test_a_server_that_never_says_its_saved_is_still_copied`; the
+  flow and chaos tests still check `save-off`/`save-on` around a live backup.
+- **Status:** Fixed.
+
+### BUG-006: ticking "required" on a mod drops its early-builds channel and datapack setting
+
+- **Severity / confidence:** P2 / Confirmed (failing test).
+- **Component:** `web.py` (`Api.set_required`), also `Api.test_beta`'s copy.
+- **Description:** the Mods page's **required** checkbox removes the mod's `[[mods]]` entry and
+  writes a new one with only `source`, `id` and `required`, losing `channel` (early builds
+  allowed) and `datapack` (installed as its datapack build).
+- **Impact:** a mod that only has beta builds stops being installable at the next update (dropped,
+  or holding the update back); a mod used as its datapack is switched to the mod build, which the
+  server type may not have, and its datapack is taken out of the world.
+- **Reproduction:** add a beta-only mod with its early builds (mod browser), untick **required**:
+  `craft-conductor.toml` no longer has `channel = "beta"` for it (test below: `channel` became `None`).
+- **Root cause:** `set_required` re-created the block from three fields instead of editing it.
+- **Fix:** `config.set_mod_required` changes the `required` line inside the mod's own block (adding
+  it when a hand-written block has none); everything else in the block, and its place in the list,
+  stays. The beta test copy (`test_beta`) uses it too, so its mods keep their channel and datapack.
+- **Tests:** `tests/test_early_builds.py::test_the_required_box_keeps_a_mods_channel_and_datapack`
+  (failed before: `(False, None) != (False, 'beta')`), `tests/test_units.py::test_setting_required_changes_only_that`.
+- **Status:** Fixed.
+
+### BUG-007: ban lists with non-ASCII reasons read as empty on Windows, then wiped by the next edit
+
+- **Severity / confidence:** P2 / Confirmed (reproduced on Windows; failing tests).
+- **Component:** `players.py` (`Players._read`, `_offline`).
+- **Description:** `ops.json`, `whitelist.json`, `banned-players.json` and `banned-ips.json` were
+  read in the computer's own encoding, and any file that couldn't be read was treated as empty.
+  When the server is stopped, Craft Conductor edits these files directly: it read the list,
+  changed it and wrote it back.
+- **Impact:** a ban reason in Chinese or Russian, or with letters like "Á" (UTF-8 bytes that
+  cp1252 can't decode), made the Players page show no bans, and the next ban, unban, op or
+  whitelist change made while the server was stopped wrote back a list with only that change:
+  every earlier ban was wiped, so banned players could join again. The same happened for any
+  damaged or half-written list. A hand-typed odd entry (`"Steve"` instead of an object) made those
+  changes fail with an internal error.
+- **Reproduction:** a `banned-players.json` with bans for Alex (reason "破坏建筑") and Steve, then
+  `Players(server_dir).act("ban", "Kit")` with the server stopped: the file then held only Kit.
+- **Root cause:** `json.loads(path.read_text())` (locale encoding) inside
+  `except (FileNotFoundError, ValueError): return []`, used both for showing and for changing.
+- **Fix:** the lists are read as UTF-8 (a byte-order mark is tolerated) and written as UTF-8, as
+  Minecraft does. For a change, a file that's there but can't be read (or isn't a list) is refused
+  with a message naming it, and left untouched; for showing, it still reads as empty. Odd entries
+  are kept as they are and skipped when matching names.
+- **Tests:** `tests/test_players.py::test_bans_in_any_language_survive_an_edit`,
+  `test_a_list_that_cant_be_read_isnt_replaced` (both failed before the fix).
+- **Status:** Fixed.
+
+### BUG-008: saved mod lists forget which mods are datapack builds
+
+- **Severity / confidence:** P3 / Confirmed (failing test).
+- **Component:** `modsets.py` (Saved mod lists: save, restore, import).
+- **Description:** a saved list kept each mod's source, id, required and channel, but not
+  `datapack` (added in 0.26.0). Restoring a list, including the automatic "Before …" list used to
+  undo a switch, wrote every mod back as a regular mod.
+- **Impact:** as BUG-006 for each datapack mod: it's looked for as a mod for the server type,
+  which it has no build for, and its datapack leaves the world at the next update.
+- **Fix:** lists record `datapack`; a loaded list accepts it for Modrinth mods only; restore writes it back.
+- **Tests:** `tests/test_modsets.py::test_a_saved_list_keeps_each_mods_settings` (failed before:
+  `('terralith', True, None, False) != ('terralith', True, None, True)`).
+- **Status:** Fixed.
+
+### BUG-009: a hand-edited `craft-conductor.toml` in another language breaks on Windows
+
+- **Severity / confidence:** P3 / Confirmed (reproduced on Windows; failing test).
+- **Component:** `config.py` (`load` and the editing helpers), `snapshots.py`, `modsets.py`,
+  `web.py` (`save_settings`).
+- **Description:** TOML files are UTF-8, but `craft-conductor.toml` was read and written in the
+  computer's own encoding. Values the app writes are ASCII-escaped, so only text edited by hand
+  (the wiki's Power users pages describe doing so) is affected.
+- **Impact:** on Windows, a UTF-8 comment or value with some characters (Chinese, "Á" …) made the
+  server "unavailable" with "'charmap' codec can't decode byte 0x8f"; others were misread, e.g.
+  `copy_to = 'D:\Música'` became "MÃºsica", so backup copies quietly stopped (the folder "isn't there").
+- **Fix:** `config.read_text` reads UTF-8 (a byte-order mark tolerated; a file saved by an old
+  editor in the computer's own encoding still read), `config.write_text` writes UTF-8; every
+  reader and writer of the file uses them, and the "put it back if saving fails" copies are kept
+  as bytes, so they're restored exactly.
+- **Tests:** `tests/test_units.py::test_a_hand_edited_config_in_any_language` (failed before with
+  the `UnicodeDecodeError`).
+- **Status:** Fixed.
+
+### BUG-010: double-clicking Create my server shows a false "port already used" error
+
+- **Severity / confidence:** P3 / Confirmed (reproduced in a real browser, Edge, with Playwright).
+- **Component:** `webui/app.js` (the New server form's submit handler).
+- **Description:** the form's submit handler had no in-flight guard and the button stayed
+  enabled, so a double-click (or Enter pressed twice) sent `POST /api/hub/create` twice.
+- **Impact:** the server is made once (the second request is refused because the first one just
+  took the port), but a red "port 25566 is already used by another server here (…); pick another"
+  appears next to "your server is ready", inviting a beginner to change the port and try again.
+  For a server set up from `craft-conductor run`, the second request answered "busy" the same way.
+- **Root cause:** `submit` started the request without marking the form busy.
+- **Fix:** `submit` marks the form busy before its first `await`, ignores further submissions while
+  busy, and keeps **Create my server** disabled until the request has finished.
+- **Tests:** `tests/ui_browser.cjs` (run by `tests/test_ui_browser.py` with `CRAFT_UI_NODE` and
+  `CRAFT_UI_PLAYWRIGHT` set) now double-clicks the button and checks for exactly one create request
+  and no error: it failed before the fix (`['POST', 'POST']`). All 20 opt-in browser tests pass.
+- **Status:** Fixed.
+
+### BUG-011: double-clicking Start, Restart or Stop shows a false "busy" error
+
+- **Severity / confidence:** P3 / Confirmed (reproduced in a real browser).
+- **Component:** `webui/app.js` (the header's `#btn-start`, `#btn-restart`, `#btn-stop`).
+- **Description:** the buttons were only disabled when the next status came back, so a
+  double-click sent a second request, which the server refused as busy.
+- **Impact:** a red "⚠ busy: start is running" next to "✓ start: started" on the most-used
+  buttons; Stop's "Stop the server?" question could be asked twice.
+- **Fix:** `pressOnce` disables the pressed button at once (a disabled button gets no second click);
+  the status, refreshed after the press and every 2 seconds anyway, then sets what can be pressed.
+- **Tests:** new opt-in browser test `tests/test_ui_power_buttons.py` (`ui_power_buttons.cjs`):
+  double-clicks each button and expects exactly `['start', 'restart', 'stop']`, no "busy" error,
+  one Stop question. It failed before the fix (`start` and `restart` each sent twice).
+- **Status:** Fixed.
+
+### BUG-012: a server can be given Craft Conductor's own port (and the reverse)
+
+- **Severity / confidence:** P4 / Confirmed (failing tests).
+- **Component:** `web.py` (`Api.save_settings`, `HubApi.save_share`), `hub.py` (`Hub.create`).
+- **Description:** a server's Minecraft port was only checked against other servers' ports. The
+  setup page shows "craft-conductor itself uses this port" in red but still creates the server, and
+  a server's Settings accepted the control panel's or the friends' download port without a word;
+  the friends' download port could be set to a server's port.
+- **Impact:** the server (or the friends' download) can't start: the port is taken. Unlikely, but
+  confusing when it happens.
+- **Fix:** both are refused with a message naming the port's use; a port the person didn't pick
+  moves to a free one, as for other servers' ports.
+- **Tests:** `tests/test_hub.py::test_create_a_server_from_the_web`, `tests/test_friends.py`
+  (both failed before).
+- **Status:** Fixed.
+
+### BUG-013: a busy control panel port ends in "stopped unexpectedly" with a socket error
+
+- **Severity / confidence:** P3 / Confirmed (reproduced on Windows).
+- **Component:** `web.py` (`WebUI.start`), `cli.py` (`cmd_start`).
+- **Description:** when the control panel's port (8765) can't be used, because another program has
+  it or Windows keeps it (Hyper-V and WSL set port ranges aside, which can include 8765), Craft
+  Conductor printed the address (and would open the browser there, on the other program) and then
+  stopped with "Craft Conductor stopped unexpectedly: [WinError 10013] An attempt was made to access
+  a socket in a way forbidden by its access permissions".
+- **Fix:** the failed bind becomes `PortBusy` with a message saying the port is taken or kept by
+  Windows and what to do (close the other program, or `--web-port`); `craft-conductor start` shows it
+  through `desktop.show_error` (a message box when there's no console window). The manual's
+  Troubleshooting has the same.
+- **Fallback (the owner's decision, Q2):** when the port wasn't chosen by hand (`--web-port`, or a
+  port saved in `hub.json`), the control panel uses the next free port after it that time (skipping
+  the friends' download port and the SSH tunnel port), logs a warning, opens that address, and
+  notes it in `.craft-conductor/panel-url`, so opening Craft Conductor again goes to the right
+  address. The share and web map port checks compare with the real panel port. Caveat (accepted):
+  a phone set up through Tailscale only reaches the usual port. `craft-conductor run` (its port is
+  in `craft-conductor.toml`) keeps the message only.
+- **Tests:** `tests/test_hub.py::test_start_when_the_control_panels_port_is_taken` (a chosen port:
+  the message; failed before), `test_a_taken_usual_port_moves_the_control_panel` (the fallback,
+  the recorded address, and a second start opening it).
+- **Status:** Fixed.
+
+### BUG-014: quitting during a mod test or map preview leaves its server running
+
+- **Severity / confidence:** P3 / Confirmed (failing test).
+- **Component:** `hub.py` (`Hub.run`'s shutdown), `trial.py`, `preview.py`.
+- **Description:** a mod test (Test boot, Find which mods break it) and a map preview each run a
+  throwaway Minecraft server, a process of its own. When Craft Conductor quits, the hub stops the
+  servers in its list, the explorable map's server and update rehearsals, but not a test's or a
+  map's server still being made: the test's process wasn't tracked at all, and a preview's map
+  session is only registered once its map is finished. Their worker threads just end with Craft
+  Conductor, and child processes outlive their parent.
+- **Impact:** a Java process keeps running after Craft Conductor (memory, CPU, a port in 25590+)
+  until the computer restarts; a test's folder under `.craft-conductor/trials` is left behind.
+- **Fix:** a test notes its server's process (`Manager.on_process`); `Trial.stop()` and
+  `Preview.stop()` end the work and stop that server; the hub's shutdown calls them for any still
+  running (and cancels a seed gallery). Leftover test folders are removed at the next start, as
+  map previews' already were.
+- **Tests:** `tests/test_trial.py::test_quitting_stops_a_mod_test_s_server` (a slow-starting test
+  server; before the fix it was still running after Quit). The preview path reuses the existing
+  cancel code (`_drop_session`), so it has no test of its own.
+- **Note:** in the tests on Windows the stand-in `java` is a `.bat` wrapper, and terminating it
+  leaves the script it started running. Real servers are started as `java` directly, so this is
+  the tests' limit only; the slow test server answers `stop` as Minecraft does.
+- **Status:** Fixed.
+
+### BUG-015: on Windows, Broadcast and console commands lose non-English text
+
+- **Severity / confidence:** P3 / Confirmed on Craft Conductor's side; how each server type reads
+  its console is not verified here.
+- **Component:** `process.py` (`ServerProcess.start`: `Popen(text=True, errors="replace")`).
+- **Description:** commands are written to the server's console input in the computer's own
+  encoding (cp1252 on most Windows computers), with unencodable characters replaced. Reproduced:
+  `say Café 大家好` reaches the server as the bytes `say Caf\xe9 ???`.
+- **Impact:** on Windows, a **Broadcast** (Dashboard → Connected Players) or console command in
+  Chinese, Korean, Hindi, Arabic or Vietnamese arrives as question marks; accented letters arrive
+  as cp1252 bytes, which a server reading UTF-8 shows as `\ufffd`. Console output is decoded the same
+  way, so chat in those languages may show garbled in the Console. Linux and macOS (UTF-8) aren't
+  affected.
+- **Why it isn't fixed here:** the fix is to talk to the console in the encoding the server uses.
+  Vanilla Minecraft (and so Fabric, Quilt, Forge and NeoForge) reads console input as UTF-8 as far
+  as known; Paper and Purpur use their own console reader, and older versions and Java releases
+  differ (other server managers ended up making it a setting). Changing it without checking could
+  make accented text worse on some servers, and checking needs real servers (running one here means
+  accepting Mojang's EULA). Suggested check, on Windows: a Broadcast and a chat line in Chinese and
+  with accents, on Fabric 1.21.1, a 26.x server, and Paper; then use UTF-8 for the console where it
+  works (`Popen(encoding="utf-8")`, and `-Dstdout.encoding=UTF-8` for Java 18+ if needed).
+- **Status:** Open (decision Q6 below).
+
+## Hardening (not a confirmed bug)
+
+### H1: CurseForge builds are checked for the server's loader by their own tags
+
+- **Confidence:** Suspected (the gap is demonstrated; whether CurseForge's API ever returns such
+  files hasn't been seen).
+- **Component:** `mods/curseforge.py` (`resolve`, `supported_versions`).
+- **Description:** the newest CurseForge build was picked on the API's `modLoaderType` filter alone,
+  while the Modrinth provider checks each file's loaders itself ("never trust only a search/API
+  filter", with a test) and pinned CurseForge builds were already checked. A file the API let
+  through that names only another loader (a Forge build for a Fabric server) would be installed,
+  and the server wouldn't start.
+- **Change:** a file whose own tags name loaders must name the one asked for; a file that names no
+  loader is still taken at the filter's word (as before).
+- **Test:** `tests/test_early_builds.py::test_curseforge_file_must_match_loader_even_if_api_filter_fails`
+  (failed before: the Forge-only file was accepted).
+
+## Security findings
+
+**No new exploitable vulnerability was confirmed.** Reviewed by reading, with the existing
+security tests (`tests/security/`) passing:
+
+- **Control panel** (`web.py`, `webauth.py`): Host check against DNS rebinding, session cookies
+  (HttpOnly, SameSite=Strict), the `X-CRAFT-CONDUCTOR` header on every POST, sign-in throttling,
+  the first-password and PIN rules, paired-phone roles and hidden routes, local-only routes,
+  upload names and sizes, the console's one-line rule. Nothing found beyond the known gaps.
+- **Passkeys** (`passkeys.py`, `webpush.verify`): single-use challenges bound to the address,
+  origin check, user-verification flag, counter; ECDSA verification checks `r`/`s` ranges and the
+  point at infinity; RSA builds and compares the whole expected encoding.
+- **Friends' downloads** (`share.py`, `join.py`, `joinui.py`, `clientpack.py`): 144-bit invite
+  secrets with expiry, certificate pinning, mods only from the mod sites' CDNs over HTTPS and
+  hash-checked, file names checked; the friend's local page checks Host, a secret in every URL
+  and the custom header.
+- **Archives** (`safearchive.py`, `backup.py`, `world.py`, `transfer.py`, `modpack.py`): one name
+  rule set, no links, bomb and disk-space limits, staged restores.
+- **Self-update** (`selfupdate.py`, `rollback.py`): never a downgrade, size and checksum checks,
+  the old version kept and put back by a guard process.
+- **Commands** (`firewall.py`, `remoteinstall.py`, `process.py`): argument lists, strict host and
+  user names (no leading `-`), base64-encoded PowerShell with escaped labels.
+- **Web pages** (`app.js`, `rich.js`, `site/join/`): DOM built from text nodes, an allowlist
+  sanitizer for mod descriptions, links and pictures limited to web addresses, strict CSP.
+- **CI** (`.github/workflows/`): no `pull_request_target`; write tokens only on `main` or release
+  runs; the release version reaches scripts through an environment variable.
+
+**CodeQL's open alerts on `main`** (#7 to #34) were each looked at, and none is an exploitable flaw:
+
+- `js/client-side-request-forgery` (#8, #9) and `js/unvalidated-dynamic-method-call` (#7) in
+  `app.js`: the router only accepts a server id made of `a-z`, `0-9` and `-`, and a page name from a
+  fixed list, so the address bar can't steer an API call or a view.
+- `js/user-controlled-bypass` (#10, #11): the page decides whether to show the sign-in form; the
+  server enforces sign-in.
+- `py/clear-text-logging-sensitive-data` (#15 to #18): `webauth.describe` never prints a chosen
+  password (only the public default, or a description). The one-time first password is shown on
+  the console on purpose, for computers without a screen.
+- `py/polynomial-redos` (#34, `selfupdate.version_key`): a full match from the start. A
+  200,000-character hostile version string takes under 0.04 s, and the input is this project's own
+  release tags.
+- `py/insecure-protocol` (#20): `ssl.create_default_context()`, which requires TLS 1.2 or later
+  on Python 3.10 and later. #21 is a test.
+- `py/bind-socket-all-network-interfaces` (#19): a bind that only checks whether a port is free,
+  closed straight away.
+- `py/clear-text-storage-sensitive-data`: #14 is the release build writing the CurseForge key into
+  the build, by design; #12 and #33 are N19.
+- `actions/unpinned-tag` (#23 to #28): N12. `py/incomplete-url-substring-sanitization` (#22) is a test.
+
+Security-relevant items: BUG-004 (turning remote access off could be undone at the next start);
+BUG-007 (wiped ban lists let banned players back). Hardening notes (not vulnerabilities): N7, N8,
+N12, N13, N14 below. Gaps already recorded in `docs/security/THREAT_MODEL.md` (checksum-only
+update verification, IP-literal and `.local` Host names, per-server authorization) aren't repeated.
+
+## Notes not fixed (P4 / informational)
+
+| ID | Note | Why it isn't fixed here |
+|---|---|---|
+| N1 | `POST /api/java/install` with a non-number `major` answers 500 "internal error" (API only; the page always sends a number) | Cosmetic |
+| N2 | **Restore** accepts any file in the backups folder by name (a non-backup is then refused as damaged), unlike the other backup actions | Harmless |
+| N3 | Deleting a server can race with its daemon starting a job in the same 2-second tick | Rare; the server is being deleted anyway |
+| N4 | A crash restart is dropped if a job is started from the page in the second the crash is handled (the server stays stopped; Start works) | Rare |
+| N5 | A legacy server kept directly in the home folder shares its update staging folder with the hub's upload staging, which every update empties | Legacy layout (0.1-0.3) only |
+| N6 | An uploaded world `.zip` stays in the staging folder after setup until the 1-day cleanup | Disk space only |
+| N7 | A server export includes `craft-conductor.toml` as it is (a Discord webhook or CurseForge key travels with it); the diagnostic report removes them | Needs a decision (Q5) |
+| N8 | Windows Firewall rules added by **Let them through Windows Firewall** aren't removed when a server is deleted or its port changes | Removing needs another administrator prompt: a UX decision |
+| N9 | A single-player world that's open in Minecraft isn't detected before it's copied to a server (the copy may be inconsistent) | Suspected; needs real Minecraft to verify (Q4) |
+| N10 | When a mod is dropped because one of its dependencies is unavailable, its other (available) dependencies are still installed | Unneeded library mods only |
+| N11 | Other job buttons (Backups, Updates: Apply update ...) can still show a "busy" error on a double-click, like BUG-011 | Same remedy if wanted; not changed without looking at each |
+| N12 | CI and release use third-party actions by major tag (not commit SHA) and install PyInstaller/`build` by version range | Supply-chain hardening (threat model UPD-05) |
+| N13 | Self-updates are verified against `SHA256SUMS.txt` from the same release | Known (threat model UPD-01) |
+| N14 | The mod-conflict relay can be fed fake conflicts by someone with three or more addresses (shown as warnings only) | Design limit |
+| N15 | The opt-in browser regression failed once in about nine runs (passed 5/5 when repeated) | Intermittent; not traced |
+| N16 | Installing Java renames the unpacked folder once; on Windows an antivirus scan holding a file could make that fail (downloads retry, this doesn't) | Suspected; not reproduced |
+| N17 | Every server's update check clears the HTTP cache shared with the page's mod browser | Efficiency only |
+| N18 | A dependency missing on one site is replaced by "the same mod" on the other, matched by name/slug, which could match a different mod with the same name | Design trade-off |
+| N19 | `craft-conductor.toml` can hold secrets (`[web] password` in clear text, the friends' invite token, a Discord webhook, a CurseForge key) but is written with the default permissions, unlike `hub.json` (0600). CodeQL reports this as `py/clear-text-storage-sensitive-data` (alerts #12 and #33 on `main`; with BUG-009's `config.write_text` the same flow is reported at the helper instead) | Pre-existing; restricting the file's permissions (or hashing the `[web] password`) changes behaviour for power users and Docker setups: a decision (Q7) |
+| N20 | **Use Tailscale for the phone app** (and turning it off) replaces whatever else this computer serves on Tailscale's HTTPS port 443 | Rare; only matters for people who use `tailscale serve` for something else |
+| N21 | `craft-conductor service install` writes the folder path into the systemd unit as it is; a `%` in it would be read as a systemd specifier | Very rare folder names |
+
+## Unresolved questions (decisions for the owner)
+
+- **Q1. First double-click on a new computer.** The standalone download opens the friend's page
+  ("Join a friend's Minecraft server", with "Run my own server" further down) until a server
+  exists (`cli._first_run_joining`), while the README and the manual's Getting started said the
+  control panel opens. Decided: keep the behaviour; the README and the manual now say to press
+  **Run my own server**. Done.
+- **Q2. Busy control panel port (BUG-013).** Decided: fall back to a free port when the port wasn't
+  chosen by hand. Done.
+- **Q3. Servers after a Craft Conductor update.** An update stopped every server and they stayed
+  stopped until Start was pressed. Decided: start again the ones that were running. Done: the
+  running servers are noted in `hub.json` before the restart; the new copy (or the previous one, if
+  the update guard puts it back) starts them once the guard has let go (at most 10 minutes later),
+  and a note older than an hour starts nothing. Test:
+  `tests/test_self_update_flow.py::test_servers_that_ran_start_again_after_an_update`.
+- **Q4. Single-player world in use (N9).** Refuse to copy a world that's open in Minecraft, with a
+  message? Needs testing with real Minecraft on each platform.
+- **Q5. Secrets in exports (N7).** Leave the Discord webhook and CurseForge key out of exports
+  (to be entered again on the new computer), or keep exports complete?
+- **Q6. The console's encoding on Windows (BUG-015).** Verify with real servers and switch the
+  console to UTF-8 for the server types where it works, or leave it until someone reports it?
+- **Q7. Secrets in `craft-conductor.toml` (N19).** Make the file readable by its owner only on
+  Linux and macOS (as `hub.json` already is), store the `[web] password` as a hash, both, or
+  leave it? Either changes things for people who edit the file by hand or mount it in Docker.
+
+## Testing results
+
+- **Final full run** (this branch at `c3a438a`, Windows, Python 3.12.6): `pytest -q`: **772 passed,
+  31 skipped, 0 failed** (baseline 743 / 30 / 0: 29 new regression tests; the new opt-in browser
+  test counts as skipped without `CRAFT_UI_NODE`).
+- **Browser tests** (opt-in, Playwright with Edge): all 21 pass, including the new
+  `test_ui_power_buttons.py`; the browser regression then passed five runs in a row (see N15).
+- **Not run locally:** Linux and macOS, the end-to-end check with real Minecraft, Java and mod
+  sites, and builds (CI only, by the project's rule). CI ran them all (below).
+- **CI (pull request #86):** on commit `8d278f7`, `pytest` passed on Linux (3.11, 3.12, 3.13), macOS
+  and Windows; the builds for all four platforms, the Docker image, `pip-audit` and all seven e2e
+  runs (real Minecraft, Java and mod sites: Fabric, NeoForge, Forge, Paper and vanilla on Linux,
+  Fabric on Windows and macOS) passed too. An earlier run had found one test of mine that only held
+  on Windows (line endings, fixed in `167f01a`). CodeQL's only new alert (#35) is the one BUG-009
+  moved (N19). The commits after `8d278f7` (colour codes, this report) are checked by the pull
+  request's CI as well.
+
+## Coverage and limitations
+
+Read in full or in depth: `web.py`, `daemon.py`, `manager.py`, `hub.py`, `backup.py`,
+`process.py`, `properties.py`, `config.py` (editing), `players.py`, `modsets.py`, `planner.py`,
+`mods/modrinth.py`, `mods/base.py`, `share.py`, `join.py`, `joinui.py` (request handling),
+`http.py`, `selfupdate.py`, `rollback.py`, `safearchive.py`, `world.py`, `transfer.py`,
+`webauth.py`, `passkeys.py`, `upnp.py` (discovery), `remoteinstall.py`, `java.py` (installing),
+`schedule.py`, `setup.py`, `cli.py` (start, join), `desktop.py`, the workflows, `site/join/`,
+`relay/worker.js`, and in `app.js` the element helper, sign-in, power buttons and New server.
+
+Skimmed or not reviewed in depth: `curseforge.py`, `curseforgepack.py`, `handdownload.py`,
+`launchers.py`, `friendextras.py`, `singleplayer.py`, `preview.py`, `trial.py`, `rehearsal.py`,
+`lagfinder.py`, `filecheck.py`, `modcheck.py`, the loaders, `discordbot.py`, `push.py`,
+`tunnel.py`, `tailscale.py`, `service.py`, `health.py`, `limits.py`, and most of `app.js`
+(8,300 lines). Their existing tests pass.
+
+Limits: only Windows was tested here; nothing ran against real Minecraft, routers, Discord or
+the mod sites (the project's stand-ins only); the threat model's target architecture (per-server
+authorization, signed updates, node agents) is a roadmap, not a defect list.

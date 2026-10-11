@@ -196,6 +196,10 @@ def validate_pack(pack: object, base: str | None = None) -> dict:
     name, mc, loader = pack.get("name"), pack.get("minecraft"), pack.get("loader")
     if not isinstance(name, str) or not name.strip() or len(name) > 100:
         raise JoinError("the server's name is missing")
+    # One line: the name goes into launchers' settings files (Prism's is one setting per line).
+    pack["name"] = " ".join(re.sub(r"[\x00-\x1f\x7f]", " ", name).split())
+    if not pack["name"]:
+        raise JoinError("the server's name is missing")
     if not isinstance(mc, str) or not re.fullmatch(r"\d+(\.\d+){1,3}(-[A-Za-z0-9.]+)?", mc):
         raise JoinError("the server's Minecraft version is missing")
     if loader not in LOADERS:

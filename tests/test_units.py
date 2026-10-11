@@ -40,6 +40,50 @@ def test_template_loads_and_mod_blocks_round_trip(tmp_path):
     assert "# Craft Conductor configuration" in path.read_text()  # comments survive edits
 
 
+def test_setting_required_changes_only_that(tmp_path):
+    path = tmp_path / "craft-conductor.toml"
+    path.write_text(configmod.render_template("fabric", "1.21.1"))
+    configmod.append_mod(path, ModSpec("modrinth", "betamod", channel="beta"))
+    path.write_text(path.read_text() + '\n[[mods]]\nid = "byhand"  # added by hand\ndatapack = true')
+    configmod.append_mod(path, ModSpec("curseforge", "238222", required=False))
+    assert configmod.set_mod_required(path, "modrinth", "betamod", False)
+    assert configmod.set_mod_required(path, "modrinth", "byhand", False)  # (no `required` line yet)
+    assert configmod.set_mod_required(path, "curseforge", "238222", True)
+    assert not configmod.set_mod_required(path, "modrinth", "238222", True)  # (another site's)
+    mods = configmod.load(tmp_path).mods
+    assert [(m.id, m.required, m.channel, m.datapack) for m in mods] == [
+        ("betamod", False, "beta", False), ("byhand", False, None, True), ("238222", True, None, False)]
+    assert "# added by hand" in path.read_text()
+
+
+def test_a_hand_edited_config_in_any_language(tmp_path):
+    """craft-conductor.toml is UTF-8 (TOML's rule), whatever this computer's own encoding: a comment in
+    Chinese, or a backup folder with accents, edited by hand, reads as written and survives the
+    page's changes. A file an old editor saved in this computer's own encoding is still read."""
+    path = tmp_path / "craft-conductor.toml"
+    usb = tmp_path / "Música"
+    template = configmod.render_template("fabric", "1.21.1")
+    assert template.count("\n[backups]\n") == 1
+    text = template.replace("\n[backups]\n", f'\n[backups]\n# 每天备份\ncopy_to = "{usb.as_posix()}"\n')
+    path.write_bytes(text.encode("utf-8"))
+    assert configmod.load(tmp_path).backups.copy_to == usb
+    configmod.set_value(path, "server", "memory", '"6G"')
+    configmod.append_mod(path, ModSpec("modrinth", "lithium"))
+    after = path.read_bytes().decode("utf-8")
+    assert "# 每天备份" in after and configmod.load(tmp_path).server.memory == "6G"
+    import locale
+    legacy = locale.getpreferredencoding(False)
+    try:
+        "é".encode(legacy)
+    except (UnicodeEncodeError, LookupError):
+        return  # (this computer's own encoding can't hold it: nothing to check)
+    path.write_bytes((configmod.render_template("fabric", "1.21.1") + "\n# copias de seguridad: Música\n").encode(legacy))
+    if legacy.lower().replace("-", "") not in ("utf8",):
+        assert configmod.load(tmp_path).server.loader == "fabric"
+        configmod.set_value(path, "server", "memory", '"5G"')
+        assert "Música" in path.read_bytes().decode("utf-8")
+
+
 def test_invalid_config(tmp_path):
     (tmp_path / "craft-conductor.toml").write_text('[server]\nloader = "bukkit"\n')
     with pytest.raises(ConfigError, match="server.loader"):
@@ -91,6 +135,71 @@ def test_server_properties_editing(tmp_path):
     write_properties(path, {"motd": "new", "server-port": "25570"})
     assert read_properties(path) == {"motd": "new", "view-distance": "10", "server-port": "25570"}
     assert path.read_text().startswith("#Minecraft")
+
+
+@pytest.mark.parametrize("name", ["我的服务器", "Máy chủ của tôi", "Café ☕", "Ángel's world 🎮", r"Me\You"])
+def test_a_server_name_in_any_language(tmp_path, name):
+    """A Java properties file: names are written as \\u escapes (plain ASCII, so every Minecraft reads
+    them the same, whatever this computer's own text encoding), and read back as they were typed."""
+    from craft_conductor.properties import read_properties, write_properties
+    path = tmp_path / "server.properties"
+    write_properties(path, {"motd": name})
+    assert read_properties(path)["motd"] == name
+    path.read_bytes().decode("ascii")  # (Windows' own encoding can't hold most of these)
+    if "\\" in name:  # (Java reads a lone backslash as an escape)
+        assert "motd=Me\\\\You" in path.read_text()
+
+
+def test_server_properties_as_minecraft_writes_them(tmp_path):
+    """Minecraft keeps server.properties in UTF-8 (older ones: ISO-8859-1, with \\u escapes); a value it
+    escaped (https\\://) means what it says. Lines craft-conductor doesn't change stay byte for byte."""
+    from craft_conductor.properties import read_properties, write_properties
+    path = tmp_path / "server.properties"
+    utf8 = "#Minecraft server properties\r\nmotd=Ángel's Café\r\nresource-pack=https\\://example.com/a.zip\r\nserver-port=25565\r\n"
+    path.write_bytes(utf8.encode("utf-8"))
+    assert read_properties(path) == {"motd": "Ángel's Café", "resource-pack": "https://example.com/a.zip",
+                                     "server-port": "25565"}
+    write_properties(path, {"server-port": "25566"})
+    assert path.read_bytes().split(b"\n")[:3] == utf8.encode("utf-8").split(b"\n")[:3]
+    assert read_properties(path)["server-port"] == "25566"
+    old = b"motd=Caf\xe9 \\u00e0 la plage \\uD83C\\uDFAE\nlevel-name=world\n"  # (ISO-8859-1)
+    path.write_bytes(old)
+    assert read_properties(path)["motd"] == "Café à la plage 🎮"
+    write_properties(path, {"level-name": "world2"})
+    assert path.read_bytes().split(b"\n")[0] == old.split(b"\n")[0]  # (still ISO-8859-1, and still LF on Windows)
+    assert read_properties(path)["level-name"] == "world2" and b"\r" not in path.read_bytes()
+
+
+def test_a_two_line_motd_is_one_name(tmp_path):
+    """Minecraft shows ``motd=Welcome!\\nSecond line`` on two lines in its server list; as the server's
+    name (the page, invites, friends' launchers, typing it to delete the server) it's one line."""
+    from craft_conductor.properties import read_properties, server_name
+    path = tmp_path / "server.properties"
+    path.write_bytes(b"motd=Welcome!\\nSecond\\tline\nlevel-name=world\n")
+    props = read_properties(path)
+    assert props["motd"] == "Welcome!\nSecond\tline"  # (what Minecraft reads)
+    assert server_name(props) == "Welcome! Second line"
+    assert server_name({}, "alpha") == "alpha" and server_name({"motd": " \n "}, "alpha") == "alpha"
+
+
+def test_a_coloured_motd_is_a_plain_name(tmp_path):
+    """Colour codes in a motd (``§6``, escaped as ``\\u00A7`` by older Minecraft) colour it in
+    Minecraft's server list; the server's name is the plain text, so typing it to delete the server
+    doesn't take a ``§``."""
+    from craft_conductor.properties import read_properties, server_name
+    path = tmp_path / "server.properties"
+    path.write_bytes(b"motd=\\u00A76Gold \\u00A7lServer\\u00A7r\n")
+    assert server_name(read_properties(path)) == "Gold Server"
+    path.write_bytes("motd=§aGreen§r §x§f§f§0§0§0§0Hex\n".encode("utf-8"))  # (as 1.17+ writes it)
+    assert server_name(read_properties(path)) == "Green Hex"
+    assert server_name({"motd": "§a§l"}, "alpha") == "alpha"
+
+
+def test_a_new_server_named_in_any_language(tmp_path):
+    from craft_conductor import setup as setupmod
+    from craft_conductor.properties import read_properties
+    cfg = setupmod.configure(tmp_path, setupmod.SetupSpec(motd="我的服务器", accept_eula=True))
+    assert read_properties(cfg.server.dir / "server.properties")["motd"] == "我的服务器"
 
 
 def test_neoforge_versions(http):
@@ -289,6 +398,56 @@ def test_http_waits_out_rate_limits(monkeypatch):
     replies[:] = [urllib.error.HTTPError("u", 404, "nope", Message(), io.BytesIO())]
     with pytest.raises(httpmod.HttpError):
         httpmod.HttpClient(cache_ttl=0).get_json("https://api.mojang.com/y")
+
+
+SLOW_SAVER = """
+import sys, time
+print("[12:00:00] [Server thread/INFO]: Done (0.1s)! For help, type \\"help\\"", flush=True)
+for line in sys.stdin:
+    cmd = line.strip()
+    print(f"[12:00:01] [Server thread/INFO]: {cmd}", flush=True)
+    if cmd == "save-all flush" and WORD:
+        time.sleep(1.5)  # (a big world on a slow disk)
+        print("[12:00:03] [Server thread/INFO]: Saved the " + WORD, flush=True)
+    elif cmd == "stop":
+        sys.exit(0)
+"""
+
+
+@pytest.mark.parametrize("word", ["game", "world"])  # ("world": Minecraft 1.12 and older)
+def test_a_running_server_is_copied_once_it_says_the_world_is_saved(tmp_path, word):
+    """Before a backup or an export, saving is paused and the whole world written out: the copy waits
+    for the server to say it's done, not for a fixed few seconds that a big world can outlast."""
+    import sys
+    import time as _time
+    from craft_conductor.process import ServerProcess
+    proc = ServerProcess([sys.executable, "-c", SLOW_SAVER.replace("WORD", repr(word))], tmp_path, echo=False)
+    proc.start()
+    try:
+        assert proc.wait_ready(20)
+        started = _time.monotonic()
+        assert proc.pause_saving()
+        assert _time.monotonic() - started >= 1.4
+        assert any(line.endswith("Saved the " + word) for line in proc.lines)
+        proc.resume_saving()
+    finally:
+        proc.stop(10)
+    assert [line.rsplit(": ", 1)[1] for line in proc.lines if line.endswith(("save-off", "save-on", "flush"))] == \
+        ["save-off", "save-all flush", "save-on"]
+
+
+def test_a_server_that_never_says_its_saved_is_still_copied(tmp_path, monkeypatch, caplog):
+    import sys
+    from craft_conductor import process
+    monkeypatch.setattr(process, "SAVE_TIMEOUT", 1)
+    proc = process.ServerProcess([sys.executable, "-c", SLOW_SAVER.replace("WORD", "''")], tmp_path, echo=False)
+    proc.start()
+    try:
+        assert proc.wait_ready(20)
+        assert proc.pause_saving() is False
+        assert "didn't say it had saved the world" in caplog.text
+    finally:
+        proc.stop(10)
 
 
 def test_process_stats():

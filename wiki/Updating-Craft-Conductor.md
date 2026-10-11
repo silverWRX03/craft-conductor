@@ -10,7 +10,9 @@ like `0.23.0b1`. When a new version is out:
   to what's new, with **Update now** and **Later** buttons. **Update now** closes it and shows an
   **Updating Craft Conductor…** screen with the step it's on; the release is installed, players are
   warned a minute ahead if anyone is online, the servers stop cleanly, and Craft Conductor restarts on
-  the new version. The same browser tab reconnects and reloads once the new version answers (no new tab),
+  the new version; the servers that were running start again once the new version has proven itself
+  (if the update is rolled back, they start on the previous version instead). The same browser tab
+  reconnects and reloads once the new version answers (no new tab),
   and then you sign in again. It's started once, however often the button is pressed. If it fails, the
   screen says why and offers **Try again** (or **Retry connection**, **View update log** and how to
   restart by hand when the old version couldn't be put back).
