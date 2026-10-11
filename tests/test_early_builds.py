@@ -35,6 +35,28 @@ def test_release_file_must_match_loader_even_if_api_filter_fails(http, modrinth)
     assert ModrinthProvider(http).best_channels(["MOD"], ("fabric",), "1.21.1") == {"MOD": None}
 
 
+def test_curseforge_file_must_match_loader_even_if_api_filter_fails(http):
+    """As for Modrinth: a file whose own tags name only another loader isn't installed, whatever the
+    API's loader filter let through; one that names no loader is taken at the filter's word."""
+    from craft_conductor.mods import curseforge as cf
+    from craft_conductor.mods.base import Unavailable
+    http.json[f"{cf.API}/mods/77"] = {"data": {"id": 77, "slug": "mod", "name": "Mod"}}
+
+    def files(*tags):
+        return {"data": [{"id": 7700 + i, "fileName": f"mod-{i}.jar", "displayName": f"Mod {i}", "releaseType": 1,
+                          "gameVersions": list(t), "fileDate": f"2025-01-0{i + 1}T00:00:00Z", "downloadUrl": "https://edge.forgecdn.net/x.jar"}
+                         for i, t in enumerate(tags)]}
+    provider = cf.CurseForgeProvider(http, "fake-key-for-tests")
+    http.json[f"{cf.API}/mods/77/files"] = files(["1.21.1", "Forge"])  # (the filter asked for Fabric)
+    with pytest.raises(Unavailable):
+        provider.resolve(ModSpec("curseforge", "77"), "1.21.1", ("fabric",), "release")
+    assert provider.supported_versions(ModSpec("curseforge", "77"), ("fabric",), "release") == set()
+    http.json[f"{cf.API}/mods/77/files"] = files(["1.21.1", "Fabric"], ["1.21.1", "Forge"], ["1.21.1"])
+    assert provider.resolve(ModSpec("curseforge", "77"), "1.21.1", ("fabric",), "release").filename == "mod-2.jar"
+    http.json[f"{cf.API}/mods/77/files"] = files(["1.21.1", "Fabric", "Quilt"])
+    assert provider.resolve(ModSpec("curseforge", "77"), "1.21.1", ("quilt",), "release").filename == "mod-0.jar"
+
+
 def publish(modrinth, http):
     modrinth.project("GOOD", "goodmod", "Good Mod")
     modrinth.version("GOOD", "1.0", ["1.21.1"])

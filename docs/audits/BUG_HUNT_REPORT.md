@@ -303,6 +303,23 @@ and test evidence, no full reproduction), Suspected, Not reproducible.
   the recorded address, and a second start opening it).
 - **Status:** Fixed.
 
+## Hardening (not a confirmed bug)
+
+### H1: CurseForge builds are checked for the server's loader by their own tags
+
+- **Confidence:** Suspected (the gap is demonstrated; whether CurseForge's API ever returns such
+  files hasn't been seen).
+- **Component:** `mods/curseforge.py` (`resolve`, `supported_versions`).
+- **Description:** the newest CurseForge build was picked on the API's `modLoaderType` filter alone,
+  while the Modrinth provider checks each file's loaders itself ("never trust only a search/API
+  filter", with a test) and pinned CurseForge builds were already checked. A file the API let
+  through that names only another loader (a Forge build for a Fabric server) would be installed,
+  and the server wouldn't start.
+- **Change:** a file whose own tags name loaders must name the one asked for; a file that names no
+  loader is still taken at the filter's word (as before).
+- **Test:** `tests/test_early_builds.py::test_curseforge_file_must_match_loader_even_if_api_filter_fails`
+  (failed before: the Forge-only file was accepted).
+
 ## Security findings
 
 **No new exploitable vulnerability was confirmed.** Reviewed by reading, with the existing
