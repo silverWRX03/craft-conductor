@@ -802,9 +802,9 @@ class JavaManager:
         root = getattr(self.config, "root", None)
         if self.temporary or root is None or getattr(self.config, "path", None) is None:
             return
-        from .properties import read_properties
+        from .properties import read_properties, server_name
         try:
-            name = read_properties(self.config.server.dir / "server.properties").get("motd") or root.name
+            name = server_name(read_properties(self.config.server.dir / "server.properties"), root.name)
         except (OSError, AttributeError):
             name = root.name
         self.store.note_user(root, name, c.wanted, c.binary, c.source == "shared")

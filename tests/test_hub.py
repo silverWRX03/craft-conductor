@@ -44,6 +44,19 @@ def test_servers_are_listed_and_never_start_by_themselves(hub_env):
 
 
 
+def test_a_two_line_motd_is_listed_on_one_line(hub_env):
+    """The name the page shows (and asks to be typed to delete a server with its files) is one line."""
+    from craft_conductor.properties import write_properties
+    hub, c = hub_env
+    login(c)
+    alpha = hub.get("alpha")
+    write_properties(alpha.m.server_dir / "server.properties", {"motd": "Alpha\nSecond line"})
+    assert (alpha.m.server_dir / "server.properties").read_text().count("motd=Alpha\\nSecond line") == 1
+    names = {s["id"]: s["name"] for s in c.get("/api/hub")[1]["servers"]}
+    assert names["alpha"] == "Alpha Second line"
+    assert c.get("/api/servers/alpha/status")[1]["motd"] == "Alpha Second line"
+
+
 def test_delete_servers(hub_env):
     hub, c = hub_env
     login(c)

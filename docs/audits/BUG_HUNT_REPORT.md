@@ -67,6 +67,15 @@ and test evidence, no full reproduction), Suspected, Not reproducible.
   They failed before the fix (6 failures) and pass after it.
 - **Related:** `craft-conductor.toml` had the same problem for hand-edited text (BUG-009).
 - **Status:** Fixed.
+- **Follow-up (found during this audit, before release):** decoding Java escapes means a two-line
+  motd (`\n` in the file, as many servers have) gives the server's name a line break. That name is
+  typed to confirm **Delete everything**, and goes to friends, whose Prism Launcher `instance.cfg`
+  takes one setting per line. Fixed with `properties.server_name` (the motd on one line, used
+  wherever it serves as the name; the playit.gg check keeps the raw motd, which now matches what
+  the server reports), and on the friend's side `validate_pack` puts the pack's name on one line
+  and the Prism writer keeps each value on its line, whatever the server's version. Tests:
+  `test_a_two_line_motd_is_one_name`, `test_a_two_line_motd_is_listed_on_one_line`,
+  `test_a_server_name_on_two_lines_stays_one_setting`.
 
 ### BUG-002: a scheduled restart is dropped when a scheduled backup is due in the same minute
 
@@ -220,7 +229,7 @@ and test evidence, no full reproduction), Suspected, Not reproducible.
   (the wiki's Power users pages describe doing so) is affected.
 - **Impact:** on Windows, a UTF-8 comment or value with some characters (Chinese, "Á" …) made the
   server "unavailable" with "'charmap' codec can't decode byte 0x8f"; others were misread, e.g.
-  `copy_to = "D:\Música"` became "MÃºsica", so backup copies quietly stopped (the folder "isn't there").
+  `copy_to = 'D:\Música'` became "MÃºsica", so backup copies quietly stopped (the folder "isn't there").
 - **Fix:** `config.read_text` reads UTF-8 (a byte-order mark tolerated; a file saved by an old
   editor in the computer's own encoding still read), `config.write_text` writes UTF-8; every
   reader and writer of the file uses them, and the "put it back if saving fails" copies are kept

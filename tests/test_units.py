@@ -169,6 +169,18 @@ def test_server_properties_as_minecraft_writes_them(tmp_path):
     assert path.read_bytes().startswith(b"motd=Caf\xe9 ") and read_properties(path)["level-name"] == "world2"
 
 
+def test_a_two_line_motd_is_one_name(tmp_path):
+    """Minecraft shows ``motd=Welcome!\\nSecond line`` on two lines in its server list; as the server's
+    name (the page, invites, friends' launchers, typing it to delete the server) it's one line."""
+    from craft_conductor.properties import read_properties, server_name
+    path = tmp_path / "server.properties"
+    path.write_bytes(b"motd=Welcome!\\nSecond\\tline\nlevel-name=world\n")
+    props = read_properties(path)
+    assert props["motd"] == "Welcome!\nSecond\tline"  # (what Minecraft reads)
+    assert server_name(props) == "Welcome! Second line"
+    assert server_name({}, "alpha") == "alpha" and server_name({"motd": " \n "}, "alpha") == "alpha"
+
+
 def test_a_new_server_named_in_any_language(tmp_path):
     from craft_conductor import setup as setupmod
     from craft_conductor.properties import read_properties

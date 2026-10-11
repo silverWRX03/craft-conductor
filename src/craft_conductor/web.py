@@ -49,7 +49,7 @@ from .mods.curseforge import CurseForgeProvider
 from .mods.modrinth import ModrinthProvider, keep_buildable
 from .planner import DATAPACK_LOADERS, lowest
 from .players import PlayerError, Players, broadcast_text
-from .properties import read_properties, write_properties
+from .properties import read_properties, server_name, write_properties
 from .skins import SkinError, Skins
 
 log = logging.getLogger(__name__)
@@ -2492,7 +2492,7 @@ class Api:
             "mods": len(lk.mods),
             "players": sorted(d.players),
             "max_players": int(props.get("max-players", "20") or 20),
-            "motd": props.get("motd", ""),
+            "motd": server_name(props),
             "port": props.get("server-port", "25565"),
             "server_dir": str(m.server_dir),
             "strategy": m.config.updates.strategy,
@@ -3376,7 +3376,7 @@ class Api:
         from .join import Invite
         hub = self.web.hub
         share, fp = hub.share_settings(), hub.share_fingerprint()
-        name = read_properties(self.m.server_dir / "server.properties").get("motd", "")
+        name = server_name(read_properties(self.m.server_dir / "server.properties"))
         lan = lan_ip()
         out = {"local": Invite(lan, share["port"], c.token, fp).page_link(name) if lan else None, "internet": None}
         if (tunnel := hub.share_tunnel()) is not None:  # friends outside reach the downloads through playit.gg
@@ -3444,7 +3444,7 @@ class Api:
         if not links:
             raise ApiError(400, "there's no invite link to post yet"
                            + ("; set your internet address (or use your public IP) first" if "internet" in wanted else ""))
-        name = read_properties(self.m.server_dir / "server.properties").get("motd") or self.d.server_id
+        name = server_name(read_properties(self.m.server_dir / "server.properties"), self.d.server_id)
         text, embed = invite_message(str(b.get("message", "")), name, self.m.lock.minecraft or "", links,
                                      expires=self.m.config.client.expires)
         r = bot.post(channel, text, embed)
@@ -4081,7 +4081,7 @@ class Api:
         version = str(b.get("version", ""))
         if version not in self.m.mojang.betas():
             raise ApiError(400, "pick one of the beta versions in the list")
-        name = read_properties(self.m.server_dir / "server.properties").get("motd") or self.sid
+        name = server_name(read_properties(self.m.server_dir / "server.properties"), self.sid)
 
         def prepare(root: Path) -> None:
             path = root / configmod.CONFIG_NAME
@@ -4201,7 +4201,7 @@ class Api:
                 if proc:  # write everything to disk and hold it there while copying
                     proc.pause_saving()
                 from .properties import read_properties
-                name = read_properties(self.m.server_dir / "server.properties").get("motd") or self.sid
+                name = server_name(read_properties(self.m.server_dir / "server.properties"), self.sid)
                 path = transfer.export(self.m, self.exports_dir / transfer.export_name(name), include_backups)
             finally:
                 if proc:

@@ -10,11 +10,20 @@ every Minecraft version.
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 
 _cache: dict[str, tuple[tuple, dict[str, str]]] = {}  # path -> (its stat when read, what it said)
 _ESCAPES = {"t": "\t", "n": "\n", "r": "\r", "f": "\f"}
+_CONTROL = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def server_name(props: dict[str, str], default: str = "") -> str:
+    """A server's name as Craft Conductor shows and sends it (the server list, invites, friends'
+    launchers): its motd on one line. A two-line motd (``\\n`` in the file) shows as one, and no
+    other control character gets through; ``default`` when there's no motd."""
+    return " ".join(_CONTROL.sub(" ", props.get("motd", "")).split()) or default
 
 
 def _read_lines(path: Path) -> tuple[list[str], str]:

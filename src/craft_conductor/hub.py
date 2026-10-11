@@ -433,12 +433,12 @@ class Hub:
 
     def summary_for_discord(self) -> list[dict]:
         """The Minecraft servers /whitelist can pick from (ones that are set up)."""
-        from .properties import read_properties
+        from .properties import read_properties, server_name
         out = []
         for sid, d in list(self.daemons.items()):
             if d.setup_pending:
                 continue
-            motd = read_properties(d.m.server_dir / "server.properties").get("motd") or sid
+            motd = server_name(read_properties(d.m.server_dir / "server.properties"), sid)
             out.append({"id": sid, "name": motd})
         return out
 
@@ -637,11 +637,11 @@ class Hub:
 
     def phone_notify(self, sid: str, message: str) -> None:
         """A server's message (what goes to Discord), to the phones that turned notifications on."""
-        from .properties import read_properties
+        from .properties import read_properties, server_name
         d = self.daemons.get(sid)
         name = sid
         if d is not None:
-            name = read_properties(d.m.server_dir / "server.properties").get("motd") or sid
+            name = server_name(read_properties(d.m.server_dir / "server.properties"), sid)
         self.push.notify(name, message, url=f"/#s/{sid}/dashboard", tag=sid.replace("-", "_")[:32])
 
     def get(self, sid: str) -> Daemon | None:
@@ -653,7 +653,7 @@ class Hub:
 
     def ports(self, exclude: str | None = None) -> dict[int, str]:
         """Minecraft port -> server id, for every server here."""
-        from .properties import read_properties
+        from .properties import read_properties, server_name
         out = {}
         for sid, d in self.daemons.items():
             if sid != exclude:
@@ -681,11 +681,11 @@ class Hub:
 
     def port_info(self, port: int, exclude: str | None = None) -> dict:
         """Whether a Minecraft port can be used: by another server here, by craft-conductor, or by another program."""
-        from .properties import read_properties
+        from .properties import read_properties, server_name
         used_by = None
         sid = self.ports(exclude).get(port)
         if sid is not None and sid in self.daemons:
-            used_by = read_properties(self.daemons[sid].m.server_dir / "server.properties").get("motd") or sid
+            used_by = server_name(read_properties(self.daemons[sid].m.server_dir / "server.properties"), sid)
         running_here = sid is not None and sid in self.daemons and bool(
             self.daemons[sid].proc and self.daemons[sid].proc.running)
         return {"port": port, "used_by": used_by, "craft-conductor": port in self.reserved_ports(),
@@ -693,13 +693,13 @@ class Hub:
 
     def check_port(self, daemon: Daemon) -> None:
         """Refuse to start a server whose port another running server here already uses."""
-        from .properties import read_properties
+        from .properties import read_properties, server_name
         port = read_properties(daemon.m.server_dir / "server.properties").get("server-port", "25565")
         for sid, other in self.daemons.items():
             if other is daemon or not (other.proc and other.proc.running):
                 continue
             if read_properties(other.m.server_dir / "server.properties").get("server-port", "25565") == port:
-                name = read_properties(other.m.server_dir / "server.properties").get("motd") or sid
+                name = server_name(read_properties(other.m.server_dir / "server.properties"), sid)
                 raise RuntimeError(f"port {port} is already used by {name}, which is running; "
                                    "stop it first, or give this server another port in its Settings")
 
@@ -940,7 +940,7 @@ class Hub:
     def upnp_wanted(self) -> list[tuple[int, str, str]]:
         """(port, protocol, label) craft-conductor forwards: each server's Minecraft port and friends' downloads.
         Never the control panel's port or a server's RCON port, even if one of those is the same number."""
-        from .properties import read_properties
+        from .properties import read_properties, server_name
         out, private = [], {self.web.port}
         if self.ui is not None and getattr(self.ui, "httpd", None) is not None:
             private.add(self.ui.httpd.server_address[1])  # (the port it actually listens on)
@@ -1077,11 +1077,11 @@ class Hub:
     def summary(self) -> list[dict]:
         out = []
         for sid, d in list(self.daemons.items()):
-            from .properties import read_properties
+            from .properties import read_properties, server_name
             props = read_properties(d.m.server_dir / "server.properties")
             lk = d.m.lock
             out.append({
-                "id": sid, "name": props.get("motd") or sid, "state": d.state,
+                "id": sid, "name": server_name(props, sid), "state": d.state,
                 "setup_pending": d.setup_pending, "job": d.job, "minecraft": lk.minecraft,
                 "loader": lk.loader or d.m.config.server.loader, "players": len(d.players),
                 "max_players": int(props.get("max-players", "20") or 20),
