@@ -28,6 +28,7 @@ its fix will say which version it's in.
 - Double-clicking **Start**, **Restart** or **Stop** at the top of a server's pages pressed it twice: a red "busy: start is running" appeared beside "start: started" (and Stop asked its question twice). Each now counts once.
 - A server could be given the port the control panel or friends' downloads use (in its **Settings**, or on New server despite the red note), and then couldn't start; the friends' download port could likewise be set to a server's port. Both are refused now, with a message saying which port is taken.
 - When another program was using the control panel's port (8765), or Windows kept it for itself, Craft Conductor showed the address and then stopped with "An attempt was made to access a socket in a way forbidden by its access permissions". It now uses the next free port that time and opens it (opening Craft Conductor again finds it too); a port you chose yourself with `--web-port` is kept, with a message saying it's taken and what to do.
+- Quitting Craft Conductor while **Test these mods** or **Find which mods break it** was booting a test server, or a map preview was making its land, left that throwaway server running on its own afterwards, holding its memory and port until the computer restarted. It's stopped too now, and a test cut off this way is tidied up at the next start.
 
 ## 0.26.0 (2026-10-09)
 

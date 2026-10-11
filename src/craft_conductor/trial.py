@@ -149,6 +149,7 @@ class Trial:
         self.started = time.time()
         self.tests = 0
         self.m = None
+        self.proc = None  # the throwaway server, while one runs (stopped if Craft Conductor quits: stop())
         self.thread = threading.Thread(target=self._run, daemon=True, name=f"trial:{self.id}")
 
     def start(self) -> "Trial":
@@ -177,6 +178,15 @@ class Trial:
         configmod.set_value(path, "backups", "keep", "1")
         self.m = self.hub.make_manager(configmod.load(self.root))
         self.m.java.temporary = True  # (the shared Java folder, without counting as a server using it)
+        self.m.on_process = lambda proc: setattr(self, "proc", proc)
+
+    def stop(self) -> None:
+        """Craft Conductor is quitting: end the test, and the throwaway server it may be booting (a
+        process of its own, which would otherwise keep running after Craft Conductor)."""
+        self.cancel.set()
+        proc = self.proc
+        if proc is not None and proc.running:
+            proc.stop(10)
 
     def _test(self, mods: list[ModSpec], label: str) -> tuple[bool, str, dict | None]:
         if self.cancel.is_set():

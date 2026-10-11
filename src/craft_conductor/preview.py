@@ -806,6 +806,12 @@ class Preview:
         if self.cancel.is_set():
             raise InterruptedError
 
+    def stop(self) -> None:
+        """Craft Conductor is quitting: stop making this map, and the private server making its land
+        (a process of its own, which would otherwise keep running after Craft Conductor)."""
+        self.cancel.set()
+        self._drop_session()
+
     def fingerprint(self) -> str:
         mods = sorted(f"{m.source}:{m.id}:{m.channel or ''}{':datapack' if m.datapack else ''}" for m in self.mods)
         return hashlib.sha256(repr((self.loader, self.minecraft, mods)).encode()).hexdigest()[:16]

@@ -26,6 +26,7 @@ fix them, without step-by-step exploit details.
 | BUG-011 | Double-clicking Start, Restart or Stop shows a false "busy" error | P3 | Confirmed | Fixed |
 | BUG-012 | A server can be given Craft Conductor's own port (and the reverse) | P4 | Confirmed | Fixed |
 | BUG-013 | A busy control panel port ends in "stopped unexpectedly" with a socket error | P3 | Confirmed | Fixed |
+| BUG-014 | Quitting during a mod test or map preview leaves its server running | P3 | Confirmed | Fixed |
 
 Severity: P0 critical … P4 informational. Confidence: Confirmed (reproduced), High confidence (code
 and test evidence, no full reproduction), Suspected, Not reproducible.
@@ -310,6 +311,30 @@ and test evidence, no full reproduction), Suspected, Not reproducible.
 - **Tests:** `tests/test_hub.py::test_start_when_the_control_panels_port_is_taken` (a chosen port:
   the message; failed before), `test_a_taken_usual_port_moves_the_control_panel` (the fallback,
   the recorded address, and a second start opening it).
+- **Status:** Fixed.
+
+### BUG-014: quitting during a mod test or map preview leaves its server running
+
+- **Severity / confidence:** P3 / Confirmed (failing test).
+- **Component:** `hub.py` (`Hub.run`'s shutdown), `trial.py`, `preview.py`.
+- **Description:** a mod test (Test boot, Find which mods break it) and a map preview each run a
+  throwaway Minecraft server, a process of its own. When Craft Conductor quits, the hub stops the
+  servers in its list, the explorable map's server and update rehearsals, but not a test's or a
+  map's server still being made: the test's process wasn't tracked at all, and a preview's map
+  session is only registered once its map is finished. Their worker threads just end with Craft
+  Conductor, and child processes outlive their parent.
+- **Impact:** a Java process keeps running after Craft Conductor (memory, CPU, a port in 25590+)
+  until the computer restarts; a test's folder under `.craft-conductor/trials` is left behind.
+- **Fix:** a test notes its server's process (`Manager.on_process`); `Trial.stop()` and
+  `Preview.stop()` end the work and stop that server; the hub's shutdown calls them for any still
+  running (and cancels a seed gallery). Leftover test folders are removed at the next start, as
+  map previews' already were.
+- **Tests:** `tests/test_trial.py::test_quitting_stops_a_mod_test_s_server` (a slow-starting test
+  server; before the fix it was still running after Quit). The preview path reuses the existing
+  cancel code (`_drop_session`), so it has no test of its own.
+- **Note:** in the tests on Windows the stand-in `java` is a `.bat` wrapper, and terminating it
+  leaves the script it started running. Real servers are started as `java` directly, so this is
+  the tests' limit only; the slow test server answers `stop` as Minecraft does.
 - **Status:** Fixed.
 
 ## Hardening (not a confirmed bug)

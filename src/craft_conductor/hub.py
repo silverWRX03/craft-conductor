@@ -1276,6 +1276,8 @@ class Hub:
         hub_stop_path(self.home).unlink(missing_ok=True)
         from . import preview
         threading.Thread(target=preview.clean, args=(self,), daemon=True, name="preview-clean").start()  # last time's maps
+        threading.Thread(target=shutil.rmtree, args=(self.state_dir / "trials",), kwargs={"ignore_errors": True},
+                         daemon=True, name="trials-clean").start()  # (a mod test cut off last time)
         if threading.current_thread() is threading.main_thread():
             for sig in (signal.SIGTERM, signal.SIGINT):
                 signal.signal(sig, lambda *_: self.stop_requested.set())
@@ -1338,6 +1340,16 @@ class Hub:
                 self.discord_bot.close()
             if self.map_session is not None:  # (a map's private server)
                 self.map_session.close()
+            if self.gallery is not None:
+                self.gallery.cancel.set()
+            # A mod test's or a map's throwaway server still being made: a process of its own, stopped
+            # too (it would keep running, holding its port and memory, after Craft Conductor).
+            for job in [*self.trials.values(), *self.previews.values()]:
+                if job.state == "running":
+                    try:
+                        job.stop()
+                    except Exception:
+                        log.exception("couldn't stop a mod test's or map's server")
             for d in list(self.daemons.values()):  # (an update rehearsal's copy of a server)
                 if d.rehearsal is not None:
                     d.rehearsal.close()
