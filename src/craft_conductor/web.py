@@ -1290,7 +1290,9 @@ class HubApi:
         r[("POST", "/api/hub/map/explore")] = self.map_explore
         r[("POST", "/api/hub/map/stop")] = self.map_stop
         r[("GET", "/api/hub/saves")] = self.saves
-        r[("POST", "/api/hub/import")] = lambda q, b: {"ok": True, **self.hub.import_server(str(b.get("id", "")))}
+        r[("POST", "/api/hub/import")] = lambda q, b: {"ok": True, **self.hub.import_server(
+            str(b.get("id", "")), password=str(b["password"]) if b.get("password") else None,
+            skip_locked=bool(b.get("skip_locked")))}
         r[("GET", "/api/hub/browse/search")] = lambda q, b: browse_search(self.browser(), q)
         r[("GET", "/api/hub/browse/project")] = lambda q, b: browse_project(self.browser(), q)
         r[("GET", "/api/hub/browse/categories")] = lambda q, b: browse_categories(self.browser(), q)
@@ -3956,9 +3958,12 @@ class Api:
         from . import areas, snapshots
         checks = areas.load_checks(self.m.config.backups.dir)
         notes = snapshots.listing(self.m.config.backups.dir)
-        return {"backups": [{"name": p.name, "size": p.stat().st_size, "time": p.stat().st_mtime, "check": checks.get(p.name),
-                             **notes.get(p.name, {})}
-                            for p in reversed(backup.list_backups(self.m.config.backups.dir))]}
+        out = []
+        for p in reversed(backup.list_backups(self.m.config.backups.dir)):
+            about = backup.about(p) or {}  # (none: made before backups said what they hold, so everything)
+            out.append({"name": p.name, "size": p.stat().st_size, "time": p.stat().st_mtime, "check": checks.get(p.name),
+                        **notes.get(p.name, {}), "holds": about.get("holds"), "locked": about.get("locked") or []})
+        return {"backups": out}
 
     def backup_changes(self, q, b) -> dict:
         """What rolling back to a backup would undo (what changed since it was made)."""
@@ -4180,10 +4185,13 @@ class Api:
         return (hub.exports_dir if not hub.is_single else self.m.config.root / "exports") / self.sid
 
     def exports(self, q, b) -> dict:
+        from . import transfer
         d = self.exports_dir
         files = sorted(d.glob("*.craft-conductor.zip"), key=lambda p: p.stat().st_mtime, reverse=True) if d.is_dir() else []
         return {"folder": str(d), "exports": [{"name": p.name, "size": p.stat().st_size, "created": p.stat().st_mtime}
-                                               for p in files]}
+                                               for p in files],
+                "parts": transfer.parts_present(self.m), "sensitive": sorted(transfer.sensitive_present(self.m)),
+                "has_backups": bool(backup.list_backups(self.m.config.backups.dir))}
 
     def export_file(self, name: str) -> Path:
         path = self.exports_dir / name
@@ -4192,8 +4200,15 @@ class Api:
         return path
 
     def export(self, q, b) -> dict:
-        from . import transfer
+        from . import parts, secretzip, transfer
         include_backups = bool(b.get("backups"))
+        holds = b.get("parts", list(parts.CHOICES))
+        chosen = b.get("secrets", [])
+        if not isinstance(holds, list) or not isinstance(chosen, list) or \
+                any(x not in parts.CHOICES for x in holds) or any(x not in parts.SENSITIVE for x in chosen):
+            raise ApiError(400, "pick what goes in the export from the list")
+        # The password only ever goes back to whoever asked (never into the job's status).
+        password = secretzip.new_password() if set(chosen) & transfer.sensitive_present(self.m) else None
 
         def run():
             proc = self.d.proc if self.d.proc and self.d.proc.running else None
@@ -4202,12 +4217,14 @@ class Api:
                     proc.pause_saving()
                 from .properties import read_properties
                 name = server_name(read_properties(self.m.server_dir / "server.properties"), self.sid)
-                path = transfer.export(self.m, self.exports_dir / transfer.export_name(name), include_backups)
+                path = transfer.export(self.m, self.exports_dir / transfer.export_name(name), include_backups,
+                                       holds=holds, secrets=chosen, password=password)
             finally:
                 if proc:
                     proc.resume_saving()
             return f"exported to {path.name}"
-        return self._job("export", run)
+        started = self._job("export", run)
+        return {**started, "password": password} if password else started
 
     def delete_export(self, q, b) -> dict:
         self.export_file(str(b.get("name", ""))).unlink()
@@ -4364,6 +4381,7 @@ class Api:
         "restart_when_empty": ("schedule", "restart_when_empty", bool),
         "backup_copy_to": ("backups", "copy_to", str),
         "backup_copy_keep": ("backups", "copy_keep", int),
+        "backup_include": ("backups", "include", "names"),
         "tunnel_address": ("tunnel", "address", str),
     }
 
@@ -4396,6 +4414,7 @@ class Api:
         out = {"schedule_restart": c.schedule.restart, "schedule_backup": c.schedule.backup,
                "restart_when_empty": c.schedule.restart_when_empty,
                "backup_copy_to": str(c.backups.copy_to or ""), "backup_copy_keep": c.backups.copy_keep,
+               "backup_include": c.backups.include,
                "backup_copy_ok": c.backups.copy_to is None or c.backups.copy_to.is_dir()}
         for name in ("restart", "backup"):
             expr = getattr(c.schedule, name)
@@ -4436,6 +4455,10 @@ class Api:
                         raise ApiError(400, f"{key} must be a whole number") from None
                 elif kind is list:
                     literal = json.dumps([int(x) for x in value])
+                elif kind == "names":  # (a list of words: what backups hold)
+                    if not isinstance(value, list) or not all(isinstance(x, str) for x in value):
+                        raise ApiError(400, f"{key} must be a list")
+                    literal = json.dumps(value)
                 else:
                     literal = json.dumps(str(value))
                 if literal is None:

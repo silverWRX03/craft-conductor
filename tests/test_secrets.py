@@ -107,7 +107,8 @@ def test_a_web_password_typed_into_craft_conductor_toml_is_kept_as_its_hash(tmp_
     assert auth.strong  # (it met STRONG_RULES, so other devices may still sign in with it)
     assert configmod.load(root).web.password == cfg.web.password  # (hashed once)
     kept = json.loads(note.read_text())
-    assert password not in note.read_text() and webauth.is_hashed(tomllib.loads(kept["toml"])["web"]["password"])
+    assert password not in note.read_text() and tomllib.loads(kept["toml"])["web"]["password"] == ""
+    assert webauth.is_hashed(snapshots._opened(kept["secrets"])["toml"]["web.password"])  # (locked here, and hashed)
     assert kept["properties"] == {"motd": "x"}
     assert only_mine(note), access(note)
     # An editor that saves by writing a new file: the next read makes it this account's again.
@@ -121,7 +122,9 @@ def test_a_web_password_typed_into_craft_conductor_toml_is_kept_as_its_hash(tmp_
     weak = webauth.AuthStore(configmod.load(root)).get()
     assert weak.check("letmein") and not weak.strong and "letmein" not in toml.read_text(encoding="utf-8")
     # A backup made before Craft Conductor reads the file again doesn't keep it either.
-    assert "Typed-Now-2!" not in snapshots._password_hashed('[web]\npassword = "Typed-Now-2!"\n')
+    found = snapshots._secrets('[web]\npassword = "Typed-Now-2!"\n', {})
+    assert webauth.is_hashed(found["toml"]["web.password"])
+    assert snapshots._without('[web]\npassword = "Typed-Now-2!"\n', {}, found)[0] == '[web]\npassword = ""\n'
 
 
 def test_a_password_in_a_read_only_toml_still_works(tmp_path, monkeypatch, caplog):

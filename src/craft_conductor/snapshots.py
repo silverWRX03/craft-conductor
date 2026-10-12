@@ -9,6 +9,7 @@ size, and the text of ``craft-conductor.toml`` and ``craft-conductor.lock.json``
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import logging
@@ -18,9 +19,9 @@ import time
 import tomllib
 from pathlib import Path
 
-from . import backup, config as configmod, lock as lockmod, private
+from . import backup, config as configmod, lock as lockmod, lockbox, parts, private
 from .config import CONFIG_NAME
-from .properties import read_properties
+from .properties import SECRET_KEYS, read_properties
 
 log = logging.getLogger(__name__)
 
@@ -65,62 +66,99 @@ def describe(m) -> dict:
             return configmod.read_text(root / name)
         except OSError:
             return None
+    toml = text(CONFIG_NAME)
+    toml, props = _without(toml, props, _secrets(toml, props))  # (never a password or key in a note)
     return {
         "time": time.time(), "minecraft": lk.minecraft, "loader": lk.loader, "loader_version": lk.loader_version,
         "mods": {x.key: {"name": x.name, "version": x.version_number} for x in lk.mods},
         "properties": props, "configs": configs, "world_bytes": _folder_size(sd / level) if (sd / level).is_dir() else 0,
-        "toml": _password_hashed(text(CONFIG_NAME)), "lock": text(lockmod.LOCK_NAME),
+        "toml": toml, "lock": text(lockmod.LOCK_NAME),
     }
 
 
-def _password_hashed(toml: str | None) -> str | None:
-    """craft-conductor.toml's text with a ``[web] password`` typed into it (not read back yet)
-    swapped for its hash: a note never keeps a password itself."""
-    if not toml or "password" not in toml:
-        return toml
-    try:
-        password = str(tomllib.loads(toml).get("web", {}).get("password") or "")
-    except (tomllib.TOMLDecodeError, AttributeError):
-        return toml
-    from . import webauth
-    if not password or webauth.is_hashed(password):
-        return toml
-    return configmod.with_value(toml, "web", "password", json.dumps(webauth.hash_password(password)))
+def _secrets(toml: str | None, props: dict) -> dict:
+    """The passwords and keys in craft-conductor.toml's text and server.properties' settings:
+    {"toml": {"table.key": value}, "properties": {key: value}}."""
+    found = {"toml": {}, "properties": {k: str(v) for k, v in props.items() if k in SECRET_KEYS and str(v).strip()}}
+    if toml and any(key in toml for _, key in configmod.SECRETS):
+        try:
+            data = tomllib.loads(toml)
+        except tomllib.TOMLDecodeError:
+            data = {}
+        for table, key in configmod.SECRETS:
+            value = data.get(table, {}).get(key) if isinstance(data.get(table), dict) else None
+            if isinstance(value, str) and value.strip():
+                if (table, key) == ("web", "password"):
+                    from . import webauth
+                    if not webauth.is_hashed(value):  # (a password is only ever kept as its hash)
+                        value = webauth.hash_password(value)
+                found["toml"][f"{table}.{key}"] = value
+    return found
 
 
-_hashed_folders: set[str] = set()
+def _without(toml: str | None, props: dict, found: dict) -> tuple[str | None, dict]:
+    for dotted in found["toml"]:
+        table, key = dotted.split(".", 1)
+        toml = configmod.with_value(toml, table, key, '""')
+    return toml, {k: ("" if k in found["properties"] else v) for k, v in props.items()}
 
 
-def hash_passwords_once(folder: Path) -> None:
-    """Notes made before passwords were kept hashed can hold a ``[web] password`` as it was typed:
-    swap it for its hash there too (each backups folder once while Craft Conductor runs)."""
-    if str(folder) in _hashed_folders:
+def _sealed(found: dict) -> str:
+    return base64.b64encode(lockbox.lock(json.dumps(found).encode())).decode()
+
+
+def _opened(sealed: str) -> dict:
+    data = json.loads(lockbox.unlock(base64.b64decode(sealed)))
+    if not isinstance(data, dict):
+        raise ValueError("the locked part of the note is damaged")
+    return {"toml": dict(data.get("toml") or {}), "properties": dict(data.get("properties") or {})}
+
+
+_secured_folders: set[str] = set()
+
+
+def secure_notes_once(folder: Path) -> None:
+    """Notes made before backups locked their secrets can hold passwords and keys as they were
+    written: lock them (each backups folder once while Craft Conductor runs)."""
+    if str(folder) in _secured_folders:
         return
-    _hashed_folders.add(str(folder))
+    _secured_folders.add(str(folder))
     try:
         notes = list(folder.glob("*" + NOTE))
     except OSError:
         return
     for path in notes:
         try:
-            raw = path.read_text(encoding="utf-8")
-            if "password" not in raw:
+            note = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(note, dict) or not isinstance(note.get("properties", {}), dict):
                 continue
-            data = json.loads(raw)
-            hashed = _password_hashed(data.get("toml")) if isinstance(data, dict) else None
-            if hashed is not None and hashed != data.get("toml"):
-                data["toml"] = hashed
-                private.write_text(path, json.dumps(data))
-                log.info("the note of the backup %s keeps the [web] password as a hash now", path.name[: -len(NOTE)])
-        except (OSError, ValueError):
+            found = _secrets(note.get("toml"), note.get("properties") or {})
+            if not found["toml"] and not found["properties"]:
+                continue
+            if note.get("secrets"):  # (some locked already: keep those, add these)
+                old = _opened(note["secrets"])
+                found = {"toml": {**found["toml"], **old["toml"]}, "properties": {**found["properties"], **old["properties"]}}
+            note["toml"], note["properties"] = _without(note.get("toml"), note.get("properties") or {}, found)
+            note["secrets"] = _sealed(found)
+            private.write_text(path, json.dumps(note))
+            log.info("the note of the backup %s keeps its passwords and keys locked to this computer now",
+                     path.name[: -len(NOTE)])
+        except (OSError, ValueError, lockbox.LockedElsewhere):
             continue
 
 
-def record(archive: Path, m) -> None:
-    """Write the note next to a backup just made (never fails the backup). It's this account's
-    only: it holds craft-conductor.toml, which can hold secrets."""
+def record(archive: Path, m, holds=None) -> None:
+    """Write the note next to a backup just made (never fails the backup). Its passwords and keys
+    are left out, or locked to this computer when the backup holds "secrets" (``holds``, as for
+    backup.create). It's this account's only."""
     try:
-        private.write_text(note_path(archive), json.dumps(describe(m)))
+        note = describe(m)
+        if "secrets" in set(parts.COMPLETE if holds is None else holds):
+            found = _secrets(configmod.read_text(m.config.path) if m.config.path.exists() else None,
+                             read_properties(m.server_dir / "server.properties"))
+            if found["toml"] or found["properties"]:
+                note["secrets"] = _sealed(found)
+        private.write_text(note_path(archive), json.dumps(note))
     except Exception:
         log.exception("couldn't note what's in the backup %s", archive.name)
 
@@ -210,18 +248,32 @@ def roll_back(archive: Path, m) -> str:
     """Put the whole server back as it was in ``archive``: its files, and (for a snapshot) its
     craft-conductor settings and mod list. The server must be stopped."""
     note = load(archive)
-    backup.restore(archive, m.server_dir)
+    root = m.config.root
+    toml_path = root / CONFIG_NAME
+    mine = _secrets(configmod.read_text(toml_path) if toml_path.exists() else None, {})["toml"]
+    result = backup.restore(archive, m.server_dir)
     forget = getattr(m, "forget_interrupted_update", lambda: None)  # (this backup was chosen: an interrupted
     if note is None:                                                 # update mustn't put another one back)
         forget()
         return f"restored {archive.name} (an older backup: only the files; run an update check to re-sync the mods)"
-    root = m.config.root
     for name, text in ((CONFIG_NAME, note.get("toml")), (lockmod.LOCK_NAME, note.get("lock"))):
         if text is not None:
             tmp = root / (name + ".rollback")
             configmod.write_text(tmp, text)
             os.replace(tmp, root / name)
+    theirs = None
+    if note.get("secrets"):
+        try:
+            theirs = _opened(note["secrets"])["toml"]
+        except (ValueError, lockbox.LockedElsewhere) as e:
+            log.warning("rolling back: the backup's passwords and keys couldn't be opened (%s); the server's own were kept", e)
+    left = _secrets(note.get("toml"), {})["toml"]  # (a note from before: they're in its text)
+    for dotted, value in (theirs if theirs is not None else {**mine, **left}).items():
+        table, key = dotted.split(".", 1)
+        configmod.set_value(toml_path, table, key, json.dumps(value))
     m.lock = lockmod.load(root)
     forget()
     m.reload_config()
-    return f"rolled back to {archive.name}: Minecraft {note.get('minecraft')}, {len(note.get('mods', {}))} mod(s)"
+    kept = " Its passwords, keys and IP bans were locked on another computer or account, so the server's own were kept." \
+        if set(result.get("locked") or []) - set(result.get("opened") or []) or (note.get("secrets") and theirs is None) else ""
+    return f"rolled back to {archive.name}: Minecraft {note.get('minecraft')}, {len(note.get('mods', {}))} mod(s).{kept}"

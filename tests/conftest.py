@@ -219,6 +219,13 @@ def notice_accepted(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def own_home(tmp_path, monkeypatch):
+    """Each test has its own Craft Conductor home: never the real one's shared Java notes
+    (``.craft-conductor/java/servers``) or the key that locks backups (lockbox.py)."""
+    monkeypatch.setenv("CRAFT_CONDUCTOR_HOME", str(tmp_path / "craft-conductor-home"))
+
+
+@pytest.fixture(autouse=True)
 def no_real_relay(monkeypatch):
     """Tests never report to, or read from, the real mod-conflict relay (test_conflicts sets its own)."""
     monkeypatch.setenv("CRAFT_CONDUCTOR_CONFLICTS_URL", "off")

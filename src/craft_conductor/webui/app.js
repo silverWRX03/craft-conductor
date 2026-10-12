@@ -2777,9 +2777,126 @@ function openAreaRestore(b) {
       h("div", { class: "row mt" }, h("button", { class: "btn primary", onclick: go }, "Put it back"), h("button", { class: "btn ghost", onclick: close }, "Cancel")))));
 }
 
+// What a backup or an export can hold (parts.py), and the secrets an export can carry, locked
+// with a password made for it (parts.SENSITIVE).
+const PART_LABELS = {
+  world: "The world",
+  mods: "Mods and plugins (and your own mods for players)",
+  configs: "Mod and plugin settings",
+  players: "Player lists (operators, whitelist, bans by name)",
+  maps: "Web map files (BlueMap, Dynmap: big, and they can be drawn again)",
+};
+const SENSITIVE_LABELS = {
+  discord_webhook: "Discord webhook URL",
+  curseforge_api_key: "CurseForge key",
+  invite_secret: "Friends' invite secret",
+  panel_password: "Control panel password (from craft-conductor.toml)",
+  rcon: "RCON password and Minecraft's management secret",
+  ip_bans: "IP bans (players' IP addresses)",
+};
+
+// Choices in a box like ask()'s: resolves to the ticked keys, or null for Cancel.
+function chooseInBox(id, title, groups, okLabel) {
+  return new Promise((resolve) => {
+    const boxes = [];
+    const onKey = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); done(false); } };
+    const done = (yes) => {
+      document.removeEventListener("keydown", onKey, true);
+      closeToast(id);
+      resolve(yes ? boxes.filter(([, box]) => box.checked).map(([key]) => key) : null);
+    };
+    document.addEventListener("keydown", onKey, true);
+    stickyToast(id, [
+      h("strong", {}, title),
+      groups.map(([heading, note, items]) => items.length ? h("div", { class: "mt-s" },
+        heading ? h("strong", { class: "small" }, heading) : null, note ? h("p", { class: "small muted" }, note) : null,
+        items.map(([key, label, checked]) => {
+          const box = h("input", { type: "checkbox", checked: !!checked });
+          boxes.push([key, box]);
+          return h("label", { class: "row check-row small" }, box, h("span", {}, label));
+        })) : null),
+      h("div", { class: "row mt-s" },
+        h("button", { class: "btn small primary", onclick: () => done(true) }, okLabel),
+        h("button", { class: "btn small ghost", onclick: () => done(false) }, "Cancel"))]);
+  });
+}
+
+// Export server…: pick what goes in; secrets picked go in locked with a password shown once.
+async function startExport() {
+  const info = await api("/api/export").catch((e) => { toast(e.message, true); return null; });
+  if (!info) return;
+  const picked = await chooseInBox("export-choices", "What goes in the export?", [
+    [null, "Always in it: Craft Conductor's settings for the server, Minecraft and its loader, and server.properties (without passwords). Logs never go. What's locked in backups only opens on this computer.",
+      [...info.parts.map((p) => [`part:${p}`, PART_LABELS[p] || p, true]),
+        ...(info.has_backups ? [["backups", "Include backups (bigger file)", false]] : [])]],
+    ["Passwords, keys and IP addresses", "Only what you tick goes, locked with a password Craft Conductor makes for this export (shown once).",
+      info.sensitive.map((s) => [`secret:${s}`, SENSITIVE_LABELS[s] || s, false])],
+  ], "Export");
+  if (!picked) return;
+  const r = await act(() => api("/api/export", { method: "POST", body: {
+    parts: picked.filter((k) => k.startsWith("part:")).map((k) => k.slice(5)),
+    secrets: picked.filter((k) => k.startsWith("secret:")).map((k) => k.slice(7)),
+    backups: picked.includes("backups") } }), "Exporting…");
+  if (r && r.password) showExportPassword(r.password);
+}
+
+function showExportPassword(password) {
+  const id = "export-password";
+  stickyToast(id, [
+    h("strong", {}, "Write down this export's password"),
+    h("p", { class: "small" }, "The passwords, keys and IP addresses you picked are locked with it. Import a server… asks for it on the other computer. Craft Conductor doesn't keep it: without it, those stay locked (the rest still imports)."),
+    h("p", { class: "mt-s" }, h("code", { class: "export-password" }, password)),
+    h("div", { class: "row mt-s" },
+      h("button", { class: "btn small primary", onclick: () => closeToast(id) }, "I've saved it"),
+      h("button", { class: "btn small", onclick: async () => {
+        try { await navigator.clipboard.writeText(password); toast("Copied"); } catch (_) { toast("Select the password and copy it", true); }
+      } }, "Copy"))]);
+}
+
+// Import a server…: an export with a locked part asks for its password (or goes without it).
+function askImportPassword(locked) {
+  return new Promise((resolve) => {
+    const id = "import-password";
+    const input = h("input", { type: "text", autocomplete: "off", spellcheck: "false", placeholder: "XXXX-XXXX-XXXX-XXXX-XXXX-XXXX" });
+    const onKey = (e) => {
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); done(null); }
+      else if (e.key === "Enter" && document.activeElement === input) { e.preventDefault(); done({ password: input.value }); }
+    };
+    const done = (answer) => { document.removeEventListener("keydown", onKey, true); closeToast(id); resolve(answer); };
+    document.addEventListener("keydown", onKey, true);
+    stickyToast(id, [
+      h("strong", {}, "This export's passwords and keys are locked"),
+      h("p", { class: "small" }, "Type the password Craft Conductor showed when it was made, to bring along: ",
+        locked.map((k) => (SENSITIVE_LABELS[k] || k).toLowerCase()).join(", "), "."),
+      input,
+      h("div", { class: "row mt-s" },
+        h("button", { class: "btn small primary", onclick: () => done({ password: input.value }) }, "Import"),
+        h("button", { class: "btn small", onclick: () => done({ skip: true }) }, "Import without them"),
+        h("button", { class: "btn small ghost", onclick: () => done(null) }, "Cancel"))]);
+    input.focus();
+  });
+}
+
+const BACKUP_PARTS = [
+  ["world", "The world"], ["mods", "Mods and plugins"], ["configs", "Mod and plugin settings"],
+  ["players", "Player lists (operators, whitelist, bans by name)"],
+  ["maps", "Web map files (BlueMap, Dynmap: big, and they can be drawn again)"],
+  ["secrets", "Passwords, keys and IP bans: locked to this computer and your account"],
+  ["logs", "Logs and crash reports (they show players' IP addresses): locked to this computer and your account"],
+];
+const holdsLine = (b) => {
+  if (!b.holds) return null;  // (made before backups said: everything)
+  const names = [["world", "world"], ["mods", "mods"], ["configs", "settings"], ["players", "player lists"], ["maps", "web map"]];
+  const parts = names.filter(([p]) => b.holds.includes(p)).map(([, name]) => name);
+  const locked = b.locked.map((p) => ({ secrets: "passwords and keys", logs: "logs" }[p] || p));
+  return h("div", { class: "small muted" }, parts.length ? `Holds: ${parts.join(", ")}` : "Holds: only Minecraft's own files",
+    locked.length ? ` · locked to this computer: ${locked.join(", ")}` : "");
+};
+
 views.backups = () => {
   const list = h("div");
   const label = h("input", { placeholder: "label (optional)" });
+  const settingsBody = h("div");
   const load = async () => {
     const r = await api("/api/backups").catch(() => null);
     if (!r) return;
@@ -2803,25 +2920,60 @@ views.backups = () => {
         : h("span", { class: "muted small" }, "Only the world changed since the one before");
     fill(list, r.backups.length ? h("table", {},
       h("thead", {}, h("tr", {}, h("th", {}, "Backup"), h("th", {}, "Created"), h("th", {}, "Size"), h("th", {}, "Can be restored"), h("th", {}))),
-      h("tbody", {}, r.backups.map((b) => h("tr", {},
-        h("td", {}, h("code", {}, b.name), b.snapshot ? h("div", { class: "small muted" }, `Minecraft ${b.minecraft || "—"} · ${b.mods} mod(s)`) : null, changed(b)),
-        h("td", {}, fmtTime(b.time)), h("td", {}, fmtBytes(b.size)),
-        h("td", {}, checked(b.check), " ", h("button", { class: "link-btn small", title: "Read the whole backup to make sure it can be restored",
-          onclick: () => act(() => api("/api/backups/check", { method: "POST", body: { name: b.name } }), "Checking the backup…") }, b.check ? "Check again" : "Check")),
-        h("td", { class: "row" }, h("button", {
-          class: "btn small", disabled: !stopped, title: stopped ? "" : "Stop the server first",
-          onclick: () => rollBack(b),
-        }, b.snapshot ? "Roll back to this" : "Restore"),
-        h("button", { class: "btn small", disabled: !stopped, title: stopped ? "Put back only part of the world" : "Stop the server first",
-          onclick: () => openAreaRestore(b) }, "Put back an area…")))))) : h("p", { class: "empty" }, "No backups yet."));
+      h("tbody", {}, r.backups.map((b) => {
+        const noWorld = !!b.holds && !b.holds.includes("world");
+        return h("tr", {},
+          h("td", {}, h("code", {}, b.name), b.snapshot ? h("div", { class: "small muted" }, `Minecraft ${b.minecraft || "—"} · ${b.mods} mod(s)`) : null, holdsLine(b), changed(b)),
+          h("td", {}, fmtTime(b.time)), h("td", {}, fmtBytes(b.size)),
+          h("td", {}, checked(b.check), " ", h("button", { class: "link-btn small", title: "Read the whole backup to make sure it can be restored",
+            onclick: () => act(() => api("/api/backups/check", { method: "POST", body: { name: b.name } }), "Checking the backup…") }, b.check ? "Check again" : "Check")),
+          h("td", { class: "row" }, h("button", {
+            class: "btn small", disabled: !stopped, title: stopped ? "" : "Stop the server first",
+            onclick: () => rollBack(b),
+          }, b.snapshot ? "Roll back to this" : "Restore"),
+          h("button", { class: "btn small", disabled: !stopped || noWorld,
+            title: noWorld ? "This backup doesn't hold the world" : stopped ? "Put back only part of the world" : "Stop the server first",
+            onclick: () => openAreaRestore(b) }, "Put back an area…")));
+      }))) : h("p", { class: "empty" }, "No backups yet."));
   };
-  fill($("#main"), 
+  // Backup settings: what backups hold, how many are kept, and a copy somewhere else.
+  const loadSettings = async () => {
+    const s = await api("/api/settings").catch(() => null);
+    if (!s) return;
+    const include = new Set(s.backup_include || []);
+    const boxes = BACKUP_PARTS.map(([key, text]) => [key, h("input", { type: "checkbox", checked: include.has(key) }), text]);
+    const keep = h("input", { type: "number", min: 1, value: s.backups_keep });
+    const copyTo = h("input", { value: s.backup_copy_to || "", placeholder: "e.g. E:\\craft-conductor-backups, or a OneDrive / Google Drive folder" });
+    const copyKeep = h("input", { type: "number", min: 1, value: s.backup_copy_keep });
+    fill(settingsBody,
+      h("p", { class: "muted small" }, "What the backups you make, and the scheduled ones, hold. Backups made before an update or a new world always hold everything a roll back needs. Restoring a backup that left something out keeps the server's own copy of it."),
+      h("div", {}, boxes.map(([, box, text]) => h("label", { class: "row check-row small" }, box, h("span", {}, text)))),
+      h("div", { class: "grid mt-s" },
+        h("label", {}, "Backups to keep", keep),
+        h("label", {}, "Also copy every backup to", copyTo,
+          h("span", { class: s.backup_copy_ok ? "muted small" : "small bad-text" }, s.backup_copy_ok
+            ? "A USB drive or a folder that syncs to the cloud, so a broken disk doesn't take the backups with it. Empty: no copies."
+            : "That folder isn't there right now (is the drive plugged in?). Copies are skipped until it is.")),
+        h("label", { class: "self-start" }, "Copies to keep there", copyKeep)),
+      h("p", { class: "muted small" }, "Scheduled backups: Settings → Schedule."),
+      h("div", { class: "row mt-s" }, h("button", { class: "btn primary", onclick: () => act(() => api("/api/settings", { method: "POST", body: {
+        backup_include: boxes.filter(([, box]) => box.checked).map(([key]) => key),
+        backups_keep: Number(keep.value) || 10, backup_copy_to: copyTo.value.trim(), backup_copy_keep: Number(copyKeep.value) || 10,
+      } }), "Saved").then(loadSettings) }, "Save backup settings")));
+  };
+  fill($("#main"),
     h("h2", { class: "view-title" }, "Backups"),
     card("Create backup", h("p", { class: "muted" }, "Each backup is a snapshot of the whole server: the world, the mods, their settings and Craft Conductor's settings for it. One is also made automatically before every update."),
+      h("p", { class: "muted small" }, "What backups hold: Backup settings, below."),
       h("div", { class: "row" }, label, h("button", { class: "btn primary", onclick: () => act(() => api("/api/backups/create", { method: "POST", body: { label: label.value } }), "Backing up…") }, "Back up now"))),
     card("Backups", h("div", { class: "row" }, h("p", { class: "muted small grow" }, "Restoring needs the server to be stopped."), folderBtn("backups", "Backups folder")), list),
+    card("Backup settings", settingsBody),
+    card("Moving the server to a different PC",
+      h("p", { class: "muted small" }, "Backups are for this computer: what's locked in them only opens here, for your account. To move the server to a different PC, use Export: it puts the server in one file, and you pick what goes in."),
+      h("div", { class: "row" }, h("button", { class: "btn", onclick: startExport }, "Export server…"))),
   );
   load();
+  loadSettings();
   return { onJobDone: load, onStatus: load };
 };
 
@@ -3110,7 +3262,6 @@ views.settings = () => {
       h("div", { class: "grid" },
         h("label", {}, "Memory (e.g. 6G)", txt("memory")),
         h("label", {}, "Port players connect to", txt("port", { type: "number", min: 1024, max: 65535 })),
-        h("label", {}, "Backups to keep", txt("backups_keep", { type: "number", min: 1 })),
         h("label", {}, "Discord webhook URL", txt("discord_webhook", { type: "url", placeholder: "https://discord.com/api/webhooks/…" })),
         // Limits (limits.py): CPU cores where the computer allows it, and a lower priority everywhere.
         s.can_pin_cores ? h("label", {}, "CPU cores it may use",
@@ -3133,13 +3284,7 @@ views.settings = () => {
         h("label", {}, "This server's playit.gg address (a Minecraft Java tunnel)", txt("tunnel_address", { placeholder: "e.g. name.gl.joinmc.link (optional)", class: "mono" }),
           h("span", { class: "muted small" }, "For friends outside your home when you can't forward ports: their game joins through this address. Leave empty to use your own address."))),
       playitNote(),
-      h("h3", { class: "mt-l" }, "Backup copies"),
-      h("div", { class: "grid" },
-        h("label", {}, "Also copy every backup to", txt("backup_copy_to", { placeholder: "e.g. E:\\craft-conductor-backups, or a OneDrive / Google Drive folder" }),
-          h("span", { class: s.backup_copy_ok ? "muted small" : "small bad-text" }, s.backup_copy_ok
-            ? "A USB drive or a folder that syncs to the cloud, so a broken disk doesn't take the backups with it. Empty: no copies."
-            : "That folder isn't there right now (is the drive plugged in?). Copies are skipped until it is.")),
-        h("label", { class: "self-start" }, "Copies to keep there", txt("backup_copy_keep", { type: "number", min: 1 }))),
+      h("p", { class: "muted small mt-l" }, "What backups hold, how many are kept and a copy somewhere else: on the Backups page."),
       advancedEl,
       bar,
     );
@@ -3150,12 +3295,12 @@ views.settings = () => {
         warn_minutes: f.warn_minutes.value.split(",").map((x) => x.trim()).filter(Boolean).map(Number),
         auto_upgrade: f.auto_upgrade.checked, wait_for_empty: f.wait_for_empty.checked, verify_boot: f.verify_boot.checked,
         rehearse: f.rehearse.checked, find_lag: f.find_lag.checked, memory: f.memory.value.trim(),
-        priority: f.priority.checked ? "low" : "normal", ...(f.cpu_cores ? { cpu_cores: Number(f.cpu_cores.value) } : {}), backups_keep: Number(f.backups_keep.value), discord_webhook: f.discord_webhook.value.trim(),
+        priority: f.priority.checked ? "low" : "normal", ...(f.cpu_cores ? { cpu_cores: Number(f.cpu_cores.value) } : {}), discord_webhook: f.discord_webhook.value.trim(),
         port: Number(f.port.value),
         restart_on_crash: f.restart_on_crash.checked, aikar_flags: f.aikar_flags.checked,
         schedule_restart: sched.restart.value(), schedule_backup: sched.backup.value(),
         restart_when_empty: f.restart_when_empty.checked,
-        backup_copy_to: f.backup_copy_to.value.trim(), backup_copy_keep: Number(f.backup_copy_keep.value) || 10,
+
         tunnel_address: f.tunnel_address.value.trim(),
         properties: changedProps(advanced, s.properties),
       };
@@ -3181,18 +3326,17 @@ views.settings = () => {
   };
   // Move to another computer: export everything to one file, import it there.
   const exportCard = h("div", { class: "card mt" });
-  const withBackups = h("input", { type: "checkbox" });
   const loadExports = async () => {
     const r = await api("/api/export").catch(() => null);
     if (!r) return;
     fill(exportCard, h("h3", {}, "Move to another computer"),
-      h("p", { class: "muted small" }, "Export saves this server (worlds, mods, configs, settings, player lists) in one .zip. " +
+      h("p", { class: "muted small" }, "Export saves this server in one .zip, and you pick what goes in: the world, mods, settings, player lists, backups. " +
         "On the other computer, install Craft Conductor, then choose Import a server on the server list. The world is saved first, " +
-        "so this works while the server runs. The Discord webhook URL and CurseForge key are left out (anyone with the file " +
-        "could use them): enter them again there."),
+        "so this works while the server runs. Passwords, keys and IP addresses stay behind unless you pick them: then they're locked " +
+        "with a password Craft Conductor makes. To carry the export, copy it or press Download (moving the file itself can keep it " +
+        "readable by this computer's account only)."),
       h("div", { class: "row" },
-        h("button", { class: "btn primary", disabled: !!(status && status.job), onclick: () => act(() => api("/api/export", { method: "POST", body: { backups: withBackups.checked } }), "Exporting…") }, "Export server"),
-        h("label", { class: "row" }, withBackups, h("span", {}, "Include backups (bigger file)"))),
+        h("button", { class: "btn primary", disabled: !!(status && status.job), onclick: startExport }, "Export server…")),
       r.exports.length ? h("table", { class: "mt-s" },
         h("thead", {}, h("tr", {}, h("th", {}, "Export"), h("th", {}, "Made"), h("th", {}, "Size"), h("th", {}))),
         h("tbody", {}, r.exports.map((x) => h("tr", {},
@@ -5925,6 +6069,10 @@ function deleteServer(s, after) {
 const IMPORT_LEFT_OUT = {
   discord_webhook: "the Discord webhook URL (this server's Settings)",
   curseforge_api_key: "the CurseForge key (Craft Conductor settings → Connections → CurseForge)",
+  invite_secret: "friends' invite links (make new ones on the Friends page)",
+  panel_password: "the control panel password set in craft-conductor.toml",
+  rcon: "server.properties' passwords (RCON got a new one)",
+  ip_bans: "the IP bans (ban those players again)",
 };
 
 // The home page: every server, each started and stopped by hand.
@@ -5983,7 +6131,17 @@ views.servers = () => {
       const staged = await upload(`/api/hub/stage?filename=${encodeURIComponent(f.name.replace(/[^A-Za-z0-9 ()\[\]+_.,'-]/g, "_"))}`, f,
         (done) => { importNote.textContent = `Uploading ${f.name}: ${Math.round(done * 100)}%`; });
       importNote.textContent = t("Unpacking…");
-      const r = await api("/api/hub/import", { method: "POST", body: { id: staged.id } });
+      let r = await api("/api/hub/import", { method: "POST", body: { id: staged.id } });
+      while (r.needs_password) {
+        const answer = await askImportPassword(r.locked);
+        if (!answer) { toast("Not imported"); return; }
+        try {
+          r = await api("/api/hub/import", { method: "POST", body: answer.skip ? { id: staged.id, skip_locked: true } : { id: staged.id, password: answer.password } });
+        } catch (e) {
+          if (e instanceof Unauthorized) throw e;
+          toast(e.message, true);  // (a wrong password: ask again)
+        }
+      }
       toast("Imported. Press Start when you're ready.");
       const missing = (r.left_out || []).map((k) => IMPORT_LEFT_OUT[k]).filter(Boolean);
       if (missing.length) toast(`Exports leave secrets out. Enter them again: ${missing.join("; ")}.`, false, 15000);

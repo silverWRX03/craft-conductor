@@ -256,7 +256,9 @@ Craft Conductor checks for updates by itself and applies them when it's safe:
 
 ## Backups
 
-**Create backup** saves the server (worlds, mods, configs) as a `.tar.gz`, even while it runs. Craft Conductor also backs up before every update. The newest 10 are kept (change it in Settings).
+**Create backup** saves the server as a `.tar.gz`, even while it runs: what **Backup settings** (on this page) say backups hold. Craft Conductor also backs up before every update. The newest 10 are kept (**Backups to keep**).
+
+**Backup settings** choose what the backups you make, and the scheduled ones, hold: **The world**, **Mods and plugins**, **Mod and plugin settings**, **Player lists** and **Web map files**, and two sensitive parts that go in *locked to this computer and your account*: **Passwords, keys and IP bans**, and **Logs and crash reports** (they show players' IP addresses). Only Craft Conductor on the computer, and for the account, that made the backup can open its locked part: restored anywhere else, the backup brings back everything else, and the server keeps its own passwords, keys, IP bans and logs. A backup with a locked part is readable by your account only. Backups made before an update or a new world always hold everything a roll back needs (their locked part too; logs aren't needed). Restoring a backup that left something out keeps the server's own copy of it. Each backup in the list says what it holds; **Put back an area…** needs one that holds the world.
 
 Each backup is a **snapshot** of the whole server: besides the files, Craft Conductor notes the Minecraft version, the mods, the server's settings, its mod config files and Craft Conductor's own settings for it. So the list says, for each backup, **what changed since the one before** (mods added, removed or updated, a new Minecraft, settings, config files, the world's size), and **Roll back to this** (with the server stopped) first lists exactly what it will undo, then puts all of it back: the world, the mods, the configs, and Craft Conductor's settings and mod list. Backups made by Craft Conductor before 0.15 only hold the files: **Restore** puts those back, and an update check then puts the mod list right.
 
@@ -265,7 +267,9 @@ Each backup is a **snapshot** of the whole server: besides the files, Craft Cond
 - **Can be restored:** each backup is read back right after it's made (every file, and the world's `level.dat`), and marked **✓ checked**, or says what's wrong with it (a message tells you too). **Check** reads an older one.
 - **Put back an area…** (with the server stopped) undoes damage in one place, like griefing or a creeper crater, and keeps everything else in the world as it is now. Type two opposite corners (the x and z numbers F3 shows in the game) and pick the Overworld, the Nether or the End. The chunks there go back to how they were in that backup: blocks, chests, animals and villagers; players' inventories don't change. Craft Conductor backs up the world first, so you can undo it.
 
-To back up by itself, set **Make a backup** under Settings → Schedule. To keep backups safe from a broken disk, set **Also copy every backup to** under Settings → Backup copies: a USB drive, or a folder OneDrive, Dropbox or Google Drive syncs. Each backup is copied there too, in a folder named after the server, keeping the newest few. If the drive isn't plugged in, the backup is still made and the copy is skipped.
+To back up by itself, set **Make a backup** under Settings → Schedule. To keep backups safe from a broken disk, set **Also copy every backup to** under Backup settings: a USB drive, or a folder OneDrive, Dropbox or Google Drive syncs. Each backup is copied there too, in a folder named after the server, keeping the newest few. If the drive isn't plugged in, the backup is still made and the copy is skipped.
+
+**Moving the server to a different PC?** Backups are for this computer. Use **Export server…** (at the bottom of this page, or Settings → Move to another computer): it puts the server in one file, and you pick what goes in.
 
 ## Java
 
@@ -305,7 +309,7 @@ Nothing changes until you press **Save settings**. It stays at the bottom of the
 - **World border:** keep the world to a size (blocks wide) around a centre, so it stays manageable and players can find each other.
 - **Pre-generate terrain:** making new terrain is the heaviest thing a server does; generating it ahead of time avoids lag spikes when people explore. It uses the free **Chunky** mod: **Add Chunky** installs it, then pick a radius and **Start** (with **Pause**, **Continue** and **Cancel**) and watch the progress.
 
-**Move to another computer:** **Export server** saves everything (worlds, mods, configs, settings, player lists, and optionally backups) in one `.zip`: install Craft Conductor there, then **Servers → Import a server...**. The server's Discord webhook URL and CurseForge key are left out (anyone with the file could use them): Craft Conductor says so after the import, and you enter them again there, the webhook on the server's **Settings** and the key under **Craft Conductor settings → Connections → CurseForge**.
+**Move to another computer:** **Export server…** asks what goes in the `.zip`: the world, mods and plugins (with your own mods for players), their settings, player lists, web map files, and backups. Craft Conductor's settings for the server, Minecraft and its loader always go; logs never do. Passwords, keys and players' IP addresses (the Discord webhook URL, the CurseForge key, the friends' invite secret, the control panel password, the RCON password, IP bans) stay behind unless you tick them: then they're locked in the export with a password Craft Conductor makes and shows once, so write it down. On the other computer, install Craft Conductor, then **Servers → Import a server...**: it asks for that password, or imports without them. Afterwards Craft Conductor lists what stayed behind and where to enter it again (a new RCON password is made by itself). **To carry the export, copy it (or press Download): don't move the file.** On this computer an export is readable by your account only; a copy takes the permissions of where it goes, but a moved file keeps them, and another computer's account then can't open it (copying it in File Explorer and pressing **Continue** fixes that).
 
 ## Friends: playing with friends
 
@@ -487,6 +491,10 @@ Everything in Craft Conductor works with the keyboard and a screen reader (NVDA,
 
 **"Its file has a name that isn't safe to save".** The mod's author gave that build's file a name that would put it outside the mods folder, or one Windows can't use. Craft Conductor leaves it out (or waits, if the mod is required) until the author fixes it.
 
+**"This export's passwords and keys are locked".** The export was made with passwords, keys or IP addresses locked in it. Type the password Craft Conductor showed when it was made (six groups of four letters and digits, like `K7QM-2XHD-…`), or choose **Import without them**: everything else is imported, and you enter those again. **"That password isn't the one this export was locked with"** means it was mistyped, or it's another export's.
+
+**"Its passwords, keys and IP bans were locked on another computer or account".** A roll back to a backup made on another computer, or for another account (or after `.craft-conductor/backup.key` was deleted): everything else came back, and the server kept its own passwords, keys, IP bans and logs.
+
 **"That world is open in Minecraft".** Minecraft is playing that singleplayer world. In Minecraft, choose **Save and Quit to Title** (or close Minecraft), then pick the world again. (Minecraft 1.16 and newer mark an open world; for an older one, close Minecraft before copying it.)
 
 **"The world's folder name (level-name in server.properties) must be a plain folder name".** The world folder setting points outside the server's folder (it can come with a modpack, an imported server or a backup). Pick a plain name, like `world`, under the server's Settings → World folder name.
@@ -504,7 +512,7 @@ Everything in Craft Conductor works with the keyboard and a screen reader (NVDA,
 ## Where Craft Conductor keeps things
 
 - **Your servers:** the `craft-conductor` folder in your home folder (for example `C:\Users\you\craft-conductor\servers\...`), one folder per server. Each has `craft-conductor.toml` (its settings), `server/` (Minecraft, the world and mods) and `backups/`.
-- **Craft Conductor's own settings:** `craft-conductor/.craft-conductor/` (sign-in, paired phones, friends' certificate, CurseForge key and Discord token; readable only by your account, on Windows too). Passwords and PINs are kept only as hashes. A server's `craft-conductor.toml` and `server.properties` are readable only by your account too once they hold a secret (a Discord webhook, a CurseForge key, the friends' invite secret, an RCON password), and so are server exports.
+- **Craft Conductor's own settings:** `craft-conductor/.craft-conductor/` (sign-in, paired phones, friends' certificate, CurseForge key and Discord token; readable only by your account, on Windows too; with `backup.key`, which locks backups' passwords, keys and logs to this computer and account: deleting it can't be undone, and backups made before then restore without their locked part). Passwords and PINs are kept only as hashes. A server's `craft-conductor.toml` and `server.properties` are readable only by your account too once they hold a secret (a Discord webhook, a CurseForge key, the friends' invite secret, an RCON password), and so are server exports.
 - **Shared Java:** `craft-conductor/.craft-conductor/java/`, one folder per Java version and release, used by every server on this computer (`/data/.craft-conductor/java/` in Docker). Backups and server exports leave Java out.
 - **Friends' setups:** a folder of their own per launcher; their extras and joined servers are remembered in `.minecraft/craft-conductor/`.
 

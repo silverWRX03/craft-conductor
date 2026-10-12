@@ -835,9 +835,11 @@ class Hub:
     def exports_dir(self) -> Path:
         return self.home / "exports"
 
-    def import_server(self, stage_id: str) -> dict:
+    def import_server(self, stage_id: str, password: str | None = None, skip_locked: bool = False) -> dict:
         """Add a server from an export (Settings → Export on another computer): its id, and the
-        secrets the export left out (``left_out``), to be entered again."""
+        secrets the export left out (``left_out``), to be entered again. An export with a locked
+        part needs its password: then {"needs_password": True, "locked": [...]}, and the upload
+        stays for the next try."""
         if self.is_single:
             raise RuntimeError("this Craft Conductor runs a single server (`craft-conductor run`); use `craft-conductor start` to import servers")
         if not re.fullmatch(r"[a-f0-9]{16}", stage_id or ""):
@@ -845,13 +847,19 @@ class Hub:
         found = list((self.staging_dir / stage_id).glob("*.zip"))
         if not found:
             raise ConfigError("that upload isn't here any more; upload the file again")
-        sid, manifest = self.import_archive(found[0])
+        from . import transfer
+        try:
+            sid, manifest = self.import_archive(found[0], password=password, skip_locked=skip_locked)
+        except transfer.NeedsPassword as e:
+            return {"needs_password": True, "locked": e.locked}
         shutil.rmtree(self.staging_dir / stage_id, ignore_errors=True)
         left_out = manifest.get("left_out")
-        return {"id": sid, "left_out": [str(x) for x in left_out] if isinstance(left_out, list) else []}
+        return {"id": sid, "left_out": [str(x) for x in left_out] if isinstance(left_out, list) else [],
+                "opened": list(manifest.get("opened") or [])}
 
     def import_archive(self, archive: Path, name: str | None = None,
-                       prepare: Callable[[Path], None] | None = None) -> tuple[str, dict]:
+                       prepare: Callable[[Path], None] | None = None,
+                       password: str | None = None, skip_locked: bool = False) -> tuple[str, dict]:
         """A new server from an export (``name`` renames it; ``prepare`` adjusts its folder
         before it's loaded): its id, and the export's details."""
         from . import transfer
@@ -863,7 +871,7 @@ class Hub:
             while sid in taken or (self.home / SERVERS_DIR / sid).exists():
                 sid, n = f"{base}-{n}", n + 1
             root = self.home / SERVERS_DIR / sid
-            transfer.import_into(archive, root)
+            manifest = transfer.import_into(archive, root, password=password, skip_locked=skip_locked)
             from .properties import read_properties, write_properties
             props_path = configmod.load(root).server.dir / "server.properties"
             if name:

@@ -869,7 +869,8 @@ def cmd_backup(args) -> int:
         return 0
     if running_pid(m) or _server_port_open(m):
         print("warning: the server is running; the backup may catch the world mid-save")
-    path = backup.create(m.server_dir, m.config.backups.dir, args.label, m.config.backups.exclude)
+    path = backup.create(m.server_dir, m.config.backups.dir, args.label, m.config.backups.exclude,
+                         m.config.backups.include)
     backup.prune(m.config.backups.dir, m.config.backups.keep)
     print(f"created {path}")
     return 0
@@ -890,12 +891,15 @@ def cmd_restore(args) -> int:
     if not args.yes and input(f"replace {m.server_dir} with {archive.name}? [y/N] ").strip().lower() != "y":
         return 1
     try:
-        backup.restore(archive, m.server_dir)
+        result = backup.restore(archive, m.server_dir)
     except backup.RestoreError as e:
         print(e)
         return 1
     m.forget_interrupted_update()
     print(f"restored {archive.name}")
+    if set(result["locked"]) - set(result["opened"]):
+        print(f"its {' and '.join(sorted(set(result['locked']) - set(result['opened'])))} couldn't be opened "
+              f"({result['why']}): the server's own were kept")
     print("note: craft-conductor.lock.json was not changed; run `craft-conductor update` to re-sync mods with craft-conductor.toml")
     return 0
 

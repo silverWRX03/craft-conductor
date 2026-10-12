@@ -58,7 +58,8 @@ Implemented with regression tests (`tests/test_secrets.py`, `tests/test_transfer
 | --- | --- |
 | Passwords Craft Conductor only checks | A `[web] password` typed into `craft-conductor.toml` or `hub.json` is replaced by its salted PBKDF2 hash when the file is read (`webauth.hash_password`), and backup notes keep it hashed (older notes are rewritten). Panel passwords and PINs, and phones' tokens, were already stored as hashes. |
 | Secrets Craft Conductor must use | Files holding one are owner-only (`private.py`): `0600` on POSIX; on Windows a protected DACL of the account, SYSTEM and Administrators, set on the new file before the secret is written. Covers `.craft-conductor/` state files, `craft-conductor.toml` and `server.properties` once they hold a secret, backup notes, server exports, and a friend's saved invites. |
-| Server exports | Leave out the Discord webhook and the CurseForge key (the import says to enter them again). |
+| Server exports | Leave out passwords, keys and players' IP addresses, except those the owner ticks: those are locked with a random password made for the export (WinZip AES-256, `secretzip.py`), shown once; the import asks for it, and only known secret settings can be set from it. The import says what to enter again. |
+| Backups | Hold passwords, keys, IP bans and logs only when chosen, and then locked to the computer and account (`lockbox.py`: keyed BLAKE2b-CTR with HMAC-SHA256 under a per-installation key, sealed with DPAPI on Windows, owner-only elsewhere); a backup with a locked part is owner-only. Restored elsewhere, the server keeps its own secrets. |
 
 Remaining: such secrets are still readable by any program running as the same account, mods included (section 2); a backup's copy of `server.properties` can hold an RCON password; a `craft-conductor.toml` mounted read-only keeps a typed password as typed (logged).
 

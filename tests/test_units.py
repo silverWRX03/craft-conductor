@@ -290,10 +290,12 @@ def test_backup_restore_prune(tmp_path):
     archive = backup.create(server, backups, "test", ["logs"])
     (server / "world" / "level.dat").write_text("v2")
     (server / "new.txt").write_text("x")
+    (server / "logs" / "latest.log").write_text("today's noise")
     backup.restore(archive, server)
     assert (server / "world" / "level.dat").read_text() == "v1"
     assert not (server / "new.txt").exists()
-    assert not (server / "logs").exists()
+    # The backup left the logs out: restoring it keeps the server's own (it used to delete them).
+    assert (server / "logs" / "latest.log").read_text() == "today's noise"
 
     for i in range(3):
         backup.create(server, backups, f"extra{i}", [])
