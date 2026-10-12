@@ -16,10 +16,11 @@ import base64
 import datetime
 import hashlib
 import json
-import os
 import secrets
 import ssl
 from pathlib import Path
+
+from . import private
 
 E = 65537
 KEY_BITS = 2048
@@ -182,11 +183,7 @@ def ensure(folder: Path) -> tuple[Path, Path, str]:
     if expires is None or expires - now < datetime.timedelta(days=RENEW_DAYS):
         folder.mkdir(parents=True, exist_ok=True)
         key = generate_key()
-        tmp = key_path.with_suffix(".tmp")
-        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)  # the private key: owner only
-        with os.fdopen(fd, "w") as f:
-            f.write(key_pem(key))
-        os.replace(tmp, key_path)
+        private.write_text(key_path, key_pem(key))  # (the private key: this account's only)
         cert_path.write_text(_pem("CERTIFICATE", make_certificate(key, now=now)))
         cert_path.with_suffix(".json").write_text(json.dumps({"expires": (now + datetime.timedelta(days=VALID_DAYS)).timestamp()}))
     der = ssl.PEM_cert_to_DER_cert(cert_path.read_text())

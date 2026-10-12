@@ -15,13 +15,12 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
-import os
 import secrets
 import threading
 import time
 from pathlib import Path
 
-from . import webpush
+from . import private, webpush
 
 FILE = "passkeys.json"
 CHALLENGE_SECONDS = 120
@@ -170,13 +169,7 @@ class Passkeys:
 
     def _write(self, items: list[dict]) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps({"passkeys": items}, indent=2) + "\n")
-        try:
-            tmp.chmod(0o600)
-        except OSError:
-            pass
-        os.replace(tmp, self.path)
+        private.write_text(self.path, json.dumps({"passkeys": items}, indent=2) + "\n")
 
     def list(self) -> list[dict]:
         return [{k: c.get(k) for k in ("id", "name", "rp_id", "created", "last_used")} for c in self._read()]

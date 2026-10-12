@@ -13,8 +13,13 @@ import os
 import re
 from pathlib import Path
 
+from . import private
+
 
 _cache: dict[str, tuple[tuple, dict[str, str]]] = {}  # path -> (its stat when read, what it said)
+# Secrets server.properties can hold (RCON's password; those of Minecraft's management server, which
+# 1.21.9 and newer write, a generated secret included): a file holding one is this account's only (private.py).
+SECRET_KEYS = ("rcon.password", "management-server-secret", "management-server-tls-keystore-password")
 _ESCAPES = {"t": "\t", "n": "\n", "r": "\r", "f": "\f"}
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 _FORMATTING = re.compile(r"§.?", re.DOTALL)  # Minecraft's colour and style codes (§a, §l, ...)
@@ -121,5 +126,8 @@ def write_properties(path: Path, updates: dict[str, str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     # Replace the file in one step, so nothing ever reads it half-written.
     tmp = path.with_name(f".{path.name}.tmp")
+    if any(k.strip() in SECRET_KEYS and v.strip() for k, _, v in (x.partition("=") for x in lines if not x.startswith("#"))):
+        os.close(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600))
+        private.protect(tmp)  # (this account's only, before the secret goes in)
     tmp.write_text(newline.join(lines) + newline, encoding=encoding, newline="")  # (the file's own line endings)
     os.replace(tmp, path)

@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import os
 import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from . import private
+
+log = logging.getLogger(__name__)
 
 STATE_DIR = ".craft-conductor"
 CONFIG_NAME = "craft-conductor.toml"
@@ -36,9 +42,46 @@ def read_text(path: Path) -> str:
     return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
+# Settings that are secrets: a craft-conductor.toml holding one is this account's only (private.py).
+SECRETS = (("web", "password"), ("client", "token"), ("notify", "discord_webhook"), ("curseforge", "api_key"))
+_SECRET_LINE = re.compile(r"""(?m)^\s*(?:password|token|discord_webhook|api_key)\s*=\s*(?:"[^"\n]|'[^'\n])""")
+
+
 def write_text(path: Path, text: str) -> None:
-    """Write craft-conductor.toml's text (UTF-8; this computer's own line endings, as before)."""
+    """Write craft-conductor.toml's text (UTF-8; this computer's own line endings, as before). Once it
+    holds a secret, the file is made this account's before the secret goes in."""
+    if _SECRET_LINE.search(text):
+        if not path.exists():
+            os.close(os.open(path, os.O_WRONLY | os.O_CREAT, 0o600))
+        private.protect(path)
     path.write_text(text, encoding="utf-8")
+
+
+def _holds_secret(data: dict) -> bool:
+    return any(isinstance(data.get(table), dict) and str(data[table].get(key) or "").strip() for table, key in SECRETS)
+
+
+_kept_as_typed: set[str] = set()  # (said once)
+
+
+def _hashed_web_password(path: Path, password: str) -> str:
+    """The ``[web] password`` as it's kept: one typed into craft-conductor.toml is swapped for its
+    hash there, so the password itself is never on disk. A file that can't be written (mounted
+    read-only) keeps working, from memory, and the log says so once."""
+    from . import webauth
+    if webauth.is_hashed(password) or str(path) in _kept_as_typed:
+        return password
+    hashed = webauth.hash_password(password)
+    try:
+        set_value(path, "web", "password", json.dumps(hashed))
+    except OSError as e:
+        if str(path) not in _kept_as_typed:
+            _kept_as_typed.add(str(path))
+            log.warning("the [web] password in %s is still there as typed: couldn't put its hash there instead (%s)",
+                        path, e)
+        return password
+    log.info("the [web] password in %s is now kept as a hash", path)
+    return hashed
 
 
 # A mod for players (``[client] mods``): a Modrinth slug or id, or ``curseforge:<project id>``
@@ -238,7 +281,14 @@ def load(root: Path) -> Config:
         data = tomllib.loads(read_text(path))
     except tomllib.TOMLDecodeError as e:
         raise ConfigError(f"{path}: {e}") from e
-    return parse(root, data)
+    if _holds_secret(data):
+        private.protect_once(path)
+    cfg = parse(root, data)
+    if cfg.web.password:
+        cfg.web.password = _hashed_web_password(path, cfg.web.password)
+    from . import snapshots
+    snapshots.hash_passwords_once(cfg.backups.dir)  # (notes from before passwords were hashed)
+    return cfg
 
 
 def _limits(s: dict) -> tuple[int, str]:
@@ -482,7 +532,8 @@ update_channel = "stable"      # stable | beta (early versions: newer, less test
 enabled = false                # or start with `craft-conductor run --web`
 host = "127.0.0.1"             # only this machine (the safe default); "0.0.0.0" opens it to your network
 port = 8765
-password = ""                  # empty = starts as PASSWORD and you choose your own when you sign in
+password = ""                  # empty = starts as PASSWORD and you choose your own when you sign in;
+                               # one typed here is replaced by its hash when Craft Conductor reads it
 # allowed_hosts = ["mc.example.com"]  # host names used to reach the panel through a reverse proxy
 
 [downloads]
@@ -595,7 +646,8 @@ def with_value(text: str, table: str, key: str, literal: str) -> str:
         suffix = "" if not lines or lines[-1].endswith("\n") else "\n"
         return "".join(lines) + f"{suffix}\n[{table}]\n{key} = {literal}\n"
     end = next((i for i in range(start + 1, len(lines)) if re.match(r"^\s*\[", lines[i])), len(lines))
-    assign = re.compile(rf"^(\s*{re.escape(key)}\s*=\s*)([^#\n]*?)(\s*#.*)?$")
+    # The value: a quoted string (which may hold a #, as a password can) or a bare value, then any comment.
+    assign = re.compile(rf"""^(\s*{re.escape(key)}\s*=\s*)("(?:[^"\\\n]|\\.)*"|'[^'\n]*'|[^#\n]*?)(\s*#.*)?$""")
     for i in range(start + 1, end):
         m = assign.match(lines[i].rstrip("\n"))
         if m:

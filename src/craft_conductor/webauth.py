@@ -2,7 +2,8 @@
 
 The choice lives in ``.craft-conductor/web-auth.json`` as a salted PBKDF2 hash. A new server
 starts with the password ``PASSWORD`` and the web UI asks to change it at the
-first sign-in. ``[web] password`` in craft-conductor.toml overrides all of this.
+first sign-in. ``[web] password`` in craft-conductor.toml overrides all of this; a password typed
+there is swapped for its hash (``hash_password``) the first time Craft Conductor reads it.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ import secrets
 import threading
 from dataclasses import dataclass
 
+from . import private
 from .config import Config, ConfigError
 
 DEFAULT_PASSWORD = "PASSWORD"
@@ -28,6 +30,21 @@ FORMAT = 2   # files without it came from craft-conductor 0.2.0, which could car
 
 def _hash(secret: str, salt: bytes, iterations: int = ITERATIONS) -> str:
     return hashlib.pbkdf2_hmac("sha256", secret.encode(), salt, iterations).hex()
+
+
+# A [web] password as craft-conductor.toml (or hub.json) keeps it: iterations, salt, hash, and
+# whether the password met STRONG_RULES (needed for sign-ins from other devices).
+_HASHED = re.compile(r"pbkdf2-sha256\$(\d{4,7})\$([0-9a-f]{32})\$([0-9a-f]{64})(\$strong)?")
+
+
+def hash_password(secret: str) -> str:
+    salt = secrets.token_bytes(16)
+    return (f"pbkdf2-sha256${ITERATIONS}${salt.hex()}${_hash(secret, salt)}"
+            + ("$strong" if strong_password(secret) else ""))
+
+
+def is_hashed(value: str) -> bool:
+    return bool(_HASHED.fullmatch(value))
 
 
 STRONG_RULES = "at least 12 characters, with an uppercase letter, a lowercase letter and a special character (like ! ? # or %)"
@@ -86,6 +103,16 @@ def _hashed(mode: str, secret: str, default: bool = False) -> Auth:
                 strong=mode == "password" and not default and strong_password(secret))
 
 
+def _managed(value: str) -> Auth:
+    """The sign-in for ``[web] password``: its hash, or the password itself where the file couldn't
+    take the hash (mounted read-only)."""
+    m = _HASHED.fullmatch(value)
+    auth = (Auth(mode="password", salt=m[2], hash=m[3], iterations=int(m[1]), strong=bool(m[4])) if m
+            else _hashed("password", value))
+    auth.managed = True
+    return auth
+
+
 class AuthStore:
     """Reads and writes the sign-in settings; notices changes made by `craft-conductor web-password`."""
 
@@ -101,8 +128,7 @@ class AuthStore:
         if self.config.web.password:
             with self._lock:
                 if self._auth is None or self._managed_for != self.config.web.password:
-                    self._auth = _hashed("password", self.config.web.password)
-                    self._auth.managed = True
+                    self._auth = _managed(self.config.web.password)
                     self._managed_for = self.config.web.password
                 return self._auth
         self._managed_for = None
@@ -143,16 +169,9 @@ class AuthStore:
 
     def _save(self, auth: Auth) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps({"format": FORMAT, "mode": auth.mode, "salt": auth.salt, "hash": auth.hash,
-                                   "iterations": auth.iterations, "default": auth.default, "strong": auth.strong,
-                                   "temporary": auth.temporary},
-                                  indent=2) + "\n")
-        try:
-            tmp.chmod(0o600)
-        except OSError:
-            pass
-        os.replace(tmp, self.path)
+        private.write_text(self.path, json.dumps({
+            "format": FORMAT, "mode": auth.mode, "salt": auth.salt, "hash": auth.hash, "iterations": auth.iterations,
+            "default": auth.default, "strong": auth.strong, "temporary": auth.temporary}, indent=2) + "\n")
 
     def set(self, mode: str, secret: str = "") -> Auth:
         if self.config.web.password:
@@ -189,13 +208,9 @@ class AuthStore:
         with self._lock:
             self._save(auth)
             self._auth, self._mtime = auth, self.path.stat().st_mtime
-        note = self.path.parent / "first-password.txt"
-        note.write_text(f"craft-conductor's one-time password for the first sign-in: {password}\n"
-                        "You'll be asked to choose your own; this file is deleted then.\n")
-        try:
-            note.chmod(0o600)
-        except OSError:
-            pass
+        private.write_text(self.path.parent / "first-password.txt",
+                           f"craft-conductor's one-time password for the first sign-in: {password}\n"
+                           "You'll be asked to choose your own; this file is deleted then.\n")
         return password
 
     def reset(self) -> Auth:
@@ -271,13 +286,7 @@ class Devices:
 
     def _write(self, devices: list[dict]) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps({"devices": devices}, indent=2) + "\n")
-        try:
-            tmp.chmod(0o600)
-        except OSError:
-            pass
-        os.replace(tmp, self.path)
+        private.write_text(self.path, json.dumps({"devices": devices}, indent=2) + "\n")
 
     def new_code(self, now: float, role: str = "helper") -> str:
         """A one-time pairing code; the role (see ROLES) is decided here, by the owner, never by

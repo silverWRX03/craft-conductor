@@ -504,7 +504,7 @@ Everything in Craft Conductor works with the keyboard and a screen reader (NVDA,
 ## Where Craft Conductor keeps things
 
 - **Your servers:** the `craft-conductor` folder in your home folder (for example `C:\Users\you\craft-conductor\servers\...`), one folder per server. Each has `craft-conductor.toml` (its settings), `server/` (Minecraft, the world and mods) and `backups/`.
-- **Craft Conductor's own settings:** `craft-conductor/.craft-conductor/` (sign-in, paired phones, friends' certificate, CurseForge key and Discord token; readable only by you).
+- **Craft Conductor's own settings:** `craft-conductor/.craft-conductor/` (sign-in, paired phones, friends' certificate, CurseForge key and Discord token; readable only by your account, on Windows too). Passwords and PINs are kept only as hashes. A server's `craft-conductor.toml` and `server.properties` are readable only by your account too once they hold a secret (a Discord webhook, a CurseForge key, the friends' invite secret, an RCON password), and so are server exports.
 - **Shared Java:** `craft-conductor/.craft-conductor/java/`, one folder per Java version and release, used by every server on this computer (`/data/.craft-conductor/java/` in Docker). Backups and server exports leave Java out.
 - **Friends' setups:** a folder of their own per launcher; their extras and joined servers are remembered in `.minecraft/craft-conductor/`.
 

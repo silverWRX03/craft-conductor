@@ -15,9 +15,10 @@ import logging
 import os
 import re
 import time
+import tomllib
 from pathlib import Path
 
-from . import backup, config as configmod, lock as lockmod
+from . import backup, config as configmod, lock as lockmod, private
 from .config import CONFIG_NAME
 from .properties import read_properties
 
@@ -68,19 +69,58 @@ def describe(m) -> dict:
         "time": time.time(), "minecraft": lk.minecraft, "loader": lk.loader, "loader_version": lk.loader_version,
         "mods": {x.key: {"name": x.name, "version": x.version_number} for x in lk.mods},
         "properties": props, "configs": configs, "world_bytes": _folder_size(sd / level) if (sd / level).is_dir() else 0,
-        "toml": text(CONFIG_NAME), "lock": text(lockmod.LOCK_NAME),
+        "toml": _password_hashed(text(CONFIG_NAME)), "lock": text(lockmod.LOCK_NAME),
     }
 
 
-def record(archive: Path, m) -> None:
-    """Write the note next to a backup just made (never fails the backup)."""
+def _password_hashed(toml: str | None) -> str | None:
+    """craft-conductor.toml's text with a ``[web] password`` typed into it (not read back yet)
+    swapped for its hash: a note never keeps a password itself."""
+    if not toml or "password" not in toml:
+        return toml
     try:
-        path = note_path(archive)
-        path.write_text(json.dumps(describe(m)))
+        password = str(tomllib.loads(toml).get("web", {}).get("password") or "")
+    except (tomllib.TOMLDecodeError, AttributeError):
+        return toml
+    from . import webauth
+    if not password or webauth.is_hashed(password):
+        return toml
+    return configmod.with_value(toml, "web", "password", json.dumps(webauth.hash_password(password)))
+
+
+_hashed_folders: set[str] = set()
+
+
+def hash_passwords_once(folder: Path) -> None:
+    """Notes made before passwords were kept hashed can hold a ``[web] password`` as it was typed:
+    swap it for its hash there too (each backups folder once while Craft Conductor runs)."""
+    if str(folder) in _hashed_folders:
+        return
+    _hashed_folders.add(str(folder))
+    try:
+        notes = list(folder.glob("*" + NOTE))
+    except OSError:
+        return
+    for path in notes:
         try:
-            path.chmod(0o600)  # (it holds craft-conductor.toml, which can hold the Discord webhook)
-        except OSError:
-            pass
+            raw = path.read_text(encoding="utf-8")
+            if "password" not in raw:
+                continue
+            data = json.loads(raw)
+            hashed = _password_hashed(data.get("toml")) if isinstance(data, dict) else None
+            if hashed is not None and hashed != data.get("toml"):
+                data["toml"] = hashed
+                private.write_text(path, json.dumps(data))
+                log.info("the note of the backup %s keeps the [web] password as a hash now", path.name[: -len(NOTE)])
+        except (OSError, ValueError):
+            continue
+
+
+def record(archive: Path, m) -> None:
+    """Write the note next to a backup just made (never fails the backup). It's this account's
+    only: it holds craft-conductor.toml, which can hold secrets."""
+    try:
+        private.write_text(note_path(archive), json.dumps(describe(m)))
     except Exception:
         log.exception("couldn't note what's in the backup %s", archive.name)
 

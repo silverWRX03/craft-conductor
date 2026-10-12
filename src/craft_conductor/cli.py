@@ -471,7 +471,8 @@ def cmd_web_password(args) -> int:
     cfg = _auth_target(args)
     store = webauth.AuthStore(cfg)
     if cfg.web.password:
-        print("the web UI password is set in craft-conductor.toml under [web] password; change it there")
+        print("the web UI password is set in craft-conductor.toml under [web] password (kept there as its hash); "
+              "to change it, type the new one there")
         return 0 if not (args.reset or args.set or args.pin or args.none) else 1
     try:
         if args.reset:

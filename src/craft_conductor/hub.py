@@ -21,7 +21,7 @@ import time
 from pathlib import Path
 from typing import Callable
 
-from . import config as configmod, rollback, selfupdate, setup as setupmod
+from . import config as configmod, private, rollback, selfupdate, setup as setupmod
 from .config import ConfigError, WebConfig
 from .daemon import Daemon, SELF_CHECK_INTERVAL, pid_alive, running_pid, set_current_server
 from .http import HttpClient
@@ -230,13 +230,8 @@ class Hub:
 
     def _save_hub_file(self, data: dict) -> None:
         self.state_dir.mkdir(parents=True, exist_ok=True)
-        tmp = self.state_dir / (HUB_FILE + ".tmp")
-        tmp.write_text(json.dumps(data, indent=2) + "\n")
-        try:
-            tmp.chmod(0o600)  # it can hold the CurseForge key and the Discord bot token
-        except OSError:
-            pass
-        os.replace(tmp, self.state_dir / HUB_FILE)
+        # (this account's only: it can hold the CurseForge key and the Discord bot token)
+        private.write_text(self.state_dir / HUB_FILE, json.dumps(data, indent=2) + "\n")
 
     def _load_web(self) -> WebConfig:
         """Control panel settings: hub.json, else the [web] of a server kept in the home folder."""
@@ -259,6 +254,12 @@ class Hub:
             web.allowed_hosts = [str(x).lower() for x in saved.get("allowed_hosts", web.allowed_hosts)]
             web.tls_cert = str(saved.get("tls_cert", web.tls_cert))
             web.tls_key = str(saved.get("tls_key", web.tls_key))
+            if saved.get("password"):
+                from . import webauth
+                if not webauth.is_hashed(web.password):  # (typed into hub.json: kept there as its hash)
+                    hashed = webauth.hash_password(web.password)
+                    self._update_hub_file(lambda data: data.setdefault("web", {}).update(password=hashed))
+                    web.password = hashed
         web.enabled = True
         return web
 

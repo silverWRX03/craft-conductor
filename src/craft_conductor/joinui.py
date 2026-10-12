@@ -22,7 +22,7 @@ from importlib import resources
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import launchers
+from . import launchers, private
 from .http import HttpError
 from .mods.base import ModError
 from .friendextras import ExtrasError
@@ -114,11 +114,7 @@ def remember(mc_dir: Path, name: str, code: str, digest: str = "") -> None:
     items.insert(0, {"name": name[:100], "code": code, "at": time.time(), "digest": digest})
     path = _invites_file(mc_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".tmp")
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)  # the invites hold each server's secret
-    with os.fdopen(fd, "w") as f:
-        f.write(json.dumps(items[:20], indent=2))
-    tmp.replace(path)
+    private.write_text(path, json.dumps(items[:20], indent=2))  # (the invites hold each server's secret)
 
 
 class JoinUI:
@@ -491,9 +487,8 @@ class JoinUI:
         path = _running_file(self.joiner.mc)
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
-            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)  # holds the page's secret
-            with os.fdopen(fd, "w") as f:
-                f.write(json.dumps({"port": self.httpd.server_address[1], "token": self.token, "pid": os.getpid()}))
+            private.write_text(path, json.dumps({"port": self.httpd.server_address[1], "token": self.token,
+                                                 "pid": os.getpid()}))  # (it holds the page's secret)
         except OSError as e:
             log.debug("couldn't note the open page: %s", e)
 

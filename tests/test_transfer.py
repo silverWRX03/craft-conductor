@@ -73,6 +73,8 @@ def test_an_export_leaves_out_the_discord_webhook_and_curseforge_key(hub_env, tm
     d.m.reload_config()
 
     path = transfer.export(d.m, tmp_path / "out.zip")
+    from test_secrets import only_mine
+    assert only_mine(path)  # (it still holds the invite secret and an RCON password: this account's only)
     with zipfile.ZipFile(path) as z:
         settings = z.read("craft-conductor.toml").decode("utf-8")
         manifest = json.loads(z.read("craft-conductor-export.json"))

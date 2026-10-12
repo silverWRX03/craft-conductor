@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from . import __version__, config as configmod, lock as lockmod, safearchive
+from . import __version__, config as configmod, lock as lockmod, private, safearchive
 from .config import ConfigError
 
 log = logging.getLogger(__name__)
@@ -87,6 +87,9 @@ def export(manager, dest: Path, include_backups: bool = False, say: Callable[[st
     tmp = dest.with_name(f".{dest.name}.part")
     files = 0
     try:
+        # This account's only: it still holds the friends' invite secret and an RCON password.
+        os.close(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600))
+        private.protect(tmp)
         with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED, compresslevel=5, allowZip64=True) as z:
             z.writestr(MANIFEST, json.dumps({
                 "format": FORMAT, "name": server_name(props, cfg.root.name), "folder": cfg.root.name,
