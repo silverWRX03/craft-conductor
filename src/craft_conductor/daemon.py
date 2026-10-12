@@ -345,9 +345,9 @@ class Daemon:
         try:
             if proc:
                 proc.pause_saving()
-            path = backup.create(self.m.server_dir, cfg.backups.dir, label, cfg.backups.exclude)
+            path = backup.create(self.m.server_dir, cfg.backups.dir, label, cfg.backups.exclude, cfg.backups.include)
             from . import snapshots
-            snapshots.record(path, self.m)
+            snapshots.record(path, self.m, cfg.backups.include)
         finally:
             if proc:
                 proc.resume_saving()

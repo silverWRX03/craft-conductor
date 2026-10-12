@@ -51,6 +51,15 @@ def write_text(path: Path, text: str) -> None:
     os.replace(tmp, path)
 
 
+def write_bytes(path: Path, data: bytes) -> None:
+    """write_text() for bytes."""
+    tmp = path.with_name(path.name + ".tmp")
+    os.close(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600))
+    protect(tmp)
+    tmp.write_bytes(data)
+    os.replace(tmp, path)
+
+
 def protect_once(path: Path) -> None:
     """protect(), for a file checked each time it's read: once, and again after it's been replaced
     (an editor that saves by writing a new file gives it the folder's permissions)."""

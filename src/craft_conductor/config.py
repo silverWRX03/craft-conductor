@@ -182,6 +182,10 @@ class BackupConfig:
     dir: Path
     keep: int = 10
     exclude: list[str] = field(default_factory=lambda: ["logs", "crash-reports"])
+    # What manual and scheduled backups hold (parts.py): every part, unless some are left out; "logs"
+    # and "secrets" (passwords, keys, IP bans) go in locked to this computer. Backups before an
+    # update or a new world always hold everything a roll back needs.
+    include: list[str] = field(default_factory=lambda: ["world", "mods", "configs", "players", "maps"])
     copy_to: Path | None = None      # also copy each backup here (a USB drive, a synced folder)
     copy_keep: int = 10              # how many copies to keep there
 
@@ -287,8 +291,17 @@ def load(root: Path) -> Config:
     if cfg.web.password:
         cfg.web.password = _hashed_web_password(path, cfg.web.password)
     from . import snapshots
-    snapshots.hash_passwords_once(cfg.backups.dir)  # (notes from before passwords were hashed)
+    snapshots.secure_notes_once(cfg.backups.dir)  # (notes from before their secrets were locked)
     return cfg
+
+
+def _backup_parts(value) -> list[str]:
+    """backups.include, checked: some of parts.CHOICES and parts.LOCKED."""
+    from . import parts
+    known = parts.CHOICES + parts.LOCKED
+    if not isinstance(value, list) or any(x not in known for x in value):
+        raise ConfigError(f"backups.include lists what backups hold: some of {', '.join(known)}")
+    return [x for x in known if x in value]
 
 
 def _limits(s: dict) -> tuple[int, str]:
@@ -395,10 +408,14 @@ def parse(root: Path, data: dict) -> Config:
     )
 
     b = data.get("backups", {})
+    include = _backup_parts(b.get("include", ["world", "mods", "configs", "players", "maps"]))
     backups = BackupConfig(
         dir=(root / b.get("dir", "backups")).resolve(),
         keep=int(b.get("keep", 10)),
-        exclude=list(b.get("exclude", ["logs", "crash-reports"])),
+        # (logs chosen on the Backups page win over the "logs" and "crash-reports" left out here before)
+        exclude=[x for x in b.get("exclude", ["logs", "crash-reports"])
+                 if "logs" not in include or x not in ("logs", "crash-reports", "debug")],
+        include=include,
         copy_to=_copy_folder(b.get("copy_to", "")),
         copy_keep=max(1, int(b.get("copy_keep", 10))),
     )
@@ -501,6 +518,7 @@ rehearse = false               # before updating Minecraft by itself, try the up
 [backups]
 dir = "backups"
 keep = 10
+include = ["world", "mods", "configs", "players", "maps"]  # also "logs" and "secrets" (locked to this computer)
 exclude = ["logs", "crash-reports"]
 # copy_to = "/media/usb/craft-conductor-backups"   # also copy every backup here (a USB drive, a synced folder)
 # copy_keep = 10

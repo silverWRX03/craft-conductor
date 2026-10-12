@@ -91,8 +91,14 @@ by your account only: `0600` on Linux and macOS, and on Windows an access list o
 SYSTEM and the Administrators, with nothing inherited from the folder (which matters when Craft
 Conductor's folder is on another drive). That's Craft Conductor's own settings (`.craft-conductor/`),
 a server's `craft-conductor.toml` and `server.properties` once they hold one, the notes kept with
-backups, and server exports. **Export server** also leaves the Discord webhook and the CurseForge
-key out of the `.zip`; you enter them again after importing it.
+backups, and server exports.
+
+**Backups** hold passwords, keys, IP bans and logs only if you choose so on the Backups page, and
+then locked to this computer and account: encrypted (BLAKE2b in counter mode, with an HMAC-SHA256
+check) with a key made once per installation, `.craft-conductor/backup.key`, which Windows seals for
+your account (DPAPI) and Linux and macOS keep readable by you only. **Exports** carry passwords, keys
+and IP addresses only when you tick them, locked with a random password made for that export
+(WinZip AES-256, which 7-Zip opens too) and shown once; nothing else in the export is encrypted.
 
 ## Updates
 

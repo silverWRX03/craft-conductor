@@ -2,6 +2,7 @@
 
 import io
 import json
+import re
 import zipfile
 
 import pytest
@@ -82,12 +83,12 @@ def test_an_export_leaves_out_the_discord_webhook_and_curseforge_key(hub_env, tm
     parsed = tomllib.loads(settings)
     assert parsed["notify"]["discord_webhook"] == "" and parsed["curseforge"]["api_key"] == ""
     assert parsed["server"]["loader"] == d.m.config.server.loader  # (the rest is as it was)
-    assert manifest["left_out"] == ["discord_webhook", "curseforge_api_key"]
+    assert manifest["left_out"] == ["curseforge_api_key", "discord_webhook"] and manifest["locked"] == []
     assert webhook in d.m.config.path.read_text(encoding="utf-8")  # (the server itself keeps them)
 
     status, staged, _ = c.call("POST", "/api/hub/stage?filename=alpha.zip", raw=path.read_bytes())
     status, body, _ = c.post("/api/hub/import", {"id": staged["id"]})
-    assert status == 200 and body["left_out"] == ["discord_webhook", "curseforge_api_key"]
+    assert status == 200 and body["left_out"] == ["curseforge_api_key", "discord_webhook"]
     imported = hub.get(body["id"]).m.config
     assert imported.discord_webhook == "" and "fake-curseforge" not in imported.path.read_text(encoding="utf-8")
 
@@ -95,6 +96,80 @@ def test_an_export_leaves_out_the_discord_webhook_and_curseforge_key(hub_env, tm
     with zipfile.ZipFile(copy) as z:
         assert webhook in z.read("craft-conductor.toml").decode("utf-8")
         assert json.loads(z.read("craft-conductor-export.json"))["left_out"] == []
+
+
+def test_an_export_carries_what_was_chosen_and_locks_the_secrets_chosen(hub_env, tmp_path):
+    """The export window: parts can stay behind, and the passwords, keys and IP bans picked to go
+    along are locked with a password made for the export; the import asks for it."""
+    from craft_conductor import config as configmod, secretzip
+    from craft_conductor.properties import read_properties, write_properties
+    hub, c = hub_env
+    login(c)
+    d = hub.get("alpha")
+    sd = d.m.server_dir
+    (sd / "world" / "region").mkdir(parents=True, exist_ok=True)
+    (sd / "world" / "level.dat").write_bytes(b"level")
+    (sd / "mods").mkdir(exist_ok=True)
+    (sd / "mods" / "lithium.jar").write_bytes(b"jar")
+    (sd / "bluemap" / "web").mkdir(parents=True)
+    (sd / "bluemap" / "web" / "tile.png").write_bytes(b"tile")
+    (sd / "banned-ips.json").write_text('[{"ip": "203.0.113.9", "reason": "test"}]')
+    write_properties(sd / "server.properties", {"enable-rcon": "true", "rcon.password": "fake-rcon-password"})
+    configmod.set_value(d.m.config.path, "curseforge", "api_key", '"fake-curseforge-key-for-tests"')
+    configmod.set_value(d.m.config.path, "notify", "discord_webhook", '"https://discord.com/api/webhooks/0/fake"')
+    (d.m.config.root / "client-mods").mkdir(exist_ok=True)
+    (d.m.config.root / "client-mods" / "my-own.jar").write_bytes(b"for players")
+    d.m.reload_config()
+    info = c.get("/api/servers/alpha/export")[1]
+    assert {"world", "mods", "maps"} <= set(info["parts"])
+    assert set(info["sensitive"]) == {"curseforge_api_key", "discord_webhook", "rcon", "ip_bans"}
+
+    # Everything but the world and the map; the CurseForge key, RCON and the IP bans go along, locked.
+    status, body, _ = c.post("/api/servers/alpha/export", {"backups": False, "parts": ["mods", "configs", "players"],
+                                                          "secrets": ["curseforge_api_key", "rcon", "ip_bans"]})
+    assert status == 200 and re.fullmatch(r"[A-Z2-9]{4}(-[A-Z2-9]{4}){5}", body["password"])
+    wait_for(lambda: d.last_job and d.last_job["name"] == "export", timeout=30)
+    assert d.last_job["ok"], d.last_job
+    assert body["password"] not in json.dumps(d.last_job)  # (only whoever asked sees it)
+    name = c.get("/api/servers/alpha/export")[1]["exports"][0]["name"]
+    data = c.get(f"/api/servers/alpha/export/download?name={name.replace(' ', '%20')}")[1]
+    with zipfile.ZipFile(io.BytesIO(data)) as z:
+        names = set(z.namelist())
+        manifest = json.loads(z.read("craft-conductor-export.json"))
+        locked = secretzip.decrypt(z.read("craft-conductor-locked.zip"), body["password"])
+        props = z.read("server/server.properties").decode("latin-1")
+        settings = z.read("craft-conductor.toml").decode("utf-8")
+    assert "server/mods/lithium.jar" in names and "client-mods/my-own.jar" in names
+    assert not any(n.startswith(("server/world/", "server/bluemap/")) for n in names) and "server/banned-ips.json" not in names
+    assert "fake-rcon-password" not in props and "fake-curseforge" not in settings and "webhooks" not in settings
+    assert manifest["locked"] == ["curseforge_api_key", "ip_bans", "rcon"] and manifest["left_out"] == ["discord_webhook"]
+    assert json.loads(locked["secrets.json"]) == {"toml": {"curseforge.api_key": "fake-curseforge-key-for-tests"},
+                                                  "properties": {"rcon.password": "fake-rcon-password"}}
+    assert b"203.0.113.9" in locked["server/banned-ips.json"]
+
+    # "The other computer": the import asks for the password, and a wrong one changes nothing.
+    staged = c.call("POST", "/api/hub/stage?filename=alpha.zip", raw=data)[1]
+    first = c.post("/api/hub/import", {"id": staged["id"]})[1]
+    assert first["needs_password"] and first["locked"] == ["curseforge_api_key", "ip_bans", "rcon"]
+    status, wrong, _ = c.post("/api/hub/import", {"id": staged["id"], "password": "AAAA-AAAA-AAAA-AAAA-AAAA-AAAA"})
+    assert status == 400 and "isn't the one" in wrong["error"]
+    status, done, _ = c.post("/api/hub/import", {"id": staged["id"], "password": body["password"]})
+    assert status == 200 and done["opened"] == ["curseforge_api_key", "ip_bans", "rcon"] and done["left_out"] == ["discord_webhook"]
+    new = hub.get(done["id"]).m
+    assert new.config.curseforge_api_key == "fake-curseforge-key-for-tests" and new.config.discord_webhook == ""
+    assert read_properties(new.server_dir / "server.properties")["rcon.password"] == "fake-rcon-password"
+    assert b"203.0.113.9" in (new.server_dir / "banned-ips.json").read_bytes()
+    assert (new.server_dir / "mods" / "lithium.jar").is_file() and not (new.server_dir / "world").exists()
+    assert (new.config.root / "client-mods" / "my-own.jar").read_bytes() == b"for players"
+
+    # Without the password: everything but the locked part; RCON gets a new password of its own.
+    staged = c.call("POST", "/api/hub/stage?filename=alpha.zip", raw=data)[1]
+    status, skip, _ = c.post("/api/hub/import", {"id": staged["id"], "skip_locked": True})
+    assert status == 200 and skip["opened"] == [] and set(skip["left_out"]) == {"curseforge_api_key", "discord_webhook",
+                                                                                "ip_bans", "rcon"}
+    other = hub.get(skip["id"]).m
+    fresh = read_properties(other.server_dir / "server.properties")["rcon.password"]
+    assert fresh and fresh != "fake-rcon-password" and not (other.server_dir / "banned-ips.json").exists()
 
 
 def zip_with(files: dict) -> bytes:

@@ -23,6 +23,7 @@ rehearse = false                 # try a new Minecraft on a copy of the server b
 
 [backups]
 keep = 10
+include = ["world", "mods", "configs", "players", "maps"]   # also "secrets" and "logs" (locked to this computer)
 copy_to = "/media/usb/craft-conductor-backups"   # also copy every backup here (optional)
 
 [schedule]                       # cron: minute hour day month weekday (local time); "" = off
