@@ -1,6 +1,6 @@
 # Bug hunt report (October 2026)
 
-**Status:** first pass complete; Q1-Q3 decided and done, Q4-Q7 open.
+**Status:** first pass complete; the owner's decisions Q1-Q7 are all done (Q4-Q7 on 2026-10-12).
 **Branch:** `audit/comprehensive-bug-hunt-2026-10`, from `main` at `11f9721` (0.26.0 + the 26.x player fix).
 **Scope:** the whole application: server lifecycle, mods and modpacks, backups and restores, the
 control panel and its API, friends' downloads, self-updates, and the web page.
@@ -27,7 +27,7 @@ fix them, without step-by-step exploit details.
 | BUG-012 | A server can be given Craft Conductor's own port (and the reverse) | P4 | Confirmed | Fixed |
 | BUG-013 | A busy control panel port ends in "stopped unexpectedly" with a socket error | P3 | Confirmed | Fixed |
 | BUG-014 | Quitting during a mod test or map preview leaves its server running | P3 | Confirmed | Fixed |
-| BUG-015 | On Windows, Broadcast and console commands lose non-English text before it reaches the server | P3 | Confirmed (sending side) | Open: needs a real-server check |
+| BUG-015 | On Windows, Broadcast and console commands lose non-English text before it reaches the server | P3 | Confirmed | Fixed |
 
 Severity: P0 critical … P4 informational. Confidence: Confirmed (reproduced), High confidence (code
 and test evidence, no full reproduction), Suspected, Not reproducible.
@@ -343,26 +343,41 @@ and test evidence, no full reproduction), Suspected, Not reproducible.
 
 ### BUG-015: on Windows, Broadcast and console commands lose non-English text
 
-- **Severity / confidence:** P3 / Confirmed on Craft Conductor's side; how each server type reads
-  its console is not verified here.
-- **Component:** `process.py` (`ServerProcess.start`: `Popen(text=True, errors="replace")`).
-- **Description:** commands are written to the server's console input in the computer's own
-  encoding (cp1252 on most Windows computers), with unencodable characters replaced. Reproduced:
-  `say Café 大家好` reaches the server as the bytes `say Caf\xe9 ???`.
-- **Impact:** on Windows, a **Broadcast** (Dashboard → Connected Players) or console command in
-  Chinese, Korean, Hindi, Arabic or Vietnamese arrives as question marks; accented letters arrive
-  as cp1252 bytes, which a server reading UTF-8 shows as `\ufffd`. Console output is decoded the same
-  way, so chat in those languages may show garbled in the Console. Linux and macOS (UTF-8) aren't
-  affected.
-- **Why it isn't fixed here:** the fix is to talk to the console in the encoding the server uses.
-  Vanilla Minecraft (and so Fabric, Quilt, Forge and NeoForge) reads console input as UTF-8 as far
-  as known; Paper and Purpur use their own console reader, and older versions and Java releases
-  differ (other server managers ended up making it a setting). Changing it without checking could
-  make accented text worse on some servers, and checking needs real servers (running one here means
-  accepting Mojang's EULA). Suggested check, on Windows: a Broadcast and a chat line in Chinese and
-  with accents, on Fabric 1.21.1, a 26.x server, and Paper; then use UTF-8 for the console where it
-  works (`Popen(encoding="utf-8")`, and `-Dstdout.encoding=UTF-8` for Java 18+ if needed).
-- **Status:** Open (decision Q6 below).
+- **Severity / confidence:** P3 / Confirmed, with real servers on Windows.
+- **Component:** `process.py` (`ServerProcess.start`: `Popen(text=True, errors="replace")`) and
+  `manager.launch_argv` (how Java is started).
+- **Description:** commands were written to the server's console in the computer's own encoding
+  (cp1252 on most Windows computers), with what it can't hold replaced: `say Café 大家好` reached
+  the server as the bytes `say Caf\xe9 ???`. Output was decoded the same way.
+- **Impact:** on Windows, a **Broadcast** (Dashboard → Connected Players) or console command with
+  accents arrived as `Caf\ufffd`, and in Chinese, Korean, Hindi, Arabic or Vietnamese as `???`;
+  the Console showed the server's messages garbled (`CafÃ©`), or as `???` where the server itself
+  wrote its console in the code page. Linux and macOS (UTF-8) weren't affected.
+- **Real servers** (Windows 11, cp1252; owner's decision Q6), the same text sent as UTF-8 and as
+  cp1252, compared byte for byte on the console and in `logs/latest.log`:
+
+  | Server (Java) | Console input | Console and log output | With UTF-8 for Java |
+  |---|---|---|---|
+  | vanilla 1.16.5 (8) | UTF-8 | cp1252 (`???`) | all UTF-8 |
+  | vanilla 1.20.1 (17) | UTF-8 | cp1252 (`???`) | all UTF-8 |
+  | Forge 1.20.1 (17) | UTF-8 | cp1252 (`???`) | all UTF-8 |
+  | Fabric 1.21.1 (21) | UTF-8 | UTF-8 | all UTF-8 |
+  | Paper 1.21.1 (21) | UTF-8 | console cp1252, log UTF-8 | all UTF-8 |
+  | vanilla 26.3 (25) | UTF-8 | UTF-8 | all UTF-8 |
+
+- **Root cause:** every server reads its console as UTF-8, but Craft Conductor wrote and read it
+  in the code page; and Java writes its console in the code page on Java 17 and older (log4j's
+  default charset) and on Paper (its own console, on any Java).
+- **Fix (`9605cdf`):** the console is UTF-8 both ways (`Popen(encoding="utf-8")`), and Java is
+  started with `process.CONSOLE_UTF8` (`-Dfile.encoding`, `-Dstdout/stderr/stdin.encoding`,
+  `-Dsun.stdout/stderr.encoding`, all UTF-8), before the server's own `jvm_args` so a `-D` there
+  still wins. The wiki's Java page says so.
+- **Tests:** `tests/test_units.py::test_the_console_speaks_utf8_in_any_language` (failed before on
+  Windows: the text came back garbled), `::test_java_is_told_to_use_utf8_unless_the_server_says_otherwise`;
+  `packaging/e2e_test.py` sends `say Café 大家好` to every real server in CI and waits for it in the
+  Console and in `latest.log` (nine runs: Linux vanilla 26.x, Fabric, Forge, NeoForge, Paper;
+  Windows Fabric, Paper, vanilla 26.x (the last two added for this); macOS Fabric).
+- **Status:** Fixed.
 
 ## Hardening (not a confirmed bug)
 
@@ -430,8 +445,11 @@ security tests (`tests/security/`) passing:
 - `actions/unpinned-tag` (#23 to #28): N12. `py/incomplete-url-substring-sanitization` (#22) is a test.
 
 Security-relevant items: BUG-004 (turning remote access off could be undone at the next start);
-BUG-007 (wiped ban lists let banned players back). Hardening notes (not vulnerabilities): N7, N8,
-N12, N13, N14 below. Gaps already recorded in `docs/security/THREAT_MODEL.md` (checksum-only
+BUG-007 (wiped ban lists let banned players back). Secrets at rest, done on the owner's decisions:
+passwords are kept only as hashes, files holding a secret are the account's alone (now also on
+Windows, where none were restricted), and exports leave the Discord webhook and CurseForge key out
+(Q5, Q7; `docs/security/THREAT_MODEL.md` section 1.3). Hardening notes (not vulnerabilities): N8,
+N12, N13, N14 below (N7 is done). Gaps already recorded in `docs/security/THREAT_MODEL.md` (checksum-only
 update verification, IP-literal and `.local` Host names, per-server authorization) aren't repeated.
 
 ## Notes not fixed (P4 / informational)
@@ -444,9 +462,9 @@ update verification, IP-literal and `.local` Host names, per-server authorizatio
 | N4 | A crash restart is dropped if a job is started from the page in the second the crash is handled (the server stays stopped; Start works) | Rare |
 | N5 | A legacy server kept directly in the home folder shares its update staging folder with the hub's upload staging, which every update empties | Legacy layout (0.1-0.3) only |
 | N6 | An uploaded world `.zip` stays in the staging folder after setup until the 1-day cleanup | Disk space only |
-| N7 | A server export includes `craft-conductor.toml` as it is (a Discord webhook or CurseForge key travels with it); the diagnostic report removes them | Needs a decision (Q5) |
+| N7 | A server export includes `craft-conductor.toml` as it is (a Discord webhook or CurseForge key travels with it); the diagnostic report removes them | Done: Q5 (`d5400f7`) |
 | N8 | Windows Firewall rules added by **Let them through Windows Firewall** aren't removed when a server is deleted or its port changes | Removing needs another administrator prompt: a UX decision |
-| N9 | A single-player world that's open in Minecraft isn't detected before it's copied to a server (the copy may be inconsistent) | Suspected; needs real Minecraft to verify (Q4) |
+| N9 | A single-player world that's open in Minecraft isn't detected before it's copied to a server (the copy may be inconsistent) | Done: Q4 (`9605cdf`) |
 | N10 | When a mod is dropped because one of its dependencies is unavailable, its other (available) dependencies are still installed | Unneeded library mods only |
 | N11 | Other job buttons (Backups, Updates: Apply update ...) can still show a "busy" error on a double-click, like BUG-011 | Same remedy if wanted; not changed without looking at each |
 | N12 | CI and release use third-party actions by major tag (not commit SHA) and install PyInstaller/`build` by version range | Supply-chain hardening (threat model UPD-05) |
@@ -456,11 +474,11 @@ update verification, IP-literal and `.local` Host names, per-server authorizatio
 | N16 | Installing Java renames the unpacked folder once; on Windows an antivirus scan holding a file could make that fail (downloads retry, this doesn't) | Suspected; not reproduced |
 | N17 | Every server's update check clears the HTTP cache shared with the page's mod browser | Efficiency only |
 | N18 | A dependency missing on one site is replaced by "the same mod" on the other, matched by name/slug, which could match a different mod with the same name | Design trade-off |
-| N19 | `craft-conductor.toml` can hold secrets (`[web] password` in clear text, the friends' invite token, a Discord webhook, a CurseForge key) but is written with the default permissions, unlike `hub.json` (0600). CodeQL reports this as `py/clear-text-storage-sensitive-data` (alerts #12 and #33 on `main`; with BUG-009's `config.write_text` the same flow is reported at the helper instead) | Pre-existing; restricting the file's permissions (or hashing the `[web] password`) changes behaviour for power users and Docker setups: a decision (Q7) |
+| N19 | `craft-conductor.toml` can hold secrets (`[web] password` in clear text, the friends' invite token, a Discord webhook, a CurseForge key) but is written with the default permissions, unlike `hub.json` (0600). CodeQL reports this as `py/clear-text-storage-sensitive-data` (alerts #12 and #33 on `main`; with BUG-009's `config.write_text` the same flow is reported at the helper instead) | Done: Q7 (`1575990`) |
 | N20 | **Use Tailscale for the phone app** (and turning it off) replaces whatever else this computer serves on Tailscale's HTTPS port 443 | Rare; only matters for people who use `tailscale serve` for something else |
 | N21 | `craft-conductor service install` writes the folder path into the systemd unit as it is; a `%` in it would be read as a systemd specifier | Very rare folder names |
 
-## Unresolved questions (decisions for the owner)
+## Questions for the owner (all decided)
 
 - **Q1. First double-click on a new computer.** The standalone download opens the friend's page
   ("Join a friend's Minecraft server", with "Run my own server" further down) until a server
@@ -475,32 +493,63 @@ update verification, IP-literal and `.local` Host names, per-server authorizatio
   the update guard puts it back) starts them once the guard has let go (at most 10 minutes later),
   and a note older than an hour starts nothing. Test:
   `tests/test_self_update_flow.py::test_servers_that_ran_start_again_after_an_update`.
-- **Q4. Single-player world in use (N9).** Refuse to copy a world that's open in Minecraft, with a
-  message? Needs testing with real Minecraft on each platform.
-- **Q5. Secrets in exports (N7).** Leave the Discord webhook and CurseForge key out of exports
-  (to be entered again on the new computer), or keep exports complete?
-- **Q6. The console's encoding on Windows (BUG-015).** Verify with real servers and switch the
-  console to UTF-8 for the server types where it works, or leave it until someone reports it?
-- **Q7. Secrets in `craft-conductor.toml` (N19).** Make the file readable by its owner only on
-  Linux and macOS (as `hub.json` already is), store the `[web] password` as a hash, both, or
-  leave it? Either changes things for people who edit the file by hand or mount it in Docker.
+- **Q4. Single-player world in use (N9).** Decided: refuse to copy a world that's open in Minecraft,
+  once it's checked with real Minecraft on each OS. Done (`9605cdf`): since 1.16 the game holds an OS
+  lock on the world's `session.lock` while it's open (in single-player, until Save and Quit to
+  Title); `world.in_use` tries a non-blocking lock. **Import a world** (New server) and replacing a
+  server's world refuse such a world and say to choose Save and Quit to Title. Checked with real
+  servers: on Windows here (vanilla 1.16.5, 1.20.1, 26.3, Fabric 1.21.1, Forge 1.20.1, Paper 1.21.1)
+  and in CI's e2e on Linux (five server types), Windows (three) and macOS: open while running, free
+  after stop. Servers, not the game itself: the game locks a world with the same code, but running
+  it needs a Minecraft account and a screen. Older worlds (1.15 and before) aren't marked, so they
+  copy as before. Tests: `tests/test_world.py::test_a_world_open_in_minecraft_is_not_copied`, e2e.
+- **Q5. Secrets in exports (N7).** Decided: leave the Discord webhook and the CurseForge key out,
+  with a note. Done (`d5400f7`): **Export server** blanks them in the exported `craft-conductor.toml`
+  and lists them in the export; after **Import a server...** the page says to enter them again,
+  and where. The copy made on the same computer to try a beta keeps them. Test:
+  `tests/test_transfer.py::test_an_export_leaves_out_the_discord_webhook_and_curseforge_key`.
+- **Q6. The console's encoding on Windows (BUG-015).** Decided: check with real servers, then
+  UTF-8 where it works. It works on every server checked: see BUG-015 (`9605cdf`).
+- **Q7. Secrets on disk (N19).** The owner asked for every password and secret to be stored as a
+  hash. That's possible for what Craft Conductor only checks, not for what it has to hand on (a
+  hash can't be turned back into the key), so the owner chose: hash the first, owner-only files for
+  the rest; the friends' invite link stays viewable; `first-password.txt` stays until the first
+  sign-in. Done (`1575990`):
+  - a `[web] password` typed into `craft-conductor.toml` or `hub.json` is swapped for its salted
+    PBKDF2 hash when the file is read (`webauth.hash_password`; signing in is unchanged, and whether
+    it met the strong-password rules travels with it); a file mounted read-only keeps working, from
+    memory, and the log says so once; backup notes keep it hashed (older notes are rewritten);
+  - files holding a secret are this account's only (`private.py`): `0600` on Linux and macOS, and on
+    Windows a protected access list (the account, SYSTEM, Administrators), set before the secret is
+    written: `.craft-conductor/` (hub.json, sign-in, phones, passkeys, push keys, the HTTPS key),
+    `craft-conductor.toml` and `server.properties` once they hold one (Minecraft 1.21.9 and newer
+    write a management-server secret themselves: checked again when the server has started), backup
+    notes, server exports, and a friend's saved invites. Before, on Windows none of these were
+    restricted, and a folder on another drive (like this one, `E:\`) let other accounts read them;
+  - found on the way: changing a quoted value with a `#` in it (a password can have one) cut it at
+    the `#` and broke the file; values are now read as quoted strings.
+  Tests: `tests/test_secrets.py` (six tests), `tests/test_transfer.py`.
 
 ## Testing results
 
-- **Final full run** (this branch at `c3a438a`, Windows, Python 3.12.6): `pytest -q`: **772 passed,
-  31 skipped, 0 failed** (baseline 743 / 30 / 0: 29 new regression tests; the new opt-in browser
-  test counts as skipped without `CRAFT_UI_NODE`).
+- **Final full run** (this branch at `1575990`, Windows, Python 3.12.6): `pytest -q`: **782 passed,
+  31 skipped, 0 failed** (baseline 743 / 30 / 0: 39 new tests; the new opt-in browser test counts
+  as skipped without `CRAFT_UI_NODE`).
+- **Real servers on Windows** (Q4, Q6; scratch folders, test servers only): vanilla 1.16.5,
+  1.20.1 and 26.3, Fabric 1.21.1, Forge 1.20.1 and Paper 1.21.1, each probed byte for byte on its
+  console and log, and checked open while running and free after stop (BUG-015, Q4).
 - **Browser tests** (opt-in, Playwright with Edge): all 21 pass, including the new
   `test_ui_power_buttons.py`; the browser regression then passed five runs in a row (see N15).
 - **Not run locally:** Linux and macOS, the end-to-end check with real Minecraft, Java and mod
   sites, and builds (CI only, by the project's rule). CI ran them all (below).
-- **CI (pull request #86):** on commit `8d278f7`, `pytest` passed on Linux (3.11, 3.12, 3.13), macOS
-  and Windows; the builds for all four platforms, the Docker image, `pip-audit` and all seven e2e
-  runs (real Minecraft, Java and mod sites: Fabric, NeoForge, Forge, Paper and vanilla on Linux,
-  Fabric on Windows and macOS) passed too. An earlier run had found one test of mine that only held
-  on Windows (line endings, fixed in `167f01a`). CodeQL's only new alert (#35) is the one BUG-009
-  moved (N19). The commits after `8d278f7` (colour codes, this report) are checked by the pull
-  request's CI as well.
+- **CI (pull request #86):** on commit `d5400f7` (Q4-Q6), `pytest` passed on Linux (3.11, 3.12,
+  3.13), macOS and Windows; the builds for all four platforms, the Docker image, `pip-audit` and all
+  nine e2e runs (real Minecraft, Java and mod sites: vanilla 26.x, Fabric, Forge, NeoForge and Paper
+  on Linux; Fabric, Paper and vanilla 26.x on Windows; Fabric on macOS) passed, each with the new
+  checks (text in other languages both ways; a world open while running, free after stop). An
+  earlier run had found one test of mine that only held on Windows (line endings, fixed in
+  `167f01a`). CodeQL's only new alert (#35) is the one BUG-009 moved (N19, now Q7). The commits
+  after `d5400f7` (Q7, this report) are checked by the pull request's CI as well.
 
 ## Coverage and limitations
 
