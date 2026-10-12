@@ -25,6 +25,13 @@ JOINED = re.compile(r"\]: (?:System chat: )?([A-Za-z0-9_]{1,16}) joined the game
 LEFT = re.compile(r"\]: (?:System chat: )?([A-Za-z0-9_]{1,16}) left the game$")
 MAX_COMMAND = 32767  # Minecraft's own limit for a command's text
 _CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")  # (tabs are fine; line breaks are refused first)
+# The console speaks UTF-8 both ways. Minecraft reads its console as UTF-8, but may write it in
+# Java's own encoding, which on Windows is the computer's code page (Java 17 and older; Paper's
+# console on any Java): these make that UTF-8 too. Checked with real servers on Windows: vanilla
+# 1.16.5 (Java 8), 1.20.1 (Java 17) and 26.3 (Java 25), Fabric 1.21.1, Forge 1.20.1, Paper 1.21.1.
+# A -D in the server's own JVM arguments comes after these, so it still wins.
+CONSOLE_UTF8 = ["-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8",
+                "-Dstdin.encoding=UTF-8", "-Dsun.stdout.encoding=UTF-8", "-Dsun.stderr.encoding=UTF-8"]
 
 
 def check_command(command: str) -> None:
@@ -76,7 +83,8 @@ class ServerProcess:
             options["creationflags"] = NO_WINDOW["creationflags"] | extra["creationflags"]
         self.proc = subprocess.Popen(
             self.argv, cwd=self.cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT, text=True, bufsize=1, errors="replace", env=child_env(), **options)
+            stderr=subprocess.STDOUT, text=True, bufsize=1, encoding="utf-8", errors="replace", env=child_env(),
+            **options)
         if self.cpu_cores or self.priority != "normal":
             limits.after_start(self.proc.pid, self.cpu_cores)
             log.info("limits: %s, %s priority", f"{self.cpu_cores} CPU core(s)" if self.cpu_cores else "all CPU cores", self.priority)

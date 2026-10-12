@@ -770,7 +770,10 @@ class Hub:
         if not choice:
             return None
         if choice.startswith("save:"):
-            return world.find_save(choice[5:])
+            save = world.find_save(choice[5:])
+            if world.in_use(save):  # (said now, on the page; copying checks again)
+                raise ConfigError(world.OPEN_IN_MINECRAFT)
+            return save
         found = list((self.staging_dir / choice).glob("*.zip")) if re.fullmatch(r"[a-f0-9]{16}", choice) else []
         if not found:
             raise ConfigError("the uploaded world isn't here any more; upload it again")

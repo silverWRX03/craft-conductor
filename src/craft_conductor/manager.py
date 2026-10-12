@@ -38,7 +38,7 @@ from .minecraft import Mojang
 from .mods import ModFile, ModProvider, hold, providers_for
 from .notify import Notifier
 from .planner import Changes, Decision, Plan, Planner
-from .process import ServerProcess
+from .process import CONSOLE_UTF8, ServerProcess
 
 log = logging.getLogger(__name__)
 
@@ -309,7 +309,7 @@ class Manager:
             from .jvmflags import aikar
             from .stats import heap_bytes
             gc = aikar(heap_bytes(mem, 4))
-        return [java, f"-Xms{mem}", f"-Xmx{mem}", *gc, *self.config.server.jvm_args, *lock.launch]
+        return [java, f"-Xms{mem}", f"-Xmx{mem}", *gc, *CONSOLE_UTF8, *self.config.server.jvm_args, *lock.launch]
 
     def new_process(self, lock: Lock | None = None) -> ServerProcess:
         s = self.config.server

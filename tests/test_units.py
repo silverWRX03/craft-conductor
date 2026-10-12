@@ -436,6 +436,60 @@ def test_a_running_server_is_copied_once_it_says_the_world_is_saved(tmp_path, wo
         ["save-off", "save-all flush", "save-on"]
 
 
+# Reads and writes its console in UTF-8 bytes, as every Minecraft server reads it (and writes it
+# with CONSOLE_UTF8), and keeps the bytes it was sent.
+UTF8_SERVER = r"""
+import sys
+out = sys.stdout.buffer
+out.write(b"[12:00:00] [Server thread/INFO]: Done (0.1s)! For help, type help\n")
+out.flush()
+for raw in sys.stdin.buffer:
+    with open("received.bin", "ab") as f:
+        f.write(raw)
+    line = raw.decode("utf-8", "replace").strip()
+    out.write(f"[12:00:01] [Server thread/INFO]: [Server] {line[4:]}\n".encode("utf-8"))
+    out.flush()
+    if line == "stop":
+        break
+"""
+
+
+def test_the_console_speaks_utf8_in_any_language(tmp_path):
+    """On Windows a Broadcast or console command went in the computer's code page, so "Café"
+    reached the server as "Caf\\ufffd" and "大家好" as "???", and what the server said came back
+    garbled (BUG-015). Checked with real servers in packaging/e2e_test.py."""
+    import sys
+    import time as _time
+    from craft_conductor.process import ServerProcess
+    text = "Café 大家好 🎉"
+    proc = ServerProcess([sys.executable, "-c", UTF8_SERVER], tmp_path, echo=False)
+    proc.start()
+    try:
+        assert proc.wait_ready(20)
+        proc.send("say " + text)
+        deadline = _time.monotonic() + 10
+        while not any(text in line for line in proc.lines) and _time.monotonic() < deadline:
+            _time.sleep(0.05)
+        assert any(line.endswith("[Server] " + text) for line in proc.lines)  # (what the Console shows)
+    finally:
+        proc.stop(10)
+    assert (tmp_path / "received.bin").read_bytes().startswith(("say " + text).encode("utf-8"))
+
+
+def test_java_is_told_to_use_utf8_unless_the_server_says_otherwise(tmp_path):
+    from craft_conductor.lock import Lock
+    from craft_conductor.manager import Manager
+    from craft_conductor.process import CONSOLE_UTF8
+    m = Manager.__new__(Manager)
+    m.config = configmod.parse(tmp_path, {"server": {"loader": "fabric", "memory": "2G",
+                                                     "jvm_args": ["-Dfile.encoding=COMPAT"]}})
+    argv = m.launch_argv(Lock(minecraft="1.21.1", launch=["-jar", "server.jar"]), java="java")
+    assert argv[:3] == ["java", "-Xms2G", "-Xmx2G"] and argv[-2:] == ["-jar", "server.jar"]
+    assert all(flag in argv for flag in CONSOLE_UTF8)
+    # A -D in the server's own JVM arguments comes later, so Java uses it.
+    assert argv.index("-Dfile.encoding=COMPAT") > argv.index("-Dfile.encoding=UTF-8")
+
+
 def test_a_server_that_never_says_its_saved_is_still_copied(tmp_path, monkeypatch, caplog):
     import sys
     from craft_conductor import process

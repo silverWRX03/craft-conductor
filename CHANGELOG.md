@@ -11,6 +11,7 @@ its fix will say which version it's in.
 - **The mod browser leaves out what you already have.** Mods already on the server or in your friends' mods (picked, or there because another mod needs them) no longer show in the mod browser's results; the top of the list says how many were left out ("2 already added, hidden").
 
 **Changed**
+- **A single-player world that's open in Minecraft isn't copied.** **Import a world** on New server (and replacing a server's world) now refuses a singleplayer world while Minecraft has it open, and says to choose **Save and Quit to Title** first: a copy made while the game saves could catch the world half-written. (Minecraft 1.16 and newer mark an open world.)
 - **Servers come back after Craft Conductor updates itself.** **Update now** stopped every server and left them stopped until you pressed **Start**; the servers that were running now start again on the new version, once it has proven itself (or on the previous version, if the update is rolled back). Players are told "Server restarting in 1 minute" rather than "stopping".
 
 **Fixed**
@@ -29,6 +30,7 @@ its fix will say which version it's in.
 - Double-clicking **Start**, **Restart** or **Stop** at the top of a server's pages pressed it twice: a red "busy: start is running" appeared beside "start: started" (and Stop asked its question twice). Each now counts once.
 - A server could be given the port the control panel or friends' downloads use (in its **Settings**, or on New server despite the red note), and then couldn't start; the friends' download port could likewise be set to a server's port. Both are refused now, with a message saying which port is taken.
 - When another program was using the control panel's port (8765), or Windows kept it for itself, Craft Conductor showed the address and then stopped with "An attempt was made to access a socket in a way forbidden by its access permissions". It now uses the next free port that time and opens it (opening Craft Conductor again finds it too); a port you chose yourself with `--web-port` is kept, with a message saying it's taken and what to do.
+- On Windows, a **Broadcast** or console command with letters outside English reached the server garbled ("Café" as "Caf�", "大家好" as "???"), and the **Console** showed what the server said in other languages garbled too ("CafÃ©", or "???" on Paper and on Minecraft 1.20.4 and older). The console now speaks UTF-8 both ways, on every server type and Java (checked with vanilla, Fabric, Forge and Paper, Minecraft 1.16.5 to 26.3).
 - Quitting Craft Conductor while **Test these mods** or **Find which mods break it** was booting a test server, or a map preview was making its land, left that throwaway server running on its own afterwards, holding its memory and port until the computer restarted. It's stopped too now, and a test cut off this way is tidied up at the next start.
 
 ## 0.26.0 (2026-10-09)

@@ -99,7 +99,7 @@ The version and server type you pick are what the server is made on. Your mods n
 - A pack's mod that only has beta or alpha builds (common for older Minecraft versions) gets the same kind of build the pack uses.
 - Some CurseForge mods have to be downloaded by hand (see **Mods you download by hand** below).
 
-**4. World.** A new world (seed, type, structures, hardcore), or **Import a world**: a singleplayer save or a world `.zip` from any Java version. Files in a `.zip` that would land outside the world's folder, or that Windows can't have (like `NUL` or a name with `:`), are left out, and so are links (shortcuts) in a singleplayer save; the activity log says which. A world bigger than the free disk space is refused before anything is written.
+**4. World.** A new world (seed, type, structures, hardcore), or **Import a world**: a singleplayer save or a world `.zip` from any Java version. Files in a `.zip` that would land outside the world's folder, or that Windows can't have (like `NUL` or a name with `:`), are left out, and so are links (shortcuts) in a singleplayer save; the activity log says which. A world bigger than the free disk space is refused before anything is written. A singleplayer world that's open in Minecraft is refused too, until you choose **Save and Quit to Title** there (or close Minecraft): a copy made while the game saves could catch the world half-written.
 
 **World generation & map preview** (under the new world's settings) slides open beside the form:
 
@@ -484,6 +484,8 @@ Everything in Craft Conductor works with the keyboard and a screen reader (NVDA,
 **"NeoForge's download site lists only … right now".** NeoForge's own site sometimes has an incomplete list of its builds for a few hours. A new NeoForge server can't be made until NeoForge fixes it: try again later. Servers that already run NeoForge keep the NeoForge they have, and still get their mod updates.
 
 **"Its file has a name that isn't safe to save".** The mod's author gave that build's file a name that would put it outside the mods folder, or one Windows can't use. Craft Conductor leaves it out (or waits, if the mod is required) until the author fixes it.
+
+**"That world is open in Minecraft".** Minecraft is playing that singleplayer world. In Minecraft, choose **Save and Quit to Title** (or close Minecraft), then pick the world again. (Minecraft 1.16 and newer mark an open world; for an older one, close Minecraft before copying it.)
 
 **"The world's folder name (level-name in server.properties) must be a plain folder name".** The world folder setting points outside the server's folder (it can come with a modpack, an imported server or a backup). Pick a plain name, like `world`, under the server's Settings → World folder name.
 
