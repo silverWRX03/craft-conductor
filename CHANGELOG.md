@@ -4,7 +4,7 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
-## Unreleased (not released yet)
+## 0.27.0 (2026-10-12)
 
 **Added**
 - **Choose what goes into an export.** **Export server…** asks what to put in the `.zip`: the world, mods and plugins, their settings, player lists, web map files, backups. Passwords, keys and players' IP addresses only go when you tick them, locked with a password Craft Conductor makes for the export and shows once; **Import a server...** asks for it (or imports without them).
