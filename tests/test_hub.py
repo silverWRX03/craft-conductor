@@ -44,6 +44,19 @@ def test_servers_are_listed_and_never_start_by_themselves(hub_env):
 
 
 
+def test_a_two_line_motd_is_listed_on_one_line(hub_env):
+    """The name the page shows (and asks to be typed to delete a server with its files) is one line."""
+    from craft_conductor.properties import write_properties
+    hub, c = hub_env
+    login(c)
+    alpha = hub.get("alpha")
+    write_properties(alpha.m.server_dir / "server.properties", {"motd": "Alpha\nSecond line"})
+    assert (alpha.m.server_dir / "server.properties").read_text().count("motd=Alpha\\nSecond line") == 1
+    names = {s["id"]: s["name"] for s in c.get("/api/hub")[1]["servers"]}
+    assert names["alpha"] == "Alpha Second line"
+    assert c.get("/api/servers/alpha/status")[1]["motd"] == "Alpha Second line"
+
+
 def test_delete_servers(hub_env):
     hub, c = hub_env
     login(c)
@@ -131,6 +144,13 @@ def test_create_a_server_from_the_web(hub_env):
     # Two servers can't be given the same port...
     status, body, _ = c.post("/api/servers/my-world/settings", {"port": 25565})
     assert status == 400 and "alpha" in body["error"]
+    # ...nor one Craft Conductor itself listens on (the control panel, friends' downloads): the server
+    # couldn't start on it.
+    for port in (hub.ui.httpd.server_address[1], hub.share_settings()["port"]):
+        status, body, _ = c.post("/api/servers/my-world/settings", {"port": port})
+        assert status == 400 and "Craft Conductor itself" in body["error"], body
+        status, body, _ = c.post("/api/hub/create", {"loader": "vanilla", "motd": "Clash", "port": port, "accept_eula": True})
+        assert status == 400 and "Craft Conductor itself" in body["error"], body
     assert c.post("/api/servers/my-world/settings", {"port": 25600})[0] == 200
     settings = c.get("/api/servers/my-world/settings")[1]
     assert settings["port"] == 25600 and settings["properties"]["view-distance"] == "12"
@@ -178,6 +198,64 @@ def test_password_carried_over_by_020_is_replaced(tmp_path):
     # Passwords chosen since are kept.
     webauth.AuthStore(hub).set("password", "mine!")
     assert webauth.AuthStore(Hub(tmp_path)).get().check("mine!")
+
+
+def test_start_when_the_control_panels_port_is_taken(tmp_path, monkeypatch, capsys):
+    """Another program on the control panel's port (or Windows keeping it for itself) gets a message
+    that says so and what to do, not "stopped unexpectedly" with a socket error."""
+    import socket
+    home = tmp_path / "home" / "craft-conductor"
+    monkeypatch.setenv("CRAFT_CONDUCTOR_HOME", str(home))
+    with socket.socket() as other:
+        other.bind(("127.0.0.1", 0))
+        other.listen(1)
+        port = other.getsockname()[1]
+        assert cli.main(["-C", str(tmp_path), "start", "--no-browser", "--web-port", str(port)]) == 1
+    err = capsys.readouterr().err
+    assert f"port {port}" in err and "another program" in err and "--web-port" in err
+    assert "stopped unexpectedly" not in err and "WinError" not in err
+
+
+def test_a_taken_usual_port_moves_the_control_panel(tmp_path, monkeypatch, capsys, caplog):
+    """The usual port taken (and not chosen by hand): the control panel uses the next free port
+    this time, says so, and a second start of Craft Conductor opens that address."""
+    import socket
+    import subprocess
+    import sys
+    import threading
+    from craft_conductor.hub import hub_panel_path, hub_pid_path, running_panel
+    from test_web import wait_for
+    home = tmp_path / "home" / "craft-conductor"
+    monkeypatch.setenv("CRAFT_CONDUCTOR_HOME", str(home))
+    with socket.socket() as other:
+        other.bind(("127.0.0.1", 0))
+        other.listen(1)
+        taken = other.getsockname()[1]
+        hub = Hub(home, tick=0.1)
+        assert not hub.web_port_chosen
+        hub.web.port = taken  # (as if it were the usual port)
+        t = threading.Thread(target=hub.run, daemon=True)
+        t.start()
+        try:
+            wait_for(lambda: hub.ui is not None and hub.ui.httpd is not None and running_panel(home))
+            port = hub.ui.httpd.server_address[1]
+            assert taken < port <= taken + 30 and port != hub.share_settings()["port"]
+            assert running_panel(home) == f"http://localhost:{port}/"
+            assert f"port {taken} is taken" in caplog.text and f"on port {port} this time" in caplog.text
+        finally:
+            hub.stop_requested.set()
+            t.join(30)
+    assert not hub_panel_path(home).exists()
+    # Opening Craft Conductor again while it runs (another process) opens the address it's really on.
+    sleeper = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    try:
+        hub_pid_path(home).write_text(str(sleeper.pid))
+        hub_panel_path(home).write_text("http://localhost:8790/", encoding="utf-8")
+        assert cli.main(["-C", str(tmp_path), "start", "--no-browser"]) == 0
+        assert f"already running (pid {sleeper.pid}): http://localhost:8790/" in capsys.readouterr().out
+    finally:
+        sleeper.kill()
+        sleeper.wait(10)
 
 
 def test_start_opens_the_server_list(tmp_path, monkeypatch, fake_template, capsys):

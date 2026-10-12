@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import queue
 import re
 import secrets
@@ -25,7 +24,7 @@ import urllib.request
 from pathlib import Path
 from urllib.parse import urlparse
 
-from . import __version__, webpush
+from . import __version__, private, webpush
 
 log = logging.getLogger(__name__)
 
@@ -110,13 +109,7 @@ class Push:
 
     def _save(self, data: dict) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_name(FILE + ".tmp")
-        tmp.write_text(json.dumps(data, indent=1))
-        try:
-            tmp.chmod(0o600)  # (the private key)
-        except OSError:
-            pass
-        os.replace(tmp, self.path)
+        private.write_text(self.path, json.dumps(data, indent=1))  # (the private key)
 
     def _key(self, data: dict) -> int:
         if not data.get("vapid"):

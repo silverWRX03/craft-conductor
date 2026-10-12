@@ -300,6 +300,46 @@ def test_a_hub_runs_one_update_too(hub_env, monkeypatch):
     assert calls == ["v9.9.9"]
 
 
+def test_servers_that_ran_start_again_after_an_update(hub_env, http, monkeypatch):
+    """Servers running when Craft Conductor updates itself are stopped for it and started again by the
+    new version, once the update's guard has let the previous version go; nothing else starts, and a
+    note left from long ago starts nothing."""
+    import time
+    from craft_conductor.hub import START_AFTER_UPDATE, Hub
+    from test_manager import manager
+    hub, c = hub_env
+    hub_login(c)
+    alpha = hub.get("alpha")
+    assert c.post("/api/servers/alpha/server/start")[0] == 200
+    wait_for(lambda: alpha.state == "running", timeout=30)
+    hub.updater.offer(dict(INFO))
+    monkeypatch.setattr(selfupdate, "install", lambda rel, **kw: "installed")
+    assert c.post("/api/self-update/apply", {"version": "9.9.9"})[1]["started"] is True
+    wait_for(lambda: hub.restart_requested and not hub._threads["alpha"].is_alive(), timeout=60)
+    assert alpha.state == "stopped" and hub._hub_file()[START_AFTER_UPDATE]["servers"] == ["alpha"]
+
+    # The new version starts (the same folder): it waits while the guard is watching it...
+    new = Hub(hub.home, make_manager=lambda cfg: manager(cfg, http, ["1.21.1"]), http=http, tick=0.1)
+    try:
+        new.scan()
+        assert rollback.pending(new.state_dir) is not None
+        assert new.start_after_update() is True and new.get("alpha").state == "stopped"
+        # ...then, once the guard has let the previous version go, starts what was running.
+        (new.state_dir / rollback.PENDING).unlink()
+        assert new.start_after_update() is False
+        wait_for(lambda: new.get("alpha").state == "running", timeout=30)
+        assert new.get("main").state == "stopped" and START_AFTER_UPDATE not in new._hub_file()
+        new.get("alpha").submit("stop", new.get("alpha").stop_server)
+        wait_for(lambda: new.get("alpha").state == "stopped", timeout=60)
+        # A note from long ago (Craft Conductor was closed before it got this far) starts nothing.
+        new._update_hub_file(lambda d: d.__setitem__(START_AFTER_UPDATE, {"servers": ["alpha"], "at": time.time() - 7200}))
+        assert new.start_after_update() is False and START_AFTER_UPDATE not in new._hub_file()
+        time.sleep(1)
+        assert new.get("alpha").state == "stopped" and new.get("alpha").job is None
+    finally:
+        new._stop_all()
+
+
 def test_an_update_that_cannot_install_here_is_refused(web_daemon):
     d, c, cfg = web_daemon
     notice.accept(cfg.root, by="web")

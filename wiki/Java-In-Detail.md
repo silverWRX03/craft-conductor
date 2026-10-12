@@ -29,6 +29,16 @@ Java page offers it, or set `[java] version = 25`.
 | `craft-conductor java use auto` | go back to following the Minecraft version |
 | `craft-conductor java remove 17` | delete a shared version (refused while a server uses it) |
 
+## How the server is started
+
+`java -Xms… -Xmx… [Aikar's flags] -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8 -Dstdin.encoding=UTF-8 -Dsun.stdout.encoding=UTF-8 -Dsun.stderr.encoding=UTF-8 [jvm_args] …` and the server's own launch arguments.
+
+The `-D…encoding` settings make the server's console speak UTF-8 both ways, on every Java, so a
+command or a Broadcast in any language reaches the server as typed, and the Console and
+`logs/latest.log` show what it says (otherwise, on Windows, Java 17 and older and Paper's console
+write in the computer's own code page). Anything in `[server] jvm_args` comes after them, so a
+`-Dfile.encoding` of your own still wins.
+
 ## The shared folder
 
 ```

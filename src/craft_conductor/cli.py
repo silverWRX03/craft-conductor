@@ -374,7 +374,7 @@ def cmd_start(args) -> int:
     Nothing starts by itself: each server waits for its Start button in the web UI.
     """
     from . import webauth
-    from .hub import Hub, running_hub
+    from .hub import Hub, running_hub, running_panel
 
     home = default_home()
     home.mkdir(parents=True, exist_ok=True)
@@ -389,6 +389,7 @@ def cmd_start(args) -> int:
         hub.web.host = args.web_host
     if args.web_port:
         hub.web.port = args.web_port
+        hub.web_port_chosen = True  # (kept even when it's taken: no other port instead)
     first_password = None
     if not has_display() or hub.web.host not in ("127.0.0.1", "localhost", "::1"):
         # Nobody at this computer's screen (or reachable from others): a random one-time password
@@ -401,6 +402,7 @@ def cmd_start(args) -> int:
     port = hub.web.port
     url = f"http://localhost:{port}/"
     if pid := running_hub(home):
+        url = running_panel(home) or url  # (its port may not be the usual one)
         print(f"Craft Conductor is already running (pid {pid}): {url}")
         if browser:
             webbrowser.open(url)
@@ -426,7 +428,13 @@ def cmd_start(args) -> int:
     print("\n" + "\n".join(lines) + "\n", flush=True)
     _tag_log_lines()
     hub.open_browser = browser
-    code = hub.run()
+    from .web import PortBusy
+    try:
+        code = hub.run()
+    except PortBusy as e:  # (said in a message box when there's no window to say it in)
+        from . import desktop
+        desktop.show_error(str(e))
+        return 1
     if hub.restart_requested:
         selfupdate.restart()
     return code
@@ -463,7 +471,8 @@ def cmd_web_password(args) -> int:
     cfg = _auth_target(args)
     store = webauth.AuthStore(cfg)
     if cfg.web.password:
-        print("the web UI password is set in craft-conductor.toml under [web] password; change it there")
+        print("the web UI password is set in craft-conductor.toml under [web] password (kept there as its hash); "
+              "to change it, type the new one there")
         return 0 if not (args.reset or args.set or args.pin or args.none) else 1
     try:
         if args.reset:

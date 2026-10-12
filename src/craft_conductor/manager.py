@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from . import backup, lock as lockmod
+from . import backup, lock as lockmod, private
 from .config import Config
 from .http import HttpClient, sha1_file
 from .java import JavaManager
@@ -38,7 +38,7 @@ from .minecraft import Mojang
 from .mods import ModFile, ModProvider, hold, providers_for
 from .notify import Notifier
 from .planner import Changes, Decision, Plan, Planner
-from .process import ServerProcess
+from .process import CONSOLE_UTF8, ServerProcess
 
 log = logging.getLogger(__name__)
 
@@ -309,7 +309,7 @@ class Manager:
             from .jvmflags import aikar
             from .stats import heap_bytes
             gc = aikar(heap_bytes(mem, 4))
-        return [java, f"-Xms{mem}", f"-Xmx{mem}", *gc, *self.config.server.jvm_args, *lock.launch]
+        return [java, f"-Xms{mem}", f"-Xmx{mem}", *gc, *CONSOLE_UTF8, *self.config.server.jvm_args, *lock.launch]
 
     def new_process(self, lock: Lock | None = None) -> ServerProcess:
         s = self.config.server
@@ -339,6 +339,11 @@ class Manager:
             tail = "\n".join(lines[-20:])
             raise UpgradeError(f"server did not finish starting{('. ' + blame) if blame else ''}:\n{tail}")
         self.last_diagnosis = None
+        # Minecraft (1.21.9 and newer) writes a secret of its own into server.properties as it starts.
+        from .properties import SECRET_KEYS, read_properties
+        props = self.server_dir / "server.properties"
+        if any(read_properties(props).get(key) for key in SECRET_KEYS):
+            private.protect(props)
         return proc
 
     def countdown(self, proc: ServerProcess, reason: str) -> None:

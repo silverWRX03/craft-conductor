@@ -44,7 +44,7 @@ def test_export_and_import_through_the_web(hub_env):
     status, body, _ = c.post("/api/hub/import", {"id": staged["id"]})
     assert status == 200, body
     sid = body["id"]
-    assert sid == "alpha-2"
+    assert sid == "alpha-2" and body["left_out"] == []  # (no secrets to leave out)
     new = hub.get(sid)
     assert (new.m.server_dir / "world" / "level.dat").read_bytes() == b"level"
     assert new.m.lock.minecraft == "1.21.1" and new.m.config.server.dir == new.m.config.root / "server"
@@ -56,6 +56,45 @@ def test_export_and_import_through_the_web(hub_env):
 
     assert c.post("/api/servers/alpha/export/delete", {"name": exports[0]["name"]})[0] == 200
     assert c.get("/api/servers/alpha/export")[1]["exports"] == []
+
+
+def test_an_export_leaves_out_the_discord_webhook_and_curseforge_key(hub_env, tmp_path):
+    """An export is a file that gets sent around and kept: a Discord webhook or a CurseForge key in
+    it would work for anyone who has it. They're left out, and the import says where to enter them
+    again. The copy made on this computer to try a beta keeps them."""
+    import tomllib
+    from craft_conductor import config as configmod
+    hub, c = hub_env
+    login(c)
+    d = hub.get("alpha")
+    webhook = "https://discord.com/api/webhooks/0/fake-webhook-for-tests"
+    configmod.set_value(d.m.config.path, "notify", "discord_webhook", json.dumps(webhook))
+    configmod.set_value(d.m.config.path, "curseforge", "api_key", '"fake-curseforge-key-for-tests"')
+    d.m.reload_config()
+
+    path = transfer.export(d.m, tmp_path / "out.zip")
+    from test_secrets import access, only_mine
+    assert only_mine(path), access(path)  # (it still holds the invite secret and an RCON password: this account's only)
+    with zipfile.ZipFile(path) as z:
+        settings = z.read("craft-conductor.toml").decode("utf-8")
+        manifest = json.loads(z.read("craft-conductor-export.json"))
+    assert "fake-webhook" not in settings and "fake-curseforge" not in settings
+    parsed = tomllib.loads(settings)
+    assert parsed["notify"]["discord_webhook"] == "" and parsed["curseforge"]["api_key"] == ""
+    assert parsed["server"]["loader"] == d.m.config.server.loader  # (the rest is as it was)
+    assert manifest["left_out"] == ["discord_webhook", "curseforge_api_key"]
+    assert webhook in d.m.config.path.read_text(encoding="utf-8")  # (the server itself keeps them)
+
+    status, staged, _ = c.call("POST", "/api/hub/stage?filename=alpha.zip", raw=path.read_bytes())
+    status, body, _ = c.post("/api/hub/import", {"id": staged["id"]})
+    assert status == 200 and body["left_out"] == ["discord_webhook", "curseforge_api_key"]
+    imported = hub.get(body["id"]).m.config
+    assert imported.discord_webhook == "" and "fake-curseforge" not in imported.path.read_text(encoding="utf-8")
+
+    copy = transfer.export(d.m, tmp_path / "copy.zip", keep_secrets=True)  # (the beta copy)
+    with zipfile.ZipFile(copy) as z:
+        assert webhook in z.read("craft-conductor.toml").decode("utf-8")
+        assert json.loads(z.read("craft-conductor-export.json"))["left_out"] == []
 
 
 def zip_with(files: dict) -> bytes:

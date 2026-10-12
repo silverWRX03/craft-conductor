@@ -190,16 +190,14 @@ class Rehearsal:
         self.step = "Copying the server and its world…"
         self.say(f"Copying the server ({size / 1e9:.2f} GB)…")
         proc = self.d.proc if self.d.proc and self.d.proc.running else None
-        if proc:  # save everything, and keep the world files still while they're copied
-            proc.send("save-off")
-            proc.send("save-all flush")
-            time.sleep(5)
         try:
+            if proc:  # save everything, and keep the world files still while they're copied
+                proc.pause_saving()
             shutil.copytree(m.server_dir, self.root / "server", symlinks=True,
                             ignore=lambda d, names: [n for n in names if n in SKIP] if Path(d) == m.server_dir else [])
         finally:
-            if proc and proc.running:
-                proc.send("save-on")
+            if proc:
+                proc.resume_saving()
         for name in (configmod.CONFIG_NAME, "craft-conductor.lock.json"):
             if (cfg.root / name).is_file():
                 shutil.copy2(cfg.root / name, self.root / name)

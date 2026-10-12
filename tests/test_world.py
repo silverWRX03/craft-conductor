@@ -2,6 +2,8 @@
 
 import gzip
 import io
+import subprocess
+import sys
 import zipfile
 
 import pytest
@@ -124,3 +126,50 @@ def test_worlds_on_the_web(hub_env, tmp_path, monkeypatch):
     assert world.level_info((alpha.m.server_dir / "world" / "level.dat").read_bytes())["name"] == "New"
     assert any("before-new-world" in b.name for b in backup.list_backups(alpha.m.config.backups.dir))
     assert c.post("/api/servers/alpha/world/replace", {"world": "nope"})[0] == 400
+
+
+# Holds a world's session.lock the way Minecraft does while the world is open (an OS lock).
+LOCKER = """
+import os, sys
+f = open(sys.argv[1], "r+b")
+if os.name == "nt":
+    import msvcrt
+    msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1 << 20)
+else:
+    import fcntl
+    fcntl.lockf(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+print("locked", flush=True)
+sys.stdin.read()
+"""
+
+
+def test_a_world_open_in_minecraft_is_not_copied(hub_env, tmp_path, monkeypatch):
+    """Minecraft (1.16 and newer) locks a world's session.lock while the world is open; in
+    single-player, until Save and Quit to Title. A copy made then could catch it half-saved, so
+    it's refused, and says how to close it. (packaging/e2e_test.py checks a real server's lock.)"""
+    hub, c = hub_env
+    login(c)
+    sources = singleplayer(tmp_path)
+    monkeypatch.setattr(world, "_launcher_saves", lambda: sources)
+    save = sources[0][1] / "Old"
+    (save / "session.lock").write_bytes("☃".encode())  # (what Minecraft writes in it)
+    assert not world.in_use(save)
+    holder = subprocess.Popen([sys.executable, "-c", LOCKER, str(save / "session.lock")],
+                              stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    try:
+        assert holder.stdout.readline().strip() == "locked"
+        assert world.in_use(save)
+        with pytest.raises(world.WorldError, match="open in Minecraft"):
+            world.install(save, tmp_path / "copy")
+        assert not (tmp_path / "copy").exists()
+        sid, servers = world.list_saves(sources)[0]["id"], set(hub.daemons)
+        status, body, _ = c.post("/api/hub/create", {"loader": "vanilla", "motd": "From save", "world": "save:" + sid,
+                                                      "accept_eula": True})
+        assert status == 400 and "Save and Quit to Title" in body["error"]
+        assert set(hub.daemons) == servers  # (nothing was made)
+    finally:
+        holder.stdin.close()
+        holder.wait(timeout=10)
+    assert not world.in_use(save)  # closed in Minecraft: it copies
+    world.install(save, tmp_path / "copy")
+    assert (tmp_path / "copy" / "region" / "r.0.0.mca").read_bytes() == b"old region"

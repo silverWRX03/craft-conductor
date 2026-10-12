@@ -334,6 +334,9 @@ def test_friends_page_and_download(tmp_path, http, modrinth, fake_template, monk
         with pytest.raises(HttpError):
             get(base + "/pack.json")  # the old invite stops working
         assert c.post("/api/hub/share", {"port": 80})[0] == 400
+        server_port = int(c.get("/api/servers/survival/settings")[1]["port"])  # (a Minecraft server listens there)
+        status, body, _ = c.post("/api/hub/share", {"port": server_port})
+        assert status == 400 and "survival" in body["error"], body
 
         # Switching it off stops sharing.
         c.post("/api/servers/survival/client", {"enabled": False})

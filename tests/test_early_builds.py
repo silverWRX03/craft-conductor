@@ -35,6 +35,28 @@ def test_release_file_must_match_loader_even_if_api_filter_fails(http, modrinth)
     assert ModrinthProvider(http).best_channels(["MOD"], ("fabric",), "1.21.1") == {"MOD": None}
 
 
+def test_curseforge_file_must_match_loader_even_if_api_filter_fails(http):
+    """As for Modrinth: a file whose own tags name only another loader isn't installed, whatever the
+    API's loader filter let through; one that names no loader is taken at the filter's word."""
+    from craft_conductor.mods import curseforge as cf
+    from craft_conductor.mods.base import Unavailable
+    http.json[f"{cf.API}/mods/77"] = {"data": {"id": 77, "slug": "mod", "name": "Mod"}}
+
+    def files(*tags):
+        return {"data": [{"id": 7700 + i, "fileName": f"mod-{i}.jar", "displayName": f"Mod {i}", "releaseType": 1,
+                          "gameVersions": list(t), "fileDate": f"2025-01-0{i + 1}T00:00:00Z", "downloadUrl": "https://edge.forgecdn.net/x.jar"}
+                         for i, t in enumerate(tags)]}
+    provider = cf.CurseForgeProvider(http, "fake-key-for-tests")
+    http.json[f"{cf.API}/mods/77/files"] = files(["1.21.1", "Forge"])  # (the filter asked for Fabric)
+    with pytest.raises(Unavailable):
+        provider.resolve(ModSpec("curseforge", "77"), "1.21.1", ("fabric",), "release")
+    assert provider.supported_versions(ModSpec("curseforge", "77"), ("fabric",), "release") == set()
+    http.json[f"{cf.API}/mods/77/files"] = files(["1.21.1", "Fabric"], ["1.21.1", "Forge"], ["1.21.1"])
+    assert provider.resolve(ModSpec("curseforge", "77"), "1.21.1", ("fabric",), "release").filename == "mod-2.jar"
+    http.json[f"{cf.API}/mods/77/files"] = files(["1.21.1", "Fabric", "Quilt"])
+    assert provider.resolve(ModSpec("curseforge", "77"), "1.21.1", ("quilt",), "release").filename == "mod-0.jar"
+
+
 def publish(modrinth, http):
     modrinth.project("GOOD", "goodmod", "Good Mod")
     modrinth.version("GOOD", "1.0", ["1.21.1"])
@@ -89,6 +111,27 @@ def test_setup_and_mods_page_lists(hub_env, modrinth):
     r = c.post("/api/hub/mods/check", {"loader": "fabric", "minecraft": "1.21.1", "mods": ["betamod"],
                                        "channels": {"betamod": "beta"}})[1]
     assert r["ok"]
+
+
+def test_the_required_box_keeps_a_mods_channel_and_datapack(hub_env, modrinth):
+    """Ticking or unticking **required** on the Mods page changes only that: a mod allowed early builds
+    keeps them, and one used as its datapack stays a datapack."""
+    hub, c = hub_env
+    login(c)
+    publish(modrinth, hub.http)
+    assert c.post("/api/servers/alpha/mods/add-many", {"mods": [{"source": "modrinth", "id": "betamod", "channel": "beta"}]})[0] == 200
+    alpha = hub.get("alpha")
+    configmod.append_mod(alpha.m.config.path, ModSpec("modrinth", "terralith", datapack=True))
+    alpha.m.reload_config()
+    for mod in ("betamod", "terralith"):
+        assert c.post("/api/servers/alpha/mods/required", {"source": "modrinth", "id": mod, "required": False})[0] == 200
+    specs = {s.id: s for s in configmod.load(alpha.m.config.root).mods}
+    assert (specs["betamod"].required, specs["betamod"].channel) == (False, "beta")
+    assert (specs["terralith"].required, specs["terralith"].datapack) == (False, True)
+    assert c.post("/api/servers/alpha/mods/required", {"source": "modrinth", "id": "betamod", "required": True})[0] == 200
+    specs = {s.id: s for s in configmod.load(alpha.m.config.root).mods}
+    assert (specs["betamod"].required, specs["betamod"].channel) == (True, "beta")
+    assert c.post("/api/servers/alpha/mods/required", {"source": "modrinth", "id": "nope", "required": True})[0] == 404
 
 
 def test_a_mods_own_channel_is_used_for_updates(make_config, http, modrinth):

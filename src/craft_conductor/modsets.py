@@ -47,7 +47,8 @@ def _write(cfg, sets: list[dict]) -> None:
 
 def current(cfg, name: str, minecraft: str | None = None) -> dict:
     return {"name": name, "saved": time.time(), "minecraft": minecraft,
-            "mods": [{"source": m.source, "id": m.id, "required": m.required, "channel": m.channel} for m in cfg.mods],
+            "mods": [{"source": m.source, "id": m.id, "required": m.required, "channel": m.channel, "datapack": m.datapack}
+                     for m in cfg.mods],
             "client_mods": list(cfg.client.mods)}
 
 
@@ -61,7 +62,9 @@ def check(entry: dict) -> dict:
         if not isinstance(m, dict) or m.get("source", "modrinth") not in configmod.MOD_SOURCES or not MOD_ID.fullmatch(str(m.get("id", ""))):
             raise ModSetError("the list has a mod that isn't written right")
         channel = m.get("channel") if m.get("channel") in configmod.CHANNELS else None
-        mods.append({"source": m.get("source", "modrinth"), "id": str(m["id"]), "required": bool(m.get("required", True)), "channel": channel})
+        source = m.get("source", "modrinth")
+        mods.append({"source": source, "id": str(m["id"]), "required": bool(m.get("required", True)), "channel": channel,
+                     "datapack": m.get("datapack") is True and source == "modrinth"})  # (its datapack build: Modrinth only)
     client = [str(x) for x in entry.get("client_mods", []) if configmod.CLIENT_MOD.fullmatch(str(x))]
     return {"name": name, "saved": float(entry.get("saved") or time.time()), "minecraft": entry.get("minecraft"),
             "mods": mods, "client_mods": client}
@@ -97,12 +100,13 @@ def restore(cfg, name: str, minecraft: str | None = None) -> str:
     entry = check(entry)
     save(cfg, f"Before {name}"[:60], minecraft)
     path = cfg.path
-    original = path.read_text()
+    original = path.read_bytes()  # (put back exactly as it was if anything goes wrong)
     try:
-        configmod.set_mods(path, [ModSpec(m["source"], m["id"], required=m["required"], channel=m["channel"]) for m in entry["mods"]])
+        configmod.set_mods(path, [ModSpec(m["source"], m["id"], required=m["required"], channel=m["channel"],
+                                          datapack=m["datapack"]) for m in entry["mods"]])
         configmod.set_value(path, "client", "mods", json.dumps(entry["client_mods"]))
-        configmod.parse(cfg.root, tomllib.loads(path.read_text()))  # still a valid config
+        configmod.parse(cfg.root, tomllib.loads(configmod.read_text(path)))  # still a valid config
     except Exception:
-        path.write_text(original)
+        path.write_bytes(original)
         raise
     return f"switched to {name!r}: {len(entry['mods'])} mod(s), installed with the next update"

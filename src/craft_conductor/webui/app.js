@@ -239,11 +239,11 @@ function ask(message, { id = null, ok = "OK", cancel = "Cancel", danger = false,
 
 // Everyday messages ("Saved", errors): at the top of the screen, where they're noticed, without
 // getting in the way. Click one to dismiss it; errors stay longer.
-function toast(message, bad = false) {
+function toast(message, bad = false, ms = 0) {
   const el = h("div", { class: "toast" + (bad ? " bad" : ""), role: bad ? "alert" : "status", title: "Click to dismiss",
     onclick: () => el.remove() }, h("span", { class: "toast-icon", "aria-hidden": "true" }, bad ? "⚠" : "✓"), h("span", {}, t(message)));
   $("#toasts").append(el);
-  setTimeout(() => el.remove(), bad ? 12000 : 5000);
+  setTimeout(() => el.remove(), ms || (bad ? 12000 : 5000));
   if (bad) playSound("problem");
 }
 
@@ -1183,14 +1183,25 @@ async function memoryOkToStart(sid, name) {
     + "\n\n" + t("It may slow right down, or a server may crash. Give servers less memory (Settings → Memory), or stop one first."),
   { ok: "Start anyway", id: "memory-start" });
 }
-$("#btn-start").addEventListener("click", async () => {
+// Start, Stop and Restart count once per press: the button is off from the moment it's pressed, so a
+// double-click's second press does nothing (rather than a "busy: start is running" error), and the
+// status (refreshed every 2 seconds anyway) then says what can be pressed.
+function pressOnce(handler) {
+  return async (e) => {
+    const btn = e.currentTarget;
+    if (btn.disabled) return;
+    btn.disabled = true;
+    try { await handler(); } finally { refreshStatus(); }
+  };
+}
+$("#btn-start").addEventListener("click", pressOnce(async () => {
   if (!server || await memoryOkToStart(server, (status && (status.motd || status.id)) || server))
-    act(() => api("/api/server/start", { method: "POST" }));
-});
-$("#btn-stop").addEventListener("click", async () => {
-  if (await ask("Stop the server? Players will be disconnected.", { id: "stop-server", ok: "Stop" })) act(() => api("/api/server/stop", { method: "POST" }));
-});
-$("#btn-restart").addEventListener("click", () => act(() => api("/api/server/restart", { method: "POST" })));
+    await act(() => api("/api/server/start", { method: "POST" }));
+}));
+$("#btn-stop").addEventListener("click", pressOnce(async () => {
+  if (await ask("Stop the server? Players will be disconnected.", { id: "stop-server", ok: "Stop" })) await act(() => api("/api/server/stop", { method: "POST" }));
+}));
+$("#btn-restart").addEventListener("click", pressOnce(() => act(() => api("/api/server/restart", { method: "POST" }))));
 
 // -------------------------------------------------------------------- views
 const views = {};
@@ -3177,7 +3188,8 @@ views.settings = () => {
     fill(exportCard, h("h3", {}, "Move to another computer"),
       h("p", { class: "muted small" }, "Export saves this server (worlds, mods, configs, settings, player lists) in one .zip. " +
         "On the other computer, install Craft Conductor, then choose Import a server on the server list. The world is saved first, " +
-        "so this works while the server runs."),
+        "so this works while the server runs. The Discord webhook URL and CurseForge key are left out (anyone with the file " +
+        "could use them): enter them again there."),
       h("div", { class: "row" },
         h("button", { class: "btn primary", disabled: !!(status && status.job), onclick: () => act(() => api("/api/export", { method: "POST", body: { backups: withBackups.checked } }), "Exporting…") }, "Export server"),
         h("label", { class: "row" }, withBackups, h("span", {}, "Include backups (bigger file)"))),
@@ -5909,6 +5921,12 @@ function deleteServer(s, after) {
   document.body.append(h("div", { class: "modal-backdrop", id: "delete-server", role: "dialog", "aria-modal": "true", "aria-labelledby": "delete-title" }, box));
 }
 
+// Where to enter again each secret an export left out (transfer.LEFT_OUT).
+const IMPORT_LEFT_OUT = {
+  discord_webhook: "the Discord webhook URL (this server's Settings)",
+  curseforge_api_key: "the CurseForge key (Craft Conductor settings → Connections → CurseForge)",
+};
+
 // The home page: every server, each started and stopped by hand.
 views.servers = () => {
   const list = h("div", { class: "server-list" });
@@ -5951,7 +5969,8 @@ views.servers = () => {
       hb.single ? null : h("a", { class: "card server-card new", href: "#new" },
         h("strong", {}, "+ New server"), h("span", { class: "muted small" }, "Pick a server type, Minecraft version and mods")));
   };
-  // Import a server exported on another computer (Settings → Export).
+  // Import a server exported on another computer (Settings → Export). An export leaves the
+  // secrets out (IMPORT_LEFT_OUT says where to enter each again).
   const picker = h("input", { type: "file", accept: ".zip", class: "hidden" });
   const importNote = h("span", { class: "muted small" });
   const importBtn = h("button", { class: "btn", onclick: () => picker.click() }, "Import a server…");
@@ -5966,6 +5985,8 @@ views.servers = () => {
       importNote.textContent = t("Unpacking…");
       const r = await api("/api/hub/import", { method: "POST", body: { id: staged.id } });
       toast("Imported. Press Start when you're ready.");
+      const missing = (r.left_out || []).map((k) => IMPORT_LEFT_OUT[k]).filter(Boolean);
+      if (missing.length) toast(`Exports leave secrets out. Enter them again: ${missing.join("; ")}.`, false, 15000);
       await refreshStatus();
       location.hash = `#s/${r.id}/dashboard`;
     } catch (e) {
@@ -7878,10 +7899,22 @@ views.setup = () => {
         c && c.running ? h("p", { class: "small row", role: "status" }, h("span", { class: "spinner" }), t("Checking that the mods start together…")) : null,
         bad ? h("p", { class: "small bad-text", role: "alert" }, "These mods wouldn't start together. Fix them in ",
           fileCheckBad(c, "server") ? "Manage Mods" : "Manage Friends Mods", " (it glows), then create the server.") : null,
-        h("button", { type: "submit", class: "btn primary big", disabled: !!(c && c.running) || bad }, "Create my server"));
+        h("button", { type: "submit", class: "btn primary big", disabled: !!(c && c.running) || bad || !!st.creating }, "Create my server"));
     };
+    // Once: a double-click (or Enter pressed twice) while the server is being made sends nothing more.
     const submit = async (e) => {
       e.preventDefault();
+      if (st.creating) return;
+      st.creating = true;
+      st.renderCreate();
+      try {
+        await create();
+      } finally {
+        st.creating = false;
+        if (typeof st.renderCreate === "function") st.renderCreate();  // (gone once a new server's setup was reset)
+      }
+    };
+    const create = async () => {
       if (!st.accept_eula) { toast("Please read and accept the Minecraft EULA first.", true); return; }
       if (st.fileCheck && st.fileCheck.running) { toast("Checking that the mods start together; a moment…"); return; }
       if (fileCheckBad(st.fileCheck)) { toast("These mods wouldn't start together: fix them in the mod manager that glows first.", true); setupAttention({ changed: true }); return; }

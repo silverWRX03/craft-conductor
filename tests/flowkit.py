@@ -95,6 +95,9 @@ SERVER = textwrap.dedent("""\
             sys.stdout.flush()
             import os
             os._exit(3)
+        elif cmd.startswith("save-all"):
+            print("[12:00:01] [Server thread/INFO]: Saving the game (this may take a moment!)", flush=True)
+            print("[12:00:01] [Server thread/INFO]: Saved the game", flush=True)
         elif cmd.startswith(("save-", "say ")):
             print(f"[12:00:01] [Server thread/INFO]: {cmd}", flush=True)
         elif cmd == "stop":
@@ -263,7 +266,7 @@ class FastEvent(threading.Event):
 
 
 def no_sleep_time():
-    """The ``time`` module without sleeping (the daemon waits 5 s for saves before a backup)."""
+    """The ``time`` module without sleeping (so nothing the daemon does by the clock holds a test up)."""
     import types
     return types.SimpleNamespace(**{**{k: getattr(time, k) for k in dir(time) if not k.startswith("_")},
                                     "sleep": lambda s: None})

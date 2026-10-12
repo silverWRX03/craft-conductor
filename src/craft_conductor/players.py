@@ -109,6 +109,11 @@ def _now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S +0000")
 
 
+def _named(entry: object, name: str) -> bool:
+    """Whether a list entry is the player ``name`` (any case); hand-typed entries may be anything."""
+    return isinstance(entry, dict) and isinstance(entry.get("name"), str) and entry["name"].lower() == name.lower()
+
+
 def _is_ip(value: str) -> bool:
     """An IP address, and nothing else: it goes into a console command (ipaddress would also take
     an IPv6 "%scope" of any text, a new line included)."""
@@ -130,20 +135,38 @@ class Players:
         self.send = send
 
     # ---------------------------------------------------------------- files
-    def _read(self, key: str) -> list[dict]:
+    def _read(self, key: str, strict: bool = False) -> list:
+        """One of the server's JSON lists, as Minecraft writes them (UTF-8, whatever this computer's own
+        text encoding). Missing: empty. One that's there but can't be read is empty too, for showing;
+        with ``strict`` (it's about to be changed and written back) it's refused instead, so the
+        change can't wipe every op, ban or name on it."""
         path = self.server_dir / FILES[key]
         try:
-            data = json.loads(path.read_text())
-            return data if isinstance(data, list) else []
-        except (FileNotFoundError, ValueError):
+            data = json.loads(path.read_text(encoding="utf-8-sig"))
+        except FileNotFoundError:
             return []
+        except ValueError as e:  # (not JSON, or not UTF-8)
+            if strict:
+                raise PlayerError(f"{FILES[key]} in the server folder can't be read ({e}), so it wasn't changed: "
+                                  "fix it or move it away, then try again") from None
+            return []
+        if isinstance(data, list):
+            return data
+        if strict:
+            raise PlayerError(f"{FILES[key]} in the server folder isn't a list, so it wasn't changed: "
+                              "fix it or move it away, then try again")
+        return []
 
-    def _write(self, key: str, entries: list[dict]) -> None:
+    def _write(self, key: str, entries: list) -> None:
         self.server_dir.mkdir(parents=True, exist_ok=True)
         fd, tmp = tempfile.mkstemp(dir=self.server_dir, prefix=".players-")
-        with os.fdopen(fd, "w") as f:
-            json.dump(entries, f, indent=2)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(entries, f, indent=2, ensure_ascii=False)
         os.replace(tmp, self.server_dir / FILES[key])
+
+    def _entries(self, key: str) -> list[dict]:
+        """The list's well-formed entries (ones typed in by hand may not be), for showing."""
+        return [e for e in self._read(key) if isinstance(e, dict)]
 
     @property
     def properties(self) -> dict[str, str]:
@@ -151,18 +174,18 @@ class Players:
 
     def summary(self, online: set[str] | None = None) -> dict:
         props = self.properties
-        cache = sorted(self._read("usercache"), key=lambda e: e.get("expiresOn", ""), reverse=True)
+        cache = sorted(self._entries("usercache"), key=lambda e: str(e.get("expiresOn", "")), reverse=True)
         return {
             "running": self.send is not None,
             "online": sorted(online or [], key=str.lower),
             "ops": [{"name": e.get("name"), "uuid": e.get("uuid"), "level": e.get("level", 4)}
-                    for e in self._read("ops")],
+                    for e in self._entries("ops")],
             "whitelist_enabled": props.get("white-list", "false") == "true",
-            "whitelist": [{"name": e.get("name"), "uuid": e.get("uuid")} for e in self._read("whitelist")],
+            "whitelist": [{"name": e.get("name"), "uuid": e.get("uuid")} for e in self._entries("whitelist")],
             "bans": [{"name": e.get("name"), "uuid": e.get("uuid"), "reason": e.get("reason", ""),
-                      "created": e.get("created", ""), "source": e.get("source", "")} for e in self._read("bans")],
+                      "created": e.get("created", ""), "source": e.get("source", "")} for e in self._entries("bans")],
             "ip_bans": [{"ip": e.get("ip"), "reason": e.get("reason", ""), "created": e.get("created", "")}
-                        for e in self._read("ip_bans")],
+                        for e in self._entries("ip_bans")],
             "known": [{"name": e.get("name"), "uuid": e.get("uuid")} for e in cache[:100]],
             "online_mode": props.get("online-mode", "true") != "false",
         }
@@ -199,8 +222,8 @@ class Players:
     # -------------------------------------------------------------- lookups
     def lookup(self, name: str) -> tuple[str, str]:
         """(uuid, correctly-cased name) for a player."""
-        for entry in self._read("usercache"):
-            if entry.get("name", "").lower() == name.lower():
+        for entry in self._entries("usercache"):
+            if _named(entry, name) and isinstance(entry.get("uuid"), str):
                 return entry["uuid"], entry["name"]
         if self.properties.get("online-mode", "true") == "false":
             return offline_uuid(name), name
@@ -247,7 +270,7 @@ class Players:
             return f"whitelist {'enabled' if action == 'whitelist-on' else 'disabled'}"
 
         if action in IP_ACTIONS:
-            entries = [e for e in self._read("ip_bans") if e.get("ip") != name]
+            entries = [e for e in self._read("ip_bans", strict=True) if not (isinstance(e, dict) and e.get("ip") == name)]
             if action == "ban-ip":
                 entries.append({"ip": name, "created": _now(), "source": "craft-conductor", "expires": "forever",
                                 "reason": reason or "Banned by an operator."})
@@ -256,10 +279,10 @@ class Players:
 
         key = {"ban": "bans", "pardon": "bans", "op": "ops", "deop": "ops",
                "whitelist-add": "whitelist", "whitelist-remove": "whitelist"}[action]
-        entries = self._read(key)
+        entries = self._read(key, strict=True)
         removing = action in ("pardon", "deop", "whitelist-remove")
         if removing:
-            kept = [e for e in entries if e.get("name", "").lower() != name.lower()]
+            kept = [e for e in entries if not _named(e, name)]
             if len(kept) == len(entries):
                 raise PlayerError(f"{name} is not {'banned' if key == 'bans' else 'an operator' if key == 'ops' else 'whitelisted'}")
             self._write(key, kept)
@@ -267,7 +290,7 @@ class Players:
                     "whitelist-remove": f"removed {name} from the whitelist"}[action]
 
         player_uuid, proper = self.lookup(name)
-        entries = [e for e in entries if e.get("uuid") != player_uuid]
+        entries = [e for e in entries if not (isinstance(e, dict) and e.get("uuid") == player_uuid)]
         if action == "op":
             level = int(self.properties.get("op-permission-level", "4") or 4)
             entries.append({"uuid": player_uuid, "name": proper, "level": level, "bypassesPlayerLimit": False})

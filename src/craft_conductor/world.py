@@ -29,10 +29,38 @@ log = logging.getLogger(__name__)
 MAX_WORLD = 64 << 30   # uncompressed; refuses zip bombs
 MAX_WORLD_FILES = 200_000  # a world explored for years has tens of thousands
 SKIP = {"session.lock"}
+OPEN_IN_MINECRAFT = ("that world is open in Minecraft: choose Save and Quit to Title there (or close Minecraft), "
+                     "then try again")
 
 
 class WorldError(ValueError):
     pass
+
+
+def in_use(folder: Path) -> bool:
+    """Whether Minecraft has this world open. Since 1.16 the game (and a server) locks the world's
+    ``session.lock`` for as long as the world is open: in single-player, until Save and Quit to
+    Title. A copy made meanwhile could catch it half-saved. Older versions don't lock it, so for
+    their worlds this says False, as it does when it can't tell."""
+    try:
+        f = open(folder / "session.lock", "r+b")  # (never written to)
+    except PermissionError as e:
+        return getattr(e, "winerror", None) == 32  # (Windows: open in a program that doesn't share it)
+    except OSError:
+        return False
+    with f:
+        try:
+            if os.name == "nt":
+                import msvcrt
+                msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+                msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+                fcntl.lockf(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fcntl.lockf(f, fcntl.LOCK_UN)
+        except OSError:
+            return True
+    return False
 
 
 # ----------------------------------------------------------------- reading
@@ -130,6 +158,8 @@ def install(source: Path, dest: Path) -> dict:
         if source.is_dir():
             if not (source / "level.dat").is_file() or (source / "level.dat").is_symlink():
                 raise WorldError("that folder isn't a Minecraft world (no level.dat)")
+            if in_use(source):
+                raise WorldError(OPEN_IN_MINECRAFT)
             _copy_folder(source, tmp)
             info = level_info((source / "level.dat").read_bytes())
         else:

@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import os
 import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from . import private
+
+log = logging.getLogger(__name__)
 
 STATE_DIR = ".craft-conductor"
 CONFIG_NAME = "craft-conductor.toml"
@@ -21,6 +27,61 @@ DEFAULT_LINK_DAYS = 7
 
 class ConfigError(Exception):
     pass
+
+
+def read_text(path: Path) -> str:
+    """craft-conductor.toml's text. TOML files are UTF-8, whatever this computer's own encoding
+    (Windows': mostly not); one an older editor saved in that encoding is still read. Line
+    endings come back as ``\\n``, as with open() in text mode."""
+    raw = path.read_bytes()
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        import locale
+        text = raw.decode(locale.getpreferredencoding(False), errors="replace")
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
+# Settings that are secrets: a craft-conductor.toml holding one is this account's only (private.py).
+SECRETS = (("web", "password"), ("client", "token"), ("notify", "discord_webhook"), ("curseforge", "api_key"))
+_SECRET_LINE = re.compile(r"""(?m)^\s*(?:password|token|discord_webhook|api_key)\s*=\s*(?:"[^"\n]|'[^'\n])""")
+
+
+def write_text(path: Path, text: str) -> None:
+    """Write craft-conductor.toml's text (UTF-8; this computer's own line endings, as before). Once it
+    holds a secret, the file is made this account's before the secret goes in."""
+    if _SECRET_LINE.search(text):
+        if not path.exists():
+            os.close(os.open(path, os.O_WRONLY | os.O_CREAT, 0o600))
+        private.protect(path)
+    path.write_text(text, encoding="utf-8")
+
+
+def _holds_secret(data: dict) -> bool:
+    return any(isinstance(data.get(table), dict) and str(data[table].get(key) or "").strip() for table, key in SECRETS)
+
+
+_kept_as_typed: set[str] = set()  # (said once)
+
+
+def _hashed_web_password(path: Path, password: str) -> str:
+    """The ``[web] password`` as it's kept: one typed into craft-conductor.toml is swapped for its
+    hash there, so the password itself is never on disk. A file that can't be written (mounted
+    read-only) keeps working, from memory, and the log says so once."""
+    from . import webauth
+    if webauth.is_hashed(password) or str(path) in _kept_as_typed:
+        return password
+    hashed = webauth.hash_password(password)
+    try:
+        set_value(path, "web", "password", json.dumps(hashed))
+    except OSError as e:
+        if str(path) not in _kept_as_typed:
+            _kept_as_typed.add(str(path))
+            log.warning("the [web] password in %s is still there as typed: couldn't put its hash there instead (%s)",
+                        path, e)
+        return password
+    log.info("the [web] password in %s is now kept as a hash", path)
+    return hashed
 
 
 # A mod for players (``[client] mods``): a Modrinth slug or id, or ``curseforge:<project id>``
@@ -217,10 +278,17 @@ def load(root: Path) -> Config:
     if not path.exists():
         raise ConfigError(f"{path} not found - run `craft-conductor init` first")
     try:
-        data = tomllib.loads(path.read_text())
+        data = tomllib.loads(read_text(path))
     except tomllib.TOMLDecodeError as e:
         raise ConfigError(f"{path}: {e}") from e
-    return parse(root, data)
+    if _holds_secret(data):
+        private.protect_once(path)
+    cfg = parse(root, data)
+    if cfg.web.password:
+        cfg.web.password = _hashed_web_password(path, cfg.web.password)
+    from . import snapshots
+    snapshots.hash_passwords_once(cfg.backups.dir)  # (notes from before passwords were hashed)
+    return cfg
 
 
 def _limits(s: dict) -> tuple[int, str]:
@@ -464,7 +532,8 @@ update_channel = "stable"      # stable | beta (early versions: newer, less test
 enabled = false                # or start with `craft-conductor run --web`
 host = "127.0.0.1"             # only this machine (the safe default); "0.0.0.0" opens it to your network
 port = 8765
-password = ""                  # empty = starts as PASSWORD and you choose your own when you sign in
+password = ""                  # empty = starts as PASSWORD and you choose your own when you sign in;
+                               # one typed here is replaced by its hash when Craft Conductor reads it
 # allowed_hosts = ["mc.example.com"]  # host names used to reach the panel through a reverse proxy
 
 [downloads]
@@ -493,15 +562,15 @@ def mod_block(spec: ModSpec) -> str:
 
 
 def append_mod(path: Path, spec: ModSpec) -> None:
-    text = path.read_text()
+    text = read_text(path)
     if not text.endswith("\n"):
         text += "\n"
-    path.write_text(text + mod_block(spec))
+    write_text(path, text + mod_block(spec))
 
 
 def remove_mod(path: Path, source: str, mod_id: str) -> bool:
     """Remove a ``[[mods]]`` block, leaving the rest of the file (and its comments) intact."""
-    lines = path.read_text().splitlines(keepends=True)
+    lines = read_text(path).splitlines(keepends=True)
     # Split into chunks that each start at a table header.
     chunks: list[list[str]] = [[]]
     for line in lines:
@@ -517,13 +586,41 @@ def remove_mod(path: Path, source: str, mod_id: str) -> bool:
                 continue
         kept.append(chunk)
     if removed:
-        path.write_text("".join(line for chunk in kept for line in chunk))
+        write_text(path, "".join(line for chunk in kept for line in chunk))
     return removed
+
+
+def set_mod_required(path: Path, source: str, mod_id: str, required: bool) -> bool:
+    """Set ``required`` in a ``[[mods]]`` block in place: the rest of the block (its channel, its
+    datapack, comments) and its place in the list stay as they are. False if it isn't listed."""
+    lines = read_text(path).splitlines(keepends=True)
+    chunks: list[list[str]] = [[]]
+    for line in lines:
+        if re.match(r"^\s*\[", line):
+            chunks.append([])
+        chunks[-1].append(line)
+    literal = "true" if required else "false"
+    for chunk in chunks:
+        if not (chunk and chunk[0].strip() == "[[mods]]"):
+            continue
+        body = tomllib.loads("".join(chunk[1:]))
+        if str(body.get("id")) != mod_id or body.get("source", "modrinth") != source:
+            continue
+        for i, line in enumerate(chunk):
+            if i and re.match(r"^\s*required\s*=", line):
+                chunk[i] = re.sub(r"^(\s*required\s*=\s*)[^#\s]+", lambda m: m.group(1) + literal, line, count=1)
+                break
+        else:  # (written by hand without it: it was required)
+            at = max(i for i, line in enumerate(chunk) if line.strip())
+            chunk.insert(at + 1, f"required = {literal}\n" if chunk[at].endswith("\n") else f"\nrequired = {literal}\n")
+        write_text(path, "".join(line for c in chunks for line in c))
+        return True
+    return False
 
 
 def set_mods(path: Path, specs: list[ModSpec]) -> None:
     """Replace every ``[[mods]]`` block with ``specs``, keeping the rest of the file as it is."""
-    lines = path.read_text().splitlines(keepends=True)
+    lines = read_text(path).splitlines(keepends=True)
     chunks: list[list[str]] = [[]]
     for line in lines:
         if re.match(r"^\s*\[", line):
@@ -532,20 +629,25 @@ def set_mods(path: Path, specs: list[ModSpec]) -> None:
     kept = "".join(line for chunk in chunks if not (chunk and chunk[0].strip() == "[[mods]]") for line in chunk)
     if kept and not kept.endswith("\n"):
         kept += "\n"
-    path.write_text(kept + "".join(mod_block(spec) for spec in specs))
+    write_text(path, kept + "".join(mod_block(spec) for spec in specs))
 
 
 def set_value(path: Path, table: str, key: str, literal: str) -> None:
     """Set ``key = literal`` inside ``[table]``, keeping every other line (and comment) as is."""
-    lines = path.read_text().splitlines(keepends=True)
+    write_text(path, with_value(read_text(path), table, key, literal))
+
+
+def with_value(text: str, table: str, key: str, literal: str) -> str:
+    """``text`` (a craft-conductor.toml) with ``key = literal`` inside ``[table]``."""
+    lines = text.splitlines(keepends=True)
     header = re.compile(rf"^\s*\[{re.escape(table)}\]\s*(#.*)?$")
     start = next((i for i, line in enumerate(lines) if header.match(line)), None)
     if start is None:
         suffix = "" if not lines or lines[-1].endswith("\n") else "\n"
-        path.write_text("".join(lines) + f"{suffix}\n[{table}]\n{key} = {literal}\n")
-        return
+        return "".join(lines) + f"{suffix}\n[{table}]\n{key} = {literal}\n"
     end = next((i for i in range(start + 1, len(lines)) if re.match(r"^\s*\[", lines[i])), len(lines))
-    assign = re.compile(rf"^(\s*{re.escape(key)}\s*=\s*)([^#\n]*?)(\s*#.*)?$")
+    # The value: a quoted string (which may hold a #, as a password can) or a bare value, then any comment.
+    assign = re.compile(rf"""^(\s*{re.escape(key)}\s*=\s*)("(?:[^"\\\n]|\\.)*"|'[^'\n]*'|[^#\n]*?)(\s*#.*)?$""")
     for i in range(start + 1, end):
         m = assign.match(lines[i].rstrip("\n"))
         if m:
@@ -554,12 +656,12 @@ def set_value(path: Path, table: str, key: str, literal: str) -> None:
             break
     else:
         lines.insert(start + 1, f"{key} = {literal}\n")
-    path.write_text("".join(lines))
+    return "".join(lines)
 
 
 def unset_value(path: Path, table: str, key: str) -> bool:
     """Remove ``key = ...`` from ``[table]`` (every other line, and comment, stays). False if it wasn't there."""
-    lines = path.read_text().splitlines(keepends=True)
+    lines = read_text(path).splitlines(keepends=True)
     header = re.compile(rf"^\s*\[{re.escape(table)}\]\s*(#.*)?$")
     start = next((i for i, line in enumerate(lines) if header.match(line)), None)
     if start is None:
@@ -569,6 +671,6 @@ def unset_value(path: Path, table: str, key: str) -> bool:
     for i in range(start + 1, end):
         if assign.match(lines[i]):
             del lines[i]
-            path.write_text("".join(lines))
+            write_text(path, "".join(lines))
             return True
     return False

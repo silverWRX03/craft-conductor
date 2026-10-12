@@ -50,6 +50,18 @@ Implemented with regression tests in `tests/security/` (`test_import_hardening.p
 
 Remaining: importing a modpack or server export still runs its code (mods, jars, launch settings) by design; Minecraft-server children can outlive a killed Craft Conductor; TOCTOU races against a local process running as the same user are out of scope.
 
+### 1.3 Secrets at rest (2026-10-12)
+
+Implemented with regression tests (`tests/test_secrets.py`, `tests/test_transfer.py`).
+
+| Area | Now enforced |
+| --- | --- |
+| Passwords Craft Conductor only checks | A `[web] password` typed into `craft-conductor.toml` or `hub.json` is replaced by its salted PBKDF2 hash when the file is read (`webauth.hash_password`), and backup notes keep it hashed (older notes are rewritten). Panel passwords and PINs, and phones' tokens, were already stored as hashes. |
+| Secrets Craft Conductor must use | Files holding one are owner-only (`private.py`): `0600` on POSIX; on Windows a protected DACL of the account, SYSTEM and Administrators, set on the new file before the secret is written. Covers `.craft-conductor/` state files, `craft-conductor.toml` and `server.properties` once they hold a secret, backup notes, server exports, and a friend's saved invites. |
+| Server exports | Leave out the Discord webhook and the CurseForge key (the import says to enter them again). |
+
+Remaining: such secrets are still readable by any program running as the same account, mods included (section 2); a backup's copy of `server.properties` can hold an RCON password; a `craft-conductor.toml` mounted read-only keeps a typed password as typed (logged).
+
 ## 2. Assets, adversaries, and trust boundaries
 
 ### 2.1 Protected assets

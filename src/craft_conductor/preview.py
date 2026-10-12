@@ -681,7 +681,7 @@ class MapSession:
         else:
             raise PreviewError("making the world took too long; try a smaller area")
         report("Saving the world…", None)
-        proc.ask("save-all flush", lambda ls: True if any("Saved the game" in x for x in ls) else None, timeout=60)
+        proc.save_all()
         chunks = (2 * radius // 16 + 1) ** 2
         took = max(1.0, time.monotonic() - started)
         self.rate = round(chunks / took, 1)
@@ -805,6 +805,12 @@ class Preview:
     def _check(self) -> None:
         if self.cancel.is_set():
             raise InterruptedError
+
+    def stop(self) -> None:
+        """Craft Conductor is quitting: stop making this map, and the private server making its land
+        (a process of its own, which would otherwise keep running after Craft Conductor)."""
+        self.cancel.set()
+        self._drop_session()
 
     def fingerprint(self) -> str:
         mods = sorted(f"{m.source}:{m.id}:{m.channel or ''}{':datapack' if m.datapack else ''}" for m in self.mods)

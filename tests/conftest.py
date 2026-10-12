@@ -30,6 +30,9 @@ FAKE_SERVER = textwrap.dedent("""\
         cmd = line.strip()
         if cmd == "list":
             print("[12:00:01] [Server thread/INFO]: There are 0 of a max of 20 players online:", flush=True)
+        elif cmd.startswith("save-all"):
+            print("[12:00:01] [Server thread/INFO]: Saving the game (this may take a moment!)", flush=True)
+            print("[12:00:01] [Server thread/INFO]: Saved the game", flush=True)
         elif cmd == "stop":
             print("[12:00:02] [Server thread/INFO]: Stopping the server", flush=True)
             sys.exit(0)

@@ -7,7 +7,9 @@ it right after you sign in. You can pick a password or a 4–8 digit PIN; there'
 one. A PIN only works in a browser on the server's own computer. Change it later
 under Settings → Sign-in. Forgot it? Run `craft-conductor web-password --reset` on the server
 to go back to `PASSWORD`. To fix the password in the config instead, set
-`[web] password` in craft-conductor.toml. Passwords and PINs are stored only as salted hashes.
+`[web] password` in craft-conductor.toml: Craft Conductor replaces what you typed with its hash the
+first time it reads the file (to change it, type a new one there). Passwords and PINs are stored
+only as salted hashes.
 
 **Security.** By default it only listens on `127.0.0.1`, including on a computer without a
 screen (reached through an SSH tunnel) and as a boot service (`craft-conductor service install
@@ -79,6 +81,18 @@ in**: it never reaches the control panel, and with the whitelist on, you decide 
 your server reachable from the whole internet, and the page says so for as long as it's on. Only
 each server's Minecraft port and the friends' port are forwarded, never the control panel's port
 or a server's RCON port, and they're taken back when you switch it off or quit.
+
+## Secrets on your computer
+
+Passwords, PINs and phones' keys are kept only as salted hashes. What Craft Conductor has to hand on
+can't be hashed: the CurseForge key, the Discord bot token and webhook, the push-notification and
+HTTPS keys, friends' invite secrets and an RCON password. So every file that holds one is readable
+by your account only: `0600` on Linux and macOS, and on Windows an access list of your account,
+SYSTEM and the Administrators, with nothing inherited from the folder (which matters when Craft
+Conductor's folder is on another drive). That's Craft Conductor's own settings (`.craft-conductor/`),
+a server's `craft-conductor.toml` and `server.properties` once they hold one, the notes kept with
+backups, and server exports. **Export server** also leaves the Discord webhook and the CurseForge
+key out of the `.zip`; you enter them again after importing it.
 
 ## Updates
 

@@ -53,6 +53,16 @@ jobs:
             loader: fabric
             minecraft: "1.21.1"
             args: --mod fabric-api --mod lithium
+          # The console's text in other languages on Windows: Paper writes its console its own way,
+          # and the newest Minecraft runs on the newest Java.
+          - os: windows-latest
+            loader: paper
+            minecraft: "1.21.1"
+            args: ""
+          - os: windows-latest
+            loader: vanilla
+            minecraft: latest
+            args: ""
           - os: macos-latest
             loader: fabric
             minecraft: "1.21.1"

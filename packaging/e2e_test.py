@@ -25,6 +25,9 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))  # (a check the built one has no command for)
+from craft_conductor import world as worldmod  # noqa: E402
+
 PORT = 8793
 LOGS = Path("e2e-logs")
 
@@ -164,6 +167,17 @@ def main() -> int:
         wait("`list` output in the web console",
              lambda: any("players online" in line["text"] for line in web.call("GET", "/api/console?since=0")["lines"]), 60)
         print("web console works")
+        text = "Café 大家好"  # (on Windows this once reached the server as "Caf?" and "???")
+        web.call("POST", "/api/command", {"command": f"say {text}"})
+        wait("a message in French and Chinese in the web console",
+             lambda: any(text in line["text"] for line in web.call("GET", "/api/console?since=0")["lines"]), 60)
+        server_log = root / "server" / "logs" / "latest.log"
+        wait("the message in Minecraft's log", lambda: text in server_log.read_text(encoding="utf-8", errors="replace"), 60)
+        print("non-English text reaches the server and comes back as it was")
+        level = worldmod.level_dir(root / "server")
+        if not worldmod.in_use(level):  # (single-player Minecraft locks a world the same way)
+            raise Failed(f"the running server's world ({level.name}) wasn't recognised as open")
+        print("the running server's world is recognised as open in Minecraft")
         for path in ("/api/mods", "/api/players", "/api/java", "/api/backups", "/api/settings", "/api/licenses"):
             web.call("GET", path)
         print("web API pages load")
@@ -192,6 +206,9 @@ def main() -> int:
         daemon = None
         if "Stopping the server" not in (root / "server" / "logs" / "latest.log").read_text(errors="replace"):
             raise Failed("the Minecraft server didn't log a clean shutdown")
+        if worldmod.in_use(worldmod.level_dir(root / "server")):
+            raise Failed("the world still looked open in Minecraft after the server stopped")
+        print("once stopped, the world is free to copy")
 
         step("manage players while stopped (Mojang UUID lookup)")
         run(exe, "-C", str(root), "player", "ban", "jeb_", "--reason", "e2e test", env=env)

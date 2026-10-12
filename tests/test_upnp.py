@@ -225,6 +225,39 @@ def test_upnp_is_off_by_default_and_never_opens_the_panel(hub_env):
     assert any(port == 25600 for port, _, _ in hub.upnp_wanted())
 
 
+def test_a_setting_saved_while_the_router_is_slow_stays_saved(tmp_path, monkeypatch):
+    """The router can take seconds to answer. Settings saved meanwhile (here: turning off access from
+    other devices, and two others) used to be undone when the router forwarding wrote down its ports,
+    and access came back the next time Craft Conductor started."""
+    import json
+    from craft_conductor.hub import Hub
+    hub = Hub(tmp_path / "home")
+    hub.save_web(host="0.0.0.0")
+    hub.upnp_sync(False)  # (hub.json has its upnp part)
+    asked, answer = threading.Event(), threading.Event()
+
+    class Gateway:
+        name = "Slow Router"
+
+    def find(timeout=3.0):
+        asked.set()
+        assert answer.wait(10)
+        return Gateway()
+    monkeypatch.setattr(upnp, "find", find)
+    sync = threading.Thread(target=hub.upnp_sync, args=(True,))
+    sync.start()
+    assert asked.wait(10)
+    hub.save_web(host="127.0.0.1")  # meanwhile, on the page: access from other devices off
+    hub.set_share_conflicts(True)
+    hub.set_update_channel("beta")
+    answer.set()
+    sync.join(10)
+    saved = json.loads((hub.state_dir / "hub.json").read_text())
+    assert saved["web"]["host"] == "127.0.0.1" and saved["share_conflicts"] is True
+    assert saved["self_update"]["channel"] == "beta" and saved["upnp"]["enabled"] is True
+    assert Hub(tmp_path / "home").web.host == "127.0.0.1"  # (what the next start uses)
+
+
 def test_the_page_shows_the_same_warning():
     from pathlib import Path
     js = (Path(__file__).resolve().parents[1] / "src" / "craft_conductor" / "webui" / "app.js").read_text(encoding="utf-8")

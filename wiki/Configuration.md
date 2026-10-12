@@ -49,6 +49,7 @@ update_channel = "stable"        # or "beta": early versions too
 
 [web]
 host = "127.0.0.1"               # this computer only (the default); "0.0.0.0" opens it to your network
+password = ""                    # set one to fix the sign-in here; it's replaced by its hash when read
 
 [client]                         # the friends' download (the Friends page sets these)
 link_days = 7                    # how long a new invite link works: 1, 7, 30, or 0 = until replaced

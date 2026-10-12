@@ -97,6 +97,13 @@ class CurseForgeProvider(ModProvider):
     def _acceptable(f: dict, channel: str) -> bool:
         return CHANNEL_RANK[RELEASE_TYPES.get(f.get("releaseType"), "alpha")] <= CHANNEL_RANK[channel]
 
+    @staticmethod
+    def _for_loader(f: dict, loader: str) -> bool:
+        """Whether a file is for ``loader`` by its own tags: the API's loader filter isn't trusted alone
+        (as for Modrinth). A file that names no loader at all is taken at the filter's word."""
+        named = {str(v).lower() for v in f.get("gameVersions", [])} & set(LOADER_TYPES)
+        return not named or loader in named
+
     def supported_versions(self, spec: ModSpec, loaders: tuple[str, ...], channel: str) -> set[str]:
         project = self.project(spec.id)
         out: set[str] = set()
@@ -104,7 +111,7 @@ class CurseForgeProvider(ModProvider):
             if loader not in LOADER_TYPES:
                 continue
             for f in self._files(project.id, loader, None):
-                if self._acceptable(f, channel):
+                if self._acceptable(f, channel) and self._for_loader(f, loader):
                     out.update(v for v in f.get("gameVersions", []) if _MC_VERSION.match(v))
         return out
 
@@ -117,7 +124,7 @@ class CurseForgeProvider(ModProvider):
             if loader not in LOADER_TYPES:
                 continue
             files = [f for f in self._files(project.id, loader, minecraft)
-                     if minecraft in f.get("gameVersions", []) and self._acceptable(f, channel)]
+                     if minecraft in f.get("gameVersions", []) and self._acceptable(f, channel) and self._for_loader(f, loader)]
             if not files:
                 continue
             return self._file(project, max(files, key=lambda f: f.get("fileDate", "")), spec)
