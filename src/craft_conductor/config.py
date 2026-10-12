@@ -583,13 +583,17 @@ def set_mods(path: Path, specs: list[ModSpec]) -> None:
 
 def set_value(path: Path, table: str, key: str, literal: str) -> None:
     """Set ``key = literal`` inside ``[table]``, keeping every other line (and comment) as is."""
-    lines = read_text(path).splitlines(keepends=True)
+    write_text(path, with_value(read_text(path), table, key, literal))
+
+
+def with_value(text: str, table: str, key: str, literal: str) -> str:
+    """``text`` (a craft-conductor.toml) with ``key = literal`` inside ``[table]``."""
+    lines = text.splitlines(keepends=True)
     header = re.compile(rf"^\s*\[{re.escape(table)}\]\s*(#.*)?$")
     start = next((i for i, line in enumerate(lines) if header.match(line)), None)
     if start is None:
         suffix = "" if not lines or lines[-1].endswith("\n") else "\n"
-        write_text(path, "".join(lines) + f"{suffix}\n[{table}]\n{key} = {literal}\n")
-        return
+        return "".join(lines) + f"{suffix}\n[{table}]\n{key} = {literal}\n"
     end = next((i for i in range(start + 1, len(lines)) if re.match(r"^\s*\[", lines[i])), len(lines))
     assign = re.compile(rf"^(\s*{re.escape(key)}\s*=\s*)([^#\n]*?)(\s*#.*)?$")
     for i in range(start + 1, end):
@@ -600,7 +604,7 @@ def set_value(path: Path, table: str, key: str, literal: str) -> None:
             break
     else:
         lines.insert(start + 1, f"{key} = {literal}\n")
-    write_text(path, "".join(lines))
+    return "".join(lines)
 
 
 def unset_value(path: Path, table: str, key: str) -> bool:

@@ -303,7 +303,9 @@ Nothing changes until you press **Save settings**. It stays at the bottom of the
 
 - **Game rules:** keep inventory, the day and weather cycle, mob griefing, fire spread, phantoms, how many players must sleep, and more, each with what it does. **Another game rule** sets any rule by name, for power users.
 - **World border:** keep the world to a size (blocks wide) around a centre, so it stays manageable and players can find each other.
-- **Pre-generate terrain:** making new terrain is the heaviest thing a server does; generating it ahead of time avoids lag spikes when people explore. It uses the free **Chunky** mod: **Add Chunky** installs it, then pick a radius and **Start** (with **Pause**, **Continue** and **Cancel**) and watch the progress. **Export server** saves everything (worlds, mods, configs, settings, player lists, and optionally backups) in one `.zip` to move to another computer: install Craft Conductor there, then **Servers → Import a server...**.
+- **Pre-generate terrain:** making new terrain is the heaviest thing a server does; generating it ahead of time avoids lag spikes when people explore. It uses the free **Chunky** mod: **Add Chunky** installs it, then pick a radius and **Start** (with **Pause**, **Continue** and **Cancel**) and watch the progress.
+
+**Move to another computer:** **Export server** saves everything (worlds, mods, configs, settings, player lists, and optionally backups) in one `.zip`: install Craft Conductor there, then **Servers → Import a server...**. The server's Discord webhook URL and CurseForge key are left out (anyone with the file could use them): Craft Conductor says so after the import, and you enter them again there, the webhook on the server's **Settings** and the key under **Craft Conductor settings → Connections → CurseForge**.
 
 ## Friends: playing with friends
 

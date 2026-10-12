@@ -3,8 +3,9 @@
 The export holds everything the server is: ``craft-conductor.toml``, ``craft-conductor.lock.json`` and the
 server folder (worlds, mods, configs, server.properties, ops and whitelist, the
 installed Minecraft and loader), plus backups if asked. Left out: logs, crash
-reports, and craft-conductor's own ``.craft-conductor`` folder (the Java it downloaded suits only this
-computer; the new one downloads its own on first start).
+reports, craft-conductor's own ``.craft-conductor`` folder (the Java it downloaded suits only this
+computer; the new one downloads its own on first start), and the Discord webhook and CurseForge
+key in craft-conductor.toml (secrets: they're entered again on the new computer).
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ import os
 import re
 import shutil
 import time
+import tomllib
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,6 +30,8 @@ log = logging.getLogger(__name__)
 FORMAT = 1
 MANIFEST = "craft-conductor-export.json"
 SKIP_IN_SERVER = {"logs", "crash-reports", "debug", ".craft-conductor"}
+# Secrets in craft-conductor.toml an export leaves out: (table, key, the name the page shows a note for).
+LEFT_OUT = (("notify", "discord_webhook", "discord_webhook"), ("curseforge", "api_key", "curseforge_api_key"))
 SKIP_NAMES = {"session.lock"}  # the running world's lock; Minecraft makes a new one
 MAX_IMPORT = 1 << 40          # unpacked (worlds and backups included); the disk's free space decides first
 MAX_IMPORT_FILES = 500_000
@@ -54,11 +58,31 @@ def export_name(name: str) -> str:
     return f"{safe} {datetime.now().strftime('%Y-%m-%d %H%M')}.craft-conductor.zip"
 
 
-def export(manager, dest: Path, include_backups: bool = False, say: Callable[[str], None] = log.info) -> Path:
-    """Write the server to ``dest`` (a .zip). The server should be stopped."""
+def _without_secrets(text: str) -> tuple[str, list[str]]:
+    """craft-conductor.toml as an export carries it: without the secrets that would work for anyone
+    holding the file (they're entered again on the new computer), and which ones were left out."""
+    try:
+        data = tomllib.loads(text)
+    except tomllib.TOMLDecodeError:
+        return text, []
+    left_out = []
+    for table, key, name in LEFT_OUT:
+        if str((data.get(table) or {}).get(key) or "").strip():
+            text = configmod.with_value(text, table, key, '""')
+            left_out.append(name)
+    return text, left_out
+
+
+def export(manager, dest: Path, include_backups: bool = False, say: Callable[[str], None] = log.info,
+           keep_secrets: bool = False) -> Path:
+    """Write the server to ``dest`` (a .zip). The server should be stopped. ``keep_secrets`` keeps
+    the Discord webhook and CurseForge key in it (a copy made on this computer)."""
     cfg, lk = manager.config, manager.lock
     from .properties import read_properties, server_name
     props = read_properties(manager.server_dir / "server.properties")
+    settings, left_out = configmod.read_text(cfg.path), []
+    if not keep_secrets:
+        settings, left_out = _without_secrets(settings)
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_name(f".{dest.name}.part")
     files = 0
@@ -68,8 +92,8 @@ def export(manager, dest: Path, include_backups: bool = False, say: Callable[[st
                 "format": FORMAT, "name": server_name(props, cfg.root.name), "folder": cfg.root.name,
                 "minecraft": lk.minecraft, "loader": lk.loader, "craft-conductor": __version__,
                 "exported": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                "backups": include_backups}, indent=2))
-            z.write(cfg.path, configmod.CONFIG_NAME)
+                "backups": include_backups, "left_out": left_out}, indent=2))
+            z.writestr(configmod.CONFIG_NAME, settings)
             if (cfg.root / lockmod.LOCK_NAME).exists():
                 z.write(cfg.root / lockmod.LOCK_NAME, lockmod.LOCK_NAME)
             parts = [("server", cfg.server.dir)]

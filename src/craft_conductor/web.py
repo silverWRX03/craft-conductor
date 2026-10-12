@@ -1290,7 +1290,7 @@ class HubApi:
         r[("POST", "/api/hub/map/explore")] = self.map_explore
         r[("POST", "/api/hub/map/stop")] = self.map_stop
         r[("GET", "/api/hub/saves")] = self.saves
-        r[("POST", "/api/hub/import")] = lambda q, b: {"ok": True, "id": self.hub.import_server(str(b.get("id", "")))}
+        r[("POST", "/api/hub/import")] = lambda q, b: {"ok": True, **self.hub.import_server(str(b.get("id", "")))}
         r[("GET", "/api/hub/browse/search")] = lambda q, b: browse_search(self.browser(), q)
         r[("GET", "/api/hub/browse/project")] = lambda q, b: browse_project(self.browser(), q)
         r[("GET", "/api/hub/browse/categories")] = lambda q, b: browse_categories(self.browser(), q)
@@ -4096,12 +4096,12 @@ class Api:
             try:
                 if proc:
                     proc.pause_saving()
-                archive = transfer.export(self.m, tmp / "copy.zip")
+                archive = transfer.export(self.m, tmp / "copy.zip", keep_secrets=True)  # (a copy on this computer)
             finally:
                 if proc:
                     proc.resume_saving()
             try:
-                sid = hub.import_archive(archive, f"{name} (beta {version})", prepare)
+                sid, _ = hub.import_archive(archive, f"{name} (beta {version})", prepare)
             finally:
                 shutil.rmtree(tmp, ignore_errors=True)
             copy = hub.get(sid)

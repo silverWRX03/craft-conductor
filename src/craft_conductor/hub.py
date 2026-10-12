@@ -834,8 +834,9 @@ class Hub:
     def exports_dir(self) -> Path:
         return self.home / "exports"
 
-    def import_server(self, stage_id: str) -> str:
-        """Add a server from an export (Settings → Export on another computer)."""
+    def import_server(self, stage_id: str) -> dict:
+        """Add a server from an export (Settings → Export on another computer): its id, and the
+        secrets the export left out (``left_out``), to be entered again."""
         if self.is_single:
             raise RuntimeError("this Craft Conductor runs a single server (`craft-conductor run`); use `craft-conductor start` to import servers")
         if not re.fullmatch(r"[a-f0-9]{16}", stage_id or ""):
@@ -843,14 +844,15 @@ class Hub:
         found = list((self.staging_dir / stage_id).glob("*.zip"))
         if not found:
             raise ConfigError("that upload isn't here any more; upload the file again")
-        sid = self.import_archive(found[0])
+        sid, manifest = self.import_archive(found[0])
         shutil.rmtree(self.staging_dir / stage_id, ignore_errors=True)
-        return sid
+        left_out = manifest.get("left_out")
+        return {"id": sid, "left_out": [str(x) for x in left_out] if isinstance(left_out, list) else []}
 
     def import_archive(self, archive: Path, name: str | None = None,
-                       prepare: Callable[[Path], None] | None = None) -> str:
+                       prepare: Callable[[Path], None] | None = None) -> tuple[str, dict]:
         """A new server from an export (``name`` renames it; ``prepare`` adjusts its folder
-        before it's loaded)."""
+        before it's loaded): its id, and the export's details."""
         from . import transfer
         manifest = transfer.read_manifest(archive)
         with self._lock:
@@ -874,7 +876,7 @@ class Hub:
                 prepare(root)
             self._attach(sid, root)
         log.info("imported %s into %s", name or manifest.get("name"), root)
-        return sid
+        return sid, manifest
 
     def delete(self, sid: str, delete_files: bool) -> str:
         """Take a server off the list; with ``delete_files``, also erase its world, mods,

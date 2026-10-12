@@ -12,6 +12,7 @@ its fix will say which version it's in.
 
 **Changed**
 - **A single-player world that's open in Minecraft isn't copied.** **Import a world** on New server (and replacing a server's world) now refuses a singleplayer world while Minecraft has it open, and says to choose **Save and Quit to Title** first: a copy made while the game saves could catch the world half-written. (Minecraft 1.16 and newer mark an open world.)
+- **Server exports leave secrets out.** **Export server** no longer puts the server's Discord webhook URL or CurseForge key in the `.zip` (anyone with the file could use them). After **Import a server...**, Craft Conductor says to enter them again, and where.
 - **Servers come back after Craft Conductor updates itself.** **Update now** stopped every server and left them stopped until you pressed **Start**; the servers that were running now start again on the new version, once it has proven itself (or on the previous version, if the update is rolled back). Players are told "Server restarting in 1 minute" rather than "stopping".
 
 **Fixed**
