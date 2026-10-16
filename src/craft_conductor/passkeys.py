@@ -29,8 +29,16 @@ ES256, RS256 = -7, -257
 UP, UV, AT = 0x01, 0x04, 0x40   # authenticator data flags: user present, verified, credential data
 
 
+FIELDS = ("id", "name", "rp_id", "created", "last_used")
+
+
 class PasskeyError(ValueError):
     pass
+
+
+def _owner(c: dict) -> str:
+    """Whose passkey: "owner", or an invited person's "user:<id>" (passkeys from before people existed are the owner's)."""
+    return str(c.get("owner") or "owner")
 
 
 # ------------------------------------------------------------------ CBOR (the parts WebAuthn uses)
@@ -171,17 +179,21 @@ class Passkeys:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         private.write_text(self.path, json.dumps({"passkeys": items}, indent=2) + "\n")
 
-    def list(self) -> list[dict]:
-        return [{k: c.get(k) for k in ("id", "name", "rp_id", "created", "last_used")} for c in self._read()]
+    def list(self, owner: str | None = "owner") -> list[dict]:
+        """The passkeys of the owner ("owner"), of an invited person ("user:<id>"), or everyone's (None)."""
+        return [{k: c.get(k) for k in FIELDS} | {"owner": _owner(c)} for c in self._read()
+                if owner is None or _owner(c) == owner]
 
-    def count(self, rp_id: str | None = None) -> int:
-        return sum(1 for c in self._read() if rp_id is None or c.get("rp_id") == rp_id)
+    def count(self, rp_id: str | None = None, owner: str | None = None) -> int:
+        return sum(1 for c in self._read() if (rp_id is None or c.get("rp_id") == rp_id)
+                   and (owner is None or _owner(c) == owner))
 
-    def remove(self, cred_id: str | None = None) -> int:
-        """Remove one passkey, or all of them (``None``)."""
+    def remove(self, cred_id: str | None = None, owner: str | None = "owner") -> int:
+        """Remove one passkey, or all of someone's (``None``); with ``owner=None``, anyone's."""
         with self._lock:
             items = self._read()
-            kept = [c for c in items if cred_id is not None and c.get("id") != cred_id]
+            kept = [c for c in items if not ((owner is None or _owner(c) == owner)
+                                             and (cred_id is None or c.get("id") == cred_id))]
             self._write(kept)
             return len(items) - len(kept)
 
@@ -217,16 +229,18 @@ class Passkeys:
         return raw, data
 
     # -------------------------------------------------------------- adding one
-    def creation_options(self, rp_id: str) -> dict:
-        existing = [{"type": "public-key", "id": c["id"]} for c in self._read() if c.get("rp_id") == rp_id]
+    def creation_options(self, rp_id: str, owner: str = "owner", display: str = "Craft Conductor") -> dict:
+        existing = [{"type": "public-key", "id": c["id"]} for c in self._read() if c.get("rp_id") == rp_id and _owner(c) == owner]
+        handle = b"craft-conductor-owner" if owner == "owner" else f"craft-conductor-{owner}".encode()
         return {"challenge": self._challenge("create", rp_id), "rp": {"id": rp_id, "name": "Craft Conductor"},
-                "user": {"id": webpush.b64u(hashlib.sha256(b"craft-conductor-owner").digest()[:16]),
-                         "name": "owner", "displayName": "Craft Conductor"},
+                "user": {"id": webpush.b64u(hashlib.sha256(handle).digest()[:16]),
+                         "name": "owner" if owner == "owner" else display, "displayName": display},
                 "pubKeyCredParams": [{"type": "public-key", "alg": ES256}, {"type": "public-key", "alg": RS256}],
                 "authenticatorSelection": {"userVerification": "required", "residentKey": "preferred"},
                 "excludeCredentials": existing, "attestation": "none", "timeout": CHALLENGE_SECONDS * 1000}
 
-    def add(self, rp_id: str, origins: set[str], client_data: str, attestation: str, name: str) -> dict:
+    def add(self, rp_id: str, origins: set[str], client_data: str, attestation: str, name: str,
+            owner: str = "owner") -> dict:
         raw_client, client = self._client(client_data)
         self._use_challenge(client, "create", rp_id, origins)
         obj, _ = cbor_decode(webpush.unb64u(attestation))
@@ -243,14 +257,17 @@ class Passkeys:
         cred_id = webpush.b64u(auth["credential_id"])
         now = time.time()
         item = {"id": cred_id, "name": (" ".join(str(name).split()) or "Passkey")[:40], "rp_id": rp_id, "key": key,
-                "count": auth["count"], "created": now, "last_used": None}
+                "count": auth["count"], "created": now, "last_used": None, "owner": owner}
         with self._lock:
-            items = [c for c in self._read() if c.get("id") != cred_id]
+            items = self._read()
+            if any(c.get("id") == cred_id and _owner(c) != owner for c in items):
+                raise PasskeyError("that passkey is someone else's")
+            items = [c for c in items if c.get("id") != cred_id]
             if len(items) >= MAX_PASSKEYS:
                 raise PasskeyError(f"there are already {MAX_PASSKEYS} passkeys; remove one first")
             items.append(item)
             self._write(items)
-        return {k: item[k] for k in ("id", "name", "rp_id", "created", "last_used")}
+        return {k: item[k] for k in FIELDS}
 
     # -------------------------------------------------------------- signing in
     def request_options(self, rp_id: str) -> dict:
@@ -280,4 +297,4 @@ class Passkeys:
                 raise PasskeyError("that passkey looks copied (its counter went backwards); remove it and add it again")
             item["count"], item["last_used"] = auth["count"], time.time()
             self._write(items)
-        return {k: item[k] for k in ("id", "name", "rp_id", "created", "last_used")}
+        return {k: item[k] for k in FIELDS} | {"owner": _owner(item)}

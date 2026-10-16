@@ -11,6 +11,7 @@ computer.
 
 from __future__ import annotations
 
+import dataclasses
 import functools
 import hashlib
 import ipaddress
@@ -35,7 +36,8 @@ from importlib import resources
 from pathlib import Path
 from typing import Any, Callable
 
-from . import __version__, backup, config as configmod, configs, licenses, limits, notice, passkeys, safearchive, selfupdate, serverprops, setup as setupmod, stats, webauth
+from . import __version__, access, backup, config as configmod, configs, licenses, limits, notice, passkeys, safearchive, selfupdate, serverprops, setup as setupmod, stats, webauth
+from . import users as usersmod
 from .config import ConfigError, ModSpec
 from .daemon import Daemon, set_current_server
 from .process import check_command
@@ -57,27 +59,7 @@ log = logging.getLogger(__name__)
 SESSION_COOKIE = "craft_conductor_session"
 SESSION_TTL = 7 * 86400
 DEVICE_COOKIE = "craft_conductor_device"
-# What a paired phone may do: look at things, and the everyday controls. Not uploads, config
-# files, the console, settings, Java, mods, exports or the sign-in itself.
-DEVICE_POSTS = {"/api/server/start", "/api/server/stop", "/api/server/restart", "/api/backups/create",
-                "/api/updates/check", "/api/updates/apply", "/api/players/action", "/api/logout",
-                "/api/join-requests/answer", "/api/broadcast"}
-DEVICE_HIDDEN_GETS = {"/api/configs/file", "/api/hub/passkeys", "/api/export/download", "/api/settings", "/api/hub/curseforge",
-                      "/api/hub/discord", "/api/hub/discord/guilds", "/api/hub/discord/channels", "/api/hub/discord/roles",
-                      "/api/hub/remote", "/api/hub/saves", "/api/doctor/report"}
-
-
-# A paired phone turning its own notifications on or off (it names itself by its push address).
-PHONE_POSTS = {"/api/hub/phone/subscribe", "/api/hub/phone/unsubscribe", "/api/hub/phone/test", "/api/hub/phone/prefs"}
-
-
-def device_allowed(method: str, path: str, role: str = "helper") -> bool:
-    """What a paired device may do: viewers only look (and can sign out)."""
-    if method == "POST" and path in PHONE_POSTS:
-        return True
-    if method == "POST":
-        return path == "/api/logout" if role == "viewer" else path in DEVICE_POSTS
-    return path not in DEVICE_HIDDEN_GETS
+# Who may do what (the owner, invited people and their phones) is decided in one place: access.py.
 MAX_JSON = 1 << 20
 MAX_UPLOAD = 512 << 20
 MAX_ARCHIVE = 64 << 30
@@ -183,11 +165,18 @@ class WebUI:
         self.host = host or cfg.host
         self.port = cfg.port if port is None else port
         self.store = webauth.AuthStore(hub)   # the hub has the state_dir and [web] settings
-        self.sessions: dict[str, float] = {}
+        # session token -> (when it ends, whose it is: "owner" or "user:<id>", that person's sign-in epoch)
+        self.sessions: dict[str, tuple[float, str, int]] = {}
         self.first_sign_in: set[str] = set()   # sessions that may only choose a password
         self.failures: dict[str, list[float]] = {}
         self.devices = webauth.Devices(hub.state_dir)
         self.passkeys = passkeys.Passkeys(hub.state_dir)
+        self.users = usersmod.Users(hub.state_dir)
+        gone = self.devices.drop_unowned()
+        if gone:
+            log.warning("%d paired phone(s) from before phones belonged to a person no longer sign in: "
+                        "pair them again for a person (Craft Conductor settings → People)", gone)
+        hub.push.audience = self._may_hear
         self.lock = threading.Lock()
         self.network_lock = threading.Lock()
         self.httpd: ThreadingHTTPServer | None = None
@@ -311,20 +300,27 @@ class WebUI:
                 raise ApiError(409, "couldn't apply remote access; the previous connection was restored. Try again.") from error
 
     # ------------------------------------------------------------ sessions
-    def login(self, password: str, client: str, local: bool = True) -> str:
+    def _attempt(self, keys: list[str], now: float) -> None:
+        """Five tries per five minutes, for each of ``keys`` (the address, and the username tried);
+        counted before the check, not after: tries sent all at once can't slip past the limit."""
+        with self.lock:
+            if len(self.failures) > 1000:  # forget old attempts, so the table can't grow without end
+                self.failures = {k: v for k, v in self.failures.items() if v and now - v[-1] < 300}
+            for key in keys:
+                if len([t for t in self.failures.get(key, []) if now - t < 300]) >= 5:
+                    raise ApiError(429, "too many attempts; wait a few minutes")
+            for key in keys:
+                self.failures[key] = [t for t in self.failures.get(key, []) if now - t < 300] + [now]
+
+    def login(self, password: str, client: str, local: bool = True, username: str = "") -> str:
+        if username:
+            return self.user_login(username, password, client)
         now = time.time()
         auth = self.auth
         if not local and not auth.remote_ready and not auth.temporary:
             raise ApiError(403, "signing in from another device needs a strong password "
                                 f"({webauth.STRONG_RULES}); set one in Craft Conductor settings on the server's own computer")
-        with self.lock:
-            if len(self.failures) > 1000:  # forget old attempts, so the table can't grow without end
-                self.failures = {k: v for k, v in self.failures.items() if v and now - v[-1] < 300}
-            recent = [t for t in self.failures.get(client, []) if now - t < 300]
-            if len(recent) >= 5:
-                raise ApiError(429, "too many attempts; wait a few minutes")
-            # (counted before the check, not after: tries sent all at once can't slip past the limit)
-            self.failures[client] = recent + [now]
+        self._attempt([client], now)
         if not auth.check(password):
             raise ApiError(401, "wrong PIN" if auth.mode == "pin" else "wrong password")
         with self.lock:
@@ -334,32 +330,100 @@ class WebUI:
                 self.first_sign_in.add(token)
             return token
 
+    def user_login(self, username: str, password: str, client: str) -> str:
+        """An invited person signing in (their password is always a strong one: users.accept)."""
+        now = time.time()
+        name = str(username).strip().lower()[:40]
+        self._attempt([client, "user:" + name], now)
+        u = self.users.check(name, password)
+        if u is None:
+            raise ApiError(401, "wrong username or password")
+        log.info("%s signed in (from %s)", u.get("name") or u["username"], client)
+        with self.lock:
+            self.failures.pop(client, None)
+            self.failures.pop("user:" + name, None)
+            return self._new_session(now, f"user:{u['id']}", u.get("epoch", 0))
+
     def passkey_login(self, rp_id: str, origins: set[str], b: dict, client: str, local: bool) -> str:
         """Sign in with a fingerprint or face (passkeys.py): the same limits as a password."""
         now = time.time()
-        auth = self.auth
-        if not local and not auth.remote_ready:
-            raise ApiError(403, "signing in from another device needs a strong password set first")
-        with self.lock:
-            recent = [t for t in self.failures.get(client, []) if now - t < 300]
-            if len(recent) >= 5:
-                raise ApiError(429, "too many attempts; wait a few minutes")
-            self.failures[client] = recent + [now]
+        self._attempt([client], now)
         try:
             used = self.passkeys.verify(rp_id, origins, str(b.get("id", "")), str(b.get("client_data", "")),
                                         str(b.get("auth_data", "")), str(b.get("signature", "")))
         except (passkeys.PasskeyError, ValueError) as e:
             raise ApiError(401, str(e)) from None
+        who = used.get("owner", "owner")
+        if who == "owner":
+            if not local and not self.auth.remote_ready:
+                raise ApiError(403, "signing in from another device needs a strong password set first")
+            epoch = 0
+        else:
+            u = self.users.get(who.removeprefix("user:"))
+            if u is None or not u.get("password"):
+                raise ApiError(401, "that passkey's person was removed, or has a new sign-in link to use first")
+            epoch = u.get("epoch", 0)
         log.info("signed in with the passkey %s", used["name"])
         with self.lock:
             self.failures.pop(client, None)
-            return self._new_session(now)
+            return self._new_session(now, who, epoch)
 
-    def _new_session(self, now: float) -> str:
+    def accept_invite(self, token: str, username: str, password: str, client: str) -> str:
+        """Someone opened their invite link and chose a username and password: they're signed in."""
+        now = time.time()
+        self._attempt(["invite:" + client], now)
+        try:
+            u = self.users.accept(token, username, password, now)
+        except usersmod.UserError as e:
+            raise ApiError(400, str(e)) from None
+        log.info("%s used their invite link and chose the username %s", u.get("name"), u["username"])
+        with self.lock:
+            self.failures.pop("invite:" + client, None)
+            return self._new_session(now, f"user:{u['id']}", u.get("epoch", 0))
+
+    def _new_session(self, now: float, who: str = "owner", epoch: int = 0) -> str:
         token = secrets.token_urlsafe(32)
-        self.sessions = {t: exp for t, exp in self.sessions.items() if exp > now}
-        self.sessions[token] = now + SESSION_TTL
+        self.sessions = {t: s for t, s in self.sessions.items() if s[0] > now}
+        self.sessions[token] = (now + SESSION_TTL, who, epoch)
         return token
+
+    def subject(self, token: str | None, device_token: str | None, client: str) -> access.Subject | None:
+        """Who sent this request, from their session (or paired phone) and the people's current grants;
+        None for nobody signed in (or someone removed, or whose password was replaced, just now)."""
+        now = time.time()
+        if token:
+            with self.lock:
+                s = self.sessions.get(token)
+            if s is not None and s[0] > now:
+                if s[1] == "owner":
+                    return access.OWNER_SUBJECT
+                found = self.users.subject(s[1].removeprefix("user:"), s[2])
+                if found is not None:
+                    return found
+                with self.lock:
+                    self.sessions.pop(token, None)
+        device = self.devices.find(device_token, now)
+        if device is not None:
+            found = self.users.subject(device["user_id"], device=device["id"])
+            if found is not None:
+                self.devices.seen(device["id"], client, now)
+                return dataclasses.replace(found, device_name=device.get("name", ""))
+        return None
+
+    def _may_hear(self, who: str, sid: str) -> bool:
+        """For phone notifications: whether this person may hear about this server now."""
+        found = self.users.subject(who.removeprefix("user:")) if who.startswith("user:") else None
+        return found is not None and found.can(sid, "status.view")
+
+    def sign_out_person(self, user_id: str) -> None:
+        """Someone was removed, or given a new sign-in link: their sessions, phones, passkeys and
+        notifications end now."""
+        key = f"user:{user_id}"
+        with self.lock:
+            self.sessions = {t: s for t, s in self.sessions.items() if s[1] != key}
+        self.devices.remove(user_id=user_id)
+        self.passkeys.remove(None, owner=key)
+        self.hub.push.unsubscribe(who=key)
 
     def change(self, mode: str, secret: str, local: bool) -> str:
         # Serialize password changes with rebinding and saving network access:
@@ -368,22 +432,19 @@ class WebUI:
             return self._change(mode, secret, local)
 
     def _change(self, mode: str, secret: str, local: bool) -> str:
-        """Change how the panel is protected; signs out everyone else (paired phones too) and
-        returns a new session."""
+        """Change how the panel is protected; signs the owner out everywhere else (their passkeys
+        go too) and returns a new session. Invited people keep their own sign-ins."""
         if self.remote_on() and not (mode == "password" and webauth.strong_password(secret)):
             raise ApiError(400, "remote access is on, so the password must be strong: " + webauth.STRONG_RULES
                            + ". PINs can't be used then")
         if self.auth.temporary and not local and not (mode == "password" and webauth.strong_password(secret)):
             raise ApiError(400, "choose a strong password: " + webauth.STRONG_RULES)
         self.store.set(mode, secret)
-        removed = self.devices.remove(None)
-        if removed:
-            log.info("signed out %d paired phone(s) because the password changed", removed)
-        if self.passkeys.remove(None):
+        if self.passkeys.remove(None, owner="owner"):
             log.info("removed the fingerprint and face sign-ins because the password changed")
         log.info("web UI sign-in changed to %s", mode)
         with self.lock:
-            self.sessions.clear()
+            self.sessions = {t: s for t, s in self.sessions.items() if s[1] != "owner"}
             self.first_sign_in.clear()
             return self._new_session(time.time())
 
@@ -392,20 +453,17 @@ class WebUI:
         return any(host not in ("127.0.0.1", "localhost", "::1") for host in (self.hub.web.host, self.host))
 
     def reset_to_default(self) -> None:
+        """A forgotten password, from the server's own computer: back to the default, and everyone
+        is signed out (paired phones too); invite links and pairing codes not used yet stop
+        working. Invited people keep their accounts and can sign in again."""
         self.store.reset()
         self.devices.remove(None)
-        self.passkeys.remove(None)
+        self.passkeys.remove(None, owner="owner")
+        self.users.cancel_all_links()
         log.info("web UI password reset to the default from this computer")
         with self.lock:
             self.sessions.clear()
             self.failures.clear()
-
-    def valid(self, token: str | None, local: bool = False) -> bool:
-        if not token:
-            return False
-        with self.lock:
-            exp = self.sessions.get(token)
-            return exp is not None and exp > time.time()
 
     def logout(self, token: str | None) -> None:
         with self.lock:
@@ -591,9 +649,14 @@ class RequestHandler(BaseHTTPRequestHandler):
             raise ApiError(400, str(e)) from None
         with self.web.lock:
             self.web.failures.pop("pair:" + client, None)
-        log.info("paired %s as a %s (from %s)", device["name"], device["role"], client)
+        person = self.web.users.get(device["user_id"]) or {}
+        log.info("paired %s for %s (from %s)", device["name"], person.get("name", "?"), client)
         return self._json(200, {"ok": True, "name": device["name"]},
                           {"Set-Cookie": self._cookie(token, DEVICE_COOKIE, webauth.DEVICE_DAYS * 86400)})
+
+    def _refuse(self, subject, method: str, path: str, sid: str = "") -> None:
+        log.info("refused %s %s%s for %s%s", method, path, f" on {sid}" if sid else "", subject.name,
+                 f" (phone {subject.device_name})" if subject.device else "")
 
     def _local(self) -> bool:
         """A browser on this computer, talking to us directly (not through a proxy).
@@ -661,6 +724,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         return {k: r.get(k) for k in ("ok", "reverted", "from", "to", "at")} if r else None
 
     def _dispatch(self, method: str, path: str, query: dict[str, list[str]]):
+        set_current_server(None)  # (a kept-open connection's last request mustn't put this one in that server's activity)
         try:
             if not path.startswith("/api/"):
                 raise ApiError(404, "not found")
@@ -681,7 +745,20 @@ class RequestHandler(BaseHTTPRequestHandler):
                                         "last_update": self._last_update(),
                                         "strong_required": self.web.remote_on() or (bool(info.get("temporary")) and not local)})
             if path == "/api/login" and method == "POST":
-                token = self.web.login(str(self._body().get("password", "")), self.client_address[0], local)
+                b = self._body()
+                token = self.web.login(str(b.get("password", "")), self.client_address[0], local,
+                                       username=str(b.get("username") or "").strip())
+                return self._json(200, {"ok": True}, {"Set-Cookie": self._cookie(token)})
+            if path == "/api/invite" and method == "POST":  # what an invite link is for (doesn't use it up)
+                self.web._attempt(["invite:" + self.client_address[0]], time.time())
+                try:
+                    return self._json(200, self.web.users.invite_info(str(self._body().get("token", "")), time.time()))
+                except usersmod.UserError as e:
+                    raise ApiError(404, str(e)) from None
+            if path == "/api/invite/accept" and method == "POST":
+                b = self._body()
+                token = self.web.accept_invite(str(b.get("token", "")), str(b.get("username", "")),
+                                               str(b.get("password", "")), self.client_address[0])
                 return self._json(200, {"ok": True}, {"Set-Cookie": self._cookie(token)})
             if path == "/api/pair" and method == "POST":
                 return self._pair()
@@ -701,19 +778,17 @@ class RequestHandler(BaseHTTPRequestHandler):
                     raise ApiError(403, "this only works in a browser on the server's own computer")
                 self.web.reset_to_default()
                 return self._json(200, {"ok": True, **self.web.auth.info()})
-            device = None
-            if not self.web.valid(self._token(), local):
-                device = self.web.devices.find(self._cookie_value(DEVICE_COOKIE), time.time())
-                if device is None or not self.web.auth.remote_ready:
-                    raise ApiError(401, "login required")
-                self.web.devices.seen(device["id"], self.client_address[0], time.time())
-                if path == "/api/logout":  # a phone signing out forgets its key
-                    self.web.devices.remove(device["id"])
-                    log.info("paired phone %s signed out", device["name"])
-                    return self._json(200, {"ok": True}, {"Set-Cookie": f"{DEVICE_COOKIE}=; Max-Age=0; Path=/; SameSite=Strict"})
-                if path == "/api/auth/change":
-                    raise ApiError(403, "a paired phone can't change the password; use the server's computer")
-            elif self._token() in self.web.first_sign_in and path not in FIRST_SIGN_IN_OK:
+            # Who's asking: the owner, an invited person, or a person's paired phone (access.py).
+            subject = self.web.subject(self._token(), self._cookie_value(DEVICE_COOKIE), self.client_address[0])
+            if subject is None:
+                raise ApiError(401, "login required")
+            if subject.device and path == "/api/logout":  # a phone signing out forgets its key
+                self.web.devices.remove(subject.device)
+                log.info("paired phone %s (%s) signed out", subject.device_name, subject.name)
+                return self._json(200, {"ok": True}, {"Set-Cookie": f"{DEVICE_COOKIE}=; Max-Age=0; Path=/; SameSite=Strict"})
+            if path == "/api/auth/change" and not subject.is_owner:
+                raise ApiError(403, "only the owner can change Craft Conductor's password; change yours in Your account")
+            if subject.is_owner and self._token() in self.web.first_sign_in and path not in FIRST_SIGN_IN_OK:
                 raise ApiError(403, "choose your own password first (Craft Conductor settings → Sign-in)")
             if path == "/api/auth/change" and method == "POST":
                 b = self._body()
@@ -723,13 +798,26 @@ class RequestHandler(BaseHTTPRequestHandler):
                 self.web.logout(self._token())
                 return self._json(200, {"ok": True},
                                   {"Set-Cookie": f"{SESSION_COOKIE}=; Max-Age=0; Path=/; SameSite=Strict"})
+            if path == "/api/account/password" and method == "POST":  # an invited person's own password
+                token = self.web.hub_api.account_password(subject, self._body())
+                return self._json(200, {"ok": True}, {"Set-Cookie": self._cookie(token)})
             q = {k: v[-1] for k, v in query.items()}
             if path in LOCAL_ONLY and not local:
                 raise ApiError(403, "that only works in a browser on the server's own computer")
             handler = self.web.hub_api.routes.get((method, path))
             if handler is not None:
-                if device and not device_allowed(method, path, device.get("role") or "helper"):
-                    raise ApiError(403, "a paired phone can't do that; use the server's computer")
+                need, body = access.hub_route_need(method, path), None
+                if not subject.is_owner:
+                    if need == access.OWNER:
+                        self._refuse(subject, method, path)
+                        raise ApiError(403, "only the owner of this Craft Conductor can do that")
+                    if (method, path) in access.HUB_SERVER_IN_BODY:
+                        body = self._body()
+                        target = str(body.get("id", ""))
+                        if not subject.can(target, need):
+                            self._refuse(subject, method, path, target)
+                            raise (ApiError(403, "you don't have permission to do that on this server") if subject.sees(target)
+                                   else ApiError(404, "there's no server with that id (it may have been removed)"))
                 if path not in NOTICE_EXEMPT and not notice.accepted(self.web.hub.root):
                     raise ApiError(428, "accept the notice first")
                 if path in RAW_UPLOADS:
@@ -738,13 +826,20 @@ class RequestHandler(BaseHTTPRequestHandler):
                     return self._send(200, handler(q, {}), "image/png", {"Cache-Control": "private, max-age=86400"})
                 if path == "/api/hub/map/tile":  # a square of an explorable map (the page adds ?v= when land is added)
                     return self._send(200, handler(q, {}), "image/png", {"Cache-Control": "private, max-age=3600"})
-                body = self._body() if method == "POST" else {}
-                if path in ("/api/hub/passkeys/options", "/api/hub/passkeys/add"):
+                if body is None:
+                    body = self._body() if method == "POST" else {}
+                if path in ("/api/hub/passkeys/options", "/api/hub/passkeys/add",
+                            "/api/account/passkeys/options", "/api/account/passkeys/add"):
                     body = {**body, "__rp": self._rp()}  # (from this request's address, not the page's say-so)
+                if (method, path) in access.HUB_ROUTES:
+                    body = {**body, "__subject": subject}  # (who's asking: from the session, not the page)
+                if not subject.is_owner and method == "POST":
+                    log.info("%s: %s", subject.name, path.removeprefix("/api/"))
                 result = handler(q, body)
-                if path == "/api/hub":  # whether "Open folder" buttons can work; who's signed in
-                    result = {**result, "local": local, "device": device["name"] if device else None,
-                              "role": (device.get("role") or "helper") if device else "owner"}
+                if path == "/api/hub":  # whether "Open folder" buttons can work; who's signed in, and what they may do
+                    result = {**access.hub_answer(subject, result), "local": local,
+                              "device": subject.device_name or None,
+                              **access.access_info(subject, [s.get("id") for s in result.get("servers", [])])}
                 return self._json(200, result)
             if m := SERVER_PATH.match(path):
                 sid, path = m.group(1), "/api" + m.group(2)
@@ -752,16 +847,25 @@ class RequestHandler(BaseHTTPRequestHandler):
                 sid = only[0]
             else:
                 raise ApiError(404, "not found")
+            # The server is known before anything is allowed; someone without a grant for it can't
+            # tell it from one that doesn't exist.
+            if self.web.hub.get(sid) is None:
+                raise ApiError(404, "there's no server with that id (it may have been removed)")
+            set_current_server(sid)  # (a refusal shows in this server's activity, not another's)
+            if not subject.can(sid, access.server_route_need(method, path)):
+                self._refuse(subject, method, path, sid)
+                if not subject.sees(sid):
+                    raise ApiError(404, "there's no server with that id (it may have been removed)")
+                raise ApiError(403, "you don't have permission to do that on this server")
             if path not in NOTICE_EXEMPT and not notice.accepted(self.web.hub.root):
                 raise ApiError(428, "accept the notice first")
             if path in LOCAL_ONLY and not local:
                 raise ApiError(403, "that only works in a browser on the server's own computer")
-            if device and not device_allowed(method, path, device.get("role") or "helper"):
-                raise ApiError(403, "a paired phone can't do that; use the server's computer")
             api = self.web.api_for(sid)
             set_current_server(api.d.server_id)  # so this server's activity feed shows what happens
-            if device and method == "POST":
-                log.info("paired phone %s: %s", device["name"], path.removeprefix("/api/"))
+            if not subject.is_owner and method == "POST":
+                log.info("%s%s: %s", subject.name, f" (phone {subject.device_name})" if subject.device else "",
+                         path.removeprefix("/api/"))
             handler = api.routes.get((method, path))
             if handler is None:
                 raise ApiError(404, "not found")
@@ -787,9 +891,17 @@ class RequestHandler(BaseHTTPRequestHandler):
                     raise ApiError(404, str(e)) from None
                 return self._send(200, png, "image/png", {"Cache-Control": "private, max-age=3600"})
             body = self._body() if method == "POST" else {}
+            if (method, path) in access.STARTS_A_CHECK:
+                body = {**body, "__who": subject.key}   # (who started it: from the session, not the page)
+            if not subject.is_owner and (method, path) in access.BODY_CHECKED:
+                current = api.settings({}, {}) if path == "/api/settings" else None
+                for need in access.body_needs(path, body, current):
+                    if not subject.can(sid, need):
+                        self._refuse(subject, method, path, sid)
+                        raise ApiError(403, "you don't have permission to do that on this server")
             if path == "/api/doctor/fix":
-                body = {**body, "__local": local and device is None}  # (from this request, not the page's say-so)
-            return self._json(200, handler(q, body))
+                body = {**body, "__local": local and subject.is_owner}  # (from this request, not the page's say-so)
+            return self._json(200, access.server_answer(subject, sid, path, handler(q, body)))
         except ApiError as e:
             self._fail(e.status, str(e))
         except HttpError as e:  # a website craft-conductor depends on didn't answer
@@ -910,9 +1022,10 @@ def early_channel(b: dict, mod: str) -> str | None:
     return value if value in ("beta", "alpha") else None
 
 
-def run_check(hub, b: dict, work) -> dict:
+def run_check(hub, b: dict, work, who: str = "owner") -> dict:
     """A quick mod check: in the background with ``"background": true`` (poll GET
-    /api/hub/mods/check?id=...), otherwise answered straight away."""
+    /api/hub/mods/check?id=...), otherwise answered straight away. ``who`` started it (the
+    owner, or an invited person's "user:<id>"): only they, and the owner, can follow it."""
     from . import trial
     if not b.get("background"):
         return work(None)
@@ -920,6 +1033,7 @@ def run_check(hub, b: dict, work) -> dict:
     if len(hub.checks) >= 20:
         raise ApiError(429, "too many checks at once; wait for one to finish")
     job = trial.CheckJob(work).start()
+    job.who = who
     hub.checks[job.id] = job
     return {"ok": True, "id": job.id}
 
@@ -1260,6 +1374,17 @@ class HubApi:
         r[("POST", "/api/hub/devices/pair")] = self.pair_device
         r[("POST", "/api/hub/devices/remove")] = self.remove_device
         r[("POST", "/api/hub/devices/cancel-pairing")] = self.cancel_pairing
+        r[("GET", "/api/hub/users")] = self.people
+        r[("POST", "/api/hub/users/invite")] = self.invite_person
+        r[("POST", "/api/hub/users/update")] = self.update_person
+        r[("POST", "/api/hub/users/remove")] = self.remove_person
+        r[("POST", "/api/hub/users/new-link")] = self.new_person_link
+        r[("POST", "/api/hub/users/cancel-link")] = self.cancel_person_link
+        r[("GET", "/api/account")] = self.account
+        r[("POST", "/api/account/password")] = lambda q, b: None  # handled by the request handler (a new session cookie)
+        r[("POST", "/api/account/passkeys/options")] = self.account_passkey_options
+        r[("POST", "/api/account/passkeys/add")] = self.account_passkey_add
+        r[("POST", "/api/account/passkeys/remove")] = self.account_passkey_remove
         r[("GET", "/api/hub/discord")] = self.discord_info
         r[("POST", "/api/hub/discord")] = self.save_discord
         r[("GET", "/api/hub/discord/guilds")] = lambda q, b: {"guilds": self._discord().guilds()}
@@ -1299,8 +1424,7 @@ class HubApi:
         r[("GET", "/api/hub/browse/categories")] = lambda q, b: browse_categories(self.browser(), q)
         r[("GET", "/api/hub/firewall-rules")] = self.firewall_rules
         r[("POST", "/api/hub/firewall/remove")] = self.firewall_remove
-        r[("POST", "/api/hub/delete")] = lambda q, b: {
-            "ok": True, "message": self.hub.delete(str(b.get("id", "")), b.get("delete_files") is True)}
+        r[("POST", "/api/hub/delete")] = self.delete_server
         r[("GET", "/api/notice")] = lambda q, b: {"accepted": notice.accepted(self.hub.root), "version": notice.NOTICE_VERSION,
                                                   "title": notice.TITLE, "points": notice.POINTS}
         r[("POST", "/api/notice/accept")] = self.accept_notice
@@ -1530,27 +1654,39 @@ class HubApi:
         ts = tailscale.status(self._port()) if q.get("tailscale") == "1" else None
         if ts and ts["serving"]:
             self._allow_host(ts["name"])  # (it's offered as the secure address)
+        subject = b.get("__subject") or access.OWNER_SUBJECT
+        if not subject.is_owner:  # (only their own devices, and nothing about this computer)
+            return {"public_key": self.hub.push.public_key(), "devices": self.hub.push.subscriptions(who=subject.key),
+                    "tailscale": None, "secure_url": None, "strong": True}
         return {"public_key": self.hub.push.public_key(), "devices": self.hub.push.subscriptions(),
                 "tailscale": ts, "secure_url": f"https://{ts['name']}/" if ts and ts["serving"] and ts["name"] else None,
                 "strong": self.web.auth.remote_ready}
+
+    @staticmethod
+    def _who(b) -> str | None:
+        """Whose notification devices a request may touch: an invited person only their own (the owner any)."""
+        subject = b.get("__subject") or access.OWNER_SUBJECT
+        return None if subject.is_owner else subject.key
 
     def phone_subscribe(self, q, b) -> dict:
         from .push import PushError
         keys = b.get("keys") if isinstance(b.get("keys"), dict) else {}
         try:
-            sub = self.hub.push.subscribe(b.get("endpoint"), keys.get("p256dh", ""), keys.get("auth", ""), b.get("name", ""))
+            sub = self.hub.push.subscribe(b.get("endpoint"), keys.get("p256dh", ""), keys.get("auth", ""), b.get("name", ""),
+                                          who=(b.get("__subject") or access.OWNER_SUBJECT).key)
         except PushError as e:
             raise ApiError(400, str(e)) from None
         return {"ok": True, "device": sub}
 
     def phone_unsubscribe(self, q, b) -> dict:
-        return {"ok": True, "removed": self.hub.push.unsubscribe(endpoint=str(b.get("endpoint", "")))}
+        return {"ok": True, "removed": self.hub.push.unsubscribe(endpoint=str(b.get("endpoint", "")), who=self._who(b))}
 
     def phone_test(self, q, b) -> dict:
         """A test notification to this device (it names itself by its push address)."""
         endpoint = str(b.get("endpoint", ""))
         with self.hub.push.lock:
-            match = [s["id"] for s in self.hub.push._load().get("subscriptions", []) if s["endpoint"] == endpoint]
+            match = [s["id"] for s in self.hub.push._load().get("subscriptions", [])
+                     if s["endpoint"] == endpoint and (self._who(b) is None or s.get("who") == self._who(b))]
         if not match:
             raise ApiError(404, "notifications aren't on for this device")
         results = self.hub.push.send_now({"title": "Craft Conductor", "body": "Notifications work on this device.",
@@ -1566,9 +1702,9 @@ class HubApi:
             if "kinds" in b:
                 if not isinstance(b["kinds"], list):
                     raise ApiError(400, "kinds must be a list")
-                kinds = self.hub.push.set_kinds(endpoint, b["kinds"])
+                kinds = self.hub.push.set_kinds(endpoint, b["kinds"], who=self._who(b))
             else:
-                kinds = self.hub.push.kinds_for(endpoint)
+                kinds = self.hub.push.kinds_for(endpoint, who=self._who(b))
         except PushError as e:
             raise ApiError(404, str(e)) from None
         if kinds is None:
@@ -1692,6 +1828,9 @@ class HubApi:
 
     def check_status(self, q, b) -> dict:
         job = self.hub.checks.get(q.get("id", ""))
+        subject = b.get("__subject") or access.OWNER_SUBJECT
+        if job is not None and not subject.is_owner and getattr(job, "who", "owner") != subject.key:
+            job = None   # (someone else's check: as if it weren't there)
         if job is None:
             raise ApiError(404, "that check isn't running any more")
         return job.to_dict()
@@ -2039,7 +2178,7 @@ class HubApi:
                 "strong": auth.remote_ready, "mode": auth.mode, "rules": webauth.STRONG_RULES,
                 "port": self.web.httpd.server_address[1] if self.web.httpd else self.web.port,
                 "tls": self.web.tls, "tls_cert": self.hub.web.tls_cert, "tls_key": self.hub.web.tls_key,
-                "addresses": self._addresses(), "devices": self.web.devices.list()}
+                "addresses": self._addresses(), "devices": self.web.devices.list(), "people": self.web.users.list(time.time())}
 
     def save_tls(self, q, b) -> dict:
         if self.hub.is_single:
@@ -2067,22 +2206,26 @@ class HubApi:
             raise ApiError(400, "phone pairing needs `craft-conductor start` (the server list)")
         if not self.web.auth.remote_ready:
             raise ApiError(400, "first set a strong password (" + webauth.STRONG_RULES + ")")
-        host = str(b.get("host", ""))
+        person = self.web.users.get(str(b.get("user", "")))
+        if person is None or not person.get("password"):
+            raise ApiError(400, "pick the person whose phone this is (someone who has signed in with their invite)")
+        base, secure = self._link_base(str(b.get("host", "")), "the phone")
+        code = self.web.devices.new_code(time.time(), person["id"])
+        url = f"{base}#pair={code}"
+        log.info("made a pairing code for a phone of %s (valid for five minutes)", person.get("name"))
+        return {"url": url, "qr": qr.svg(url), "code": code, "secure": secure, "expires_in": webauth.PAIR_SECONDS}
+
+    def _link_base(self, host: str, who: str) -> tuple[str, bool]:
+        """This panel's address at ``host`` (one of those Remote access lists), for a link to open elsewhere."""
         addresses = {a["host"]: a for a in self._addresses()}
         if host not in addresses:
             raise ApiError(400, "pick one of the addresses listed")
         secure = addresses[host]["kind"] == "tailscale-https"  # (Tailscale passes it on: no network access needed)
         if not secure and (not self.web.remote_on() or self.web.host in ("127.0.0.1", "localhost", "::1")):
-            raise ApiError(400, "turn on access from other devices first (and restart Craft Conductor), so the phone can reach this computer")
-        role = str(b.get("role") or "helper")
-        if role not in webauth.ROLES:
-            raise ApiError(400, "pick helper or viewer")
-        code = self.web.devices.new_code(time.time(), role)
+            raise ApiError(400, f"turn on access from other devices first (and restart Craft Conductor), so {who} can reach this computer")
         port = self.web.httpd.server_address[1] if self.web.httpd else self.web.port
         shown = f"[{host}]" if ":" in host else host
-        url = f"https://{host}/#pair={code}" if secure else f"{'https' if self.web.tls else 'http'}://{shown}:{port}/#pair={code}"
-        log.info("made a pairing code for a %s (valid for five minutes)", role)
-        return {"url": url, "qr": qr.svg(url), "code": code, "secure": secure, "expires_in": webauth.PAIR_SECONDS}
+        return (f"https://{host}/" if secure else f"{'https' if self.web.tls else 'http'}://{shown}:{port}/"), secure
 
     def cancel_pairing(self, q, b) -> dict:
         n = self.web.devices.cancel_codes()
@@ -2097,6 +2240,150 @@ class HubApi:
             raise ApiError(404, "no such phone")
         log.info("removed %d paired phone(s)", n)
         return {"ok": True, "devices": self.web.devices.list()}
+
+    # --------------------------------------------------------- people (invited to the control panel)
+    def _grants(self, raw) -> dict[str, frozenset[str]]:
+        """Grants from the invite and edit forms: {server id: [permission, ...]}, servers that exist."""
+        if not isinstance(raw, dict):
+            raise ApiError(400, "grants must be an object")
+        out = {}
+        for sid, caps in raw.items():
+            if self.hub.get(str(sid)) is None:
+                raise ApiError(400, f"there's no server {sid!r}")
+            try:
+                out[str(sid)] = access.normalize(access.valid_caps(caps))
+            except ValueError as e:
+                raise ApiError(400, str(e)) from None
+        return {sid: caps for sid, caps in out.items() if caps}
+
+    def people(self, q, b) -> dict:
+        names = {s["id"]: s["name"] for s in self.hub.summary()}
+        return {"people": self.web.users.list(time.time()), "devices": self.web.devices.list(),
+                "servers": [{"id": sid, "name": name} for sid, name in names.items()],
+                "catalog": access.catalog(), "invite_hours": usersmod.INVITE_SECONDS // 3600,
+                "addresses": self._addresses(), "available": not self.hub.is_single}
+
+    def _invite_link(self, host: str, token: str) -> dict:
+        from . import qr
+        base, secure = self._link_base(host, "they")
+        url = f"{base}#invite={token}"
+        return {"url": url, "qr": qr.svg(url), "secure": secure, "expires_in": usersmod.INVITE_SECONDS}
+
+    def invite_person(self, q, b) -> dict:
+        if self.hub.is_single:
+            raise ApiError(400, "inviting people needs `craft-conductor start` (the server list)")
+        if not self.web.auth.remote_ready:
+            raise ApiError(400, "first set a strong password (" + webauth.STRONG_RULES + ")")
+        grants = self._grants(b.get("grants"))
+        if not grants:
+            raise ApiError(400, "pick at least one server for them")
+        host = str(b.get("host", ""))
+        self._link_base(host, "they")  # (before making anyone: the link must be able to work)
+        try:
+            token, person = self.web.users.invite(b.get("name"), grants, time.time())
+        except usersmod.UserError as e:
+            raise ApiError(400, str(e)) from None
+        log.info("invited %s to the control panel (%s)", person["name"],
+                 "; ".join(f"{sid}: {', '.join(sorted(c))}" for sid, c in grants.items()))
+        return {"ok": True, "person": person["id"], **self._invite_link(host, token), "people": self.web.users.list(time.time())}
+
+    def update_person(self, q, b) -> dict:
+        grants = self._grants(b["grants"]) if "grants" in b else None
+        try:
+            person = self.web.users.update(str(b.get("id", "")), name=b.get("name"), grants=grants)
+        except usersmod.UserError as e:
+            raise ApiError(404, str(e)) from None
+        if grants is not None:
+            log.info("changed what %s may do (%s)", person["name"],
+                     "; ".join(f"{sid}: {', '.join(sorted(c))}" for sid, c in grants.items()) or "nothing")
+        return {"ok": True, "people": self.web.users.list(time.time())}
+
+    def remove_person(self, q, b) -> dict:
+        try:
+            person = self.web.users.remove(str(b.get("id", "")))
+        except usersmod.UserError as e:
+            raise ApiError(404, str(e)) from None
+        self.web.sign_out_person(person["id"])
+        log.info("removed %s from the control panel (signed out everywhere)", person.get("name"))
+        return {"ok": True, "people": self.web.users.list(time.time()), "devices": self.web.devices.list()}
+
+    def new_person_link(self, q, b) -> dict:
+        """A new one-time link (a forgotten password, or the first one expired): the old password,
+        sessions and phones stop working now."""
+        host = str(b.get("host", ""))
+        self._link_base(host, "they")
+        try:
+            token = self.web.users.new_link(str(b.get("id", "")), time.time())
+        except usersmod.UserError as e:
+            raise ApiError(404, str(e)) from None
+        self.web.sign_out_person(str(b.get("id", "")))
+        log.info("made a new sign-in link for %s", (self.web.users.get(str(b.get("id", ""))) or {}).get("name"))
+        return {"ok": True, **self._invite_link(host, token), "people": self.web.users.list(time.time())}
+
+    def cancel_person_link(self, q, b) -> dict:
+        try:
+            self.web.users.cancel_link(str(b.get("id", "")))
+        except usersmod.UserError as e:
+            raise ApiError(404, str(e)) from None
+        return {"ok": True, "people": self.web.users.list(time.time())}
+
+    # --------------------------------------------------------- an invited person's own sign-in
+    @staticmethod
+    def _person(b) -> access.Subject:
+        subject = b.get("__subject")
+        if not isinstance(subject, access.Subject) or subject.is_owner:
+            raise ApiError(400, "this is for invited people; the owner's sign-in is in Craft Conductor settings → Sign-in")
+        return subject
+
+    def account(self, q, b) -> dict:
+        subject = b.get("__subject")
+        if not isinstance(subject, access.Subject) or subject.is_owner:
+            return {"owner": True}
+        u = self.web.users.get(subject.user_id) or {}
+        return {"owner": False, "name": u.get("name"), "username": u.get("username"),
+                "passkeys": self.web.passkeys.list(owner=subject.key), "rules": webauth.STRONG_RULES,
+                "devices": [d for d in self.web.devices.list() if d.get("user_id") == subject.user_id]}
+
+    def account_password(self, subject: access.Subject, b: dict) -> str:
+        """Change one's own password: their other sessions, and their phones, are signed out."""
+        self._person({"__subject": subject})
+        try:
+            u = self.web.users.set_password(subject.user_id, str(b.get("current", "")), str(b.get("new", "")))
+        except usersmod.UserError as e:
+            raise ApiError(400, str(e)) from None
+        self.web.sign_out_person(subject.user_id)
+        log.info("%s changed their password", u.get("name"))
+        with self.web.lock:
+            return self.web._new_session(time.time(), subject.key, u.get("epoch", 0))
+
+    def account_passkey_options(self, q, b) -> dict:
+        subject = self._person(b)
+        rp_id, _ = b["__rp"]
+        return self.web.passkeys.creation_options(rp_id, owner=subject.key, display=subject.name)
+
+    def account_passkey_add(self, q, b) -> dict:
+        subject = self._person(b)
+        rp_id, origins = b["__rp"]
+        try:
+            added = self.web.passkeys.add(rp_id, origins, str(b.get("client_data", "")), str(b.get("attestation", "")),
+                                          str(b.get("name", "")), owner=subject.key)
+        except passkeys.PasskeyError as e:
+            raise ApiError(400, str(e)) from None
+        log.info("%s added the passkey %s", subject.name, added["name"])
+        return {"ok": True, "passkey": added, "passkeys": self.web.passkeys.list(owner=subject.key)}
+
+    def account_passkey_remove(self, q, b) -> dict:
+        subject = self._person(b)
+        if not self.web.passkeys.remove(str(b.get("id", "")), owner=subject.key):
+            raise ApiError(404, "no such passkey")
+        return {"ok": True, "passkeys": self.web.passkeys.list(owner=subject.key)}
+
+    def delete_server(self, q, b) -> dict:
+        sid = str(b.get("id", ""))
+        message = self.hub.delete(sid, b.get("delete_files") is True)
+        if self.web.users.forget_server(sid):
+            log.info("nobody has a grant for %s any more (it was deleted)", sid)
+        return {"ok": True, "message": message}
 
     # --------------------------------------------------------- Discord
     def _discord(self):
@@ -2769,7 +3056,8 @@ class Api:
         provider = self._modrinth()
         channel = self.m.config.updates.mod_channel
         return run_check(self.web.hub, b, lambda progress: trial.check(provider, loaders, minecraft, mods, channel=channel,
-                                                                        progress=progress, channels=channels))
+                                                                        progress=progress, channels=channels),
+                         who=str(b.get("__who") or "owner"))
 
     def _configured_with_deps(self) -> list[dict]:
         """The mods in craft-conductor.toml, each with the dependencies installed for it (several mods can share one)."""
@@ -3042,7 +3330,7 @@ class Api:
             return result
         if self.web.hub.is_single:
             return work()
-        return run_check(self.web.hub, {"background": True}, work)
+        return run_check(self.web.hub, {"background": True}, work, who=str(b.get("__who") or "owner"))
 
     def _filecheck_key(self) -> tuple:
         from .clientpack import local_jars

@@ -60,5 +60,9 @@ def test_the_dashboard_explains_a_failed_start_and_fixes_it(hub_env):
     d.problem = {"kind": "crash", "time": 0, "actions": []}
     assert c.post("/api/servers/alpha/problem/fix", {"kind": "dismiss"})[0] == 200
     assert c.get("/api/servers/alpha/status")[1]["problem"] is None
-    from craft_conductor.web import device_allowed
-    assert not device_allowed("POST", "/api/problem/fix")
+    # Dismissing is for whoever can restart the server; the fixes need what they change.
+    from craft_conductor import access
+    operator = access.PRESETS["operator"]
+    assert access.allows(operator, "POST", "/api/problem/fix", {"kind": "dismiss"})
+    for kind in ("memory-up", "java-auto", "add-mod", "remove-mod", "disable-jar", "eula", "port", "anything"):
+        assert not any(access.allows(p, "POST", "/api/problem/fix", {"kind": kind}) for p in access.PRESETS.values()), kind

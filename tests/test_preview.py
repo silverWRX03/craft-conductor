@@ -390,8 +390,8 @@ def test_exploring_the_map_from_the_page(hub_env, modrinth, monkeypatch):
     assert c.get(f"/api/hub/map/poi?id={r2['id']}")[0] == 404
     assert c.get(f"/api/hub/preview/map?id={r2['id']}")[0] == 200
     hub.map_session = old_session
-    from craft_conductor.web import device_allowed
-    assert not device_allowed("POST", "/api/hub/map/explore")
+    from craft_conductor import access
+    assert access.hub_route_need("POST", "/api/hub/map/explore") == access.OWNER
 
 
 def test_the_seed_gallery(hub_env, modrinth, monkeypatch):

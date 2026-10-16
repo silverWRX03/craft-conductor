@@ -152,10 +152,15 @@ def test_an_expired_or_stopped_link_is_refused(sharing, tmp_path):
     assert c.post("/api/servers/alpha/client/new-link", {"days": "soon"})[0] == 400
 
 
-def test_phones_cant_make_or_stop_invite_links():
-    for path in ("/api/client/new-link", "/api/client/stop-link", "/api/client", "/api/hub/devices/cancel-pairing",
-                 "/api/hub/devices/pair"):
-        assert not web.device_allowed("POST", path), path
+def test_only_those_given_it_make_or_stop_invite_links():
+    """The friends' invite link is the owner's, or someone's they gave "See and share the friends'
+    invite link" (in no preset); pairing phones and inviting people are only ever the owner's."""
+    from craft_conductor import access
+    for path in ("/api/client/new-link", "/api/client/stop-link", "/api/client"):
+        assert not any(access.allows(p, "POST", path) for p in access.PRESETS.values()), path
+    assert access.allows({"friends.share"}, "POST", "/api/client/new-link")
+    for path in ("/api/hub/devices/cancel-pairing", "/api/hub/devices/pair", "/api/hub/users/invite"):
+        assert not access.allows(access.CAPS, "POST", path), path
 
 
 def test_the_discord_post_says_when_the_invite_stops():
@@ -170,7 +175,7 @@ def test_the_discord_post_says_when_the_invite_stops():
 def test_a_pairing_code_works_once_even_when_tried_at_the_same_time(tmp_path):
     devices = webauth.Devices(tmp_path)
     now = time.time()
-    code = devices.new_code(now)
+    code = devices.new_code(now, "u1")
     results, start = [], threading.Barrier(8)
 
     def attempt():
@@ -192,16 +197,16 @@ def test_a_pairing_code_works_once_even_when_tried_at_the_same_time(tmp_path):
 def test_a_pairing_code_expires_and_can_be_cancelled(tmp_path):
     devices = webauth.Devices(tmp_path)
     now = time.time()
-    late = devices.new_code(now)
+    late = devices.new_code(now, "u1")
     with pytest.raises(ConfigError, match="expired"):
         devices.pair(late, "Phone", "10.0.0.2", now + webauth.PAIR_SECONDS + 1)
-    cancelled = devices.new_code(now)
+    cancelled = devices.new_code(now, "u1")
     assert devices.cancel_codes() == 1
     with pytest.raises(ConfigError):
         devices.pair(cancelled, "Phone", "10.0.0.2", now)
     # Removing every phone also cancels codes not used yet; a paired phone can be removed alone.
-    pending = devices.new_code(now)
-    token, phone = devices.pair(devices.new_code(now), "Phone", "10.0.0.2", now)
+    pending = devices.new_code(now, "u1")
+    token, phone = devices.pair(devices.new_code(now, "u1"), "Phone", "10.0.0.2", now)
     assert devices.find(token, now)
     assert devices.remove(phone["id"]) == 1 and devices.find(token, now) is None
     devices.remove(None)
@@ -212,7 +217,7 @@ def test_a_pairing_code_expires_and_can_be_cancelled(tmp_path):
 def test_only_a_few_pairing_codes_wait_at_once(tmp_path):
     devices = webauth.Devices(tmp_path)
     now = time.time()
-    codes = [devices.new_code(now + i) for i in range(webauth.MAX_CODES + 2)]
+    codes = [devices.new_code(now + i, "u1") for i in range(webauth.MAX_CODES + 2)]
     for old in codes[:2]:
         with pytest.raises(ConfigError):
             devices.pair(old, "Phone", "10.0.0.2", now + 10)
@@ -222,7 +227,7 @@ def test_only_a_few_pairing_codes_wait_at_once(tmp_path):
 def test_cancelling_pairing_from_the_page(hub_env):
     hub, c = hub_env
     login(c)
-    hub.ui.devices.new_code(time.time())
+    hub.ui.devices.new_code(time.time(), "u1")
     status, body, _ = c.post("/api/hub/devices/cancel-pairing", {})
     assert status == 200 and body["cancelled"] == 1
     assert c.post("/api/hub/devices/cancel-pairing", {})[1]["cancelled"] == 0

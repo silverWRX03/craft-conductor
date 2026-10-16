@@ -22,6 +22,7 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+from typing import Callable
 from urllib.parse import urlparse
 
 from . import __version__, private, webpush
@@ -98,6 +99,9 @@ class Push:
         self.thread: threading.Thread | None = None
         self.sent = 0
         self.last_error = ""
+        # Whether someone ("user:<id>") may hear about a server (set by the web UI from their grants).
+        # The owner hears about everything; notifications that aren't about one server are the owner's.
+        self.audience: Callable[[str, str], bool] | None = None
 
     # --------------------------------------------------------------- the file
     def _load(self) -> dict:
@@ -124,29 +128,36 @@ class Push:
             return webpush.b64u(webpush.public_bytes(webpush.public_of(self._key(data))))
 
     # -------------------------------------------------------- subscriptions
-    def subscriptions(self) -> list[dict]:
+    def subscriptions(self, who: str | None = None) -> list[dict]:
+        """The devices getting notifications: everyone's, or one person's ("owner", "user:<id>").
+        Ones turned on before notifications belonged to someone have ``who`` None and get nothing."""
         with self.lock:
-            return [{**{k: s[k] for k in ("id", "name", "created", "service")}, "kinds": s.get("kinds", DEFAULT_KINDS)}
-                    for s in self._load().get("subscriptions", [])]
+            return [{**{k: s[k] for k in ("id", "name", "created", "service")}, "kinds": s.get("kinds", DEFAULT_KINDS),
+                     "who": s.get("who")}
+                    for s in self._load().get("subscriptions", []) if who is None or s.get("who") == who]
 
-    def kinds_for(self, endpoint: str) -> list[str] | None:
+    @staticmethod
+    def _mine(s: dict, endpoint: str, who: str | None) -> bool:
+        return s["endpoint"] == endpoint and (who is None or s.get("who") == who)
+
+    def kinds_for(self, endpoint: str, who: str | None = None) -> list[str] | None:
         with self.lock:
-            sub = next((s for s in self._load().get("subscriptions", []) if s["endpoint"] == endpoint), None)
+            sub = next((s for s in self._load().get("subscriptions", []) if self._mine(s, endpoint, who)), None)
         return sub.get("kinds", DEFAULT_KINDS) if sub else None
 
-    def set_kinds(self, endpoint: str, kinds: list) -> list[str]:
+    def set_kinds(self, endpoint: str, kinds: list, who: str | None = None) -> list[str]:
         """What this device wants to hear about (its own push address names it)."""
         chosen = [k for k in KINDS if k in {str(x) for x in kinds or []}]
         with self.lock:
             data = self._load()
-            sub = next((s for s in data.get("subscriptions", []) if s["endpoint"] == endpoint), None)
+            sub = next((s for s in data.get("subscriptions", []) if self._mine(s, endpoint, who)), None)
             if sub is None:
                 raise PushError("this device doesn't have notifications on")
             sub["kinds"] = chosen
             self._save(data)
         return chosen
 
-    def subscribe(self, endpoint: str, p256dh: str, auth: str, name: str) -> dict:
+    def subscribe(self, endpoint: str, p256dh: str, auth: str, name: str, who: str = "owner") -> dict:
         if not isinstance(endpoint, str) or not allowed_endpoint(endpoint):
             raise PushError("that isn't a push service Craft Conductor knows (Google, Apple, Mozilla or Microsoft)")
         try:
@@ -165,30 +176,37 @@ class Push:
             before = next((s for s in data.get("subscriptions", []) if s["endpoint"] == endpoint), None)
             sub = {"id": secrets.token_hex(6), "endpoint": endpoint, "p256dh": p256dh, "auth": auth, "name": name,
                    "created": time.time(), "service": urlparse(endpoint).hostname,
-                   "kinds": before.get("kinds", DEFAULT_KINDS) if before else DEFAULT_KINDS}
+                   "kinds": before.get("kinds", DEFAULT_KINDS) if before else DEFAULT_KINDS, "who": who}
             data["subscriptions"] = subs + [sub]
             self._save(data)
         log.info("phone notifications turned on for %s", name)
         return {k: sub[k] for k in ("id", "name", "created", "service", "kinds")}
 
-    def unsubscribe(self, endpoint: str | None = None, sub_id: str | None = None) -> int:
+    def unsubscribe(self, endpoint: str | None = None, sub_id: str | None = None, who: str | None = None) -> int:
+        """Stop notifications for a device (by its push address or id), or all of one person's
+        (only ``who``); with ``who`` and a device, only if it's theirs."""
         with self.lock:
             data = self._load()
             subs = data.get("subscriptions", [])
-            keep = [s for s in subs if s["endpoint"] != endpoint and s["id"] != sub_id]
+            if endpoint is None and sub_id is None:
+                keep = [s for s in subs if who is None or s.get("who") != who]
+            else:
+                keep = [s for s in subs if not ((s["endpoint"] == endpoint or s["id"] == sub_id)
+                                                and (who is None or s.get("who") == who))]
             data["subscriptions"] = keep
             self._save(data)
             return len(subs) - len(keep)
 
     # ---------------------------------------------------------------- sending
-    def notify(self, title: str, body: str, url: str = "/", tag: str = "", kind: str | None = None) -> None:
-        """Queue a notification for every device that wants this kind (sent in the background: never
-        slows anything)."""
+    def notify(self, title: str, body: str, url: str = "/", tag: str = "", kind: str | None = None,
+               sid: str | None = None) -> None:
+        """Queue a notification for every device that wants this kind and may hear about server
+        ``sid`` (sent in the background: never slows anything)."""
         if not self.path.exists():
             return  # nobody asked for notifications yet
         try:
             self.queue.put_nowait({"title": title[:80], "body": body[:300], "url": url, "tag": tag[:60],
-                                   "kind": kind if kind in KINDS else kind_of(body)})
+                                   "kind": kind if kind in KINDS else kind_of(body), "sid": sid})
         except queue.Full:
             log.warning("too many phone notifications waiting; dropping one")
             return
@@ -211,10 +229,13 @@ class Push:
             data = self._load()
             key = self._key(data) if data.get("subscriptions") else None
             subs = [s for s in data.get("subscriptions", []) if only is None or s["id"] == only]
-        kind = message.get("kind")
+        kind, sid = message.get("kind"), message.get("sid")
         if only is None and kind:  # (a test goes to its device whatever it chose)
             subs = [s for s in subs if kind in s.get("kinds", DEFAULT_KINDS)]
-        message = {k: v for k, v in message.items() if k != "kind"}
+        if only is None:  # (whose device: the owner hears everything, others only about their servers)
+            subs = [s for s in subs if s.get("who") == "owner" or (
+                s.get("who") and sid and self.audience is not None and self.audience(s["who"], sid))]
+        message = {k: v for k, v in message.items() if k not in ("kind", "sid")}
         payload = json.dumps(message, separators=(",", ":")).encode()
         results, gone = [], []
         for s in subs:

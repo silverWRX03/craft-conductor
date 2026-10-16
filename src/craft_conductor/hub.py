@@ -644,7 +644,7 @@ class Hub:
         name = sid
         if d is not None:
             name = server_name(read_properties(d.m.server_dir / "server.properties"), sid)
-        self.push.notify(name, message, url=f"/#s/{sid}/dashboard", tag=sid.replace("-", "_")[:32])
+        self.push.notify(name, message, url=f"/#s/{sid}/dashboard", tag=sid.replace("-", "_")[:32], sid=sid)
 
     def get(self, sid: str) -> Daemon | None:
         return self.daemons.get(sid)
