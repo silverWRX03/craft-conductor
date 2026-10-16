@@ -204,6 +204,7 @@ function stickyToast(id, children, { blocking = true } = {}) {
 // "Removed X. Undo": acts at once and offers to take it back for a while, instead of asking first (for removing many things).
 function undoToast(message, onUndo, ms = 12000) {
   const id = `undo-${++askCount}`;
+  bellNote(message);
   stickyToast(id, [h("span", {}, t(message)),
     h("div", { class: "row mt-s" }, h("button", { class: "btn small primary", onclick: async () => { closeToast(id); await onUndo(); } }, "Undo"),
       h("button", { class: "btn small ghost", onclick: () => closeToast(id) }, "Dismiss"))], { blocking: false });
@@ -270,6 +271,203 @@ function toast(message, bad = false, ms = 0) {
   $("#toasts").append(el);
   setTimeout(() => el.remove(), ms || (bad ? 12000 : 5000));
   if (bad) playSound("problem");
+  bellNote(message, { bad });
+}
+
+// ------------------------------------------------------------------ the bell
+// Every message the page showed (the toasts above, the notices that stay at the top, browser notifications
+// that were shown, and phone notifications this device got), to find one that was missed: newest first,
+// with its time and server, and a dot for unread ones. Opening the list marks them read.
+// Kept in this browser for the person signed in, the last 100: one person's at a time (someone else signing
+// in here never sees them), and Sign out clears it. Text only, never HTML: messages carry what players, mods
+// and servers wrote. Questions waiting for an answer, and the export password, never go in.
+const BELL_KEY = "craft-conductor-bell", BELL_MAX = 100;
+let bell = { who: null, items: [], seen: 0, access: "" };  // who: "owner" or "user:<id>" (access.Subject.key)
+let bellPending = [];   // (messages shown before it's known who's signed in)
+let bellSeenBefore = 0; // (what was read when the list was opened: newer ones are marked New)
+function bellSave() {
+  try { localStorage.setItem(BELL_KEY, JSON.stringify(bell)); } catch (_) { /* private mode, or full: kept for this page */ }
+}
+// `from`: "page", "browser" (a browser notification) or "phone"; `key` keeps one notice from going in twice.
+function bellNote(text, { bad = false, more = "", sid = server, from = "page", key = "", time = Date.now() / 1000 } = {}) {
+  if (!text) return;
+  const known = hubInfo && sid ? (hubInfo.servers || []).find((s) => s.id === sid) : null;
+  const item = { time, text: String(text).slice(0, 500), more: String(more || "").slice(0, 500), bad: !!bad,
+    sid: sid || null, name: known ? String(known.name || sid) : sid || null, from, key: String(key || "") };
+  if (!bell.who) {
+    if (!item.key || !bellPending.some((x) => x.key === item.key)) bellPending = [item, ...bellPending].slice(0, BELL_MAX);
+    return;
+  }
+  bellAdd([item]);
+}
+function bellAdd(items) {
+  const fresh = items.filter((i) => !i.key || !bell.items.some((x) => x.key === i.key));
+  if (!fresh.length) return;
+  bell.items = [...fresh, ...bell.items].sort((a, b) => b.time - a.time).slice(0, BELL_MAX);
+  if (bellOpen()) bell.seen = Math.max(bell.seen, ...fresh.map((i) => i.time));
+  bellSave();
+  renderBell();
+}
+// Called with each look at /api/hub (the page's usual refresh): who's signed in, and what they may see.
+function bellSignedIn(hb) {
+  const who = hb.role === "user" ? (hb.user ? `user:${hb.user.id}` : null) : "owner";
+  if (!who) return;
+  if (bell.who !== who) {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(BELL_KEY) || "null"); } catch (_) { /* private mode */ }
+    bell = saved && saved.who === who && Array.isArray(saved.items)
+      ? { who, items: saved.items.slice(0, BELL_MAX), seen: +saved.seen || 0, access: String(saved.access || "") }
+      : { who, items: [], seen: 0, access: "" };  // (someone else's, or none: theirs is gone from this browser)
+    bellSave();
+    const pending = bellPending;
+    bellPending = [];
+    if (pending.length) bellAdd(pending); else renderBell();
+    bellTakePushes();
+  }
+  // An invited person whose permissions were narrowed: what they were told about those servers goes (and what
+  // wasn't about a server, which may have named one). The page shows them only what they may see anyway.
+  const access = hb.role === "user" ? JSON.stringify(hb.access || {}) : "";
+  if (access !== bell.access) {
+    let before = {};
+    try { before = JSON.parse(bell.access || "{}"); } catch (_) { /* first look */ }
+    const now = hb.access || {};
+    const narrowed = new Set(Object.keys(before).filter((sid) => !now[sid] || before[sid].some((c) => !now[sid].includes(c))));
+    if (narrowed.size) bell.items = bell.items.filter((i) => i.sid && !narrowed.has(i.sid));
+    bell.access = access;
+    bellSave();
+    if (narrowed.size) renderBell();
+  }
+}
+// The sign-in page shows: nobody's messages are on the page. `forget` (Sign out): this browser forgets them too.
+function bellSignedOut(forget = false) {
+  closeBell(false);
+  if (forget) {
+    try { localStorage.removeItem(BELL_KEY); } catch (_) { /* private mode */ }
+    bellPushes(true).catch(() => null);
+  }
+  bell = { who: null, items: [], seen: 0, access: "" };
+  bellPending = [];
+  renderBell();
+}
+
+// Phone notifications this device got (sw.js keeps them for the page, each with whose device it is).
+const BELL_DB = "craft-conductor-bell";
+function bellPushes(drop = false) {
+  return new Promise((resolve, reject) => {
+    if (!("indexedDB" in window)) { resolve([]); return; }
+    const open = indexedDB.open(BELL_DB, 1);
+    open.onupgradeneeded = () => open.result.createObjectStore("pushes", { autoIncrement: true });
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const db = open.result;
+      const tx = db.transaction("pushes", "readwrite");
+      const store = tx.objectStore("pushes");
+      const all = drop ? null : store.getAll();
+      store.clear();
+      tx.oncomplete = () => { db.close(); resolve(all ? all.result : []); };
+      tx.onerror = () => { db.close(); reject(tx.error); };
+    };
+  });
+}
+let bellTaking = false;
+async function bellTakePushes() {
+  if (!bell.who || bellTaking || !navigator.serviceWorker || !navigator.serviceWorker.controller) return;
+  bellTaking = true;
+  try {
+    const who = bell.who;
+    const pushes = await bellPushes().catch(() => []);
+    if (bell.who !== who) return;  // (signed out meanwhile: these were for nobody here)
+    bellAdd(pushes.filter((p) => p && p.who === who).map((p) => {  // (another person's device: not theirs to see)
+      const fromHub = p.title === "Craft Conductor";
+      return { time: +p.time || Date.now() / 1000, text: String(fromHub ? p.body : `${p.title}: ${p.body}`).slice(0, 500), more: "", bad: false,
+        sid: typeof p.sid === "string" ? p.sid : null, name: fromHub ? null : String(p.title).slice(0, 80), from: "phone", key: "" };
+    }));
+  } finally { bellTaking = false; }
+}
+// Another tab of this page changed it (each tab keeps a copy: without this, one would write over the other's).
+window.addEventListener("storage", (e) => {
+  if (e.key !== BELL_KEY || !bell.who) return;
+  let saved = null;
+  try { saved = JSON.parse(e.newValue || "null"); } catch (_) { /* half written */ }
+  if (saved && saved.who === bell.who && Array.isArray(saved.items)) bell = { ...bell, items: saved.items.slice(0, BELL_MAX), seen: +saved.seen || 0 };
+  else if (!saved) bell = { ...bell, items: [], seen: 0 };  // (signed out in the other tab)
+  else return;
+  renderBell();
+});
+if (navigator.serviceWorker) navigator.serviceWorker.addEventListener("message", (e) => { if (e.data && e.data.bell) bellTakePushes(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) bellTakePushes(); });
+
+// The button in the top bar, and the list it opens.
+function bellOpen() { const p = document.getElementById("bell-list"); return !!p && !p.hidden; }
+function bellUnread() { return bell.items.filter((i) => i.time > bell.seen).length; }
+function renderBell() {
+  const btn = document.getElementById("bell");
+  if (!btn) return;
+  const unread = bellUnread();
+  $("#bell-dot").classList.toggle("hidden", !unread);
+  const label = unread ? `${t("Messages")} (${unread} ${t("unread")})` : t("Messages");
+  if (btn.getAttribute("aria-label") !== label) { btn.setAttribute("aria-label", label); btn.title = label; }
+  if (bellOpen()) fillBell();
+}
+const BELL_FROM = { browser: "Browser notification", phone: "Phone notification" };
+function bellWhen(time) {
+  const d = new Date(time * 1000);
+  return d.toDateString() === new Date().toDateString() ? fmtClock(time) : fmtTime(time);
+}
+function fillBell() {
+  const list = $("#bell-items");
+  const key = JSON.stringify([bell.items.length, bell.items[0] && bell.items[0].time, bellSeenBefore, LANG]);
+  if (list._key === key) return;
+  list._key = key;
+  $("#bell-clear").hidden = !bell.items.length;
+  fill(list, bell.items.length ? bell.items.map((i) => {
+    const isNew = i.time > bellSeenBefore;
+    return h("li", { class: "bell-item" + (i.bad ? " bad" : "") + (isNew ? " unread" : "") },
+      h("span", { class: "toast-icon", "aria-hidden": "true" }, i.bad ? "⚠" : i.from === "page" ? "✓" : "🔔"),
+      h("div", { class: "bell-body" },
+        h("p", { class: "bell-text" }, isNew ? h("span", { class: "tag warn" }, "New") : null, isNew ? " " : null, String(i.text)),
+        i.more ? h("p", { class: "small bell-more" }, String(i.more)) : null,
+        h("p", { class: "small muted" }, h("time", { datetime: new Date(i.time * 1000).toISOString() }, bellWhen(i.time)),
+          " · ", i.name ? String(i.name) : t("Craft Conductor"),
+          BELL_FROM[i.from] ? ` · ${t(BELL_FROM[i.from])}` : null)));
+  }) : h("li", { class: "muted small bell-empty" }, "No messages yet. Messages that show at the top of the screen are kept here."));
+}
+function openBell() {
+  const panel = $("#bell-list");
+  bellSeenBefore = bell.seen;
+  bell.seen = Math.max(bell.seen, ...bell.items.map((i) => i.time), 0);
+  bellSave();
+  panel.hidden = false;
+  $("#bell").setAttribute("aria-expanded", "true");
+  $("#bell-items")._key = null;
+  renderBell();
+  panel.focus();
+}
+function closeBell(refocus = true) {
+  const panel = document.getElementById("bell-list");
+  if (!panel || panel.hidden) return;
+  panel.hidden = true;
+  $("#bell").setAttribute("aria-expanded", "false");
+  if (refocus) $("#bell").focus();
+}
+function setupBell() {
+  const panel = h("div", { id: "bell-list", class: "bell-panel", role: "dialog", "aria-labelledby": "bell-title", tabindex: "-1", hidden: true },
+    h("div", { class: "row bell-head" }, h("h2", { id: "bell-title", class: "grow" }, "Messages"),
+      h("button", { type: "button", id: "bell-clear", class: "btn small ghost", onclick: () => {
+        bell.items = [];
+        bellSave();
+        renderBell();
+        panel.focus();
+      } }, "Clear"),
+      h("button", { type: "button", class: "btn small ghost", title: "Close", onclick: () => closeBell() }, "✕")),
+    h("ul", { id: "bell-items", class: "bell-items", tabindex: "0", "aria-label": "Messages, newest first" }));
+  panel.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeBell(); } });
+  // (leaving it with Tab, or clicking elsewhere, closes it without taking the focus back)
+  panel.addEventListener("focusout", (e) => { if (e.relatedTarget && !panel.contains(e.relatedTarget) && e.relatedTarget !== $("#bell")) closeBell(false); });
+  document.addEventListener("pointerdown", (e) => { if (bellOpen() && !panel.contains(e.target) && !$("#bell").contains(e.target)) closeBell(false); });
+  document.body.append(panel);
+  $("#bell").addEventListener("click", () => (bellOpen() ? closeBell() : openBell()));
+  renderBell();
 }
 
 // ------------------------------------------------------------------ sounds
@@ -481,6 +679,7 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) poll
 const PROMPT_KEY = "craft-conductor-password-prompt-dismissed";
 async function showLogin() {
   clearTimers();
+  bellSignedOut();
   $("#app").classList.add("hidden");
   $("#login").classList.remove("hidden");
   let a = null;
@@ -626,7 +825,7 @@ $("#login-form").addEventListener("submit", async (e) => {
   } catch (err) { $("#login-error").textContent = err.message; }
 });
 
-$("#logout").addEventListener("click", async () => { await api("/api/logout", { method: "POST" }).catch(() => {}); showLogin(); });
+$("#logout").addEventListener("click", async () => { await api("/api/logout", { method: "POST" }).catch(() => {}); bellSignedOut(true); showLogin(); });
 // There's no command window to close, so Craft Conductor is quit from here.
 $("#quit").addEventListener("click", async () => {
   const running = ((hubInfo && hubInfo.servers) || []).filter((s) => s.state === "running" || s.state === "starting");
@@ -800,6 +999,7 @@ function offerSelfUpdate(u, manual = false) {
   if (updateWatch) return;
   if (!manual && (u.phase !== "available" || u.deferred)) return;
   const blurb = releaseBlurb(u);
+  if (!document.getElementById("self-update")) bellNote(`Craft Conductor ${u.version}${u.prerelease ? " (beta)" : ""} is available`, { sid: null, key: `self-update:${u.version}` });
   stickyToast("self-update", [
     h("strong", {}, `Craft Conductor ${u.version}${u.prerelease ? " (beta)" : ""} is available`),
     h("div", { class: "small muted" }, `You have ${u.current}. `, u.url ? h("a", { href: u.url, target: "_blank", rel: "noopener noreferrer" }, "What's new ↗") : null),
@@ -830,6 +1030,7 @@ function updateElsewhere(u) {
   const text = `Craft Conductor is being updated from another device (${label.toLowerCase()}…). This page offers the new version when it's ready.`;
   const box = document.getElementById("update-elsewhere");
   if (box) { box.querySelector("span").textContent = t(text); return; }
+  bellNote("Craft Conductor is being updated from another device.", { sid: null, key: `update-elsewhere:${u.version}` });
   stickyToast("update-elsewhere", [h("span", {}, text)], { blocking: false });
 }
 
@@ -849,16 +1050,18 @@ function noteServer(version, last) {
   }
   if (version !== loadedVersion) offerLaunch(version);
 }
-function osNotify(title, body, tag) {  // (a notification from the browser, when this one is set up for them and the page is in the background)
+function osNotify(title, body, tag, key = tag) {  // (a notification from the browser, when this one is set up for them and the page is in the background)
   const prefs = notifyPrefs();
   if (!document.hidden || !prefs || !prefs.on || !prefs.update || !("Notification" in window) || Notification.permission !== "granted") return;
   try {
     const n = new Notification(title, { body, icon: "/icon.png", tag });
     n.onclick = () => { window.focus(); n.close(); };
+    bellNote(title, { more: body, sid: null, from: "browser", key: `browser:${key}` });
   } catch (_) { /* not allowed */ }
 }
 function offerLaunch(version) {
-  osNotify("Craft Conductor has been updated", "Click to launch the new version.", "cc-updated");
+  osNotify("Craft Conductor has been updated", "Click to launch the new version.", "cc-updated", `cc-updated:${version}`);
+  bellNote(`Craft Conductor has been updated to ${version}`, { sid: null, key: `self-updated:${version}` });
   stickyToast("self-updated", [
     h("strong", {}, `Craft Conductor has been updated to ${version}`),
     h("p", { class: "small" }, "Launch the new version to keep using Craft Conductor. This page reloads, and you may need to sign in again."),
@@ -1196,6 +1399,7 @@ async function refreshStatus() {
     return;
   }
   const hb = hubInfo;
+  bellSignedIn(hb);
   chimeFor(hb.servers);
   $("#version").textContent = "v" + hb.version + " beta";
   $("#version").title = t("Craft Conductor is in beta: expect some rough edges, and keep backups.");
@@ -6105,6 +6309,7 @@ function openTester(opts) {
     closeToast("tester-toast");
   };
   const finished = (text) => {
+    bellNote("Mod test finished", { more: text, sid: null });
     closeToast("tester-toast");
     if (!$("#tester") || !$("#tester").classList.contains("hidden")) return;
     stickyToast("tester-toast", [h("strong", {}, "Mod test finished"), h("span", { class: "small" }, text),
@@ -6877,16 +7082,19 @@ async function notifyWatch() {
   if (!r || !r.servers) return;
   const now = new Map(r.servers.map((s) => [s.id, s]));
   if (notifySeen && document.hidden) {
-    const say = (title, body) => { try { new Notification(title, { body, icon: "/icon.png", tag: `${title}|${body}` }); } catch (_) { /* not allowed */ } };
+    const say = (title, body, sid) => {
+      try { new Notification(title, { body, icon: "/icon.png", tag: `${title}|${body}` }); } catch (_) { return; /* not allowed */ }
+      bellNote(title, { more: body, sid, from: "browser" });
+    };
     for (const [id, s] of now) {
       const before = notifySeen.get(id);
       if (!before) continue;
-      if (prefs.crash && s.crashed_at && s.crashed_at !== before.crashed_at) say(`${s.name} stopped unexpectedly`, "Craft Conductor restarts it if it can. Open Craft Conductor to see why.");
-      if (prefs.update && s.update && !before.update) say(`Update ready for ${s.name}`, "Open Craft Conductor's Updates page to see it.");
-      if (prefs.join && s.players > before.players) say(`Someone joined ${s.name}`, `${s.players} online now.`);
-      if (prefs.request && (s.join_requests || 0) > (before.join_requests || 0)) say(`A friend asks to join ${s.name}`, "Allow them on the Players page.");
+      if (prefs.crash && s.crashed_at && s.crashed_at !== before.crashed_at) say(`${s.name} stopped unexpectedly`, "Craft Conductor restarts it if it can. Open Craft Conductor to see why.", id);
+      if (prefs.update && s.update && !before.update) say(`Update ready for ${s.name}`, "Open Craft Conductor's Updates page to see it.", id);
+      if (prefs.join && s.players > before.players) say(`Someone joined ${s.name}`, `${s.players} online now.`, id);
+      if (prefs.request && (s.join_requests || 0) > (before.join_requests || 0)) say(`A friend asks to join ${s.name}`, "Allow them on the Players page.", id);
       const j = s.last_job, bj = before.last_job;
-      if (prefs.job && j && j.ok === false && (!bj || bj.finished !== j.finished)) say(`${s.name}: ${j.name} failed`, j.message || "");
+      if (prefs.job && j && j.ok === false && (!bj || bj.finished !== j.finished)) say(`${s.name}: ${j.name} failed`, j.message || "", id);
     }
   }
   notifySeen = now;
@@ -8921,6 +9129,7 @@ syncAppNavigation();
 
 async function start() {
   await loadLanguage("/");  // (i18n.js: the chosen language's words, before anything is drawn)
+  setupBell();
   if (/^#pair=/.test(location.hash)) { showPairing(location.hash.slice(6)); return; }
   if (/^#invite=/.test(location.hash)) { showInvite(location.hash.slice(8)); return; }
   if ($("#pairing")) $("#pairing").remove();
