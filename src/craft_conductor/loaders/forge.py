@@ -20,6 +20,22 @@ log = logging.getLogger(__name__)
 # Everything the installers create that belongs to the loader, not the world.
 INSTALLER_FILES = ["libraries", "run.sh", "run.bat"]
 
+
+def installer_files(dest: Path, args: str) -> list[str]:
+    """``INSTALLER_FILES`` plus the jar the args file launches, when the installer left it in the
+    server's folder (Forge for Minecraft 26.x ends its args with ``-jar forge-26.3-66.0.12-shim.jar``)."""
+    files = list(INSTALLER_FILES)
+    try:
+        tokens = (dest / args).read_text(encoding="utf-8", errors="replace").split()
+    except OSError:
+        return files
+    for flag, name in zip(tokens, tokens[1:]):
+        name = name.strip("\"'")
+        # (only a plain file name beside the libraries: the list names what the loader owns)
+        if flag == "-jar" and name.lower().endswith(".jar") and name == Path(name).name and (dest / name).is_file():
+            files.append(name)
+    return files
+
 # NeoForge has published thousands of builds since 2023. A list shorter than this is NeoForge's
 # site having trouble (on 2026-09-28 both of its lists held only "26.3.0.33-beta" for hours),
 # not every older Minecraft version losing its builds.
@@ -95,7 +111,7 @@ class NeoForgeLoader(Loader):
         args = f"libraries/net/neoforged/neoforge/{version}/{args_file_name()}"
         if not (dest / args).exists():
             raise LoaderError(f"NeoForge installer did not produce {args}")
-        return Runtime(files=list(INSTALLER_FILES), launch=[f"@{args}", "nogui"])
+        return Runtime(files=installer_files(dest, args), launch=[f"@{args}", "nogui"])
 
 
 class ForgeLoader(Loader):
@@ -116,4 +132,4 @@ class ForgeLoader(Loader):
         args = f"libraries/net/minecraftforge/forge/{full}/{args_file_name()}"
         if not (dest / args).exists():
             raise LoaderError(f"Forge installer did not produce {args} (only Minecraft 1.17+ is supported)")
-        return Runtime(files=list(INSTALLER_FILES), launch=[f"@{args}", "nogui"])
+        return Runtime(files=installer_files(dest, args), launch=[f"@{args}", "nogui"])

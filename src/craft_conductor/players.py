@@ -44,6 +44,24 @@ ACTIONS = {
 }
 NO_TARGET = {"whitelist-on", "whitelist-off"}
 IP_ACTIONS = {"ban-ip", "pardon-ip"}
+#: Actions on a player whose answer the server's own words say more about than "sent" (a name that doesn't exist).
+ANSWERED = {"kick", "ban", "pardon", "op", "deop", "whitelist-add", "whitelist-remove"}
+_MISSING = re.compile(r"That player does not exist|No player was found|Unknown player", re.I)
+_SAID = re.compile(r"Added .+ to the whitelist|Removed .+ from the whitelist|Player is already whitelisted|Player is not whitelisted|"
+                   r"Made .+ a server operator|Made .+ no longer a server operator|De-opped|Banned |Unbanned |Kicked |Nothing changed",
+                   re.I)
+
+
+def _answer(lines: list[str], name: str) -> tuple[str, str] | None:
+    """What the server said to a command about ``name``: ("missing", line) when there's no such player,
+    ("said", the server's words) for an answer, None while it hasn't answered."""
+    for line in lines:
+        text = line.split("]: ", 1)[-1].strip()
+        if _MISSING.search(text):
+            return "missing", text
+        if _SAID.search(text) and (name.lower() in text.lower() or re.search("whitelisted|Nothing changed", text, re.I)):
+            return "said", text
+    return None
 
 
 class PlayerError(Exception):
@@ -128,11 +146,14 @@ def _is_ip(value: str) -> bool:
 
 class Players:
     def __init__(self, server_dir: Path, http: HttpClient | None = None,
-                 send: Callable[[str], None] | None = None):
+                 send: Callable[[str], None] | None = None, ask: Callable | None = None):
         self.server_dir = server_dir
         self.http = http or HttpClient()
         #: sends a console command; None when the server is not running
         self.send = send
+        #: ``ask(command, parse, timeout)``: sends one and returns what the server answered (``parse`` gets
+        #: the lines it printed); None when the server isn't running or can't say
+        self.ask = ask
 
     # ---------------------------------------------------------------- files
     def _read(self, key: str, strict: bool = False) -> list:
@@ -259,6 +280,15 @@ class Players:
         if self.send is not None:
             reason_text = clean_reason(reason)
             command = template.format(name=name, reason=f" {reason_text}" if reason_text else "")
+            if self.ask is not None and action in ANSWERED:
+                said = self.ask(command, lambda lines: _answer(lines, name), 3)
+                if said is not None:
+                    kind, text = said
+                    if kind == "missing":
+                        raise PlayerError(f"there is no Minecraft account named {name!r}" if action != "kick"
+                                          else f"{name} isn't online")
+                    return text
+                return f"sent: {command}"
             self.send(command)
             return f"sent: {command}"
         return self._offline(action, name, clean_reason(reason))

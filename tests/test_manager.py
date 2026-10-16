@@ -209,3 +209,26 @@ def test_a_mods_datapack_build_goes_in_the_worlds_datapacks_folder(make_config, 
     result = update(m)
     assert result.ok, result.message
     assert not (server / "world" / "datapacks" / "Terralith_2.6.zip").exists()
+
+
+def test_a_config_file_edited_by_hand_is_read_again(make_config, http, caplog):
+    """A backup schedule set to "" in craft-conductor.toml kept running from the settings in memory."""
+    import logging
+    from craft_conductor import config as configmod
+    cfg = make_config([])
+    m = manager(cfg, http, ["1.21.1"])
+    d = Daemon(m, autostart=False)
+    configmod.set_value(cfg.path, "schedule", "backup", '"0 * * * *"')
+    d._watch_config()                                   # (changed since it was read: read again)
+    assert m.config.schedule.backup == "0 * * * *"
+    stamp = m.config_stamp
+    d._watch_config()
+    assert m.config_stamp == stamp                      # (nothing changed: nothing read)
+    configmod.set_value(cfg.path, "schedule", "backup", '""')
+    d._watch_config()
+    assert m.config.schedule.backup == ""
+    with caplog.at_level(logging.WARNING):              # half-typed: kept as it was, said once
+        cfg.path.write_text(cfg.path.read_text() + "\n[broken\n")
+        d._watch_config()
+        d._watch_config()
+    assert m.config.schedule.backup == "" and sum("can't be used yet" in r.message for r in caplog.records) == 1

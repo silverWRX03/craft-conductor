@@ -318,25 +318,99 @@ def fabric_matches(version: str, ranges: list[str]) -> bool | None:
 # ------------------------------------------------------------------ Maven versions (Forge, NeoForge)
 _QUALIFIERS = {"alpha": 1, "a": 1, "beta": 2, "b": 2, "milestone": 3, "m": 3, "rc": 4, "cr": 4,
                "snapshot": 5, "": 6, "ga": 6, "final": 6, "release": 6, "sp": 7}
-_ITEM = re.compile(r"\d+|[a-z]+")
+
+
+def _item(is_digit: bool, text: str):
+    return int(text) if is_digit else text
+
+
+def _normalize(items: list) -> list:
+    """Maven drops what ends a version without changing it (1.0.0 is 1; 1.0-final is 1)."""
+    for x in items:
+        if isinstance(x, list):
+            _normalize(x)
+    i = len(items) - 1
+    while i >= 0:
+        last = items[i]
+        if last == [] or (not isinstance(last, list) and last in (0, "", "ga", "final", "release")):
+            del items[i]
+        elif not isinstance(last, list):
+            break
+        i -= 1
+    return items
 
 
 def maven_version(text: str) -> list:
-    return [int(x) if x.isdigit() else x for x in _ITEM.findall(text.lower())]
+    """A version the way Maven reads it (ComparableVersion): numbers and words, where a hyphen, or a
+    change between digits and letters, starts a nested list, so ``1.21.1-3.7.2`` is [1, 21, 1, [3, 7, 2]]
+    and ``1.21-3.2.3`` is [1, 21, [3, 2, 3]]: the first is the later of the two."""
+    text = text.lower().strip()
+    root: list = []
+    cur = root
+    start, digit = 0, False
+
+    def push(i: int):
+        nonlocal cur, start
+        cur.append(0 if i == start else _item(digit, text[start:i]))
+        start = i + 1
+
+    def descend():
+        nonlocal cur
+        sub: list = []
+        cur.append(sub)
+        cur = sub
+
+    for i, c in enumerate(text):
+        if c == ".":
+            push(i)
+        elif c == "-":
+            push(i)
+            descend()
+        elif c.isdigit():
+            if not digit and i > start:
+                cur.append(_item(False, text[start:i]))
+                start = i
+                descend()
+            digit = True
+        else:
+            if digit and i > start:
+                cur.append(_item(True, text[start:i]))
+                start = i
+                descend()
+            digit = False
+    if start < len(text):
+        cur.append(_item(digit, text[start:]))
+    return _normalize(root)
+
+
+def _qualifier(x: str) -> tuple:
+    rank = _QUALIFIERS.get(x)
+    return (rank, "") if rank is not None else (8, x)  # (an unknown word comes after the known ones)
 
 
 def _cmp_item(x, y) -> int:
-    if isinstance(x, int) and isinstance(y, int):
-        return (x > y) - (x < y)
-    if isinstance(x, int) or isinstance(y, int):  # a number is newer than a qualifier ...
-        if x is None or y is None:                # ... and a missing number is 0
-            n = x if y is None else y
-            return ((n > 0) - (n < 0)) * (1 if y is None else -1)
-        return 1 if isinstance(x, int) else -1
-    rx, ry = _QUALIFIERS.get(x or "", 8), _QUALIFIERS.get(y or "", 8)
-    if rx != ry:
-        return (rx > ry) - (rx < ry)
-    return ((x or "") > (y or "")) - ((x or "") < (y or ""))
+    """Maven's comparison of two parts: a number, a word or a nested list (None: nothing there)."""
+    if x is None and y is None:
+        return 0
+    if x is None:
+        return -_cmp_item(y, None)
+    if isinstance(x, int):
+        if y is None:
+            return 1 if x else 0
+        return (x > y) - (x < y) if isinstance(y, int) else 1       # a number is later than a word or a list
+    if isinstance(x, str):
+        if y is None:
+            return (_qualifier(x) > _qualifier("")) - (_qualifier(x) < _qualifier(""))
+        if isinstance(y, str):
+            return (_qualifier(x) > _qualifier(y)) - (_qualifier(x) < _qualifier(y))
+        return -1                                                     # a word is earlier than a number or a list
+    if y is None:
+        return _cmp_item(x[0], None) if x else 0
+    if isinstance(y, int):
+        return -1
+    if isinstance(y, str):
+        return 1
+    return _cmp_maven(x, y)
 
 
 def _cmp_maven(a: list, b: list) -> int:
@@ -430,7 +504,11 @@ def wanted(loader: str, ranges: list[str]) -> str:
             return f"exactly {m.group(1)}"
         m = re.fullmatch(r"\[([^,\]]+),([^,\)]+)\)", spec)
         if m:
-            return f"{m.group(1)} or later, older than {m.group(2)}"
+            low, high = m.group(1), m.group(2)
+            # ([1.21,1.21.1): "1.21 or later, older than 1.21.1" read as a contradiction: it means 1.21 and nothing after it)
+            if re.fullmatch(re.escape(low) + r"\.\d+", high):
+                return f"{low} only"
+            return f"{low} or later, older than {high}"
     return "any version" if parsed == [] else spec
 
 

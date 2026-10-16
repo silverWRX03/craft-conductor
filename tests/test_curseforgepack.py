@@ -102,7 +102,8 @@ def test_a_curseforge_pack_is_applied(tmp_path, http):
     assert r["friends"] == ["curseforge:22"] and r["mods"] == 1 and r["overrides"] == 1
     cfg = configmod.load(root)
     assert (cfg.server.loader, cfg.server.minecraft, cfg.updates.strategy) == ("forge", "1.20.1", "mods-only")
-    assert [(m.source, m.id) for m in cfg.mods] == [("curseforge", "11")]
+    assert [(m.source, m.id, m.pack) for m in cfg.mods] == [("curseforge", "11", True)]
+    assert {k: (p.version, p.minecraft) for k, p in cfg.pins.items()} == {"curseforge:11": ("111", "1.20.1")}  # (the pack's file)
     assert (cfg.server.dir / "config" / "core.toml").read_text() == "speed = 2"
     assert not (tmp_path / "escape.txt").exists()
 
@@ -250,3 +251,24 @@ def test_setup_waits_for_mods_downloaded_by_hand(running):
     cfg.manual_dir.mkdir(parents=True, exist_ok=True)
     (cfg.manual_dir / "copied.jar").write_bytes(b"c")
     d.wait_for_manual_downloads()
+
+
+def test_a_server_pack_bigger_than_the_download_limit_is_still_read(http, monkeypatch):
+    """All the Mods 11's server pack is 622 MB, over MAX_PACK: its list of files is read from the server."""
+    serve_pack(http)
+    http.files[SERVER_URL] = _zip({"Big Pack Server/mods/core-1.0.jar": b"core", "Big Pack Server/world.bin": b"x" * 300_000})
+    monkeypatch.setattr(curseforgepack, "MAX_PACK", 100_000)
+    p = curseforgepack.preview(http, "key", "curseforge:9001")
+    assert p["server_pack"] and (p["count"], p["client_only"]) == (1, 1)
+    assert http.ranged and SERVER_URL not in http.downloads
+
+
+def test_a_server_pack_is_downloaded_when_the_server_gives_no_parts_of_it(http):
+    from craft_conductor.http import HttpError
+    serve_pack(http)
+
+    def no_ranges(url, start, length, headers=None):
+        raise HttpError(url, None, "that server doesn't give parts of a file")
+    http.get_range = no_ranges
+    p = curseforgepack.preview(http, "key", "curseforge:9001")
+    assert p["server_pack"] and SERVER_URL in http.downloads

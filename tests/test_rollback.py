@@ -307,3 +307,17 @@ def test_a_plan_that_names_other_files_is_refused(tmp_path):
     with pytest.raises(rollback.RollbackError):
         rollback.restore(backup)
     assert (victim / "thesis.txt").read_text() == "irreplaceable"
+
+
+def test_the_saved_reason_of_a_failed_start_says_why():
+    """It read "server did not finish starting:" with nothing after the colon (the details were on later lines)."""
+    from craft_conductor.manager import UpgradeError, failure_reason
+    err = UpgradeError("server did not finish starting:\n[12:00:00] [main/INFO]: Loading\n"
+                       "Error occurred during initialization of VM\nCould not reserve enough space for 1048576KB object heap\n"
+                       "[12:00:01] [main/INFO]: done")
+    assert failure_reason(err) == "server did not finish starting: Could not reserve enough space for 1048576KB object heap"
+    assert failure_reason(UpgradeError("server did not finish starting:\n")) == "server did not finish starting (the server printed nothing)"
+    assert failure_reason(UpgradeError("server did not finish starting. Sodium is client-only:\nUnknown line\nlast line")) == \
+        "server did not finish starting. Sodium is client-only: last line"
+    assert failure_reason(UpgradeError("Update failed: no space")) == "Update failed: no space"
+    assert failure_reason(RuntimeError("")) == "RuntimeError('')"

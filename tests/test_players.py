@@ -288,3 +288,25 @@ def test_a_broadcast_is_one_short_line():
                      ("hi\x00there", "control characters"), ("hi\x1b[31m", "control characters"), ("a\x7fb", "control characters")]:
         with pytest.raises(PlayerError, match=why):
             broadcast_text(bad)
+
+
+def test_a_running_server_says_when_a_name_does_not_exist(server, http):
+    """Whitelisting a name that doesn't exist used to show a success toast: only the console said otherwise."""
+    said = {"whitelist add Ghost": ["[12:00:00] [Server thread/INFO]: That player does not exist"],
+            "whitelist add Steve": ["[12:00:01] [Server thread/INFO]: Added Steve to the whitelist"],
+            "whitelist add Alex": ["[12:00:02] [Server thread/INFO]: Player is already whitelisted"],
+            "op Steve": ["[12:00:03] [Server thread/INFO]: Made Steve a server operator"]}
+    asked = []
+
+    def ask(command, parse, timeout):
+        asked.append(command)
+        return parse(said[command]) if command in said else None  # (None: no answer in time)
+
+    p = Players(server, http, lambda c: None, ask)
+    with pytest.raises(PlayerError, match="no Minecraft account named 'Ghost'"):
+        p.act("whitelist-add", "Ghost")
+    assert p.act("whitelist-add", "Steve") == "Added Steve to the whitelist"
+    assert p.act("whitelist-add", "Alex") == "Player is already whitelisted"
+    assert p.act("op", "Steve") == "Made Steve a server operator"
+    assert p.act("deop", "Steve") == "sent: deop Steve"   # (no answer in time: as before)
+    assert asked[0] == "whitelist add Ghost"

@@ -42,6 +42,17 @@ def test_the_profile_in_plain_words():
     assert "hoppers" in r["findings"][1]["tip"]
 
 
+def test_a_server_that_kept_up_has_no_biggest_cost_headline():
+    """At 20 TPS with no lag logged, "The biggest cost: ..." made a healthy server read as a problem."""
+    s = lagfinder.summarize_profile(lagfinder.parse_profile(PROFILE))
+    r = lagfinder.report(s, {}, 20.0, 0)
+    assert r["summary"].startswith("It kept up fine while it was being looked at (20 ticks per second)")
+    assert "mobs" in r["summary"] and not r["summary"].startswith("The biggest cost")
+    assert [f["kind"] for f in r["findings"]] == ["entities", "machines"]  # (the details are still there)
+    assert lagfinder.report(s, {}, 20.0, 2)["summary"].startswith("The biggest cost: mobs")   # (lag was logged)
+    assert lagfinder.report(s, {}, 12.5, 0)["summary"].startswith("The biggest cost: mobs")   # (it did lag)
+
+
 def entities_file(world, cx, cz, kinds):
     """An entities region file with one chunk holding ``kinds`` ({type: count})."""
     tmp = world.parent / "tmp-entities"

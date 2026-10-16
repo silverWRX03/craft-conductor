@@ -226,7 +226,7 @@ def for_setup(hub, spec, progress=None) -> dict:
     from .manager import Manager
     if spec.loader not in modcheck.LOADERS:
         return {"ok": True, "problems": [], "unreadable": []}
-    pack_specs, pack_jars, pack_client = _pack_part(hub, spec)
+    pack_specs, pack_jars, pack_client, pack_pins = _pack_part(hub, spec)
     hub.state_dir.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=hub.state_dir, prefix="setup-check-") as tmp:
         root = Path(tmp)
@@ -234,6 +234,8 @@ def for_setup(hub, spec, progress=None) -> dict:
         path = root / configmod.CONFIG_NAME
         for x in pack_specs:
             configmod.append_mod(path, x)
+        for key, pin in pack_pins.items():  # (the pack's files, as Create my server will hold them)
+            configmod.set_pin(path, key, pin)
         if pack_client:
             import json
             configmod.set_value(path, "client", "mods", json.dumps(list(dict.fromkeys(spec.client_mods + pack_client))))
@@ -260,16 +262,16 @@ def setup_fingerprint(spec) -> str:
     return hashlib.sha256(json.dumps(data).encode()).hexdigest()
 
 
-def _pack_part(hub, spec) -> tuple[list, list[Path], list[str]]:
+def _pack_part(hub, spec) -> tuple[list, list[Path], list[str], dict]:
     """A modpack's own part of the setup: its mods (as setting it up lists them), its files that
-    aren't on a mod site, and its mods for players. Unpacked once per pack (and mods left out)."""
+    aren't on a mod site, its mods for players, and the files the pack holds its mods at. Unpacked once per pack (and mods left out)."""
     import hashlib
     import json
     import shutil
     import time
     from . import config as configmod, setup as setupmod
     if not spec.modpack_version:
-        return [], [], []
+        return [], [], [], {}
     base = hub.state_dir / PACKS_DIR
     for old in base.glob("*") if base.is_dir() else ():  # (packs checked days ago)
         try:
@@ -277,15 +279,17 @@ def _pack_part(hub, spec) -> tuple[list, list[Path], list[str]]:
                 shutil.rmtree(old, ignore_errors=True)
         except OSError:
             pass
-    key = hashlib.sha256(json.dumps([spec.loader, spec.modpack_version, sorted(spec.modpack_exclude)]).encode()).hexdigest()[:20]
+    key = hashlib.sha256(json.dumps([2, spec.loader, spec.modpack_version, sorted(spec.modpack_exclude)]).encode()).hexdigest()[:20]
     folder = base / key
     done = folder / "pack.json"
     with _packs_lock:  # (two checks of the same pack unpack it once)
         if not done.is_file():
             _unpack(hub, spec, folder)
     data = json.loads(done.read_text())
-    specs = [ModSpec(x["source"], str(x["id"]), required=bool(x["required"]), channel=x.get("channel")) for x in data["mods"]]
-    return specs, [folder / "jars" / n for n in data["jars"] if (folder / "jars" / n).is_file()], list(data["client"])
+    specs = [ModSpec(x["source"], str(x["id"]), required=bool(x["required"]), channel=x.get("channel"), pack=bool(x.get("pack")))
+             for x in data["mods"]]
+    return (specs, [folder / "jars" / n for n in data["jars"] if (folder / "jars" / n).is_file()], list(data["client"]),
+            {k: Pin(v[0], v[1]) for k, v in (data.get("pins") or {}).items()})
 
 
 _packs_lock = threading.Lock()
@@ -316,6 +320,7 @@ def _unpack(hub, spec, folder: Path) -> None:
     for name in jars:
         shutil.move(str(mods_dir / name), keep / name)
     shutil.rmtree(root, ignore_errors=True)  # (its configs and other files aren't checked)
-    done.write_text(json.dumps({"mods": [{"source": x.source, "id": x.id, "required": x.required, "channel": x.channel}
+    done.write_text(json.dumps({"mods": [{"source": x.source, "id": x.id, "required": x.required, "channel": x.channel, "pack": x.pack}
                                          for x in cfg.mods[before:]],
+                                "pins": {k: [p.version, p.minecraft] for k, p in cfg.pins.items()},
                                 "jars": jars, "client": list(cfg.client.mods)}))

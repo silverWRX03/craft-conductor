@@ -27,6 +27,28 @@ RULES = [
 
 def snake(name: str) -> str:
     return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
+
+
+# Minecraft 1.21.11 (snapshot 25w44a) moved game rules into a registry and renamed some of them for good;
+# the others only changed spelling. The new name of each rule that was renamed.
+RENAMED = {"doDaylightCycle": "advance_time", "doWeatherCycle": "advance_weather", "doMobSpawning": "spawn_mobs",
+           "doInsomnia": "spawn_phantoms", "naturalRegeneration": "natural_health_regeneration",
+           "announceAdvancements": "show_advancement_messages", "spawnRadius": "respawn_radius"}
+# Rules that 1.21.11 and 26.x no longer have (doFireTick: there is a number, fire_spread_radius_around_player,
+# but no on/off switch): not asked about there, so the server has nothing to log as an error.
+GONE = {"doFireTick"}
+
+
+def registry_names(minecraft: str | None) -> bool | None:
+    """Whether this Minecraft version names its game rules the new way (1.21.11, and 26.1 on); None when
+    that isn't known from the version (a snapshot, or no version)."""
+    m = re.match(r"(\d+)\.(\d+)(?:\.(\d+))?$", minecraft or "")
+    if not m:
+        return None
+    version = tuple(int(x or 0) for x in m.groups())
+    return version >= (1, 21, 11)
+
+
 RULE_NAME = re.compile(r"[A-Za-z_]{2,60}")
 VALUE = re.compile(r"true|false|-?\d{1,9}")
 _CURRENT = re.compile(r"(?:Gamerule|Game rule)\s+(\S+)\s+is currently set to:?\s*(\S+)", re.I)
@@ -44,23 +66,51 @@ def _answer(lines: list[str]):
     return None
 
 
-def read_rules(proc) -> list[dict]:
-    """The rules this server knows, with their values. The first answer tells which spelling
-    it uses; a server that doesn't answer at all is asked only once."""
+def read_rules(proc, minecraft: str | None = None) -> list[dict]:
+    """The rules this server knows, with their values. Each command a server refuses is logged by the
+    server as an error, so as few as possible are sent: the version says which names it uses; without
+    it the first answer tells which spelling it uses; and what a server answered is remembered (on
+    ``proc``, for as long as it runs), so later visits send only commands that work. A server that
+    doesn't answer at all is asked only once."""
+    new = registry_names(minecraft)
+    known: dict = getattr(proc, "rule_names", None)
+    if known is None:
+        known = {}
+        try:
+            proc.rule_names = known
+        except AttributeError:
+            pass
     out: list[dict] = []
-    style = None  # "camel" or "snake", once known
+    style = {True: "snake", False: "camel", None: None}[new]  # "camel", "snake", or not known yet
     for camel, kind, words in RULES:
-        names = [camel, snake(camel)] if style is None else [camel if style == "camel" else snake(camel)]
-        for name in names:
+        if new and camel in GONE:
+            continue
+        if camel in known:
+            names = [known[camel]] if known[camel] else []
+        elif style == "camel":
+            names = [camel]
+        elif style == "snake":
+            names = [snake(camel), RENAMED.get(camel)]
+        else:
+            names = [camel, snake(camel), RENAMED.get(camel)]
+        refused = 0
+        candidates = list(dict.fromkeys(n for n in names if n))
+        for name in candidates:
             got = proc.ask(f"gamerule {name}", _answer, timeout=2)
             if got is None:
                 if not out and style is None:
                     return out  # not answering: don't make the page wait for every rule
                 continue
             if got is not False:
-                style = style or ("camel" if name == camel else "snake")
+                if style is None:
+                    style = "camel" if name == camel else "snake"
+                known[camel] = name
                 out.append({"id": name, "kind": kind, "value": got, "words": words})
                 break
+            refused += 1
+        else:
+            if candidates and refused == len(candidates):
+                known[camel] = None  # (this version has no such rule: not asked about again)
     return out
 
 

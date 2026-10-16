@@ -31,11 +31,9 @@ const assert = require('node:assert/strict');
   await until('running');
   await enabled('#btn-stop');
   await page.locator('#btn-stop').dblclick();
-  const question = page.getByRole('alertdialog').filter({ hasText: 'Stop the server?' });
-  await question.first().waitFor();
+  // nobody is connected, so Stop doesn't ask (it asks when players are online)
   await page.waitForTimeout(500);
-  assert.equal(await question.count(), 1);  // asked once
-  await question.getByRole('button', { name: 'Stop', exact: true }).click();
+  assert.equal(await page.getByRole('alertdialog').count(), 0);
   await until('stopped');
   await page.waitForTimeout(1000);
   assert.deepEqual(presses, ['start', 'restart', 'stop']);

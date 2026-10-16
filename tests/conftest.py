@@ -81,6 +81,14 @@ class FakeHttp:
             raise HttpError(url, 404, "HTTP 404")
         return handler(body) if callable(handler) else handler
 
+    def get_range(self, url, start, length, headers=None):
+        if url not in self.files:
+            raise HttpError(url, 404, "HTTP 404")
+        data = self.files[url]
+        self.ranged = getattr(self, "ranged", 0) + 1  # (how many parts were asked for)
+        part = data[start:start + length] if start >= 0 else data[-length:]
+        return part, len(data)
+
     def download(self, url, dest: Path, sha1=None, sha512=None, headers=None, sha256=None, max_bytes=None,
                  progress=None):
         if url not in self.files:

@@ -47,6 +47,9 @@ def test_export_and_import_through_the_web(hub_env):
     sid = body["id"]
     assert sid == "alpha-2" and body["left_out"] == []  # (no secrets to leave out)
     new = hub.get(sid)
+    from craft_conductor.properties import server_name
+    names = [server_name(read_properties(x.m.server_dir / "server.properties")) for x in (d, new)]
+    assert names[0] and names[1] == f"{names[0]} (2)"  # (two cards with one name are easy to mix up)
     assert (new.m.server_dir / "world" / "level.dat").read_bytes() == b"level"
     assert new.m.lock.minecraft == "1.21.1" and new.m.config.server.dir == new.m.config.root / "server"
     # It used alpha's port, which is taken here, so it got another.

@@ -23,7 +23,7 @@ from typing import Any, Callable
 from . import __version__, notice, rollback, selfupdate, setup as setupmod
 from .http import HttpError, sha1_file
 from .manager import Manager, ManualDownloadRequired
-from .process import JOINED, LEFT, READY, ServerProcess, check_command
+from .process import JOINED, LEFT, READY, ServerProcess, check_command, exit_words
 
 log = logging.getLogger(__name__)
 
@@ -250,6 +250,15 @@ class Daemon:
         check_command(command)  # (before it's shown in the console as if it ran)
         self.console.append(text=f"> {command}", source="user")
         self.proc.send(command)
+
+    def ask_command(self, command: str, parse, timeout: float = 3):
+        """Like :meth:`send_command`, and returns what the server answered (``parse(lines)``; None when it
+        didn't, in time)."""
+        if not self.proc or not self.proc.running:
+            raise RuntimeError("the server is not running")
+        check_command(command)
+        self.console.append(text=f"> {command}", source="user")
+        return self.proc.ask(command, parse, timeout=timeout)
 
     # ------------------------------------------------------------- jobs
     def submit(self, name: str, fn: Callable[..., Any], *args: Any) -> bool:
@@ -531,6 +540,8 @@ class Daemon:
                 target = (req.read_text().strip() or None) if requested else None
                 req.unlink(missing_ok=True)
                 self.submit("update check", self.check_for_updates, requested, target)
+            if idle:
+                self._watch_config()
             self._run_schedules(idle)  # (busy too: a time that comes meanwhile waits, it isn't skipped)
             if idle:
                 self._watch_lag()
@@ -549,6 +560,24 @@ class Daemon:
                 threading.Thread(target=self.check_self_update, daemon=True, name="self-update-check").start()
             self.stop_requested.wait(self.tick)
         return self.exit_code
+
+    def _watch_config(self) -> None:
+        """craft-conductor.toml edited by hand while this runs: read it again, so a schedule turned off in
+        the file really stops (it used to keep making backups from the settings in memory). A file that can't be
+        used yet (half-typed, a mistake) is left alone, and said so once; the settings in memory stay."""
+        from .manager import config_stamp
+        stamp = config_stamp(self.m.config)
+        if stamp is None or stamp == self.m.config_stamp:
+            return
+        try:
+            self.m.reload_config()
+        except Exception as e:
+            self.m.config_stamp = stamp  # (said once; looked at again when the file changes again)
+            log.warning("craft-conductor.toml was changed, but it can't be used yet (%s): Craft Conductor keeps the "
+                        "settings it had", e)
+            return
+        log.info("craft-conductor.toml was changed by hand: its settings are in use now (memory, port and other "
+                 "launch settings apply from the server's next start)")
 
     def failure_report(self, what: str, error: BaseException | str, console: list[str] | None = None) -> Path | None:
         """Write what went wrong (the error, recent activity, the server's last output) to a file
@@ -596,20 +625,20 @@ class Daemon:
         if blame:  # say which mod it was, where people look
             log.error("%s", blame)
             tail = f"{blame}\n{tail}"
-        report = self.failure_report("server crash", f"the server stopped unexpectedly (exit {self.proc.returncode})"
+        report = self.failure_report("server crash", f"the server stopped unexpectedly ({exit_words(self.proc.returncode)})"
                                      + (f"\n{blame}" if blame else ""))
         where = f"The details are in {report} (and Minecraft's own log, {self.m.server_dir / 'logs' / 'latest.log'})"
         log.error("%s", where)
         tail = f"{tail}\n{where}"
         self.proc.stopping = True  # handled; don't count this exit twice
         if not self.m.config.restart_on_crash or len(self.crashes) > MAX_CRASHES:
-            self.m.notifier.send(f"Server stopped unexpectedly (exit {self.proc.returncode}); not restarting.\n{tail}")
+            self.m.notifier.send(f"Server stopped unexpectedly ({exit_words(self.proc.returncode)}); not restarting.\n{tail}")
             self.want_running = False
             if not self.web_enabled:
                 self.exit_code = 1
                 self.stop_requested.set()
             return
-        self.m.notifier.send(f"Server crashed (exit {self.proc.returncode}); restarting.\n{tail}")
+        self.m.notifier.send(f"Server crashed ({exit_words(self.proc.returncode)}); restarting.\n{tail}")
         delay = min(60, 5 * len(self.crashes))
 
         def restart():

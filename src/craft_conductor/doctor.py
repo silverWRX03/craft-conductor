@@ -25,7 +25,7 @@ from .properties import read_properties
 
 OK, WARN, BAD, INFO = "ok", "warn", "bad", "info"
 KEEP_WHEN_FULL = 3  # backups kept by "Delete old backups"
-FIXES = ("eula", "java", "memory", "prune-backups", "port", "online-mode", "public-ip", "upnp", "firewall")
+FIXES = ("eula", "java", "memory", "prune-backups", "port", "online-mode", "public-ip", "upnp", "firewall", "firewall-clean")
 PORT_CHECK = "https://ifconfig.co/port/{port}"
 
 
@@ -70,7 +70,14 @@ def firewall_check(fw: dict) -> Check:
         return Check("firewall", title, OK, f"Windows Firewall is off for {network}: it doesn't block anything.")
     shut = [p for p in ports if not p["allowed"]]
     if not shut:
-        return Check("firewall", title, OK, f"Windows Firewall lets port {named(ports)} through on {network}.")
+        by_program = [p for p in ports if p.get("by") == "program"]
+        how = ""
+        if by_program:  # (Windows makes these itself the first time Java listens: they aren't about the port)
+            how = (f" Port {named(by_program)} gets through because of a Windows rule for the Java program (any port), "
+                   "not a rule for that port." if len(by_program) == 1 else
+                   f" Ports {named(by_program)} get through because of a Windows rule for the Java program (any port), "
+                   "not rules for those ports.")
+        return Check("firewall", title, OK, f"Windows Firewall lets port {named(ports)} through on {network}.{how}")
     blocked = [p for p in shut if p["blocked"]]
     detail = (f"Windows Firewall blocks port {named(blocked)}" + (" (Windows' own prompt was answered Cancel)" if blocked else "")
               if blocked else f"Windows Firewall doesn't let port {named(shut)} through on {network}")
@@ -219,6 +226,14 @@ def run(m, state: str, *, total_gb: float | None = None, share: dict | None = No
     # Windows Firewall (firewall.py: read here, the rules added by a fix button)
     if firewall is not None:
         checks.append(firewall_check(firewall))
+        old = firewall.get("old_rules") or []
+        if old:  # (rules Craft Conductor made once for ports no server or download uses now)
+            names = ", ".join(f"{r['name']}" for r in old)
+            checks.append(Check("firewall-old", "Old Windows Firewall rules", INFO,
+                                f"Craft Conductor made {len(old)} Windows Firewall rule{'' if len(old) == 1 else 's'} for ports nothing here uses "
+                                f"any more ({names}). They do nothing useful, and leave those ports open.",
+                                "Press the button: Windows asks for permission once, then only those rules are removed.",
+                                "firewall-clean", "Remove old rules"))
     elif os.name == "nt":
         checks.append(Check("firewall", "Windows Firewall", INFO, "Windows asks the first time the server starts whether Java may accept connections.",
                             "Choose Allow, with both private and public networks ticked. If you pressed Cancel: Windows Security → "

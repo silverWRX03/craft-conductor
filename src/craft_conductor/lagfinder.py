@@ -237,7 +237,12 @@ def report(profile: dict, places: dict, tps: float | None, lag_lines: int, mods=
         words = first["title"].split(":")[0]
         cost = f" ({first['share']}% of each tick)" if first["share"] is not None else ""
         where = f" The busiest place is {first['places'][0]}." if first["places"] else ""
-        summary = f"The biggest cost: {words[0].lower()}{words[1:]}{cost}.{where}"
+        if tps is not None and tps >= 19.5 and not lag_lines:
+            # (the profile always has a biggest share; it's no "cost" when the server kept up and never logged lag)
+            summary = (f"It kept up fine while it was being looked at ({tps:g} ticks per second), so nothing is wrong right now. "
+                       f"If it lags later, most of the time goes to {words[0].lower()}{words[1:]}{cost}.{where}")
+        else:
+            summary = f"The biggest cost: {words[0].lower()}{words[1:]}{cost}.{where}"
     elif paused:
         summary = ("Nobody was online, so Minecraft had paused the server (it stops an empty server's clock after a "
                    "minute): there was nothing to measure. Look again while players are on.")
