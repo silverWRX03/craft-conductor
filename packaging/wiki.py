@@ -72,6 +72,8 @@ IMAGES = {
     "For friends: joining a server": [("invite-page.png", "The invite page your friend opens"),
                                       ("friend-setup.png", "Craft Conductor setting up Minecraft on your friend's computer")],
     "Remote access and phones": [("remote-access.png", "Remote access & phones"), ("phone.png", "On a phone")],
+    "People and what they may do": [("people.png", "People: what each person may do on each server"),
+                                    ("person-edit.png", "Editing what someone may do: a role for each server, and Customize permissions")],
     "Craft Conductor settings": [("craft-conductor-settings.png", "Craft Conductor settings: Connections"),
                                  ("display.png", "Appearance: language, size, contrast and motion"),
                                  ("update-available.png", "A Craft Conductor update is available"),

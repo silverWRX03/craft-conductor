@@ -938,3 +938,16 @@ fieldset.choices legend { padding: 0 4px; color: var(--muted); }
   .help-overlay { position: static; display: block; }
   .help-content { overflow: visible; }
 }
+
+/* People (Craft Conductor settings → People): what each person may do on each server */
+.modal.person { max-width: 720px; }
+.grant-row { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin: 8px 0; }
+.grant-row > .row select { width: auto; flex: none; }
+.grant-row .grant-summary { margin: 6px 0 0; }
+.grant-row .notice { margin-top: 6px; }
+details.customize > summary { cursor: pointer; font-weight: 600; list-style: revert; padding: 4px 0; }
+details.customize .cap-group { border: 0; padding: 0; margin: 8px 0 0; }
+details.customize .cap-group legend { font-weight: 600; font-size: 13px; padding: 0; }
+details.customize .cap { margin: 2px 0; }
+details.customize .cap.risky .tag { margin-left: 6px; }
+ul.people li { align-items: flex-start; gap: 10px; }

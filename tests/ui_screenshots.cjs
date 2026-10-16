@@ -232,6 +232,25 @@ const HEADERS = {'X-CRAFT-CONDUCTOR': '1'};
   await page.waitForTimeout(500);
   await shot('remote-access');
   await close();
+  // People: who may do what, and editing it (a role per server, Customize permissions, a risky one ticked).
+  await page.evaluate(() => openPeople());
+  await page.locator('#people ul.people').waitFor();
+  await page.waitForTimeout(400);
+  await shot('people');
+  await page.locator('#people li', { hasText: 'Jordan' }).getByRole('button', { name: 'Edit' }).click();
+  const survival = page.locator('#person .grant-row', { hasText: 'Survival with friends' });
+  await survival.waitFor();
+  await survival.locator('details.customize').evaluate((d) => { d.open = true; });
+  await survival.evaluate((el) => {   // (its name and role at the top, below the dialog's title)
+    el.scrollIntoView({ block: 'start' });
+    let box = el.parentElement;
+    while (box && !(box.scrollHeight > box.clientHeight && getComputedStyle(box).overflowY !== 'visible')) box = box.parentElement;
+    if (box) box.scrollTop -= 90;
+  });
+  await page.waitForTimeout(400);
+  await shot('person-edit');
+  await close();
+  await close();
   await go('s/survival/dashboard');
   await page.evaluate(() => openHelp());
   await page.locator('.help-overlay').waitFor();

@@ -182,7 +182,7 @@ function upload(path, file, onProgress) {
 // "Open folder" buttons: shown only in a browser on the server's own computer, where
 // Craft Conductor can open the file manager. ``sid`` picks a server other than the current one.
 function folderBtn(what, label, sid, cls = "btn ghost small") {
-  if (!hubInfo || !hubInfo.local) return null;
+  if (!hubInfo || !hubInfo.local || !isOwner()) return null;
   const path = what === "home" ? "/api/hub/open" : sid ? `/api/servers/${encodeURIComponent(sid)}/open` : "/api/open";
   return h("button", { type: "button", class: cls, title: "Open in your file manager",
     onclick: () => api(path, { method: "POST", body: { what } }).catch((e) => { if (!(e instanceof Unauthorized)) toast(e.message, true); }) },
@@ -391,6 +391,24 @@ function card(title, ...children) { return h("div", { class: "card" }, title ? h
 // -------------------------------------------------------------------- state
 let status = null;            // the current server's status
 let hubInfo = null;           // Craft Conductor itself: servers, sign-in, notice, updates
+// Who's signed in (access.py): the owner may do everything; someone the owner invited, what they
+// were given on each server. The server checks every request anyway: this only leaves out what
+// they couldn't use.
+function isOwner() { return !hubInfo || hubInfo.role !== "user"; }
+function can(cap, sid = server) {
+  if (isOwner()) return true;
+  const caps = (hubInfo.access || {})[sid];
+  return !!caps && caps.includes(cap);
+}
+function canAny(caps, sid = server) { return caps.some((c) => can(c, sid)); }
+// What each page of a server needs (any one of these).
+const VIEW_NEEDS = { dashboard: ["status.view"], console: ["logs.view"], players: ["players.moderate"],
+  updates: ["updates.check", "updates.apply"], mods: ["mods.view"], friends: ["friends.share"],
+  backups: ["backups.make", "server.export"], java: ["runtime.configure"],
+  settings: ["settings.safe", "runtime.configure", "updates.apply", "backups.delete", "server.delete", "server.export"],
+  setup: ["runtime.configure"] };
+function canView(view, sid = server) { return isOwner() || canAny(VIEW_NEEDS[view] || [], sid); }
+const USERNAME_KEY = "craft-conductor-sign-in-with-username";
 let lastJobSeen = null;
 let current = null;           // current view
 let timers = [];
@@ -490,9 +508,23 @@ async function showLogin() {
       h("code", {}, "craft-conductor web-password --reset"), "."]));
   let box = $("#login-passkey");
   if (!box) { box = h("div", { id: "login-passkey", class: "login-fields" }); $("#login-hint").before(box); }
+  // Someone the owner invited signs in with their username; the owner without one.
+  let named = false;
+  try { named = localStorage.getItem(USERNAME_KEY) === "1"; } catch (_) {}
+  const showNamed = (on) => {
+    named = on;
+    try { if (on) localStorage.setItem(USERNAME_KEY, "1"); else localStorage.removeItem(USERNAME_KEY); } catch (_) {}
+    $("#login-user-row").classList.toggle("hidden", !on);
+    $("#login-label").textContent = t(on ? "Password" : pin ? "PIN" : "Password");
+    toggleName.textContent = t(on ? "I'm the owner (no username)" : "Invited? Sign in with your username");
+    (on ? $("#login-username") : input).focus();
+  };
+  const toggleName = h("button", { type: "button", class: "link-btn" });
+  toggleName.addEventListener("click", () => showNamed(!named));
   fill(box, a && a.passkeys && passkeysWork() ? h("button", { type: "button", class: "btn", onclick: signInWithPasskey }, "Sign in with fingerprint or face") : null,
+    toggleName,
     a && !a.local ? h("button", { type: "button", class: "btn ghost", onclick: () => showPairing("") }, "Pair with a code") : null);
-  input.focus();
+  showNamed(named);
 }
 
 // ------------------------------------------------------ fingerprint and face sign-in (passkeys.py)
@@ -585,7 +617,9 @@ $("#login-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   $("#login-error").textContent = "";
   try {
-    await api("/api/login", { method: "POST", body: { password: $("#login-password").value } });
+    const withName = !$("#login-user-row").classList.contains("hidden");
+    await api("/api/login", { method: "POST", body: { password: $("#login-password").value,
+      ...(withName ? { username: $("#login-username").value.trim() } : {}) } });
     $("#login-password").value = "";
     try { sessionStorage.removeItem(PROMPT_KEY); } catch (_) {}
     start();
@@ -617,7 +651,8 @@ async function showNotice() {
   noticeOpening = false;
   if (!n || n.accepted || $("#notice")) return;
   clearTimers();
-  const accept = h("button", { class: "btn primary", onclick: async () => {
+  const accept = !isOwner() ? h("p", { class: "small" }, "Only the owner of this Craft Conductor can accept it: ask them to sign in and do so.")
+    : h("button", { class: "btn primary", onclick: async () => {
     try {
       await api("/api/notice/accept", { method: "POST", body: { version: n.version } });
       $("#notice").remove();
@@ -635,7 +670,7 @@ async function showNotice() {
       h("ul", { class: "notice-points" }, n.points.map((p) => h("li", {}, p))),
       h("p", { class: "muted small" }, "The Minecraft server won't start until this is accepted. You can read it again under Settings → About."),
       h("div", { class: "row" }, accept, decline))));
-  accept.focus();
+  (isOwner() ? accept : decline).focus();
 }
 
 // ------------------------------------------------------------ sign-in settings
@@ -1165,13 +1200,13 @@ async function refreshStatus() {
   $("#version").textContent = "v" + hb.version + " beta";
   $("#version").title = t("Craft Conductor is in beta: expect some rough edges, and keep backups.");
   $("#quit").classList.toggle("hidden", !!hb.single || (hb.role && hb.role !== "owner"));
-  document.body.classList.toggle("viewer", hb.role === "viewer");  // look-only sign-in: no buttons that change things
+  document.body.classList.toggle("viewer", !!server && !can("server.power"));  // no Start, Stop or Restart for them
   if (!hb.notice_accepted) { showNotice(); return; }
   noteServer(hb.version, hb.update_result);
   updateDots();
   settleUpdateMark(hb);
   offerSelfUpdate(hb.self_update);
-  if (hb.auth.default && !hb.auth.managed && !promptDismissed()) showSecurity(true);
+  if (hb.auth && hb.auth.default && !hb.auth.managed && !promptDismissed()) showSecurity(true);
   offerGuide(hb);
   renderHealth(hb.health || []);
   if (hb.single && !server && hb.servers.length === 1) { location.hash = `#s/${hb.servers[0].id}/dashboard`; return; }
@@ -1267,6 +1302,7 @@ function consolePanel({ compact = false } = {}) {
 
   const cls = (line) => line.user ? "l-user" : /\/(ERROR|FATAL)\]|Exception/.test(line.text) ? "l-error cc-log-error" : /\/WARN\]/.test(line.text) ? "l-warn cc-log-warning" : /Done \(|joined the game|Server ready/i.test(line.text) ? "cc-log-success" : "";
   const poll = async () => {
+    if (!can("logs.view")) return;  // (reading the console is a permission of its own)
     const r = await api(`/api/console?since=${seq}`).catch(() => null);
     if (!r || !r.lines.length) return;
     const stick = out.scrollHeight - out.scrollTop - out.clientHeight < 40;
@@ -1296,7 +1332,8 @@ function consolePanel({ compact = false } = {}) {
     else if (e.key === "ArrowDown") { hi = Math.min(history.length, hi + 1); input.value = history[hi] || ""; }
   });
   const el = h("section", { class: "card cc-panel cc-console-widget " + (compact ? "console-panel" : "console-wrap"), "aria-label": "Live console" },
-    h("h3", {}, "Live console"), out, h("div", { class: "console-input" }, input, h("button", { class: "btn primary", onclick: send }, "Send")));
+    h("h3", {}, "Live console"), out, can("console.execute") ? h("div", { class: "console-input" }, input, h("button", { class: "btn primary", onclick: send }, "Send"))
+      : isOwner() ? null : h("p", { class: "muted small" }, "Typing commands is the owner's (addresses and folders are hidden here)."));
   return { el, input, poll };
 }
 
@@ -1358,6 +1395,7 @@ const TUNNEL_ICON = { ok: "✓", wrong: "⚠", down: "✗", stopped: "•", off:
 function tunnelCard() {
   const box = h("div");
   const load = async (now = false) => {
+    if (!isOwner()) return;  // (this computer's tunnel: the owner's)
     const r = await api(`/api/tunnel${now ? "?now=1" : ""}`).catch(() => null);
     if (!r || !r.address) { fill(box); return; }
     const st = r.status || { status: "stopped", words: "" };
@@ -1609,8 +1647,8 @@ const OP_WORDS = { 1: "can ignore spawn protection", 2: "can use cheat commands 
 const PING_MARK = { good: "●", fair: "◐", poor: "▲" };  // (a different shape for each, so colour is never the only sign)
 const PING_WORDS = { good: "good connection", fair: "fair connection", poor: "poor connection" };
 function playersCard(con) {
-  const viewer = !!(hubInfo && hubInfo.role === "viewer");   // look only: the list, none of the buttons
-  const canMessage = !(hubInfo && hubInfo.device);           // (Message types a console command, which a paired phone can't)
+  const viewer = !can("players.moderate");   // look only: the list, none of the buttons
+  const canMessage = can("console.execute");   // (Message types a console command)
   let names = [], max = 0, state = "stopped", info = null, selected = null, announced = null;
   let panel = null;                                          // "whitelist" or "broadcast" while one is open
   const rows = new Map();                                    // name -> its row, kept while the player is on
@@ -1623,7 +1661,7 @@ function playersCard(con) {
   const pingWhy = h("p", { class: "small" });
   const pingNote = h("details", { class: "muted small hidden" }, h("summary", {}, "Why no ping?"), pingWhy);
   const mapLink = h("div");  // the web map, when there is one and it answers (Settings → Web map)
-  api("/api/webmap").then((r) => {
+  (can("mods.view") ? api("/api/webmap") : Promise.reject(null)).then((r) => {
     if (r.kind && r.answers) fill(mapLink, h("a", { class: "btn small ghost mt-s", href: hubInfo && hubInfo.local ? r.local_url : r.lan_url || r.local_url,
       target: "_blank", rel: "noopener noreferrer" }, `🗺 ${t("See where everyone is on the map")} ↗`));
   }).catch(() => null);
@@ -1932,8 +1970,8 @@ views.dashboard = () => {
         : h("div", { class: "notice bad" }, `Minecraft ${u.latest} is out but nothing installable yet.`),
       u ? h("p", { class: "muted small" }, `Checked ${ago(u.checked_at)} · strategy ${s.strategy} · auto-upgrade ${s.auto_upgrade ? "on" : "off"}`) : null,
       h("div", { class: "row" },
-        h("button", { class: "btn", onclick: () => act(() => api("/api/updates/check", { method: "POST", body: {} }), "Checking for updates…"), "data-fkey": "check" }, "Check now"),
-        h("a", { href: link("updates"), class: "btn ghost", "data-fkey": "details" }, "Details →")),
+        can("updates.check") ? h("button", { class: "btn", onclick: () => act(() => api("/api/updates/check", { method: "POST", body: {} }), "Checking for updates…"), "data-fkey": "check" }, "Check now") : null,
+        canView("updates") ? h("a", { href: link("updates"), class: "btn ghost", "data-fkey": "details" }, "Details →") : null),
     );
   };
 
@@ -1953,10 +1991,10 @@ views.dashboard = () => {
     lagBanner,
     h("section", { class: "cc-panel cc-dashboard", "aria-label": "Server dashboard" },
       h("div", { class: "cc-telemetry-grid", "aria-label": "Server telemetry" }, cpu.el, mem.el, disk.el, players.el),
-      h("div", { class: "cc-dashboard-layout" }, con.el,
+      h("div", { class: "cc-dashboard-layout" }, can("logs.view") ? con.el : null,
         h("aside", { class: "cc-dashboard-rail", "aria-label": "Server details" }, pc.el,
           card("Runtime Parameters", statusBody,
-            h("div", { class: "row mt-s" }, h("button", { class: "btn small", onclick: openDoctor }, "🩺 Check my setup"),
+            h("div", { class: "row mt-s" }, isOwner() ? h("button", { class: "btn small", onclick: openDoctor }, "🩺 Check my setup") : null,
               folderBtn("server", "Server folder"), folderBtn("world", "World folder")))))),
     h("div", { class: "mt" }, perf.el),
     tun.el,
@@ -2170,9 +2208,10 @@ views.updates = () => {
         act(() => api("/api/updates/apply", { method: "POST", body: { target: c.target } }), "Update started");
     };
     const applyBtn = h("button", {
-      class: "btn primary", disabled: c.up_to_date || !c.target || c.manual.length > 0, onclick: applyNow,
+      class: "btn primary", disabled: !can("updates.apply") || c.up_to_date || !c.target || c.manual.length > 0, onclick: applyNow,
+      title: can("updates.apply") ? null : t("Applying updates is the owner's (or someone they gave it to)"),
     }, c.installed ? "Apply update" : "Install server");
-    const rehearseCard = c.installed && c.target && !c.up_to_date && !c.manual.length ? rehearsalCard(c, applyNow, applyBtn) : null;
+    const rehearseCard = can("updates.apply") && c.installed && c.target && !c.up_to_date && !c.manual.length ? rehearsalCard(c, applyNow, applyBtn) : null;
 
     // Newer versions to explain, newest first (the blocked ones the check found, and the latest).
     const newer = [...new Set([c.latest, ...c.blocked.map((b) => b.minecraft)].filter((v) => v && v !== c.installed))];
@@ -2366,7 +2405,7 @@ function activityCard() {
           r.busiest ? h("span", { class: "muted" }, " · " + t("busiest:") + ` ${weekdayName(r.busiest.weekday, "long")} ${hourName(r.busiest.hour)}`) : null,
           r.schedule_restart ? h("div", { class: "muted" }, t("Scheduled restart now:") + " " + t(r.schedule_restart_words || r.schedule_restart)) : null),
         r.schedule_restart === q.cron ? h("span", { class: "ok-text" }, "✓ The nightly restart is at this time")
-          : hubInfo && hubInfo.device ? null
+          : !(can("settings.safe") && can("server.power")) ? null
           : h("button", { class: "btn small", onclick: () => act(() => api("/api/settings", { method: "POST", body: { schedule_restart: q.cron } }),
             "The server restarts every day at the quietest time").then(load) }, "Restart every day at this time"));
     fill(body,
@@ -2651,7 +2690,7 @@ views.mods = () => {
         hubInfo && hubInfo.local ? folderBtn("config", "Config folder") : null));
   };
   const load = async () => {
-    const [r, cfg] = await Promise.all([api("/api/mods").catch(() => null), api("/api/configs").catch(() => null)]);
+    const [r, cfg] = await Promise.all([api("/api/mods").catch(() => null), can("files.read") ? api("/api/configs").catch(() => null) : null]);
     if (!r) return;
     info = r;
     cfgInfo = cfg;
@@ -2979,6 +3018,7 @@ views.backups = () => {
         ? `Replace the server's files with ${b.name}? Anything since then is lost. (An older backup: afterwards, run an update check to put the mod list right.)`
         : undo.length ? `Roll the whole server back to ${fmtTime(b.time)}? This undoes:\n\n${undo.slice(0, 12).map((x) => "• " + x).join("\n")}${undo.length > 12 ? `\n• …and ${undo.length - 12} more` : ""}\n\nWorld changes since then are lost too.`
           : `Roll the whole server back to ${fmtTime(b.time)}? Nothing but the world has changed since then; world changes since then are lost.`;
+      if (!can("backups.restore")) { toast("Restoring backups is the owner's (or someone they gave it to).", true); return; }
       if (await ask(msg, { ok: c && c.snapshot ? "Roll back" : "Restore", danger: true }))
         act(() => api("/api/backups/restore", { method: "POST", body: { name: b.name } }), "Rolling back…");
     };
@@ -3035,7 +3075,7 @@ views.backups = () => {
       h("p", { class: "muted small" }, "What backups hold: Backup settings, below."),
       h("div", { class: "row" }, label, h("button", { class: "btn primary", onclick: () => act(() => api("/api/backups/create", { method: "POST", body: { label: label.value } }), "Backing up…") }, "Back up now"))),
     card("Backups", h("div", { class: "row" }, h("p", { class: "muted small grow" }, "Restoring needs the server to be stopped."), folderBtn("backups", "Backups folder")), list),
-    card("Backup settings", settingsBody),
+    isOwner() ? card("Backup settings", settingsBody) : null,
     card("Moving the server to a different PC",
       h("p", { class: "muted small" }, "Backups are for this computer: what's locked in them only opens here, for your account. To move the server to a different PC, use Export: it puts the server in one file, and you pick what goes in."),
       h("div", { class: "row" }, h("button", { class: "btn", onclick: startExport }, "Export server…"))),
@@ -3356,6 +3396,10 @@ views.settings = () => {
       advancedEl,
       bar,
     );
+    if (!isOwner()) for (const k of ["discord_webhook", "port", "tunnel_address"]) {  // (the owner's: not shown to others)
+      const l = f[k] && f[k].closest("label");
+      if (l) l.classList.add("hidden");
+    }
     form.onsubmit = (e) => { e.preventDefault(); save(); };
     save = async () => {
       const body = {
@@ -3372,8 +3416,9 @@ views.settings = () => {
         tunnel_address: f.tunnel_address.value.trim(),
         properties: changedProps(advanced, s.properties),
       };
+      if (!isOwner()) for (const k of Object.keys(body)) if (k !== "properties" && !(k in s)) delete body[k];  // (the owner's settings)
       const gb = memoryGb(body.memory);
-      if (gb > AIKAR_ABOVE_GB && !body.aikar_flags) {
+      if (gb > AIKAR_ABOVE_GB && !body.aikar_flags && can("runtime.configure")) {
         offerAikar(gb, () => { f.aikar_flags.checked = true; act(() => api("/api/settings", { method: "POST", body: { aikar_flags: true } }), "Aikar's flags on").then(load); });
       }
       const r = await act(() => api("/api/settings", { method: "POST", body }), "Settings saved");
@@ -3385,7 +3430,7 @@ views.settings = () => {
   const danger = h("div", { class: "card danger-zone mt" });
   const renderDanger = () => {
     const me = hubInfo && hubInfo.servers ? hubInfo.servers.find((x) => x.id === server) : null;
-    if (!me || hubInfo.single) { refill(danger, "none"); danger.classList.add("hidden"); return; }
+    if (!me || hubInfo.single || !can("server.delete")) { refill(danger, "none"); danger.classList.add("hidden"); return; }
     danger.classList.remove("hidden");
     refill(danger, JSON.stringify([me.id, me.name, me.state, me.folder]), h("h3", {}, "Delete this server"),
       h("div", { class: "row" },
@@ -3395,8 +3440,8 @@ views.settings = () => {
   // Move to another computer: export everything to one file, import it there.
   const exportCard = h("div", { class: "card mt" });
   const loadExports = async () => {
-    const r = await api("/api/export").catch(() => null);
-    if (!r) return;
+    const r = can("server.export") ? await api("/api/export").catch(() => null) : null;
+    if (!r) { exportCard.classList.add("hidden"); return; }
     fill(exportCard, h("h3", {}, "Move to another computer"),
       h("p", { class: "muted small" }, "Export saves this server in one .zip, and you pick what goes in: the world, mods, settings, player lists, backups. " +
         "On the other computer, install Craft Conductor, then choose Import a server on the server list. The world is saved first, " +
@@ -5241,6 +5286,11 @@ const HELP = [
     h("p", {}, "Open ", h("button", { type: "button", class: "link-btn", onclick: openRemoteAccess }, "Remote access & phones"),
       ": set a strong password, allow other devices, and pair your phone by scanning a QR code (it works once, for five minutes). Until then, only this computer can open the control panel. Away from home, use Tailscale rather than opening ports."),
     screenshot("remote-access", "Remote access & phones: a strong password, then pair your phone.")]],
+  ["people", "Letting other people help", () => [
+    h("p", {}, "Open ", h("button", { type: "button", class: "link-btn", onclick: () => isOwner() ? openPeople() : toast("Only the owner of this Craft Conductor can invite people.", true) }, "People"),
+      " (Craft Conductor settings → Sign-in & security) and press Invite someone. Each person gets a one-time link, chooses their own username and password, and only sees the servers you give them. Pick a role for each server (Viewer, Moderator, Operator or Manager), or tick what they may do under Customize permissions. Risky permissions, like console commands, mods or restoring backups, are never in a role: you tick them on purpose."),
+    h("p", {}, "Removing someone, or making them a new sign-in link, signs them out everywhere at once. Their phones are paired in Remote access & phones, and can do only what they can."),
+    screenshot("people", "People: what each person may do on each server.")]],
   ["keyboard", "Keyboard, screen readers and display", () => [
     h("p", {}, "Everything works with the keyboard: Tab moves, Enter or Space presses, Escape closes a window. The first Tab reaches ",
       h("strong", {}, "Skip to main content"), ". Screen readers read out messages as they appear."),
@@ -5280,6 +5330,8 @@ const MANUAL_PICTURES = {
   "For friends: joining a server": [["invite-page", "The invite page your friend opens"],
     ["friend-setup", "Craft Conductor setting up Minecraft on your friend's computer"]],
   "Remote access and phones": [["remote-access", "Remote access & phones"], ["phone", "On a phone"]],
+  "People and what they may do": [["people", "People: what each person may do on each server"],
+    ["person-edit", "Editing what someone may do: a role for each server, and Customize permissions"]],
   "Craft Conductor settings": [["craft-conductor-settings", "Craft Conductor settings: Connections"],
     ["display", "Appearance: language, size, contrast and motion"],
     ["update-available", "A Craft Conductor update is available"], ["update-dots", "About & updates: the red dots, and the update waiting"],
@@ -5483,7 +5535,7 @@ function openRemoteAccess({ setup = currentName === "new" || currentName === "se
       h("ol", { class: "steps small" },
         h("li", {}, "Install ", h("a", { href: "https://tailscale.com/download", target: "_blank", rel: "noopener noreferrer" }, "Tailscale ↗"), " (free for personal use) on this computer and on your phone."),
         h("li", {}, "Sign in to the same account on both."),
-        h("li", {}, "Reopen this window: a Tailscale address appears under “Pair a phone”.")),
+        h("li", {}, "Reopen this window: a Tailscale address appears under “People, and their phones”.")),
       h("div", { class: "notice warn small" }, h("strong", {}, "Don't forward the control panel's port on your router. "),
         "That puts it on the open internet, where bots try passwords all day. Tailscale keeps it private and encrypted.")];
     // HTTPS (optional)
@@ -5519,10 +5571,10 @@ function openRemoteAccess({ setup = currentName === "new" || currentName === "se
     };
     addr.addEventListener("change", noteAddr);
     noteAddr();
-    const role = h("select", { "aria-label": "What it may do" },
-      h("option", { value: "helper" }, "Helper: everyday controls"), h("option", { value: "viewer" }, "Viewer: look only"));
-    const pair = h("button", { class: "btn primary", disabled: !r.strong || !r.running_on_network || !r.addresses.length, onclick: async () => {
-      const p = await api("/api/hub/devices/pair", { method: "POST", body: { host: addr.value, role: role.value } }).catch((e) => { toast(e.message, true); return null; });
+    const signedUp = r.people.filter((p) => p.signed_up);
+    const role = h("select", { "aria-label": "Whose phone" }, signedUp.map((p) => h("option", { value: p.id }, p.name)));
+    const pair = h("button", { class: "btn primary", disabled: !r.strong || !r.running_on_network || !r.addresses.length || !signedUp.length, onclick: async () => {
+      const p = await api("/api/hub/devices/pair", { method: "POST", body: { host: addr.value, user: role.value } }).catch((e) => { toast(e.message, true); return null; });
       if (!p) return;
       let left = p.expires_in;
       const clock = h("span", { class: "muted small" });
@@ -5542,7 +5594,7 @@ function openRemoteAccess({ setup = currentName === "new" || currentName === "se
         } }, "Cancel this code")));
     } }, "Show a pairing QR code");
     const devices = r.devices.length ? h("ul", { class: "list" }, r.devices.map((d) => h("li", {},
-      h("div", { class: "grow" }, h("strong", {}, d.name), " ", h("span", { class: "tag" }, d.role === "viewer" ? "viewer" : "helper"),
+      h("div", { class: "grow" }, h("strong", {}, d.name), " ", h("span", { class: "tag" }, (r.people.find((p) => p.id === d.user_id) || {}).name || "?"),
         h("div", { class: "muted small" }, `paired ${new Date(d.created * 1000).toLocaleDateString()} · last used ${ago(d.last_seen)}${d.last_ip ? " from " + d.last_ip : ""}`)),
       h("button", { class: "btn small danger", onclick: async () => (await ask(`Sign out ${d.name}? It will need to be paired again.`, { ok: "Sign out", danger: true })) &&
         act(() => api("/api/hub/devices/remove", { method: "POST", body: { id: d.id } }), `${d.name} signed out`).then(load) }, "Sign out"))))
@@ -5552,14 +5604,16 @@ function openRemoteAccess({ setup = currentName === "new" || currentName === "se
       step(2, "Let other devices connect", h("label", { class: "row check-row" }, toggle, h("span", {}, "Allow access to this control panel from other devices (phones, other computers)")),
         !r.strong ? h("p", { class: "small muted" }, "Set a strong password first.") : null, restartNote),
       step(3, "Away from home", ...away, https),
-      step(4, "Pair a phone (or a co-admin)",
-        h("p", { class: "small" }, "A paired device signs in by itself. A ", h("strong", {}, "helper"), " can start, stop and restart servers, make backups, run updates and manage players; " +
-          "a ", h("strong", {}, "viewer"), " can only look. Neither can change settings, mods or files, or use the console, and what they do shows in the activity with their name. " +
-          "Pair a friend who helps run the server the same way, on their own phone or computer. Changing your password signs all devices out."),
+      step(4, "People, and their phones",
+        h("p", { class: "small" }, "Invite someone who helps run a server: they sign in with their own username and password, and only see the servers you give them, with what you choose they may do there (People). ",
+          "A phone paired for a person signs in by itself, and can do what that person can, never more. What they do shows in the activity with their name."),
+        h("div", { class: "row" }, h("button", { class: "btn", onclick: () => { close(); openPeople(); } }, "People…")),
+        !signedUp.length ? h("p", { class: "small muted" }, "To pair a phone, invite its owner first (People), and let them use their link.") : null,
         r.addresses.length ? [h("div", { class: "row" }, addr, role, pair), addrNote] : h("p", { class: "small muted" }, "No network address found for this computer."),
         !r.running_on_network ? h("p", { class: "small muted" }, "Pairing works once remote access has been applied.") : null,
         pairBox),
       step(5, "Paired phones", devices,
+        r.devices.length ? h("p", { class: "muted small" }, "Phones from before phones belonged to a person no longer sign in: pair them again for a person.") : null,
         r.devices.length > 1 ? h("button", { class: "btn ghost small", onclick: async () => (await ask("Sign out every paired phone?", { ok: "Sign out all", danger: true })) &&
           act(() => api("/api/hub/devices/remove", { method: "POST", body: { id: "all" } }), "All phones signed out").then(load) }, "Sign out all") : null),
       onDone ? h("button", { class: "btn primary mt", disabled: r.configured !== r.running_on_network,
@@ -5635,6 +5689,280 @@ function showGetApp(installed = false) {
   pairingScreen(h("h2", {}, "Paired ✓"), h("p", {}, "Now put Craft Conductor on your home screen: it opens like an app, and can tell you when a server needs you."),
     how, later);
   $("#pairing").dataset.getApp = "1";
+}
+
+// ------------------------------------------------------------------ people (access.py, users.py)
+// The owner invites people to the control panel: each gets their own sign-in, and on each server
+// they're given, a preset (Viewer, Moderator, Operator, Manager) or permissions ticked one by one.
+// The server checks every request; the page only leaves out what they couldn't use.
+
+// The invite link someone was sent: who it's for, then their username and password.
+async function showInvite(token) {
+  let info = null, problem = "";
+  try { info = await api("/api/invite", { method: "POST", body: { token } }); } catch (e) { problem = e.message; }
+  if (!info) {
+    pairingScreen(h("h2", {}, "This invite link doesn't work"), h("p", {}, problem),
+      h("p", { class: "muted small" }, "Ask whoever sent it for a new one. Each link works once, for a day."),
+      h("button", { class: "btn", onclick: () => { history.replaceState(null, "", location.pathname); $("#pairing").remove(); showLogin(); } }, "Go to the sign-in page"));
+    return;
+  }
+  const user = h("input", { value: info.username || "", readonly: !!info.username, autocomplete: "username", autocapitalize: "none",
+    spellcheck: "false", maxlength: 32, "aria-label": "Username" });
+  const p1 = h("input", { type: "password", autocomplete: "new-password", "aria-label": "Password" });
+  const p2 = h("input", { type: "password", autocomplete: "new-password", "aria-label": "Repeat it" });
+  const error = h("p", { class: "error", role: "alert" });
+  const go = h("button", { class: "btn primary", onclick: async () => {
+    error.textContent = "";
+    if (!strongPassword(p1.value)) { error.textContent = t("The password needs at least 12 characters, with an uppercase letter, a lowercase letter and a special character."); return; }
+    if (p1.value !== p2.value) { error.textContent = t("The two passwords don't match"); return; }
+    go.disabled = true;
+    try {
+      await api("/api/invite/accept", { method: "POST", body: { token, username: user.value.trim(), password: p1.value } });
+      history.replaceState(null, "", location.pathname);
+      try { localStorage.setItem(USERNAME_KEY, "1"); } catch (_) {}
+      toast("Welcome! You're signed in.");
+      start();
+    } catch (e) { error.textContent = e.message; go.disabled = false; }
+  } }, info.username ? "Set my new password" : "Create my sign-in");
+  pairingScreen(h("h2", {}, t("Welcome, {name}").replace("{name}", info.name)),
+    h("p", {}, info.username ? t("Choose a new password for your Craft Conductor sign-in.")
+      : t("You've been invited to help with a Minecraft server. Choose a username and a password: you'll sign in with them from now on.")),
+    h("label", {}, "Username", user, info.username ? null : h("span", { class: "muted small" }, "3 to 32 letters, digits, dots, dashes or underscores.")),
+    h("label", {}, "Password", pwField(p1)), passwordChecklist(p1), h("label", {}, "Repeat it", pwField(p2)),
+    error, go,
+    h("p", { class: "muted small" }, "This link works once. What you can do on each server was chosen by the owner; ask them if you need more."));
+  (info.username ? p1 : user).focus();
+}
+
+// Labels and presets, from GET /api/hub/users (access.catalog).
+function capLabel(catalog, id) {
+  for (const g of catalog.groups) for (const c of g.caps) if (c.id === id) return c;
+  return { id, label: id, risk: null };
+}
+function presetOf(catalog, caps) {
+  const p = catalog.presets.find((x) => x.caps.length === caps.size && x.caps.every((c) => caps.has(c)));
+  return p ? p.id : "custom";
+}
+function withImplied(catalog, caps) {
+  const out = new Set(caps);
+  if (out.size) out.add("status.view");
+  for (const [a, b] of Object.entries(catalog.implies || {})) if (out.has(a)) out.add(b);
+  return out;
+}
+// "Manager", or "Viewer, and: Type console commands", or the permissions themselves: a short line.
+function accessSummary(catalog, caps) {
+  const preset = presetOf(catalog, caps);
+  if (preset !== "custom") return catalog.presets.find((p) => p.id === preset).name;
+  const base = [...catalog.presets].reverse().find((p) => p.caps.every((c) => caps.has(c)));
+  const extra = [...caps].filter((c) => !base || !base.caps.includes(c)).map((c) => capLabel(catalog, c).label);
+  return (base ? t(base.name) + (extra.length ? ", " + t("and:") + " " : "") : "") + extra.map((x) => t(x)).join("; ");
+}
+function risky(catalog, caps) { return [...caps].map((c) => capLabel(catalog, c)).filter((c) => c.risk); }
+
+// One server's row in the invite and edit forms: whether they get it, a preset, the summary, and
+// "Customize permissions" (grouped checkboxes; the risky ones say why when ticked).
+function grantRow(catalog, srv, start, onChange) {
+  const st = { on: start.size > 0, caps: new Set(start.size ? start : catalog.presets.find((p) => p.id === catalog.default).caps) };
+  const include = h("input", { type: "checkbox", checked: st.on, "aria-label": t("Give access to {name}").replace("{name}", srv.name) });
+  const role = h("select", { "aria-label": t("Role on {name}").replace("{name}", srv.name) },
+    catalog.presets.map((p) => h("option", { value: p.id }, p.name)), h("option", { value: "custom" }, "Custom"));
+  const summary = h("p", { class: "muted small grant-summary", role: "status" });
+  const warnings = h("div", {});
+  const boxes = new Map();
+  const groups = catalog.groups.map((g) => h("fieldset", { class: "cap-group" }, h("legend", {}, g.name),
+    g.caps.map((c) => {
+      const box = h("input", { type: "checkbox", disabled: c.id === "status.view" });
+      box.addEventListener("change", () => {
+        if (box.checked) st.caps.add(c.id); else st.caps.delete(c.id);
+        st.caps = withImplied(catalog, st.caps);
+        draw();
+      });
+      boxes.set(c.id, box);
+      return h("label", { class: "check-row cap" + (c.risk ? " risky" : "") }, box, h("span", {}, c.label, c.risk ? h("span", { class: "tag warn" }, "risky") : null));
+    })));
+  const custom = h("details", { class: "customize" }, h("summary", {}, "Customize permissions"), ...groups);
+  const draw = () => {
+    role.value = presetOf(catalog, st.caps);
+    for (const [id, box] of boxes) box.checked = st.caps.has(id);
+    role.disabled = custom.disabled = !st.on;
+    custom.classList.toggle("hidden", !st.on);
+    const p = catalog.presets.find((x) => x.id === role.value);
+    summary.textContent = !st.on ? t("No access to this server (they won't see it).") : p ? t(p.summary) : t("Custom:") + " " + accessSummary(catalog, st.caps);
+    fill(warnings, st.on ? risky(catalog, st.caps).map((c) => h("div", { class: "notice warn small" }, h("strong", {}, t(c.label) + ": "), t(c.risk))) : null);
+    onChange();
+  };
+  include.addEventListener("change", () => { st.on = include.checked; draw(); });
+  role.addEventListener("change", () => {
+    const p = catalog.presets.find((x) => x.id === role.value);
+    if (p) st.caps = new Set(p.caps); else custom.open = true;
+    draw();
+  });
+  const el = h("div", { class: "grant-row" },
+    h("div", { class: "row" }, h("label", { class: "check-row grow" }, include, h("strong", {}, srv.name)), role),
+    summary, warnings, custom);
+  draw();
+  return { el, value: () => (st.on ? [...st.caps].sort() : null) };
+}
+
+// The invite form (person: null) or the edit form.
+function editPerson(r, person, done) {
+  if ($("#person")) return;
+  const catalog = r.catalog;
+  const name = h("input", { value: person ? person.name : "", maxlength: 40, "aria-label": "Their name" });
+  const rows = r.servers.map((s) => ({ s, row: grantRow(catalog, s, new Set(person ? person.grants[s.id] || [] : r.servers.length === 1 ? catalog.presets.find((p) => p.id === catalog.default).caps : []), () => {}) }));
+  const addr = r.addresses.length ? h("select", { "aria-label": "The address in the link" },
+    r.addresses.map((a) => h("option", { value: a.host, "data-kind": a.kind }, a.label || a.host))) : null;
+  const close = () => $("#person").remove();
+  const save = h("button", { class: "btn primary", onclick: async () => {
+    const grants = {};
+    for (const { s, row } of rows) { const v = row.value(); if (v) grants[s.id] = v; }
+    if (!Object.keys(grants).length && !person) { toast("Pick at least one server for them.", true); return; }
+    const risks = [...new Set(Object.values(grants).flatMap((caps) => risky(catalog, new Set(caps)).map((c) => t(c.label))))];
+    if (risks.length && !(await ask(t("Give {name} these risky permissions? {list}").replace("{name}", name.value.trim() || t("them")).replace("{list}", risks.join("; ")),
+      { ok: "Give them", danger: true }))) return;
+    save.disabled = true;
+    try {
+      if (person) {
+        await api("/api/hub/users/update", { method: "POST", body: { id: person.id, name: name.value, grants } });
+        toast(t("Saved: it counts at once"));
+        close(); done();
+        return;
+      }
+      const res = await api("/api/hub/users/invite", { method: "POST", body: { name: name.value, grants, host: addr ? addr.value : "" } });
+      close(); done();
+      showLink(name.value.trim(), res, false);
+    } catch (e) { toast(e.message, true); save.disabled = false; }
+  } }, person ? "Save" : "Make the invite link");
+  document.body.append(h("div", { class: "modal-backdrop", id: "person", role: "dialog", "aria-modal": "true", "aria-labelledby": "person-title" },
+    h("div", { class: "modal person" },
+      h("div", { class: "row modal-head" }, h("h2", { id: "person-title", class: "grow" }, person ? t("Edit {name}").replace("{name}", person.name) : t("Invite someone")),
+        h("button", { class: "btn ghost small", onclick: close }, "Close")),
+      h("label", {}, "Their name (shown to you, and in the activity)", name),
+      h("h3", {}, "Servers, and what they may do there"),
+      h("p", { class: "muted small" }, "Each server they're not given stays hidden from them. A new person starts as a Viewer. Risky permissions are never part of a role: tick them under Customize permissions, only for someone you trust with this computer."),
+      rows.map((x) => x.row.el),
+      person ? null : addr ? h("label", {}, "The address in the link (one they can reach)", addr)
+        : h("p", { class: "small muted" }, "No network address found for this computer."),
+      person ? null : h("p", { class: "muted small" }, t("The link works once, for {hours} hours. Craft Conductor settings and other servers stay yours: they can't invite anyone, or change what they may do.").replace("{hours}", r.invite_hours)),
+      h("div", { class: "row" }, save, h("button", { class: "btn ghost", onclick: close }, "Cancel")))));
+  name.focus();
+}
+
+// A one-time link (an invite, or a new sign-in link): the QR code, the link to copy, how long it works.
+function showLink(who, res, again) {
+  const input = h("input", { readonly: true, value: res.url, class: "mono", "aria-label": "The link" });
+  const close = () => $("#person-link").remove();
+  document.body.append(h("div", { class: "modal-backdrop", id: "person-link", role: "dialog", "aria-modal": "true", "aria-labelledby": "person-link-title" },
+    h("div", { class: "modal compact" },
+      h("h2", { id: "person-link-title" }, again ? t("New sign-in link for {name}").replace("{name}", who) : t("Invite link for {name}").replace("{name}", who)),
+      h("img", { class: "qr", alt: "QR code of the link", src: "data:image/svg+xml;base64," + btoa(res.qr) }),
+      h("div", { class: "row" }, input, h("button", { class: "btn", onclick: async () => {
+        try { await navigator.clipboard.writeText(res.url); toast("Link copied"); } catch (_) { input.select(); toast("Select the link and copy it", true); }
+      } }, "Copy")),
+      h("p", { class: "small" }, t("Send it to {name} only (not in a group chat): it works once, for {hours} hours, and whoever opens it first chooses the sign-in.")
+        .replace("{name}", who).replace("{hours}", Math.round(res.expires_in / 3600))),
+      again ? h("p", { class: "small muted" }, "Their old password, fingerprint sign-ins and paired phones stopped working just now.") : null,
+      h("button", { class: "btn primary", onclick: close }, "Close"))));  // (Escape closes it too)
+  input.select();
+}
+
+// Craft Conductor settings → Sign-in & security → People: everyone invited, and what they may do.
+function openPeople() {
+  if ($("#people")) return;
+  const body = h("div", {});
+  const close = () => $("#people").remove();
+  document.body.append(h("div", { class: "modal-backdrop", id: "people", role: "dialog", "aria-modal": "true", "aria-labelledby": "people-title" },
+    h("div", { class: "modal remote" },
+      h("div", { class: "row modal-head" }, h("h2", { id: "people-title", class: "grow" }, "People"), h("button", { class: "btn ghost small", onclick: close }, "Close")),
+      body)));
+  const load = async () => {
+    const r = await api("/api/hub/users").catch((e) => { fill(body, h("div", { class: "notice bad" }, e.message)); return null; });
+    if (!r) return;
+    if (!r.available) { fill(body, h("p", {}, "Inviting people is part of Craft Conductor's server list. Start Craft Conductor by double-clicking it (or `craft-conductor start`).")); return; }
+    const names = Object.fromEntries(r.servers.map((s) => [s.id, s.name]));
+    const addr = r.addresses.length ? h("select", { "aria-label": "The address in new links" },
+      r.addresses.map((a) => h("option", { value: a.host }, a.label || a.host))) : null;
+    const phones = (id) => r.devices.filter((d) => d.user_id === id);
+    const strong = hubInfo && hubInfo.auth && hubInfo.auth.strong;
+    fill(body,
+      h("p", { class: "muted small" }, "People you invite sign in with their own username and password, from their own phone or computer, and only see the servers you give them. What they do shows in each server's activity with their name. You stay the owner: only you can invite people, change what they may do, update Craft Conductor or change remote access."),
+      !strong ? h("div", { class: "notice warn small" }, "First set a strong password for yourself (Remote access & phones, step 1): people sign in from other devices.") : null,
+      h("div", { class: "row" }, h("button", { class: "btn primary", disabled: !strong || !r.addresses.length, onclick: () => editPerson(r, null, load) }, "Invite someone"),
+        addr ? h("span", { class: "muted small grow" }, "Links use: ", addr) : null),
+      r.people.length ? h("ul", { class: "list people" }, r.people.map((p) => h("li", {},
+        h("div", { class: "grow" },
+          h("strong", {}, p.name), " ", p.username ? h("span", { class: "muted small" }, `(${p.username})`)
+            : h("span", { class: "tag warn" }, p.invite_expires ? t("invite not used yet") : t("invite expired")),
+          h("div", { class: "small" }, Object.keys(p.grants).length ? Object.entries(p.grants).map(([sid, caps]) =>
+            `${names[sid] || sid}: ${accessSummary(r.catalog, new Set(caps))}`).join(" · ") : t("No servers")),
+          risky(r.catalog, new Set(Object.values(p.grants).flat())).length
+            ? h("div", { class: "small warn-text" }, "⚠ " + t("Has risky permissions:") + " " + [...new Set(Object.values(p.grants).flatMap((c) => risky(r.catalog, new Set(c)).map((x) => t(x.label))))].join("; ")) : null,
+          h("div", { class: "muted small" }, p.invite_expires ? t("The link works until {time}.").replace("{time}", fmtTime(p.invite_expires)) : "",
+            phones(p.id).length ? " " + t("Phones: {list}").replace("{list}", phones(p.id).map((d) => d.name).join(", ")) : "")),
+        h("div", { class: "row" },
+          h("button", { class: "btn small", onclick: () => editPerson(r, p, load) }, "Edit"),
+          h("button", { class: "btn small ghost", disabled: !addr, onclick: async () => {
+            if (!(await ask(t("Make a new sign-in link for {name}? Their password, fingerprint sign-ins and paired phones stop working now, until they use the link.").replace("{name}", p.name), { ok: "Make a new link" }))) return;
+            const res = await act(() => api("/api/hub/users/new-link", { method: "POST", body: { id: p.id, host: addr.value } }));
+            if (res) { showLink(p.name, res, true); load(); }
+          } }, "New sign-in link"),
+          p.invite_expires && !p.username ? h("button", { class: "btn small ghost", onclick: () => act(() => api("/api/hub/users/cancel-link", { method: "POST", body: { id: p.id } }), "The link no longer works").then(load) }, "Cancel the link") : null,
+          h("button", { class: "btn small danger", onclick: async () => (await ask(t("Remove {name}? They're signed out everywhere at once (their phones too).").replace("{name}", p.name), { ok: "Remove", danger: true })) &&
+            act(() => api("/api/hub/users/remove", { method: "POST", body: { id: p.id } }), t("{name} removed").replace("{name}", p.name)).then(load) }, "Remove")))))
+        : h("p", { class: "empty" }, "Nobody invited yet."),
+      h("p", { class: "muted small" }, "Their phones: pair one for a person in Remote access & phones."));
+  };
+  load();
+}
+
+// Craft Conductor settings for an invited person: their own sign-in (and their phones).
+function accountCard() {
+  const box = h("div", { class: "mb" });
+  const render = (a) => {
+    if (!a || a.owner) { fill(box); return; }
+    const cur = h("input", { type: "password", autocomplete: "current-password", "aria-label": "Current password" });
+    const p1 = h("input", { type: "password", autocomplete: "new-password", "aria-label": "New password" });
+    const p2 = h("input", { type: "password", autocomplete: "new-password", "aria-label": "Repeat it" });
+    const change = h("button", { class: "btn primary", onclick: async () => {
+      if (!strongPassword(p1.value)) { toast(`The password needs ${a.rules}.`, true); return; }
+      if (p1.value !== p2.value) { toast("The two passwords don't match", true); return; }
+      const ok = await act(() => api("/api/account/password", { method: "POST", body: { current: cur.value, new: p1.value } }), "Password changed; your other sign-ins were signed out");
+      if (ok) { cur.value = p1.value = p2.value = ""; }
+    } }, "Change password");
+    const addKey = async () => {
+      try {
+        const o = await api("/api/account/passkeys/options", { method: "POST", body: {} });
+        const cred = await navigator.credentials.create({ publicKey: { ...o, challenge: b64uBytes(o.challenge),
+          user: { ...o.user, id: b64uBytes(o.user.id) }, excludeCredentials: o.excludeCredentials.map((c) => ({ type: c.type, id: b64uBytes(c.id) })) } });
+        const done = await api("/api/account/passkeys/add", { method: "POST", body: { name: deviceName(),
+          client_data: b64uOf(cred.response.clientDataJSON), attestation: b64uOf(cred.response.attestationObject) } });
+        toast("Fingerprint or face sign-in added on this device");
+        render({ ...a, passkeys: done.passkeys });
+      } catch (err) {
+        if (err.name === "InvalidStateError") toast("This device already has one for Craft Conductor.", true);
+        else if (err.name !== "NotAllowedError") toast(err.message, true);
+      }
+    };
+    fill(box, card("Your account",
+      h("p", {}, h("strong", {}, a.name), " ", h("span", { class: "muted" }, `(${a.username})`)),
+      h("p", { class: "muted small" }, "The owner of this Craft Conductor invited you and chose what you may do on each server. Ask them if you need more, or if you forget your password (they can send you a new sign-in link)."),
+      h("h4", {}, "Change your password"),
+      h("div", { class: "grid" }, h("label", {}, "Current password", pwField(cur)), h("label", {}, "New password", pwField(p1)), h("label", {}, "Repeat it", pwField(p2))),
+      passwordChecklist(p1), h("div", { class: "row" }, change),
+      h("h4", {}, "Fingerprint or face sign-in"),
+      a.passkeys.length ? h("ul", { class: "list" }, a.passkeys.map((k) => h("li", {},
+        h("span", { class: "grow" }, k.name, h("span", { class: "muted small" }, ` · ${k.rp_id}`)),
+        h("button", { class: "btn small ghost", onclick: async () => {
+          const res = await act(() => api("/api/account/passkeys/remove", { method: "POST", body: { id: k.id } }), "Removed");
+          if (res) render({ ...a, passkeys: res.passkeys });
+        } }, "Remove")))) : null,
+      passkeysWork() ? h("button", { class: "btn", onclick: addKey }, "Add fingerprint or face sign-in on this device")
+        : h("p", { class: "muted small" }, "This page isn't on a secure address, so this browser can't use fingerprint or face sign-in here."),
+      a.devices.length ? [h("h4", {}, "Your paired phones"), h("ul", { class: "list" }, a.devices.map((d) => h("li", {}, d.name,
+        h("span", { class: "muted small" }, ` · ${t("last used")} ${ago(d.last_seen)}`))))] : null));
+  };
+  api("/api/account").then(render).catch(() => render(null));
+  return box;
 }
 
 // ------------------------------------------------------------------ Discord
@@ -6188,7 +6516,7 @@ views.servers = () => {
   let memAt = 0;
   const render = (hb) => {
     if (!hb) return;
-    if (Date.now() - memAt > 15000) {  // (the memory given to the running servers; every 15 s is plenty)
+    if (isOwner() && Date.now() - memAt > 15000) {  // (the memory given to the running servers; every 15 s is plenty)
       memAt = Date.now();
       api("/api/hub/memory").then((m) => { memLine.textContent = m.total_gb ? t("Memory given to the running servers: {used} GB of this computer's {total} GB.")
         .replace("{used}", m.running_gb).replace("{total}", m.total_gb) : ""; }).catch(() => null);
@@ -6203,18 +6531,19 @@ views.servers = () => {
           h("strong", { class: "grow server-name" }, s.name)),
         h("div", { class: "muted" }, s.problem || (s.minecraft ? `Minecraft ${s.minecraft} · ${s.loader}` : `${s.loader} · not installed yet`)),
         s.state === "unavailable" || s.setup_pending ? null
-          : h("div", { class: "muted small" }, `${s.players} / ${s.max_players} players · port ${s.port}`, s.update ? " · update ready" : ""),
+          : h("div", { class: "muted small" }, `${s.players} / ${s.max_players} players` + (s.port ? ` · port ${s.port}` : ""), s.update ? " · update ready" : ""),
         s.job ? h("div", { class: "row small" }, h("span", { class: "spinner" }), `${s.job.name}…`) : null,
         s.state === "unavailable" ? null : h("div", { class: "row mt-s" },
-          s.setup_pending ? h("a", { class: "btn primary", href: `#s/${s.id}/setup`, "data-fkey": `${s.id}:power` }, s.job ? "See progress" : "Finish setup")
+          s.setup_pending ? (can("runtime.configure", s.id) ? h("a", { class: "btn primary", href: `#s/${s.id}/setup`, "data-fkey": `${s.id}:power` }, s.job ? "See progress" : "Finish setup") : null)
+            : !can("server.power", s.id) ? null
             : s.state === "stopped"
               ? h("button", { class: "btn primary", disabled: !!s.job || busy.has(s.id), onclick: () => control(s, "start"), "data-fkey": `${s.id}:power` }, "Start")
               : h("button", { class: "btn danger", disabled: busy.has(s.id), onclick: () => control(s, "stop"), "data-fkey": `${s.id}:power` }, "Stop"),
           s.setup_pending ? null : h("a", { class: "btn", href: `#s/${s.id}/dashboard`, "data-fkey": `${s.id}:open` }, "Open"),
-          !hb.single && !s.job ? h("button", { class: "btn ghost", onclick: () => deleteServer(s, refreshStatus), "data-fkey": `${s.id}:delete` }, "Delete") : null),
-        h("div", { class: "row" }, h("div", { class: "muted small folder grow" }, s.folder),
+          !hb.single && !s.job && can("server.delete", s.id) ? h("button", { class: "btn ghost", onclick: () => deleteServer(s, refreshStatus), "data-fkey": `${s.id}:delete` }, "Delete") : null),
+        !isOwner() ? null : h("div", { class: "row" }, h("div", { class: "muted small folder grow" }, s.folder),
           ((b) => { if (b) b.setAttribute("data-fkey", `${s.id}:folder`); return b; })(folderBtn("server", "Folder", s.id))))),
-      hb.single ? null : h("a", { class: "card server-card new", href: "#new", "data-fkey": "new" },
+      hb.single || !isOwner() ? null : h("a", { class: "card server-card new", href: "#new", "data-fkey": "new" },
         h("strong", {}, "+ New server"), h("span", { class: "muted small" }, "Pick a server type, Minecraft version and mods")));
   };
   // Import a server exported on another computer (Settings → Export). An export leaves the
@@ -6267,13 +6596,13 @@ views.servers = () => {
       importNote.textContent = "";
     }
   });
-  const sp = hubInfo && !hubInfo.single ? singleplayerCard() : null;
+  const sp = hubInfo && !hubInfo.single && isOwner() ? singleplayerCard() : null;
   fill($("#main"),
     closingTip(),
     h("div", { class: "row mb wrap" },
       h("p", { class: "muted grow" }, "Servers only run when you start them here, and stop when you press Stop or Quit Craft Conductor."),
       hubInfo && hubInfo.guide ? h("button", { class: "btn ghost", title: "Step by step from making a server to a friend joining it", onclick: startGuide }, "🧭 Guided setup") : null,
-      hubInfo && hubInfo.single ? null : h("div", { class: "row" }, importNote, importBtn, picker)),
+      hubInfo && hubInfo.single || !isOwner() ? null : h("div", { class: "row" }, importNote, importBtn, picker)),
     importProblem,
     memLine,
     list,
@@ -6989,6 +7318,18 @@ function phoneCard({ deviceOnly = false } = {}) {  // deviceOnly: just this phon
 }
 
 views["craft-conductor"] = () => {
+  if (!isOwner()) {
+    const sections = [
+      ["Your account", "Your username, password and fingerprint sign-in.", accountCard()],
+      ["Appearance", "Language, size, contrast and motion on this device.", languageCard(), displayCard()],
+      ["Sounds & notifications", "Choose what you hear and which alerts you see.", soundsCard(), notificationsCard(),
+        hubInfo && !hubInfo.single ? phoneCard({ deviceOnly: true }) : null],
+    ];
+    fill($("#main"), h("h2", { class: "view-title" }, "Craft Conductor settings"),
+      ...sections.map(([title, description, ...cards]) => h("section", { class: "preferences-panel" },
+        h("h3", {}, title), h("p", { class: "muted" }, description), ...cards.filter(Boolean))));
+    return {};
+  }
   const security = h("div", { class: "mb" });
   const network = h("div", { class: "mb" });
   const sharing = h("div", { class: "mb", id: "sharing" });
@@ -7143,7 +7484,9 @@ views["craft-conductor"] = () => {
   const sections = [
     ["Appearance", "Language, size, contrast and motion on this device.", languageCard(), displayCard()],
     ["Sounds & notifications", "Choose what you hear and which alerts you see.", soundsCard(), notificationsCard(), warningsCard()],
-    ["Sign-in & security", "Manage how you and your devices sign in.", security, owner ? passkeyCard() : null],
+    ["Sign-in & security", "Manage how you and your devices sign in, and who else may help.", security, owner ? passkeyCard() : null,
+      owner && hubInfo && !hubInfo.single ? card("People", h("p", { class: "muted small" }, "Invite people to help: each signs in with their own username and password and only sees the servers you give them, with what you choose they may do there."),
+        h("button", { class: "btn", onclick: openPeople }, "People…")) : null],
     ["Connections", "Phones, sharing with friends and connected services.", network, phone, sharing, cf, dc,
       owner && hubInfo && !hubInfo.single ? conflictsCard() : null],
     ["About & updates", "Craft Conductor version, updates and licenses.", about, firewallCard],
@@ -8438,7 +8781,6 @@ views.setup = () => {
 };
 
 // ------------------------------------------------------------------- router
-const PHONE_VIEWS = ["dashboard", "players", "updates", "backups"];  // what a paired phone can use
 const SERVER_VIEWS = [["dashboard", "Dashboard"], ["console", "Console"], ["players", "Players"], ["updates", "Updates"],
   ["mods", "Mods"], ["friends", "Friends"], ["backups", "Backups"], ["java", "Java"], ["settings", "Settings"]];
 let currentName = null;
@@ -8460,21 +8802,24 @@ function renderNav() {
   const a = (href, label, active, extra) => h("a", { href, class: active ? "active" : null, "aria-current": active ? "page" : null, "data-fkey": href }, navIcon(href), h("span", {}, label), extra || null);
   const me = server && hb.servers ? hb.servers.find((x) => x.id === server) : null;
   const pending = me ? me.setup_pending : false;
-  refill($("#nav"), JSON.stringify([server, me && me.name, pending, !!(me && me.update), currentName, !!hb.single, hb.device || null, !!hb.self_update]),
+  refill($("#nav"), JSON.stringify([server, me && me.name, pending, !!(me && me.update), currentName, !!hb.single, hb.device || null, !!hb.self_update,
+    hb.role || null, hb.access || null]),
     server ? [
       hb.single ? null : a("#servers", "← All servers", false),
       h("div", { class: "nav-server" }, me ? me.name : server),
       pending ? a(link("setup"), "Setup", currentName === "setup")
-        : SERVER_VIEWS.filter(([v]) => !hb.device || PHONE_VIEWS.includes(v)).map(([v, label]) => a(link(v), label, currentName === v,
+        : SERVER_VIEWS.filter(([v]) => canView(v)).map(([v, label]) => a(link(v), label, currentName === v,
             v === "updates" ? h("span", { id: "nav-update-dot", class: "dot" + (me && me.update ? "" : " hidden"), role: "img", "aria-label": "An update is ready" }) : null)),
     ] : [
       a("#servers", "Servers", currentName === "servers"),
-      hb.single || hb.device ? null : a("#new", "New server", currentName === "new"),
+      hb.single || !isOwner() ? null : a("#new", "New server", currentName === "new"),
     ],
     h("div", { class: "nav-sep" }),
     a("#help", "Help", currentName === "help"),
     a("#manual", "User manual", currentName === "manual"),
-    hb.device ? h("div", { class: "nav-server small", title: "A paired phone has the everyday controls only" }, `📱 ${hb.device} (limited)`)
+    !isOwner() ? [h("div", { class: "nav-server small", title: t("Signed in as someone the owner invited") },
+        `${hb.device ? "📱" : "👤"} ${hb.user ? hb.user.name : ""}${hb.device ? ` (${hb.device})` : ""}`),
+      a("#craft-conductor", "Craft Conductor settings", currentName === "craft-conductor")]
       : a("#craft-conductor", "Craft Conductor settings", currentName === "craft-conductor", updateDot()));
   const inServer = !!server;
   $(".server-id").classList.toggle("hidden", !inServer);
@@ -8508,9 +8853,11 @@ function route() {
   if (m) {
     server = m[1];
     view = m[2] === "setup" || SERVER_VIEWS.some(([v]) => v === m[2]) ? m[2] : "dashboard";
+    if (!canView(view)) view = "dashboard";
   } else {
     server = null;
     view = ["servers", "new", "craft-conductor", "help", "manual"].includes(hash) ? hash : "servers";
+    if (view === "new" && !isOwner()) view = "servers";
   }
   if (server !== before) { status = null; lastJobSeen = null; }
   currentName = view;
@@ -8575,6 +8922,7 @@ syncAppNavigation();
 async function start() {
   await loadLanguage("/");  // (i18n.js: the chosen language's words, before anything is drawn)
   if (/^#pair=/.test(location.hash)) { showPairing(location.hash.slice(6)); return; }
+  if (/^#invite=/.test(location.hash)) { showInvite(location.hash.slice(8)); return; }
   if ($("#pairing")) $("#pairing").remove();
   try { hubInfo = await api("/api/hub"); } catch (_) { return; }
   $("#login").classList.add("hidden");
