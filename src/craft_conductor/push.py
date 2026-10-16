@@ -236,9 +236,13 @@ class Push:
             subs = [s for s in subs if s.get("who") == "owner" or (
                 s.get("who") and sid and self.audience is not None and self.audience(s["who"], sid))]
         message = {k: v for k, v in message.items() if k not in ("kind", "sid")}
-        payload = json.dumps(message, separators=(",", ":")).encode()
+        if sid:
+            message["sid"] = sid  # (the page's bell shows which server it was about)
         results, gone = [], []
         for s in subs:
+            # Whose device it is: the page keeps a push for its bell only when that person is signed in there
+            # (someone else signing in on the same browser doesn't see it). Encrypted for this device alone.
+            payload = json.dumps({**message, "who": s.get("who") or ""}, separators=(",", ":")).encode()
             try:
                 status = self._post(key, s, payload, message.get("tag") or "")
             except (OSError, ValueError) as e:
