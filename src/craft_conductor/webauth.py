@@ -254,20 +254,19 @@ def _digest(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-# What a paired device may do. Helper: the everyday controls (start, stop, restart, backups,
-# updates, players; see web.DEVICE_POSTS). Viewer: look only. Phones paired before roles existed
-# are helpers. Neither can change settings, mods, files or the sign-in, or use the console.
-ROLES = ("helper", "viewer")
+# A paired phone belongs to one invited person (users.py) and can do exactly what they can, on
+# their servers, never more (access.py). Phones paired before that (the old "helper" and
+# "viewer" phones, which could act on every server) no longer sign in: pair them again for a person.
 
 
 class Devices:
     """Phones paired by scanning a QR code: each has its own key (only its hash is kept here),
-    can be removed on its own, and is limited to everyday controls (see web.DEVICE_ROUTES)."""
+    belongs to one invited person, and can be removed on its own."""
 
     def __init__(self, state_dir):
         self.path = state_dir / DEVICES_FILE
         self._lock = threading.Lock()
-        self._codes: dict[str, tuple[float, str]] = {}   # digest of a pairing code -> (when it expires, role)
+        self._codes: dict[str, tuple[float, str]] = {}   # digest of a pairing code -> (when it expires, the person's id)
         self._cache: tuple[tuple, list[dict]] | None = None  # (the file's stat, its devices)
 
     def _read(self) -> list[dict]:
@@ -288,34 +287,44 @@ class Devices:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         private.write_text(self.path, json.dumps({"devices": devices}, indent=2) + "\n")
 
-    def new_code(self, now: float, role: str = "helper") -> str:
-        """A one-time pairing code; the role (see ROLES) is decided here, by the owner, never by
-        whoever uses the code."""
-        if role not in ROLES:
-            raise ConfigError("unknown role")
+    def drop_unowned(self) -> int:
+        """Forget phones that belong to nobody (paired before phones belonged to a person)."""
+        with self._lock:
+            devices = self._read()
+            kept = [d for d in devices if d.get("user_id")]
+            if len(kept) != len(devices):
+                self._write(kept)
+            return len(devices) - len(kept)
+
+    def new_code(self, now: float, user_id: str) -> str:
+        """A one-time pairing code for a phone of this person, who's decided here, by the owner,
+        never by whoever uses the code."""
+        if not user_id:
+            raise ConfigError("pick the person whose phone this is")
         raw = "".join(secrets.choice(CODE_LETTERS) for _ in range(12))
         with self._lock:
             live = sorted(((c, v) for c, v in self._codes.items() if v[0] > now), key=lambda x: x[1][0])
             self._codes = dict(live[-(MAX_CODES - 1):])
-            self._codes[_digest(raw)] = (now + PAIR_SECONDS, role)
+            self._codes[_digest(raw)] = (now + PAIR_SECONDS, user_id)
         return f"{raw[:4]}-{raw[4:8]}-{raw[8:]}"
 
-    def cancel_codes(self) -> int:
+    def cancel_codes(self, user_id: str | None = None) -> int:
         """Pairing codes not used yet stop working (e.g. the QR code was shown to the wrong person)."""
         with self._lock:
-            n, self._codes = len(self._codes), {}
+            kept = {c: v for c, v in self._codes.items() if user_id is not None and v[1] != user_id}
+            n, self._codes = len(self._codes) - len(kept), kept
         return n
 
     def pair(self, code: str, name: str, ip: str, now: float) -> tuple[str, dict]:
         """Use up a pairing code; returns the new phone's key and its record."""
         with self._lock:
-            exp, role = self._codes.pop(_digest(pair_code(code)), (None, None))
+            exp, user_id = self._codes.pop(_digest(pair_code(code)), (None, None))
             if exp is None or exp < now:
                 raise ConfigError("that pairing code has expired or was already used; make a new one")
             token = secrets.token_urlsafe(32)
             device = {"id": secrets.token_hex(6), "name": (re.sub(r"[^\w .'()-]", "", name).strip() or "Phone")[:40],
                       "hash": _digest(token), "created": now, "expires": now + DEVICE_DAYS * 86400,
-                      "last_seen": now, "last_ip": ip, "role": role}
+                      "last_seen": now, "last_ip": ip, "user_id": user_id}
             devices = self._read()
             devices.append(device)
             self._write(devices)
@@ -328,7 +337,7 @@ class Devices:
         with self._lock:
             devices = self._read()
             for d in devices:
-                if hmac.compare_digest(d.get("hash", ""), digest) and d.get("expires", 0) > now:
+                if hmac.compare_digest(d.get("hash", ""), digest) and d.get("expires", 0) > now and d.get("user_id"):
                     return d
         return None
 
@@ -342,15 +351,21 @@ class Devices:
                     return
 
     def list(self) -> list[dict]:
-        return [{**{k: d.get(k) for k in ("id", "name", "created", "last_seen", "last_ip", "expires")},
-                 "role": d.get("role") if d.get("role") in ROLES else "helper"} for d in self._read()]
+        return [{k: d.get(k) for k in ("id", "name", "created", "last_seen", "last_ip", "expires", "user_id")}
+                for d in self._read() if d.get("user_id")]
 
-    def remove(self, device_id: str | None = None) -> int:
-        """Remove one phone, or all of them (``None``: pairing codes not used yet stop working too)."""
+    def remove(self, device_id: str | None = None, user_id: str | None = None) -> int:
+        """Remove one phone, a person's phones, or all of them (both ``None``: pairing codes not
+        used yet stop working too)."""
         with self._lock:
-            if device_id is None:
+            if device_id is None and user_id is None:
                 self._codes = {}
+            elif user_id is not None:
+                self._codes = {c: v for c, v in self._codes.items() if v[1] != user_id}
             devices = self._read()
-            kept = [d for d in devices if device_id is not None and d.get("id") != device_id]
+            if device_id is None and user_id is None:
+                kept = []
+            else:
+                kept = [d for d in devices if not (d.get("id") == device_id or (user_id is not None and d.get("user_id") == user_id))]
             self._write(kept)
             return len(devices) - len(kept)

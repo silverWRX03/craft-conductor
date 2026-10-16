@@ -26,8 +26,8 @@ def test_checks_and_report(hub_env):
     everything = b"".join(z.read(n) for n in z.namelist())
     assert b"fake-xxxxxxxx" not in everything
     assert "craft-conductor.toml" in z.namelist()  # the config, secrets taken out (see test_secrets_are_taken_out)
-    from craft_conductor.web import device_allowed
-    assert not device_allowed("GET", "/api/doctor/report")  # not for paired phones
+    from craft_conductor import access
+    assert access.server_route_need("GET", "/api/doctor/report") == access.OWNER  # (only the owner's)
 
 
 def test_a_busy_port_is_found(hub_env):
@@ -104,5 +104,5 @@ def test_fix_buttons(hub_env, monkeypatch):
     checks = {x["id"]: x for x in c.get("/api/servers/alpha/doctor")[1]["checks"]}
     if checks["memory"]["action"]:
         assert fix("memory")[0] == 200 and hub.get("alpha").m.config.server.memory == "1G"
-    from craft_conductor.web import device_allowed
-    assert not device_allowed("POST", "/api/doctor/fix")
+    from craft_conductor import access
+    assert access.server_route_need("POST", "/api/doctor/fix") == access.OWNER

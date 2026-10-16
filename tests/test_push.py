@@ -90,10 +90,11 @@ def test_sending_and_forgetting_gone_devices(tmp_path, monkeypatch):
 
 
 def test_phones_manage_their_own_notifications():
+    from craft_conductor import access
     for path in ("/api/hub/phone/subscribe", "/api/hub/phone/unsubscribe", "/api/hub/phone/test", "/api/hub/phone/prefs"):
-        assert web.device_allowed("POST", path, "viewer") and web.device_allowed("POST", path, "helper")
+        assert access.allows(access.PRESETS["viewer"], "POST", path)
     for path in ("/api/hub/phone/remove", "/api/hub/phone/tailscale"):
-        assert not web.device_allowed("POST", path, "helper")
+        assert not access.allows(access.CAPS, "POST", path)
 
 
 def test_a_servers_messages_reach_phones(hub_env, monkeypatch):
@@ -107,9 +108,9 @@ def test_a_servers_messages_reach_phones(hub_env, monkeypatch):
     status, r, _ = c.post("/api/hub/phone/subscribe", {"endpoint": FCM, "keys": {"p256dh": key, "auth": auth}, "name": "Phone"})
     assert status == 200, r
     queued = []
-    monkeypatch.setattr(hub.push, "notify", lambda title, body, url="/", tag="": queued.append((title, body, url, tag)))
+    monkeypatch.setattr(hub.push, "notify", lambda title, body, url="/", tag="", sid=None: queued.append((title, body, url, tag, sid)))
     hub.get("alpha").m.notifier.send("Server is up (Minecraft 1.21.1)")
-    assert queued == [("Alpha", "Server is up (Minecraft 1.21.1)", "/#s/alpha/dashboard", "alpha")]
+    assert queued == [("Alpha", "Server is up (Minecraft 1.21.1)", "/#s/alpha/dashboard", "alpha", "alpha")]
     assert c.post("/api/hub/phone/test", {"endpoint": "https://fcm.googleapis.com/fcm/send/other"})[0] == 404
     prefs = c.post("/api/hub/phone/prefs", {"endpoint": FCM})[1]
     assert "status" not in prefs["kinds"] and "crash" in prefs["kinds"] and "computer" in prefs["all"]

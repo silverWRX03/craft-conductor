@@ -173,13 +173,13 @@ Below the servers, **Modded single-player games** sets up modded Minecraft for p
 
 The **Connected Players** card on the Dashboard is a compact way to look after who is on, without leaving the page. The header says how many are on and how many the server allows (**14 / 30**). Each player has a row: a dot (they're online), their head, their name, a **role badge**, their **ping**, and a **Kick** button. With many players the list scrolls inside the card, so the Dashboard doesn't grow.
 
-- **Press a row** to open the other actions: **Message** (a private message to that player; it types a console command, so not on a paired phone), **Make op** / **Remove op**, **Ban** and **More…** (the Players page). Press the row again, or press Escape, to close them. **Kick** asks first, like the other risky buttons, and has **Don't ask me again**.
+- **Press a row** to open the other actions: **Message** (a private message to that player; it types a console command, so only for those who may type console commands), **Make op** / **Remove op**, **Ban** and **More…** (the Players page). Press the row again, or press Escape, to close them. **Kick** asks first, like the other risky buttons, and has **Don't ask me again**.
 - **Role badges** show only what Craft Conductor can tell for sure. **OP** is an operator from the server's `ops.json`; when the level isn't the usual 4 it says so (**OP 2**), and hovering over it says what that level can do. Nothing else is guessed: there's no MOD or group badge, because groups from a permissions plugin such as LuckPerms live in the plugin's own database, which can't be read reliably (or cheaply) from outside while the server runs. There's no "you" badge either, because Craft Conductor doesn't know which Minecraft account is yours.
 - **Ping** is shown, in milliseconds with a word (good under 100, fair under 200, poor above) and a different mark for each, only when the server can tell it. None of the server types Craft Conductor runs shares each player's ping with the console by itself, so today it shows **—** with the reason in its tooltip (and under **Why no ping?** below the list, for touch screens). Craft Conductor doesn't add a mod or plugin to your server only to measure it.
 - **Whitelist** (under the list) opens a small panel: whether the whitelist is on, a switch to turn it on or off, the names on it with **Remove**, and a box to **Add** a name (1 to 16 letters, numbers or `_`, the same check as on the Players page). **Everything else is on the Players page →** links there.
 - **Broadcast** sends a message to everyone online with the server's `say` command, up to 256 characters, in one line: line breaks and control characters are refused, like in the Console. It appears in the console above.
 - **Live:** the list follows joins and leaves within a few seconds, and roles and ping are read every few seconds with one light request for the whole list, not one per player. Rows are updated in place, so the open actions, the keyboard focus, the scroll position and the heads stay put. A screen reader hears who joined or left once, politely ("Mia joined."), not on every refresh.
-- **Phones and roles:** on a paired phone, a **helper** has Kick, Whitelist and Broadcast (and Make op, Ban), a **viewer** sees the list without any buttons. The server refuses them for a viewer, not just the page.
+- **People you invited:** a **Moderator** has Kick, Whitelist, Broadcast and Ban (Make op only if you gave them **Make players operators (OP)**), a **Viewer** sees the list without any buttons. The server refuses them for a viewer, not just the page (see People and what they may do).
 
 ### Performance
 
@@ -393,11 +393,11 @@ By default only the server's own computer can open the control panel: it listens
 
 - It needs a **strong password**: 12+ characters with an uppercase letter, a lowercase letter and a special character. PINs don't work from other devices.
 - During **New server** setup, turn on **Allow access to this control panel from other devices** and keep working. After the server is created successfully, Craft Conductor applies remote access and opens phone setup, followed by **Continue to Friends** if you chose a friends' download. Only the control-panel listener restarts: your work, sign-in and Minecraft servers stay open. Outside setup, use **Apply remote access** to apply a saved change. If it cannot apply, the previous connection is restored so you can retry.
-- **Pair a phone** by scanning the QR code with its camera and opening the link. The code works once, for five minutes; **Cancel this code** stops it sooner (so does turning off access from other devices, removing every phone or changing the password). The phone signs in by itself afterwards, with its own key. At the **Tailscale, secure** address, the phone then offers to install the app (see The phone app); at other addresses Craft Conductor opens in the phone's browser, and the dialog says so. No secure address yet? **Set up the secure Tailscale address** is right there.
+- **Pair a phone** for one of the people you invited (see People and what they may do): pick the person, then scan the QR code with the phone's camera and open the link. The code works once, for five minutes; **Cancel this code** stops it sooner (so does turning off access from other devices, or removing every phone). The phone signs in by itself afterwards, with its own key. At the **Tailscale, secure** address, the phone then offers to install the app (see The phone app); at other addresses Craft Conductor opens in the phone's browser, and the dialog says so. No secure address yet? **Set up the secure Tailscale address** is right there.
 - **Pair with a code:** the code is also shown under the QR code (like `ABCD-EFGH-JKLM`). On the phone's sign-in page, choose **Pair with a code** and type it. That's how an iPhone's Home Screen app is paired: it doesn't share Safari's sign-in.
-- Before making the code, choose what the device may do: **Helper** gets the everyday controls (start, stop, restart, backups, updates, players including Kick and the Whitelist, a message to everyone online, and letting in friends who ask); **Viewer** can only look. Neither can change settings, mods or files, use the console or change the password.
-- **Co-admins:** pair the phone or computer of a friend who helps run the server the same way, as a helper or a viewer. What each device does shows in the activity with its name.
-- Each paired phone is listed with when it was last used, and can be signed out on its own; changing the password signs out every phone.
+- A paired phone does exactly what its person may do, on their servers, never more. What it does shows in the activity with the person's and the phone's names. Phones paired before people could be invited (the old helper and viewer phones) no longer sign in: pair them again for a person.
+- **People, and their phones:** **People…** opens the list of people you invited (see People and what they may do).
+- Each paired phone is listed with its person and when it was last used, and can be signed out on its own; removing a person, or making them a new sign-in link, signs out their phones.
 - Away from home, use **Tailscale** (free) rather than opening the control panel's port on your router. For HTTPS, give Craft Conductor a certificate (for example from `tailscale cert`).
 
 ### The phone app
@@ -415,13 +415,66 @@ The app follows the phone's light or dark setting (unless you pick Light or Dark
 
 **On the phone, the top of the page says where you are.** Opened at a plain address (like `http://192.168.1.50:8765`, the home network address, or a pairing code made for it), Craft Conductor is a web page in the browser: phones won't install it as an app from there, and "Add to Home Screen" only makes a bookmark that opens a browser tab. The message says so, and links to the secure Tailscale address when there is one. At the secure address it offers **Install the app** (or says how: Share → Add to Home Screen on an iPhone), and once it's installed, **Turn on notifications**. **Not now** hides it for two weeks. A paired phone, which can't open Craft Conductor settings, turns its notifications on here. When pairing a phone, the **Tailscale, secure** address is picked first, and the dialog says when another address will only open in the browser.
 
-Notifications go through your phone's own push service (Apple's, Google's, Mozilla's or Microsoft's), encrypted so that only your phone can read them. A paired phone can turn its own notifications on and off, even as a viewer.
+Notifications go through your phone's own push service (Apple's, Google's, Mozilla's or Microsoft's), encrypted so that only your phone can read them. A paired phone can turn its own notifications on and off, even as a viewer. Someone you invited is only told about their own servers, never about Craft Conductor itself.
+
+## People and what they may do
+
+You can invite people who help run your servers: a friend who moderates, someone who restarts the server when you're away. Each person signs in with **their own username and password**, from their own phone or computer, and only sees the servers you give them, with what you choose they may do on each. You stay the **owner**: only you sign in with Craft Conductor's own password, and only you can invite people, change what they may do, update Craft Conductor, change remote access, the router and the firewall, or make and import servers.
+
+A friends' invite link (the one on a server's Friends page, for joining and downloading mods) is something else: it never lets anyone into the control panel.
+
+**Invite someone:** **Craft Conductor settings → Sign-in & security → People…** (also **People…** in Remote access & phones). It needs your own strong password and access from other devices on (see Remote access and phones), since they sign in from their own devices.
+
+1. Press **Invite someone**, and type their name (it's shown to you, and in each server's activity next to what they do).
+2. Tick each **server** they may use, and pick a **role** for it. A new person starts as a **Viewer**. Under the role, a line says what it allows.
+3. For something in between, open **Customize permissions** and tick what they may do, grouped like the pages (Status, Players, Power, Backups, Updates, Console, Settings, Mods, Launch, Files, Danger). The role then says **Custom**.
+4. Pick **the address in the link** (one they can reach), and press **Make the invite link**. Send them the link (or let them scan the QR code) privately, not in a group chat.
+
+The link works **once, for 24 hours**: whoever opens it first chooses the sign-in. It opens a page that says **Welcome**, where they choose a username and a strong password and press **Create my sign-in**. Opening the link only looks: it isn't used up until they press the button. Next time, on the sign-in page, they press **Invited? Sign in with your username**, and the page remembers that on their device.
+
+| Role | What it may do |
+| --- | --- |
+| **Viewer** | See the server's status, who's online, its activity and performance. |
+| **Moderator** | Viewer, and manage players: kick, ban and unban, the whitelist and join requests, and a message to everyone online. |
+| **Operator** | Viewer, and start, stop and restart the server, make and check backups, and check for updates. |
+| **Manager** | Moderator and Operator, and read the console (with IP addresses and this computer's folders hidden), see the mods and check them, and change everyday settings (game rules, the world border, `server.properties`, when updates and backups happen). |
+
+Moderator and Operator are separate: a moderator can't restart the server, and an operator can't kick anyone, unless you give them both (Manager, or Custom).
+
+**Risky permissions are never part of a role.** They're marked **risky** under Customize permissions, and each one says why when ticked; saving asks once more. Give them only to someone you'd trust with this computer:
+
+- **Type console commands**: a console command can do anything an operator can, and some mods add commands that reach files on this computer.
+- **Make players operators (OP)**, and change what operators and command blocks can do.
+- **Add, remove and upload mods and plugins; change what friends download**: mods are programs that run on this computer (and in friends' games).
+- **Change Java, memory and launch settings, and the Minecraft version.**
+- **Apply updates**, test them first and change how updates happen.
+- **Open** and **Edit the configuration files**.
+- **Restore backups and replace the world**; **Change how many backups are kept** (keeping fewer deletes the oldest).
+- **Export the server and download the export**: the whole server, worlds and players' data included.
+- **See and share the friends' invite link.**
+- **Delete the server.**
+
+Some always stay yours, whatever you tick: the setup check (**Check my setup**) and its report, **Open folder** buttons, a server's ports, the Discord webhook, where backups are copied and what they keep of passwords and keys, and the address friends are given.
+
+**The list** shows each person with their username (or **invite not used yet** and when the link stops working), what they may do on each server, a warning when they have risky permissions, and their paired phones:
+
+- **Edit**: their name, their servers and what they may do. It counts at once, even for pages they have open.
+- **New sign-in link**: when they forgot their password, or the first link expired. Their password, fingerprint sign-ins and paired phones stop working at once, until they use the new link (their username stays).
+- **Cancel the link**: an invite not used yet stops working.
+- **Remove**: they're signed out everywhere at once, their phones and fingerprint sign-ins too.
+
+**Their phones:** in **Remote access & phones**, pick the person and **Show a pairing QR code** (see Remote access and phones). A phone paired for someone can do exactly what they can, never more, and changes to what they may do apply to it at once. Phones paired before people could be invited (the old "helper" and "viewer" phones, which could act on every server) no longer sign in: invite their owner and pair them again.
+
+**What they see:** the menu has only the pages they can use, and the server list only their servers, without folders. Buttons they can't use are left out; Craft Conductor's server checks every request anyway, so a link or an old page can't do more. A server they weren't given looks the same as one that doesn't exist. Their **Craft Conductor settings** has **Your account** (change their password, add fingerprint or face sign-in, see their paired phones), the appearance and sound settings, and phone notifications, which only tell them about their servers.
+
+**If you forget your own password,** **Reset it to PASSWORD** on the server's own computer (or `craft-conductor web-password --reset`) signs everyone out, phones too, and links and pairing codes not used yet stop working. The people you invited keep their accounts and sign in again with their own passwords. Changing your own password signs out only your own sessions.
 
 ## Craft Conductor settings
 
 Choose a section from the menu: **Appearance** (Language and Display), **Sounds & notifications** (Sounds, Notifications and Warnings), **Sign-in & security**, **Connections** (Remote access & phones, Phone app, Sharing with friends, CurseForge, Discord and Mod conflicts), or **About & updates**. Switching sections preserves what you typed. Settings that need saving have a Save button.
 
 - **Sign-in:** change your password or PIN. There's always one.
+- **People:** invite people to help, each with their own sign-in and what they may do on each server (see People and what they may do).
 - **Remote access & phones:** see above.
 - **Sharing with friends:** the friends' port and your public address, a playit.gg tunnel, and **Router**: open the ports on your router by itself (UPnP).
 - **CurseForge:** the downloads of Craft Conductor come with Craft Conductor's own CurseForge API key, so CurseForge works without one of your own. If you prefer your own (free, from console.curseforge.com), enter it here; it's used instead.
@@ -434,7 +487,7 @@ Choose a section from the menu: **Appearance** (Language and Display), **Sounds 
   - **Motion:** **Less motion** stops the animations (sliding panes, the spinning and drifting). **Automatic** follows your computer's "reduce motion" setting.
 - **Language:** Craft Conductor's pages in English, Español, Português, Français, Deutsch, हिन्दी, 中文, Tiếng Việt, العربية (right to left) or 한국어. **Automatic** follows your browser's language. The choice is kept in this browser; the buttons, menus and short messages are translated by machine (so they may have mistakes), and this manual stays in English.
 - **Sounds:** short sounds when you press a button (a soft click; rising notes for Start, Save and Install; falling notes for Stop and Delete), when something goes wrong, and a chime while Craft Conductor is open when a server finishes starting or a friend asks to join. They're on at **Quiet** at first: **Volume** (**Off**, **Quiet**, **Normal**), and a tick for each kind of sound. On an Android phone, **Vibrate on button presses** buzzes too (iPhones don't let web apps vibrate; on an iPhone the silent switch keeps them quiet). Kept on this device: each phone and computer has its own choice. Moving around with the keyboard never makes a sound, and a sound is never the only sign something happened.
-- **Fingerprint or face sign-in:** sign in with this device's fingerprint, face or screen lock (a passkey) instead of typing the password. On the device, sign in with the password, then press **Add fingerprint or face sign-in on this device**; next time the sign-in page shows **Sign in with fingerprint or face**. It needs a secure address (on a phone, the Tailscale one; see The phone app) or `localhost` on the server's computer, and it only works at the address where it was added. Each one is listed with **Remove**; choosing a new password removes them all (like paired phones). You need your own password first. Not available when the password is set in `craft-conductor.toml`.
+- **Fingerprint or face sign-in:** sign in with this device's fingerprint, face or screen lock (a passkey) instead of typing the password. On the device, sign in with the password, then press **Add fingerprint or face sign-in on this device**; next time the sign-in page shows **Sign in with fingerprint or face**. It needs a secure address (on a phone, the Tailscale one; see The phone app) or `localhost` on the server's computer, and it only works at the address where it was added. Each one is listed with **Remove**; choosing a new password removes yours (the people you invited keep theirs, under **Your account**). You need your own password first. Not available when the password is set in `craft-conductor.toml`.
 - **Mod conflicts:** **Share mod conflicts anonymously** (off until you switch it on). When **Find which mods break it** finds a mod that doesn't work, Craft Conductor sends only the mod loader, the Minecraft version and the ids of the mods involved to Craft Conductor's relay, nothing about you or your server. Once three different people report the same conflict, it's on the shared list, and the Mods page warns anyone who has those mods together (everyone gets the warnings, whether they share or not). The list is fetched at most once a day.
 - **Warnings:** how many warnings you've hidden with "Don't ask me again", and **Show all warnings again**.
 - **About Craft Conductor:** the version, **Check for Craft Conductor updates**, the Craft Conductor folder, the notice and open-source licenses. Craft Conductor also checks by itself: when a new version is out, a message shows the version you have and the new one, with a link to what's new, and offers **Update now** or **Later**.
@@ -512,7 +565,7 @@ Everything in Craft Conductor works with the keyboard and a screen reader (NVDA,
 ## Where Craft Conductor keeps things
 
 - **Your servers:** the `craft-conductor` folder in your home folder (for example `C:\Users\you\craft-conductor\servers\...`), one folder per server. Each has `craft-conductor.toml` (its settings), `server/` (Minecraft, the world and mods) and `backups/`. If you edit `craft-conductor.toml` by hand while Craft Conductor runs, it reads the file again within a few seconds (a file with a mistake in it is ignored, and the log says so); settings that apply when the server starts, like memory and the port, take effect at its next start.
-- **Craft Conductor's own settings:** `craft-conductor/.craft-conductor/` (sign-in, paired phones, friends' certificate, CurseForge key and Discord token; readable only by your account, on Windows too; with `backup.key`, which locks backups' passwords, keys and logs to this computer and account: deleting it can't be undone, and backups made before then restore without their locked part). Passwords and PINs are kept only as hashes. A server's `craft-conductor.toml` and `server.properties` are readable only by your account too once they hold a secret (a Discord webhook, a CurseForge key, the friends' invite secret, an RCON password), and so are server exports.
+- **Craft Conductor's own settings:** `craft-conductor/.craft-conductor/` (sign-in, the people you invited and their paired phones, friends' certificate, CurseForge key and Discord token; readable only by your account, on Windows too; with `backup.key`, which locks backups' passwords, keys and logs to this computer and account: deleting it can't be undone, and backups made before then restore without their locked part). Passwords and PINs are kept only as hashes. A server's `craft-conductor.toml` and `server.properties` are readable only by your account too once they hold a secret (a Discord webhook, a CurseForge key, the friends' invite secret, an RCON password), and so are server exports.
 - **Shared Java:** `craft-conductor/.craft-conductor/java/`, one folder per Java version and release, used by every server on this computer (`/data/.craft-conductor/java/` in Docker). Backups and server exports leave Java out.
 - **Friends' setups:** a folder of their own per launcher; their extras and joined servers are remembered in `.minecraft/craft-conductor/`.
 

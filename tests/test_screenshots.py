@@ -416,6 +416,15 @@ def test_documentation_screenshots(tmp_path, http, modrinth, fake_java, monkeypa
         assert broken.problem and broken.problem["cause"] == "missing", broken.problem
         singleplayer.create(hub, name="Cozy modded survival", loader="fabric", minecraft="latest",
                             mods=["lithium", "xaeros-minimap"], memory_gb=4)
+        # People invited to help (People and what they may do): two have chosen their sign-in, one hasn't yet.
+        from craft_conductor import access
+        sample = "Example-Only-Pass-1"   # (made up for the pictures)
+        token, _ = hub.ui.users.invite("Alex", {"survival": access.PRESETS["moderator"], "creative": access.PRESETS["manager"]}, now)
+        hub.ui.users.accept(token, "alex", sample, now)
+        token, _ = hub.ui.users.invite("Jordan", {"survival": access.normalize(access.PRESETS["manager"] | {"console.execute"}),
+                                                  "adventure": access.PRESETS["operator"]}, now)
+        hub.ui.users.accept(token, "jordan", sample, now)
+        hub.ui.users.invite("Sam", {"survival": access.PRESETS["viewer"]}, time.time())
 
         # A friend's side: the invite page as GitHub Pages has it (.github/workflows/pages.yml), and
         # their Craft Conductor's page for setting up Minecraft.

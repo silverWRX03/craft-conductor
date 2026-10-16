@@ -169,9 +169,10 @@ def test_choosing_the_channel_is_for_the_owner_only(hub_env):
     status, body, _ = c.post("/api/self-update/channel", {"channel": "beta"})
     assert status == 200 and body["channel"] == "beta" and hub.update_channel() == "beta"
     assert c.post("/api/self-update/channel", {"channel": "stable"})[0] == 200 and hub.update_channel() == "stable"
-    # A paired phone can't change it (nor install updates).
-    assert not web.device_allowed("POST", "/api/self-update/channel")
-    assert not web.device_allowed("POST", "/api/self-update/apply")
+    # Nobody but the owner can change it (nor install updates), whatever they were given.
+    from craft_conductor import access
+    for path in ("/api/self-update/channel", "/api/self-update/apply", "/api/self-update/check"):
+        assert not access.allows(access.CAPS, "POST", path), path
 
 
 class _Endless(BaseHTTPRequestHandler):

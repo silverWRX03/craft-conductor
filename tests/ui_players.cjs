@@ -165,27 +165,28 @@ const step = async (name) => { console.log('STEP ' + name); await lines.next(); 
   await page.locator('.console').getByText('> say Restart in five minutes').waitFor({ timeout: 15000 });
   assert.equal(await bc.getByLabel('Message to everyone online').inputValue(), '');
 
-  // a phone: the card fits; a helper's phone has no Message (it types a console command); a viewer sees the list without buttons
+  // a phone of someone invited: the card fits; a moderator's phone has no Message (it types a console
+  // command, which isn't in any role); a viewer sees the list without buttons
   const phone = await open({ width: 390, height: 800 });
-  const as = async (role) => {
+  const as = async (caps) => {
     await phone.unroute('**/api/hub').catch(() => null);
     await phone.route('**/api/hub', async (route) => {
       const r = await route.fetch();
       const j = await r.json();
-      await route.fulfill({ response: r, json: { ...j, role, device: 'Test phone' } });
+      await route.fulfill({ response: r, json: { ...j, role: 'user', user: { id: 'sam', name: 'Sam' }, access: { alpha: caps }, device: 'Test phone' } });
     });
     await phone.goto(base + '/#s/alpha/dashboard');
     await phone.reload();
     await phone.locator('.players-card .prow').first().waitFor();
   };
-  await as('helper');
+  await as(['status.view', 'players.moderate', 'server.power', 'backups.make', 'updates.check']);
   assert.ok(await phone.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'no sideways scrolling on a phone');
   assert.ok((await phone.locator('.players-card').boundingBox()).height < 560);
   await phone.locator('.players-card .prow button.prow-open').first().click();
   assert.equal(await phone.locator('.players-card .player-actions:not(.hidden)').getByText('Message', { exact: true }).count(), 0);
   assert.equal(await phone.locator('.players-card .player-actions:not(.hidden)').getByText('Ban', { exact: true }).count(), 1);
   assert.equal(await phone.locator('.players-card').getByRole('button', { name: 'Broadcast', exact: true }).count(), 1);
-  await as('viewer');
+  await as(['status.view']);
   assert.equal(await phone.locator('.players-card button').count(), 0, 'a viewer sees the list without buttons');
   assert.equal(await phone.locator('.players-card .prow-open').count() > 20, true);
   await phone.waitForFunction(() => document.querySelectorAll('.players-card .badge:not(.hidden)').length === 2);

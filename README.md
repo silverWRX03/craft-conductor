@@ -30,6 +30,8 @@ On phones, a hamburger menu contains navigation and the remembered Light / Dark 
 - **Looks after itself:** crash restarts, schedules, backups you can check, and plain-words help when
   something goes wrong.
 - **Works from your phone,** with notifications, and on a Linux computer without a screen or in Docker.
+- **Lets friends help, safely:** invite someone with their own sign-in and choose, per server, what they
+  may do (watch, moderate players, restart and back up, or more); the rest stays yours.
 
 <table>
 <tr><td width="50%"><img src="src/craft_conductor/webui/screenshots/servers.png" alt="All your servers in one place"><br>All your servers in one place</td><td width="50%"><img src="src/craft_conductor/webui/screenshots/mod-browser.png" alt="Find mods on Modrinth and CurseForge"><br>Find mods on Modrinth and CurseForge</td></tr>
