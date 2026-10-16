@@ -23,8 +23,8 @@ A targeted source review used commit `0518c43d2519d2b4562c5f0594908f5f348d479c`.
 | --- | --- | --- |
 | Web panel | Loopback default; session cookies; custom mutation header; CSP; Host filtering in `config.py` and `web.py` | Exact origin/authority policy, explicit deployment modes, centralized authorization |
 | Initial authentication | `webauth.py` supports a built-in initial `PASSWORD`, password/PIN modes, and random headless first-run credentials | Replace shared bootstrap credentials; corruption or recovery must never silently restore a known password |
-| Phones | Five-minute, one-use pairing codes; hashed 256-bit device tokens; 180-day device lifetime; viewer/helper roles | Per-server grants, shorter renewable sessions, explicit enrollment approval and revocation semantics |
-| Authorization | Phone route allowlists and hidden-GET exclusions in `web.py` | Default-deny operation and resource authorization, including all reads |
+| Phones | Five-minute, one-use pairing codes; hashed 256-bit device tokens; 180-day device lifetime; viewer/helper roles (replaced by per-person, per-server grants: section 1.4) | Shorter renewable sessions, explicit enrollment approval |
+| Authorization | Phone route allowlists and hidden-GET exclusions in `web.py` (replaced by default-deny route tables in `access.py`: section 1.4) | Path-constrained file grants, grant expiry and revisions |
 | Updates | Standalone files checked against release-hosted `SHA256SUMS.txt`; pip installs from a release tag | Independently authenticated release metadata, rollback protection, verified artifacts for every supported update path |
 | UPnP | Opt-in setting; desired mappings include server TCP ports and an optional friends-download port in `hub.py` | Per-service consent, ownership-aware cleanup, stronger discovery and exposure policy |
 | Distribution | `pyproject.toml` declares no runtime dependencies; signing documentation describes conditional Windows signing | Decide on a maintained cryptographic verifier/provider before enabling the proposed protocols |
@@ -62,6 +62,25 @@ Implemented with regression tests (`tests/test_secrets.py`, `tests/test_transfer
 | Backups | Hold passwords, keys, IP bans and logs only when chosen, and then locked to the computer and account (`lockbox.py`: keyed BLAKE2b-CTR with HMAC-SHA256 under a per-installation key, sealed with DPAPI on Windows, owner-only elsewhere); a backup with a locked part is owner-only. Restored elsewhere, the server keeps its own secrets. |
 
 Remaining: such secrets are still readable by any program running as the same account, mods included (section 2); a backup's copy of `server.properties` can hold an RCON password; a `craft-conductor.toml` mounted read-only keeps a typed password as typed (logged).
+
+### 1.4 Per-person, per-server panel access (2026-10-16)
+
+Implemented with regression tests (`tests/test_access.py`, the browser flow in `tests/test_ui_people.py`; updated `tests/test_remote.py`, `tests/test_push.py`, `tests/security/test_invites_and_pairing.py`). This implements most of section 8 for the panel (AUTHZ-01, AUTHZ-03) and part of PHN-01–04; it is not the full target architecture.
+
+| Area | Now enforced |
+| --- | --- |
+| Subjects | The **owner** (the existing password, PIN or passkeys; `webauth.py`) and **invited people** (`users.py`: their own username and strong password, PBKDF2-hashed; `users.json` owner-only). A session records whose it is and that person's sign-in epoch; every request rebuilds the subject from the current users file, so grant edits, removal and a new sign-in link take effect on the next request. A Minecraft friends' invite token is a different credential and never authenticates to the panel. |
+| Grants | Per person and server id: a set of capabilities from `access.CAPS`, default **Viewer** (`status.view`). The presets Viewer, Moderator, Operator and Manager never contain a capability marked risky (console, OP, mods, runtime/launch, update application, file read/write, restore, export, backup retention, the friends' link, server deletion). Deleting a server removes every grant for its id, so a later server with the same name starts with none. |
+| Central authorization | `web.RequestHandler._dispatch`: the target server is resolved first; then `access.SERVER_ROUTES` (every per-server route; a test checks it's complete) or `access.HUB_ROUTES` (the few host-wide routes a person may use; every other host-wide route, and any route not listed, is owner-only). A server without a grant answers exactly like a missing one (404). Request-dependent checks (`access.body_needs`): player actions (OP separately), each changed setting and `server.properties` key, the "What went wrong" fixes. Downloads, uploads (refused before the body is read), background mod checks (bound to the subject that started them) and the server list are covered. |
+| Answers | Status, settings and the server list omit host paths, self-update state and owner-only settings; console lines and the activity feed have IP addresses and the home folder masked for non-owners (`access.redact`). |
+| Owner-only | User and grant administration, Craft Conductor's self-update and channel, remote access/TLS/Tailscale, UPnP and the firewall, server creation and import, Discord and CurseForge keys, the setup check and diagnostic report, local-only actions, a server's ports, webhook, backup copy destination and what backups keep of secrets. |
+| Invites | Owner-created, single-use (atomic under a lock, tested concurrently), 24-hour links; only the token's SHA-256 is stored; looking (`POST /api/invite`) doesn't consume it; accepting requires a strong password. "New sign-in link" replaces the password and revokes sessions, phones, passkeys and notification subscriptions. |
+| Phones | A pairing code names the person (chosen by the owner); a paired device acts with exactly that person's current grants. Devices paired before this (device-wide "helper" and "viewer" roles) no longer authenticate and are dropped. |
+| Notifications | Subscriptions record their subject; a server's notifications reach a person only while they hold `status.view` on it; host-wide notifications reach only the owner; subscriptions from before this get nothing until turned on again. |
+| Recovery and escalation | Only the owner can change grants; a person can change only their own password (knowing the current one) and passkeys. The local reset revokes every session and device and cancels unused invites and pairing codes; invited accounts remain. The owner's password change revokes only owner sessions. |
+| Audit | Refusals and every non-owner change are logged with the person, phone, route and server (never request bodies or secrets). |
+
+Remaining: sessions are bearer cookies with the existing 7-day lifetime (no idle timeout or step-up re-authentication, WEB-07); a job already started (an update, a restore) finishes after the person is revoked; scheduled tasks act as the installation, not as a person (AUTHZ-04); the console's redaction is pattern-based (it can't recognise every secret a mod might print); `files.read` grants the whole config-file view, not path-constrained grants; grants have no expiry or policy revision; the CLI has no command to list or remove people.
 
 ## 2. Assets, adversaries, and trust boundaries
 

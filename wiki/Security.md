@@ -37,14 +37,23 @@ safeguards:
   are allowed per 5 minutes. **Cancel this code** stops it sooner, and so do turning off remote
   access, removing every phone and changing the password. Each phone gets
   its own key (only a hash of it is stored) and signs in by itself afterwards.
-- **Phones get the everyday controls only:** start, stop and restart servers, backups,
-  updates, players (kick, whitelist) and a message to everyone online. They can't change settings, mods or files, use the console or change
-  the password.
-- **You stay in charge of every device:** each paired phone is listed with when and where it
-  was last used, and can be signed out on its own. Changing the password signs out every
-  phone.
+- **People you invite get only what you give them, per server.** Each person has their own
+  username and strong password (the invite link works once, for a day), and for each server a
+  role (Viewer, Moderator, Operator, Manager) or permissions ticked one by one. Risky ones
+  (console commands, OP, mods, Java and launch settings, applying updates, configuration
+  files, restoring or exporting, deleting the server) are never part of a role. Servers they
+  weren't given look as if they didn't exist. Craft Conductor checks every request on the
+  computer itself; hiding buttons on the page is only for comfort.
+- **Some things are only ever yours:** inviting people and changing what they may do,
+  updating Craft Conductor, remote access, the router and the firewall, new and imported
+  servers, the setup check, and folders on this computer.
+- **A phone belongs to a person** and can do exactly what they can, never more. Phones paired
+  before this (the old helper and viewer phones) no longer sign in.
+- **You stay in charge of everyone:** each person and phone is listed; editing what someone
+  may do, **Remove** and **New sign-in link** count at once, everywhere. Resetting your own
+  password on the server's computer signs everyone out.
 - **Attempts are limited and actions are logged:** repeated wrong passwords or pairing codes
-  are rate-limited, and what a phone does appears in the server's activity feed.
+  are rate-limited, and what a person (or their phone) does appears in the server's activity feed, with their name.
 - **HTTPS** is available with a certificate you provide (for example `tailscale cert`).
 - **Away from home, use a private network app, not your router:** Craft Conductor recommends
   [Tailscale](https://tailscale.com) (free for personal use), which connects your phone and
