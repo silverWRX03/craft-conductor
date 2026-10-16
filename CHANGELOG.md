@@ -4,7 +4,7 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
-## 0.27.1 (not released yet)
+## 0.28.0 (2026-10-16)
 
 **Added**
 - **Invite people to help, each with their own sign-in and their own servers.** **Craft Conductor settings → Sign-in & security → People…** makes a one-time invite link (it works once, for 24 hours) for someone who helps run a server; they choose a username and a strong password, and sign in with them from their own phone or computer. For each server you give them, pick a role: **Viewer** (status and who's online), **Moderator** (kick, ban, the whitelist, join requests, a message to everyone), **Operator** (start, stop, restart, backups, update checks) or **Manager** (both, plus the console with addresses hidden, the mods list and everyday settings); or tick what they may do under **Customize permissions**. Risky permissions (console commands, OP, mods, Java and launch settings, applying updates, configuration files, restoring or exporting, deleting the server) are never part of a role and say why when ticked. Servers they weren't given stay hidden from them; **Edit**, **New sign-in link** and **Remove** count at once. Craft Conductor's own settings, updates, remote access, the router and the firewall stay yours. Their phone notifications only tell them about their servers. They can add fingerprint or face sign-in under **Your account**.
