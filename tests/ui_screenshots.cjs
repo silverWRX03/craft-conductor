@@ -144,6 +144,23 @@ const HEADERS = {'X-CRAFT-CONDUCTOR': '1'};
   await page.waitForTimeout(400);
   await shot('question');
   await close();
+  // The bell: messages that went by, the newest unread (an afternoon's worth, as they'd have shown).
+  await page.evaluate(() => {
+    const now = Date.now() / 1000;
+    bellNote('Backup made', { time: now - 3 * 3600 });
+    bellNote('Started', { time: now - 2 * 3600 });
+    bellNote('Mod test finished', { more: 'These mods start together.', sid: null, time: now - 95 * 60 });
+    bellNote('Survival with friends stopped unexpectedly', { more: 'Craft Conductor restarts it if it can. Open Craft Conductor to see why.', from: 'browser', time: now - 40 * 60 });
+    bell.seen = now - 30 * 60;
+    bellNote('Steve asks to join', { from: 'phone', time: now - 6 * 60 });
+    bellNote('the world couldn\'t be saved: the disk is full', { bad: true, time: now - 60 });
+  });
+  await page.locator('#bell-dot').waitFor({state: 'visible'});
+  await page.locator('#bell').click();
+  await page.locator('#bell-list').waitFor({state: 'visible'});
+  await page.waitForTimeout(300);
+  await shot('bell');
+  await close();
   await page.evaluate(() => openDoctor());
   await page.waitForFunction(() => document.querySelectorAll('.doctor-list li').length > 1);
   await page.waitForTimeout(500);

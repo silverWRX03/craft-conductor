@@ -4,6 +4,11 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## Unreleased (not released yet)
+
+**Added**
+- **A bell for messages you missed.** The messages at the top of the screen still go after a few seconds (errors after 12), but the bell at the top right of every page now keeps the last 100: newest first, each with its time and its server, with a red dot while some are unread. It also has the notices that stay at the top (Undo, Mod test finished, Craft Conductor updates), the browser notifications this browser showed, and the phone notifications this device got. Opening it marks them read; **Clear** empties it. It's kept in this browser for the person signed in, and **Sign out** clears it.
+
 ## 0.28.0 (2026-10-16)
 
 **Added**

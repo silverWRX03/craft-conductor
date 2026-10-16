@@ -5498,7 +5498,7 @@ const HELP = [
     screenshot("people", "People: what each person may do on each server.")]],
   ["keyboard", "Keyboard, screen readers and display", () => [
     h("p", {}, "Everything works with the keyboard: Tab moves, Enter or Space presses, Escape closes a window. The first Tab reaches ",
-      h("strong", {}, "Skip to main content"), ". Screen readers read out messages as they appear."),
+      h("strong", {}, "Skip to main content"), ". Screen readers read out messages as they appear. Missed one? The bell at the top right keeps the last 100: Enter opens it, Escape closes it."),
     h("p", {}, "Bigger text, ", h("strong", {}, "High contrast"), " and ", h("strong", {}, "Less motion"), " are under ",
       h("a", { href: "#craft-conductor" }, "Craft Conductor settings"), " → Appearance → ", h("strong", {}, "Display"), "."),
     screenshot("display", "Appearance: language, size, contrast and motion.")]],
@@ -5516,7 +5516,7 @@ const MANUAL_PICTURES = {
     ["map-preview", "World generation & map preview: a clean map, points of interest hidden"],
     ["manual-downloads", "Mods to download by hand: a link for each, and the box to drop them on"]],
   "On another computer (Linux, over SSH)": [["ssh-install", "Install on a Linux computer or rented server (SSH)"]],
-  "Messages": [["question", "A question waits in the middle of the screen"]],
+  "Messages": [["question", "A question waits in the middle of the screen"], ["bell", "The bell: messages you may have missed, newest first"]],
   "Your servers": [["servers", "Your servers, and a modded single-player game"]],
   "Dashboard": [["dashboard", "The Dashboard of a running server"],
     ["dashboard-problem", "A server that didn't start: what went wrong, and the fix"]],
