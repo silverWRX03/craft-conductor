@@ -291,6 +291,7 @@ function bellSave() {
 // `from`: "page", "browser" (a browser notification) or "phone"; `key` keeps one notice from going in twice.
 function bellNote(text, { bad = false, more = "", sid = server, from = "page", key = "", time = Date.now() / 1000 } = {}) {
   if (!text) return;
+  if (!bell.who) sid = null;  // (signed out: the server last open, and hubInfo, were the last person's)
   const known = hubInfo && sid ? (hubInfo.servers || []).find((s) => s.id === sid) : null;
   const item = { time, text: String(text).slice(0, 500), more: String(more || "").slice(0, 500), bad: !!bad,
     sid: sid || null, name: known ? String(known.name || sid) : sid || null, from, key: String(key || "") };
@@ -377,11 +378,10 @@ async function bellTakePushes() {
     const who = bell.who;
     const pushes = await bellPushes().catch(() => []);
     if (bell.who !== who) return;  // (signed out meanwhile: these were for nobody here)
-    bellAdd(pushes.filter((p) => p && p.who === who).map((p) => {  // (another person's device: not theirs to see)
-      const fromHub = p.title === "Craft Conductor";
-      return { time: +p.time || Date.now() / 1000, text: String(fromHub ? p.body : `${p.title}: ${p.body}`).slice(0, 500), more: "", bad: false,
-        sid: typeof p.sid === "string" ? p.sid : null, name: fromHub ? null : String(p.title).slice(0, 80), from: "phone", key: "" };
-    }));
+    // (another person's device: not theirs to see. A push's title is its server's name, or "Craft Conductor".)
+    bellAdd(pushes.filter((p) => p && p.who === who && p.body).map((p) => ({ time: +p.time || Date.now() / 1000,
+      text: String(p.body).slice(0, 500), more: "", bad: false, sid: typeof p.sid === "string" ? p.sid : null,
+      name: p.title && p.title !== "Craft Conductor" ? String(p.title).slice(0, 80) : null, from: "phone", key: "" })));
   } finally { bellTaking = false; }
 }
 // Another tab of this page changed it (each tab keeps a copy: without this, one would write over the other's).
@@ -9135,6 +9135,7 @@ async function start() {
   if (/^#invite=/.test(location.hash)) { showInvite(location.hash.slice(8)); return; }
   if ($("#pairing")) $("#pairing").remove();
   try { hubInfo = await api("/api/hub"); } catch (_) { return; }
+  bellSignedIn(hubInfo);  // (whose bell, before the first page's messages)
   $("#login").classList.add("hidden");
   $("#app").classList.remove("hidden");
   registerWorker();
