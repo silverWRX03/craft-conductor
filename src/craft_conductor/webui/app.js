@@ -451,6 +451,7 @@ function closeBell(refocus = true) {
   if (refocus) $("#bell").focus();
 }
 function setupBell() {
+  if (document.getElementById("bell-list")) return;  // (start() runs again after signing in)
   const panel = h("div", { id: "bell-list", class: "bell-panel", role: "dialog", "aria-labelledby": "bell-title", tabindex: "-1", hidden: true },
     h("div", { class: "row bell-head" }, h("h2", { id: "bell-title", class: "grow" }, "Messages"),
       h("button", { type: "button", id: "bell-clear", class: "btn small ghost", onclick: () => {

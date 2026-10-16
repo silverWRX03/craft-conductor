@@ -162,6 +162,15 @@ const assert = require('node:assert/strict');
   await page.locator('#logout').click();
   await page.locator('#login').waitFor({ state: 'visible' });
   assert.equal(await stored(), null);
+  // Signing in again with the form (the page starts over without a reload): one bell, and it opens.
+  await page.locator('#login-password').fill('Owner-Strong-Pass-1');
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await page.locator('#app').waitFor({ state: 'visible' });
+  await page.waitForFunction(() => bell.who);
+  assert.equal(await page.locator('#bell-list').count(), 1);
+  await bellBtn.click();
+  await page.locator('#bell-list').waitFor({ state: 'visible' });
+  await page.keyboard.press('Escape');
 
   assert.deepEqual(errors, []);
   await browser.close();
