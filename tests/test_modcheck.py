@@ -241,3 +241,20 @@ def test_the_doctor_finds_mods_the_server_lacks(make_config, http, modrinth):
     assert found.status == doctor.BAD and "lithostitched" in found.detail and "Fabric won't start" in found.detail
     (m.mods_dir / "lithostitched.jar").write_bytes(fabric("lithostitched", "1.6.4"))
     assert next(c for c in doctor.run(m, "stopped", total_gb=32) if c.id == "mods").status == doctor.OK
+
+
+def test_maven_builds_with_a_hyphen_are_compared_the_way_maven_does():
+    """Moonlight Lib 1.21.1-3.7.2 is later than 1.21-3.2.3 (the third number counts before the hyphen)."""
+    assert maven_matches("1.21.1-3.7.2", ["[1.21-3.2.3,)"])
+    assert not maven_matches("1.21-3.2.3", ["[1.21.1-3.7.2,)"])
+    assert maven_matches("1.21-3.2.3", ["[1.21-3.2.3,)"]) and maven_matches("1.20.1-0.5.1.f", ["[1.20.1-0.5,)"])
+    assert maven_matches("1.0.0", ["[1,)"]) and maven_matches("1", ["[1.0.0]"])      # (trailing zeros don't count)
+    assert maven_matches("1.0-rc1", ["[1.0-beta,1.0)"]) and not maven_matches("1.0-rc1", ["[1.0,)"])
+    assert maven_matches("26.1.2.109", ["[26.1.2.100,)"]) and not maven_matches("26.1.2.99", ["[26.1.2.100,)"])
+
+
+def test_a_minecraft_range_of_one_version_reads_plainly():
+    """[1.21,1.21.1) said "1.21 or later, older than 1.21.1, not 1.21.1": it means 1.21 and nothing after."""
+    needs = forge_jar("farmersdelight", "1.0", dep("farmersdelight", "minecraft", "[1.21,1.21.1)", True), name="Farmer's Delight")
+    assert [p.text for p in forge_check(needs, minecraft="1.21.1")] == ["Farmer's Delight 1.0 is made for Minecraft 1.21 only, not 1.21.1."]
+    assert modcheck.wanted("forge", ["[1.20,1.22)"]) == "1.20 or later, older than 1.22"

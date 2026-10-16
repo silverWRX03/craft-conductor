@@ -7,6 +7,7 @@ import hmac
 import json
 import logging
 import os
+import re
 import ssl
 import sys
 import tempfile
@@ -289,6 +290,17 @@ class HttpClient:
         with self._open(req) as resp:
             data = resp.read()
             return json.loads(data.decode("utf-8")) if data.strip() else None  # (204 No Content)
+
+    def get_range(self, url: str, start: int, length: int, headers: dict[str, str] | None = None) -> tuple[bytes, int]:
+        """``length`` bytes of a file from ``start`` (a negative ``start``: the last ``length`` bytes),
+        and the file's whole size. Raises HttpError when the server sends the whole file instead."""
+        spec = f"-{length}" if start < 0 else f"{start}-{start + length - 1}"
+        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Range": f"bytes={spec}", **(headers or {})})
+        with self._open(req) as resp:
+            total = re.fullmatch(r"bytes \d+-\d+/(\d+)", str((getattr(resp, "headers", None) or {}).get("Content-Range") or ""))
+            if getattr(resp, "status", 206) != 206 or not total:
+                raise HttpError(url, None, "that server doesn't give parts of a file")
+            return resp.read(length), int(total.group(1))
 
     def download(self, url: str, dest: Path, sha1: str | None = None, sha512: str | None = None,
                  headers: dict[str, str] | None = None, sha256: str | None = None,

@@ -201,6 +201,14 @@ function stickyToast(id, children, { blocking = true } = {}) {
   const first = box.querySelector("button.primary, button");
   if (first) first.focus();
 }
+// "Removed X. Undo": acts at once and offers to take it back for a while, instead of asking first (for removing many things).
+function undoToast(message, onUndo, ms = 12000) {
+  const id = `undo-${++askCount}`;
+  stickyToast(id, [h("span", {}, t(message)),
+    h("div", { class: "row mt-s" }, h("button", { class: "btn small primary", onclick: async () => { closeToast(id); await onUndo(); } }, "Undo"),
+      h("button", { class: "btn small ghost", onclick: () => closeToast(id) }, "Dismiss"))], { blocking: false });
+  setTimeout(() => closeToast(id), ms);
+}
 function closeToast(id) { const el = document.getElementById(id); if (el) el.remove(); }
 
 // Questions ("Stop the server?"): in the middle of the screen like other messages that need an
@@ -234,6 +242,23 @@ function ask(message, { id = null, ok = "OK", cancel = "Cancel", danger = false,
       h("div", { class: "row mt-s" },
         h("button", { class: `btn small${safe ? "" : danger ? " danger" : " primary"}`, onclick: () => done(true) }, ok), no)]);
     if (safe) no.focus();  // (Enter keeps the careful answer)
+  });
+}
+
+// A question with a line to type (like ask(), in the middle of the screen, not the browser's own box):
+// the text typed, or null when it's cancelled.
+function askText(message, { ok = "OK", cancel = "Cancel", maxLength = 256 } = {}) {
+  return new Promise((resolve) => {
+    const boxId = `ask-${++askCount}`;
+    const input = h("input", { type: "text", maxlength: String(maxLength), "aria-label": t(String(message)) });
+    const onKey = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); done(null); } };
+    const done = (text) => { document.removeEventListener("keydown", onKey, true); closeToast(boxId); resolve(text); };
+    document.addEventListener("keydown", onKey, true);
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); done(input.value); } });
+    stickyToast(boxId, [h("strong", { class: "pre-line" }, t(String(message))), input,
+      h("div", { class: "row mt-s" }, h("button", { class: "btn small primary", onclick: () => done(input.value) }, ok),
+        h("button", { class: "btn small ghost", onclick: () => done(null) }, cancel))]);
+    input.focus();
   });
 }
 
@@ -343,6 +368,24 @@ function ago(t) {
 function fill(el, ...children) {
   el.replaceChildren(...children.flat(Infinity).filter((c) => c !== null && c !== undefined && c !== false));
 }
+// The page is brought up to date every few seconds. Rebuilding a part of it threw away the control that had the
+// keyboard focus (focus fell to the page, and the next Tab began again at the top: keyboard and screen-reader use
+// was close to impossible). So a part is rebuilt only when what it shows changed (`key`), and when it is, the focus
+// goes back to the same control: found by its data-fkey.
+function refill(el, key, ...children) {
+  if (el._key === key) return false;
+  el._key = key;
+  const active = document.activeElement;
+  const fkey = active && active !== el && el.contains(active) ? active.getAttribute("data-fkey") : null;
+  fill(el, ...children);
+  if (fkey) {
+    const again = [...el.querySelectorAll("[data-fkey]")].find((x) => x.getAttribute("data-fkey") === fkey);
+    if (again && again !== document.activeElement) again.focus({ preventScroll: true });
+  }
+  return true;
+}
+// (text that is already there isn't set again: a screen reader may say it again)
+function setText(el, text) { if (el && el.textContent !== text) el.textContent = text; }
 function card(title, ...children) { return h("div", { class: "card" }, title ? h("h3", {}, title) : null, ...children); }
 
 // -------------------------------------------------------------------- state
@@ -1198,8 +1241,17 @@ $("#btn-start").addEventListener("click", pressOnce(async () => {
   if (!server || await memoryOkToStart(server, (status && (status.motd || status.id)) || server))
     await act(() => api("/api/server/start", { method: "POST" }));
 }));
+// Stopping asks only when someone is connected (nobody to disconnect otherwise), from here and from a server's card alike.
+// When the number isn't known (the page has just loaded), it asks.
+async function confirmStop(players, name = null) {
+  if (players === 0) return true;
+  return ask(!name ? "Stop the server? Players will be disconnected."
+    : typeof players === "number" ? `Stop ${name}? ${players} player(s) will be disconnected.` : `Stop ${name}? Players will be disconnected.`,
+  { id: "stop-server", ok: "Stop" });
+}
 $("#btn-stop").addEventListener("click", pressOnce(async () => {
-  if (await ask("Stop the server? Players will be disconnected.", { id: "stop-server", ok: "Stop" })) await act(() => api("/api/server/stop", { method: "POST" }));
+  const here = ((hubInfo && hubInfo.servers) || []).find((s) => s.id === server);
+  if (await confirmStop(here ? here.players : undefined)) await act(() => api("/api/server/stop", { method: "POST" }));
 }));
 $("#btn-restart").addEventListener("click", pressOnce(() => act(() => api("/api/server/restart", { method: "POST" }))));
 
@@ -1448,6 +1500,14 @@ function openDoctor() {
       if (!(await confirmUpnp())) return;
       body.accept = true;
     }
+    if (c.action === "firewall-clean") {  // (another Craft Conductor on this computer may use those ports: say which rules)
+      if (!(await ask(`Remove the old Windows Firewall rules?
+
+${c.detail}
+
+Windows asks for permission once. If another Craft Conductor on this computer uses these ports, press Keep.`,
+        { ok: "Remove", cancel: "Keep" }))) return;
+    }
     btn.disabled = true;
     try {
       const r = await api("/api/doctor/fix", { method: "POST", body });
@@ -1576,7 +1636,7 @@ function playersCard(con) {
     if (r) { toast(r.message); setTimeout(poll, 800); }
   };
   const message = async (name) => {
-    const text = prompt(`Message to ${name}:`);
+    const text = await askText(`Message to ${name}:`, { ok: "Send" });
     if (!text || !text.trim()) return;
     await act(() => api("/api/command", { method: "POST", body: { command: `tell ${name} ${text.trim().replace(/\s+/g, " ")}` } }), `Sent to ${name}`);
     con.poll();
@@ -1806,7 +1866,7 @@ views.dashboard = () => {
   const renderMeters = (s) => {
     players.set(s.max_players ? 100 * s.players.length / s.max_players : 0, `${s.players.length} / ${s.max_players}`, "Connected players");
     disk.set(s.disk && s.disk.total_bytes ? 100 * s.disk.used_bytes / s.disk.total_bytes : null,
-      s.disk ? gb(s.disk.used_bytes) : "—", s.disk ? `${gb(s.disk.free_bytes)} free on server volume` : "Disk usage unavailable");
+      s.disk ? gb(s.disk.used_bytes) : "—", s.disk ? `used of ${gb(s.disk.total_bytes)} · ${gb(s.disk.free_bytes)} free on server volume` : "Disk usage unavailable");
     const r = s.resources;
     if (!r) {
       const idle = s.state === "starting" ? "starting…" : "server stopped";
@@ -1861,8 +1921,8 @@ views.dashboard = () => {
       h("dt", {}, "Port"), h("dd", {}, s.port),
     );
     const u = s.update;
-    fill(lagBanner, u ? laggingNotice(u.lagging, s.minecraft) : null);
-    fill(update,
+    refill(lagBanner, JSON.stringify([u && u.lagging, s.minecraft]), u ? laggingNotice(u.lagging, s.minecraft) : null);
+    refill(update, JSON.stringify([u, s.minecraft, s.strategy, s.auto_upgrade, u && ago(u.checked_at)]),
       !u ? h("p", { class: "empty" }, "Not checked yet.")
         : u.up_to_date && u.latest !== s.minecraft
           ? h("div", { class: "notice warn" }, `On the newest version your mods support. Minecraft ${u.latest} is out; waiting on mods (see Updates).`)
@@ -1872,8 +1932,8 @@ views.dashboard = () => {
         : h("div", { class: "notice bad" }, `Minecraft ${u.latest} is out but nothing installable yet.`),
       u ? h("p", { class: "muted small" }, `Checked ${ago(u.checked_at)} · strategy ${s.strategy} · auto-upgrade ${s.auto_upgrade ? "on" : "off"}`) : null,
       h("div", { class: "row" },
-        h("button", { class: "btn", onclick: () => act(() => api("/api/updates/check", { method: "POST", body: {} }), "Checking for updates…") }, "Check now"),
-        h("a", { href: link("updates"), class: "btn ghost" }, "Details →")),
+        h("button", { class: "btn", onclick: () => act(() => api("/api/updates/check", { method: "POST", body: {} }), "Checking for updates…"), "data-fkey": "check" }, "Check now"),
+        h("a", { href: link("updates"), class: "btn ghost", "data-fkey": "details" }, "Details →")),
     );
   };
 
@@ -2121,7 +2181,11 @@ views.updates = () => {
           c.latest === c.installed ? `Up to date on the latest release, Minecraft ${c.installed}.`
             : [s.strategy === "mods-only"
               ? `Up to date on Minecraft ${c.installed}. This server is set to stay on this version; Check now only checks mod updates. `
-              : `Up to date on Minecraft ${c.installed}, the newest version your mods support. ${c.latest} is waiting. `,
+              : s.mods === 0
+                // (no mods hold it back: it only means the last check, made before this release or without it, didn't find it)
+                ? `Up to date on Minecraft ${c.installed} as of the last check (${ago(c.checked_at)}). Minecraft ${c.latest} is out: press Check now to look for it. `
+                : `Up to date on Minecraft ${c.installed}, the newest version your mods support. ${c.latest} is waiting. `,
+              s.mods === 0 ? h("button", { class: "btn small primary", onclick: () => act(() => api("/api/updates/check", { method: "POST", body: {} }), "Checking…") }, "Check now") : null,
               h("button", { class: "btn small", onclick: () => openReadiness(newer, c.installed) }, "Show why")])
       : c.target
         ? h("div", { class: "notice warn" }, h("strong", {}, c.installed === c.target ? `Ready: mod updates for Minecraft ${c.target}`
@@ -2185,7 +2249,10 @@ views.players = () => {
     const r = await act(() => api("/api/players/action", { method: "POST", body: { action, name: target, reason: why || reason.value } }));
     if (r) { toast(r.message); setTimeout(load, 800); }
   };
-  const btn = (label, action, target, cls = "") => h("button", { class: `btn small ${cls}`, onclick: () => run(action, target) }, label);
+  // (data-fkey: where the focus goes when the list is rebuilt; Op and De-op, Ban and Pardon, are one place)
+  const SLOT = { kick: "kick", op: "op", deop: "op", "whitelist-add": "wl", "whitelist-remove": "wl", ban: "ban", pardon: "ban", "ban-ip": "banip", "pardon-ip": "banip" };
+  const btn = (label, action, target, cls = "", where = "") => h("button", { class: `btn small ${cls}`, onclick: () => run(action, target),
+    "data-fkey": `${where}:${target}:${SLOT[action] || action}` }, label);
 
   const load = async () => {
     const r = await api("/api/players").catch(() => null);
@@ -2193,50 +2260,50 @@ views.players = () => {
     data = r;
     const lc = (list) => new Set(list.map((x) => (x.name || "").toLowerCase()));
     const ops = lc(r.ops), wl = lc(r.whitelist), banned = lc(r.bans);
-    const actionsFor = (n) => {
+    const actionsFor = (n, where) => {
       const k = n.toLowerCase();
       return h("div", { class: "row" },
-        r.running && r.online.includes(n) ? btn("Kick", "kick", n) : null,
-        ops.has(k) ? btn("De-op", "deop", n) : btn("Op", "op", n),
-        r.whitelist_enabled || wl.has(k) ? (wl.has(k) ? btn("Un-whitelist", "whitelist-remove", n) : btn("Whitelist", "whitelist-add", n)) : null,
-        banned.has(k) ? btn("Pardon", "pardon", n) : btn("Ban", "ban", n, "danger"),
-        r.running && r.online.includes(n) ? btn("Ban IP", "ban-ip", n, "danger") : null);
+        r.running && r.online.includes(n) ? btn("Kick", "kick", n, "", where) : null,
+        ops.has(k) ? btn("De-op", "deop", n, "", where) : btn("Op", "op", n, "", where),
+        r.whitelist_enabled || wl.has(k) ? (wl.has(k) ? btn("Un-whitelist", "whitelist-remove", n, "", where) : btn("Whitelist", "whitelist-add", n, "", where)) : null,
+        banned.has(k) ? btn("Pardon", "pardon", n, "", where) : btn("Ban", "ban", n, "danger", where),
+        r.running && r.online.includes(n) ? btn("Ban IP", "ban-ip", n, "danger", where) : null);
     };
     const tags = (n) => {
       const k = n.toLowerCase();
       return [ops.has(k) ? h("span", { class: "tag ok" }, "op") : null, wl.has(k) ? h("span", { class: "tag" }, "whitelisted") : null,
               banned.has(k) ? h("span", { class: "tag bad" }, "banned") : null];
     };
-    const playerList = (names, empty) => names.length
-      ? h("ul", { class: "list" }, names.map((n) => h("li", {}, h("div", { class: "grow" }, h("strong", {}, n), tags(n)), actionsFor(n))))
+    const playerList = (names, empty, where) => names.length
+      ? h("ul", { class: "list" }, names.map((n) => h("li", {}, h("div", { class: "grow" }, h("strong", {}, n), tags(n)), actionsFor(n, where))))
       : h("p", { class: "empty" }, empty);
 
     const onlineSet = new Set(r.online.map((n) => n.toLowerCase()));
     const known = r.known.map((k) => k.name).filter((n) => n && !onlineSet.has(n.toLowerCase()));
 
-    fill(body,
+    refill(body, JSON.stringify(r),   // (rebuilt when the lists changed, not every few seconds: see refill)
       r.running ? null : h("div", { class: "notice" }, "The server is stopped. Changes are written to its player files and apply when it starts. Kicking needs the server running."),
       !r.online_mode ? dismissible("offline-mode", h("div", { class: "notice warn" }, "online-mode is off: anyone can join with any name, so bans and the whitelist only match names, not accounts.")) : null,
       h("div", { class: "grid mt" },
-        card(`Online now (${r.online.length})`, playerList(r.online, r.running ? "Nobody online" : "Server is stopped")),
+        card(`Online now (${r.online.length})`, playerList(r.online, r.running ? "Nobody online" : "Server is stopped", "online")),
         card(`Operators (${r.ops.length})`, r.ops.length ? h("ul", { class: "list" }, r.ops.map((o) => h("li", {},
-          h("div", { class: "grow" }, h("strong", {}, o.name), h("span", { class: "tag" }, `level ${o.level}`)), btn("De-op", "deop", o.name)))) : h("p", { class: "empty" }, "No operators"))),
+          h("div", { class: "grow" }, h("strong", {}, o.name), h("span", { class: "tag" }, `level ${o.level}`)), btn("De-op", "deop", o.name, "", "ops")))) : h("p", { class: "empty" }, "No operators"))),
       h("div", { class: "grid mt" },
         card("Whitelist",
           h("div", { class: "row mb" },
             h("span", { class: "grow" }, "Whitelist is ", h("strong", {}, r.whitelist_enabled ? "on" : "off"),
               h("span", { class: "muted small" }, r.whitelist_enabled ? ": only listed players can join" : ": anyone can join")),
-            h("button", { class: "btn small", onclick: () => run(r.whitelist_enabled ? "whitelist-off" : "whitelist-on", "") }, r.whitelist_enabled ? "Turn off" : "Turn on")),
-          r.whitelist.length ? h("ul", { class: "list" }, r.whitelist.map((w) => h("li", {}, h("div", { class: "grow" }, w.name), btn("Remove", "whitelist-remove", w.name))))
+            h("button", { class: "btn small", onclick: () => run(r.whitelist_enabled ? "whitelist-off" : "whitelist-on", ""), "data-fkey": "wl-toggle" }, r.whitelist_enabled ? "Turn off" : "Turn on")),
+          r.whitelist.length ? h("ul", { class: "list" }, r.whitelist.map((w) => h("li", {}, h("div", { class: "grow" }, w.name), btn("Remove", "whitelist-remove", w.name, "", "wl"))))
             : h("p", { class: "empty" }, "Nobody whitelisted")),
         card("Banned",
           r.bans.length || r.ip_bans.length ? h("ul", { class: "list" },
             r.bans.map((b) => h("li", {}, h("div", { class: "grow" }, h("strong", {}, b.name),
-              h("div", { class: "muted small" }, [b.reason, b.created && `since ${b.created}`].filter(Boolean).join(" · "))), btn("Pardon", "pardon", b.name))),
+              h("div", { class: "muted small" }, [b.reason, b.created && `since ${b.created}`].filter(Boolean).join(" · "))), btn("Pardon", "pardon", b.name, "", "bans"))),
             r.ip_bans.map((b) => h("li", {}, h("div", { class: "grow" }, h("code", {}, b.ip),
-              h("div", { class: "muted small" }, [b.reason, b.created && `since ${b.created}`].filter(Boolean).join(" · "))), btn("Pardon", "pardon-ip", b.ip))))
+              h("div", { class: "muted small" }, [b.reason, b.created && `since ${b.created}`].filter(Boolean).join(" · "))), btn("Pardon", "pardon-ip", b.ip, "", "bans"))))
             : h("p", { class: "empty" }, "Nobody banned"))),
-      h("div", { class: "mt" }, card("Players who have joined before", playerList(known, "Nobody else has joined yet"))),
+      h("div", { class: "mt" }, card("Players who have joined before", playerList(known, "Nobody else has joined yet", "known"))),
     );
   };
 
@@ -2323,16 +2390,17 @@ function joinRequestsCard(after = () => {}) {
   const el = h("div");
   const load = async () => {
     const r = await api("/api/join-requests").catch(() => null);
-    if (!r || !r.requests.length) { fill(el); return; }
+    if (!r) return;
+    if (!r.requests.length) { refill(el, "none"); return; }
     const answer = (name, allow) => act(() => api("/api/join-requests/answer", { method: "POST", body: { name, allow } }),
       allow ? `${name} can join now` : `Ignored ${name}`).then(() => { load(); after(); });
-    fill(el, h("div", { class: "card mb" }, h("h3", {}, "Asking to join"),
+    refill(el, JSON.stringify([r.whitelist_on, r.requests.map((x) => [x.name, ago(x.time)])]), h("div", { class: "card mb" }, h("h3", {}, "Asking to join"),
       h("p", { class: "muted small" }, r.whitelist_on ? "These friends used your invite and asked to be let in. Allow adds them to the whitelist."
         : "These friends asked to be let in. The whitelist is off, so anyone can join anyway; Allow adds them for when it's on."),
       h("ul", { class: "list" }, r.requests.map((x) => h("li", {},
         h("strong", { class: "grow" }, x.name, h("span", { class: "muted small" }, ` · ${ago(x.time)}`)),
-        h("button", { class: "btn small primary", onclick: () => answer(x.name, true) }, "Allow"),
-        h("button", { class: "btn small ghost", onclick: () => answer(x.name, false) }, "Ignore"))))));
+        h("button", { class: "btn small primary", onclick: () => answer(x.name, true), "data-fkey": `req:${x.name}:allow` }, "Allow"),
+        h("button", { class: "btn small ghost", onclick: () => answer(x.name, false), "data-fkey": `req:${x.name}:ignore` }, "Ignore"))))));
   };
   return { el, load };
 }
@@ -3317,12 +3385,12 @@ views.settings = () => {
   const danger = h("div", { class: "card danger-zone mt" });
   const renderDanger = () => {
     const me = hubInfo && hubInfo.servers ? hubInfo.servers.find((x) => x.id === server) : null;
-    if (!me || hubInfo.single) { fill(danger); danger.classList.add("hidden"); return; }
+    if (!me || hubInfo.single) { refill(danger, "none"); danger.classList.add("hidden"); return; }
     danger.classList.remove("hidden");
-    fill(danger, h("h3", {}, "Delete this server"),
+    refill(danger, JSON.stringify([me.id, me.name, me.state, me.folder]), h("h3", {}, "Delete this server"),
       h("div", { class: "row" },
         h("span", { class: "grow muted" }, "Take it off your list, and choose whether to also erase its world, mods and backups."),
-        h("button", { class: "btn danger", onclick: () => deleteServer(me, () => { location.hash = "#servers"; }) }, "Delete server…")));
+        h("button", { class: "btn danger", onclick: () => deleteServer(me, () => { location.hash = "#servers"; }), "data-fkey": "delete" }, "Delete server…")));
   };
   // Move to another computer: export everything to one file, import it there.
   const exportCard = h("div", { class: "card mt" });
@@ -3439,7 +3507,14 @@ views.friends = () => {
   const save = async (changes, message) => {
     const r = await act(() => api("/api/client", { method: "POST", body: changes }), message);
     if (r) { data = r; render(); announceAlsoOnServer(r); }
+    if (r && changes.enabled === false) offerStaleShareRule();
     return r;
+  };
+  // Switched off: if nothing shares the download any more, the Windows Firewall rule Craft Conductor made for its port can go.
+  const offerStaleShareRule = async () => {
+    if (!(hubInfo && hubInfo.local)) return;
+    const rules = await api("/api/hub/firewall-rules?share=1").then((x) => x.rules || []).catch(() => []);
+    if (rules.length) offerRemoveFirewallRules("friends' downloads", rules);
   };
   const reload = async () => { const r = await api("/api/client").catch(() => null); if (r) { data = r; render(); } };
   // Will players' Minecraft start with what they get (filecheck.py): after every change to their mods.
@@ -3648,7 +3723,7 @@ views.friends = () => {
           } }, d.expired ? "Make new links" : "New links"),
           !d.expired && (links.internet || links.local) ? h("button", { class: "btn ghost", onclick: async () => {
             if (await ask("Stop these links now? Nobody else can set up with them. Friends who already set up keep playing, but can't update their game until they get a new link.", { ok: "Stop the links", danger: true })) {
-              act(() => api("/api/client/stop-link", { method: "POST", body: {} }), "Links stopped").then((r) => { if (r) { data = r; render(); } });
+              act(() => api("/api/client/stop-link", { method: "POST", body: {} }), "Links stopped").then((r) => { if (r) { data = r; render(); offerStaleShareRule(); } });
             }
           } }, "Stop these links") : null),
         !playersBlocked() && (links.internet || links.local) ? h("details", { class: "mt-s small" }, h("summary", {}, "Advanced: invite codes and security"),
@@ -3808,6 +3883,11 @@ function openModManager({ title, description = "", owner = "", getItems, getHead
         action ? h("button", { type: "button", class: "btn small" + (m.removed ? "" : " danger"), onclick: async () => {
           const changed = await action();
           if (changed === false) return;
+          if (!m.removed && m.undoNote && m.restore) undoToast(`Removed ${m.name}. ${m.undoNote}`, async () => {
+            await m.restore();
+            if (onChange) onChange();
+            render();
+          });
           if (onChange) onChange();
           render();
         } }, actionLabel) : null);
@@ -6027,6 +6107,19 @@ function pickWorld(onPick) {
 }
 
 // ------------------------------------------------------------ delete a server
+// After a server is deleted: its Windows Firewall rule(s), made by Craft Conductor for its port, can go too (Windows
+// asks for permission once). Keep leaves them.
+async function offerRemoveFirewallRules(what, rules) {
+  const listed = rules.map((x) => x.name).join("\n");
+  const some = rules.length === 1 ? "this rule" : "these rules";
+  const question = what
+    ? `Remove the Windows Firewall ${rules.length === 1 ? "rule" : "rules"} for ${what}?\n\nCraft Conductor made ${some} to let friends reach port ${rules[0].port}, and nothing here uses that port any more:\n${listed}\n\nWindows asks for permission once.`
+    : `Remove ${rules.length === 1 ? "this Windows Firewall rule" : `all ${rules.length} Windows Firewall rules`} that Craft Conductor made?\n\n${listed}\n\nServers that are still here will need Check my setup → Let them through Windows Firewall again for friends to reach them. Windows asks for permission once.`;
+  if (!(await ask(question, { ok: "Remove", cancel: "Keep" }))) return;
+  const r = await act(() => api("/api/hub/firewall/remove", { method: "POST", body: { names: rules.map((x) => x.name) } }), "Removing…");
+  if (r) toast(r.message);
+}
+
 function deleteServer(s, after) {
   if ($("#delete-server")) return;
   let everything = false;
@@ -6038,10 +6131,13 @@ function deleteServer(s, after) {
       e.preventDefault();
       if (everything && typed.value.trim() !== s.name) return render(`Type the server's name, ${s.name}, to delete everything.`);
       try {
+        // (Windows: the rules Craft Conductor made for this server's port, looked up while the server is still here)
+        const rules = hubInfo && hubInfo.local ? await api(`/api/hub/firewall-rules?id=${encodeURIComponent(s.id)}`).then((x) => x.rules || []).catch(() => []) : [];
         const r = await api("/api/hub/delete", { method: "POST", body: { id: s.id, delete_files: everything } });
         close();
         toast(`${s.name}: ${r.message}`);
         if (after) after();
+        if (rules.length) offerRemoveFirewallRules(s.name, rules);
       } catch (err) { if (!(err instanceof Unauthorized)) render(err.message); }
     };
     const choice = (value, title, desc) => h("button", { type: "button", class: "choice" + (everything === value ? " selected" : "") + (value ? " danger" : ""),
@@ -6076,11 +6172,12 @@ const IMPORT_LEFT_OUT = {
 };
 
 // The home page: every server, each started and stopped by hand.
+let lastImportProblem = null;  // why the last Import a server… was refused, until dismissed
 views.servers = () => {
   const list = h("div", { class: "server-list" });
   const busy = new Set();
   const control = async (s, action) => {
-    if (action === "stop" && s.players && !(await ask(`Stop ${s.name}? ${s.players} player(s) will be disconnected.`, { id: "stop-server", ok: "Stop" }))) return;
+    if (action === "stop" && !(await confirmStop(s.players, s.name))) return;
     if (action === "start" && !(await memoryOkToStart(s.id, s.name))) return;
     busy.add(s.id);
     await act(() => api(`/api/servers/${s.id}/server/${action}`, { method: "POST" }),
@@ -6097,7 +6194,9 @@ views.servers = () => {
         .replace("{used}", m.running_gb).replace("{total}", m.total_gb) : ""; }).catch(() => null);
     }
     const label = (s) => s.state === "unavailable" ? "unavailable" : s.setup_pending ? "not set up" : s.state;
-    fill(list,
+    // (rebuilt only when something shown here changed: see refill)
+    refill(list, JSON.stringify([!!hb.single, !!hb.local, [...busy], hb.servers.map((s) => [s.id, s.name, s.state, s.setup_pending, s.problem,
+      s.minecraft, s.loader, s.players, s.max_players, s.port, !!s.update, s.job && s.job.name, s.folder])]),
       hb.servers.map((s) => h("div", { class: "card server-card" },
         h("div", { class: "row" },
           h("span", { class: "pill " + (s.setup_pending ? "pending" : s.state) }, label(s)),
@@ -6107,26 +6206,36 @@ views.servers = () => {
           : h("div", { class: "muted small" }, `${s.players} / ${s.max_players} players · port ${s.port}`, s.update ? " · update ready" : ""),
         s.job ? h("div", { class: "row small" }, h("span", { class: "spinner" }), `${s.job.name}…`) : null,
         s.state === "unavailable" ? null : h("div", { class: "row mt-s" },
-          s.setup_pending ? h("a", { class: "btn primary", href: `#s/${s.id}/setup` }, s.job ? "See progress" : "Finish setup")
+          s.setup_pending ? h("a", { class: "btn primary", href: `#s/${s.id}/setup`, "data-fkey": `${s.id}:power` }, s.job ? "See progress" : "Finish setup")
             : s.state === "stopped"
-              ? h("button", { class: "btn primary", disabled: !!s.job || busy.has(s.id), onclick: () => control(s, "start") }, "Start")
-              : h("button", { class: "btn danger", disabled: busy.has(s.id), onclick: () => control(s, "stop") }, "Stop"),
-          s.setup_pending ? null : h("a", { class: "btn", href: `#s/${s.id}/dashboard` }, "Open"),
-          !hb.single && !s.job ? h("button", { class: "btn ghost", onclick: () => deleteServer(s, refreshStatus) }, "Delete") : null),
-        h("div", { class: "row" }, h("div", { class: "muted small folder grow" }, s.folder), folderBtn("server", "Folder", s.id)))),
-      hb.single ? null : h("a", { class: "card server-card new", href: "#new" },
+              ? h("button", { class: "btn primary", disabled: !!s.job || busy.has(s.id), onclick: () => control(s, "start"), "data-fkey": `${s.id}:power` }, "Start")
+              : h("button", { class: "btn danger", disabled: busy.has(s.id), onclick: () => control(s, "stop"), "data-fkey": `${s.id}:power` }, "Stop"),
+          s.setup_pending ? null : h("a", { class: "btn", href: `#s/${s.id}/dashboard`, "data-fkey": `${s.id}:open` }, "Open"),
+          !hb.single && !s.job ? h("button", { class: "btn ghost", onclick: () => deleteServer(s, refreshStatus), "data-fkey": `${s.id}:delete` }, "Delete") : null),
+        h("div", { class: "row" }, h("div", { class: "muted small folder grow" }, s.folder),
+          ((b) => { if (b) b.setAttribute("data-fkey", `${s.id}:folder`); return b; })(folderBtn("server", "Folder", s.id))))),
+      hb.single ? null : h("a", { class: "card server-card new", href: "#new", "data-fkey": "new" },
         h("strong", {}, "+ New server"), h("span", { class: "muted small" }, "Pick a server type, Minecraft version and mods")));
   };
   // Import a server exported on another computer (Settings → Export). An export leaves the
   // secrets out (IMPORT_LEFT_OUT says where to enter each again).
   const picker = h("input", { type: "file", accept: ".zip", class: "hidden" });
   const importNote = h("span", { class: "muted small" });
+  // Why the last import was refused stays here, beside Import a server…, until it's dismissed or another import starts
+  // (a toast alone is easy to miss: the reason "not enough free disk space" was never seen).
+  const importProblem = h("div");
+  const showImportProblem = () => fill(importProblem, lastImportProblem ? h("div", { class: "notice bad row", role: "alert" },
+    h("span", { class: "grow" }, h("strong", {}, t("The import didn't happen: ")), lastImportProblem.file ? `${lastImportProblem.file}: ` : "", lastImportProblem.message),
+    h("button", { class: "btn ghost small", onclick: () => { lastImportProblem = null; showImportProblem(); } }, "Dismiss")) : null);
+  showImportProblem();
   const importBtn = h("button", { class: "btn", onclick: () => picker.click() }, "Import a server…");
   picker.addEventListener("change", async () => {
     const f = picker.files[0];
     picker.value = "";
     if (!f) return;
     importBtn.disabled = true;
+    lastImportProblem = null;
+    showImportProblem();
     try {
       const staged = await upload(`/api/hub/stage?filename=${encodeURIComponent(f.name.replace(/[^A-Za-z0-9 ()\[\]+_.,'-]/g, "_"))}`, f,
         (done) => { importNote.textContent = `Uploading ${f.name}: ${Math.round(done * 100)}%`; });
@@ -6148,7 +6257,11 @@ views.servers = () => {
       await refreshStatus();
       location.hash = `#s/${r.id}/dashboard`;
     } catch (e) {
-      if (!(e instanceof Unauthorized)) toast(e.message, true);
+      if (!(e instanceof Unauthorized)) {
+        toast(e.message, true);
+        lastImportProblem = { file: f.name, message: e.message };
+        showImportProblem();
+      }
     } finally {
       importBtn.disabled = false;
       importNote.textContent = "";
@@ -6161,6 +6274,7 @@ views.servers = () => {
       h("p", { class: "muted grow" }, "Servers only run when you start them here, and stop when you press Stop or Quit Craft Conductor."),
       hubInfo && hubInfo.guide ? h("button", { class: "btn ghost", title: "Step by step from making a server to a friend joining it", onclick: startGuide }, "🧭 Guided setup") : null,
       hubInfo && hubInfo.single ? null : h("div", { class: "row" }, importNote, importBtn, picker)),
+    importProblem,
     memLine,
     list,
     sp ? sp.el : null);
@@ -6919,6 +7033,21 @@ views["craft-conductor"] = () => {
       h("div", { class: "row" }, h("button", { class: "btn", onclick: openRemoteAccess }, "🔒 Remote access & phones…")),
       h("p", { class: "muted small" }, `Servers are kept in ${hb.home}.`)));
   };
+  // Windows: take every rule Craft Conductor made out of Windows Firewall (before deleting Craft Conductor, say).
+  const firewallCard = h("div", { class: "mb" });
+  if (hubInfo && hubInfo.local) api("/api/hub/firewall-rules?available=1").then((r) => {
+    if (!r.available) return;
+    const remove = async () => {
+      const found = await act(() => api("/api/hub/firewall-rules?all=1"));
+      if (!found) return;
+      if (!found.rules.length) { toast("Craft Conductor has no rules in Windows Firewall"); return; }
+      await offerRemoveFirewallRules(null, found.rules);
+    };
+    fill(firewallCard, card("Windows Firewall",
+      h("p", { class: "muted small" }, "Craft Conductor adds a rule to Windows Firewall for each server's port and for the friends' download (Check my setup → Let them through Windows Firewall). " +
+        "They stay when you delete Craft Conductor: remove them here first if you're getting rid of it."),
+      h("div", { class: "row" }, h("button", { class: "btn", onclick: remove }, "Remove all Craft Conductor's firewall rules…"))));
+  }).catch(() => null);
   const about = h("div", { class: "mt" });
   // Where the update stands, from the same place as the dots and the prompt (hubInfo.self_update).
   const updateStatus = h("div", { class: "mt-s", id: "about-update" });
@@ -7017,7 +7146,7 @@ views["craft-conductor"] = () => {
     ["Sign-in & security", "Manage how you and your devices sign in.", security, owner ? passkeyCard() : null],
     ["Connections", "Phones, sharing with friends and connected services.", network, phone, sharing, cf, dc,
       owner && hubInfo && !hubInfo.single ? conflictsCard() : null],
-    ["About & updates", "Craft Conductor version, updates and licenses.", about],
+    ["About & updates", "Craft Conductor version, updates and licenses.", about, firewallCard],
   ];
   const panels = sections.map(([title, description, ...cards], i) => h("section", {
     id: `preferences-${i}`, class: "preferences-panel" + (i ? " hidden" : ""), "aria-labelledby": `preferences-button-${i}`,
@@ -7379,10 +7508,9 @@ function setupServerModItems() {
         detail: onServer ? m.path : m.for_friends
           ? `${m.path} · The pack's server pack leaves it out, so it goes in your friends' download instead of on the server.`
           : `${m.path} · This modpack marks it client-only, so Craft Conductor already leaves it off the server.`,
-        remove: onServer ? async () => {
-          if (!(await ask(`Remove ${m.name} from this modpack setup?\n\nThe modpack stays selected, but leaving out one of its mods can change gameplay or break other pack mods. Craft Conductor will still check the final set before creating the server.`, { ok: "Remove mod", danger: true }))) return false;
-          removed.add(m.path); st.modpack.removed = removed; return true;
-        } : null,
+        // (no question: removing ten pack mods took ten pop-ups; an Undo bar shows instead, see undoToast)
+        undoNote: "The modpack stays selected, but leaving out one of its mods can change gameplay or break other pack mods. Craft Conductor still checks the final set before creating the server.",
+        remove: onServer ? async () => { removed.add(m.path); st.modpack.removed = removed; return true; } : null,
         restore: onServer ? async () => { removed.delete(m.path); st.modpack.removed = removed; return true; } : null,
       });
     }
@@ -8329,10 +8457,10 @@ function navIcon(href) {
 
 function renderNav() {
   const hb = hubInfo || {};
-  const a = (href, label, active, extra) => h("a", { href, class: active ? "active" : null, "aria-current": active ? "page" : null }, navIcon(href), h("span", {}, label), extra || null);
+  const a = (href, label, active, extra) => h("a", { href, class: active ? "active" : null, "aria-current": active ? "page" : null, "data-fkey": href }, navIcon(href), h("span", {}, label), extra || null);
   const me = server && hb.servers ? hb.servers.find((x) => x.id === server) : null;
   const pending = me ? me.setup_pending : false;
-  fill($("#nav"),
+  refill($("#nav"), JSON.stringify([server, me && me.name, pending, !!(me && me.update), currentName, !!hb.single, hb.device || null, !!hb.self_update]),
     server ? [
       hb.single ? null : a("#servers", "← All servers", false),
       h("div", { class: "nav-server" }, me ? me.name : server),
@@ -8352,10 +8480,11 @@ function renderNav() {
   $(".server-id").classList.toggle("hidden", !inServer);
   $(".actions").classList.toggle("hidden", !inServer);
   $("#page-title").classList.toggle("hidden", inServer);
-  $("#page-title").textContent = t({ servers: "Your servers", new: "New server", "craft-conductor": "Craft Conductor settings", help: "Help", manual: "User manual" }[currentName] || "");
+  setText($("#page-title"), t({ servers: "Your servers", new: "New server", "craft-conductor": "Craft Conductor settings", help: "Help", manual: "User manual" }[currentName] || ""));
   // The browser tab (and what a screen reader says on arriving): the page, the server, Craft Conductor.
   const viewName = (SERVER_VIEWS.find(([v]) => v === currentName) || [])[1] || (currentName === "setup" ? "Setup" : "");
-  document.title = [inServer ? t(viewName) : $("#page-title").textContent, inServer ? (me ? me.name : server) : "", "Craft Conductor"].filter(Boolean).join(" · ");
+  const title = [inServer ? t(viewName) : $("#page-title").textContent, inServer ? (me ? me.name : server) : "", "Craft Conductor"].filter(Boolean).join(" · ");
+  if (document.title !== title) document.title = title;
   if (!inServer) $("#job").classList.add("hidden");
 }
 

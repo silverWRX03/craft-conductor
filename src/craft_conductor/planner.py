@@ -269,6 +269,7 @@ class Planner:
         alias: dict[str, str] = {}
         projects: dict[str, Project] = {}  # key -> project, to spot the same mod coming from another site
         queue = deque(self.config.mods)
+        pack_keys: set[str] = set()  # mods from a modpack: the pack lists what else they need
 
         def known(project: Project) -> str | None:
             """The key of the same mod already in the plan from another site, if it is."""
@@ -297,7 +298,7 @@ class Planner:
                 # Something required depends on it, so it is required too.
                 if spec.required:
                     if key in resolved:
-                        if not resolved[key].required:
+                        if not resolved[key].required and key not in pack_keys:
                             for dep in resolved[key].dependencies:
                                 queue.append(ModSpec(resolved[key].source, dep, required=True, dependency_of=key,
                                                      channel=spec.channel))
@@ -336,12 +337,15 @@ class Planner:
                     mod.listed_as = config_id
                 if mod.key in resolved:  # (already here, by another way)
                     if spec.required and not resolved[mod.key].required:
-                        for dep in resolved[mod.key].dependencies:
+                        for dep in () if mod.key in pack_keys else resolved[mod.key].dependencies:
                             queue.append(ModSpec(mod.source, dep, required=True, dependency_of=mod.key, channel=spec.channel))
                         resolved[mod.key].required = True
                     continue
                 projects[mod.key] = other
             resolved[mod.key] = mod
+            if spec.pack:
+                pack_keys.add(mod.key)
+                continue
             for dep in mod.dependencies:
                 queue.append(ModSpec(mod.source, dep, required=spec.required, dependency_of=mod.key, channel=spec.channel))
 

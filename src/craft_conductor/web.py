@@ -82,7 +82,8 @@ MAX_JSON = 1 << 20
 MAX_UPLOAD = 512 << 20
 MAX_ARCHIVE = 64 << 30
 LANGUAGES = ("es", "pt", "fr", "de", "hi", "zh", "vi", "ar", "ko")  # besides English: src/craft_conductor/webui/i18n/<code>.json
-LOCAL_ONLY = {"/api/open", "/api/hub/open", "/api/hub/remote-install/open", "/api/play-here", "/api/hub/singleplayer/install"}  # they act on this computer's screen  # a whole server (worlds and all), for importing
+LOCAL_ONLY = {"/api/open", "/api/hub/open", "/api/hub/remote-install/open", "/api/play-here", "/api/hub/singleplayer/install",
+              "/api/hub/firewall/remove"}  # they act on this computer's screen  # a whole server (worlds and all), for importing
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/app.js": ("app.js", "text/javascript; charset=utf-8"),
           "/rich.js": ("rich.js", "text/javascript; charset=utf-8"),
@@ -1296,6 +1297,8 @@ class HubApi:
         r[("GET", "/api/hub/browse/search")] = lambda q, b: browse_search(self.browser(), q)
         r[("GET", "/api/hub/browse/project")] = lambda q, b: browse_project(self.browser(), q)
         r[("GET", "/api/hub/browse/categories")] = lambda q, b: browse_categories(self.browser(), q)
+        r[("GET", "/api/hub/firewall-rules")] = self.firewall_rules
+        r[("POST", "/api/hub/firewall/remove")] = self.firewall_remove
         r[("POST", "/api/hub/delete")] = lambda q, b: {
             "ok": True, "message": self.hub.delete(str(b.get("id", "")), b.get("delete_files") is True)}
         r[("GET", "/api/notice")] = lambda q, b: {"accepted": notice.accepted(self.hub.root), "version": notice.NOTICE_VERSION,
@@ -1908,6 +1911,51 @@ class HubApi:
             return session.explore(x, z, radius)
         except preview.PreviewError as e:
             raise ApiError(409 if "already" in str(e) else 400, str(e)) from None
+
+    def firewall_rules(self, q, b) -> dict:
+        """The Windows Firewall rules Craft Conductor made for a server's port, for the question asked when it is
+        deleted: none when another server here uses the same port. Reads only (no administrator rights)."""
+        from . import firewall
+        if q.get("available") == "1":  # (whether Craft Conductor settings shows its Windows Firewall card: no read)
+            return {"available": firewall.available()}
+        if q.get("all") == "1":  # every rule Craft Conductor made on this computer (by any copy of it)
+            return {"available": firewall.available(), "rules": firewall.own_rules(firewall.read(fresh=True)) if firewall.available() else []}
+        if q.get("share") == "1":  # the friends' download, once nothing shares it any more
+            if not firewall.available() or self.hub.share is not None:
+                return {"rules": []}
+            port = int(self.hub.share_settings()["port"])
+            if port in self.hub.ports():
+                return {"rules": []}
+            return {"rules": firewall.own_rules(firewall.read(fresh=True), port)}
+        sid = str(q.get("id", ""))
+        if not firewall.available() or sid not in self.hub.daemons:
+            return {"rules": []}
+        try:
+            port = int(read_properties(self.hub.daemons[sid].m.server_dir / "server.properties").get("server-port", "25565"))
+        except ValueError:
+            return {"rules": []}
+        if port in self.hub.ports(exclude=sid):
+            return {"rules": []}
+        return {"rules": firewall.own_rules(firewall.read(fresh=True), port)}
+
+    def firewall_remove(self, q, b) -> dict:
+        """Delete Craft Conductor's own firewall rules (by name). Only rules that exist now, in Craft
+        Conductor's group, are ever removed; Windows asks the person at this computer for permission."""
+        from . import firewall
+        # (only from a browser on this computer, and never a paired phone: LOCAL_ONLY, and not among DEVICE_POSTS;
+        # Windows' administrator prompt shows on this computer)
+        asked = b.get("names")
+        if not isinstance(asked, list) or not asked or not all(isinstance(x, str) for x in asked):
+            raise ApiError(400, "which rules?")
+        ours = {r["name"] for r in firewall.own_rules(firewall.read(fresh=True))}
+        names = [x for x in dict.fromkeys(asked) if x in ours]
+        if not names:
+            return {"ok": True, "removed": [], "message": "Those rules aren't there any more"}
+        try:
+            firewall.remove(names)
+        except firewall.FirewallError as e:
+            raise ApiError(400, str(e)) from None
+        return {"ok": True, "removed": names, "message": "Removed from Windows Firewall: " + "; ".join(names)}
 
     def map_stop(self, q, b) -> dict:
         session = self._map(b.get("id"))
@@ -3066,7 +3114,8 @@ class Api:
     # ------------------------------------------------------------- players
     def _players(self) -> Players:
         running = self.d.state == "running"
-        return Players(self.m.server_dir, self.m.http, self.d.send_command if running else None)
+        return Players(self.m.server_dir, self.m.http, self.d.send_command if running else None,
+                       self.d.ask_command if running else None)
 
     def players(self, q, b) -> dict:
         return self._players().summary(self.d.players)
@@ -3160,7 +3209,7 @@ class Api:
         if self.d.state != "running" or not self.d.proc:
             return {"running": False, "chunky": chunky}
         proc = self.d.proc
-        return {"running": True, "rules": worldtools.read_rules(proc), "border": worldtools.border_size(proc),
+        return {"running": True, "rules": worldtools.read_rules(proc, self.m.lock.minecraft), "border": worldtools.border_size(proc),
                 "chunky": chunky, "progress": worldtools.chunky_progress(proc.tail(300)) if chunky else None}
 
     def world_rule(self, q, b) -> dict:
@@ -3533,7 +3582,19 @@ class Api:
         if not firewall.available():
             return None
         state = firewall.read(fresh=fresh)
-        return firewall.assess(state, upnp._lan_address(), self._firewall_ports(share)) if state else None
+        if not state:
+            return None
+        out = firewall.assess(state, upnp._lan_address(), self._firewall_ports(share))
+        out["old_rules"] = self._old_firewall_rules(state)
+        return out
+
+    def _old_firewall_rules(self, state: dict | None) -> list[dict]:
+        """Craft Conductor's own rules for ports that no server here, and not the friends' download, uses."""
+        from . import firewall
+        hub = self.web.hub
+        in_use = set(hub.ports())
+        in_use.add(int(hub.share_settings()["port"]))
+        return [r for r in firewall.own_rules(state) if r["port"] not in in_use]
 
     def doctor(self, q, b) -> dict:
         from dataclasses import asdict
@@ -3595,6 +3656,18 @@ class Api:
             s = hub.share_settings()
             hub.save_share(s["port"], ip)
             message = f"Friends outside your home now get {ip}"
+        elif action == "firewall-clean":
+            if b.get("__local") is not True:
+                raise ApiError(403, "that only works in a browser on the server's own computer")
+            from . import firewall
+            old = self._old_firewall_rules(firewall.read(fresh=True))  # (read again now: only what is still unused and ours)
+            if not old:
+                raise ApiError(409, "there are no old rules any more: press Check again")
+            try:
+                firewall.remove([r["name"] for r in old])
+            except firewall.FirewallError as e:
+                raise ApiError(400, str(e)) from None
+            message = "Removed from Windows Firewall: " + "; ".join(r["name"] for r in old)
         elif action == "firewall":
             # (Windows' administrator prompt shows on this computer: only someone at it can answer)
             if b.get("__local") is not True:

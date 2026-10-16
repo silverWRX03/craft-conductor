@@ -448,7 +448,8 @@ class Hub:
         from .players import Players
         d = self.daemons[sid]
         running = d.state == "running"
-        message = Players(d.m.server_dir, d.m.http, d.send_command if running else None).act("whitelist-add", name)
+        message = Players(d.m.server_dir, d.m.http, d.send_command if running else None,
+                         d.ask_command if running else None).act("whitelist-add", name)
         self.answer_join_request(sid, name)
         log.info("%s let themselves into %s through Discord (%s)", name, sid, who)
         d.m.notifier.send(f"{name} was let in through Discord (/whitelist, by {who}).")
@@ -872,10 +873,17 @@ class Hub:
                 sid, n = f"{base}-{n}", n + 1
             root = self.home / SERVERS_DIR / sid
             manifest = transfer.import_into(archive, root, password=password, skip_locked=skip_locked)
-            from .properties import read_properties, write_properties
+            from .properties import read_properties, server_name, write_properties
             props_path = configmod.load(root).server.dir / "server.properties"
             if name:
                 write_properties(props_path, {"motd": name[:59]})
+            elif (shown := server_name(read_properties(props_path), sid)) and shown.casefold() in self._names():
+                # (two cards with the same name are easy to mix up: the copy is "Name (2)", as a name is the motd)
+                n_copy = 2
+                while f"{shown} ({n_copy})".casefold() in self._names():
+                    n_copy += 1
+                write_properties(props_path, {"motd": f"{shown[:50]} ({n_copy})"})
+                log.info("the imported server has the name of one already here (%s); it is now %s (%d)", shown, shown, n_copy)
             port = int(read_properties(props_path).get("server-port", "25565") or 25565)
             if port in self.ports():  # another server here already uses it
                 new = self.free_port(port)
@@ -886,6 +894,17 @@ class Hub:
             self._attach(sid, root)
         log.info("imported %s into %s", name or manifest.get("name"), root)
         return sid, manifest
+
+    def _names(self) -> set[str]:
+        """The names of the servers here as the server list shows them (lower case)."""
+        from .properties import read_properties, server_name
+        out = set()
+        for sid, d in self.daemons.items():
+            try:
+                out.add(server_name(read_properties(d.m.server_dir / "server.properties"), sid).casefold())
+            except OSError:
+                out.add(sid.casefold())
+        return out
 
     def delete(self, sid: str, delete_files: bool) -> str:
         """Take a server off the list; with ``delete_files``, also erase its world, mods,

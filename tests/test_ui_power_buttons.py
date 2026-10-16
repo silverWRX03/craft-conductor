@@ -3,7 +3,7 @@
     CRAFT_UI_NODE=node CRAFT_UI_PLAYWRIGHT=<path to the playwright package> pytest tests/test_ui_power_buttons.py
 
 A double-click on each counts once: one request, no "busy: start is running" error beside the
-result, and Stop asks its question once.
+result, and Stop (with nobody connected) asks nothing.
 """
 import os
 import subprocess

@@ -53,7 +53,10 @@ def test_check_my_setup_says_it_plainly():
     c = doctor.firewall_check(firewall.assess(state([], public_on=False), lan, WANTED))
     assert c.status == doctor.OK and "off" in c.detail and "public" in c.detail
     c = doctor.firewall_check(firewall.assess(state([rule()]), lan, WANTED))
-    assert c.status == doctor.OK and "25565" in c.detail and not c.action
+    assert c.status == doctor.OK and "25565" in c.detail and not c.action and "Java program" not in c.detail
+    # What Windows' own "allow Java?" prompt makes is a rule for the program: the line says so, not "port".
+    c = doctor.firewall_check(firewall.assess(state([rule(program=JAVA, protocol="", ports=[""])]), lan, WANTED[:1]))
+    assert c.status == doctor.OK and "Port 25565 (Survival (Minecraft)) gets through because of a Windows rule for the Java program (any port), not a rule for that port." in c.detail
     c = doctor.firewall_check(firewall.assess(state([rule(ports=["25565"])]), lan, WANTED))
     assert c.status == doctor.WARN and "8766 (friends' downloads)" in c.detail and c.action == "firewall"
     c = doctor.firewall_check(firewall.assess(state([rule(), rule(action=4, program=JAVA)]), lan, WANTED))
@@ -140,3 +143,117 @@ def test_only_at_this_computer(hub_env, monkeypatch):
     monkeypatch.setattr(firewall, "read", lambda timeout=30, fresh=False: state([]))
     status, r, _ = c.post("/api/servers/alpha/doctor/fix", {"action": "firewall"})
     assert status == 400 and "still doesn't let port 25565" in r["error"]
+
+
+def ours(port, name=None, **kw):
+    return {**rule(ports=[str(port)], **kw), "group": "Craft Conductor", "name": name or f"Craft Conductor: Alpha (TCP {port})"}
+
+
+def test_only_craft_conductors_own_rules_can_be_removed():
+    st = state([ours(25565), ours(8766, "Craft Conductor: friends downloads (TCP 8766)"),
+                {**rule(ports=["25565"]), "group": "", "name": "Someone else's rule for the same port"},
+                {**ours(25570), "ports": ["25570-25580"]},          # (a range: not one Craft Conductor made)
+                {**ours(25571), "action": 4}])                      # (a block rule)
+    assert firewall.own_rules(st, 25565) == [{"name": "Craft Conductor: Alpha (TCP 25565)", "port": 25565}]
+    assert [r["port"] for r in firewall.own_rules(st)] == [25565, 8766]
+    assert firewall.own_rules(None) == []
+    text = firewall.remove_script(["Craft Conductor: Sam's server (TCP 1)"])
+    assert "Get-NetFirewallRule -DisplayName 'Craft Conductor: Sam''s server (TCP 1)'" in text
+    assert "$_.Group -eq 'Craft Conductor'" in text and text.count("Remove-NetFirewallRule") == 1
+
+
+def test_a_deleted_servers_rule_is_offered_and_removed_on_request(hub_env, monkeypatch):
+    from test_hub import login
+    hub, c = hub_env
+    login(c)
+    from craft_conductor.properties import write_properties
+    write_properties(hub.get("alpha").m.server_dir / "server.properties", {"server-port": "25599"})  # (main, the other one here, has 25565)
+    port = int(read_port(hub))
+    assert port == 25599
+    st = state([ours(port), ours(port + 1, "Craft Conductor: Other (TCP %d)" % (port + 1))])
+    removed = []
+    monkeypatch.setattr(firewall, "read", lambda timeout=30, fresh=False: st)
+    monkeypatch.setattr(firewall, "available", lambda: True)
+    monkeypatch.setattr(firewall, "remove", lambda names, timeout=300: removed.append(names))
+    rules = c.get("/api/hub/firewall-rules?id=alpha")[1]["rules"]
+    assert [r["port"] for r in rules] == [port]
+    assert c.get("/api/hub/firewall-rules?id=nothere")[1] == {"rules": []}
+    write_properties(hub.get("alpha").m.server_dir / "server.properties", {"server-port": "25565"})
+    assert c.get("/api/hub/firewall-rules?id=alpha")[1] == {"rules": []}   # (another server here uses 25565: its rule stays)
+    write_properties(hub.get("alpha").m.server_dir / "server.properties", {"server-port": "25599"})
+    # only rules that are there, and Craft Conductor's own, are removed
+    status, r, _ = c.post("/api/hub/firewall/remove", {"names": [rules[0]["name"], "Core Networking - Echo Request", "x"]})
+    assert status == 200 and removed == [[rules[0]["name"]]] and r["removed"] == [rules[0]["name"]]
+    away = {"X-Forwarded-For": "203.0.113.9"}
+    assert c.post("/api/hub/firewall/remove", {"names": [rules[0]["name"]]}, headers=away)[0] in (401, 403)
+    assert c.post("/api/hub/firewall/remove", {"names": []})[0] == 400
+    assert len(removed) == 1
+
+
+def read_port(hub):
+    from craft_conductor.properties import read_properties
+    return read_properties(hub.get("alpha").m.server_dir / "server.properties").get("server-port", "25565")
+
+
+def test_check_my_setup_offers_to_remove_rules_for_ports_nothing_uses(hub_env, monkeypatch):
+    from craft_conductor.properties import write_properties
+    from test_hub import login
+    hub, c = hub_env
+    login(c)
+    write_properties(hub.get("alpha").m.server_dir / "server.properties", {"server-port": "25599"})
+    st = state([ours(25599), ours(25611, "Craft Conductor: Test World Spaces (Minecraft) (TCP 25611)"),
+                ours(8766, "Craft Conductor: friends downloads (TCP 8766)")])   # (8766 is the friends' download port)
+    removed = []
+    monkeypatch.setattr(firewall, "read", lambda timeout=30, fresh=False: st)
+    monkeypatch.setattr(firewall, "available", lambda: True)
+    monkeypatch.setattr(firewall, "remove", lambda names, timeout=300: removed.append(names))
+    checks = {x["id"]: x for x in c.get("/api/servers/alpha/doctor")[1]["checks"]}
+    old = checks["firewall-old"]
+    assert old["action"] == "firewall-clean" and "TCP 25611" in old["detail"] and "25599" not in old["detail"] and "8766" not in old["detail"]
+    away = {"X-Forwarded-For": "203.0.113.9"}
+    assert c.post("/api/servers/alpha/doctor/fix", {"action": "firewall-clean"}, headers=away)[0] in (401, 403)
+    assert not removed
+    status, r, _ = c.post("/api/servers/alpha/doctor/fix", {"action": "firewall-clean"})
+    assert status == 200 and removed == [["Craft Conductor: Test World Spaces (Minecraft) (TCP 25611)"]], r
+
+
+def test_the_friends_download_rule_is_offered_when_nothing_shares_it(hub_env, monkeypatch):
+    from test_hub import login
+    hub, c = hub_env
+    login(c)
+    port = hub.share_settings()["port"]
+    monkeypatch.setattr(firewall, "available", lambda: True)
+    monkeypatch.setattr(firewall, "read", lambda timeout=30, fresh=False: state([ours(port, f"Craft Conductor: friends downloads (TCP {port})")]))
+    assert hub.share is None
+    assert [r["port"] for r in c.get("/api/hub/firewall-rules?share=1")[1]["rules"]] == [port]
+    hub.share = object()                    # (running: friends are using it)
+    try:
+        assert c.get("/api/hub/firewall-rules?share=1")[1] == {"rules": []}
+    finally:
+        hub.share = None
+
+
+def test_the_command_line_lists_and_removes_the_rules(monkeypatch, capsys):
+    from craft_conductor import cli
+    removed = []
+    monkeypatch.setattr(firewall, "available", lambda: True)
+    monkeypatch.setattr(firewall, "read", lambda timeout=30, fresh=False: state([ours(25565), ours(8766, "Craft Conductor: friends downloads (TCP 8766)")]))
+    monkeypatch.setattr(firewall, "remove", lambda names, timeout=300: removed.append(names))
+    assert cli.main(["firewall", "list"]) == 0 and not removed
+    assert "TCP 25565" in capsys.readouterr().out
+    monkeypatch.setattr("builtins.input", lambda prompt="": "n")
+    assert cli.main(["firewall", "remove"]) == 0 and not removed and "Kept." in capsys.readouterr().out
+    assert cli.main(["firewall", "remove", "--yes"]) == 0 and len(removed[0]) == 2
+    monkeypatch.setattr(firewall, "available", lambda: False)
+    assert cli.main(["firewall", "list"]) == 1
+
+
+def test_the_settings_page_offers_every_rule_removed(hub_env, monkeypatch):
+    from test_hub import login
+    hub, c = hub_env
+    login(c)
+    monkeypatch.setattr(firewall, "available", lambda: True)
+    monkeypatch.setattr(firewall, "read", lambda timeout=30, fresh=False: state([ours(25565), ours(9, "Craft Conductor: Other (TCP 9)")]))
+    assert c.get("/api/hub/firewall-rules?available=1")[1] == {"available": True}
+    got = c.get("/api/hub/firewall-rules?all=1")[1]
+    assert got["available"] and [r["port"] for r in got["rules"]] == [25565, 9]

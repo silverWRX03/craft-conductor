@@ -38,7 +38,7 @@ $rules = @(Get-NetFirewallRule -Direction Inbound -Enabled True | ForEach-Object
     # (the list of all ports leaves some rules out without administrator rights, rules just added
     # among them; one at a time they can be read, so Craft Conductor's own are asked about)
     if (-not $p -and $_.Group -eq 'Craft Conductor') { $p = $_ | Get-NetFirewallPortFilter }
-    [pscustomobject]@{ action = [int]$_.Action; profile = [int]$_.Profile; program = "$($a.Program)"; package = "$($a.Package)";
+    [pscustomobject]@{ name = "$($_.DisplayName)"; group = "$($_.Group)"; action = [int]$_.Action; profile = [int]$_.Profile; program = "$($a.Program)"; package = "$($a.Package)";
                        service = "$($services[$_.Name])"; protocol = "$($p.Protocol)";
                        ports = @($p.LocalPort | ForEach-Object { "$_" }) } })
 [pscustomobject]@{ profiles = $profiles; networks = $networks; rules = $rules } | ConvertTo-Json -Compress -Depth 5
@@ -110,7 +110,8 @@ def assess(state: dict, lan_ip: str | None, wanted: list[dict]) -> dict:
 
     ``wanted``: [{"port", "label", "program"}] (``program``: what listens on it, for rules made
     for a program rather than a port). Returns {"on", "network", "ports": [{"port", "label",
-    "program", "allowed", "blocked"}]}."""
+    "program", "allowed", "blocked", "by"}]}; ``by`` is "program" when the rule that lets the port through
+    is one for the program that listens (Windows makes those itself) rather than for the port."""
     networks = _list(state.get("networks"))
     mine = next((n for n in networks if lan_ip and lan_ip in _list(n.get("ips"))), None)
     category = str((mine or {}).get("category") or "Public")
@@ -133,8 +134,10 @@ def assess(state: dict, lan_ip: str | None, wanted: list[dict]) -> dict:
                     not protocol or (protocol in ("TCP", "Any") and _port_matches(_list(r.get("ports")), w["port"])))
             return protocol in ("TCP", "Any") and _port_matches(_list(r.get("ports")), w["port"])
         blocked = any(int(r.get("action", 0)) == BLOCK and applies(r) for r in rules)
-        allowed = any(int(r.get("action", 0)) == ALLOW and applies(r) for r in rules)
-        out["ports"].append({**w, "allowed": allowed and not blocked, "blocked": blocked})
+        allowing = [r for r in rules if int(r.get("action", 0)) == ALLOW and applies(r)]
+        # (a rule for the port itself is the better reason to give when there are both kinds)
+        by = "port" if any(str(r.get("program") or "") == "Any" for r in allowing) else "program"
+        out["ports"].append({**w, "allowed": bool(allowing) and not blocked, "blocked": blocked, "by": by})
     return out
 
 
@@ -163,6 +166,49 @@ def script(ports: list[dict]) -> str:
                          "Remove-NetFirewallRule")
     lines += ["  exit 0", "} catch { Write-Output $_.Exception.Message; exit 1 }"]
     return "\n".join(lines) + "\n"
+
+
+def own_rules(state: dict | None, port: int | None = None) -> list[dict]:
+    """Craft Conductor's own allow rules (the group "Craft Conductor", made by :func:`script`) in what
+    :func:`read` returned: [{"name", "port"}], those for ``port`` only when it's given. Nobody else's rule is
+    ever in this list: it's what a removal is checked against."""
+    out = []
+    for r in _list((state or {}).get("rules")):
+        if str(r.get("group")) != GROUP or int(r.get("action", 0)) != ALLOW or str(r.get("protocol")) not in ("TCP", ""):
+            continue
+        name, spec = str(r.get("name") or ""), [str(x) for x in _list(r.get("ports"))]
+        if not name or len(spec) != 1 or not spec[0].isdigit():
+            continue  # (one port, as Craft Conductor makes them)
+        if port is None or int(spec[0]) == port:
+            out.append({"name": name, "port": int(spec[0])})
+    return out
+
+
+def remove_script(names: list[str]) -> str:
+    """The PowerShell run with administrator rights to delete Craft Conductor's rules with exactly these names
+    (in its group only: never another program's rule that happens to share a name)."""
+    lines = ["$ErrorActionPreference = 'Stop'", "try {"]
+    for name in names:
+        lines.append(f"  Get-NetFirewallRule -DisplayName {_ps_string(name)} -ErrorAction SilentlyContinue | "
+                     f"Where-Object {{ $_.Group -eq {_ps_string(GROUP)} }} | Remove-NetFirewallRule")
+    lines += ["  exit 0", "} catch { Write-Output $_.Exception.Message; exit 1 }"]
+    return "\n".join(lines) + "\n"
+
+
+def remove(names: list[str], timeout: float = 300) -> None:
+    """Delete these rules of Craft Conductor's, asking Windows for administrator rights (the person at this
+    computer answers its prompt). Raises FirewallError when that's declined or fails."""
+    if not available():
+        raise FirewallError("this is only for Windows")
+    encoded = base64.b64encode(remove_script(names).encode("utf-16-le")).decode("ascii")
+    code = elevate("powershell.exe", f"-NoProfile -NonInteractive -EncodedCommand {encoded}", timeout)
+    if code is None:
+        raise FirewallError("Windows didn't get the go-ahead (its administrator prompt was answered No)")
+    if code != 0:
+        raise FirewallError(f"Windows couldn't remove the rules (error {code})")
+    global _cache
+    _cache = None
+    log.info("Windows Firewall: removed %s", "; ".join(names))
 
 
 def let_through(ports: list[dict], timeout: float = 300) -> None:

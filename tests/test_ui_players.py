@@ -53,7 +53,11 @@ def test_connected_players_card(hub_env):
                 names.append({"uuid": offline_uuid(words[2]), "name": words[2]})
             (folder / "whitelist.json").write_text(json.dumps(names))
     daemon.send_command = send
-    actions = {"a-player-joins": lambda: join("Zed"), "a-player-leaves": lambda: leave("Zed"),
+    daemon.ask_command = lambda command, parse, timeout=3: send(command)  # (player actions wait for the server's answer; this one says nothing)
+    def alex_level_3():
+        (folder / "ops.json").write_text(json.dumps([{"uuid": offline_uuid("Steve"), "name": "Steve", "level": 4},
+                                                     {"uuid": offline_uuid("Alex"), "name": "Alex", "level": 3}]))
+    actions = {"alex-gets-level-3-by-hand": alex_level_3, "a-player-joins": lambda: join("Zed"), "a-player-leaves": lambda: leave("Zed"),
                "the-open-player-leaves": lambda: leave("Player07")}   # (the 8th row, the one with its actions open)
     node = subprocess.Popen([os.environ["CRAFT_UI_NODE"], str(Path(__file__).with_name("ui_players.cjs")), client.base],
                             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)

@@ -70,6 +70,29 @@ const step = async (name) => { console.log('STEP ' + name); await lines.next(); 
   await page.locator('.toast-dialog').getByRole('button', { name: 'Cancel' }).click();
   await page.locator('.toast-dialog').waitFor({ state: 'detached' });
 
+  // Message asks in the page (not the browser's own box); Escape sends nothing, Enter sends one line
+  let native = 0;
+  const sent = [];
+  page.on('dialog', (d) => { native++; d.dismiss(); });
+  page.on('request', (r) => { if (r.method() === 'POST' && /\/command$/.test(r.url())) sent.push(r.postData()); });
+  await acts.getByText('Message', { exact: true }).click();
+  await page.locator('.toast-dialog input').waitFor();
+  assert.equal(await page.evaluate(() => document.activeElement === document.querySelector('.toast-dialog input')), true);
+  await page.keyboard.press('Escape');
+  await page.locator('.toast-dialog').waitFor({ state: 'detached' });
+  await acts.getByText('Message', { exact: true }).click();
+  await page.locator('.toast-dialog input').fill('hello   there');
+  await page.keyboard.press('Enter');
+  await page.locator('.toast-dialog').waitFor({ state: 'detached' });
+  await page.waitForTimeout(300);
+  assert.equal(native, 0);
+  assert.equal(sent.length, 1);
+  assert.equal(JSON.parse(sent[0]).command, 'tell ' + name7 + ' hello there');
+
+  // an operator's level changed in ops.json by hand shows without a reload
+  await step('alex-gets-level-3-by-hand');
+  await page.waitForFunction(() => [...document.querySelectorAll('.players-card .prow')].some((r) => r.innerText.includes('Alex') && /level 3/.test(r.querySelector('.badge').title)), null, { timeout: 25000 });
+
   // live updates leave everything where it is: the same rows and heads, the open actions, the scroll
   await sc.evaluate((el) => { el.scrollTop = 120; });
   await open7.locator('button.prow-open').focus();

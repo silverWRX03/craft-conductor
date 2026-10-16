@@ -101,6 +101,9 @@ class ModSpec:
     # Its datapack build (Modrinth's "datapack" loader) instead of a mod: for a mod with no build
     # for the server type (Terralith on Forge 26.x). It goes in the world's datapacks folder.
     datapack: bool = False
+    # From a modpack: held at the file the pack lists (a pin), and the pack's own list says what else
+    # it needs, so no dependencies are added for it.
+    pack: bool = False
 
     @property
     def label(self) -> str:
@@ -430,6 +433,7 @@ def parse(root: Path, data: dict) -> Config:
             required=bool(m.get("required", True)),
             channel=_choice(m["channel"], CHANNELS, f"mods[{i}].channel") if "channel" in m else None,
             datapack=bool(m.get("datapack", False)),
+            pack=bool(m.get("pack", False)),
         ))
     if any(m.datapack and m.source != "modrinth" for m in mods):
         raise ConfigError("datapack = true works for Modrinth mods only")
@@ -576,7 +580,8 @@ def mod_block(spec: ModSpec) -> str:
     ident = spec.id if spec.id.isdigit() and spec.source == "curseforge" else f'"{spec.id}"'
     channel = f'channel = "{spec.channel}"  # accepts early (unstable) builds\n' if spec.channel in CHANNELS else ""
     datapack = "datapack = true  # its datapack build, in the world's datapacks folder\n" if spec.datapack else ""
-    return f'\n[[mods]]\nsource = "{spec.source}"\nid = {ident}\nrequired = {str(spec.required).lower()}\n{channel}{datapack}'
+    pack = "pack = true  # from a modpack: held at the pack's file, changed only by the pack's next version\n" if spec.pack else ""
+    return f'\n[[mods]]\nsource = "{spec.source}"\nid = {ident}\nrequired = {str(spec.required).lower()}\n{channel}{datapack}{pack}'
 
 
 def append_mod(path: Path, spec: ModSpec) -> None:

@@ -45,6 +45,17 @@ def check_command(command: str) -> None:
         raise ValueError(f"that command is too long (at most {MAX_COMMAND} characters)")
 
 
+def exit_words(code: int | None) -> str:
+    """An exit code in words people can use: Windows reports -1 as 4294967295."""
+    if code is None:
+        return "no exit code"
+    if code >= 1 << 31:
+        code -= 1 << 32
+    if code == -1:
+        return "it was ended unexpectedly (exit code -1)"
+    return f"exit code {code}"
+
+
 class ServerProcess:
     def __init__(self, argv: list[str], cwd: Path, echo: bool = True,
                  on_line: Callable[[str], None] | None = None, cpu_cores: int = 0, priority: str = "normal"):

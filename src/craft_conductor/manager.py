@@ -22,6 +22,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import shutil
 import time
 from dataclasses import dataclass
@@ -76,12 +77,42 @@ class Result:
     backup: Path | None = None
 
 
+_WORST_LINE = re.compile(r"error|exception|fatal|could not|cannot|failed|crash", re.I)
+
+
+def failure_reason(error: Exception) -> str:
+    """One line saying why an update failed, for the saved note ("update manually to try again" says
+    why it isn't retried by itself). The message's first line can end in a colon with the details
+    after it (the server's last log lines): then the most telling of those is added."""
+    text = str(error)
+    lines = [x.strip() for x in text.splitlines() if x.strip()]
+    if not lines:
+        return repr(error)[:300]
+    first = lines[0]
+    if first.endswith(":"):
+        rest = lines[1:]
+        pick = next((x for x in reversed(rest) if _WORST_LINE.search(x)), rest[-1] if rest else "")
+        first = f"{first} {pick}" if pick else first.rstrip(":") + " (the server printed nothing)"
+    return first[:300]
+
+
+def config_stamp(config) -> tuple | None:
+    """What craft-conductor.toml looked like when it was last read (its time and size): a different one
+    means it was changed since, by hand or by another program."""
+    try:
+        st = config.path.stat()
+    except OSError:
+        return None
+    return (st.st_mtime_ns, st.st_size)
+
+
 class Manager:
     def __init__(self, config: Config, http: HttpClient | None = None, mojang: Mojang | None = None,
                  loader: Loader | None = None, providers: dict[str, ModProvider] | None = None,
                  java_probe: Callable[[str], int | None] | None = None, notifier: Notifier | None = None,
                  echo: bool = True, sleep: Callable[[float], None] = time.sleep):
         self.config = config
+        self.config_stamp = config_stamp(config)
         self.last_diagnosis = None  # why the last boot failed (diagnose.Diagnosis), if it did
         self.http = http or HttpClient()
         self.mojang = mojang or Mojang(self.http)
@@ -219,6 +250,7 @@ class Manager:
         """Re-read craft-conductor.toml (after it was edited, e.g. from the web UI)."""
         from . import config as configmod
 
+        stamp = config_stamp(self.config)  # (taken first: a change made while it's read is noticed next time)
         new = configmod.load(self.config.root)
         if new.server.loader != self.config.server.loader:
             if self.lock.installed:
@@ -232,6 +264,7 @@ class Manager:
         if cf is not None and hasattr(cf, "api_key"):
             cf.api_key = new.curseforge_api_key
         hold(self.providers, new.pins)
+        self.config_stamp = stamp
 
     # ------------------------------------------------------------- planning
     def planner(self) -> Planner:
@@ -561,6 +594,8 @@ class Manager:
 
         if archive is not None and not worth_keeping:
             from . import snapshots
+            log.info("the install worked, so the copy of the setup's files made before it (%s) was removed: "
+                     "it was only there to put them back if the install failed", archive.name)
             archive.unlink(missing_ok=True)
             snapshots.note_path(archive).unlink(missing_ok=True)
             archive = None
@@ -571,7 +606,7 @@ class Manager:
 
     def _rollback(self, plan: Plan, title: str, error: Exception, archive: Path | None,
                   restart: bool) -> Result:
-        reason = str(error).splitlines()[0][:300] if str(error) else repr(error)
+        reason = failure_reason(error)
         if archive:
             try:
                 backup.restore(archive, self.server_dir)

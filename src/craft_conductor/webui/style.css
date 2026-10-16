@@ -276,7 +276,7 @@ button.prow-open:focus-visible, .switch:focus-visible { outline: 2px solid var(-
 .toast.bad { border-inline-start-color: var(--danger); } .toast.bad .toast-icon { color: var(--danger); }
 .toast.sticky { cursor: default; border-inline-start-color: var(--info); display: grid; gap: 4px; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
-.modal-backdrop.blur, :root[data-theme="day"] .modal-backdrop.blur { backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); z-index: 70; }
+.modal-backdrop.blur, :root[data-theme="day"] .modal-backdrop.blur { backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); z-index: 110; }
 .toast-dialog { display: grid; gap: 8px; max-width: 480px; border-top: 5px solid var(--info); animation: toast-in .2s ease-out; }
 .toast-dialog strong:first-child { font-size: 17px; }
 @media (prefers-reduced-motion: reduce) { .toast, .toast-dialog { animation: none; } }

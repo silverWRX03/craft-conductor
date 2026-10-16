@@ -200,7 +200,8 @@ def test_modpack_is_applied_safely(tmp_path, http):
     assert r["minecraft"] == "1.21.1" and r["loader"] == "fabric" and r["mods"] == 1 and r["client_only"] == 1
     cfg = configmod.load(root)
     assert cfg.server.loader == "fabric" and cfg.server.minecraft == "1.21.1" and cfg.updates.strategy == "mods-only"
-    assert [(m.source, m.id) for m in cfg.mods] == [("modrinth", "AAAAAAAA")]
+    assert [(m.source, m.id, m.pack) for m in cfg.mods] == [("modrinth", "AAAAAAAA", True)]
+    assert {k: (p.version, p.minecraft) for k, p in cfg.pins.items()} == {"modrinth:AAAAAAAA": ("V1111111", "1.21.1")}
     server = cfg.server.dir
     assert (server / "scripts" / "start.sh").read_bytes() == script
     assert (server / "config" / "a.txt").read_text() == "server"  # server-overrides win
@@ -281,6 +282,7 @@ def test_new_server_from_a_modpack_and_local_files(hub_env):
     hub.http.json[f"{API}/project/AAA00000"] = hub.http.json[f"{API}/project/AAA"] | {"id": "AAA00000"}
     hub.http.json[f"{API}/project/AAA00000/version?" + "loaders=%5B%22fabric%22%5D"] = \
         hub.http.json[f"{API}/project/AAA/version?" + "loaders=%5B%22fabric%22%5D"]
+    hub.http.json[f"{API}/version/V1111111"] = hub.http.json[f"{API}/version/AAA-1.0"] | {"id": "V1111111", "project_id": "AAA00000"}  # (the pack's file)
     url = "https://cdn.modrinth.com/data/PACK0000/versions/PV111111/pack.mrpack"
     hub.http.files[url] = pack
     hub.http.json[f"{API}/version/PV111111"] = {"id": "PV111111", "project_id": "PACK0000", "name": "Pack 1.0",

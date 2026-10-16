@@ -826,6 +826,34 @@ def _panel_service(args) -> int:
     return 0
 
 
+def cmd_firewall(args) -> int:
+    """Windows: list, and with remove take out, the rules Craft Conductor made in Windows Firewall."""
+    from . import firewall
+
+    if not firewall.available():
+        print("This is only for Windows.")
+        return 1
+    rules = firewall.own_rules(firewall.read(fresh=True))
+    if not rules:
+        print("Craft Conductor has no rules in Windows Firewall.")
+        return 0
+    print("Rules Craft Conductor made in Windows Firewall:")
+    for r in rules:
+        print(f"  {r['name']}")
+    if args.action == "list":
+        return 0
+    if not args.yes and _ask("Remove them? Windows asks for permission once (y/n)", "n", ("y", "n")) != "y":
+        print("Kept.")
+        return 0
+    try:
+        firewall.remove([r["name"] for r in rules])
+    except firewall.FirewallError as e:
+        print(f"Not removed: {e}")
+        return 1
+    print("Removed.")
+    return 0
+
+
 def cmd_service(args) -> int:
     from . import service
 
@@ -1098,6 +1126,11 @@ def build_parser() -> argparse.ArgumentParser:
                    help="stable (the default) or beta (early versions); otherwise the one chosen in settings")
     s.add_argument("-y", "--yes", action="store_true")
     s.set_defaults(fn=cmd_self_update)
+
+    s = sub.add_parser("firewall", help="Windows: list or remove the rules Craft Conductor made in Windows Firewall")
+    s.add_argument("action", choices=["list", "remove"])
+    s.add_argument("-y", "--yes", action="store_true", help="remove without asking (Windows still asks for permission)")
+    s.set_defaults(fn=cmd_firewall)
 
     s = sub.add_parser("service", help="Linux: run Craft Conductor in the background at boot with systemd")
     s.add_argument("action", choices=["install", "uninstall", "status"])

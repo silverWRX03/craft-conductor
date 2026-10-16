@@ -51,6 +51,27 @@ const assert = require('node:assert/strict');
   await drawer.waitFor({state: 'detached'});
   assert.deepEqual(await page.evaluate(() => [...setupState.mods.keys()]), before);
 
+  // Removing a pack's mods asks nothing (ten removals were ten pop-ups): an Undo bar shows, and Undo puts the mod back
+  await page.evaluate(() => {
+    setupState.modpack = {name: 'Test Pack', version_id: 'curseforge:9', removed: new Set(),
+      mods: [1, 2, 3].map((n) => ({path: `mods/pack${n}.jar`, name: `Pack Mod ${n}`, source: 'curseforge', project_id: String(n),
+        version: '1', minecraft: ['1.21.1'], loaders: ['fabric'], included_on_server: true}))};
+    openModManager({title: 'Pack test', getItems: () => setupServerModItems().filter((m) => m.key.startsWith('pack:'))});
+  });
+  const pack = page.locator('.mod-manager-drawer');
+  await pack.waitFor();
+  const rowOf = (n) => pack.locator('.mod-manager-row', {hasText: `Pack Mod ${n}`});
+  for (const n of [1, 2]) await rowOf(n).getByRole('button', {name: 'Remove', exact: true}).click();
+  assert.equal(await page.locator('.toast-dialog').count(), 0, 'no question');
+  assert.deepEqual(await page.evaluate(() => [...setupState.modpack.removed]), ['mods/pack1.jar', 'mods/pack2.jar']);
+  assert.match(await rowOf(1).innerText(), /manually removed/);
+  const undo = page.locator('#toasts .toast.sticky').filter({hasText: 'Removed Pack Mod 2.'});
+  await undo.getByRole('button', {name: 'Undo'}).click();
+  assert.deepEqual(await page.evaluate(() => [...setupState.modpack.removed]), ['mods/pack1.jar']);
+  assert.doesNotMatch(await rowOf(2).innerText(), /manually removed/);
+  await page.keyboard.press('Escape');
+  await pack.waitFor({state: 'detached'});
+
   await browser.close();
 })().catch((e) => {
   console.error(e);

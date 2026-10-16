@@ -5,7 +5,8 @@ the pack's ``modrinth.index.json`` and:
 
 * sets the server's loader and Minecraft version, and keeps it on that version
   (strategy "mods-only": the pack's mods are made to work together on it);
-* adds every mod hosted on Modrinth as a normal craft-conductor mod (kept up to date);
+* adds every mod hosted on Modrinth as a craft-conductor mod held at the version the pack lists (a pin: only
+  the pack's next version changes it, and its dependencies are the pack's own to list);
 * downloads other files the server needs (checked against their hashes);
 * copies the pack's ``overrides/`` and ``server-overrides/`` (configs, scripts...)
   into the server folder.
@@ -274,7 +275,9 @@ def apply_file(root: Path, pack: Path, http: HttpClient, name: str = "", exclude
             if m and path.startswith("mods/") and path.endswith(".jar"):
                 pid = m.group(1)
                 if pid not in listed:
-                    configmod.append_mod(cfg_path, ModSpec("modrinth", pid, required=True))
+                    # Held at the version the pack lists (see curseforgepack.apply).
+                    configmod.append_mod(cfg_path, ModSpec("modrinth", pid, required=True, pack=True))
+                    configmod.set_pin(cfg_path, f"modrinth:{pid}", configmod.Pin(m.group(2), minecraft))
                     listed.add(pid)
                     added.append(pid)
                 continue

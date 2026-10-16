@@ -604,3 +604,11 @@ def test_download_cleans_up_on_windows(tmp_path, monkeypatch):
     monkeypatch.setattr(httpmod.time, "sleep", lambda s: None)
     httpmod._replace(str(src), tmp_path / "dest.jar")
     assert len(tries) == 3 and (tmp_path / "dest.jar").read_bytes() == b"jar"
+
+
+def test_an_exit_code_is_said_in_words():
+    from craft_conductor.process import exit_words
+    assert exit_words(4294967295) == exit_words(-1) == "it was ended unexpectedly (exit code -1)"
+    assert exit_words(1) == "exit code 1" and exit_words(3221225477 - (1 << 32)) == "exit code -1073741819"
+    assert exit_words(3221225477) == "exit code -1073741819"  # (a Windows crash: its code as a signed number)
+    assert exit_words(None) == "no exit code"

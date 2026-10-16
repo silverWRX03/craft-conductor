@@ -27,9 +27,9 @@ import time
 import zipfile
 from pathlib import Path, PurePosixPath
 
-from . import config as configmod, safearchive
+from . import config as configmod, remotezip, safearchive
 from .config import ModSpec
-from .http import HttpClient
+from .http import HttpClient, HttpError
 from .modpack import MAX_INDEX, MAX_PACK, MAX_PACK_FILES, ModpackError, _override_members
 from .mods import curseforge as cf
 from .mods.base import safe_file_name
@@ -187,11 +187,20 @@ def _server_jars(api: _Api, mod: dict, f: dict, tmp: Path) -> set[str] | None:
         sf = api.get(f"/mods/{int(mod['id'])}/files/{spid}")
         if not sf.get("downloadUrl"):
             return None  # (the author doesn't allow it: the pack's own list is used instead)
-        path = _download(api, mod, sf, tmp / "server-pack.zip", "server pack")
-        safearchive.check_zip(path, MAX_PACK_FILES, ModpackError)
-        with zipfile.ZipFile(path) as z:
-            return {PurePosixPath(n).name for n in z.namelist()
-                    if n.endswith(".jar") and "mods" in PurePosixPath(n).parts[:-1]}
+        try:
+            # Only its list of files matters, and server packs can be far bigger than a modpack
+            # (All the Mods 11's is over 600 MB): read the list from the server, not the pack.
+            listed = remotezip.names(api.http, sf["downloadUrl"])
+        except (HttpError, OSError, zipfile.BadZipFile, EOFError, ValueError, KeyError) as e:
+            log.info("couldn't read %s's server pack from the server (%s); downloading it", mod.get("name"), e)
+            path = _download(api, mod, sf, tmp / "server-pack.zip", "server pack")
+            safearchive.check_zip(path, MAX_PACK_FILES, ModpackError)
+            with zipfile.ZipFile(path) as z:
+                listed = z.namelist()
+        if len(listed) > MAX_PACK_FILES:
+            raise ModpackError("that server pack holds too many files")
+        return {PurePosixPath(n).name for n in listed
+                if n.endswith(".jar") and "mods" in PurePosixPath(n).parts[:-1]}
     except Exception as e:  # (only a better guess at what's client-only: never a reason to fail)
         log.info("couldn't read %s's server pack (%s); every mod goes on the server", mod.get("name"), e)
         return None
@@ -287,7 +296,11 @@ def apply(root: Path, version: str, http: HttpClient, key: str, exclude: tuple[s
                     # A mod whose file in the pack is a beta or an alpha (many only have those for
                     # older Minecraft) accepts them, or setup finds "no build" for it.
                     early = m.get("channel") if m.get("channel") in ("beta", "alpha") else None
-                    configmod.append_mod(cfg_path, ModSpec("curseforge", m["project_id"], required=m["required"], channel=early))
+                    # Held at the file the pack lists: a player on the real pack must be able to join, and
+                    # only the pack's next version changes it.
+                    configmod.append_mod(cfg_path, ModSpec("curseforge", m["project_id"], required=m["required"],
+                                                           channel=early, pack=True))
+                    configmod.set_pin(cfg_path, f"curseforge:{m['project_id']}", configmod.Pin(m["version_id"], minecraft))
                     listed.add(("curseforge", m["project_id"]))
                     added.append(m["project_id"])
             copied = 0
