@@ -7897,5 +7897,47 @@
     "type": "Core",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 902,
+    "section": "Feature: Project website and demo",
+    "step": "On a computer, open the website and press Try the demo: Create my first server goes through the real New server page, the server starts, a friend joins and another asks to join; Allow lets them in, and the Dashboard, Players page and console agree. Nothing is installed and no network requests leave the page.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 903,
+    "section": "Feature: Project website and demo",
+    "step": "Scan the homepage's QR code with a real phone (iPhone Safari and Android Chrome): the phone demo opens in the app's phone layout, its menu and Allow work, and Install / Add to Home Screen opens it on its own. A second phone has its own made-up data.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 904,
+    "section": "Feature: Project website and demo",
+    "step": "Each download link on the homepage downloads that platform's file of the newest release (Windows, Mac, Linux, Linux ARM), and it runs.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 905,
+    "section": "Feature: Project website and demo",
+    "step": "After the website is published, a friend's invite link to /join/ still sets up their game, the testing dashboard at /testing/ shows its runs, and the homepage shows the release the demo follows (version and beta/stable).",
+    "type": "Core",
+    "tags": [
+      "security"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 906,
+    "section": "Feature: Project website and demo",
+    "step": "With only the keyboard (and a screen reader), open the demo from the homepage, choose a start, Tab into the control panel, and leave with Escape or the Leave demo bar: the focus goes back to the button that opened it.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]

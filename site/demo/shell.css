@@ -1,0 +1,20 @@
+/* The phone demo's page: a thin bar, and the real control panel filling the rest. */
+:root { color-scheme: dark; --bg: #0A0A0A; --panel: #121212; --border: #2C2C2C; --text: #E2E8F0; --muted: #94A3B8; --accent: #FF3E00; }
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; display: flex; flex-direction: column; }
+.shell-bar { display: flex; align-items: center; gap: 10px; padding: 6px 10px; padding-top: max(6px, env(safe-area-inset-top)); background: var(--panel);
+  border-bottom: 2px solid var(--accent); flex-wrap: wrap; }
+.shell-brand { display: flex; align-items: center; gap: 8px; color: var(--text); text-decoration: none; font-weight: 700; letter-spacing: .02em; }
+.shell-brand b { color: var(--accent); text-transform: uppercase; font-size: 11px; letter-spacing: .12em; }
+.shell-note { color: var(--muted); font-size: 12px; flex: 1; min-width: 0; }
+.shell-pick select, .shell-btn { background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 6px 10px; font: inherit; font-size: 13px; min-height: 36px; }
+.shell-btn { cursor: pointer; }
+.shell-btn:hover, .shell-pick select:hover { border-color: var(--accent); }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.shell-stage { flex: 1; min-height: 0; display: flex; }
+.shell-stage iframe { flex: 1; width: 100%; height: 100%; border: 0; background: var(--bg); }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.shell-noscript { padding: 24px; }
+.shell-noscript a { color: var(--accent); }
+@media (max-width: 560px) { .shell-note { display: none; } .shell-brand span { font-size: 13px; } .shell-bar { gap: 6px; } }

@@ -205,8 +205,9 @@ jobs:
             `SHA256SUMS.txt` lets you verify your download; the built-in updater checks it automatically.
 
   invite-page:
-    # The invite page links to this release's downloads (the friends' craft-conductor-join files), so it's
-    # published once they exist.
+    # The website (pages.yml): the invite page links to this release's downloads (the friends'
+    # craft-conductor-join files), and the homepage's demo shows this release, so it's published once
+    # they exist. Nothing is published unless the website's checks pass (website-build.yml).
     needs: publish
     permissions:
       contents: read

@@ -9,6 +9,7 @@
 ## Where to start
 
 - **[Download Craft Conductor](https://github.com/silverWRX03/craft-conductor/releases/latest)** for Windows, Mac (Apple silicon) or Linux: one file, nothing to install.
+- **[Try the demo](https://silverwrx03.github.io/craft-conductor/#demo)** on the website first: the real control panel in your browser, with made-up servers (nothing is installed).
 - **[The user manual](Craft-Conductor-Manual)**, page by page, with pictures. It's also inside the app (Help → User manual).
 - **[Getting started](Getting-started)**: from downloading to your first server.
 - **[Playing with friends](Playing-with-friends)**, and for your friends: **[Joining a friend's server](Joining-a-friends-server)**.

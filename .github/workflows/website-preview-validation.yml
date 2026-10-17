@@ -1,24 +1,25 @@
 name: website-preview-validation
 
-# Validation only. Public Pages deployment stays exclusively in pages.yml.
+# The website, built and tested as pages.yml would publish it, for a pull request (or main) that
+# changes it, the demo's simulation, or the control panel and API the demo copies. Publishing stays
+# with pages.yml alone: this only leaves the candidate site and screenshots as artifacts to review.
 on:
   pull_request:
     paths:
       - "site/**"
-      - "src/craft_conductor/webui/**"
-      - "docs/website-demo-spec.md"
-      - "tests/test_project_website.py"
+      - "src/craft_conductor/**"
+      - "testing/**"
+      - "tools/build_website.py"
+      - "tools/select_website_release.py"
       - "tools/check_demo_contract.py"
-      - ".github/workflows/website-preview-validation.yml"
-  push:
-    branches: [main]
-    paths:
-      - "site/**"
-      - "src/craft_conductor/webui/**"
-      - "docs/website-demo-spec.md"
-      - "tests/test_project_website.py"
-      - "tools/check_demo_contract.py"
-      - ".github/workflows/website-preview-validation.yml"
+      - "tools/real_world_tests.py"
+      - "tests/test_website*.py"
+      - "tests/ui_website*.cjs"
+      - "tests/demo_contract.cjs"
+      - "tests/example_hub.py"
+      - ".github/demo-release-policy.json"
+      - ".github/workflows/website-*.yml"
+      - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 permissions:
@@ -30,65 +31,4 @@ concurrency:
 
 jobs:
   validate:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-      - name: Install candidate build and browser test dependencies
-        run: |
-          python -m pip install pytest qrcode playwright
-          python -m playwright install --with-deps chromium
-      - name: Check website paths and the preserved public pages
-        run: |
-          python -m pytest tests/test_project_website.py -q
-      - name: Check production navigation contract
-        run: python tools/check_demo_contract.py
-      - name: Assemble representative GitHub Pages artifact
-        run: |
-          mkdir -p _site
-          cp -r site/. _site/
-          cp src/craft_conductor/webui/icon.png _site/icon.png
-          python tools/real_world_tests.py publish --output _site/testing/data
-          python tools/build_website_demo.py --output _site/demo --version development --channel development
-          test -f _site/index.html
-          test -f _site/join/index.html
-          test -f _site/testing/index.html
-          test -f _site/googlef2c4a8b5e575e76a.html
-      - name: Validate JavaScript parsing
-        run: |
-          node --check site/website.js
-          node --check site/demo/mock-api.js
-          node --check _site/demo/assets/app.js
-      - name: Verify beta-to-stable release selection rules
-        run: python -m pytest tests/test_website_release_policy.py -q
-      - name: Browser smoke tests on assembled Pages candidate
-        run: python -m pytest tests/test_website_demo_e2e.py -q
-      - name: Select production release represented by the public demo
-        id: published
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: python tools/select_website_release.py --github-output "$GITHUB_OUTPUT"
-      - name: Checkout tagged frontend without changing development branch
-        env:
-          VERSION_TAG: ${{ steps.published.outputs.tag }}
-        run: |
-          git fetch --depth=1 origin tag "$VERSION_TAG"
-          mkdir -p "$RUNNER_TEMP/tagged-source"
-          git archive "$VERSION_TAG" src/craft_conductor/webui/ | tar -x -C "$RUNNER_TEMP/tagged-source"
-      - name: Build and smoke test the actual published release frontend
-        env:
-          CC_VERSION: ${{ steps.published.outputs.version }}
-          CC_CHANNEL: ${{ steps.published.outputs.channel }}
-        run: |
-          python tools/build_website_demo.py \
-            --source "$RUNNER_TEMP/tagged-source/src/craft_conductor/webui" \
-            --output _site/demo --version "$CC_VERSION" --channel "$CC_CHANNEL"
-          node --check _site/demo/mock-api.js
-          node --check _site/demo/assets/app.js
-          python -m pytest tests/test_website_demo_e2e.py -q
-      - uses: actions/upload-artifact@v7
-        with:
-          name: website-candidate
-          path: _site/
+    uses: ./.github/workflows/website-build.yml

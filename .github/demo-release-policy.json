@@ -1,4 +1,4 @@
 {
-  "channel": "both",
-  "explanation": "Public website demo tracks newest published stable OR beta release for now. Owner will explicitly change to stable-only after the first stable release is ready."
+  "channel": "beta-and-stable",
+  "about": "Which published release the website's demo shows (tools/select_website_release.py). beta-and-stable: the newest published release. stable: only releases that are neither marked pre-release on GitHub nor titled '(beta)'; change it to stable when the owner decides Craft Conductor's first stable release is out (docs/website.md)."
 }
