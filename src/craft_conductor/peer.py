@@ -201,17 +201,31 @@ def _linux(ip, port: int, server_port: int, proc: Path = Path("/proc")) -> Progr
         return Program(None, other_account=True)
     target = f"socket:[{inode}]"
     for entry in proc.iterdir():
-        if not entry.name.isdigit():
-            continue
-        try:
-            if any(os.readlink(fd) == target for fd in (entry / "fd").iterdir()):
+        if entry.name.isdigit() and _holds(entry, target):
+            try:
+                return Program(int(entry.name), os.readlink(entry / "exe"))
+            except OSError:
                 try:
-                    return Program(int(entry.name), os.readlink(entry / "exe"))
-                except OSError:
                     return Program(int(entry.name), (entry / "comm").read_text().strip())
+                except OSError:
+                    return None
+    return None
+
+
+def _holds(process: Path, target: str) -> bool:
+    """Whether the process has the socket open. Its other files can close while they're looked
+    at (it's busy with other connections): those are just skipped."""
+    try:
+        fds = list((process / "fd").iterdir())
+    except OSError:
+        return False  # (another account's, or it ended)
+    for fd in fds:
+        try:
+            if os.readlink(fd) == target:
+                return True
         except OSError:
             continue
-    return None
+    return False
 
 
 # --------------------------------------------------------------------- macOS

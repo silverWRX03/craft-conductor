@@ -117,8 +117,14 @@ def test_linux_connection_table_is_read(tmp_path, monkeypatch):
     (proc / "net" / "tcp6").write_text("header\n")
     links = {str(proc / "77" / "fd" / "3"): "socket:[4242]", str(proc / "77" / "exe"): "/usr/bin/firefox"}
     (proc / "77" / "fd").mkdir(parents=True)
+    (proc / "77" / "fd" / "1").write_text("")   # (closed while it's looked at: skipped, not the whole process)
     (proc / "77" / "fd" / "3").write_text("")
-    monkeypatch.setattr(os, "readlink", lambda p: links[str(p)])
+
+    def readlink(p):
+        if str(p) not in links:
+            raise FileNotFoundError(p)
+        return links[str(p)]
+    monkeypatch.setattr(os, "readlink", readlink)
     import ipaddress
     found = peer._linux(ipaddress.ip_address("127.0.0.1"), 0xC738, 8765, proc=proc)
     assert found == peer.Program(77, "/usr/bin/firefox")
@@ -464,7 +470,7 @@ def test_cloudflared_signer_is_cloudflare():
     with pytest.raises(AgentError, match="isn't signed by Cloudflare"):
         check_signature("x.exe", run=lambda a: json.dumps({"status": "Valid", "subject": "CN=Someone, O=Someone"}),
                         signer=cloudflare.SIGNER, whose="Cloudflare", what="cloudflared", done="run")
-    assert seen["args"][0].lower().endswith(r"system32\windowspowershell\v1.0\powershell.exe")
+    assert seen["args"][0].replace("\\", "/").lower().endswith("system32/windowspowershell/v1.0/powershell.exe")
 
 
 # --------------------------------------------------------- the reset's code
