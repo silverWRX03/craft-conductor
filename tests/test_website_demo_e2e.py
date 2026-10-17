@@ -183,7 +183,7 @@ def test_mock_denies_unknown_requests_without_network(base, page):
 
 def test_authentic_first_run_form_can_create_server(base, page):
     errors=[]
-    page.on("pageerror",lambda exc: errors.append(str(exc)))
+    page.on("pageerror",lambda exc: errors.append(str(exc)+" :: "+str(getattr(exc,"stack",""))))
     page.goto(base+"demo/?mode=new")
     page.locator("#app").wait_for(state="visible",timeout=15000)
     page.locator(".setup button.choice").filter(has_text="Fabric").first.click()
