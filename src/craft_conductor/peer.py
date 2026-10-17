@@ -84,6 +84,7 @@ def _windows(ip, port: int, server_port: int) -> Program | None:
     iphlpapi = ctypes.WinDLL("iphlpapi")
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     TCP_TABLE_OWNER_PID_ALL = 5
+    MIB_TCP_STATE_ESTAB = 5
     rows = []
     for family, row_size in ((socket.AF_INET, 24), (23, 56)):  # (AF_INET6 is 23 on Windows)
         size = wintypes.DWORD(0)
@@ -100,13 +101,15 @@ def _windows(ip, port: int, server_port: int) -> Program | None:
         for i in range(count):
             off = 4 + i * row_size
             if family == socket.AF_INET:
-                _state, laddr, lport, _raddr, rport, pid = struct.unpack_from("<IIIIII", raw, off)
+                state, laddr, lport, _raddr, rport, pid = struct.unpack_from("<IIIIII", raw, off)
                 local = socket.inet_ntoa(struct.pack("<I", laddr))
             else:
                 local = socket.inet_ntop(socket.AF_INET6, raw[off:off + 16])
                 lport, = struct.unpack_from("<I", raw, off + 20)
                 rport, = struct.unpack_from("<I", raw, off + 44)
-                pid, = struct.unpack_from("<I", raw, off + 52)
+                state, pid = struct.unpack_from("<II", raw, off + 48)
+            if state != MIB_TCP_STATE_ESTAB:  # (a closed connection that used the same port before: not this one)
+                continue
             rows.append((local, socket.ntohs(lport & 0xFFFF), socket.ntohs(rport & 0xFFFF), pid))
     pids = {pid for local, lport, rport, pid in rows if lport == port and rport == server_port and _same(local, ip)}
     if len(pids) != 1:
@@ -180,6 +183,9 @@ def _proc_addr(text: str) -> tuple[str, int]:
     return str(ipaddress.ip_address(socket.inet_ntop(family, words))), int(port, 16)
 
 
+TCP_ESTABLISHED = "01"
+
+
 def _linux(ip, port: int, server_port: int, proc: Path = Path("/proc")) -> Program | None:
     found = []
     for table in ("tcp", "tcp6"):
@@ -189,7 +195,8 @@ def _linux(ip, port: int, server_port: int, proc: Path = Path("/proc")) -> Progr
             continue
         for line in lines:
             f = line.split()
-            if len(f) < 10:
+            # (only live connections: Linux reuses a loopback port still closing, so its old row can be there too)
+            if len(f) < 10 or f[3] != TCP_ESTABLISHED:
                 continue
             local, remote = _proc_addr(f[1]), _proc_addr(f[2])
             if local[1] == port and remote[1] == server_port and _same(local[0], ip):

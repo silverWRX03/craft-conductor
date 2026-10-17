@@ -112,6 +112,8 @@ def test_linux_connection_table_is_read(tmp_path, monkeypatch):
     # 127.0.0.1:51000 -> 127.0.0.1:8765 (0x1F8D), inode 4242; and one of another account's
     (proc / "net" / "tcp").write_text(
         "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n"
+        # (an earlier connection on the same port, still closing: Linux reuses loopback ports that soon)
+        "   2: 0100007F:C738 0100007F:223D 06 00000000:00000000 03:00000000 00000000     0        0 0 3\n"
         f"   0: 0100007F:C738 0100007F:223D 01 00000000:00000000 00:00000000 00000000  {uid}        0 4242 1\n"
         f"   1: 0100007F:C739 0100007F:223D 01 00000000:00000000 00:00000000 00000000  {uid + 1}        0 4343 1\n")
     (proc / "net" / "tcp6").write_text("header\n")

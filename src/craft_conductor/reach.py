@@ -170,7 +170,8 @@ def set_geyser_port(server_dir: Path, port: int) -> bool:
     path = geyser_config(server_dir)
     if path is None:
         return False
-    text = path.read_text(encoding="utf-8", errors="replace")
+    with path.open(encoding="utf-8", errors="replace", newline="") as f:  # (its own line endings, kept)
+        text = f.read()
     found = _bedrock_port(text)
     if found is None:
         return False
@@ -180,7 +181,7 @@ def set_geyser_port(server_dir: Path, port: int) -> bool:
     new = "".join(lines)
     if new != text:
         tmp = path.with_name(path.name + ".tmp")
-        tmp.write_text(new, encoding="utf-8")
+        tmp.write_text(new, encoding="utf-8", newline="")
         tmp.replace(path)
         log.info("Bedrock players now use UDP port %s (%s)", port, path.name)
     return True
