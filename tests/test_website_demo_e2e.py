@@ -105,3 +105,77 @@ def test_all_nine_production_server_routes(base, page):
         assert page.locator("nav#nav a[href='#s/family-survival/" + name + "']").count() == 1, name
         assert not errors, "Uncaught demo error in route " + name + ": " + repr(errors)
     assert not errors, "JavaScript exceptions while rendering production routes:\n" + "\n".join(errors)
+
+
+def test_whitelist_request_and_player_actions_are_consistent(base, page):
+    page.goto(base + "demo/?mode=existing")
+    page.locator("#app").wait_for(state="visible", timeout=15000)
+    page.evaluate("location.hash = '#s/family-survival/players'")
+    page.get_by_text("Sam_Builds", exact=False).first.wait_for(timeout=8000)
+    # Press the actual production UI control, not a fake test-only control.
+    page.locator("#main").get_by_role("button", name="Allow").first.click()
+    page.wait_for_function("""async () => {
+        const r=await (await fetch('/api/players')).json();
+        return r.whitelist.some(x=>x.name==='Sam_Builds')
+          && !(await (await fetch('/api/join-requests')).json()).requests
+              .some(x=>x.name==='Sam_Builds');
+    }""")
+    page.evaluate("window.CraftDemo.playerJoin('JordanMC')")
+    values = page.evaluate("""async () => {
+      const r=await (await fetch('/api/players')).json();
+      const h=await (await fetch('/api/hub')).json();
+      return {players:r.online,hub:h.servers[0].players};
+    }""")
+    assert "JordanMC" in values["players"]
+    assert values["hub"] == len(values["players"])
+    page.evaluate("location.hash = '#s/family-survival/dashboard'")
+    page.get_by_text("JordanMC").first.wait_for(timeout=8000)
+
+
+def test_server_create_power_and_backup_share_state(base, page):
+    page.goto(base + "demo/?mode=new")
+    page.locator("#app").wait_for(state="visible", timeout=15000)
+    first = page.evaluate("""async () => (await (await fetch('/api/hub')).json()).servers""")
+    assert first == []
+    created = page.evaluate("""async () => {
+      const res=await fetch('/api/hub/create',{method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({motd:'My Demo World',loader:'fabric',minecraft:'1.21.1'})});
+      return await res.json();
+    }""")
+    assert created["id"]
+    page.evaluate("(id) => {location.hash='#s/'+id+'/dashboard'}", created["id"])
+    page.wait_for_function("""async () => (await (await fetch('/api/hub')).json()).servers.length===1""")
+    page.evaluate("""async () => {
+        const r=await fetch('/api/servers/server-1/server/start',{method:'POST'});
+        if(!r.ok)throw Error((await r.json()).error);
+    }""")
+    # Production hub reflects the same server as its status endpoint.
+    result = page.evaluate("""async () => {
+      const hub=await(await fetch('/api/hub')).json();
+      const status=await(await fetch('/api/servers/server-1/status')).json();
+      return {hub:hub.servers[0].state, status:status.state};
+    }""")
+    assert result == {"hub":"running","status":"running"}
+    page.evaluate("""async () => {
+      const res=await fetch('/api/servers/server-1/backups/create',{method:'POST'});
+      if(!res.ok)throw Error((await res.json()).error);
+    }""")
+    backups=page.evaluate("""async()=> (await(await fetch('/api/servers/server-1/backups')).json()).backups""")
+    assert len(backups)==1
+    assert backups[0]["name"].endswith(".tar.gz")
+
+
+def test_mock_denies_unknown_requests_without_network(base, page):
+    actual = []
+    page.on("request",lambda req:actual.append(req.url)
+            if req.url.endswith("/api/never-allowed") else None)
+    page.goto(base + "demo/?mode=existing")
+    page.locator("#app").wait_for(state="visible",timeout=15000)
+    result=page.evaluate("""async()=>{
+      const r=await fetch('/api/never-allowed');
+      return {status:r.status,body:await r.json()};
+    }""")
+    assert result["status"]==501
+    assert "No real request" in result["body"]["error"]
+    assert not actual, "Unrecognized API escaped the browser-only adapter"
