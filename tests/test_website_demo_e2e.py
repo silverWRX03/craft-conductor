@@ -243,3 +243,21 @@ def test_mobile_site_navigation(base, page):
     assert page.locator("#site-nav").evaluate("(node) => node.classList.contains('open')")
     page.locator("#site-nav").get_by_text("Features").click()
     assert not page.locator("#site-nav").evaluate("(node) => node.classList.contains('open')")
+
+
+def test_production_help_and_manual_assets_are_not_missing(base, page):
+    for rel in ("demo/assets/manual.md", "demo/assets/help-network.svg",
+                "demo/assets/help-router.svg", "demo/assets/screenshots/dashboard.png",
+                "demo/assets/screenshots/new-server.png"):
+        r=page.request.get(base+rel)
+        assert r.ok, (rel,r.status)
+    errors=[]
+    page.on("pageerror",lambda exc: errors.append(str(exc)))
+    page.goto(base+"demo/?mode=existing")
+    page.locator("#app").wait_for(state="visible",timeout=15000)
+    page.evaluate("location.hash='#manual'")
+    page.get_by_role("heading",name="User manual").first.wait_for(timeout=8000)
+    page.get_by_text("What Craft Conductor can and can't do").first.wait_for(timeout=8000)
+    page.evaluate("location.hash='#help'")
+    page.get_by_role("heading",name="Help").first.wait_for(timeout=8000)
+    assert not errors,repr(errors)
