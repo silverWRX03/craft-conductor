@@ -1,48 +1,113 @@
-name: invite page
+name: pages
 
-# craft-conductor's invite page (site/join/), published on GitHub Pages: friends open invite links there.
+# The ONLY workflow that publishes GitHub Pages: the whole site at once (the homepage, the invite
+# page join/, the real-world testing dashboard testing/ with its data, Google's verification file,
+# and the interactive demo of the newest published release). website-build.yml puts it together and
+# tests it; nothing is published unless every check passes, so a failure leaves the live site as it was.
 # Needs Settings → Pages → Build and deployment → Source: "GitHub Actions" (once).
-# Published by each release (release.yml), after its downloads exist, since the page links to
-# them; run it by hand to publish a change to the page alone.
+#
+# When it runs:
+#   - after each release (release.yml calls it once the release and its downloads exist; a release
+#     made by release.yml doesn't send the "release published" event itself, so it's called);
+#   - when a release is published by hand on GitHub;
+#   - on main, when the website, the testing records or the demo change;
+#   - by hand (Run workflow).
+# Which release the demo shows: .github/demo-release-policy.json (docs/website.md).
 on:
   push:
-     branches:
-       - main
-     paths:
-       - "site/**"
-       - "testing/**"
-       - "tools/real_world_tests.py"
-       - "src/craft_conductor/webui/icon.png"
-       - ".github/workflows/pages.yml"
+    branches: [main]
+    paths:
+      - "site/**"
+      - "testing/**"
+      - "tools/real_world_tests.py"
+      - "tools/build_website.py"
+      - "tools/select_website_release.py"
+      - "tools/check_demo_contract.py"
+      - "tests/test_website*.py"
+      - "tests/ui_website*.cjs"
+      - "tests/demo_contract.cjs"
+      - ".github/demo-release-policy.json"
+      - ".github/workflows/pages.yml"
+      - ".github/workflows/website-build.yml"
+  release:
+    types: [published]
   workflow_call:
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false  # (a release's run is never dropped for a later one: they queue)
 
 jobs:
+  build:
+    uses: ./.github/workflows/website-build.yml
+    with:
+      pages-artifact: true
+
   deploy:
+    needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v7
-      - name: Assemble the site
-        run: |
-          mkdir -p _site
-          cp -r site/. _site/
-          cp src/craft_conductor/webui/icon.png _site/icon.png
-          python tools/real_world_tests.py publish --output _site/testing/data
       - uses: actions/configure-pages@v6
-      - uses: actions/upload-pages-artifact@v5
-        with:
-          path: _site
       - id: deployment
         uses: actions/deploy-pages@v5
+      - name: Summary
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+          CHANNEL: ${{ needs.build.outputs.channel }}
+          URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          echo "### Published $URL, with the demo of Craft Conductor $VERSION ($CHANNEL)" >> "$GITHUB_STEP_SUMMARY"
+
+  # When the site couldn't be published (a check failed, or the deploy did): an issue says so, once
+  # (later failures comment on it), and it's closed by the next run that publishes.
+  report-failure:
+    needs: [build, deploy]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the "Website not published" issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Website not published"
+          number=$(gh issue list -R "$REPO" --state open --search "\"$title\" in:title" --json number,title \
+            --jq "map(select(.title == \"$title\")) | .[0].number // empty")
+          body="The website wasn't published: a check failed, so the live site (and its demo) stay as they were.
+
+          Run: $RUN (its summary and the failing step's log say why; the browser tests' screenshots are in its website-screenshots artifact).
+
+          This issue is closed by the next run that publishes the site."
+          if [ -n "$number" ]; then gh issue comment "$number" -R "$REPO" --body "$body"
+          else gh issue create -R "$REPO" --title "$title" --body "$body"; fi
+
+  close-report:
+    needs: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Close the "Website not published" issue, if there is one
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Website not published"
+          for number in $(gh issue list -R "$REPO" --state open --search "\"$title\" in:title" --json number,title \
+              --jq "map(select(.title == \"$title\")) | .[].number"); do
+            gh issue close "$number" -R "$REPO" --comment "Published again by $RUN."
+          done

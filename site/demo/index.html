@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en" data-theme="night">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#0A0A0A">
+  <meta name="color-scheme" content="dark light">
+  <title>Craft Conductor demo</title>
+  <link rel="icon" type="image/png" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="shell.css">
+  <script src="host.js" defer></script>
+  <script src="shell.js" defer></script>
+</head>
+<body>
+  <header class="shell-bar">
+    <a class="shell-brand" href="../" title="The Craft Conductor website"><img src="icon-192.png" alt="" width="22" height="22"><span>Craft Conductor <b>demo</b></span></a>
+    <span class="shell-note">Made-up data · nothing leaves this device</span>
+    <label class="shell-pick"><span class="visually-hidden">Which demo</span>
+      <select id="shell-scenario">
+        <option value="existing">An existing server</option>
+        <option value="new">My first server</option>
+      </select>
+    </label>
+    <button type="button" id="shell-reset" class="shell-btn">Reset</button>
+    <button type="button" id="shell-install" class="shell-btn" hidden>Install</button>
+  </header>
+  <main id="shell-stage" class="shell-stage" aria-label="Craft Conductor demo"></main>
+  <noscript><p class="shell-noscript">The demo needs JavaScript. <a href="../">Back to the website</a>.</p></noscript>
+</body>
+</html>

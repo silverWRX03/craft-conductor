@@ -16,6 +16,9 @@ On phones, a hamburger menu contains navigation and the remembered Light / Dark 
 > **Craft Conductor is in beta.** Keep backups (it makes one before every update), and please report
 > problems in [Issues](https://github.com/silverWRX03/craft-conductor/issues).
 
+**[Try it in your browser first](https://silverwrx03.github.io/craft-conductor/#demo):** the website's demo is the real
+control panel with made-up servers, players and mods. Nothing is installed.
+
 ![The Dashboard of a running server](src/craft_conductor/webui/screenshots/dashboard.png)
 
 ## What it does
