@@ -12,7 +12,9 @@
   const dir = (s) => `${sim.HOME}\\servers\\${s.id}\\server`;
   const running = (s) => s.state === "running";
   const busy = (s) => { if (s.job) throw new ApiError(409, `busy: ${s.job.name} is running`); };
-  const WHITELIST_WARNING = "This server can be reached from the internet. With the whitelist off, anyone who finds it can join: bots look for Minecraft servers all day, and strangers can grief your world.";
+  // Turning the whitelist off on a server that can be reached from the internet asks first (since 0.29,
+  // reach.py). A release from before has no such warning: there, as it did then, the whitelist just goes off.
+  const whitelistGuarded = (s) => cat().hasReach() && sim.reachable(s);
 
   // ------------------------------------------------------------- the Dashboard
   const resources = (s) => {
@@ -353,8 +355,8 @@
         else if (def.kind === "choice" && !def.choices.includes(val)) throw new ApiError(400, `pick one of the choices for ${def.label}`);
         else if (def.max_len && val.length > def.max_len) throw new ApiError(400, `${def.label} is too long`);
       }
-      if (props["white-list"] === "false" && s.properties["white-list"] === "true" && !whitelistOk && sim.reachable(s)) {
-        throw new ApiError(409, rel().whitelist_warning || WHITELIST_WARNING, "whitelist-off");
+      if (props["white-list"] === "false" && s.properties["white-list"] === "true" && !whitelistOk && whitelistGuarded(s)) {
+        throw new ApiError(409, rel().whitelist_warning, "whitelist-off");
       }
     }
     if (b.port !== undefined) {
@@ -539,8 +541,11 @@
       const s = r.s;
       if (s.state === "starting" || (s.state === "stopped" && s.job)) throw new ApiError(409, "the server is starting; try again in a moment");
       const action = String(r.b.action || "");
-      if (action === "whitelist-off" && s.players.whitelist_enabled && sim.reachable(s) && r.b.whitelist_off_ok !== true) {
-        throw new ApiError(409, rel().whitelist_warning || WHITELIST_WARNING, "whitelist-off");
+      if (action === "whitelist-off" && s.players.whitelist_enabled && whitelistGuarded(s) && r.b.whitelist_off_ok !== true) {
+        throw new ApiError(409, rel().whitelist_warning, "whitelist-off");
+      }
+      if (action === "ban-ip" && cat().hasReach() && (s.reach === "playit" || s.settings.tunnel_address) && !/^[0-9A-Fa-f:.]{2,45}$/.test(String(r.b.name || "").trim())) {
+        throw new ApiError(400, "players who join through playit.gg all come from this computer's address, so banning a player's IP would shut out everyone who joins through it, and you too. Ban the name instead");
       }
       const message = playerAct(s, action, r.b.name, r.b.reason ? String(r.b.reason).slice(0, 200) : "");
       return { ok: true, message };

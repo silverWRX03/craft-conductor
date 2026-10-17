@@ -230,7 +230,7 @@
       delete s.pendingMods;
       s.updates.check = null;
       sim.check(s);
-      if (s.client.enabled) Object.assign(s.client, { expires: now() + s.client.link_days * 86400, secret: sim.id(10) });
+      if (s.client.enabled) Object.assign(s.client, { expires: until(s.client.link_days), secret: sim.id(10) });
       sim.event(s, `${s.name} is set up: press Start to play`);
       return "set up";
     },
@@ -274,6 +274,9 @@
   };
 
   // ------------------------------------------------------------- friends' downloads
+  // When a link made now stops working: link_days days from now, or never for 0 ("until I make new ones",
+  // which releases before 0.29 had).
+  const until = (days) => (Number(days) > 0 ? now() + Number(days) * 86400 : null);
   sim.inviteLink = (s, kind = "internet") => `https://${sim.DEMO_HOST}/join/#demo-not-a-real-invite-${kind}/${encodeURIComponent(s.name)}`;
   const linkWorks = (c) => c.enabled && c.secret && (!c.expires || c.expires > now());
   const pack = (s) => {
@@ -306,14 +309,14 @@
     const out = {};
     if ("enabled" in b) {
       c.enabled = b.enabled === true;
-      if (c.enabled && (!c.secret || (c.expires && c.expires <= now()))) Object.assign(c, { secret: sim.id(10), expires: now() + c.link_days * 86400 });
+      if (c.enabled && (!c.secret || (c.expires && c.expires <= now()))) Object.assign(c, { secret: sim.id(10), expires: until(c.link_days) });
       sim.event(s, c.enabled ? "Friends' downloads are on: the invite works" : "Friends' downloads are off");
     }
     if ("link_days" in b) {
       const days = Number(b.link_days);
       if (!(rel().link_days || [1, 3, 7]).includes(days)) throw new ApiError(400, `invite links last ${(rel().link_days || [1, 3, 7]).join(", ")} days`);
       c.link_days = days;
-      if (linkWorks(c)) c.expires = now() + days * 86400;
+      if (linkWorks(c)) c.expires = until(days);
     }
     if ("mods" in b) {
       if (!Array.isArray(b.mods) || !b.mods.every((x) => typeof x === "string" && /^[A-Za-z0-9_.:-]{1,100}$/.test(x))) throw new ApiError(400, "mods must be a list of Modrinth project names (or curseforge:<project id>)");
@@ -516,7 +519,7 @@
     "POST /api/client/new-link": (r) => {
       const c = r.s.client;
       if (r.s.setup_pending) throw new ApiError(409, "the server isn't set up yet");
-      Object.assign(c, { secret: sim.id(10), expires: now() + (Number(r.b.days) || c.link_days) * 86400 });
+      Object.assign(c, { secret: sim.id(10), expires: until(r.b.days ?? c.link_days) });
       sim.event(r.s, "Made a new invite link; the old one no longer works");
       return sim.clientAnswer(r.s);
     },

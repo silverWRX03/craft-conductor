@@ -140,6 +140,10 @@
   // ------------------------------------------------------------- Craft Conductor's own texts
   // From the release (catalog-release.js); a fallback only where an older release has no such part.
   c.setupLoaders = () => release.loaders || [];
+  // How long a new invite link works by default: 7 days where the release has it (it does in all so far).
+  c.linkDays = () => { const days = release.link_days || [1, 3, 7]; return days.includes(7) ? 7 : days[0]; };
+  // Releases since 0.29 have "Friends outside your home" (reach.py): their warnings come with it.
+  c.hasReach = () => !!release.whitelist_warning;
   c.propertiesSchema = () => release.properties_schema || [];
   c.defaultProperties = (spec = {}) => {
     const props = Object.fromEntries(c.propertiesSchema().map((p) => [p.key, p.default]));

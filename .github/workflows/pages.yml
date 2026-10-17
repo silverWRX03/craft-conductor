@@ -65,4 +65,5 @@ jobs:
           VERSION: ${{ needs.build.outputs.version }}
           CHANNEL: ${{ needs.build.outputs.channel }}
           URL: ${{ steps.deployment.outputs.page_url }}
-        run: echo "### Published $URL: demo of Craft Conductor $VERSION ($CHANNEL)" >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          echo "### Published $URL, with the demo of Craft Conductor $VERSION ($CHANNEL)" >> "$GITHUB_STEP_SUMMARY"

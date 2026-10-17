@@ -24,7 +24,7 @@
       backups: [], modsets: [], exports: [],
       updates: { checked_at: null, target: null, rehearsal: null, report: null, failNext: false, lastResult: null },
       settings: sim.catalog.defaultSettings(), properties: sim.catalog.defaultProperties(spec),
-      client: { enabled: false, mods: [], memory_gb: 4, link_days: 7, expires: null, secret: null, local: [] },
+      client: { enabled: false, mods: [], memory_gb: 4, link_days: sim.catalog.linkDays(), expires: null, secret: null, local: [] },
       java: { forced: null },
       perf: { samples: [] },
       webmap: null, bedrock: false, lag: null,
@@ -82,7 +82,7 @@
     s.reach = "playit";
     s.world.rules.keepInventory = "true";
     s.world.rules.mobGriefing = "false";
-    s.client = { enabled: true, mods: ["xaeros-minimap"], memory_gb: 4, link_days: 7, expires: now() + 6 * 86400, secret: sim.id(10), local: [] };
+    s.client = { enabled: true, mods: ["xaeros-minimap"], memory_gb: 4, link_days: sim.catalog.linkDays(), expires: now() + 6 * 86400, secret: sim.id(10), local: [] };
     const p = s.players;
     p.known = [...FRIENDS, "Griefer42"].map((name) => ({ name, uuid: sim.uuid(name) }));
     p.whitelist = FRIENDS.slice();

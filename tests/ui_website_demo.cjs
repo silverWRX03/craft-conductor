@@ -178,9 +178,17 @@ async function open(browser, scenario, problems, label, viewport = { width: 1440
       for (const line of ['Made Mia a server operator', 'Kicked KaiCrafts', 'Banned Mia', 'Unbanned Mia']) assert.ok(log.includes(line), line);
       await go(f, `#s/${S}/players`);
       await f.locator('button[data-fkey="wl-toggle"]').click();
-      await f.locator('.modal-backdrop', { hasText: 'Turn the whitelist off?' }).waitFor();
-      await answer(f, 'Keep it on');
-      assert.ok((await players()).whitelist_enabled, 'the whitelist is still on');
+      if (await f.evaluate(() => !!(window.CC_DEMO_RELEASE || {}).whitelist_warning)) {
+        // (since 0.29: on a server friends reach from outside, the panel asks first)
+        await f.locator('.modal-backdrop', { hasText: 'Turn the whitelist off?' }).waitFor();
+        await answer(f, 'Keep it on');
+        assert.ok((await players()).whitelist_enabled, 'the whitelist is still on');
+      } else {
+        // (a release from before asks nothing: the whitelist goes off, as it did then; and back on)
+        await until(async () => !(await players()).whitelist_enabled, 'the whitelist goes off');
+        await f.locator('button[data-fkey="wl-toggle"]', { hasText: /^Turn on$/i }).click();
+        await until(async () => (await players()).whitelist_enabled, 'and on again');
+      }
     });
 
     await t.step(`${name}: console commands`, async () => {
