@@ -51,10 +51,11 @@
 
   // ------------------------------------------------------------ which release the demo shows
   fetch("demo/version.json", { cache: "no-store" }).then((r) => r.ok ? r.json() : Promise.reject(new Error(String(r.status)))).then((v) => {
-    const label = v.channel === "development" ? `the development version (${v.version})` : `Craft Conductor ${v.version} (${v.channel})`;
     $("represented-version").textContent = `Demo: ${v.version} · ${v.channel}`;
     const line = $("demo-version");
-    line.textContent = `The demo is ${label}, the newest published release it follows. `;
+    line.textContent = v.channel === "development"
+      ? `This demo is a development build of Craft Conductor (${v.version}), not a published release. `
+      : `The demo is Craft Conductor ${v.version} (${v.channel}), the newest published release. `;
     if (v.release_url && /^https:\/\/github\.com\//.test(v.release_url)) {
       const a = document.createElement("a");
       a.href = v.release_url;
