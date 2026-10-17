@@ -1,0 +1,4 @@
+{
+  "channel": "both",
+  "explanation": "Public website demo tracks newest published stable OR beta release for now. Owner will explicitly change to stable-only after the first stable release is ready."
+}
