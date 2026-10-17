@@ -21,13 +21,14 @@ class PublicSiteBuildTests(unittest.TestCase):
         for path in ("demo/index.html", "demo/app.js", "demo/style.css",
                      "demo/craft-conductor-theme.css", "demo/demo-runtime.js",
                      "demo/demo-runtime.css", "demo/coverage.json", "demo/release.json",
-                     "demo/phone-qr.svg"):
+                     "demo/phone-qr.svg", "demo/manifest.webmanifest",
+                     "demo/demo-sw.js", "demo/icon-192.png", "demo/icon-512.png"):
             self.assertTrue((SITE / path).is_file(), path)
         page = (SITE / "demo/index.html").read_text(encoding="utf-8")
         self.assertIn('src="demo-runtime.js"', page)
         self.assertIn('src="app.js"', page)
         self.assertNotIn('src="/app.js"', page)
-        self.assertNotIn('rel="manifest"', page)
+        self.assertIn('rel="manifest" href="manifest.webmanifest"', page)
 
     def test_demo_security(self):
         app = (SITE / "demo/app.js").read_text(encoding="utf-8")
@@ -37,6 +38,9 @@ class PublicSiteBuildTests(unittest.TestCase):
         self.assertIn('window.fetch=', runtime)
         self.assertIn('window.XMLHttpRequest=', runtime)
         self.assertIn("External fetch disabled", runtime)
+        manifest=json.loads((SITE / "demo/manifest.webmanifest").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["scope"], "/craft-conductor/demo/")
+        self.assertEqual(manifest["start_url"].split("?")[0], "/craft-conductor/demo/")
 
     def test_coverage_version(self):
         manifest = json.loads((SITE / "demo/coverage.json").read_text(encoding="utf-8"))
