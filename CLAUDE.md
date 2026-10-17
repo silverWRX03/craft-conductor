@@ -51,3 +51,11 @@ vanilla-JS web UI under a strict Content-Security-Policy (`src/craft_conductor/w
 3. Comment on the issues fixed in it: "Fixed in <version>".
 
 The in-app manual ships inside the release, so updating craft-conductor updates its help too.
+
+## Manual real-world testing
+
+Before claims about feature status, regressions or release readiness, consult `testing/README.md`, `testing/catalog.json` and the latest relevant versioned run in `testing/runs/`. Manual results and automated CI are separate. An untested scenario is not proof a feature is missing, and a code fix is not proof a real-world retest passed.
+
+For each user-visible new feature or bug fix, add a stable-ID acceptance/regression test in `testing/catalog.json` using `python tools/real_world_tests.py add-test`; include its ID when creating that release's test run (`--features` or `--fixes`). Do not overwrite historical results or silently inherit passes between releases. Minecraft/loader changes call for a broader `--kind minecraft` run. Keep the default smoke gate and original automated tests.
+
+Claude Code in VS Code can use `python tools/real_world_tests.py` to list, record, report, validate and export sanitized public results. Only mark manual tests passed when a human or agent actually performed them. Seek approval before affecting non-disposable servers, routers, firewalls or personal devices. The repository is public: never commit private credentials, machine-specific logs, names, addresses or raw testing evidence.

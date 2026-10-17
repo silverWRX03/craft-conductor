@@ -1,0 +1,29 @@
+name: real-world-test-tracker
+on:
+  pull_request:
+    paths:
+      - 'testing/**'
+      - 'tools/real_world_tests.py'
+      - 'tests/test_real_world_tests.py'
+      - '.github/workflows/real-world-test-tracker.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Validate imported cases and runs
+        run: python tools/real_world_tests.py verify
+      - name: Verify dashboard export
+        run: python -m pip install pytest && python -m pytest tests/test_real_world_tests.py -q
+      - name: Package public report
+        run: python tools/real_world_tests.py publish --output public-test-dashboard
+      - uses: actions/upload-artifact@v7
+        with:
+          name: real-world-test-dashboard
+          path: public-test-dashboard/
