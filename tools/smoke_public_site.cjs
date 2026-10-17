@@ -27,6 +27,14 @@ const srv=http.createServer((req,res)=>{
   await page.locator('[data-scenario="example"]').click();
   const frame=page.frameLocator("#demo-frame");
   await frame.locator("#app").waitFor({state:"visible",timeout:20000});
+  await page.waitForTimeout(800); // let the real app's theme transition settle before visual capture
+  const appearance=await frame.locator("#stage").evaluate(el=>({
+    theme:document.documentElement.dataset.theme,
+    body:getComputedStyle(document.body).backgroundColor,
+    stage:getComputedStyle(el).backgroundColor,
+    main:getComputedStyle(el.querySelector("main")).backgroundColor
+  }));
+  console.log("Demo appearance:",JSON.stringify(appearance));
   await page.screenshot({path:path.resolve(__dirname,"../.site-test/report/demo-dashboard.png")});
   const nav=await frame.locator("#nav").innerText();
   assert.match(nav,/DASHBOARD/i);assert.match(nav,/PLAYERS/i);
