@@ -109,7 +109,7 @@
       network_option:false};
   }
   function sampleMod(name, key) {
-    return {name,slug:key.split(":").pop(),key,version:"1.0.0",
+    return {name,slug:key.split(":").pop(),key,downloads:11200000,description:"Community mod in the offline demonstration catalog.",channel:"release",environment:"both",icon:null,version:"1.0.0",
       required:false,source:"modrinth",filename:name.toLowerCase().replaceAll(" ","-")+".jar",
       project:key,build:"release",type:"release"};
   }
@@ -124,7 +124,7 @@
     mods:[],local_mods:[],held:{},pack:null,links:{},downloads:[],
     local_link:"",internet_link:"",port:8766,server:s.id};}
   function join(s) {
-    return {requests:s.requests.map((name,i)=>({id:"req-"+i,name,minecraft_name:name,created:tick()-60,ip:"demo",time:tick()-60})),count:s.requests.length};
+    return {whitelist_on:s.whitelist_enabled,requests:s.requests.map((name,i)=>({id:"req-"+i,name,minecraft_name:name,created:tick()-60,ip:"demo",time:tick()-60})),count:s.requests.length};
   }
   function handle(method, rawPath, body) {
     const parts = serverFrom(rawPath);const p = parts.path,s = parts.s;
@@ -183,7 +183,7 @@
       s.state=action==="stop"?"stopped":"running";
       if (action!=="start") s.online=[];
       log(s,action==="stop"?"Stopping the server":action==="restart"?"Restarting the server":"Starting the Minecraft server");
-      if (s.state==="running") log(s,"Done (2.418s)! For help, type \"help\"");
+      if (s.state==="running") { log(s,"Done (2.418s)! For help, type \"help\""); if (!s.requests.length && !s.known.length) {s.requests.push("JordanMC"); log(s,"JordanMC requested whitelist access");} }
       return {ok:true,message:"Server "+s.state+" (demo)."};
     }
     if (p==="/api/settings") {
@@ -251,12 +251,12 @@
     if(p==="/api/backups/area")return {ok:true,message:"Demo area restore simulated."};
     if(p==="/api/mods")return mods(s);
     if(p==="/api/mods/add"&&method==="POST"){
-      const value=body.key||body.slug||"modrinth:lithium";
+      const value=body.key||"modrinth:"+(body.id||body.slug||"lithium");
       if(!s.mods.some(m=>m.key===value))s.mods.push({key:value,name:body.name||value.split(":").pop(),version:"1.0",required:false});
       return {message:"Mod added to the demo server."};
     }
     if(p==="/api/mods/remove"&&method==="POST"){
-      const key=body.key||body.slug;
+      const key=body.key||"modrinth:"+(body.id||body.slug||"");
       s.mods=s.mods.filter(m=>m.key!==key);return {message:"Mod removed from the demo server."};
     }
     if(p==="/api/mods/pin"&&method==="POST")return {message:"Version preference saved for demo."};
