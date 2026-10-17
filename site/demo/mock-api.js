@@ -109,7 +109,8 @@
       {name:"vanilla",label:"Vanilla",mods:false,description:"Standard Minecraft without mods"}],
       versions:["1.21.1","1.21.4","1.21"],betas:[],memory_gb:4,network_access:false,
       port:25566,properties_schema:[],current:null,newest:"1.21.4",
-      network_option:false};
+      difficulties:["peaceful","easy","normal","hard"],gamemodes:["survival","creative","adventure","spectator"],
+      total_ram_gb:16,server_dir:"[DEMO] /servers",network_option:false};
   }
   function sampleMod(name, key) {
     return {name,slug:key.split(":").pop(),key,downloads:11200000,description:"Community mod in the offline demonstration catalog.",channel:"release",environment:"both",icon:null,version:"1.0.0",
