@@ -15,7 +15,7 @@ const srv=http.createServer((req,res)=>{
  await new Promise(resolve=>srv.listen(0,"127.0.0.1",resolve));
  const browser=await chromium.launch({headless:true});
  const page=await browser.newPage();const errors=[];
- page.on("pageerror",e=>errors.push(e.message));
+ page.on("pageerror",e=>errors.push(e.stack||e.message));
  try{
   const origin="http://127.0.0.1:"+srv.address().port;
   await page.goto(origin+"/craft-conductor/",{waitUntil:"domcontentloaded"});
@@ -29,7 +29,27 @@ const srv=http.createServer((req,res)=>{
   assert.match(nav,/DASHBOARD/i);assert.match(nav,/PLAYERS/i);
   await frame.locator("#nav a").filter({hasText:"Players"}).first().click();
   await frame.locator("#main").getByText("Whitelist",{exact:false}).first().waitFor({timeout:15000});
-  assert.deepEqual(errors,[],"Browser JavaScript errors: "+errors.join(" | "));
+  const iframe=await page.locator("#demo-frame").elementHandle();
+  const child=await iframe.contentFrame();
+  for(const view of ["dashboard","console","players","updates","mods","friends","backups","java","settings"]){
+    const before=errors.length;
+    await child.evaluate(v=>{location.hash="#s/family-survival/"+v;},view);
+    await page.waitForTimeout(400);
+    const newErrors=errors.slice(before);
+    if(newErrors.length)console.error("View "+view+" errors:\n"+newErrors.join("\n"));
+  }
+  for(const view of ["servers","craft-conductor","help","manual","new"]){
+    const before=errors.length;
+    await child.evaluate(v=>{location.hash="#"+v;},view);
+    await page.waitForTimeout(400);
+    const newErrors=errors.slice(before);
+    if(newErrors.length)console.error("Global view "+view+" errors:\n"+newErrors.join("\n"));
+  }
+  await child.evaluate(()=>location.hash="#s/family-survival/dashboard");
+  await frame.getByRole("button",{name:/Phone \/ QR/}).click();
+  await frame.locator("#demo-phone-panel img").waitFor();
+  assert.match(await frame.locator("#demo-phone-panel a").getAttribute("href"),/phone=1/);
+  assert.deepEqual(errors,[],"Browser JavaScript errors:\n"+errors.join("\n"));
   await page.locator("#leave-demo").click();
   assert.equal(await page.locator("#demo-layer").isVisible(),false);
   console.log("Public site demo browser smoke tests passed");
