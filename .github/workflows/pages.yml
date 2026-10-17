@@ -82,6 +82,7 @@ jobs:
           node --check _site/demo/assets/app.js
           python -m pytest tests/test_project_website.py -q
           python tools/check_demo_contract.py
+          python -m pytest tests/test_website_release_policy.py -q
           python -m pytest tests/test_website_demo_e2e.py -q
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
