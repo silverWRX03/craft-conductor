@@ -68,19 +68,19 @@ jobs:
       - name: Select production release represented by the public demo
         id: published
         env:
-          GH_TOKEN: GH_TOKEN
+          GH_TOKEN: ${{ github.token }}
         run: python tools/select_website_release.py --github-output "$GITHUB_OUTPUT"
       - name: Checkout tagged frontend without changing development branch
         env:
-          VERSION_TAG: GH_VERSION_TAG
+          VERSION_TAG: ${{ steps.published.outputs.tag }}
         run: |
           git fetch --depth=1 origin tag "$VERSION_TAG"
           mkdir -p "$RUNNER_TEMP/tagged-source"
           git archive "$VERSION_TAG" src/craft_conductor/webui/ | tar -x -C "$RUNNER_TEMP/tagged-source"
       - name: Build and smoke test the actual published release frontend
         env:
-          CC_VERSION: GH_CC_VERSION
-          CC_CHANNEL: GH_CC_CHANNEL
+          CC_VERSION: ${{ steps.published.outputs.version }}
+          CC_CHANNEL: ${{ steps.published.outputs.channel }}
         run: |
           python tools/build_website_demo.py \
             --source "$RUNNER_TEMP/tagged-source/src/craft_conductor/webui" \
