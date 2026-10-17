@@ -26,9 +26,11 @@ def test_imported_snapshot_preserved():
 def test_public_export_omits_evidence(tmp_path):
     p=call('publish','--output',str(tmp_path))
     assert p.returncode==0,p.stderr+p.stdout
-    data=(tmp_path/'runs.json').read_text()
+    data=(tmp_path/'runs.json').read_text(encoding='utf8')
     assert not any(set(x).intersection({'evidence','tester','notes'}) for x in json.loads(data))
-    assert len(json.loads((tmp_path/'catalog.json').read_text()))==881
+    # (every case in the catalog: it grows as features add theirs)
+    cases=json.loads((ROOT/'testing/catalog.json').read_text(encoding='utf8'))
+    assert len(json.loads((tmp_path/'catalog.json').read_text(encoding='utf8')))==len(cases)>=881
 
 def test_smoke_and_run_immutability(tmp_path):
     # Test the scope algorithm without altering the repository.
