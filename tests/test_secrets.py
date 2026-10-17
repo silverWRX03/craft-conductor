@@ -84,6 +84,19 @@ def test_a_file_that_holds_a_secret_is_this_accounts_only(tmp_path):
     other.write_text("x")
     assert private.protect(other)
     assert only_mine(other), access(other)
+
+
+def test_secret_bytes_are_written_to_a_file_that_is_this_accounts_only(tmp_path):
+    path = tmp_path / "secret.key"
+    private.write_bytes(path, b"fake-key-bytes-for-tests")
+    assert path.read_bytes() == b"fake-key-bytes-for-tests"
+    assert only_mine(path), access(path)
+    private.write_bytes(path, b"fake-replacement-for-tests")  # (a file put in place again stays private)
+    assert path.read_bytes() == b"fake-replacement-for-tests"
+    assert only_mine(path), access(path)
+    assert not (tmp_path / "secret.key.tmp").exists()
+
+
 def test_a_web_password_typed_into_craft_conductor_toml_is_kept_as_its_hash(tmp_path):
     root = tmp_path / "server"
     root.mkdir()

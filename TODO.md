@@ -64,7 +64,8 @@ Before continuing or starting a feature, check this list: some features wait on 
       it on and off, add and remove a name) and **Broadcast** a message: friends should see it in
       the game's chat, and it shows in the Dashboard's console. Have a friend join and leave while
       you watch (rows stay put, the open actions stay open), and try it with a screen reader. Then
-      do the same from a paired phone (a helper's phone has them all; a viewer's has no buttons).
+      do the same from a phone paired for an invited person (a Moderator's phone has them all but
+      Make op; a Viewer's has no buttons).
       Look at an operator's badge (OP, or OP 2 for a level-2 op in `ops.json`) and at the ping,
       which should show "—" with a tooltip. It was tried with pretend players only.
 - [ ] **Try continuous mod browsing for real** (0.23.0): in the mod browser (**Download mods**), scroll
@@ -86,7 +87,7 @@ Before continuing or starting a feature, check this list: some features wait on 
       `SIGNPATH_ORGANIZATION_ID` and the secret `SIGNPATH_API_TOKEN`; releases are then signed
       and Windows stops warning about craft-conductor.
 - [ ] **Merged pull requests:** comment "Fixed in <version>" on any issues a release fixed
-      (none so far).
+      (done for 0.28.0). A pull request that says "Fixes #N" for each issue closes them when merged.
 - [x] **Set up the mod-conflict relay:** live at `https://craft-conductor.kyle-r-nordick.workers.dev`
       (in `RELAY` in `src/craft_conductor/conflicts.py` from 0.22.1). Keep the `SALT` secret to
       yourself; to update the relay, paste a new `relay/worker.js` under Edit code and Deploy.
@@ -157,7 +158,11 @@ Next:
         planner adds them); Minecraft 26.x keeps the land in `dimensions/minecraft/overworld/region`
         and writes block palettes differently, which the preview didn't read. The footer now counts
         the needed mods, the download step names them, and a crash names the mod.
-15. [ ] Other tunnel services next to playit.gg (Cloudflare Tunnel, Tailscale Funnel).
+15. [x] Other tunnel services next to playit.gg (Cloudflare Tunnel, Tailscale Funnel). Merged in
+        #121, in the next release: the control panel away from home through Tailscale (private)
+        or Cloudflare's free quick tunnel for 4 hours; Funnel only as a safety rule switched off
+        (Craft Conductor settings → Advanced). Not playit.gg for the control panel: its HTTPS
+        tunnels need a paid plan. See THREAT_MODEL.md section 1.6; real-world tests 892–901.
 16. [x] Purpur servers.
 17. [ ] Scripting hooks (a script on start, stop, a player joining, before an update) and API tokens.
 18. [x] **Mod conflict memory:** mod combinations that failed together in "Find which mods break
@@ -206,8 +211,10 @@ Next:
         (or a shared managed runtime) when it matches the selected Minecraft version and loader.
         Download another runtime only when needed, including when container isolation requires it.
         Shipped in 0.23.0.
-29. [ ] **Granular roles for external server managers:** give external users individual access
-        with permissions scoped to specific servers and management actions (RBAC).
+29. [x] **Granular roles for external server managers:** give external users individual access
+        with permissions scoped to specific servers and management actions (RBAC). Shipped in
+        0.28.0 (People: invited people with their own sign-in, a role or custom permissions per
+        server; phones belong to a person). What's left is listed in THREAT_MODEL.md section 1.4.
 30. [ ] **Native Bedrock servers:** support creating and managing Minecraft Bedrock Dedicated
         Servers, alongside the existing Java server types.
 31. [x] **Continuous mod browsing:** load 20 results initially and prefetch the next 20 around
@@ -227,6 +234,43 @@ Next:
         being restored are unpacked without a limit on their total unpacked size, so a small
         crafted file could fill the disk. Shipped in 0.22.3; the two `xfail`s in
         `tests/security/test_archive_security.py` are gone.
+
+Added 2026-10-16 (briefs in "Additional requests (2026-10-16)" below; numbering is not a priority order):
+
+36. [x] **Reaching the server from outside:** playit.gg first (pre-selected, guided download and
+        setup), its downsides and the risks of an open router port explained, a non-default port
+        picked when a port is opened, and the whitelist on by default whenever the server can be
+        reached from the internet. Merged in #121, in the next release. playit.gg's tunnel for
+        friends' downloads was removed (it now needs a paid plan); invite links work 1, 3 or 7
+        days instead. See THREAT_MODEL.md section 1.5; real-world tests 882–891.
+37. [ ] **Discord webhook help link** in a server's Settings, next to the Discord webhook URL.
+38. [ ] **Clean uninstall:** remove everything Craft Conductor added; ask separately about servers,
+        worlds, backups and exports.
+39. [ ] **Choose where files are kept:** on first use, choose the folders for servers, backups and
+        exports separately; a clear folder structure; Import a server opens the exports folder.
+40. [ ] **Backups to Google Drive, Dropbox and OneDrive** (later, after 39), if the user chooses.
+41. [x] **Notification bell:** a log of every on-screen message, to find one that was missed.
+        Merged in #118, in the next release (the last 100, kept in this browser for the person
+        signed in).
+42. [ ] **Readability review:** the app's text and the websites checked for plain words and for
+        basic operation.
+43. [ ] **First server, reworked:** the first server is vanilla only, with each step explained
+        (what and why). Reworks 5 (guided first server).
+44. [ ] **Modded server helper:** after the first server, a helper for building a server with mods.
+45. [ ] **Easier server scheduling.**
+46. [ ] **Research: wake on request:** a stopped server starts when a player tries to join.
+47. [ ] **Ping:** a mod or plugin of our own that reports players' ping, or a suggested one
+        (follows up 34).
+48. [ ] **Manual CurseForge downloads picked up by themselves:** found where the browser saved them
+        and added to the pack; if they aren't there, ask where they are.
+49. [ ] **Modpack download screen:** a progress bar that holds the page while a modpack downloads,
+        with Chrome's dinosaur game to play meanwhile.
+50. [ ] **Custom server icon:** choose the picture players see in Minecraft's server list.
+51. [ ] **Recent servers in the left panel:** the last 3 run.
+52. [ ] **Craft Conductor's website** on GitHub Pages.
+53. [ ] **Make a modpack from a server's mods:** Modrinth (.mrpack) or CurseForge format.
+54. [ ] **No load check for a modpack's own mods** during setup (mods added on top still checked).
+55. [ ] **Report a bug and GitHub links** at the bottom of the left panel.
 
 ## Plans for the items left (details to start from)
 
@@ -429,3 +473,138 @@ translations, documentation, and changelog entries current.
   reduced-motion support.
 - Acceptance: Help opens the correct section from each supported context; collapse returns
   to the same work state; keyboard and mobile users can open, read, and close it reliably.
+
+## Additional requests (2026-10-16): implementation briefs
+
+From the owner's list of 2026-10-16, with the answers to the questions asked about it. The
+list's "phone notification screen" item is a bug: issue #117. Its "research user based roles"
+item is 29, shipped in 0.28.0. Numbering is not a priority order. Inspect the current code
+before choosing an implementation; CLAUDE.md applies (manual, Help, translations, CHANGELOG,
+tests, security then efficiency review). "To decide" marks details not settled yet: ask, don't
+assume.
+
+**36. Reaching the server from outside: playit.gg first, open ports explained** (list items:
+highly recommend playit.gg; should whitelisting be required; playit.gg on by default; whitelist
+on by default without playit.gg). Extends 15 (other tunnels) and the Router (UPnP) setting.
+- When a server is shared with friends outside the home, playit.gg is the **pre-selected** way,
+  with a guided download and setup. Nothing is downloaded or installed until the user presses
+  the button. Download the agent only from playit.gg's official releases and check it
+  (checksum or signature) before running it; say what it is and that it runs as its own program.
+- Explain playit.gg's downsides plainly (a third-party service in the middle, its account, extra
+  latency, the free plan's limits; check the current terms and limits before writing them).
+- Explain the risks of opening a port on the router (bots scan for Minecraft servers all day,
+  griefing, the home IP address becomes public) next to the port-forwarding choice.
+- If the user chooses port forwarding, Craft Conductor **picks a free non-default port by itself**
+  (not 25565) and says which port to forward; Router (UPnP) and the Windows Firewall rule use it.
+- **Whitelist on by default whenever the server can be reached from the internet**, through an
+  open router port or playit.gg. Turning it off is allowed but shows a strong warning (not a hard
+  requirement).
+- Tests: the default choice, the port picked (free, not 25565, not another server's), the
+  whitelist default for both ways, and the warning when it's turned off.
+
+**37. Discord webhook help link** — small.
+- A server's Settings → Discord webhook URL gets a link to Discord's own instructions for making
+  a webhook (Discord's support article; check the address before adding it), opening in a new tab.
+
+**38. Clean uninstall.**
+- Removes everything Craft Conductor added to the computer: the program, its settings and state,
+  Windows Firewall rules it made, router port mappings (UPnP), Tailscale Serve it set up,
+  shortcuts and the start-up entry or service, the URL handler, the friends' download share.
+- Asks separately whether to also delete servers, worlds, backups and exports (default: keep).
+- To decide: where it's started (a button in Craft Conductor settings, a `craft-conductor
+  uninstall` command, the Windows "Apps" list) and what each platform supports (Windows, macOS,
+  Linux, Docker). Anything it can't remove by itself is listed for the user to do.
+
+**39. Choose where files are kept** (list items: importing opens the exports and backups place, a
+clear folder structure; on first use choose where saved files are stored).
+- On first use, the user chooses **separately** where servers, backups and exports are kept
+  (defaults offered). Each can be changed later in Craft Conductor settings, moving what's there.
+- A clear, documented folder structure inside each (servers, backups, exports, ...).
+- **Import a server…** opens its file picker in the exports folder.
+- Separate locations are on purpose: they let 40 put backups in a synced cloud folder.
+- Check first how `backups.copy_to` and the home folder (`hub.home`) work today, and the
+  `craft-conductor` rule in AGENTS.md about not migrating earlier installation paths.
+
+**40. Backups to Google Drive, Dropbox and OneDrive** — later, after 39.
+- If the user chooses, backups go to (or are copied to) Google Drive, Dropbox or OneDrive, so a
+  server is always backed up off the computer. To decide: the synced folder of each app on the
+  computer (no API, nothing to sign in to) or each service's API (sign-in, tokens to keep safe).
+
+**41. Notification bell** — small/medium.
+- Keep today's on-screen message timing (5 s, errors 12 s).
+- A bell in the page holds **every** message as a log, so one that was missed can be found:
+  newest first, with its time and server, and a dot for unread ones. To decide: how many are
+  kept, and whether the log survives a page reload or a restart.
+
+**42. Readability and basic-operation review.**
+- Go through the app's text and the websites (the invite page, the wiki, 52's site): plain words,
+  short sentences, names that match the buttons, and that each page's main task works.
+
+**43. First server, reworked** (reworks 5, the guided first server).
+- The **first** server a user makes is vanilla only (no mods), and the walkthrough explains each
+  step: what it does and why. Mods come with 44.
+
+**44. Modded server helper.**
+- After the first server: a helper for building a server with mods. To decide: what it walks
+  through (picking a loader, a modpack or single mods, dependencies, players' mods) and how it
+  differs from today's New server.
+
+**45. Easier server scheduling.**
+- Scheduled restarts and backups (Settings → Schedule) should be easier and more intuitive to set
+  up. To decide: what's confusing today (watch someone set one up first).
+
+**46. Research: wake on request.**
+- Can a stopped server start when a player tries to join (a small listener on the server's port
+  that shows "starting, join again in a minute" in the server list, then hands the port over)?
+  Look at how existing tools do it, the Minecraft status/handshake protocol, Bedrock, and the
+  start time of big modpacks. Report before building.
+
+**47. Ping** (follows up 34: no server type shares players' ping by itself).
+- Make a small mod or plugin that reports each player's ping to Craft Conductor, or suggest an
+  existing one. Don't add it to a server without asking.
+
+**48. Manual CurseForge downloads picked up by themselves.**
+- Today the user drops the files they downloaded by hand on the setup page (`handdownload.py`).
+- After the user downloads them (still by hand, following CurseForge's terms), Craft Conductor
+  finds them where the browser saved them (the Downloads folder), checks each by CurseForge's
+  SHA-1 as today, and adds them to the pack. If they aren't there, it asks where they are,
+  because the modpack can't start without them.
+
+**49. Modpack download screen with Chrome's dinosaur game.**
+- When a modpack is chosen, a progress screen holds the page (the page is paused) while it
+  downloads, with the steps and a progress bar.
+- Meanwhile, Chrome's dinosaur game: Chromium's T-Rex runner (BSD license), credited in
+  THIRD_PARTY_NOTICES.md and the app's licenses. It must run under the page's
+  Content-Security-Policy (`script-src 'self'`: the game's code and pictures ship with Craft
+  Conductor; nothing loaded from elsewhere, no inline scripts). Keyboard and touch to play;
+  Less motion respected.
+
+**50. Custom server icon.**
+- Choose the picture players see in Minecraft's multiplayer server list (`server-icon.png`,
+  64×64 PNG); the server's card in Craft Conductor shows it too.
+- Resize in the browser (canvas) before upload; the server checks it's a real 64×64 PNG (the
+  standard library only at runtime: no image library).
+
+**51. Recent servers in the left panel.**
+- The left panel shows the **last 3 servers run**. When one to three are running, they're sorted
+  by which last had players online.
+
+**52. Craft Conductor's website on GitHub Pages.**
+- A website for Craft Conductor on GitHub Pages, next to the invite page (`site/join/`) already
+  published there. To decide: what's on it (what it is, screenshots, downloads, the manual).
+
+**53. Make a modpack from a server's mods.**
+- Export a server's mods as a modpack, in **either format**, chosen when exporting: Modrinth
+  (`.mrpack`) or CurseForge (zip with `manifest.json`).
+- Check each format's rules: a `.mrpack` may only link files from allowed hosts (Modrinth's, and
+  others it lists), and a CurseForge manifest names CurseForge projects and files; a mod that
+  can't go in the chosen format is listed, not left out silently. To decide: whether players'
+  mods (the friends' download) go in too.
+
+**54. No load check for a modpack's own mods.**
+- When a server is made from a modpack, the "will the server start" check is skipped for the
+  mods the pack lists (the pack's author checked them); mods the user adds on top are still checked.
+
+**55. Report a bug and GitHub links at the bottom of the left panel** — small.
+- "Report a bug" (the issue form) and a link to the GitHub repository, at the bottom of the
+  left panel.
