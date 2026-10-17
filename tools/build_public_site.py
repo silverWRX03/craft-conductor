@@ -39,7 +39,7 @@ def build(out: Path, ui: Path, version: str) -> None:
     shutil.copy2(ui / "icon.png", out / "icon.png")
     demo = out / "demo"
     demo.mkdir(exist_ok=True)
-    for name in ("app.js", "i18n.js", "rich.js", "pager.js", "style.css", "craft-conductor-theme.css", "icon.png"):
+    for name in ("app.js", "i18n.js", "rich.js", "pager.js", "style.css", "craft-conductor-theme.css", "icon.png", "icon-192.png", "icon-512.png"):
         src = ui / name
         if not src.is_file():
             raise SystemExit("Missing production UI asset: " + name)
@@ -74,8 +74,10 @@ def build(out: Path, ui: Path, version: str) -> None:
         '<script src="app.js"></script>')
     page = page.replace('</head>', '<meta http-equiv="Content-Security-Policy" '
         'content="default-src &#39;none&#39;; script-src &#39;self&#39;; style-src &#39;self&#39;; '
-        'img-src &#39;self&#39; data:; connect-src &#39;self&#39;; font-src &#39;self&#39;; '
+        'img-src &#39;self&#39; data:; connect-src &#39;self&#39;; font-src &#39;self&#39;; ' 
+        'worker-src &#39;self&#39;; manifest-src &#39;self&#39;; '
         'base-uri &#39;self&#39;; frame-ancestors &#39;self&#39;; form-action &#39;none&#39;; object-src &#39;none&#39;">'
+        '<link rel="manifest" href="manifest.webmanifest">' 
         '<link rel="stylesheet" href="demo-runtime.css"></head>')
     # Version is informational: the build source is pinned to the published release.
     page = page.replace('<script src="demo-runtime.js"></script>',
