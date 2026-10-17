@@ -179,3 +179,23 @@ def test_mock_denies_unknown_requests_without_network(base, page):
     assert result["status"]==501
     assert "No real request" in result["body"]["error"]
     assert not actual, "Unrecognized API escaped the browser-only adapter"
+
+
+def test_authentic_first_run_form_can_create_server(base, page):
+    errors=[]
+    page.on("pageerror",lambda exc: errors.append(str(exc)))
+    page.goto(base+"demo/?mode=new")
+    page.locator("#app").wait_for(state="visible",timeout=15000)
+    page.locator(".setup button.choice").filter(has_text="Fabric").first.click()
+    page.get_by_role("heading",name="2. Minecraft version").wait_for(timeout=8000)
+    page.get_by_role("heading",name="3. Mods").wait_for(timeout=8000)
+    page.get_by_label("Server name (shown in the server list)").fill("My Kids World")
+    page.get_by_text("I accept the",exact=False).locator("xpath=..").locator("input[type=checkbox]").check()
+    page.get_by_role("button",name="Create my server").click()
+    page.wait_for_function("""async ()=>{
+      const h=await(await fetch('/api/hub')).json();
+      return h.servers.length>0;
+    }""",timeout=10000)
+    names=page.evaluate("""async()=> (await(await fetch('/api/hub')).json()).servers.map(s=>s.name)""")
+    assert names==["My Kids World"]
+    assert not errors,repr(errors)
