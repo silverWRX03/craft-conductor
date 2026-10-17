@@ -154,7 +154,7 @@ def test_only_craft_conductors_own_rules_can_be_removed():
                 {**rule(ports=["25565"]), "group": "", "name": "Someone else's rule for the same port"},
                 {**ours(25570), "ports": ["25570-25580"]},          # (a range: not one Craft Conductor made)
                 {**ours(25571), "action": 4}])                      # (a block rule)
-    assert firewall.own_rules(st, 25565) == [{"name": "Craft Conductor: Alpha (TCP 25565)", "port": 25565}]
+    assert firewall.own_rules(st, 25565) == [{"name": "Craft Conductor: Alpha (TCP 25565)", "port": 25565, "protocol": "TCP"}]
     assert [r["port"] for r in firewall.own_rules(st)] == [25565, 8766]
     assert firewall.own_rules(None) == []
     text = firewall.remove_script(["Craft Conductor: Sam's server (TCP 1)"])

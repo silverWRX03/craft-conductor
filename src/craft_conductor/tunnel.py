@@ -167,3 +167,127 @@ def check(address: str, motd: str, running: bool, pinger=ping) -> dict:
         return {"status": "wrong", "checked": now, "answer": got,
                 "words": f"The tunnel answers, but with another server (\"{got['motd'][:60]}\"): in playit.gg, point it at this server's port."}
     return {"status": "ok", "checked": now, "answer": got, "words": "Working: friends can join through playit.gg."}
+
+
+# ------------------------------------------------------- getting the agent
+# playit.gg's program (its "agent") is made by playit.gg's company, Developed Methods LLC, and is
+# published on GitHub. Craft Conductor downloads it only when the person presses the button,
+# only from that release, and runs nothing it hasn't checked twice: the SHA-256 GitHub publishes
+# for the file, and (on Windows) the file's code signature, which must be valid and
+# Developed Methods LLC's. Then playit.gg's own installer runs: it sets the agent up as its own
+# program (a Windows service with a tray icon) that keeps running without Craft Conductor.
+RELEASE_API = "https://api.github.com/repos/playit-cloud/playit-agent/releases/latest"
+RELEASE_DOWNLOADS = "https://github.com/playit-cloud/playit-agent/releases/download/"
+SIGNER = "Developed Methods LLC"
+MAX_INSTALLER = 64 << 20
+# Linux: playit.gg's own package repository (its packages are signed with its key). Shown to copy:
+# they need sudo, which Craft Conductor never asks for.
+APT_STEPS = (
+    "curl -SsL https://playit-cloud.github.io/ppa/key.gpg | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/playit.gpg >/dev/null",
+    'echo "deb [signed-by=/etc/apt/trusted.gpg.d/playit.gpg] https://playit-cloud.github.io/ppa/data ./" '
+    "| sudo tee /etc/apt/sources.list.d/playit-cloud.list",
+    "sudo apt update",
+    "sudo apt install playit",
+)
+
+
+class AgentError(RuntimeError):
+    pass
+
+
+def platform() -> str:
+    """"windows" (a checked download and playit.gg's installer), "linux" (playit.gg's own package
+    repository), or "other" (macOS and the rest: playit.gg's download page)."""
+    import sys
+    return "windows" if os.name == "nt" else "linux" if sys.platform.startswith("linux") else "other"
+
+
+def installer_asset(release: dict, machine: str | None = None) -> dict:
+    """The Windows installer in a playit-agent release: {"version", "name", "url", "sha256", "size"}.
+    Only a signed .msi from playit.gg's own GitHub release, with the SHA-256 GitHub lists for it."""
+    import platform as pf
+    machine = (machine or pf.machine() or "").lower()
+    arch = "x86_64" if machine in ("amd64", "x86_64", "arm64", "aarch64") else "x86"  # (Windows on Arm runs x86_64)
+    name = f"playit-windows-{arch}-signed.msi"
+    version = str(release.get("tag_name") or "")
+    if not re.fullmatch(r"v?\d+(\.\d+){1,3}", version):
+        raise AgentError("playit.gg's release list didn't look right; try again later")
+    for asset in release.get("assets") or []:
+        if not isinstance(asset, dict) or asset.get("name") != name:
+            continue
+        url = str(asset.get("browser_download_url") or "")
+        digest = str(asset.get("digest") or "")
+        size = asset.get("size")
+        if url != RELEASE_DOWNLOADS + version + "/" + name:
+            raise AgentError("playit.gg's installer isn't where it should be, so it wasn't downloaded")
+        m = re.fullmatch(r"sha256:([0-9a-f]{64})", digest)
+        if not m:
+            raise AgentError("GitHub gives no checksum for playit.gg's installer, so it can't be checked: "
+                             "get it from playit.gg/download instead")
+        if not isinstance(size, int) or not 0 < size <= MAX_INSTALLER:
+            raise AgentError("playit.gg's installer has an unexpected size, so it wasn't downloaded")
+        return {"version": version.lstrip("v"), "name": name, "url": url, "sha256": m.group(1), "size": size}
+    raise AgentError(f"playit.gg's latest release has no {name}: get it from playit.gg/download")
+
+
+SIGNATURE_SCRIPT = """$ErrorActionPreference = 'Stop'
+$s = Get-AuthenticodeSignature -LiteralPath {path}
+[pscustomobject]@{{ status = "$($s.Status)"; subject = "$($s.SignerCertificate.Subject)" }} | ConvertTo-Json -Compress
+"""
+
+
+def _subject_organization(subject: str) -> str:
+    """The O= part of a certificate's subject (as PowerShell writes it: comma-separated, quoted when needed)."""
+    for part in re.findall(r'(?:[^,"]|"[^"]*")+', subject):
+        key, _, value = part.strip().partition("=")
+        if key.strip().upper() == "O":
+            return value.strip().strip('"')
+    return ""
+
+
+def check_signature(path, run=None) -> None:
+    """The file is signed, the signature is valid (Windows checks the certificate chain), and
+    the signer is playit.gg's company. Raises AgentError otherwise."""
+    import base64
+    from .firewall import _ps_string
+    script = SIGNATURE_SCRIPT.format(path=_ps_string(str(path)))
+    encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
+    args = ["powershell", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded]
+    try:
+        if run is None:
+            from .desktop import NO_WINDOW
+            out = subprocess.run(args, capture_output=True, text=True, timeout=60, **NO_WINDOW).stdout
+        else:
+            out = run(args)
+        data = json.loads(out or "null")
+    except (OSError, subprocess.SubprocessError, ValueError) as e:
+        raise AgentError(f"Windows couldn't check the installer's signature ({e}), so it wasn't opened") from None
+    if not isinstance(data, dict) or data.get("status") != "Valid":
+        raise AgentError("the installer's signature isn't valid, so it wasn't opened (it may have been changed)")
+    if _subject_organization(str(data.get("subject") or "")) != SIGNER:
+        raise AgentError(f"the installer isn't signed by {SIGNER} (playit.gg's company), so it wasn't opened")
+
+
+def download_installer(http, folder, progress=None, check=check_signature):
+    """Download playit.gg's Windows installer into ``folder`` and check it (SHA-256 while it
+    downloads, then its signature). Returns (path, version). Nothing is kept that fails a check."""
+    from pathlib import Path
+    asset = installer_asset(http.get_json(RELEASE_API, headers={"Accept": "application/vnd.github+json"}, cache=False))
+    folder = Path(folder)
+    dest = folder / asset["name"]
+    try:
+        http.download(asset["url"], dest, sha256=asset["sha256"], max_bytes=asset["size"], progress=progress)
+        check(dest)
+    except BaseException:
+        dest.unlink(missing_ok=True)
+        raise
+    return dest, asset["version"]
+
+
+def open_installer(path, check=check_signature, popen=subprocess.Popen) -> None:
+    """Check the downloaded installer again, then open it with Windows Installer (msiexec, by its
+    full path, with an argument list): playit.gg's installer asks Windows for permission itself."""
+    check(path)
+    msiexec = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "msiexec.exe")
+    from .desktop import child_env
+    popen([msiexec, "/i", str(path)], env=child_env(), close_fds=True)

@@ -22,8 +22,10 @@ from .properties import write_properties
 
 PENDING = "setup-pending"
 # A new server is open to anyone with the address until you turn the whitelist on yourself,
-# whatever a modpack or Minecraft's own defaults say.
+# whatever a modpack or Minecraft's own defaults say, unless it can be reached from the internet
+# (reach.py): then its whitelist is on (CLOSED_BY_DEFAULT), and off only if the person was warned.
 OPEN_BY_DEFAULT = {"white-list": "false", "enforce-whitelist": "false"}
+CLOSED_BY_DEFAULT = {"white-list": "true", "enforce-whitelist": "true"}
 NAME_LIMIT = 59  # server.properties motd is shown in the server list; keep it short
 
 LOADER_INFO = [
@@ -121,6 +123,9 @@ class SetupSpec:
     pins: dict = field(default_factory=dict)  # mods held at one build (Change version): "source:id" -> Pin
     world: str = ""                # an existing world: an upload's staging id, or "save:<id>" (singleplayer)
     world_source: Path | None = None  # where that world is, found by the hub (never from the form)
+    reach: str = ""                # how friends outside join: playit | forward | home (reach.py)
+    whitelist_off_ok: bool = False  # the person was warned and still wants the whitelist off on a reachable server
+    reachable: bool = False        # it can be reached from the internet (decided by the hub, never from the form)
 
     @classmethod
     def from_dict(cls, d: dict) -> SetupSpec:
@@ -179,6 +184,8 @@ class SetupSpec:
             properties=serverprops.validate(d.get("properties")),
             friends=d.get("friends") is True,
             port_chosen="port" in d,
+            reach=str(d.get("reach") or ""),
+            whitelist_off_ok=d.get("whitelist_off_ok") is True,
             modpack_version=str(d.get("modpack_version") or ""),
             modpack_exclude=pack_paths("modpack_exclude"),
             local_mods=[str(x) for x in (d.get("local_mods") or []) if isinstance(x, str)],
@@ -199,6 +206,9 @@ class SetupSpec:
             raise ConfigError(f"{spec.minecraft!r} is not a Minecraft version")
         if spec.difficulty not in DIFFICULTIES or spec.gamemode not in GAMEMODES:
             raise ConfigError("invalid difficulty or game mode")
+        from .reach import WAYS
+        if spec.reach and spec.reach not in WAYS:
+            raise ConfigError("friends outside join through playit.gg, port forwarding, or not at all (home)")
         if spec.modpack_version and not re.fullmatch(r"[A-Za-z0-9]{8}|curseforge:\d{1,10}", spec.modpack_version):
             raise ConfigError("that isn't a Modrinth or CurseForge modpack version")
         if spec.world and not re.fullmatch(r"(save:)?[a-f0-9]{16}", spec.world):
@@ -244,10 +254,23 @@ def _mod_spec(item: str, required: bool, channel: str | None = None, datapack: b
     return ModSpec("modrinth", item, required=required, channel=channel, datapack=datapack)
 
 
+def whitelist_defaults(spec: SetupSpec) -> dict[str, str]:
+    """The whitelist a new server starts with: on when it can be reached from the internet (the
+    person can still turn it off on the setup page, once warned), else off unless ticked."""
+    if not spec.reachable:
+        return {k: spec.properties.get(k, v) for k, v in OPEN_BY_DEFAULT.items()}
+    if spec.properties.get("white-list") == "false":
+        if not spec.whitelist_off_ok:
+            from .reach import WHITELIST_OFF_WARNING
+            raise ConfigError(WHITELIST_OFF_WARNING + " Turn the whitelist back on, or confirm that you want it off.")
+        return {k: spec.properties.get(k, "false") for k in OPEN_BY_DEFAULT}
+    return dict(CLOSED_BY_DEFAULT)
+
+
 def whitelist_as_chosen(server_dir: Path, spec: SetupSpec) -> None:
-    """Put the whitelist back to what was picked on the setup page (off unless ticked), after a
+    """Put the whitelist back to what was picked on the setup page (whitelist_defaults), after a
     modpack's files may have changed server.properties."""
-    write_properties(server_dir / "server.properties", {k: spec.properties.get(k, v) for k, v in OPEN_BY_DEFAULT.items()})
+    write_properties(server_dir / "server.properties", whitelist_defaults(spec))
 
 
 def configure(root: Path, spec: SetupSpec) -> configmod.Config:
@@ -269,7 +292,7 @@ def configure(root: Path, spec: SetupSpec) -> configmod.Config:
     if spec.friends:
         from .clientpack import make_link
         configmod.set_value(path, "client", "enabled", "true")
-        make_link(path)  # (working for the usual 7 days)
+        make_link(path)  # (working for the usual 3 days)
         if spec.client_mods:
             configmod.set_value(path, "client", "mods", json.dumps(spec.client_mods))
     for slug in spec.mods:
@@ -280,11 +303,16 @@ def configure(root: Path, spec: SetupSpec) -> configmod.Config:
                                              datapack=slug in spec.datapacks))
     for key, pin in spec.pins.items():
         configmod.set_pin(path, key, configmod.Pin(pin.version, pin.minecraft or (spec.minecraft if spec.minecraft != "latest" else "")))
+    if spec.reach:
+        configmod.set_value(path, "reach", "way", json.dumps(spec.reach))
+    whitelist = whitelist_defaults(spec)
     cfg = configmod.load(root)
     cfg.server.dir.mkdir(parents=True, exist_ok=True)
+    from . import reach
+    reach.write_state(cfg.state_dir, guarded=True)  # (its whitelist follows reach.py's rule from now on)
     write_properties(cfg.server.dir / "server.properties", {
-        **OPEN_BY_DEFAULT,
         **spec.properties,
+        **whitelist,
         "motd": spec.motd, "max-players": str(spec.max_players), "difficulty": spec.difficulty,
         "gamemode": spec.gamemode, "server-port": str(spec.port),
     })

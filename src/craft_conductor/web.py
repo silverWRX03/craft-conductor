@@ -65,7 +65,7 @@ MAX_UPLOAD = 512 << 20
 MAX_ARCHIVE = 64 << 30
 LANGUAGES = ("es", "pt", "fr", "de", "hi", "zh", "vi", "ar", "ko")  # besides English: src/craft_conductor/webui/i18n/<code>.json
 LOCAL_ONLY = {"/api/open", "/api/hub/open", "/api/hub/remote-install/open", "/api/play-here", "/api/hub/singleplayer/install",
-              "/api/hub/firewall/remove"}  # they act on this computer's screen  # a whole server (worlds and all), for importing
+              "/api/hub/firewall/remove", "/api/hub/playit/install"}  # they act on this computer's screen  # a whole server (worlds and all), for importing
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/app.js": ("app.js", "text/javascript; charset=utf-8"),
           "/rich.js": ("rich.js", "text/javascript; charset=utf-8"),
@@ -118,9 +118,10 @@ def static_file(name: str) -> tuple[bytes, str]:
 
 
 class ApiError(Exception):
-    def __init__(self, status: int, message: str):
+    def __init__(self, status: int, message: str, confirm: str = ""):
         super().__init__(message)
         self.status = status
+        self.confirm = confirm  # what the page may ask about and send again (e.g. "whitelist-off")
 
 
 class PortBusy(OSError):
@@ -903,7 +904,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                 body = {**body, "__local": local and subject.is_owner}  # (from this request, not the page's say-so)
             return self._json(200, access.server_answer(subject, sid, path, handler(q, body)))
         except ApiError as e:
-            self._fail(e.status, str(e))
+            self._fail(e.status, str(e), e.confirm)
         except HttpError as e:  # a website craft-conductor depends on didn't answer
             log.warning("web request needed %s, which failed: %s", e.url, e)
             self._fail(502, e.friendly)
@@ -913,8 +914,8 @@ class RequestHandler(BaseHTTPRequestHandler):
             log.exception("web request failed")
             self._fail(500, f"internal error: {e}")
 
-    def _fail(self, status: int, error: str) -> None:
-        self._json(status, {"error": error})
+    def _fail(self, status: int, error: str, confirm: str = "") -> None:
+        self._json(status, {"error": error, **({"confirm": confirm} if confirm else {})})
 
     def _drain(self) -> None:
         """Before any answer: a small request body not read yet (a refused request, or one like
@@ -1401,6 +1402,8 @@ class HubApi:
         r[("GET", "/api/hub/trial")] = self.trial_status
         r[("POST", "/api/hub/trial/cancel")] = self.cancel_trial
         r[("GET", "/api/hub/upnp")] = lambda q, b: self.hub.upnp_status()
+        r[("GET", "/api/hub/playit")] = lambda q, b: self.hub.playit_status()
+        r[("POST", "/api/hub/playit/install")] = lambda q, b: self.hub.playit_install()
         r[("POST", "/api/hub/upnp")] = self.set_upnp
         r[("POST", "/api/hub/preview")] = self.start_preview
         r[("GET", "/api/hub/preview")] = self.preview_status
@@ -1891,6 +1894,8 @@ class HubApi:
             raise ApiError(400, "enabled must be true or false")
         self._upnp_consent(enabled, b)
         status = self.hub.upnp_sync(enabled)
+        if status["enabled"]:
+            self.hub.whitelist_when_reachable("Router (UPnP) opens its port")
         log.info("automatic port forwarding %s", "on" if status["enabled"] else "off")
         return status
 
@@ -2069,13 +2074,17 @@ class HubApi:
         sid = str(q.get("id", ""))
         if not firewall.available() or sid not in self.hub.daemons:
             return {"rules": []}
+        from .reach import geyser_config, geyser_port
+        server_dir = self.hub.daemons[sid].m.server_dir
         try:
-            port = int(read_properties(self.hub.daemons[sid].m.server_dir / "server.properties").get("server-port", "25565"))
+            port = int(read_properties(server_dir / "server.properties").get("server-port", "25565"))
         except ValueError:
             return {"rules": []}
-        if port in self.hub.ports(exclude=sid):
-            return {"rules": []}
-        return {"rules": firewall.own_rules(firewall.read(fresh=True), port)}
+        others = self.hub.taken_ports(exclude=sid)  # (a port another server here uses keeps its rule)
+        state = firewall.read(fresh=True)
+        mine = [port] + ([geyser_port(server_dir)] if geyser_config(server_dir) is not None else [])
+        return {"rules": [r for p in dict.fromkeys(mine) if p not in others
+                          for r in firewall.own_rules(state, p)]}
 
     def firewall_remove(self, q, b) -> dict:
         """Delete Craft Conductor's own firewall rules (by name). Only rules that exist now, in Craft
@@ -2571,17 +2580,8 @@ class HubApi:
         address = str(b.get("address", "")).strip()
         if address and not re.fullmatch(r"[A-Za-z0-9.-]{1,253}|\[[0-9A-Fa-f:]{2,45}\]|[0-9A-Fa-f:]{2,45}", address):
             raise ApiError(400, "the address should be a host name or IP address, without http:// or a port")
-        tunnel_text = b.get("tunnel")
-        if tunnel_text is not None:
-            from .tunnel import TunnelError, parse_address
-            tunnel_text = str(tunnel_text).strip()
-            try:
-                parse_address(tunnel_text, default_port=0)
-            except TunnelError as e:
-                raise ApiError(400, str(e)) from None
-        self.hub.save_share(port, address, tunnel_text)
-        log.info("friend download settings: port %s, address %s%s", port, address or "(automatic)",
-                 f", playit.gg tunnel {tunnel_text}" if tunnel_text else "")
+        self.hub.save_share(port, address)
+        log.info("friend download settings: port %s, address %s", port, address or "(automatic)")
         return {"ok": True, "share": self.hub.share_status()}
 
     def _get_mojang(self) -> Mojang:
@@ -2591,7 +2591,7 @@ class HubApi:
 
     def new_server_options(self, q, b) -> dict:
         return {**setup_options(self._get_mojang()), "pending": True, "network_option": False,
-                "port": self.hub.free_port(),
+                "port": self.hub.free_port(), "open_port": self.hub.pick_open_port(),
                 "server_dir": str(self.hub.home / "servers" / "<name>"), "current": None}
 
     def create(self, q, b) -> dict:
@@ -2724,6 +2724,8 @@ class Api:
         get("/api/bedrock", self.bedrock)
         get("/api/bedrock/check", self.bedrock_check)
         get("/api/tunnel", self.tunnel)
+        get("/api/reach", self.reach)
+        post("/api/reach", self.set_reach)
         get("/api/world/tools", self.world_tools)
         get("/api/modsets", self.modsets)
         post("/api/modsets/save", self.modset_save)
@@ -3636,23 +3638,80 @@ class Api:
                 "agent": tunnel.agent_running() if status else None,
                 "status_page": tunnel.STATUS_PAGE, "download": tunnel.DOWNLOAD}
 
+    # ------------------------------------- how friends outside join (reach.py)
+    def reach(self, q, b) -> dict:
+        """The way friends outside your home join (playit.gg, port forwarding, or only at home), the
+        ports to forward, and why the server counts as reachable from the internet (the owner's)."""
+        from . import reach, tunnel
+        from .cli import lan_ip
+        hub = self.web.hub
+        props = read_properties(self.m.server_dir / "server.properties")
+        bedrock = self.bedrock({}, {})
+        state = reach.read_state(self.m.config.state_dir)
+        return {"way": self.m.config.reach_way, "port": int(props.get("server-port", "25565") or 25565),
+                "bedrock": {"on": bool(bedrock["supported"] and bedrock["geyser"]), "port": bedrock["port"],
+                            "wanted": state.get("bedrock_port")},
+                "reachable": hub.why_reachable(self.d), "whitelist_on": props.get("white-list", "false") == "true",
+                "running": self.d.state == "running", "lan_ip": lan_ip(), "upnp": hub.upnp_settings()["enabled"],
+                "tunnel_address": self.m.config.tunnel_address, "range": list(reach.OPEN_RANGE),
+                "playit": hub.playit_status(), "router_risks": reach.ROUTER_RISKS,
+                "playit_downsides": reach.PLAYIT_DOWNSIDES, "whitelist_warning": reach.WHITELIST_OFF_WARNING,
+                "status_page": tunnel.STATUS_PAGE}
+
+    def set_reach(self, q, b) -> dict:
+        """Choose how friends outside join. Port forwarding gets a port picked by Craft Conductor
+        (reach.OPEN_RANGE: not 25565, nobody else's), for Bedrock players too when Geyser is on;
+        Router (UPnP) and the Windows Firewall rule then use those. A server that becomes reachable
+        gets its whitelist on (when it was made with that rule)."""
+        from . import reach
+        from .properties import write_properties
+        way = str(b.get("way", ""))
+        if way not in reach.WAYS:
+            raise ApiError(400, "choose playit.gg, port forwarding, or only friends at home")
+        hub = self.web.hub
+        props_path = self.m.server_dir / "server.properties"
+        port = int(read_properties(props_path).get("server-port", "25565") or 25565)
+        bedrock = self.bedrock({}, {})
+        message = {"playit": "Friends outside join through playit.gg", "home": "Only friends on your network can join",
+                   "forward": "Friends outside join through the port on your router"}[way]
+        if way == "forward":
+            taken = hub.taken_ports(exclude=self.sid)
+            new_port = port if reach.in_open_range(port) and port not in taken else None
+            new_udp = None
+            if bedrock["supported"] and bedrock["geyser"] and not (reach.in_open_range(bedrock["port"]) and bedrock["port"] not in taken):
+                new_udp = hub.pick_open_port(exclude=self.sid, udp=True)
+            if new_port is None or new_udp is not None:
+                if self.d.state != "stopped" or self.d.job:
+                    raise ApiError(409, "stop the server first: it gets a new port")
+            if new_port is None:
+                new_port = hub.pick_open_port(exclude=self.sid)
+                while new_port == new_udp:  # (Minecraft's TCP and Bedrock's UDP: kept apart, to be clear)
+                    new_port = hub.pick_open_port(exclude=self.sid)
+                write_properties(props_path, {"server-port": str(new_port)})
+                log.info("the server now uses port %s, to forward on the router", new_port)
+            message = f"Forward TCP port {new_port} on your router to this computer"
+            if new_udp is not None:
+                reach.write_state(self.m.config.state_dir, bedrock_port=new_udp)
+                written = reach.set_geyser_port(self.m.server_dir, new_udp)
+                message += f", and UDP port {new_udp} for Bedrock players" + ("" if written else " (from the server's second start)")
+        configmod.set_value(self.m.config.path, "reach", "way", json.dumps(way))
+        self.m.reload_config()
+        hub.whitelist_when_reachable()
+        if way == "forward" and hub.upnp_settings()["enabled"]:
+            threading.Thread(target=hub.upnp_sync, daemon=True, name="upnp").start()  # (the router gets the new port)
+        log.info("%s", message)
+        return {**self.reach({}, {}), "ok": True, "message": message}
+
     # ------------------------------------------- Bedrock players (Geyser)
     BEDROCK_LOADERS = ("fabric", "quilt", "neoforge", "paper", "purpur")
-    GEYSER_CONFIGS = ("config/Geyser-Fabric/config.yml", "config/Geyser-NeoForge/config.yml", "plugins/Geyser-Spigot/config.yml")
 
     def bedrock(self, q, b) -> dict:
         """Whether Bedrock players (phones, tablets, consoles, Windows) can join through Geyser, and
         the port they use (UDP; Geyser's config says, 19132 until it's written)."""
+        from .reach import geyser_port
         loader = self.m.lock.loader or self.m.config.server.loader
         ids = {s.id.lower() for s in self.m.config.mods}
-        port = 19132
-        for rel in self.GEYSER_CONFIGS:
-            path = self.m.server_dir / rel
-            if path.exists():
-                m = re.search(r"^bedrock:\s*$.*?^\s+port:\s*(\d{2,5})", path.read_text(errors="replace"), re.M | re.S)
-                if m:
-                    port = int(m.group(1))
-                break
+        port = geyser_port(self.m.server_dir)
         return {"supported": loader in self.BEDROCK_LOADERS, "geyser": "geyser" in ids, "floodgate": "floodgate" in ids,
                 "installed": any(x.name.lower().startswith("geyser") for x in self.m.lock.mods), "port": port,
                 "minecraft": self.m.lock.minecraft}
@@ -3699,7 +3758,10 @@ class Api:
             # Editing the JSON files now could race with the server starting up.
             raise ApiError(409, "the server is starting; try again in a moment")
         action = str(b.get("action", ""))
+        warned = action == "whitelist-off" and self._whitelist_off(b.get("whitelist_off_ok") is True)
         message = self._players().act(action, str(b.get("name", "")), b.get("reason"))
+        if action in ("whitelist-on", "whitelist-off"):
+            self._whitelist_changed(action == "whitelist-on", warned)
         log.info("players: %s", message)
         return {"ok": True, "message": message}
 
@@ -3718,9 +3780,7 @@ class Api:
         name = server_name(read_properties(self.m.server_dir / "server.properties"))
         lan = lan_ip()
         out = {"local": Invite(lan, share["port"], c.token, fp).page_link(name) if lan else None, "internet": None}
-        if (tunnel := hub.share_tunnel()) is not None:  # friends outside reach the downloads through playit.gg
-            out["internet"] = Invite(tunnel[0], tunnel[1], c.token, fp).page_link(name)
-        elif share["address"]:
+        if share["address"]:
             out["internet"] = Invite(share["address"].strip("[]"), share["port"], c.token, fp).page_link(name)
         bedrock = self.bedrock({}, {})
         if bedrock["supported"] and bedrock["geyser"]:
@@ -3861,6 +3921,10 @@ class Api:
         except (JavaError, OSError):
             java = None
         ports = [{"port": port, "label": f"{props.get('motd') or self.d.server_id or 'server'} (Minecraft)", "program": java}]
+        bedrock = self.bedrock({}, {})
+        if bedrock["supported"] and bedrock["geyser"]:  # (Bedrock players come in on UDP, through Geyser in the same Java)
+            ports.append({"port": bedrock["port"], "label": f"{props.get('motd') or self.d.server_id or 'server'} (Bedrock)",
+                          "program": java, "protocol": "UDP"})
         if self.m.config.client.enabled and share and share.get("running") and share.get("port"):
             ports.append({"port": int(share["port"]), "label": "friends' downloads", "program": sys.executable})
         return ports
@@ -3879,9 +3943,7 @@ class Api:
     def _old_firewall_rules(self, state: dict | None) -> list[dict]:
         """Craft Conductor's own rules for ports that no server here, and not the friends' download, uses."""
         from . import firewall
-        hub = self.web.hub
-        in_use = set(hub.ports())
-        in_use.add(int(hub.share_settings()["port"]))
+        in_use = self.web.hub.taken_ports()  # (Minecraft's, Bedrock's, the friends' download...)
         return [r for r in firewall.own_rules(state) if r["port"] not in in_use]
 
     def doctor(self, q, b) -> dict:
@@ -3897,8 +3959,13 @@ class Api:
         """Ask an outside service to connect to the server's port (only when asked to)."""
         from dataclasses import asdict
         from . import doctor
+        from . import reach
         port = int(read_properties(self.m.server_dir / "server.properties").get("server-port", "25565") or 25565)
-        return asdict(doctor.internet_check(self.m.http, port, self.d.state == "running"))
+        check = doctor.internet_check(self.m.http, port, self.d.state == "running")
+        if check.status == doctor.OK:  # (remembered: it can be reached from the internet, so its whitelist goes on)
+            reach.write_state(self.m.config.state_dir, port_test={"port": port, "ok": True, "at": int(time.time())})
+            self.web.hub.whitelist_when_reachable("Check my setup reached it from the internet")
+        return asdict(check)
 
     def doctor_fix(self, q, b) -> dict:
         """Check my setup's fix buttons: each does one small, safe thing (and says what it did)."""
@@ -4784,9 +4851,36 @@ class Api:
             out[f"schedule_{name}_next"] = nxt.timestamp() if nxt else None
         return out
 
+    def _whitelist_off(self, knowingly: bool) -> bool:
+        """Turning the whitelist off on a server that can be reached from the internet is allowed,
+        but only once the person has seen the warning (the page asks every time, then sends
+        ``whitelist_off_ok``). Said with 409 and the warning otherwise. True when it was asked."""
+        from . import reach
+        if not self.web.hub.why_reachable(self.d):
+            return False
+        if not knowingly:
+            raise ApiError(409, reach.WHITELIST_OFF_WARNING, confirm="whitelist-off")
+        return True
+
+    def _whitelist_changed(self, on: bool, warned: bool = False) -> None:
+        """Remember a whitelist turned off through the warning (it isn't turned on again by itself),
+        and forget that once it's on again. Off while nothing could reach the server: the rule still
+        turns it on when something does."""
+        from . import reach
+        state = reach.read_state(self.m.config.state_dir)
+        if not state.get("guarded"):
+            return
+        if on and state.get("opted_out"):
+            reach.write_state(self.m.config.state_dir, opted_out=False)
+        elif not on and warned and not state.get("opted_out"):
+            reach.write_state(self.m.config.state_dir, opted_out=True)
+
     def save_settings(self, q, b) -> dict:
         b = dict(b)
         advanced = serverprops.validate(b.pop("properties", None))
+        whitelist_off_ok = b.pop("whitelist_off_ok", None) is True
+        before = read_properties(self.m.server_dir / "server.properties").get("white-list", "false")
+        warned = advanced.get("white-list") == "false" and before == "true" and self._whitelist_off(whitelist_off_ok)
         port = b.pop("port", None)
         if port is not None:
             try:
@@ -4838,5 +4932,8 @@ class Api:
         if changed:
             self.m.server_dir.mkdir(parents=True, exist_ok=True)
             write_properties(props, changed)
+            if "white-list" in changed:
+                self._whitelist_changed(changed["white-list"] == "true", warned)
+        self.web.hub.whitelist_when_reachable()  # (a playit.gg address saved: it can be reached now)
         log.info("settings saved")
         return {"ok": True}

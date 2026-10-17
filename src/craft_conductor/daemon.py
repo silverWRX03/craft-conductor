@@ -294,6 +294,7 @@ class Daemon:
         if hub is not None:
             hub.check_port(self)
             hub.check_memory(self)
+            hub.before_start(self)
         # An update, restore or world swap cut off half-way (the computer turned off) is put
         # right before the server runs on half-changed files.
         self.m.recover()

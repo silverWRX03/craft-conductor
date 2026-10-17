@@ -2,7 +2,8 @@
 
 Reading the rules needs no administrator rights: one PowerShell call (about two seconds), only
 when Check my setup asks. Letting ports through does: Windows asks the person at this computer
-with its usual administrator prompt. Only Craft Conductor's own rules are added (TCP ports, in
+with its usual administrator prompt. Only Craft Conductor's own rules are added (TCP ports, and the
+UDP port Bedrock players use when Geyser is on, in
 the group "Craft Conductor", for private and public networks: Windows puts many home networks
 under "public"), and only block rules for Craft Conductor's own Java are removed (Windows makes
 those when its own "allow Java?" prompt is answered Cancel, and a block rule beats any allow).
@@ -108,7 +109,8 @@ def _same_program(a: str, b: str | None) -> bool:
 def assess(state: dict, lan_ip: str | None, wanted: list[dict]) -> dict:
     """Whether each wanted port gets through on the network this computer is on.
 
-    ``wanted``: [{"port", "label", "program"}] (``program``: what listens on it, for rules made
+    ``wanted``: [{"port", "label", "program", "protocol"}] (``protocol``: TCP unless it says UDP;
+    ``program``: what listens on it, for rules made
     for a program rather than a port). Returns {"on", "network", "ports": [{"port", "label",
     "program", "allowed", "blocked", "by"}]}; ``by`` is "program" when the rule that lets the port through
     is one for the program that listens (Windows makes those itself) rather than for the port."""
@@ -121,6 +123,8 @@ def assess(state: dict, lan_ip: str | None, wanted: list[dict]) -> dict:
     out = {"on": on.get(profile, True), "network": category.replace("DomainAuthenticated", "Domain"), "ports": []}
     rules = [r for r in _list(state.get("rules")) if not r.get("profile") or int(r["profile"]) & flag]
     for w in wanted:
+        proto = "UDP" if w.get("protocol") == "UDP" else "TCP"
+
         def applies(r) -> bool:
             # (a rule whose details couldn't be read, or one for a Store app or a Windows service,
             # isn't taken to let anything else through)
@@ -131,8 +135,8 @@ def assess(state: dict, lan_ip: str | None, wanted: list[dict]) -> dict:
                 # A rule for the very program that listens (what Windows' own "allow?" prompt
                 # makes: any port); its ports can't always be read without administrator rights.
                 return _same_program(program, w.get("program")) and (
-                    not protocol or (protocol in ("TCP", "Any") and _port_matches(_list(r.get("ports")), w["port"])))
-            return protocol in ("TCP", "Any") and _port_matches(_list(r.get("ports")), w["port"])
+                    not protocol or (protocol in (proto, "Any") and _port_matches(_list(r.get("ports")), w["port"])))
+            return protocol in (proto, "Any") and _port_matches(_list(r.get("ports")), w["port"])
         blocked = any(int(r.get("action", 0)) == BLOCK and applies(r) for r in rules)
         allowing = [r for r in rules if int(r.get("action", 0)) == ALLOW and applies(r)]
         # (a rule for the port itself is the better reason to give when there are both kinds)
@@ -148,18 +152,20 @@ def _ps_string(s: str) -> str:
 
 
 def script(ports: list[dict]) -> str:
-    """The PowerShell run with administrator rights: rules for these TCP ports (replacing
-    Craft Conductor's own rules of the same name), and Craft Conductor's Java unblocked."""
+    """The PowerShell run with administrator rights: rules for these ports (TCP, or UDP when
+    ``protocol`` says so; replacing Craft Conductor's own rules of the same name), and Craft
+    Conductor's Java unblocked."""
     lines = ["$ErrorActionPreference = 'Stop'", "try {"]
     for p in ports:
         port = int(p["port"])
         if not 1 <= port <= 65535:
             raise FirewallError("that isn't a port")
         label = re.sub(r"[^A-Za-z0-9 ._()-]+", "", str(p["label"]))[:60].strip() or "server"
-        name = _ps_string(f"{GROUP}: {label} (TCP {port})")
+        proto = "UDP" if p.get("protocol") == "UDP" else "TCP"
+        name = _ps_string(f"{GROUP}: {label} ({proto} {port})")
         lines += [f"  Get-NetFirewallRule -DisplayName {name} -ErrorAction SilentlyContinue | Remove-NetFirewallRule",
                   f"  New-NetFirewallRule -DisplayName {name} -Group {_ps_string(GROUP)} -Direction Inbound -Action Allow "
-                  f"-Protocol TCP -LocalPort {port} -Profile Private,Public | Out-Null"]
+                  f"-Protocol {proto} -LocalPort {port} -Profile Private,Public | Out-Null"]
         if p.get("unblock"):
             lines.append(f"  Get-NetFirewallApplicationFilter -Program {_ps_string(p['unblock'])} -ErrorAction SilentlyContinue | "
                          "Get-NetFirewallRule | Where-Object { $_.Direction -eq 'Inbound' -and $_.Action -eq 'Block' } | "
@@ -170,17 +176,17 @@ def script(ports: list[dict]) -> str:
 
 def own_rules(state: dict | None, port: int | None = None) -> list[dict]:
     """Craft Conductor's own allow rules (the group "Craft Conductor", made by :func:`script`) in what
-    :func:`read` returned: [{"name", "port"}], those for ``port`` only when it's given. Nobody else's rule is
-    ever in this list: it's what a removal is checked against."""
+    :func:`read` returned: [{"name", "port", "protocol"}], those for ``port`` only when it's given. Nobody
+    else's rule is ever in this list: it's what a removal is checked against."""
     out = []
     for r in _list((state or {}).get("rules")):
-        if str(r.get("group")) != GROUP or int(r.get("action", 0)) != ALLOW or str(r.get("protocol")) not in ("TCP", ""):
+        if str(r.get("group")) != GROUP or int(r.get("action", 0)) != ALLOW or str(r.get("protocol")) not in ("TCP", "UDP", ""):
             continue
         name, spec = str(r.get("name") or ""), [str(x) for x in _list(r.get("ports"))]
         if not name or len(spec) != 1 or not spec[0].isdigit():
             continue  # (one port, as Craft Conductor makes them)
         if port is None or int(spec[0]) == port:
-            out.append({"name": name, "port": int(spec[0])})
+            out.append({"name": name, "port": int(spec[0]), "protocol": str(r.get("protocol") or "TCP")})
     return out
 
 
@@ -224,7 +230,7 @@ def let_through(ports: list[dict], timeout: float = 300) -> None:
         raise FirewallError("Windows didn't get the go-ahead (its administrator prompt was answered No)")
     if code != 0:
         raise FirewallError(f"Windows couldn't add the rules (error {code})")
-    log.info("Windows Firewall: let through TCP %s", ", ".join(str(p["port"]) for p in ports))
+    log.info("Windows Firewall: let through %s", ", ".join(f"{p.get('protocol') or 'TCP'} {p['port']}" for p in ports))
 
 
 def elevate(program: str, arguments: str, timeout: float) -> int | None:
