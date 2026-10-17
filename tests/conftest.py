@@ -240,6 +240,15 @@ def no_real_relay(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def no_real_tailscale(monkeypatch):
+    """Tests never ask this computer's Tailscale (its name would show in screenshots); a test that
+    needs Tailscale sets its own status."""
+    from craft_conductor import tailscale
+    monkeypatch.setattr(tailscale, "status", lambda port: {"installed": False, "running": False, "name": "",
+                                                           "serving": False, "funnel": False})
+
+
+@pytest.fixture(autouse=True)
 def no_real_firewall(monkeypatch):
     """Check my setup doesn't read this computer's Windows Firewall in tests (test_firewall fakes it)."""
     from craft_conductor import firewall

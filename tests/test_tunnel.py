@@ -73,13 +73,14 @@ def test_dashboard_and_invites(hub_env):
     assert c.post("/api/servers/alpha/settings", {"tunnel_address": "fox-lake.gl.joinmc.link"})[0] == 200
     r = c.get("/api/servers/alpha/tunnel")[1]
     assert r["address"] == "fox-lake.gl.joinmc.link" and r["status"]["status"] in ("stopped", "down")
-    # friends' downloads through a tunnel: internet invites use it
+    # Friends' downloads never go through playit.gg (a plain TCP tunnel needs its paid plan): the
+    # internet link uses the public address, with the download port opened while a link works.
     share = hub.share_settings()
-    assert c.post("/api/hub/share", {"port": share["port"], "address": "", "tunnel": "fox-lake.gl.joinmc.link"})[0] == 400  # no port
-    assert c.post("/api/hub/share", {"port": share["port"], "address": "", "tunnel": "fox-lake.gl.joinmc.link:40123"})[0] == 200
-    assert hub.share_tunnel() == ("fox-lake.gl.joinmc.link", 40123)
+    assert "tunnel" not in share and not hasattr(hub, "share_tunnel")
+    assert c.post("/api/hub/share", {"port": share["port"], "address": "203.0.113.9", "tunnel": "fox-lake.gl.joinmc.link:40123"})[0] == 200
+    assert "tunnel" not in hub._hub_file()["share"]
     assert c.post("/api/servers/alpha/client", {"enabled": True})[0] == 200
     from craft_conductor import join
     link = c.get("/api/servers/alpha/client")[1]["links"]["internet"]
     invite = join.parse_invite(link)
-    assert (invite.host, invite.port) == ("fox-lake.gl.joinmc.link", 40123)
+    assert (invite.host, invite.port) == ("203.0.113.9", share["port"])

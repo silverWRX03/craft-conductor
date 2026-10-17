@@ -6,7 +6,10 @@
 it right after you sign in. You can pick a password or a 4–8 digit PIN; there's always
 one. A PIN only works in a browser on the server's own computer. Change it later
 under Settings → Sign-in. Forgot it? Run `craft-conductor web-password --reset` on the server
-to go back to `PASSWORD`. To fix the password in the config instead, set
+to go back to `PASSWORD`, or press **Reset it to PASSWORD** in a browser there and type the code
+it writes to `craft-conductor-reset-code.txt` in Craft Conductor's folder (it works once, for 10
+minutes: a request that only looks as if it came from this computer, through a tunnel that adds
+nothing to say so, can't open that file). To fix the password in the config instead, set
 `[web] password` in craft-conductor.toml: Craft Conductor replaces what you typed with its hash the
 first time it reads the file (to change it, type a new one there). Passwords and PINs are stored
 only as salted hashes.
@@ -57,8 +60,29 @@ safeguards:
 - **HTTPS** is available with a certificate you provide (for example `tailscale cert`).
 - **Away from home, use a private network app, not your router:** Craft Conductor recommends
   [Tailscale](https://tailscale.com) (free for personal use), which connects your phone and
-  computer privately and encrypted, and shows its address in the pairing dialog. Don't
-  forward the control panel's port (8765) on your router.
+  computer privately and encrypted, and shows its address in the pairing dialog. For a few hours
+  on the internet, there's Cloudflare's free quick tunnel (anyone with its random address reaches the
+  sign-in page, and Cloudflare can see what passes through). Don't forward the control panel's port
+  (8765) on your router, and never point a playit.gg tunnel at it.
+- **A tunnel is never "this computer".** A tunnel's program runs here and passes requests on, so
+  they come from this computer's own address. Tailscale and Cloudflare each get a way in of their own
+  (a port on 127.0.0.1 only their program is pointed at): requests through it can't use a PIN, reset
+  the password or do what only works at the computer, and only that tunnel's own address is answered
+  there. On the usual port, Craft Conductor also checks which program opened the connection: a tunnel's
+  (playit.gg, cloudflared, Tailscale, ngrok, SSH…), another account's, or one it can't tell doesn't
+  count as this computer either. Wrong passwords are counted for each visitor, from what that tunnel
+  says about them (Tailscale's address for your device, Cloudflare's for the visitor), so one person
+  can't lock out everyone else, or you at the computer.
+- **cloudflared is checked before it runs:** downloaded only when you press the button, from
+  Cloudflare's GitHub release, with GitHub's checksum and the one in Cloudflare's release notes, and
+  on Windows Cloudflare's signature; checked again each time before it starts, with an argument list
+  (no shell) and without Craft Conductor's secrets or `TUNNEL_…` settings. It runs as its own program
+  while the tunnel is open, and stops after 4 hours, on **Stop now**, or when Craft Conductor closes.
+- **Safety rules you may switch off** (Craft Conductor settings → Advanced, or `[web] accept_risks`
+  in craft-conductor.toml): a PIN or weaker password from other devices (never `PASSWORD`),
+  Tailscale Funnel, the reset without its code, no limit on wrong passwords, and choosing the
+  forwarded port yourself. Switching one off only works at the server's computer and asks first;
+  while one is off, every page says so.
 
 The panel can be added to your phone's home screen, where it opens like an app.
 
@@ -78,18 +102,40 @@ itself is after the `#` in the link, which browsers never send anywhere. Power u
 still use the raw invite code with `craft-conductor join <code>`.
 
 **Links that stop.** An invite link is made to be shared (in a Discord channel, say), so it isn't
-single-use. It stops working by itself after the time you pick on the Friends page (7 days unless
-you change it; or until you replace it), and **Stop these links** or **New links** ends it at once.
+single-use. It stops working by itself after the time you pick on the Friends page (3 days unless
+you change it, a week at most), and **Stop these links** or **New links** ends it at once.
 After that every request with it is refused, and when no server has a working link the friends'
-port closes. A link only ever gives the setup for players' computers and a way to **ask to be let
+port closes (and Router takes it back from your router within a minute). A link only ever gives the setup for players' computers and a way to **ask to be let
 in**: it never reaches the control panel, and with the whitelist on, you decide who plays.
+
+## Friends outside your home
+
+Each server's Friends page picks how friends outside your home join: **playit.gg** (chosen at
+first: nothing opened on your router), **Open a port on my router**, or **Only friends at home**.
+
+**The whitelist is on whenever a server can be reached from the internet** (playit.gg or an open
+port chosen, Router on, a public address set, a playit.gg address, or Check my setup reached it).
+Turning it off is allowed, but Craft Conductor asks every time, and the server refuses it until
+the warning has been seen.
+
+**Port forwarding** gets a port Craft Conductor picks: not 25565 (the port bots try first), nobody
+else's, between 30000 and 39999. That doesn't hide the server from a scan of every port; the
+whitelist is what keeps strangers out.
+
+**playit.gg's program** is downloaded only when you press the button, only from playit.gg's own
+GitHub release, and opened only after two checks: the SHA-256 GitHub lists for the file, and a
+valid Windows signature from Developed Methods LLC (playit.gg's company). A file that fails either is
+deleted. It runs as its own program; Craft Conductor never sees your playit.gg account or its key.
+playit.gg carries only Minecraft's game traffic to the server's port: the control panel is never
+reachable through it.
 
 ## The router (UPnP)
 
 **Open the ports on my router by itself** is off until you switch it on, and asks first: it makes
 your server reachable from the whole internet, and the page says so for as long as it's on. Only
-each server's Minecraft port and the friends' port are forwarded, never the control panel's port
-or a server's RCON port, and they're taken back when you switch it off or quit.
+each server's Minecraft port (and its Bedrock port, with Geyser) and the friends' port while a link
+works are forwarded, never the control panel's port or a server's RCON port, and they're taken back
+when you switch it off or quit.
 
 ## Secrets on your computer
 

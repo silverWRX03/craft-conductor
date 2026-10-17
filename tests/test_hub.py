@@ -1,6 +1,7 @@
 """Several servers in one craft-conductor (`craft-conductor start`): listed in the web UI, and never started by themselves."""
 
 import json
+from pathlib import Path
 
 from craft_conductor import cli, lock as lockmod, setup as setupmod, webauth
 from craft_conductor.hub import Hub
@@ -10,6 +11,15 @@ from test_web import Client, wait_for
 
 def login(c):
     assert c.post("/api/login", {"password": "PASSWORD"})[0] == 200
+
+
+def reset_here(c) -> tuple:
+    """The forgotten-password reset, from this computer: the code from the file, then the reset."""
+    import re
+    status, made, _ = c.post("/api/auth/reset-code", {})
+    assert status == 200, made
+    code = re.search(r"[A-Z0-9]{4}-[A-Z0-9]{4}", Path(made["file"]).read_text()).group(0)
+    return c.post("/api/auth/reset-local", {"code": code})
 
 
 def test_servers_are_listed_and_never_start_by_themselves(hub_env):
@@ -177,8 +187,15 @@ def test_password_reset_from_this_computer(hub_env):
     assert other.post("/api/login", {"password": "PASSWORD"})[0] == 401
     # Not over the network (or through a proxy)...
     assert other.call("POST", "/api/auth/reset-local", {}, headers={"X-Forwarded-For": "203.0.113.5"})[0] == 403
-    # ...but at the server's own computer, back to PASSWORD without a sign-in.
-    assert other.post("/api/auth/reset-local", {})[0] == 200
+    # ...but at the server's own computer, back to PASSWORD without a sign-in, with the code
+    # written to a file in Craft Conductor's folder.
+    assert other.post("/api/auth/reset-local", {})[0] == 401
+    status, made, _ = other.post("/api/auth/reset-code", {})
+    assert status == 200
+    import re as _re
+    code = _re.search(r"[A-Z0-9]{4}-[A-Z0-9]{4}", Path(made["file"]).read_text()).group(0)
+    assert other.post("/api/auth/reset-local", {"code": code.lower()})[0] == 200
+    assert not Path(made["file"]).exists()  # (used up)
     assert other.post("/api/login", {"password": "PASSWORD"})[0] == 200
     assert c.get("/api/hub")[0] == 401  # everyone else was signed out
 

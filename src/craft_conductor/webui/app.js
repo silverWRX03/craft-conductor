@@ -155,8 +155,20 @@ async function api(path, { method = "GET", body, raw } = {}) {
   try { data = await res.json(); } catch (_) { /* empty */ }
   if (res.status === 401 && path !== "/api/login" && path !== "/api/passkey/login") { showLogin(); throw new Unauthorized(); }
   if (res.status === 428) { showNotice(); throw new Unauthorized(); }
-  if (!res.ok) throw new Error(data.error || res.statusText);
+  if (!res.ok) throw Object.assign(new Error(data.error || res.statusText), { status: res.status, confirm: data.confirm || "" });
   return data;
+}
+
+// Turning the whitelist off on a server that can be reached from the internet: Craft Conductor
+// refuses with the warning (409, confirm "whitelist-off"), the person is asked every time, and
+// it's sent again with whitelist_off_ok when they still want it off. ``send(extra)`` does the request.
+async function whitelistOffAsked(send) {
+  try { return await send({}); }
+  catch (e) {
+    if (e.confirm !== "whitelist-off") throw e;
+    if (!(await ask(`Turn the whitelist off?\n\n${e.message}`, { ok: "Turn it off anyway", cancel: "Keep it on", danger: true, safe: true }))) return null;
+    return send({ whitelist_off_ok: true });
+  }
 }
 
 // Uploads a big file with progress (fetch can't report upload progress).
@@ -694,7 +706,15 @@ async function showLogin() {
   const reset = h("button", { type: "button", class: "link-btn", onclick: async () => {
     if (!(await ask("Go back to the default password, PASSWORD? Anyone signed in elsewhere is signed out, and you'll choose a new one after signing in.", { ok: "Reset", danger: true }))) return;
     try {
-      await api("/api/auth/reset-local", { method: "POST", body: {} });
+      // The code is written to a file in Craft Conductor's folder: proof that it's someone at this computer
+      // (a tunnel can make a request look like it comes from here; it can't open the file).
+      let code = "";
+      if (a.reset_code !== false) {
+        const made = await api("/api/auth/reset-code", { method: "POST", body: {} });
+        code = await askText(t("Open this file on this computer and type the code in it (it works once, for 10 minutes):") + "\n\n" + made.file, { ok: "Reset" });
+        if (code === null) return;
+      }
+      await api("/api/auth/reset-local", { method: "POST", body: { code } });
       toast("The password is PASSWORD again");
       showLogin();
     } catch (err) { $("#login-error").textContent = err.message; }
@@ -1619,6 +1639,141 @@ function tunnelCard() {
   return { el: box, load };
 }
 
+// How friends outside your home join a server (reach.py): playit.gg (pre-selected), a port opened on
+// the router, or only friends at home. The same words as reach.py (a test checks).
+const REACH_TEXT = {
+  router: "Opening a port on your router makes this server reachable by anyone on the internet, not just your friends. " +
+    "Programs scan the whole internet for Minecraft servers all day, and a server they find can be joined and griefed. " +
+    "Your home's internet address becomes public: anyone who joins can see it. " +
+    "Keep the whitelist on, and close the port when you don't need it.",
+  playit: "playit.gg is a separate company's service in the middle: everything players send goes through it, " +
+    "you need a playit.gg account (13 or older), and when it has problems friends can't join through it. " +
+    "It can add some lag: free tunnels aren't always routed through the nearest place. " +
+    "Minecraft Java and Bedrock tunnels are free; playit.gg doesn't publish the free plan's exact limits, " +
+    "and its plans can change. Players' own addresses don't reach the server, so IP bans don't work through it.",
+  whitelist: "This server can be reached from the internet. With the whitelist off, anyone who finds it can join: " +
+    "bots look for Minecraft servers all day, and strangers can grief your world.",
+};
+const REACH_WAYS = [
+  ["playit", "🌍 playit.gg (recommended)", "Free for Minecraft. Nothing is opened on your router: friends join through an address playit.gg gives you."],
+  ["forward", "🔓 Open a port on my router", "Friends join with your home's internet address. Craft Conductor picks the port to forward."],
+  ["home", "🏠 Only friends at home", "Only people on this computer's Wi-Fi or network can join."],
+];
+function reachChoices(way, pick) {
+  return h("div", { class: "choices", role: "group", "aria-label": "How friends outside your home join" },
+    REACH_WAYS.map(([w, label, desc]) => h("button", { type: "button", class: "choice" + (way === w ? " selected" : ""),
+      "aria-pressed": String(way === w), "data-reach": w, onclick: () => pick(w) },
+    h("strong", {}, label), h("span", { class: "small muted" }, desc))));
+}
+// The ports to forward and why opening one is risky, next to the port-forwarding choice.
+function forwardDetails(port, bedrock, lanIp) {
+  return [h("div", { class: "notice warn small mt-s", role: "note" }, h("strong", {}, "Before you open a port: "), REACH_TEXT.router),
+    h("p", { class: "small mt-s" }, "Forward ", h("strong", {}, `TCP port ${port}`),
+      bedrock ? [" (and ", h("strong", {}, `UDP port ${bedrock}`), " for Bedrock players)"] : null,
+      ` on your router to this computer${lanIp ? ` (${lanIp})` : ""}. Craft Conductor picked ${bedrock ? "these ports" : "this port"}: not Minecraft's usual 25565, ` +
+      "which bots try first, and not one another server or Craft Conductor uses."),
+    h("p", { class: "muted small" }, "Craft Conductor can ask your router to do it (Craft Conductor settings → Router), and let it through Windows Firewall (Check my setup). " +
+      "By hand: Help → Router setup.")];
+}
+// The forwarded port chosen by hand (only when the owner switched that safety rule off: Advanced).
+function ownPort(r, save) {
+  const input = h("input", { type: "number", min: 1024, max: 65535, value: r.port, "aria-label": "Port to forward" });
+  return h("details", { class: "small mt-s" }, h("summary", {}, "Choose the port yourself"),
+    h("p", {}, "You switched off Craft Conductor's choice of port (Craft Conductor settings → Advanced). Any port from 1024 to 65535 that nothing else here uses, 25565 too (bots try that one first). The server needs to be stopped."),
+    h("div", { class: "row" }, input, h("button", { class: "btn small", onclick: () => save(Number(input.value)) }, "Use this port")));
+}
+// Getting playit.gg's program, step by step (only when the button is pressed: nothing is
+// downloaded before). On Windows, Craft Conductor downloads playit.gg's installer from its GitHub
+// release and checks it before opening it; elsewhere, playit.gg's own steps.
+function playitSetup(port, bedrock, address, saveAddress) {
+  const box = h("div", { class: "playit-setup mt-s" });
+  let timer = null, waits = 0;
+  const later = (ms) => { clearTimeout(timer); timer = setTimeout(() => { if (box.isConnected) load(); }, ms); };
+  const copyLine = (text) => h("div", { class: "row" }, h("code", { class: "grow mono small" }, text),
+    h("button", { class: "btn small ghost", onclick: () => navigator.clipboard.writeText(text).then(() => toast("Copied")) }, "Copy"));
+  const render = (st) => {
+    const inst = st.install || { state: "idle" };
+    const running = st.agent === true;
+    const get = st.platform === "windows" ? [
+      h("p", { class: "small" }, "playit.gg's program is made by playit.gg's company, ", h("strong", {}, st.signer), ". Craft Conductor downloads its installer from playit.gg's GitHub release, " +
+        "checks it (the SHA-256 GitHub lists for it, and the company's signature) and only then opens it. It's a separate program: it keeps running by itself, also when Craft Conductor is closed."),
+      inst.state === "downloading" ? h("p", { class: "small" }, inst.size ? `Downloading… ${Math.round(100 * inst.got / inst.size)}%` : "Downloading…")
+        : inst.state === "opened" ? h("p", { class: "small ok-text" }, `playit.gg's installer ${inst.version} passed the checks and is open: follow its steps (Windows asks for permission).`)
+        : inst.state === "error" ? h("div", { class: "notice bad small" }, inst.error) : null,
+      hubInfo && hubInfo.local ? h("button", { class: "btn primary", disabled: inst.state === "downloading", onclick: async () => {
+        const r = await act(() => api("/api/hub/playit/install", { method: "POST", body: {} }));
+        if (r) render(r);
+        later(1500);
+      } }, "⬇ Download and install playit.gg")
+        : h("p", { class: "muted small" }, "Press Download and install playit.gg in a browser on the server's own computer: the installer opens there."),
+    ] : st.platform === "linux" ? [
+      h("p", { class: "small" }, "Install playit.gg's program from its own package repository (signed with playit.gg's key). In a terminal on this computer:"),
+      st.apt.map(copyLine),
+      h("p", { class: "muted small" }, "It's a separate program that keeps running by itself. Other Linux: ",
+        h("a", { href: st.download_page, target: "_blank", rel: "noopener noreferrer" }, "playit.gg/download ↗"), "."),
+    ] : [h("p", { class: "small" }, "Get playit.gg's program from ", h("a", { href: st.download_page, target: "_blank", rel: "noopener noreferrer" }, "playit.gg/download ↗"),
+      ". It's a separate program that keeps running by itself.")];
+    const tunnelIn = h("input", { value: address || "", placeholder: "e.g. name.gl.joinmc.link", class: "mono", "aria-label": "playit.gg address" });
+    fill(box,
+      h("ol", { class: "steps" },
+        h("li", {}, h("strong", {}, "Get playit.gg's program. "),
+          running ? h("span", { class: "ok-text" }, "✓ It's running on this computer.") : get),
+        h("li", {}, h("strong", {}, "Connect it to a playit.gg account. "),
+          "playit.gg's program shows a link to claim it: open it, and sign in or make a free account (you need to be 13 or older). Craft Conductor never sees your playit.gg account or its key."),
+        h("li", {}, h("strong", {}, "Add a tunnel. "), "On playit.gg, add a ", h("strong", {}, "Minecraft Java"), ` tunnel to this computer's port ${port}`,
+          bedrock ? [", and a ", h("strong", {}, "Minecraft Bedrock"), ` tunnel to UDP port ${bedrock}`] : null, ". ",
+          h("strong", {}, "Never"), ` point a tunnel at the control panel's port (${location.port || (location.protocol === "https:" ? 443 : 80)}): anyone on the internet could then reach it.`),
+        h("li", {}, h("strong", {}, "Paste the address playit.gg gives it: "),
+          h("div", { class: "row mt-s" }, tunnelIn, h("button", { class: "btn", onclick: () => saveAddress(tunnelIn.value.trim()) }, "Save")),
+          h("span", { class: "muted small" }, "Craft Conductor then checks that friends reach this server through it, and shows it on the Dashboard."))),
+      h("p", { class: "muted small" }, h("a", { href: st.guide, target: "_blank", rel: "noopener noreferrer" }, "playit.gg's help ↗"), " · ",
+        h("a", { href: "https://status.playit.gg", target: "_blank", rel: "noopener noreferrer" }, "playit.gg status ↗")));
+    // (while it downloads, or after the installer opened until the program runs, for 10 minutes at most: look again)
+    if (inst.state === "downloading") later(1000);
+    else if (!running && inst.state === "opened" && ++waits <= 120) later(5000);
+  };
+  const load = () => api("/api/hub/playit").then(render).catch(() => null);
+  load();
+  return box;
+}
+// A server's choice and what it needs, on its Friends page and in Sharing with friends.
+function reachCard(sid, { compact = false } = {}) {
+  const box = h("div", { class: compact ? "reach-row" : "card mt" });
+  const path = `/api/servers/${encodeURIComponent(sid)}/reach`;
+  const render = (r) => {
+    const pick = async (way) => {
+      if (way === r.way) return;
+      if (way === "forward" && !(await ask(`Open a port on your router?\n\n${REACH_TEXT.router}`, { ok: "Pick a port", danger: true }))) return;
+      const res = await act(() => api(path, { method: "POST", body: { way } }));
+      if (res) { toast(res.message); render(res); }
+    };
+    const saveAddress = async (address) => {
+      const res = await act(() => api(`/api/servers/${encodeURIComponent(sid)}/settings`, { method: "POST", body: { tunnel_address: address } }),
+        address ? "playit.gg address saved" : "playit.gg address removed");
+      if (res) api(path).then(render).catch(() => null);
+    };
+    const bedrock = r.bedrock && r.bedrock.on ? r.bedrock.port : null;
+    fill(box, compact ? null : h("h3", {}, "Friends outside your home"),
+      compact ? null : h("p", { class: "small" }, "How friends who aren't on your Wi-Fi join this server."),
+      reachChoices(r.way || "", pick),
+      !r.way ? h("p", { class: "muted small mt-s" }, "Not chosen yet: friends outside join the way you set up before.") : null,
+      r.way === "playit" ? [h("div", { class: "notice warn small mt-s", role: "note" }, h("strong", {}, "About playit.gg: "), REACH_TEXT.playit),
+        compact ? null : playitSetup(r.port, bedrock, r.tunnel_address, saveAddress)] : null,
+      r.way === "forward" ? forwardDetails(r.port, bedrock, r.lan_ip) : null,
+      r.way === "forward" && r.any_port && !compact ? ownPort(r, async (port) => {
+        const res = await act(() => api(path, { method: "POST", body: { way: "forward", port } }));
+        if (res) { toast(res.message); render(res); }
+      }) : null,
+      r.way === "home" ? h("p", { class: "small mt-s" }, "Friends outside your home can't join. Friends on your network use this computer's address" +
+        (r.lan_ip ? ` (${r.lan_ip}:${r.port})` : "") + ".") : null,
+      r.reachable.length ? h("p", { class: "small mt-s " + (r.whitelist_on ? "ok-text" : "bad-text") },
+        r.whitelist_on ? "🔒 The whitelist is on: only players you add can join. Add your friends (and yourself) on the Players page."
+          : "⚠ The whitelist is off, and this server can be reached from the internet: anyone who finds it can join.") : null);
+  };
+  api(path).then(render).catch((e) => { if (!(e instanceof Unauthorized)) fill(box, h("p", { class: "muted small" }, e.message)); });
+  return box;
+}
+
 // A friend asked to be let in: say so on the Dashboard, with the way to the Players page.
 function askingNotice() {
   const me = hubInfo && hubInfo.servers ? hubInfo.servers.find((x) => x.id === server) : null;
@@ -1995,7 +2150,7 @@ function playersCard(con) {
   const wlError = h("div", { class: "bad-text small hidden", role: "alert" });
   let wlKey = "";
   const wlAction = async (action, name) => {
-    const r = await act(() => api("/api/players/action", { method: "POST", body: name === undefined ? { action } : { action, name } }));
+    const r = await act(() => whitelistOffAsked((extra) => api("/api/players/action", { method: "POST", body: { ...(name === undefined ? { action } : { action, name }), ...extra } })));
     if (r) { toast(r.message); poll(); setTimeout(poll, 800); }
     return r;
   };
@@ -2490,7 +2645,7 @@ views.players = () => {
   };
   const run = async (action, target, why) => {
     if (CONFIRM[action] && !(await ask(CONFIRM[action](target), { id: action === "kick" ? "kick" : null, ok: action === "op" ? "Make operator" : action === "kick" ? "Kick" : "Ban", danger: action !== "op" }))) return;
-    const r = await act(() => api("/api/players/action", { method: "POST", body: { action, name: target, reason: why || reason.value } }));
+    const r = await act(() => whitelistOffAsked((extra) => api("/api/players/action", { method: "POST", body: { action, name: target, reason: why || reason.value, ...extra } })));
     if (r) { toast(r.message); setTimeout(load, 800); }
   };
   // (data-fkey: where the focus goes when the list is rebuilt; Op and De-op, Ban and Pardon, are one place)
@@ -3626,7 +3781,11 @@ views.settings = () => {
       if (gb > AIKAR_ABOVE_GB && !body.aikar_flags && can("runtime.configure")) {
         offerAikar(gb, () => { f.aikar_flags.checked = true; act(() => api("/api/settings", { method: "POST", body: { aikar_flags: true } }), "Aikar's flags on").then(load); });
       }
-      const r = await act(() => api("/api/settings", { method: "POST", body }), "Settings saved");
+      const r = await act(async () => {  // ("Settings saved" only when they were: keeping the whitelist on saves nothing)
+        const saved = await whitelistOffAsked((extra) => api("/api/settings", { method: "POST", body: { ...body, ...extra } }));
+        if (saved) toast("Settings saved");
+        return saved;
+      });
       if (r) setEdited(false);
       load();
       return !!r;
@@ -3738,16 +3897,17 @@ function bedrockCard() {
 // How long friends' invite links work. They're shared (a Discord channel, a group chat), so they
 // can't be single-use: they stop by themselves instead, and can be stopped or replaced any time.
 function linkLifetime(d, done) {
-  const label = (n) => n === 0 ? "Until I make new ones" : n === 1 ? "1 day" : `${n} days`;
+  const label = (n) => n === 1 ? "1 day" : n === 3 ? "3 days (a weekend)" : `${n} days`;
   const sel = h("select", { "aria-label": "How long invite links work", onchange: async () => {
     const r = await act(() => api("/api/client", { method: "POST", body: { link_days: Number(sel.value) } }),
-      Number(sel.value) ? `The links work for ${label(Number(sel.value))} from now` : "The links work until you make new ones");
+      `The links work for ${label(Number(sel.value))} from now`);
     if (r) done(r); else sel.value = String(d.link_days);
-  } }, (d.link_day_choices || [1, 7, 30, 0]).map((n) => h("option", { value: String(n) }, label(n))));
+  } }, (d.link_day_choices || [1, 3, 7]).map((n) => h("option", { value: String(n) }, label(n))));
   sel.value = String(d.link_days);
   return h("div", { class: "mt-s" },
     h("label", { class: "row" }, h("span", {}, "Links work for"), sel),
     h("p", { class: "muted small" }, "Anyone with a link can use it until it stops, so a link posted in a Discord channel works for everyone there. " +
+      "A link works for a week at most: while no link works, the download port is closed. " +
       "Changing this starts the time again from now; it also applies to new links. Friends who already set up keep playing after a link stops, but need a new link to update their game."));
 }
 
@@ -3987,9 +4147,10 @@ views.friends = () => {
           : d.expired ? null  // (nothing to share until there are new links)
           : h("p", { class: "muted small" }, s.running ? `Sharing on port ${s.port}.` : "Sharing starts in a few seconds."),
         h("p", { class: "muted small" },
-          "For the internet link to work, forward two TCP ports on your router to this computer: ", h("strong", {}, String(s.port)),
-          " (the download) and ", h("strong", {}, String((status && status.port) || 25565)), " (Minecraft). Your public address can change; ",
-          "press the button again if friends can't connect. You can also type an address (e.g. a domain) under ",
+          "For the internet link, friends' Craft Conductor downloads the setup from this computer: forward TCP port ", h("strong", {}, String(s.port)),
+          " on your router to this computer (Craft Conductor settings → Router can do it, and takes it back once no link works). ",
+          "The port is only open while a link works. How friends join the game itself is chosen under Friends outside your home, above. ",
+          "Your public address can change; press the button again if friends can't connect. You can also type an address (e.g. a domain) under ",
           h("a", { href: "#craft-conductor" }, "Craft Conductor settings → Connections → Sharing with friends"), "."))),
       h("div", { class: "mt" }, card("What friends get",
         d.pack_error ? h("div", { class: "notice warn" }, d.pack_error)
@@ -4018,7 +4179,8 @@ views.friends = () => {
     refreshModManager("friends-mods");
     checkPlayers();
   };
-  fill($("#main"), h("h2", { class: "view-title" }, "Friends"), body, h("div", { class: "mt" }, bedrockCard()));
+  fill($("#main"), h("h2", { class: "view-title" }, "Friends"), isOwner() ? reachCard(server) : null, h("div", { class: "mt" }, body),
+    h("div", { class: "mt" }, bedrockCard()));
   api("/api/client").then((r) => { data = r; render(); }).catch((e) => { if (!(e instanceof Unauthorized)) toast(e.message, true); });
   return { refresh: reload };
 };
@@ -5386,7 +5548,9 @@ function routerHelp(opts = {}) {
     h("div", { class: "notice" }, h("strong", {}, "Let Craft Conductor try first: "), "many routers can do it by themselves (UPnP). Switch on ",
       h("a", { href: "#craft-conductor" }, "Craft Conductor settings → Connections → Sharing with friends → Open the ports on my router by itself"),
       " and Craft Conductor says whether it worked. If it didn't, or you'd rather not, do it by hand:"),
-    h("p", { class: "small muted" }, "Either way, forwarding the port makes your server reachable from the whole internet: keep the whitelist on, and never forward the control panel's port."),
+    h("div", { class: "notice warn small" }, h("strong", {}, "Before you open a port: "), REACH_TEXT.router,
+      " Can't, or would rather not? Choose playit.gg under Friends outside your home, on the server's Friends page."),
+    h("p", { class: "small muted" }, "Choosing Open a port on my router there makes Craft Conductor pick the port (not 25565, which bots try first) and say which one to forward. Never forward the control panel's port."),
     h("img", { class: "help-img", src: "/help-network.svg", alt: "A friend on the internet connects to your router, which forwards port " + mc + " to this computer." }),
     h("ol", { class: "steps" },
       h("li", {}, "Give this computer a fixed address on your network, so the rule keeps working: in the router's ", h("strong", {}, "LAN / DHCP"),
@@ -5396,7 +5560,8 @@ function routerHelp(opts = {}) {
       h("li", {}, "Find ", h("strong", {}, "Port Forwarding"), ". Routers also call it Virtual Server, NAT, Port Mapping, or Applications & Gaming."),
       h("li", {}, "Add a rule: protocol ", h("strong", {}, "TCP"), ", external and internal port ", h("strong", {}, String(mc)),
         ", to ", h("strong", {}, ip), ". That's Minecraft."),
-      h("li", {}, "If friends download their setup from you over the internet, add a second rule for port ", h("strong", {}, String(share)), " the same way."),
+      h("li", {}, "If friends download their setup from you over the internet, add a second rule for port ", h("strong", {}, String(share)),
+        " the same way. Craft Conductor only answers on it while an invite link works (a week at most)."),
       h("li", {}, "Save, then test: ask a friend (or use your phone with Wi-Fi off) to connect.")),
     h("img", { class: "help-img", src: "/help-router.svg", alt: "An example port forwarding rule: Minecraft, TCP, port " + mc + ", to this computer's address." }),
     h("div", { class: "notice warn" }, h("strong", {}, "Every router is different. "),
@@ -5446,7 +5611,10 @@ const HELP = [
     screenshot("friends", "The Friends page: a link for friends on your Wi-Fi, and one for everyone else."),
     screenshot("invite-page", "What your friend sees when they open the link."),
     screenshot("friend-setup", "Your friend's Craft Conductor sets up their launchers, and can ask you to let them in."),
-    h("p", {}, "Links are shared, so anyone with one can use it: each stops working by itself after the time you pick (7 days unless you change it), and ",
+    h("p", {}, "Friends who aren't on your Wi-Fi: pick how they join under ", h("strong", {}, "Friends outside your home"), " at the top of the Friends page. ",
+      h("strong", {}, "playit.gg"), " (chosen at first) needs nothing opened on your router: the page walks you through getting its program, which is downloaded only when you press its button and checked before it opens. ",
+      h("strong", {}, "Open a port on my router"), " says the risks first, then picks the port to forward. Either way the whitelist is on, and turning it off asks every time."),
+    h("p", {}, "Links are shared, so anyone with one can use it: each stops working by itself after the time you pick (3 days unless you change it, a week at most), and ",
       h("strong", {}, "Stop these links"), " or ", h("strong", {}, "New links"), " stops it sooner. Friends who already set up keep playing; they need a new link to update."),
     h("p", {}, "Mods you pick under ", h("strong", {}, "Mods for players"), " that run on both sides (client and server) are added to the server's own mods too, with the mods they need, and a message says so; ",
       "removing one from the players' list asks whether to remove it from the server as well (and then about the mods it needed there that friends have too). Mods that only run on players' computers stay with the players. " +
@@ -5489,7 +5657,7 @@ const HELP = [
     h("p", {}, "The hamburger menu at the top left opens navigation. The Light / Dark slider inside it remembers your theme. On desktop the slider is in the top bar. The Dashboard shows CPU, RAM, server-volume Disk usage and Players in four cards, above the boxed Live console."),
     screenshot("phone", "The Dashboard on a phone."),
     h("p", {}, "Open ", h("button", { type: "button", class: "link-btn", onclick: openRemoteAccess }, "Remote access & phones"),
-      ": set a strong password, allow other devices, and pair your phone by scanning a QR code (it works once, for five minutes). Until then, only this computer can open the control panel. Away from home, use Tailscale rather than opening ports."),
+      ": set a strong password, allow other devices, and pair your phone by scanning a QR code (it works once, for five minutes). Until then, only this computer can open the control panel. Away from home (step 3): Tailscale keeps it private to your own devices and the people you share this computer with; Cloudflare's quick tunnel puts it on the internet for 4 hours. Both are free. Never forward the control panel's port on your router."),
     screenshot("remote-access", "Remote access & phones: a strong password, then pair your phone.")]],
   ["people", "Letting other people help", () => [
     h("p", {}, "Open ", h("button", { type: "button", class: "link-btn", onclick: () => isOwner() ? openPeople() : toast("Only the owner of this Craft Conductor can invite people.", true) }, "People"),
@@ -5530,7 +5698,7 @@ const MANUAL_PICTURES = {
   "Backups": [["backups", "Backups, each checked, with what changed since the one before"]],
   "Java": [["java", "Java versions"]],
   "Settings": [["settings", "A server's settings"], ["web-map", "World tools and the web map"]],
-  "Friends: playing with friends": [["friends", "Invite links on the Friends page"],
+  "Friends: playing with friends": [["friends-outside", "Friends outside your home: playit.gg, step by step"], ["friends", "Invite links on the Friends page"],
     ["discord-invite", "Posting Java and Bedrock invites to Discord"]],
   "For friends: joining a server": [["invite-page", "The invite page your friend opens"],
     ["friend-setup", "Craft Conductor setting up Minecraft on your friend's computer"]],
@@ -5734,15 +5902,8 @@ function openRemoteAccess({ setup = currentName === "new" || currentName === "se
       setup ? "Finish creating your server first. Craft Conductor will apply remote access automatically, then return here for phone setup before Friends. Your setup and servers stay open."
         : ["Apply this change without closing Craft Conductor. Your servers and work stay open. ",
           h("button", { class: "btn small", onclick: async () => { await act(() => api("/api/hub/network/apply", { method: "POST" })); load(); } }, "Apply remote access")]) : null;
-    // 3. away from home
-    const away = [
-      h("p", { class: "small" }, "On your home Wi-Fi, a phone reaches this computer directly. To use it away from home, use a private network app instead of opening ports:"),
-      h("ol", { class: "steps small" },
-        h("li", {}, "Install ", h("a", { href: "https://tailscale.com/download", target: "_blank", rel: "noopener noreferrer" }, "Tailscale ↗"), " (free for personal use) on this computer and on your phone."),
-        h("li", {}, "Sign in to the same account on both."),
-        h("li", {}, "Reopen this window: a Tailscale address appears under “People, and their phones”.")),
-      h("div", { class: "notice warn small" }, h("strong", {}, "Don't forward the control panel's port on your router. "),
-        "That puts it on the open internet, where bots try passwords all day. Tailscale keeps it private and encrypted.")];
+    // 3. away from home: Tailscale, or Cloudflare's quick tunnel for a few hours
+    const away = [outsideChooser(r.strong)];
     // HTTPS (optional)
     const cert = h("input", { value: r.tls_cert || "", placeholder: "Certificate file (.crt / .pem)", "aria-label": "Certificate file" });
     const key = h("input", { value: r.tls_key || "", placeholder: "Key file (.key / .pem)", "aria-label": "Key file" });
@@ -7142,7 +7303,7 @@ const UPNP_WARNING = "This makes your Minecraft server reachable from the whole 
   "Anyone can try to connect, and a weakness in Minecraft or in a mod could put this computer at risk. " +
   "Only the game ports and the friends' download port are opened; the control panel stays private. " +
   "Keep the whitelist on, and switch this off when you don't need it.";
-const confirmUpnp = () => ask(`Open the ports on your router?\n\n${UPNP_WARNING}`, { ok: "Open the ports", danger: true });
+const confirmUpnp = () => ask(`Open the ports on your router?\n\n${UPNP_WARNING}\n\n${REACH_TEXT.router}`, { ok: "Open the ports", danger: true });
 function routerBox() {
   const box = h("div", { class: "mt" });
   const render = (st, busy = "") => {
@@ -7396,6 +7557,174 @@ async function phoneBanner() {
     h("div", { class: "row mt-s" }, h("button", { class: "btn small primary", onclick: openSettings }, "Turn on notifications"), notNow));
   $("#stage").before(box);
 }
+// ----------------------------------------------- the control panel from outside your home
+// Two free ways, for the control panel (HTTPS), not the game (each server's Friends page has that):
+// Tailscale keeps it private, for your own devices and the people you share this computer with;
+// Cloudflare's quick tunnel puts it on the internet for a few hours. Requests through either never
+// count as "on this computer" (tunnels.py), and both need a strong password.
+const OUTSIDE_TEXT = {
+  tailscale: "Private: only your own devices, and the people you share this computer with, can open it. Free for personal use (up to 6 people). Encrypted all the way: Tailscale can't see what passes through.",
+  cloudflare: "Anyone on the internet who has the address can reach the sign-in page, for a few hours. Free, and no account needed.",
+  never: "Don't forward the control panel's port on your router, and never point a playit.gg tunnel at it: those put it on the internet with nothing to tell the visitors apart.",
+};
+function outsideChooser(strong) {
+  const box = h("div", { class: "outside" });
+  let ts = null, cf = null, funnelAllowed = false, pick = null, polls = 0, pollTimer = null;
+  const out = h("div", { class: "mt-s" });
+  const load = async () => {
+    const [p, c] = await Promise.all([api("/api/hub/phone?tailscale=1").catch(() => null), api("/api/hub/cloudflare").catch(() => null)]);
+    ts = p && p.tailscale;
+    funnelAllowed = !!(p && p.funnel_allowed);
+    cf = c;
+    if (pick === null) pick = cf && cf.running ? "cloudflare" : "tailscale";
+    render();
+    clearTimeout(pollTimer);
+    // (while cloudflared downloads, or the tunnel opens: a few times, then it stops asking)
+    if (cf && (cf.download.state === "downloading" || cf.starting) && polls++ < 150 && box.isConnected) pollTimer = setTimeout(load, 2000);
+  };
+  const tailscaleUse = async (funnel) => {
+    if (funnel && !(await ask("Put the control panel on the internet with Tailscale Funnel?\n\nAnyone who finds the address can reach the sign-in page, and Tailscale can't tell your own devices from strangers there.", { ok: "Put it on the internet", danger: true, safe: true }))) return;
+    const r = await api("/api/hub/phone/tailscale", { method: "POST", body: { on: true, funnel } }).catch((e) => { toast(e.message, true); return null; });
+    if (!r) return;
+    if (!r.ok) {
+      fill(out, h("div", { class: "notice warn small" }, r.message,
+        r.enable_url ? h("div", {}, "Tailscale needs this switched on for your account first (one click): ",
+          h("a", { href: r.enable_url, target: "_blank", rel: "noopener noreferrer" }, "switch it on ↗"), ", then press the button again.") : null));
+      return;
+    }
+    toast(funnel ? "The control panel is on the internet at " + r.url : "Ready: your devices can open " + r.url);
+    load();
+  };
+  const tailscaleStop = async () => { await act(() => api("/api/hub/phone/tailscale", { method: "POST", body: { on: false } }), "Stopped"); load(); };
+  const tailscalePart = () => {
+    const recheck = h("button", { class: "link-btn", onclick: load }, "check again");
+    if (!ts) return h("p", { class: "small muted" }, "Couldn't ask Tailscale.");
+    if (!ts.installed) return h("ol", { class: "steps small" },
+      h("li", {}, "Install ", h("a", { href: "https://tailscale.com/download", target: "_blank", rel: "noopener noreferrer" }, "Tailscale ↗"), " on this computer and on your phone (free for personal use)."),
+      h("li", {}, "Sign in to the same account on both."),
+      h("li", {}, "Then ", recheck, "."));
+    if (!ts.running || !ts.name) return h("p", { class: "small" }, "Tailscale is installed but isn't signed in and connected on this computer. Open it and sign in, then ", recheck, ".");
+    const people = h("details", { class: "small mt-s" }, h("summary", {}, "Let the people you invited in, too"),
+      h("p", {}, "They need Tailscale on their phone or computer as well, with a free account of their own. Two ways:"),
+      h("ol", {},
+        h("li", {}, h("strong", {}, "Share just this computer (simplest): "), "in Tailscale's admin console, open Machines, find this computer, press Share… and send them the link. They reach this computer and nothing else of yours."),
+        h("li", {}, h("strong", {}, "Invite them to your Tailscale network: "), "admin console → Users → Invite users. They count toward the free plan's 6 people, and can reach your other devices too unless you limit it there.")),
+      h("p", {}, "Either way they open ", h("code", {}, `https://${ts.name}`), ", sign in with their own username and password, and can do only what you gave them (People)."));
+    if (ts.serving) return h("div", {},
+      h("div", { class: `notice ${ts.funnel ? "warn" : "ok"} small` }, ts.funnel ? "On the internet for anyone (Funnel): " : "Ready. On your devices (with Tailscale on), open ",
+        h("a", { href: `https://${ts.name}/`, target: "_blank", rel: "noopener noreferrer" }, h("strong", {}, `https://${ts.name}`))),
+      h("div", { class: "row mt-s wrap" },
+        ts.funnel ? h("button", { class: "btn small", onclick: () => tailscaleUse(false) }, "Back to only my devices")
+          : funnelAllowed ? h("button", { class: "btn small danger", onclick: () => tailscaleUse(true) }, "Put it on the internet too (Funnel)") : null,
+        h("button", { class: "btn small ghost", onclick: tailscaleStop }, "Stop using Tailscale for this")),
+      people, out);
+    return h("div", {},
+      h("p", { class: "small" }, `Tailscale is on (${ts.name}). Craft Conductor can give this computer a secure address there.`),
+      h("div", { class: "row wrap" }, h("button", { class: "btn primary small", disabled: !strong, onclick: () => tailscaleUse(false) }, "Use Tailscale"),
+        funnelAllowed ? h("button", { class: "btn small danger", disabled: !strong, onclick: () => tailscaleUse(true) }, "Use it with Funnel (on the internet)") : null),
+      people, out);
+  };
+  const cfDownload = async () => {
+    const r = await api("/api/hub/cloudflare/download", { method: "POST", body: {} }).catch((e) => { toast(e.message, true); return null; });
+    if (r) { polls = 0; load(); }
+  };
+  const cfStart = async () => {
+    if (!(await ask(`Open the control panel to the internet for ${cf.hours} hours?` + "\n\n" + cf.downsides.map((d) => "• " + t(d)).join("\n"),
+      { ok: "Open it", danger: true, safe: true }))) return;
+    fill(out, h("p", { class: "small muted" }, "Opening… (Cloudflare can take half a minute)"));
+    const r = await api("/api/hub/cloudflare/start", { method: "POST", body: {} }).catch((e) => { toast(e.message, true); return null; });
+    fill(out);
+    if (r && r.address) toast("The control panel is on the internet at " + r.address);
+    polls = 0;
+    load();
+  };
+  const cfStop = async () => { await act(() => api("/api/hub/cloudflare/stop", { method: "POST", body: {} }), "The control panel is off the internet again"); load(); };
+  const cloudflarePart = () => {
+    if (!cf) return h("p", { class: "small muted" }, "Couldn't load this.");
+    const about = h("p", { class: "small muted" }, "cloudflared is Cloudflare's program. Craft Conductor downloads it from Cloudflare's GitHub page only when you press the button, checks it (its checksum, and on Windows Cloudflare's signature), and runs it as its own program while the tunnel is open. It's stopped after ",
+      String(cf.hours), " hours, when you press Stop, or when Craft Conductor closes. ",
+      h("a", { href: cf.about, target: "_blank", rel: "noopener noreferrer" }, "About quick tunnels ↗"), " · ",
+      h("a", { href: cf.terms, target: "_blank", rel: "noopener noreferrer" }, "Cloudflare's terms ↗"));
+    const downsides = h("ul", { class: "small" }, cf.downsides.map((d) => h("li", {}, t(d))));
+    let action;
+    const dl = cf.download || {};
+    if (cf.running) {
+      const ends = new Date(cf.ends * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      action = cf.address ? h("div", {},
+        h("div", { class: "notice warn small" }, "On the internet until ", ends, ": ",
+          h("a", { href: cf.address, target: "_blank", rel: "noopener noreferrer" }, h("strong", {}, cf.address))),
+        h("div", { class: "row mt-s" }, h("button", { class: "btn small ghost", onclick: () => navigator.clipboard.writeText(cf.address).then(() => toast("Copied")) }, "Copy"),
+          h("button", { class: "btn small danger", onclick: cfStop }, "Stop now")))
+        : h("p", { class: "small muted" }, "Opening…");
+    } else if (!cf.installed && cf.mac) {
+      action = h("p", { class: "small" }, "On a Mac, install cloudflared with Homebrew (", h("code", {}, "brew install cloudflared"), "), then ", h("button", { class: "link-btn", onclick: load }, "check again"), ".");
+    } else if (!cf.installed) {
+      action = dl.state === "downloading"
+        ? h("p", { class: "small muted" }, "Downloading cloudflared… ", dl.size ? `${Math.round(100 * dl.got / dl.size)}%` : fmtBytes(dl.got || 0))
+        : h("div", {}, dl.state === "error" ? h("div", { class: "notice bad small" }, dl.error) : null,
+          h("button", { class: "btn small", onclick: cfDownload }, "Download cloudflared"));
+    } else {
+      action = h("div", {}, cf.error ? h("div", { class: "notice bad small" }, cf.error) : null,
+        h("button", { class: "btn primary small", disabled: !strong, onclick: cfStart }, `Open to the internet for ${cf.hours} hours`));
+    }
+    return h("div", {}, h("p", { class: "small" }, "Downsides:"), downsides, about, action, out);
+  };
+  const render = () => {
+    // (the same kind of chooser as Friends outside your home: one button each, the one picked pressed)
+    const choice = (id, title, tag) => h("button", { type: "button", class: "choice" + (pick === id ? " selected" : ""),
+      "aria-pressed": String(pick === id), "data-outside": id, onclick: () => { pick = id; fill(out); render(); } },
+      h("strong", {}, title, tag ? [" ", h("span", { class: "tag" }, tag)] : null), h("span", { class: "small muted" }, OUTSIDE_TEXT[id]));
+    fill(box,
+      h("p", { class: "small" }, "On your home Wi-Fi, a phone reaches this computer directly. Away from home, choose one (both are free; this is for the control panel, not the game):"),
+      h("div", { class: "choices", role: "group", "aria-label": "Reach the control panel from outside" },
+        choice("tailscale", "Tailscale", "recommended"), choice("cloudflare", "Cloudflare quick tunnel, for a few hours")),
+      !strong ? h("div", { class: "notice warn small" }, "First set a strong password (step 1): anyone using these signs in from another device.") : null,
+      pick === "tailscale" ? tailscalePart() : cloudflarePart(),
+      h("div", { class: "notice warn small mt-s" }, h("strong", {}, "Never: "), t(OUTSIDE_TEXT.never)));
+  };
+  fill(box, h("p", { class: "muted small" }, "Loading…"));
+  load();
+  return box;
+}
+
+// ------------------------------------------- safety rules you may switch off (Advanced)
+// Also `[web] accept_risks` in craft-conductor.toml. Switching one off asks first, only works at this
+// computer, and shows an alert to dismiss, once; while any is off the top of the page says so.
+function risksAlert(text) {
+  const id = "risks-alert";
+  closeToast(id);
+  playSound("problem");
+  stickyToast(id, [h("strong", {}, "A safety rule is switched off now"),
+    h("p", { class: "small" }, "While they're off, Craft Conductor is less protected:"),
+    h("ul", { class: "small" }, h("li", {}, t(text))),
+    h("p", { class: "small muted" }, "Switch them back on in Craft Conductor settings → Advanced."),
+    h("div", { class: "row mt-s" }, h("button", { class: "btn small primary", onclick: () => closeToast(id) }, "I understand"))]);
+}
+function risksCard() {
+  const body = h("div", {}, h("p", { class: "muted small" }, "Loading…"));
+  const el = card("Safety rules", body);
+  const load = async () => {
+    const r = await api("/api/hub/risks").catch((e) => { fill(body, h("div", { class: "notice bad small" }, e.message)); return null; });
+    if (!r) return;
+    const row = (x) => h("li", {}, h("label", { class: "row check-row grow" },
+      h("input", { type: "checkbox", checked: x.on, disabled: x.in_file, onchange: async (e) => {
+        const on = e.target.checked;
+        if (on && !(await ask(t("Switch this safety rule off?") + "\n\n" + t(x.text) + ".", { ok: "Switch it off", danger: true, safe: true }))) { e.target.checked = false; return; }
+        const done = await act(() => api("/api/hub/risks", { method: "POST", body: { name: x.name, on } }));
+        if (done && on) risksAlert(x.text);
+        load();
+      } }),
+      h("span", {}, t(x.text), x.in_file ? h("span", { class: "muted small" }, " (set in craft-conductor.toml)") : null)));
+    fill(body,
+      h("p", { class: "small" }, "Craft Conductor keeps these rules on for everyone. If you know the risk and want to take it, tick one to allow it. Ticking only works in a browser on this computer; unticking works anywhere."),
+      h("ul", { class: "list" }, r.risks.map(row)),
+      h("p", { class: "muted small" }, "Power users can list them in craft-conductor.toml too: ", h("code", {}, '[web] accept_risks = ["any-port"]'),
+        ". Two rules can't be switched off: a request through a tunnel never counts as on this computer, and the programs Craft Conductor downloads are always checked."));
+  };
+  load();
+  return el;
+}
+
 function phoneCard({ deviceOnly = false } = {}) {  // deviceOnly: just this phone (the phone banner's window)
   const body = h("div", {}, h("p", { class: "muted small" }, "Loading…"));
   const el = card(deviceOnly ? null : "Phone app", body);
@@ -7520,7 +7849,7 @@ function phoneCard({ deviceOnly = false } = {}) {  // deviceOnly: just this phon
           h("li", {}, "iPhone or iPad: in Safari press Share → Add to Home Screen, then open Craft Conductor from the Home Screen. Android: in Chrome press ⋮ → Install app (or Add to Home screen)."),
           h("li", {}, "In the app, go to Craft Conductor settings → Connections → Phone app → Turn on notifications here."))),
       h("details", { class: "small" }, h("summary", {}, "Other ways to get a secure address"),
-        h("p", {}, "A Cloudflare Tunnel, or your own domain with a reverse proxy (Caddy, nginx) that has a real certificate, works too: add its host name to [web] allowed_hosts, and keep a strong password, since that address is on the internet."))]);
+        h("p", {}, "Cloudflare's quick tunnel gives one for a few hours (Remote access & phones → Away from home), but its address changes every time, so an installed app stops working. Your own domain with a reverse proxy (Caddy, nginx) that has a real certificate works too: add its host name to [web] allowed_hosts, and keep a strong password, since that address is on the internet."))]);
   };
   load();
   return el;
@@ -7550,22 +7879,22 @@ views["craft-conductor"] = () => {
     const s = hb.share;
     const address = h("input", { value: s.address, placeholder: s.lan_ip ? `automatic (${s.lan_ip} on your network)` : "automatic" });
     const port = h("input", { type: "number", min: 1024, max: 65535, value: s.port });
-    const tunnelIn = h("input", { value: s.tunnel || "", placeholder: "e.g. name.gl.joinmc.link:12345 (optional)", class: "mono" });
     fill(sharing, card("Sharing with friends",
       h("p", { class: "muted small" }, "Used by servers whose friend download is switched on (see each server's Friends page)."),
       h("div", { class: "grid" },
         h("label", {}, "Your public address (host name or IP)", address,
           h("span", { class: "muted small" }, "What friends outside your home network use to reach you. Leave empty to use the address in the link they opened.")),
         h("label", {}, "Download port", port, h("span", { class: "muted small" }, "Forward this TCP port on your router, too."))),
-      h("details", { class: "mt-s", open: !!s.tunnel }, h("summary", {}, "No port forwarding? Use playit.gg"),
-        playitNote(),
-        h("label", { class: "mt-s" }, "playit.gg tunnel for friends' downloads (a TCP tunnel to port " + s.port + ")", tunnelIn,
-          h("span", { class: "muted small" }, "When set, internet invites use it instead of your public address. Each server's own Minecraft tunnel goes in its Settings."))),
+      h("p", { class: "muted small" }, "The download port is only open while a server's invite link works (a week at most)."),
       h("div", { class: "row mt-s" }, h("button", { class: "btn primary", onclick: async () => {
-        const r = await act(() => api("/api/hub/share", { method: "POST", body: { address: address.value.trim(), port: Number(port.value), tunnel: tunnelIn.value.trim() } }), "Saved");
+        const r = await act(() => api("/api/hub/share", { method: "POST", body: { address: address.value.trim(), port: Number(port.value) } }), "Saved");
         if (r && r.share.error) toast(r.share.error, true);
       } }, "Save"),
       h("span", { class: "muted small" }, s.running ? `Sharing is on (port ${s.port}).` : s.error || "Sharing is off: no server has a friend download switched on.")),
+      h("h3", { class: "mt-l" }, "Friends outside your home"),
+      h("p", { class: "muted small" }, "How friends who aren't on your Wi-Fi join each server. playit.gg's step-by-step setup is on each server's Friends page."),
+      (hb.servers || []).filter((sv) => !sv.setup_pending).map((sv) => h("details", { class: "mt-s reach-server" },
+        h("summary", {}, sv.name), reachCard(sv.id, { compact: true }))),
       routerBox()));
   };
   const renderSecurity = (hb) => {
@@ -7699,6 +8028,7 @@ views["craft-conductor"] = () => {
     ["Connections", "Phones, sharing with friends and connected services.", network, phone, sharing, cf, dc,
       owner && hubInfo && !hubInfo.single ? conflictsCard() : null],
     ["About & updates", "Craft Conductor version, updates and licenses.", about, firewallCard],
+    ...(owner && hubInfo && !hubInfo.single ? [["Advanced", "Safety rules you may switch off, if you know the risk.", risksCard()]] : []),
   ];
   const panels = sections.map(([title, description, ...cards], i) => h("section", {
     id: `preferences-${i}`, class: "preferences-panel" + (i ? " hidden" : ""), "aria-labelledby": `preferences-button-${i}`,
@@ -7724,7 +8054,7 @@ views["craft-conductor"] = () => {
 // The setup form's choices. One form at a time: `target` is what it's filling in ("new", or a
 // server's id), and it starts fresh when that changes, so a new server never inherits the
 // choices of the last one set up.
-const freshSetup = () => ({ target: null, friends: false, loader: null, minecraft: "latest", mods: new Map(), motd: "A Minecraft server",
+const freshSetup = () => ({ target: null, friends: false, reach: "playit", loader: null, minecraft: "latest", mods: new Map(), motd: "A Minecraft server",
   properties: null, advancedOpen: false, max_players: 20, difficulty: "normal", gamemode: "survival", port: 25565, memory_gb: null,
   network_access: null, accept_eula: false, submitted: false, prefilled: false, modpack: null, localMods: [], world: null, showBetas: false,
   aikar: false, clientMods: new Map(), clientMeta: new Map(), clientLocal: [], companionsSeen: new Set(),  // friends' download: slug -> name; staged files
@@ -8775,10 +9105,23 @@ views.setup = () => {
         motd: st.motd, max_players: st.max_players, difficulty: st.difficulty, gamemode: st.gamemode, port: st.port,
         network_access: st.network_access, accept_eula: true, properties: changedProps(st.properties, propDefaults),
         friends: !!st.friends, local_mods: st.localMods.map((m) => m.id), world: st.world ? st.world.world : "",
+        ...(isNew ? { reach: st.reach, ...(st.reach !== "home" && st.ownerName ? { owner_name: st.ownerName } : {}) } : {}),
         client_mods: st.friends ? [...st.clientMods.keys()] : [], client_local: st.friends ? st.clientLocal.map((m) => m.id) : [],
         manual_files: (st.hand || []).filter((m) => st.handGot.has(m.filename)).map((m) => st.handGot.get(m.filename)),
         mod_channels: Object.fromEntries([...st.mods].filter(([, m]) => m.explicit && m.channel).map(([k, m]) => [k, m.channel])), datapacks: setupDatapacks(),
         pins: setupPins() };
+      if (isNew && st.reach !== "home") {  // (reachable from the internet: the whitelist is sent either way, and off only when still wanted)
+        if (st.ownerName && !NAME_OK.test(st.ownerName)) { toast("Your Minecraft name is 1 to 16 letters, numbers or _.", true); return; }
+        body.properties["white-list"] = st.properties["white-list"];
+        if (st.properties["white-list"] === "false") {
+          if (!(await ask(`Make the server with the whitelist off?\n\n${REACH_TEXT.whitelist}`, { ok: "Make it with the whitelist off", cancel: "Keep it on", danger: true, safe: true }))) {
+            st.properties["white-list"] = "true";
+            renderForm();
+            return;
+          }
+          body.whitelist_off_ok = true;
+        }
+      }
       if (st.modpack) {
         body.modpack_version = st.modpack.version_id;
         body.modpack_exclude = [...(st.modpack.removed instanceof Set ? st.modpack.removed : [])];
@@ -8832,7 +9175,40 @@ views.setup = () => {
         : h("div", {},
           h("p", { class: "empty" }, "No extra mods for players yet. Friends get the server's mods either way."),
           manageButton("Manage Friends Mods", openFriendMods, { id: "setup-manage-friends" }));
+      // How friends outside your home join (reach.py): playit.gg is pre-selected. A server they can
+      // reach from the internet starts with its whitelist on (shown ticked in Advanced settings too).
+      const pickReach = (w) => {
+        const closed = w !== "home";
+        if (closed !== (st.reach !== "home")) {
+          st.properties["white-list"] = closed ? "true" : propDefaults["white-list"];
+          st.properties["enforce-whitelist"] = closed ? "true" : propDefaults["enforce-whitelist"];
+        }
+        if (w === "forward" && opts.open_port) st.port = opts.open_port;  // (one Craft Conductor picked: not 25565)
+        else if (st.reach === "forward" && st.port === opts.open_port) st.port = opts.port;
+        st.reach = w;
+        renderForm();
+      };
+      if (isNew && st.reach !== "home" && st.properties && !st.reachApplied) {  // (the pre-selected way, once)
+        st.reachApplied = true;
+        st.properties["white-list"] = "true";
+        st.properties["enforce-whitelist"] = "true";
+      }
+      const outside = isNew ? [h("h3", { class: "mt" }, "Friends outside your home"),
+        h("p", { class: "small" }, "How friends who aren't on your Wi-Fi join. You can change this later on the server's Friends page."),
+        reachChoices(st.reach, pickReach),
+        st.reach === "playit" ? [h("div", { class: "notice warn small mt-s", role: "note" }, h("strong", {}, "About playit.gg: "), REACH_TEXT.playit),
+          h("p", { class: "muted small mt-s" }, "Once the server is made, its Friends page walks you through getting playit.gg's program. Nothing is downloaded before you press its button.")] : null,
+        st.reach === "forward" ? forwardDetails(st.port, null, null) : null,
+        st.reach !== "home" ? h("p", { class: "small mt-s" }, st.properties && st.properties["white-list"] === "false"
+          ? h("span", { class: "bad-text" }, "⚠ The whitelist is off (Advanced settings): anyone who finds the server can join.")
+          : "🔒 The whitelist will be on: only players you add can join. Add your friends on the Players page once the server is made.") : null,
+        st.reach !== "home" ? h("label", { class: "mt-s" }, "Your Minecraft name (added to the whitelist, so you can join)",
+          h("input", { value: st.ownerName || "", maxlength: 16, autocomplete: "off", placeholder: "optional", "aria-describedby": "owner-name-note",
+            oninput: (e) => { st.ownerName = e.target.value.trim(); } }),
+          h("span", { class: "muted small", id: "owner-name-note" }, "1 to 16 letters, numbers or _. Leave it empty to add yourself later on the Players page.")) : null] : null;
       return card("Friends (optional)",
+        outside,
+        h("h3", { class: "mt" }, "Friends' download"),
         h("label", { class: "row check-row" },
           h("input", { type: "checkbox", checked: st.friends, onchange: (e) => { st.friends = e.target.checked; if (st.friends) setupAnnounceCompanions(); renderForm(); } }),
           h("span", {}, "Make a download for my friends: it sets up their Minecraft with this server's version and mods, and adds the server to their list")),

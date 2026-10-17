@@ -160,6 +160,16 @@ jobs:
         run: |
           if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "prerelease=false" >> "$GITHUB_OUTPUT"
           else echo "prerelease=true" >> "$GITHUB_OUTPUT"; fi
+      - name: Before you update
+        id: before
+        # The changelog's "Before you update" note for this version goes first in the release notes:
+        # the update prompt of the version people have now shows their first lines.
+        run: |
+          {
+            echo "text<<NOTE_END"
+            python packaging/release_note.py "$TAG"
+            echo "NOTE_END"
+          } >> "$GITHUB_OUTPUT"
       - uses: softprops/action-gh-release@v3
         with:
           # From "Run workflow" this also creates the tag, on the commit that was built.
@@ -171,6 +181,8 @@ jobs:
           files: release/*
           generate_release_notes: true
           body: |
+            ${{ steps.before.outputs.text }}
+
             > **Craft Conductor is in beta.** It's used and tested, but it's still young: expect rough
             > edges, keep backups (it makes one before every update), and please [report problems](https://github.com/silverWRX03/craft-conductor/issues/new/choose).
 

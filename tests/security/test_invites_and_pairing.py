@@ -34,29 +34,30 @@ def test_a_link_works_until_it_expires():
     assert not ClientConfig(enabled=True, token="", expires=0).link_works(now)
 
 
-def test_new_links_expire_after_seven_days_unless_chosen(tmp_path):
-    assert configmod.DEFAULT_LINK_DAYS == 7 and ClientConfig().link_days == 7
+def test_new_links_expire_after_three_days_unless_chosen_and_a_week_at_most(tmp_path):
+    assert configmod.DEFAULT_LINK_DAYS == 3 and ClientConfig().link_days == 3 and max(configmod.LINK_DAYS) == 7
     root = tmp_path / "s"
     root.mkdir()
     path = root / configmod.CONFIG_NAME
     path.write_text(configmod.render_template("fabric", "latest"))
     clientpack.make_link(path, now=1_000_000)
     c = configmod.load(root).client
-    assert c.token and c.link_days == 7 and c.expires == 1_000_000 + 7 * DAY
+    assert c.token and c.link_days == 3 and c.expires == 1_000_000 + 3 * DAY
     first = c.token
     clientpack.make_link(path, 1, now=2_000_000)
     c = configmod.load(root).client
     assert c.token != first and c.expires == 2_000_000 + DAY  # (the old one stops at once)
-    clientpack.renew_link(path, 0)
-    assert configmod.load(root).client.expires == 0 and configmod.load(root).client.token == c.token
+    clientpack.renew_link(path, 7, now=2_500_000)
+    assert configmod.load(root).client.expires == 2_500_000 + 7 * DAY and configmod.load(root).client.token == c.token
+    with pytest.raises(ConfigError):  # (no "until I make new ones": the download port would stay open)
+        clientpack.renew_link(path, 0)
     clientpack.stop_link(path, now=3_000_000)
     assert configmod.load(root).client.expires == 3_000_000
-    for bad in (2, -1, "x", None):
+    for bad in (2, 30, 0, -1, "x", None):
         with pytest.raises(ConfigError):
             clientpack.make_link(path, bad)
-    configmod.set_value(path, "client", "link_days", "365")
-    with pytest.raises(ConfigError):
-        configmod.load(root)
+    configmod.set_value(path, "client", "link_days", "365")  # (typed by hand, or 30 from before: a week at most)
+    assert configmod.load(root).client.link_days == 7
 
 
 def test_the_share_server_tells_an_expired_invite_from_a_wrong_one():
@@ -95,8 +96,8 @@ def test_an_expired_or_stopped_link_is_refused(sharing, tmp_path):
     hub, c, port = sharing
     d = hub.daemons["alpha"]
     info = c.get("/api/servers/alpha/client")[1]
-    assert info["link_days"] == 7 and not info["expired"] and info["links"]["local"]
-    assert abs(info["expires"] - (time.time() + 7 * DAY)) < 120
+    assert info["link_days"] == 3 and not info["expired"] and info["links"]["local"]
+    assert abs(info["expires"] - (time.time() + 3 * DAY)) < 120
     token = d.m.config.client.token
     inv, http = _pinned(hub, port, token)
     assert http.get_json(f"{inv.url}/pack.json")["name"]
@@ -120,9 +121,10 @@ def test_an_expired_or_stopped_link_is_refused(sharing, tmp_path):
     hub.update_share()
     assert hub.share is None  # nothing left to share: the internet-facing port is closed
 
-    # New links (for 30 days): sharing again, and the expired one stays dead.
-    status, info, _ = c.post("/api/servers/alpha/client/new-link", {"days": 30})
-    assert status == 200 and not info["expired"] and abs(info["expires"] - (time.time() + 30 * DAY)) < 120
+    # New links (for 7 days, the most): sharing again, and the expired one stays dead.
+    assert c.post("/api/servers/alpha/client/new-link", {"days": 30})[0] == 400  # (a week at most)
+    status, info, _ = c.post("/api/servers/alpha/client/new-link", {"days": 7})
+    assert status == 200 and not info["expired"] and abs(info["expires"] - (time.time() + 7 * DAY)) < 120
     assert hub.share is not None and d.m.config.client.token != token
     new, http2 = _pinned(hub, port, d.m.config.client.token)
     assert http2.get_json(f"{new.url}/pack.json")["name"]
@@ -136,7 +138,7 @@ def test_an_expired_or_stopped_link_is_refused(sharing, tmp_path):
     with pytest.raises(HttpError) as e:
         http2.get_json(f"{new.url}/pack.json")
     assert e.value.status in (410, None)  # (410, or the port already closed)
-    for days in (30, 0):
+    for days in (7, 3):
         info = c.post("/api/servers/alpha/client", {"link_days": days})[1]
         assert info["expired"] and info["links"] == {} and info["link_days"] == days
     assert not d.m.config.client.link_works(time.time())
@@ -146,9 +148,10 @@ def test_an_expired_or_stopped_link_is_refused(sharing, tmp_path):
     info = c.post("/api/servers/alpha/client", {"enabled": True})[1]
     assert not info["expired"] and info["links"]
     # The lifetime can be changed for the current link (from now), only to the choices offered.
-    info = c.post("/api/servers/alpha/client", {"link_days": 0})[1]
-    assert info["expires"] is None and not info["expired"]
-    assert c.post("/api/servers/alpha/client", {"link_days": 365})[0] == 400
+    info = c.post("/api/servers/alpha/client", {"link_days": 1})[1]
+    assert abs(info["expires"] - (time.time() + DAY)) < 120 and not info["expired"]
+    for days in (0, 30, 365):  # (no link that never ends, or a month: the download port would stay open)
+        assert c.post("/api/servers/alpha/client", {"link_days": days})[0] == 400
     assert c.post("/api/servers/alpha/client/new-link", {"days": "soon"})[0] == 400
 
 

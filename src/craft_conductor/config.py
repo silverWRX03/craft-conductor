@@ -21,8 +21,10 @@ MOD_SOURCES = ("modrinth", "curseforge", "hangar")  # Hangar: Paper plugins
 STRATEGIES = ("latest-compatible", "latest", "mods-only")
 CHANNELS = ("release", "beta", "alpha")
 UPDATE_CHANNELS = ("stable", "beta")   # Craft Conductor's own releases (selfupdate.CHANNELS)
-LINK_DAYS = (1, 7, 30, 0)              # how long a new friends' invite link works; 0 = until a new one is made
-DEFAULT_LINK_DAYS = 7
+# How long a new friends' invite link works. The friends' download port is open on the router only
+# while a link works, so a week at most; 3 days covers a weekend (Friday to Sunday).
+LINK_DAYS = (1, 3, 7)
+DEFAULT_LINK_DAYS = 3
 
 
 class ConfigError(Exception):
@@ -201,6 +203,26 @@ class ScheduleConfig:
     restart_when_empty: bool = False  # skip a scheduled restart while players are online
 
 
+# Safety rules a power user (or anyone, knowingly) may switch off: ``[web] accept_risks`` in
+# craft-conductor.toml, or Craft Conductor settings → Advanced. What each one allows.
+RISKS = {
+    "weak-remote-password": "Other devices and tunnels may sign in with a PIN or a password that isn't strong (never the default PASSWORD)",
+    "tailscale-funnel": "Tailscale may put the control panel on the internet, for anyone (Funnel)",
+    "reset-without-code": "Resetting the password on this computer doesn't need the code from the file",
+    "no-sign-in-limit": "No limit on wrong passwords and codes",
+    "any-port": "You choose the port friends use from outside, even 25565",
+}
+
+
+def _risks(value) -> list[str]:
+    if not isinstance(value, list):
+        raise ConfigError("[web] accept_risks must be a list, like [\"any-port\"]")
+    unknown = [str(x) for x in value if str(x) not in RISKS]
+    if unknown:
+        log.warning("[web] accept_risks: unknown %s (known: %s)", ", ".join(unknown), ", ".join(RISKS))
+    return [x for x in RISKS if x in {str(v) for v in value}]
+
+
 @dataclass
 class WebConfig:
     enabled: bool = False
@@ -210,6 +232,8 @@ class WebConfig:
     allowed_hosts: list[str] = field(default_factory=list)  # extra host names, e.g. behind a proxy
     tls_cert: str = ""   # HTTPS: a certificate and its key (PEM files), e.g. from `tailscale cert`
     tls_key: str = ""
+    accept_risks: list[str] = field(default_factory=list)   # RISKS switched off: these and Craft Conductor settings' own
+    risks_in_file: list[str] = field(default_factory=list)  # the ones from craft-conductor.toml (the page can't undo them)
 
 
 @dataclass
@@ -220,7 +244,7 @@ class ClientConfig:
     mods: list[str] = field(default_factory=list)   # extra client-only mods: Modrinth slugs, or curseforge:<id>
     memory_gb: int = 4              # memory the friends' Minecraft gets
     expires: int = 0                # when the invite link stops working (Unix time); 0 = never
-    link_days: int = DEFAULT_LINK_DAYS  # how long new links work (one of LINK_DAYS; 0 = until replaced)
+    link_days: int = DEFAULT_LINK_DAYS  # how long new links work (one of LINK_DAYS)
 
     def link_works(self, now: float) -> bool:
         return bool(self.enabled and self.token) and (not self.expires or now < self.expires)
@@ -248,6 +272,7 @@ class Config:
     client: ClientConfig = field(default_factory=ClientConfig)
     schedule: ScheduleConfig = field(default_factory=ScheduleConfig)
     tunnel_address: str = ""   # a playit.gg tunnel friends join through ("host" or "host:port")
+    reach_way: str = ""        # how friends outside join: playit | forward | home ("" = not chosen; reach.py)
     #: mods held at one version (Manage Mods → Change version): "source:project id" -> Pin
     pins: dict[str, "Pin"] = field(default_factory=dict)
 
@@ -345,6 +370,14 @@ def _tunnel(value) -> str:
     return str(value or "").strip()
 
 
+def _reach(value) -> str:
+    from .reach import WAYS
+    way = str(value or "").strip()
+    if way and way not in WAYS:
+        raise ConfigError("reach.way must be one of " + ", ".join(WAYS))
+    return way
+
+
 def _schedule(c: dict) -> ScheduleConfig:
     from .schedule import CronError, parse
     out = ScheduleConfig(restart=str(c.get("restart", "")).strip(), backup=str(c.get("backup", "")).strip(),
@@ -373,8 +406,8 @@ def _client(c: dict) -> ClientConfig:
         raise ConfigError("client.expires and client.link_days must be whole numbers") from None
     if expires < 0:
         raise ConfigError("client.expires must be a time (or 0 for never)")
-    if days not in LINK_DAYS:
-        raise ConfigError("client.link_days must be one of " + ", ".join(map(str, LINK_DAYS)) + " (0 = until replaced)")
+    if days not in LINK_DAYS:  # (30 days and "until replaced" were offered before: now a week at most)
+        days = max(LINK_DAYS)
     return ClientConfig(enabled=bool(c.get("enabled", False)), token=token, mods=list(mods), memory_gb=memory,
                         expires=expires, link_days=days)
 
@@ -475,6 +508,8 @@ def parse(root: Path, data: dict) -> Config:
             allowed_hosts=[str(x).lower() for x in data.get("web", {}).get("allowed_hosts", [])],
             tls_cert=str(data.get("web", {}).get("tls_cert", "")),
             tls_key=str(data.get("web", {}).get("tls_key", "")),
+            accept_risks=_risks(data.get("web", {}).get("accept_risks", [])),
+            risks_in_file=_risks(data.get("web", {}).get("accept_risks", [])),
         ),
         discord_webhook=data.get("notify", {}).get("discord_webhook", ""),
         curseforge_api_key=(data.get("curseforge", {}).get("api_key", "")
@@ -483,6 +518,7 @@ def parse(root: Path, data: dict) -> Config:
         client=_client(data.get("client", {})),
         schedule=_schedule(data.get("schedule", {})),
         tunnel_address=_tunnel(data.get("tunnel", {}).get("address", "")),
+        reach_way=_reach(data.get("reach", {}).get("way", "")),
         pins=_pins(data.get("pins", {})),
     )
 

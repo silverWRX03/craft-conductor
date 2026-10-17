@@ -87,7 +87,7 @@ def test_post_bedrock_invites(hub_env, monkeypatch):
     cfg = manager.server_dir / "config/Geyser-Fabric/config.yml"
     cfg.parent.mkdir(parents=True)
     cfg.write_text("bedrock:\n  port: 19133\nremote:\n  port: 25565\n")
-    hub.save_share(hub.share_settings()["port"], "mc.example.com", "download.example.com:4567")
+    hub.save_share(hub.share_settings()["port"], "mc.example.com")
     links = c.get("/api/servers/alpha/client")[1]["links"]
     for kind, host in (("internet", "mc.example.com"), ("local", "192.168.1.42")):
         fragment = urlsplit(links[f"bedrock_{kind}"]).fragment
@@ -104,7 +104,7 @@ def test_post_bedrock_invites(hub_env, monkeypatch):
     assert c.post("/api/servers/alpha/client/discord", request)[0] == 200
     assert all(link in sent[-1]["embeds"][0]["description"] for link in links.values() if link)
     assert "Java invite works until <t:" in sent[-1]["embeds"][0]["description"]
-    hub.save_share(hub.share_settings()["port"], "", "download.example.com:4567")
+    hub.save_share(hub.share_settings()["port"], "")
     assert c.get("/api/servers/alpha/client")[1]["links"]["bedrock_internet"] is None
     request["links"] = ["bedrock_internet"]
     assert c.post("/api/servers/alpha/client/discord", request)[0] == 400

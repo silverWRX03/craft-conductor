@@ -10,7 +10,10 @@ doing it by hand.
   answer is yes. Craft Conductor then prints the address to open, such as
   `http://192.168.1.50:8765/`. If you'd rather keep it private to the server, answer
   no and use an SSH tunnel: `ssh -L 8765:localhost:8765 you@server`, then open
-  <http://localhost:8765> on your PC. Craft Conductor prints this command too.
+  <http://localhost:8765> on your PC. Craft Conductor prints this command too. Through the
+  tunnel you count as another device (SSH passes the connection on): sign in with the password
+  (the one-time password it printed works), not a PIN, and if you forget it, run
+  `craft-conductor web-password --reset` over SSH.
 - **Keeping it running after you log out, and after reboots:**
 
   ```sh
