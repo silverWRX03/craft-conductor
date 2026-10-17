@@ -951,3 +951,33 @@ details.customize .cap-group legend { font-weight: 600; font-size: 13px; padding
 details.customize .cap { margin: 2px 0; }
 details.customize .cap.risky .tag { margin-left: 6px; }
 ul.people li { align-items: flex-start; gap: 10px; }
+
+/* The bell (item 41): every message the page showed, newest first; a red dot for unread ones */
+.bell { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; flex: none;
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; padding: 0; }
+.bell:hover { border-color: var(--hover-border); background: var(--hover-bg); }
+.bell:focus-visible { outline: 2px solid var(--info); outline-offset: 2px; }
+.bell svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.bell-dot { position: absolute; top: 6px; inset-inline-end: 6px; width: 10px; height: 10px; border-radius: 50%; background: var(--danger);
+  box-shadow: 0 0 0 2px var(--panel-2); }
+.bell-panel { position: fixed; top: 72px; inset-inline-end: 24px; z-index: 95; width: min(440px, calc(calc(100 * var(--vw)) - 32px));
+  max-height: min(calc(70 * var(--vh)), calc(calc(100 * var(--vh)) - 96px)); display: flex; flex-direction: column; background: var(--panel);
+  border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 12px 36px var(--shadow-strong); }
+.bell-panel[hidden] { display: none; }
+.bell-panel:focus-visible { outline: 2px solid var(--info); }
+.bell-head { padding: 10px 12px 10px 16px; border-bottom: 1px solid var(--border); flex-wrap: nowrap; }
+.bell-head h2 { margin: 0; font-size: 17px; }
+.bell-items { list-style: none; margin: 0; padding: 0; overflow-y: auto; overflow-x: hidden; }
+.bell-items:focus-visible { outline: 2px solid var(--info); outline-offset: -2px; }
+.bell-item { display: flex; gap: 10px; align-items: flex-start; padding: 10px 16px; border-bottom: 1px solid var(--border); min-width: 0; }
+.bell-item:last-child { border-bottom: 0; }
+.bell-item.bad .toast-icon { color: var(--danger); }
+.bell-item.unread { background: var(--panel-2); }
+.bell-body { min-width: 0; flex: 1; }
+.bell-body p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.bell-body p + p { margin-top: 4px; }
+.bell-empty { padding: 16px; }
+@media (max-width: 1023px) {
+  .topbar .bell { position: absolute; top: 16px; inset-inline-end: 16px; }
+  .bell-panel { top: 64px; inset-inline-end: 16px; }
+}

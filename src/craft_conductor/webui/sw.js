@@ -9,15 +9,38 @@ self.addEventListener("push", (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch (_) { data = { body: event.data ? event.data.text() : "" }; }
   const title = data.title || "Craft Conductor";
-  event.waitUntil(self.registration.showNotification(title, {
+  event.waitUntil(Promise.all([self.registration.showNotification(title, {
     body: data.body || "",
     icon: "/icon-192.png",
     badge: "/icon-192.png",
     tag: data.tag || undefined,
     renotify: !!data.tag,
     data: { url: typeof data.url === "string" && /^\/(?![\/\\])/.test(data.url) ? data.url : "/" },  // (a page here, never another site)
-  }));
+  }), keepForBell(title, data).catch(() => null)]));
 });
+
+// The page's bell (app.js, bellTakePushes) lists the phone notifications this device got: each is kept here,
+// with whose device it is, until the page takes it (the page may be closed when it comes). Text only, capped.
+const BELL_DB = "craft-conductor-bell", BELL_MAX = 100;
+function keepForBell(title, data) {
+  const push = { time: Date.now() / 1000, title: String(title).slice(0, 80), body: String(data.body || "").slice(0, 300),
+    sid: typeof data.sid === "string" ? data.sid.slice(0, 64) : null, who: typeof data.who === "string" ? data.who.slice(0, 80) : "" };
+  return new Promise((resolve, reject) => {
+    const open = indexedDB.open(BELL_DB, 1);
+    open.onupgradeneeded = () => open.result.createObjectStore("pushes", { autoIncrement: true });
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const db = open.result;
+      const tx = db.transaction("pushes", "readwrite");
+      const store = tx.objectStore("pushes");
+      store.add(push);
+      const keys = store.getAllKeys();
+      keys.onsuccess = () => keys.result.slice(0, Math.max(0, keys.result.length - BELL_MAX)).forEach((k) => store.delete(k));
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => { db.close(); reject(tx.error); };
+    };
+  }).then(() => self.clients.matchAll({ type: "window" })).then((open) => open.forEach((c) => c.postMessage({ bell: true })));
+}
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();

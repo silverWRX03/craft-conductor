@@ -85,7 +85,7 @@ def test_sending_and_forgetting_gone_devices(tmp_path, monkeypatch):
     assert claims["aud"] == "https://fcm.googleapis.com" and claims["sub"] == push.SUBJECT
     assert headers["authorization"].endswith("k=" + p.public_key())
     assert read(private, auth, req.data) == {"title": "Weekend Survival", "body": "The server crashed",
-                                             "url": "/#s/alpha/dashboard", "tag": "alpha"}
+                                             "url": "/#s/alpha/dashboard", "tag": "alpha", "who": "owner"}
     assert struct.unpack(">I", req.data[16:20])[0] == 4096
 
 
@@ -141,6 +141,24 @@ def test_a_device_only_gets_the_kinds_it_chose(tmp_path, monkeypatch):
     assert posted == []  # (off by default)
     p.set_kinds(FCM, ["status"])
     p.send_now({"title": "A", "body": "Server is up", "url": "/", "tag": "", "kind": "status"})
-    assert posted == [{"title": "A", "body": "Server is up", "url": "/", "tag": ""}]
+    assert posted == [{"title": "A", "body": "Server is up", "url": "/", "tag": "", "who": "owner"}]
     p.send_now({"title": "A", "body": "crashed", "url": "/", "tag": "", "kind": "crash"})
     assert len(posted) == 1
+
+
+def test_a_push_says_whose_device_and_which_server_for_the_bell(tmp_path, monkeypatch):
+    """The page's bell keeps a phone notification only for the person whose device it is."""
+    p = push.Push(tmp_path)
+    p.audience = lambda who, sid: who == "user:u1" and sid == "alpha"
+    for who in ("owner", "user:u1", "user:u2"):
+        _, key, auth = phone()
+        p.subscribe(f"{FCM}-{who.replace(':', '-')}", key, auth, who, who=who)
+    posted = []
+    monkeypatch.setattr(p, "_post", lambda k, sub, payload, tag: posted.append((sub["who"], json.loads(payload))) or 201)
+    p.send_now({"title": "Alpha", "body": "The server crashed", "url": "/#s/alpha/dashboard", "tag": "alpha", "kind": "crash",
+                "sid": "alpha"})
+    assert sorted(posted) == [(who, {"title": "Alpha", "body": "The server crashed", "url": "/#s/alpha/dashboard", "tag": "alpha",
+                                     "sid": "alpha", "who": who}) for who in ("owner", "user:u1")]
+    posted.clear()
+    p.send_now({"title": "Craft Conductor", "body": "Little disk space left", "url": "/", "tag": "disk", "kind": "computer"})
+    assert posted == [("owner", {"title": "Craft Conductor", "body": "Little disk space left", "url": "/", "tag": "disk", "who": "owner"})]
