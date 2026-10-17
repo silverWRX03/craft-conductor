@@ -15,11 +15,11 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "src" / "craft_conductor" / "webui"
 SITE = ROOT / "site"
 
-def build(destination: Path, version: str, channel: str) -> None:
+def build(destination: Path, version: str, channel: str, source: Path = SOURCE) -> None:
     destination.mkdir(parents=True, exist_ok=True)
     assets = destination / "assets"
     assets.mkdir(exist_ok=True)
-    original = (SOURCE / "index.html").read_text(encoding="utf8")
+    original = (source / "index.html").read_text(encoding="utf8")
     required = ("icon.png", "style.css", "craft-conductor-theme.css",
                 "i18n.js", "rich.js", "pager.js", "app.js")
     for asset in required:
@@ -42,7 +42,7 @@ def build(destination: Path, version: str, channel: str) -> None:
     (destination / "index.html").write_text(original, encoding="utf8")
     for asset in required:
         if asset == "app.js":
-            app = (SOURCE / asset).read_text(encoding="utf8")
+            app = (source / asset).read_text(encoding="utf8")
             before = app
             app = app.replace("  registerWorker();", "  // GitHub Pages demo: service worker deliberately disabled.")
             app = app.replace('loadLanguage("/")', 'loadLanguage("./assets/")')
@@ -51,7 +51,7 @@ def build(destination: Path, version: str, channel: str) -> None:
             (assets / "app.js").write_text(app, encoding="utf8")
         else:
             shutil.copy2(SOURCE / asset, assets / asset)
-    if (SOURCE / "i18n").is_dir():
+    if (source / "i18n").is_dir():
         shutil.copytree(SOURCE / "i18n", assets / "i18n", dirs_exist_ok=True)
     shutil.copy2(SITE / "demo" / "mock-api.js", destination / "mock-api.js")
     manifest = {
@@ -63,15 +63,25 @@ def build(destination: Path, version: str, channel: str) -> None:
         "icons": [{"src": "assets/icon.png", "sizes": "256x256", "type": "image/png"}],
     }
     (destination / "manifest.webmanifest").write_text(json.dumps(manifest, indent=2), encoding="utf8")
+    # A real QR code for the standalone phone route; generated offline during CI.
+    try:
+        import qrcode
+        import qrcode.image.svg
+    except ImportError as exc:
+        raise SystemExit("Website build needs qrcode: python -m pip install qrcode") from exc
+    qr_url = "https://silverwrx03.github.io/craft-conductor/demo/?mode=existing&mobile=1"
+    qr = qrcode.make(qr_url, image_factory=qrcode.image.svg.SvgPathImage)
+    qr.save(str(destination / "phone-qr.svg"))
     (destination / "version.json").write_text(json.dumps({"version": version, "channel": channel, "source": "production-frontend", "simulated": True}), encoding="utf8")
 
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--output", type=Path, default=ROOT / "_site" / "demo")
     p.add_argument("--version", default="development")
+    p.add_argument("--source", type=Path, default=SOURCE)
     p.add_argument("--channel", choices=["beta", "stable", "development"], default="development")
     a = p.parse_args()
-    build(a.output, a.version, a.channel)
+    build(a.output, a.version, a.channel, source=a.source)
     print(f"Built demo from production frontend: {a.output}")
 
 if __name__ == "__main__":
