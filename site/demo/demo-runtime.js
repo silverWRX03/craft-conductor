@@ -27,7 +27,7 @@
   function playersOnline(s){return {players:(s.state==="running"?s.players:[]).map(name=>({name,op:s.ops.includes(name),ping:null,level:s.ops.includes(name)?4:0})),online:s.state==="running"?s.players:[],whitelist:s.whitelist,whitelist_enabled:true,ping:{available:false,reason:"The demo does not connect to a Minecraft server."}};}
   function modData(s){return {minecraft:s.minecraft,loader:s.loader,configured:s.mods.map(m=>({...m})),installed:s.mods.map(m=>({...m})),held:[],unmanaged:[],disabled:[],skipped:[],known_conflicts:[],dependencies:[],changes:[]};}
   function backupData(s){return {backups:s.backups.map(b=>({...b,size:b.size_bytes,date:b.created,time:b.created,mtime:b.created,holds:[],locked:[],check:null})),scheduled:false,settings:{keep:10,interval_hours:6,world:true,mods:true,configs:true,players:true,webmap:false,secrets:false,logs:false}};}
-  function setup(){return {current:null,loaders:[{name:"vanilla",label:"Vanilla",description:"Plain Minecraft without mods.",mods:false},{name:"fabric",label:"Fabric",description:"Lightweight modded servers.",mods:true},{name:"neoforge",label:"NeoForge",description:"Modded Minecraft.",mods:true},{name:"forge",label:"Forge",description:"Classic modded Minecraft.",mods:true},{name:"quilt",label:"Quilt",description:"A Fabric-compatible mod loader.",mods:true},{name:"paper",label:"Paper",description:"Plugins instead of mods.",mods:false},{name:"purpur",label:"Purpur",description:"Paper-compatible plugin server.",mods:false}],versions:["1.21.1","1.21.4","1.21"],betas:[],memory_gb:4,port:25565,network_access:false,network_option:false,properties_schema:[]};}
+  function setup(){return {current:null,loaders:[{name:"vanilla",label:"Vanilla",description:"Plain Minecraft without mods.",mods:false},{name:"fabric",label:"Fabric",description:"Lightweight modded servers.",mods:true},{name:"neoforge",label:"NeoForge",description:"Modded Minecraft.",mods:true},{name:"forge",label:"Forge",description:"Classic modded Minecraft.",mods:true},{name:"quilt",label:"Quilt",description:"A Fabric-compatible mod loader.",mods:true},{name:"paper",label:"Paper",description:"Plugins instead of mods.",mods:false},{name:"purpur",label:"Purpur",description:"Paper-compatible plugin server.",mods:false}],versions:["1.21.1","1.21.4","1.21"],betas:[],memory_gb:4,total_ram_gb:16,port:25565,network_access:false,network_option:false,server_dir:"Demo memory only (no files created)",difficulties:["peaceful","easy","normal","hard"],gamemodes:["survival","creative","adventure","spectator"],properties_schema:[]};}
   function success(message){return {ok:true,message:message||"Done in the demonstration. No real system changes were made."};}
   function process(path,method,body){
     const u=new URL(path,location.origin), full=u.pathname;
@@ -40,6 +40,9 @@
     if(p==="/api/auth"&&get)return {version:"demo",default:false,managed:true,local:true,mode:"password",passkeys:0};
     if(p==="/api/hub/memory")return {total_gb:16,used_gb:state.servers.filter(x=>x.state==="running").reduce((a,x)=>a+x.memory_gb,0),fits:true};
     if(p==="/api/hub/setup"&&get)return setup();
+    if(p==="/api/hub/setup/newest"&&get)return {minecraft:"1.21.4"};
+    if(p==="/api/hub/port"&&get)return {free:true,available:true,port:Number(u.searchParams.get("port")||25565)};
+    if(p==="/api/hub/manual/needed"&&!get)return {mods:[]};
     if(p==="/api/hub/mods/latest"||p==="/api/hub/loaders/latest")return {version:"1.21.4",latest:"1.21.4"};
     if(p.startsWith("/api/hub/mods/")&&get)return {results:[],mods:[],dependencies:[],requires:[],versions:[],ready:true};
     if(p==="/api/hub/create"&&!get){
