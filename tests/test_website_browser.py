@@ -71,7 +71,9 @@ def site(tmp_path_factory):
 @pytest.mark.parametrize("script", SCRIPTS)
 def test_website_in_a_browser(site, script, tmp_path):
     base, out = site
-    env = {**os.environ, "CRAFT_WEBSITE_OUT": str(tmp_path), "CRAFT_WEBSITE_DIR": str(out)}
+    # Pictures of each step go where CRAFT_WEBSITE_OUT says (the workflows upload them), one folder per script.
+    shots = Path(os.environ["CRAFT_WEBSITE_OUT"]) / script.removesuffix(".cjs") if os.environ.get("CRAFT_WEBSITE_OUT") else tmp_path
+    env = {**os.environ, "CRAFT_WEBSITE_OUT": str(shots), "CRAFT_WEBSITE_DIR": str(out)}
     result = subprocess.run([os.environ["CRAFT_UI_NODE"], str(Path(__file__).with_name(script)), base],
                             capture_output=True, text=True, encoding="utf-8", timeout=900, env=env)
     assert result.returncode == 0, result.stdout[-6000:] + result.stderr[-6000:]
