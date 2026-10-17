@@ -7,7 +7,7 @@
   const make = (tag, cls, text) => { const el = document.createElement(tag); if (cls) el.className = cls; if (text) el.textContent = text; return el; };
   let root, hintBox, notes, pushes;
   const HINTS = [
-    [/^#browse|\/mods$/, "Mods here come from the demo's sample catalog: a fixed set saved for the demo, not live Modrinth or CurseForge results. Nothing is downloaded."],
+    [/^#(?:browse|s\/[a-z0-9-]+\/mods$)/, "Mods here come from the demo's sample catalog: a fixed set saved for the demo, not live Modrinth or CurseForge results. Nothing is downloaded."],
     [/^#new$/, "Making a server here adds it to this demo only: nothing is downloaded or installed on your computer."],
     [/\/friends$/, "Invite links in the demo are made up (they end in .invalid) and don't lead anywhere."],
     [/\/console$/, "Try list, say hello, whitelist add Steve or gamerule keepInventory true: a stand-in Minecraft answers."],
