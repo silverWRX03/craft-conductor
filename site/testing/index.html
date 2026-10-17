@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark"><title>Real-world testing · Craft Conductor</title>
+<style>
+:root{font:16px/1.55 system-ui,sans-serif;color-scheme:light dark}body{max-width:1200px;margin:auto;padding:1.25rem}a{color:inherit}
+header{border-bottom:1px solid #8885;padding-bottom:1rem;margin-bottom:1.4rem}.muted{opacity:.7}nav a{margin-right:1.2rem}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px;margin:1.4rem 0}.card{border:1px solid #8885;border-radius:12px;padding:14px}.count{font-size:1.8rem;font-weight:750}
+.toolbar{display:flex;gap:12px;flex-wrap:wrap;margin:1.5rem 0}select,input{padding:.6rem;min-width:180px;max-width:100%;border-radius:8px;border:1px solid #888}input{flex:1}
+.table-scroll{overflow:auto}table{border-collapse:collapse;width:100%;font-size:.92rem}th,td{text-align:left;padding:.7rem;border-bottom:1px solid #8883}th{white-space:nowrap}.pill{display:inline-block;padding:.16rem .5rem;border-radius:20px;background:#8882}.pass{color:#2b9262}.fail{color:#d85c53}.blocked{color:#bc8c38}
+tr:target{outline:2px solid #5a96cb}footer{margin-top:2rem;font-size:.9rem;opacity:.75}
+</style></head><body>
+<header><nav><a href="../">Craft Conductor</a><a href="https://github.com/silverWRX03/craft-conductor">Repository</a><a href="https://github.com/silverWRX03/craft-conductor/issues">Issues</a></nav>
+<h1>Real-world testing</h1><p class="muted">Versioned manual results from real machines. Historical passes do not automatically clear the next release.</p></header>
+<main><div class="toolbar"><label>Test run <select id="run"></select></label><label>Section <select id="section"><option value="">All sections</option></select></label><input id="search" aria-label="Search tests" placeholder="Search IDs, steps and sections"><label>Status <select id="status"><option value="">All statuses</option><option value="pass">Pass</option><option value="fail">Fail</option><option value="blocked">Blocked</option><option value="na">N/A</option><option value="not-tested">Not tested</option></select></label></div>
+<div class="cards" id="stats"></div><p id="scope-note" class="muted"></p>
+<div class="table-scroll"><table><thead><tr><th>ID</th><th>Section</th><th>Test step</th><th>Type</th><th>Status</th></tr></thead><tbody id="tests"></tbody></table></div>
+<footer>Public status view only. Evidence, tester identities and machine-specific notes are deliberately excluded. Use <code>python tools/real_world_tests.py</code> in VS Code/Claude Code to record results.</footer></main>
+<script src="app.js" defer></script></body></html>
