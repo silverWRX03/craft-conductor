@@ -1,0 +1,80 @@
+name: public demo validation
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/craft_conductor/webui/**"
+      - "site/**"
+      - "tools/build_public_site.py"
+      - "tools/smoke_public_site.cjs"
+  schedule:
+    - cron: "23 7 * * *"
+  pull_request:
+    paths:
+      - "site/**"
+      - "tools/build_public_site.py"
+      - "tests/test_public_site.py"
+      - "tools/smoke_public_site.cjs"
+      - ".github/workflows/pages.yml"
+      - ".github/workflows/site-demo-check.yml"
+      - "src/craft_conductor/webui/**"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  demo-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install isolated build dependencies
+        run: |
+          python -m pip install "qrcode==8.2"
+          npm install --prefix .site-test --no-save "playwright@1.56.1"
+          .site-test/node_modules/.bin/playwright install --with-deps chromium
+      - name: Build candidate from current frontend
+        run: python tools/build_public_site.py --output _site --version "candidate-${{ github.sha }}"
+      - name: Static checks
+        run: |
+          python -m unittest discover -s tests -p test_public_site.py
+          node --check _site/demo/app.js
+          node --check _site/demo/demo-runtime.js
+          node --check _site/home.js
+      - name: Browser interaction tests
+        run: node tools/smoke_public_site.cjs
+      - name: Validate current published-release frontend too
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          tag="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=30" --jq '[.[] | select(.draft == false)] | sort_by(.published_at) | last | .tag_name')"
+          test -n "$tag"
+          mkdir -p _release
+          git fetch --force --depth=1 origin "refs/tags/$tag:refs/tags/$tag"
+          git archive "refs/tags/$tag" src/craft_conductor/webui | tar -x -C _release
+          python tools/build_public_site.py --ui-root _release/src/craft_conductor/webui --output _site --version "$tag"
+          python -m unittest discover -s tests -p test_public_site.py
+          node tools/smoke_public_site.cjs
+      - name: Upload review screenshots and coverage
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: public-site-review
+          path: |
+            .site-test/report/
+            _site/demo/coverage.json
+          if-no-files-found: warn
+      - name: Save failure reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: public-demo-failure
+          path: |
+            .site-test/report/
+            _site/demo/coverage.json
