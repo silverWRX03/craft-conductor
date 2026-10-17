@@ -1,4 +1,4 @@
-# Craft Conductor: Creating and managing  your own modded  Minecraft server should be easy! 
+# Craft Conductor: Creating and managing  your own modded  Minecraft server should be easy for you and friends that want to play on your modded server!
 
 <img src="docs/icon.png" alt="Craft Conductor" width="128" align="right">
 
