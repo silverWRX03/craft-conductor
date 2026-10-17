@@ -261,3 +261,22 @@ def test_production_help_and_manual_assets_are_not_missing(base, page):
     page.evaluate("location.hash='#help'")
     page.get_by_role("heading",name="Help").first.wait_for(timeout=8000)
     assert not errors,repr(errors)
+
+
+def test_real_friends_page_can_create_and_stop_demo_only_invites(base, page):
+    errors=[]
+    page.on("pageerror",lambda exc: errors.append(str(exc)))
+    page.goto(base+"demo/?mode=existing")
+    page.locator("#app").wait_for(state="visible",timeout=15000)
+    page.evaluate("location.hash='#s/family-survival/friends'")
+    page.get_by_text("Let friends set up their Minecraft").first.wait_for(timeout=8000)
+    page.locator("#main label").filter(has_text="Make a download for friends").locator("input[type=checkbox]").check()
+    page.get_by_text("Invite links",exact=True).first.wait_for(timeout=8000)
+    data=page.evaluate("""async()=>await(await fetch('/api/client')).json()""")
+    assert data["enabled"]
+    assert "example.invalid" in data["links"]["local"]
+    assert "example.invalid" in data["links"]["internet"]
+    page.locator("#main").get_by_role("button",name="Stop these links").click()
+    page.get_by_role("button",name="Stop the links",exact=True).last.click()
+    page.wait_for_function("""async()=> (await(await fetch('/api/client')).json()).expired===true""")
+    assert not errors,repr(errors)
