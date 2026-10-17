@@ -126,14 +126,18 @@ def agent_running() -> bool | None:
         if os.name == "nt":
             out = subprocess.run(["tasklist", "/FO", "CSV", "/NH"], capture_output=True, text=True, timeout=10,
                                  creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout
-            return bool(re.search(r'^"playit[^"]*\.exe"', out, re.I | re.M))
+            # (playit.gg's agent: playitd.exe as a service, or playit*.exe run by hand; its tray icon,
+            # playitd-tray.exe, can run without the agent, so it doesn't count)
+            return any(not name.lower().endswith("-tray.exe")
+                       for name in re.findall(r'^"(playit[^"]*\.exe)"', out, re.I | re.M))
         proc = "/proc"
         if os.path.isdir(proc):
             for pid in os.listdir(proc):
                 if pid.isdigit():
                     try:
                         with open(f"{proc}/{pid}/comm") as f:
-                            if f.read().strip().lower().startswith("playit"):
+                            comm = f.read().strip().lower()
+                            if comm.startswith("playit") and "tray" not in comm:
                                 return True
                     except OSError:
                         continue

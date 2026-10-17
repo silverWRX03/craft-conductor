@@ -463,3 +463,15 @@ def test_the_before_you_update_note_goes_first_in_the_release_notes():
     workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     body = workflow[workflow.index("body: |"):]
     assert body.index("steps.before.outputs.text") < body.index("Craft Conductor is in beta")
+
+
+@pytest.mark.skipif(__import__("os").name != "nt", reason="Windows' process list")
+def test_playits_tray_icon_alone_isnt_the_agent(monkeypatch):
+    import subprocess as sp
+
+    def listing(text):
+        return lambda *a, **k: sp.CompletedProcess(a, 0, stdout=text, stderr="")
+    monkeypatch.setattr(tunnel.subprocess, "run", listing('"playitd-tray.exe","24100","Console","2","9,300 K"\n'))
+    assert tunnel.agent_running() is False
+    monkeypatch.setattr(tunnel.subprocess, "run", listing('"playitd-tray.exe","1","Console","2","1 K"\n"playitd.exe","2","Services","0","5 K"\n'))
+    assert tunnel.agent_running() is True
