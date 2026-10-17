@@ -1,116 +1,217 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="night">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light dark">
-  <title>Craft Conductor — Dashboard Preview</title>
-  <link rel="stylesheet" href="css/craft-conductor-theme.css">
-  <link rel="stylesheet" href="css/preview.css">
-  <link rel="stylesheet" href="css/depth.css">
-  <script src="preview.js" defer></script>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="description" content="Craft Conductor runs a Minecraft server on your own computer: mods, friends, backups and updates, from one control panel. Free and open source.">
+  <meta name="theme-color" content="#0A0A0A">
+  <meta name="color-scheme" content="dark light">
+  <title>Craft Conductor: your own Minecraft server, made easy</title>
+  <link rel="icon" type="image/png" href="icon.png">
+  <link rel="stylesheet" href="css/website.css">
+  <script src="demo/host.js" defer></script>
+  <script src="website.js" defer></script>
 </head>
 <body>
-  <!-- Navigation System Container -->
-  <div class="cc-nav-wrapper">
-    <!-- Hamburger Menu Button (Hidden on Desktop via CSS) -->
-    <button class="cc-menu-trigger" id="ccMenuTrigger" aria-label="Toggle App Navigation">
-      <span class="cc-bar"></span>
-      <span class="cc-bar"></span>
-      <span class="cc-bar"></span>
-    </button>
+<a class="skip" href="#content">Skip to the content</a>
+<button id="menu-toggle" class="menu-toggle" type="button" aria-controls="site-nav" aria-expanded="false"><span aria-hidden="true">☰</span> Menu</button>
+<div class="site-scrim" id="site-scrim" hidden></div>
 
-    <!-- Left Sidebar Panel Drawer -->
-    <nav class="cc-sidebar-nav" id="ccSidebarNav">
-      <div class="cc-nav-header">
-        <span class="cc-header-title">Navigation</span>
-      </div>
-      <ul class="cc-nav-list">
-        <li><a href="index.html" class="cc-nav-item active" aria-current="page"><span class="cc-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18"/><path d="M3 9h18M9 9v12"/></svg></span> Dashboard</a></li>
-        <li><a href="console.html" class="cc-nav-item"><span class="cc-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16"/><path d="m7 9 3 3-3 3m6 0h4"/></svg></span> Live Console</a></li>
-        <li><a href="players.html" class="cc-nav-item"><span class="cc-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2m1-15a3 3 0 0 1 0 6m2 3a5 5 0 0 1 3 4v2"/></svg></span> Players</a></li>
-        <li><a href="mods.html" class="cc-nav-item"><span class="cc-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 5v9l9 5 9-5V8m-9 5v9M7.5 5.5l9 5"/></svg></span> Mods Management</a></li>
-        <li><a href="backups.html" class="cc-nav-item"><span class="cc-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg></span> Backups</a></li>
-        <li><a href="settings.html" class="cc-nav-item"><span class="cc-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></svg></span> Settings</a></li>
-        <li><a href="help.html" class="cc-nav-item"><span class="cc-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5C9 3 5 3 3 4v15c3-1 6-1 9 1m0-15c3-2 7-2 9-1v15c-3-1-6-1-9 1V5"/></svg></span> User Manual</a></li>
-      </ul>
-      <div id="mobile-theme-slot" class="cc-nav-theme"></div>
-    </nav>
-
-    <!-- Tap-to-Dismiss Overlay Backing (Mobile Only) -->
-    <div class="cc-nav-overlay" id="ccNavOverlay"></div>
+<aside id="site-nav" class="sidebar" aria-label="Website">
+  <a class="brand" href="#home"><img src="icon.png" alt="" width="34" height="34"><span>Craft<br>Conductor</span></a>
+  <nav aria-label="Sections">
+    <a href="#home" class="nav-link" data-section="home"><span class="nav-icon" aria-hidden="true">⌂</span>Home</a>
+    <a href="#features" class="nav-link" data-section="features"><span class="nav-icon" aria-hidden="true">▦</span>What it does</a>
+    <a href="#demo" class="nav-link" data-section="demo"><span class="nav-icon" aria-hidden="true">▷</span>Try the demo</a>
+    <a href="#download" class="nav-link" data-section="download"><span class="nav-icon" aria-hidden="true">↓</span>Download</a>
+    <a href="#start" class="nav-link" data-section="start"><span class="nav-icon" aria-hidden="true">①</span>Getting started</a>
+    <a href="#help" class="nav-link" data-section="help"><span class="nav-icon" aria-hidden="true">?</span>Help &amp; manual</a>
+    <a href="#safety" class="nav-link" data-section="safety"><span class="nav-icon" aria-hidden="true">◈</span>Safety &amp; releases</a>
+    <a href="testing/" class="nav-link"><span class="nav-icon" aria-hidden="true">✓</span>Real-world testing</a>
+    <a href="https://github.com/silverWRX03/craft-conductor" class="nav-link"><span class="nav-icon" aria-hidden="true">◇</span>GitHub</a>
+  </nav>
+  <div class="nav-bottom">
+    <div class="theme-control"><span>Light</span><button type="button" id="theme-toggle" class="theme-switch" role="switch" aria-checked="true" aria-label="Dark theme"><span class="thumb" aria-hidden="true"></span></button><span>Dark</span></div>
+    <p class="nav-version" id="represented-version">Free and open source</p>
   </div>
-  <div id="main-content-dashboard">
-  <div class="preview-shell">
-    <header class="preview-header">
-      <div><p class="eyebrow">CRAFT CONDUCTOR / DESIGN EVALUATION</p><h1 class="cc-header-title">Server dashboard</h1></div>
-      <div id="desktop-theme-slot"><div id="theme-control" class="theme-control"><span class="theme-label">Light</span><button id="theme" class="theme-slider" type="button" role="switch" aria-label="Dark theme" aria-checked="false"><span class="theme-slider-thumb" aria-hidden="true"></span></button><span class="theme-label">Dark</span></div></div>
-    </header>
-    <p class="preview-note">Interactive preview · sample telemetry · controls simulate activity locally.</p>
-    <main class="cc-panel" aria-label="Server dashboard">
-      <header class="server-header"><div><h2 class="cc-header-title">Obsidian / Survival</h2><span id="server-state" class="cc-chip cc-chip-nominal" role="status">Online</span><span class="server-meta">Minecraft 1.21 · Fabric · Uptime 02:14:32</span></div>
-        <div class="actions"><button id="start" class="cc-btn cc-btn-primary" disabled>Start</button><button id="restart" class="cc-btn cc-btn-secondary">Restart</button><button id="stop" class="cc-btn cc-btn-danger">Stop</button></div>
-      </header>
-      <section class="cc-telemetry-grid" aria-label="Server telemetry">
-        <article class="cc-metric-card"><h3 class="cc-metric-label">CPU <span>8 CORES</span></h3><div id="cpu" class="cc-metric-value">24%</div><p class="cc-metric-subtext">Process utilization</p></article>
-        <article class="cc-metric-card"><h3 class="cc-metric-label">RAM <span>8 GB LIMIT</span></h3><div id="ram" class="cc-metric-value">3.2 GB</div><p class="cc-metric-subtext">40% of allocated memory</p></article>
-        <article class="cc-metric-card"><h3 class="cc-metric-label">Disk <span>100 GB VOLUME</span></h3><div class="cc-metric-value">18.6 GB</div><p class="cc-metric-subtext">World, mods and backups</p></article>
-        <article class="cc-metric-card"><h3 class="cc-metric-label">Players <span>20 SLOTS</span></h3><div id="players" class="cc-metric-value">3 / 20</div><p class="cc-metric-subtext">Connected to the server</p></article>
-      </section>
-      <div class="dashboard-layout">
-        <section class="console-panel" aria-labelledby="console-title">
-          <div class="section-header"><h3 id="console-title" class="cc-header-title">Live console</h3><button id="clear" class="cc-btn cc-btn-secondary">Clear</button></div>
-          <div id="console" class="cc-terminal-box" role="log" aria-label="Server console" aria-live="polite" aria-relevant="additions">
-            <div class="cc-log-line"><time class="cc-log-timestamp">[14:32:01]</time> <span class="cc-log-meta">[Server/INFO]</span> Loading world: survival</div>
-            <div class="cc-log-line"><time class="cc-log-timestamp">[14:32:04]</time> <span class="cc-log-success">Done (3.124s)! Server ready.</span></div>
-            <div class="cc-log-line"><time class="cc-log-timestamp">[14:35:12]</time> Alex joined the game</div>
-            <div class="cc-log-line"><time class="cc-log-timestamp">[14:37:23]</time> Sam joined the game</div>
-            <div class="cc-log-line"><time class="cc-log-timestamp">[14:38:09]</time> Robin joined the game</div>
-            <div class="cc-log-line"><time class="cc-log-timestamp">[14:40:11]</time> <span class="cc-log-warning">Tick delay detected: 120 ms. Monitoring recovery.</span></div>
-            <div class="cc-log-line"><time class="cc-log-timestamp">[14:40:12]</time> <span class="cc-log-success">Tick timing returned to normal.</span></div>
-            <div class="cc-log-line"><time class="cc-log-timestamp">[14:42:08]</time> <span class="cc-log-error">Sample diagnostic: optional map service unavailable.</span></div>
-          </div>
-          <form id="command-form" class="cc-command-wrapper"><span class="cc-command-prompt" aria-hidden="true">&gt;</span><label class="sr-only" for="command">Server command</label><input id="command" class="cc-command-input" placeholder="Try help, list or say hello" autocomplete="off" maxlength="500" required><button class="cc-btn cc-btn-primary" type="submit">Execute</button></form>
-        </section>
-        <aside class="dashboard-rail" aria-label="Server details">
-          <section class="cc-panel" aria-labelledby="connected-title"><h3 id="connected-title" class="cc-header-title">Connected Players</h3><ul id="connected-players" class="player-list"><li>Alex <span class="cc-chip">Operator</span></li><li>Sam <span class="cc-log-meta">Survival</span></li><li>Robin <span class="cc-log-meta">Survival</span></li></ul><p id="player-note" class="cc-metric-subtext">3 players online</p></section>
-          <section class="cc-panel" aria-labelledby="runtime-title"><h3 id="runtime-title" class="cc-header-title">Runtime Parameters</h3><dl class="runtime"><dt>Java</dt><dd>21</dd><dt>Memory</dt><dd>-Xmx8G</dd><dt>Port</dt><dd>25565</dd><dt>Loader</dt><dd>Fabric</dd><dt>View distance</dt><dd>10 chunks</dd><dt>Auto backup</dt><dd>Every 6 hours</dd></dl></section>
+</aside>
+
+<div id="website">
+<main id="content">
+  <section class="section hero" id="home" aria-labelledby="hero-title">
+    <div class="hero-text">
+      <p class="eyebrow"><span class="status-dot" aria-hidden="true"></span>Your server · your world · your computer</p>
+      <h1 id="hero-title">Your own Minecraft server,<br><em>without the headache.</em></h1>
+      <p class="lede">Craft Conductor turns a home computer into a Minecraft server for your family and friends. It sets up Minecraft, the mods and Java for you, gets your friends' games ready to join, makes backups, and keeps everything up to date. All from one control panel in your browser.</p>
+      <div class="hero-actions">
+        <a class="button primary" href="#download">Download Craft Conductor <span aria-hidden="true">↓</span></a>
+        <button type="button" class="button secondary launch-demo" data-scenario="choose">Try the demo in your browser <span aria-hidden="true">↗</span></button>
+      </div>
+      <ul class="hero-facts">
+        <li>Free and open source</li><li>Runs on Windows, Mac and Linux</li><li>No command lines or config files</li>
+      </ul>
+    </div>
+    <button type="button" class="hero-shot launch-demo" data-scenario="existing" aria-label="Open the interactive demo of a running server">
+      <img src="demo/app/assets/screenshots/dashboard.png" width="1440" height="1000" alt="Craft Conductor's Dashboard for a running server: memory, CPU, players online and the live console">
+      <span class="shot-badge">Real screenshot · click to try it</span>
+    </button>
+  </section>
+
+  <section class="section" id="features" aria-labelledby="features-title">
+    <p class="eyebrow">What it does</p>
+    <h2 id="features-title">Simple the first time.<br><span class="muted">Still there when you want more.</span></h2>
+    <p class="section-copy">You don't need to know what a mod loader, a port or a JAR file is. Craft Conductor asks in plain words and does the fiddly parts. When something goes wrong, it says what happened and offers a fix.</p>
+    <div class="feature-grid">
+      <article class="feature">
+        <img src="demo/app/assets/screenshots/new-server.png" alt="The New server page, with ready-made quick starts" loading="lazy" width="1440" height="1000">
+        <h3>A server in a few clicks</h3>
+        <p>Pick a ready-made setup or choose Minecraft's version, the server type (Fabric, NeoForge, Forge, Quilt, Paper or plain Minecraft) and your mods. Craft Conductor downloads the right Java, loader and mods, and checks they start before anyone plays.</p>
+      </article>
+      <article class="feature">
+        <img src="demo/app/assets/screenshots/mod-browser.png" alt="The mod browser, searching Modrinth and CurseForge" loading="lazy" width="1440" height="1000">
+        <h3>Mods without the chaos</h3>
+        <p>Find mods and modpacks on Modrinth and CurseForge. Craft Conductor adds the mods they need, warns about early (beta or alpha) builds, and tells you plainly when a mod has no build for your Minecraft version. It never changes your version to make one fit.</p>
+      </article>
+      <article class="feature">
+        <img src="demo/app/assets/screenshots/friends.png" alt="The Friends page with the invite link" loading="lazy" width="1440" height="1000">
+        <h3>Friends join with one link</h3>
+        <p>Send an invite link: it sets up your friends' game with the right version and mods. The whitelist keeps strangers out, and when someone new asks to join you allow them with one press.</p>
+      </article>
+      <article class="feature">
+        <img src="demo/app/assets/screenshots/update-readiness.png" alt="Update readiness: which mods are ready for a new Minecraft" loading="lazy" width="1440" height="1000">
+        <h3>Updates that don't break things</h3>
+        <p>A new Minecraft goes in once every mod supports it. There's a backup first, you can try the update on a copy, and if the new version doesn't start, Craft Conductor rolls it back.</p>
+      </article>
+      <article class="feature">
+        <img src="demo/app/assets/screenshots/backups.png" alt="Backups, checked, with what changed" loading="lazy" width="1440" height="1000">
+        <h3>Backups you can trust</h3>
+        <p>Scheduled backups, a backup before every update, a check that each one is complete, and a list of what changed. Roll the whole server back, or just put one area of the world back.</p>
+      </article>
+      <article class="feature">
+        <img class="feature-phone" src="demo/app/assets/screenshots/phone.png" alt="Craft Conductor's control panel on a phone" loading="lazy" width="390" height="844">
+        <h3>From your phone, too</h3>
+        <p>Install the control panel on your phone, get notifications when a friend asks to join or a server stops, and invite helpers with their own sign-in and only the permissions you choose.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="section demo-section" id="demo" aria-labelledby="demo-title">
+    <p class="eyebrow">Try it before you install</p>
+    <h2 id="demo-title">The real control panel, with made-up data.</h2>
+    <p class="section-copy">The demo is Craft Conductor's own control panel from the release shown below, running in your browser with fictional servers and players. Make a server, start it, let a friend in, add mods, back up and update. Nothing is installed, nothing runs on your computer and nothing is sent anywhere.</p>
+    <div class="demo-choices-inline">
+      <button type="button" class="choice-card launch-demo" data-scenario="new">
+        <span class="choice-icon" aria-hidden="true">＋</span><b>Create my first server</b>
+        <small>Start with nothing and go through the real setup, the way you would at home.</small><strong>Start from scratch →</strong>
+      </button>
+      <button type="button" class="choice-card launch-demo" data-scenario="existing">
+        <span class="choice-icon" aria-hidden="true">▣</span><b>Explore an existing server</b>
+        <small>A family server with friends online, mods, backups, a join request and an update waiting.</small><strong>Look around →</strong>
+      </button>
+      <div class="phone-card">
+        <button type="button" id="phone-qr" class="qr-button" aria-label="Open the phone demo here, as a phone-sized preview">
+          <img src="demo/phone-qr.svg" alt="QR code for the phone demo" width="140" height="140">
+        </button>
+        <p><b>On your phone</b><br>Scan the code to try the phone demo, or <a id="phone-link" href="demo/?mode=existing&amp;mobile=1">open it here</a>. Each device keeps its own made-up data.</p>
+      </div>
+    </div>
+    <p class="fineprint" id="demo-version">The demo shows the newest published release.</p>
+  </section>
+
+  <section class="section" id="download" aria-labelledby="download-title">
+    <p class="eyebrow">Download</p>
+    <h2 id="download-title">One file. No installer.</h2>
+    <p class="section-copy">Get the file for the computer that will run the server. No Python and no Java to set up first. Craft Conductor is free, open source and <strong>in beta</strong>: keep backups (it makes one before every update) and please report problems.</p>
+    <div class="download-grid">
+      <a class="download-option" href="https://github.com/silverWRX03/craft-conductor/releases/latest/download/craft-conductor-windows-x64.exe"><b>Windows</b><small>Windows 10 or 11, 64-bit</small><code>craft-conductor-windows-x64.exe</code></a>
+      <a class="download-option" href="https://github.com/silverWRX03/craft-conductor/releases/latest/download/craft-conductor-macos-arm64"><b>Mac</b><small>Apple silicon (M1 or newer)</small><code>craft-conductor-macos-arm64</code></a>
+      <a class="download-option" href="https://github.com/silverWRX03/craft-conductor/releases/latest/download/craft-conductor-linux-x64"><b>Linux</b><small>64-bit Intel or AMD</small><code>craft-conductor-linux-x64</code></a>
+      <a class="download-option" href="https://github.com/silverWRX03/craft-conductor/releases/latest/download/craft-conductor-linux-arm64"><b>Linux on ARM</b><small>Raspberry Pi 4 or 5 (64-bit)</small><code>craft-conductor-linux-arm64</code></a>
+    </div>
+    <p class="fineprint">Downloads come from <a href="https://github.com/silverWRX03/craft-conductor/releases/latest">the newest release on GitHub</a>, with its notes and <code>SHA256SUMS.txt</code> to check them. Anything else with Python 3.11 or newer: <code>pipx install</code> the release's <code>.whl</code> file, or use the Docker image (see <a href="https://github.com/silverWRX03/craft-conductor/wiki/Power-Users">Power users</a>).</p>
+    <p class="notice-line"><b>Joining a friend's server?</b> You don't need this page: open the invite link they sent you. It offers the right download and sets up your game.</p>
+  </section>
+
+  <section class="section steps" id="start" aria-labelledby="start-title">
+    <p class="eyebrow">Getting started</p>
+    <h2 id="start-title">From download to playing.</h2>
+    <ol class="step-row">
+      <li><b>01 · Open it</b><h3>Run the file</h3><p>On Windows, if SmartScreen says it "protected your PC", choose <em>More info → Run anyway</em> (Craft Conductor isn't code-signed yet). On a Mac, run it once from Terminal: see <a href="https://github.com/silverWRX03/craft-conductor/wiki/Getting-started">Getting started</a>.</p></li>
+      <li><b>02 · Sign in</b><h3>Your browser opens it</h3><p>Press <em>Run my own server</em>, accept the notice, sign in with <code>PASSWORD</code>, and choose your own password.</p></li>
+      <li><b>03 · Make it</b><h3>Press New server</h3><p>Pick the kind of server and your mods, then <em>Create my server</em>. The guided setup can walk you through every step.</p></li>
+      <li><b>04 · Play</b><h3>Start it and invite friends</h3><p>Press <em>Start</em>, join from Minecraft, and send friends the invite link from the Friends page.</p></li>
+    </ol>
+  </section>
+
+  <section class="section" id="help" aria-labelledby="help-title">
+    <p class="eyebrow">Help and the manual</p>
+    <h2 id="help-title">Answers in plain words.</h2>
+    <div class="link-grid">
+      <a class="link-card" href="https://github.com/silverWRX03/craft-conductor/wiki/Craft-Conductor-Manual"><b>User manual</b><span>Every page of the app, with pictures. It's in the app too: Help → User manual.</span></a>
+      <a class="link-card" href="https://github.com/silverWRX03/craft-conductor/wiki/Troubleshooting"><b>Troubleshooting</b><span>What to do when something goes wrong, and Check my setup on a server's Dashboard.</span></a>
+      <a class="link-card" href="https://github.com/silverWRX03/craft-conductor/wiki/Joining-a-friends-server"><b>Joining a friend's server</b><span>For the friends you invite: the invite link sets up their game.</span></a>
+      <a class="link-card" href="https://github.com/silverWRX03/craft-conductor/wiki/Power-Users"><b>Power users</b><span>The command line, craft-conductor.toml, running it as a service, Linux servers, Docker.</span></a>
+      <a class="link-card" href="https://github.com/silverWRX03/craft-conductor/issues/new/choose"><b>Report a bug or suggest an idea</b><span>On GitHub. For a security problem, please report it privately (see Security).</span></a>
+      <a class="link-card" href="https://github.com/silverWRX03/craft-conductor/blob/main/CHANGELOG.md"><b>What's new</b><span>The changelog: what each release added, changed and fixed.</span></a>
+    </div>
+  </section>
+
+  <section class="section" id="safety" aria-labelledby="safety-title">
+    <p class="eyebrow">Safety and releases</p>
+    <h2 id="safety-title">Your computer, your data.</h2>
+    <div class="facts">
+      <div><h3>No tracking</h3><p>Craft Conductor doesn't collect usage data: no analytics, tracking, advertising or account. Your worlds, settings and backups stay on your computer.</p></div>
+      <div><h3>Strangers stay out</h3><p>The whitelist is on when the server can be reached from the internet, and friends outside your home join through a free playit.gg tunnel or your router (Craft Conductor explains the risks of each).</p></div>
+      <div><h3>Checked downloads</h3><p>Each release lists the SHA-256 of its files, and the built-in updater checks them before installing a new version.</p></div>
+      <div><h3>Tested on real computers</h3><p>Besides automated tests, releases are tried on real machines. The <a href="testing/">real-world testing dashboard</a> shows what was tested for each version.</p></div>
+      <div><h3>Open source</h3><p>GPL-3.0-or-later. Made with the help of AI (Anthropic's Claude), and tested, but it may still have mistakes: it's provided as is. <a href="https://github.com/silverWRX03/craft-conductor/blob/main/SECURITY.md">Security policy</a>.</p></div>
+      <div><h3>Not affiliated</h3><p>Minecraft belongs to Mojang; each mod belongs to its author. Craft Conductor isn't affiliated with Mojang, Microsoft, Modrinth or CurseForge.</p></div>
+    </div>
+  </section>
+</main>
+<footer class="site-footer">
+  <span class="footer-brand">Craft Conductor</span>
+  <span><a href="testing/">Real-world testing</a> · <a href="https://github.com/silverWRX03/craft-conductor/releases">Releases</a> · <a href="https://github.com/silverWRX03/craft-conductor/blob/main/SECURITY.md">Security</a> · <a href="https://github.com/silverWRX03/craft-conductor">Source code</a></span>
+</footer>
+</div>
+
+<div class="demo-overlay" id="demo-overlay" hidden>
+  <div class="demo-shade" id="demo-shade"></div>
+  <button type="button" class="leave-demo" id="leave-demo"><span aria-hidden="true">←</span><span>Leave demo</span></button>
+  <section class="demo-drawer" id="demo-drawer" role="dialog" aria-modal="true" aria-labelledby="demo-heading">
+    <div class="demo-intro" id="demo-intro">
+      <p class="eyebrow">Interactive demo · made-up data</p>
+      <h2 id="demo-heading" tabindex="-1">How would you like to start?</h2>
+      <p>This is Craft Conductor's real control panel. The servers, players and mods are fictional: nothing is installed, nothing runs on your computer, and nothing is sent anywhere.</p>
+      <div class="demo-choices">
+        <button type="button" class="choice-card" data-start="new"><span class="choice-icon" aria-hidden="true">＋</span><b>Create my first server</b><small>No servers yet: go through New server, start it, and see a friend join.</small><strong>Start from scratch →</strong></button>
+        <button type="button" class="choice-card" data-start="existing"><span class="choice-icon" aria-hidden="true">▣</span><b>Explore an existing server</b><small>"Family Survival", with friends online, mods, backups and a friend asking to join.</small><strong>Look around →</strong></button>
+      </div>
+      <p class="demo-notice" id="demo-resume" hidden>Your earlier visit is kept in this browser: you'll pick up where you left off. <button type="button" class="link-button" id="demo-forget">Start again instead</button></p>
+    </div>
+    <div class="demo-stage" id="demo-stage" hidden>
+      <div class="demo-toolbar" role="toolbar" aria-label="Demo controls">
+        <strong class="demo-label"><span class="demo-tag">Demo</span> <span id="demo-which"></span></strong>
+        <span class="demo-tools">
+          <button type="button" id="demo-request" title="A fictional friend uses your invite and asks to join the running server">Simulate a join request</button>
+          <label class="demo-check" title="The next update on any server fails to start, so you can see Craft Conductor roll it back"><input type="checkbox" id="demo-fail"> Next update fails</label>
+          <button type="button" id="demo-view" aria-pressed="false">Phone view</button>
+          <button type="button" id="demo-choices">Change demo</button>
+          <button type="button" id="demo-reset">↻ Reset demo</button>
+        </span>
+      </div>
+      <div class="demo-workspace" id="demo-workspace">
+        <div class="frame-holder" id="frame-holder"></div>
+        <aside class="phone-side" id="phone-side" hidden>
+          <img src="demo/phone-qr.svg" alt="QR code for the phone demo" width="150" height="150">
+          <p><b>Try it on your own phone.</b> Scan the code: the phone demo opens on its own, with its own made-up data. You can install it like an app.</p>
         </aside>
       </div>
-    </main>
-    <footer>Evaluation build · <a href="https://github.com/silverWRX03/craft-conductor">Repository</a></footer>
-  </div>
-  </div>
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  const trigger = document.getElementById('ccMenuTrigger');
-  const sidebar = document.getElementById('ccSidebarNav');
-  const overlay = document.getElementById('ccNavOverlay');
-  const navItems = document.querySelectorAll('.cc-nav-item');
-
-  function toggleMenu() {
-    trigger.classList.toggle('open');
-    sidebar.classList.toggle('open');
-    overlay.classList.toggle('open');
-  }
-
-  function closeMenu() {
-    trigger.classList.remove('open');
-    sidebar.classList.remove('open');
-    overlay.classList.remove('open');
-  }
-
-  // Handle Event Triggers
-  if (trigger && sidebar && overlay) {
-    trigger.addEventListener('click', toggleMenu);
-    overlay.addEventListener('click', closeMenu);
-
-    // Auto-collapse instantly once a sub-selection is triggered
-    navItems.forEach(item => {
-      item.addEventListener('click', closeMenu);
-    });
-  }
-});
-</script>
+      <p class="demo-status" id="demo-status" role="status" aria-live="polite"></p>
+    </div>
+  </section>
+</div>
 </body>
 </html>

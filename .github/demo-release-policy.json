@@ -1,0 +1,4 @@
+{
+  "channel": "beta-and-stable",
+  "about": "Which published release the website's demo shows (tools/select_website_release.py). beta-and-stable: the newest published release. stable: only releases that are neither marked pre-release on GitHub nor titled '(beta)'; change it to stable when the owner decides Craft Conductor's first stable release is out (docs/website.md)."
+}

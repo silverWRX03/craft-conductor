@@ -1,0 +1,21 @@
+/* The website demo's own pieces on top of the real page (sim/ui.js): one corner, the app's colours. */
+.cc-demo-badge { position: fixed; z-index: 9000; right: 12px; bottom: 12px; max-width: min(340px, calc(100vw - 24px));
+  background: var(--panel, #121212); color: var(--text, #e2e8f0); border: 1px solid var(--accent, #ff3e00);
+  box-shadow: 0 6px 24px var(--shadow, #0008); font: 12px/1.45 var(--mono, ui-monospace, monospace); }
+.cc-demo-badge-head { display: flex; gap: 8px; align-items: center; width: 100%; padding: 6px 10px; border: 0; cursor: pointer;
+  background: var(--accent, #ff3e00); color: #fff; font: 700 11px var(--mono, ui-monospace, monospace); letter-spacing: .08em; text-align: left; }
+.cc-demo-dot { width: 7px; height: 7px; border-radius: 50%; background: #fff; flex: none; }
+.cc-demo-hint { margin: 0; padding: 8px 10px; }
+.cc-demo-badge.collapsed .cc-demo-hint { display: none; }
+.cc-demo-notes, .cc-demo-pushes { position: fixed; z-index: 9001; display: grid; gap: 8px; pointer-events: none; }
+.cc-demo-notes { right: 12px; bottom: 64px; width: min(360px, calc(100vw - 24px)); }
+.cc-demo-pushes { right: 12px; top: 72px; width: min(360px, calc(100vw - 24px)); }
+.cc-demo-note { pointer-events: auto; display: flex; gap: 6px; align-items: flex-start; padding: 10px 12px;
+  background: var(--panel-2, #191919); color: var(--text, #e2e8f0); border: 1px solid var(--border, #2c2c2c);
+  border-left: 3px solid var(--accent, #ff3e00); box-shadow: 0 6px 24px var(--shadow, #0008); font: 13px/1.4 system-ui, sans-serif; }
+.cc-demo-note.push { border-left-color: var(--ok-fg, #22c55e); }
+.cc-demo-note span { flex: 1; }
+.cc-demo-close { border: 0; background: none; color: inherit; cursor: pointer; padding: 0 2px; font-size: 13px; }
+.cc-demo-refused { font: 16px/1.5 system-ui, sans-serif; padding: 40px; }
+@media (prefers-reduced-motion: no-preference) { .cc-demo-note { animation: cc-demo-in .18s ease-out; } }
+@keyframes cc-demo-in { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }

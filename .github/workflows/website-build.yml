@@ -1,0 +1,130 @@
+name: website-build
+
+# Puts the whole GitHub Pages site together and tests it (the homepage, the invite page, the
+# real-world testing dashboard and the interactive demo of the newest published release), for
+# website-preview-validation.yml (a candidate for review) and pages.yml (what gets published).
+# Every check must pass: a failure here means nothing is published and the live site stays as it is.
+# See docs/website.md.
+on:
+  workflow_call:
+    inputs:
+      pages-artifact:
+        description: "Also upload the site as the GitHub Pages artifact (pages.yml publishes it)"
+        type: boolean
+        default: false
+    outputs:
+      version:
+        description: "The release the demo shows"
+        value: ${{ jobs.build.outputs.version }}
+      channel:
+        value: ${{ jobs.build.outputs.channel }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      channel: ${{ steps.release.outputs.channel }}
+    env:
+      CRAFT_UI_NODE: node
+      CRAFT_UI_PLAYWRIGHT: ${{ github.workspace }}/../playwright/node_modules/playwright
+      CRAFT_UI_BROWSERS: chromium,firefox,webkit
+      CRAFT_WEBSITE_REQUIRED: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install the test tools (pytest, and Playwright's browsers; nothing the site needs)
+        run: |
+          pip install -e ".[dev]"
+          mkdir -p ../playwright
+          npm install --prefix ../playwright --no-save --no-audit --no-fund playwright@1.63.0
+          npx --prefix ../playwright playwright install --with-deps chromium firefox webkit
+
+      - name: The real-world testing records are valid
+        run: python tools/real_world_tests.py verify
+      - name: The website, the release policy and the demo's simulation against the real API
+        run: python -m pytest -q tests/test_website.py tests/test_website_release.py tests/test_website_demo_contract.py tests/test_webui_syntax.py
+      - name: In a browser, with this checkout's control panel (all three browsers for the release below)
+        env:
+          CRAFT_UI_BROWSERS: chromium
+          CRAFT_WEBSITE_OUT: ${{ runner.temp }}/screenshots/development
+        run: python -m pytest -q tests/test_website_browser.py
+
+      - name: The release the demo shows (.github/demo-release-policy.json)
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python tools/select_website_release.py --github-output "$GITHUB_OUTPUT"
+      - name: That release's source, exactly as tagged
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch --no-tags --depth=1 origin "refs/tags/$TAG:refs/tags/$TAG"
+          mkdir -p "$RUNNER_TEMP/release"
+          git archive "$TAG" src | tar -x -C "$RUNNER_TEMP/release"
+          test -f "$RUNNER_TEMP/release/src/craft_conductor/webui/app.js"
+          gh api "repos/${{ github.repository }}/releases/tags/$TAG" > "$RUNNER_TEMP/release.json"
+      - name: The demo answers everything that release's control panel asks for
+        run: python tools/check_demo_contract.py --app "$RUNNER_TEMP/release/src/craft_conductor/webui/app.js"
+      - name: In browsers, with that release's control panel
+        env:
+          CRAFT_WEBSITE_SOURCE: ${{ runner.temp }}/release/src
+          CRAFT_WEBSITE_VERSION: ${{ steps.release.outputs.version }}
+          CRAFT_WEBSITE_CHANNEL: ${{ steps.release.outputs.channel }}
+          CRAFT_WEBSITE_OUT: ${{ runner.temp }}/screenshots/release
+        run: python -m pytest -q tests/test_website_browser.py
+      - name: Put the site together
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          CHANNEL: ${{ steps.release.outputs.channel }}
+          URL: ${{ steps.release.outputs.url }}
+        run: |
+          python tools/build_website.py --output _site --source "$RUNNER_TEMP/release/src" \
+            --version "$VERSION" --channel "$CHANNEL" --release-url "$URL" --release-assets "$RUNNER_TEMP/release.json"
+          for page in index.html join/index.html testing/index.html googlef2c4a8b5e575e76a.html demo/index.html demo/app/index.html; do
+            test -s "_site/$page" || { echo "::error::_site/$page is missing"; exit 1; }
+          done
+
+      - name: Screenshots from the browser tests (for review)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: website-screenshots
+          path: ${{ runner.temp }}/screenshots/
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: The site, as it would be published (for review)
+        uses: actions/upload-artifact@v7
+        with:
+          name: website-candidate
+          path: _site/
+          retention-days: 14
+      - name: The site, for GitHub Pages
+        if: inputs.pages-artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+      - name: Summary
+        if: always()
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          CHANNEL: ${{ steps.release.outputs.channel }}
+          OUTCOME: ${{ job.status }}
+        run: |
+          if [ "$OUTCOME" = "success" ]; then
+            echo "### Website ready: demo of Craft Conductor $VERSION ($CHANNEL)" >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "### The website was NOT published"
+              echo "A check above failed, so nothing was published: the live site (and its demo) stay as they were."
+              echo "The failing step's log says why; the browser tests' screenshots are in the website-screenshots artifact."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error title=Website not published::A check failed: the live site stays as it was. See the summary of this run."
+          fi

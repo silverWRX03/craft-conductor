@@ -1,0 +1,34 @@
+name: website-preview-validation
+
+# The website, built and tested as pages.yml would publish it, for a pull request that changes it,
+# the demo's simulation, or the control panel the demo shows. (A change to the API alone is checked
+# against the simulation by tests/test_website_demo_contract.py in test.yml, on every pull request.)
+# Publishing stays with pages.yml alone: this only leaves the candidate site and screenshots to review.
+on:
+  pull_request:
+    paths:
+      - "site/**"
+      - "src/craft_conductor/webui/**"
+      - "tools/build_website.py"
+      - "tools/select_website_release.py"
+      - "tools/check_demo_contract.py"
+      - "tools/real_world_tests.py"
+      - "tests/test_website*.py"
+      - "tests/ui_website*.cjs"
+      - "tests/demo_contract.cjs"
+      - "tests/example_hub.py"
+      - ".github/demo-release-policy.json"
+      - ".github/workflows/website-*.yml"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: website-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    uses: ./.github/workflows/website-build.yml
