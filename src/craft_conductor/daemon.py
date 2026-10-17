@@ -925,6 +925,13 @@ class Daemon:
             modpack.apply(self.m.config.root, spec.modpack_version, self.m.http, exclude=spec.modpack_exclude)
         self.m.reload_config()
         setupmod.whitelist_as_chosen(self.m.server_dir, spec)  # a modpack's server.properties may turn it on
+        if spec.owner_name:  # (the person's own name: on the whitelist, so they aren't locked out of their server)
+            from .http import HttpError
+            from .players import Players, PlayerError
+            try:
+                log.info("%s", Players(self.m.server_dir, self.m.http).act("whitelist-add", spec.owner_name))
+            except (PlayerError, HttpError, OSError, RuntimeError) as e:
+                log.warning("couldn't put %s on the whitelist (%s): add yourself on the Players page", spec.owner_name, e)
         if spec.world_source is not None:
             from . import world
             log.info("bringing in your world")

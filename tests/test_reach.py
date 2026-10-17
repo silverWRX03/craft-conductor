@@ -410,3 +410,56 @@ def test_the_page_says_the_same_as_reach_py():
     block = js[js.index("const REACH_TEXT = {"):js.index("};", js.index("const REACH_TEXT = {"))]
     texts = {k: "".join(re.findall(r'"((?:[^"\\]|\\.)*)"', v)) for k, v in re.findall(r"(\w+): ((?:\"[^\n]*\"(?: \+)?\s*)+)", block)}
     assert texts == {"router": reach.ROUTER_RISKS, "playit": reach.PLAYIT_DOWNSIDES, "whitelist": reach.WHITELIST_OFF_WARNING}
+
+
+def test_a_link_made_before_links_ended_within_a_week_stops_when_the_new_version_starts(hub_env):
+    import time
+    from craft_conductor import clientpack
+    hub, c = hub_env
+    d = hub.get("alpha")
+    path = d.m.config.path
+    configmod.set_value(path, "client", "enabled", "true")
+    configmod.set_value(path, "client", "token", '"' + clientpack.new_token() + '"')
+    sent = []
+    for old_expiry in ("0", str(int(time.time()) + 30 * 86400)):  # ("until I make new ones", and 30 days)
+        configmod.set_value(path, "client", "expires", old_expiry)
+        d.m.reload_config()
+        d.m.notifier.send = lambda text, *a, **k: sent.append(text)
+        hub._end_long_link("alpha", d.m)
+        assert not d.m.config.client.link_works(time.time())
+        assert "stopped" in sent[-1] and "a week at most" in sent[-1]
+    # a link within the week keeps working
+    clientpack.make_link(path, 7)
+    d.m.reload_config()
+    hub._end_long_link("alpha", d.m)
+    assert d.m.config.client.link_works(time.time())
+
+
+def test_the_owners_own_name_goes_on_the_whitelist(hub_env, http):
+    hub, c = hub_env
+    login(c)
+    http.json["https://api.mojang.com/users/profiles/minecraft/Owner_1"] = {"id": "0" * 32, "name": "Owner_1"}
+    assert c.post("/api/hub/create", {"loader": "vanilla", "motd": "Bad name", "accept_eula": True,
+                                      "reach": "playit", "owner_name": "not a name!"})[0] == 400
+    status, r, _ = c.post("/api/hub/create", {"loader": "vanilla", "motd": "Mine", "accept_eula": True,
+                                              "reach": "playit", "owner_name": "Owner_1"})
+    assert status == 200, r
+    d = hub.get(r["id"])
+    wait_for(lambda: d.last_job and d.last_job["name"] == "set up server", timeout=30)
+    names = [e["name"] for e in json.loads((d.m.server_dir / "whitelist.json").read_text())]
+    assert names == ["Owner_1"] and props(d)["white-list"] == "true"
+
+
+def test_the_before_you_update_note_goes_first_in_the_release_notes():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("release_note", ROOT / "packaging" / "release_note.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    text = ("## 1.2.0 (2026-11-01)\n\n**Before you update:** old links stop.\n\n**Added**\n- x\n"
+            "- **Before you update:** and this.\n\n## 1.1.0 (2026-10-01)\n\n**Before you update:** not this one.\n")
+    assert mod.note("1.2.0", text) == "> **Before you update:** old links stop.\n>\n> **Before you update:** and this."
+    assert mod.note("1.1.0", text) == "> **Before you update:** not this one."
+    assert mod.note("9.9.9", text) == ""
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    body = workflow[workflow.index("body: |"):]
+    assert body.index("steps.before.outputs.text") < body.index("Craft Conductor is in beta")

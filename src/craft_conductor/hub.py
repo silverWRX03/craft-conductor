@@ -612,6 +612,7 @@ class Hub:
                 self.daemons.pop(sid, None)
                 return
         self.problems.pop(sid, None)
+        self._end_long_link(sid, m)
         d = Daemon(m, tick=self.tick, autostart=False, server_id=sid, hub_managed=True)
         d.hub = self
         m.notifier.listeners.append(lambda message, sid=sid: self.phone_notify(sid, message))
@@ -620,6 +621,25 @@ class Hub:
         t = threading.Thread(target=d.run, daemon=True, name=f"server:{sid}")
         self._threads[sid] = t
         t.start()
+
+    def _end_long_link(self, sid: str, m) -> None:
+        """An invite link made before links worked a week at most ("until I make new ones", or
+        30 days) stops now: while it works, the download port is open. The owner was told in the
+        release notes before updating, and is told here again (activity and bell)."""
+        from .clientpack import stop_link
+        from .config import LINK_DAYS
+        c, now = m.config.client, time.time()
+        if not c.link_works(now) or (c.expires and c.expires <= now + max(LINK_DAYS) * 86400 + 3600):
+            return
+        try:
+            stop_link(m.config.path, now)
+            m.reload_config()
+        except (ConfigError, OSError) as e:
+            log.warning("couldn't stop %s's long-lived invite link: %s", sid, e)
+            return
+        log.info("stopped %s's invite link: links now work for a week at most", sid)
+        m.notifier.send("The friends' invite links of this server stopped: links now work for a week at most (the download "
+                        "port is only open while one works). Make new links on its Friends page; friends who already set up keep playing.")
 
     @property
     def health(self):

@@ -125,6 +125,7 @@ class SetupSpec:
     world_source: Path | None = None  # where that world is, found by the hub (never from the form)
     reach: str = ""                # how friends outside join: playit | forward | home (reach.py)
     whitelist_off_ok: bool = False  # the person was warned and still wants the whitelist off on a reachable server
+    owner_name: str = ""           # the person's own Minecraft name, put on the whitelist so they aren't locked out
     reachable: bool = False        # it can be reached from the internet (decided by the hub, never from the form)
 
     @classmethod
@@ -186,6 +187,7 @@ class SetupSpec:
             port_chosen="port" in d,
             reach=str(d.get("reach") or ""),
             whitelist_off_ok=d.get("whitelist_off_ok") is True,
+            owner_name=str(d.get("owner_name") or "").strip(),
             modpack_version=str(d.get("modpack_version") or ""),
             modpack_exclude=pack_paths("modpack_exclude"),
             local_mods=[str(x) for x in (d.get("local_mods") or []) if isinstance(x, str)],
@@ -209,6 +211,9 @@ class SetupSpec:
         from .reach import WAYS
         if spec.reach and spec.reach not in WAYS:
             raise ConfigError("friends outside join through playit.gg, port forwarding, or not at all (home)")
+        from .players import NAME_RE
+        if spec.owner_name and not NAME_RE.fullmatch(spec.owner_name):
+            raise ConfigError("a Minecraft name is 1 to 16 letters, numbers or _")
         if spec.modpack_version and not re.fullmatch(r"[A-Za-z0-9]{8}|curseforge:\d{1,10}", spec.modpack_version):
             raise ConfigError("that isn't a Modrinth or CurseForge modpack version")
         if spec.world and not re.fullmatch(r"(save:)?[a-f0-9]{16}", spec.world):
