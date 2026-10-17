@@ -20,7 +20,9 @@ def build(destination: Path, version: str, channel: str, source: Path = SOURCE) 
     assets = destination / "assets"
     assets.mkdir(exist_ok=True)
     original = (source / "index.html").read_text(encoding="utf8")
-    required = ("icon.png", "style.css", "craft-conductor-theme.css",
+    required = ("icon.png", "icon-192.png", "icon-512.png",
+                "style.css", "craft-conductor-theme.css", "manual.md",
+                "help-network.svg", "help-router.svg",
                 "i18n.js", "rich.js", "pager.js", "app.js")
     for asset in required:
         original = original.replace('"/' + asset + '"', '"assets/' + asset + '"')
@@ -46,11 +48,21 @@ def build(destination: Path, version: str, channel: str, source: Path = SOURCE) 
             before = app
             app = app.replace("  registerWorker();", "  // GitHub Pages demo: service worker deliberately disabled.")
             app = app.replace('loadLanguage("/")', 'loadLanguage("./assets/")')
+            # The production manual/help use server-root URLs. In GitHub Pages
+            # the isolated demo lives under /craft-conductor/demo/.
+            app = app.replace('fetch("/manual.md"', 'fetch("assets/manual.md"')
+            app = app.replace('/screenshots/${name}.png', 'assets/screenshots/${name}.png')
+            app = app.replace('/help-network.svg', 'assets/help-network.svg')
+            app = app.replace('/help-router.svg', 'assets/help-router.svg')
+            app = app.replace('/icon-192.png', 'assets/icon-192.png')
+            app = app.replace('/icon-512.png', 'assets/icon-512.png')
             if app == before or "registerWorker();" in app:
                 raise SystemExit("Demo build failed to disable service worker or relocate i18n")
             (assets / "app.js").write_text(app, encoding="utf8")
         else:
             shutil.copy2(SOURCE / asset, assets / asset)
+    if (source / "screenshots").is_dir():
+        shutil.copytree(source / "screenshots", assets / "screenshots", dirs_exist_ok=True)
     if (source / "i18n").is_dir():
         shutil.copytree(SOURCE / "i18n", assets / "i18n", dirs_exist_ok=True)
     mock = (SITE / "demo" / "mock-api.js").read_text(encoding="utf8")
