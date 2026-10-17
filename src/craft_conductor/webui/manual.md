@@ -442,7 +442,7 @@ On your home Wi-Fi, a phone reaches this computer directly. Away from home, **Re
   - Cloudflare says quick tunnels are for testing, with no promise they stay up, under its terms of use.
 - **Never** forward the control panel's port on your router, and never point a playit.gg tunnel at it: those put it on the internet with nothing to tell the visitors apart.
 
-Whichever way, a request that comes through a tunnel never counts as "on this computer": no PIN sign-in, no password reset, and no **Open folder** or other action that only works at the computer. Each tunnel gets a way in of its own that only its program uses (Craft Conductor picks a free port for it on this computer only), and wrong passwords are counted for each visitor, from what that tunnel says about them, so one person can't lock everyone out (or you, at the computer). Your own devices through Funnel share one count.
+Whichever way, a request that comes through a tunnel never counts as "on this computer": no PIN sign-in, no password reset, and no **Open folder** or other action that only works at the computer. Each tunnel gets a way in of its own that only its program uses (Craft Conductor picks a free port for it on this computer only), and wrong passwords are counted for each visitor, from what that tunnel says about them, so one person can't lock everyone out (or you, at the computer). Through Funnel, each visitor is counted by their own internet address too.
 
 Earlier versions pointed Tailscale at the control panel's usual port; the first start of this version moves it to Tailscale's own way in (the address stays the same).
 

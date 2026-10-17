@@ -9,7 +9,9 @@ port of its own, that only that tunnel's program is pointed at. A request throug
 * is only answered for that tunnel's own address (its Host);
 * is told apart from other visitors by what that tunnel says about it, which was checked
   (2026-10-16): Tailscale replaces ``X-Forwarded-For`` with the visitor's tailnet address and adds
-  ``Tailscale-User-Login`` (removing copies a visitor sends); Cloudflare adds ``Cf-Connecting-Ip``
+  ``Tailscale-User-Login`` (removing copies a visitor sends); through Funnel (2026-10-17) it
+  replaces ``X-Forwarded-For`` with the visitor's internet address too, adds
+  ``Tailscale-Funnel-Request: ?1`` and no identity; Cloudflare adds ``Cf-Connecting-Ip``
   (refusing a visitor's own copy) and appends to ``X-Forwarded-For``. A header is only believed at
   its own tunnel's door: anyone can send any header to the control panel's usual port.
 """
@@ -35,9 +37,7 @@ PORTS = range(20000, 29999)   # where the doors' ports are picked (on 127.0.0.1 
 def visitor_ip(kind: str, headers) -> str | None:
     """The visitor's address as this tunnel says it (only called for a request at its own door)."""
     if kind == "tailscale":
-        if not headers.get("Tailscale-User-Login"):
-            return None  # (Funnel: from the internet, and not checked what Tailscale says then)
-        raw = headers.get("X-Forwarded-For") or ""
+        raw = headers.get("X-Forwarded-For") or ""  # (always Tailscale's own: a visitor's copy is replaced)
     elif kind == "cloudflare":
         raw = headers.get("Cf-Connecting-Ip") or ""
     else:
@@ -51,8 +51,8 @@ def visitor_ip(kind: str, headers) -> str | None:
 def visitor_key(kind: str, headers) -> str:
     """Whose sign-in tries these are, for the limits: one visitor's mistakes never lock out another."""
     ip = visitor_ip(kind, headers)
-    if kind == "tailscale" and ip is None:
-        return "funnel"  # (every Funnel visitor shares this one; your own devices and this computer don't)
+    if kind == "tailscale" and headers.get("Tailscale-Funnel-Request"):
+        kind = "funnel"  # (from the internet, by its address there: never one of your own devices' counts)
     return f"{kind}:{ip or '?'}"
 
 

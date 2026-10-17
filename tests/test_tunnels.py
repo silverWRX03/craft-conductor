@@ -35,6 +35,10 @@ CF_NAME = "brave-otter-lake-moon.trycloudflare.com"
 TAILSCALE = {"Host": TS_NAME, "Tailscale-Headers-Info": "https://tailscale.com/s/serve-headers",
              "Tailscale-User-Login": "someone@example.com", "Tailscale-User-Name": "someone",
              "X-Forwarded-For": "100.101.102.103", "X-Forwarded-Host": TS_NAME, "X-Forwarded-Proto": "https"}
+# Through Funnel (checked 2026-10-17, from the internet): no identity, the visitor's own
+# X-Forwarded-For and Tailscale-User-Login replaced or removed, Host passed on as sent.
+FUNNEL = {"Host": TS_NAME, "Tailscale-Funnel-Request": "?1", "X-Forwarded-For": "198.51.100.20",
+          "X-Forwarded-Host": TS_NAME, "X-Forwarded-Proto": "https"}
 CLOUDFLARE = {"Host": CF_NAME, "Cdn-Loop": "cloudflare; loops=1; subreqs=1", "Cf-Connecting-Ip": "198.51.100.7",
               "Cf-Ipcountry": "US", "Cf-Ray": "8f00000000000000-OMA", "Cf-Visitor": '{"scheme":"https"}',
               "Cf-Warp-Tag-Id": "00000000-0000-0000-0000-000000000000", "Cf-Worker": "trycloudflare.com",
@@ -189,12 +193,15 @@ def test_tailscale_visitors_are_told_apart(tailscale_door):
     other = at(c, port, {**TAILSCALE, "X-Forwarded-For": "100.101.102.104"})
     assert other.post("/api/login", {"password": STRONG})[0] == 200   # (another device of yours)
     assert Client(c.base).post("/api/login", {"password": STRONG})[0] == 200  # (and this computer)
-    # Funnel's visitors (no Tailscale identity) share one limit, apart from your own devices'.
-    funnel = {k: v for k, v in TAILSCALE.items() if not k.startswith("Tailscale-User")}
-    for i in range(5):
-        at(c, port, {**funnel, "X-Forwarded-For": f"203.0.113.{i}"}).post("/api/login", {"password": "wrong"})
-    assert at(c, port, {**funnel, "X-Forwarded-For": "203.0.113.99"}).post("/api/login", {"password": STRONG})[0] == 429
-    assert at(c, port, {**TAILSCALE, "X-Forwarded-For": "100.101.102.105"}).post("/api/login", {"password": STRONG})[0] == 200
+    # Funnel's visitors are told apart by their internet address too (Tailscale replaces theirs).
+    stranger = at(c, port, {**FUNNEL, "X-Forwarded-For": "203.0.113.5"})
+    for _ in range(5):
+        stranger.post("/api/login", {"password": "wrong"})
+    assert stranger.post("/api/login", {"password": STRONG})[0] == 429
+    assert stranger.get("/api/auth")[1]["local"] is False
+    assert at(c, port, FUNNEL).post("/api/login", {"password": STRONG})[0] == 200          # (another visitor)
+    assert at(c, port, {**TAILSCALE, "X-Forwarded-For": "203.0.113.5"}).post("/api/login", {"password": STRONG})[0] == 200
+    assert call(at(c, port, FUNNEL), "GET", "/api/auth", headers={"Host": "localhost"})[0] == 421
 
 
 def test_tailscale_headers_sent_to_the_usual_port_are_not_believed(tailscale_door):
