@@ -65,6 +65,29 @@ jobs:
         run: python -m pytest tests/test_website_release_policy.py -q
       - name: Browser smoke tests on assembled Pages candidate
         run: python -m pytest tests/test_website_demo_e2e.py -q
+      - name: Select production release represented by the public demo
+        id: published
+        env:
+          GH_TOKEN: GH_TOKEN
+        run: python tools/select_website_release.py --github-output "$GITHUB_OUTPUT"
+      - name: Checkout tagged frontend without changing development branch
+        env:
+          VERSION_TAG: GH_VERSION_TAG
+        run: |
+          git fetch --depth=1 origin tag "$VERSION_TAG"
+          mkdir -p "$RUNNER_TEMP/tagged-source"
+          git archive "$VERSION_TAG" src/craft_conductor/webui/ | tar -x -C "$RUNNER_TEMP/tagged-source"
+      - name: Build and smoke test the actual published release frontend
+        env:
+          CC_VERSION: GH_CC_VERSION
+          CC_CHANNEL: GH_CC_CHANNEL
+        run: |
+          python tools/build_website_demo.py \
+            --source "$RUNNER_TEMP/tagged-source/src/craft_conductor/webui" \
+            --output _site/demo --version "$CC_VERSION" --channel "$CC_CHANNEL"
+          node --check _site/demo/mock-api.js
+          node --check _site/demo/assets/app.js
+          python -m pytest tests/test_website_demo_e2e.py -q
       - uses: actions/upload-artifact@v7
         with:
           name: website-candidate
