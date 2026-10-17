@@ -229,6 +229,26 @@ reproduced.
    data; record what works, and that it stops working when **Links work for** says.
 4. **The phone app over Tailscale** (the manual's *The phone app* section): pair, sign in, start
    and stop a server from the phone, and get a notification.
+5. **Tailscale's own way in:** with Tailscale already set up by an earlier version (`tailscale serve
+   status` shows `proxy http://127.0.0.1:8765`), update and start Craft Conductor: record that
+   `tailscale serve status` now points at another port on 127.0.0.1, and the phone still opens the
+   same `https://….ts.net` address. On the phone (mobile data, Tailscale on): sign in, then on the
+   sign-in page check there's no **Reset it to PASSWORD** link (only the command is offered), and that
+   a PIN doesn't work there. Remote access & phones → Away from home → **Let the people you invited
+   in, too**: share this computer with a second Tailscale account and sign in as an invited person.
+6. **Cloudflare's quick tunnel:** Away from home → Cloudflare → **Download cloudflared** (record that
+   nothing downloads before the press, and the size), **Open to the internet for 4 hours**: open the
+   `trycloudflare.com` address on the phone on mobile data, sign in, then press **Stop now** and
+   record that the address stops answering. Open it again and leave it: it closes by itself after 4
+   hours (record the notice). Close Craft Conductor while it's open: `cloudflared` isn't left running
+   (Task Manager).
+7. **A tunnel pointed at the control panel by mistake:** in playit.gg, add a TCP tunnel to port
+   8765 (needs a paid plan; skip if you don't have one) or run `ssh -R` to a host you control; through
+   it, the sign-in page must say the reset only works on the server's own computer, and a PIN sign-in
+   must be refused. Delete the tunnel afterwards.
+8. **The reset's code:** on the server's computer, sign-in page → **Reset it to PASSWORD**: record
+   where the file is, that the code works once, and that a wrong code five times is refused for a few
+   minutes.
 
 ## 4. Prompts to paste
 

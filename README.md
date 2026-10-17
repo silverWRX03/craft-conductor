@@ -29,7 +29,7 @@ On phones, a hamburger menu contains navigation and the remembered Light / Dark 
 - **Gets your friends playing:** one link sets up their launcher with the right version and mods.
 - **Looks after itself:** crash restarts, schedules, backups you can check, and plain-words help when
   something goes wrong.
-- **Works from your phone,** with notifications, and on a Linux computer without a screen or in Docker.
+- **Works from your phone,** with notifications, at home or away (with Tailscale, free), and on a Linux computer without a screen or in Docker.
 - **Lets friends help, safely:** invite someone with their own sign-in and choose, per server, what they
   may do (watch, moderate players, restart and back up, or more); the rest stays yours.
 

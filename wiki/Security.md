@@ -6,7 +6,10 @@
 it right after you sign in. You can pick a password or a 4–8 digit PIN; there's always
 one. A PIN only works in a browser on the server's own computer. Change it later
 under Settings → Sign-in. Forgot it? Run `craft-conductor web-password --reset` on the server
-to go back to `PASSWORD`. To fix the password in the config instead, set
+to go back to `PASSWORD`, or press **Reset it to PASSWORD** in a browser there and type the code
+it writes to `craft-conductor-reset-code.txt` in Craft Conductor's folder (it works once, for 10
+minutes: a request that only looks as if it came from this computer, through a tunnel that adds
+nothing to say so, can't open that file). To fix the password in the config instead, set
 `[web] password` in craft-conductor.toml: Craft Conductor replaces what you typed with its hash the
 first time it reads the file (to change it, type a new one there). Passwords and PINs are stored
 only as salted hashes.
@@ -57,8 +60,29 @@ safeguards:
 - **HTTPS** is available with a certificate you provide (for example `tailscale cert`).
 - **Away from home, use a private network app, not your router:** Craft Conductor recommends
   [Tailscale](https://tailscale.com) (free for personal use), which connects your phone and
-  computer privately and encrypted, and shows its address in the pairing dialog. Don't
-  forward the control panel's port (8765) on your router.
+  computer privately and encrypted, and shows its address in the pairing dialog. For a few hours
+  on the internet, there's Cloudflare's free quick tunnel (anyone with its random address reaches the
+  sign-in page, and Cloudflare can see what passes through). Don't forward the control panel's port
+  (8765) on your router, and never point a playit.gg tunnel at it.
+- **A tunnel is never "this computer".** A tunnel's program runs here and passes requests on, so
+  they come from this computer's own address. Tailscale and Cloudflare each get a way in of their own
+  (a port on 127.0.0.1 only their program is pointed at): requests through it can't use a PIN, reset
+  the password or do what only works at the computer, and only that tunnel's own address is answered
+  there. On the usual port, Craft Conductor also checks which program opened the connection: a tunnel's
+  (playit.gg, cloudflared, Tailscale, ngrok, SSH…), another account's, or one it can't tell doesn't
+  count as this computer either. Wrong passwords are counted for each visitor, from what that tunnel
+  says about them (Tailscale's address for your device, Cloudflare's for the visitor), so one person
+  can't lock out everyone else, or you at the computer.
+- **cloudflared is checked before it runs:** downloaded only when you press the button, from
+  Cloudflare's GitHub release, with GitHub's checksum and the one in Cloudflare's release notes, and
+  on Windows Cloudflare's signature; checked again each time before it starts, with an argument list
+  (no shell) and without Craft Conductor's secrets or `TUNNEL_…` settings. It runs as its own program
+  while the tunnel is open, and stops after 4 hours, on **Stop now**, or when Craft Conductor closes.
+- **Safety rules you may switch off** (Craft Conductor settings → Advanced, or `[web] accept_risks`
+  in craft-conductor.toml): a PIN or weaker password from other devices (never `PASSWORD`),
+  Tailscale Funnel, the reset without its code, no limit on wrong passwords, and choosing the
+  forwarded port yourself. Switching one off only works at the server's computer and asks first;
+  while one is off, every page says so.
 
 The panel can be added to your phone's home screen, where it opens like an app.
 
