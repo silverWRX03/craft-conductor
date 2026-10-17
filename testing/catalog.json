@@ -7707,5 +7707,195 @@
       "minecraft-version"
     ],
     "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+  },
+  {
+    "id": 882,
+    "section": "Feature: Friends outside your home",
+    "step": "New server: playit.gg is chosen at first, its downsides are shown next to it, and the page says the whitelist will be on; Your Minecraft name puts you on the whitelist.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 883,
+    "section": "Feature: Friends outside your home",
+    "step": "Windows, Friends page → playit.gg: nothing is downloaded before Download and install playit.gg is pressed; then the installer passes the checks (checksum and Developed Methods LLC's signature) and opens.",
+    "type": "Core",
+    "tags": [
+      "security"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 884,
+    "section": "Feature: Friends outside your home",
+    "step": "Open a port on my router: the risks are asked about first, then Craft Conductor picks a port from 30000 to 39999 (never 25565); Router (UPnP) and the Windows Firewall rule use it, and a friend on mobile data joins.",
+    "type": "Core",
+    "tags": [
+      "security"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 885,
+    "section": "Feature: Friends outside your home",
+    "step": "A server with Geyser and port forwarding: a UDP port is picked for Bedrock, written to Geyser's config and forwarded; a Bedrock player on mobile data joins.",
+    "type": "Core",
+    "tags": [
+      "minecraft-version"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 886,
+    "section": "Feature: Friends outside your home",
+    "step": "A server reachable from the internet starts with the whitelist on; turning it off asks every time (Dashboard, Players, Settings, New server).",
+    "type": "Core",
+    "tags": [
+      "security"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 887,
+    "section": "Feature: Friends outside your home",
+    "step": "A server made by this version that becomes reachable later (Router on, a public address, a playit.gg address) gets its whitelist turned on, with a notice in the activity and the bell; one made before is left alone.",
+    "type": "Core",
+    "tags": [
+      "security"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 888,
+    "section": "Feature: Friends outside your home",
+    "step": "Invite links: Links work for offers 1, 3 or 7 days; after the last link ends, the friends' download port is closed and Router (UPnP) removes its mapping from the router within a minute.",
+    "type": "Core",
+    "tags": [
+      "security"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 889,
+    "section": "Feature: Friends outside your home",
+    "step": "Updating from 0.28.0 with a link set to 30 days or Until I make new ones: the release notes start with Before you update, and after the update the link has stopped, with a notice.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 890,
+    "section": "Fix: playit.gg",
+    "step": "A player who joined through playit.gg: Ban IP is refused (it would ban this computer's own address), with a reminder to ban the name instead.",
+    "type": "Core",
+    "tags": [
+      "security"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 891,
+    "section": "Fix: playit.gg",
+    "step": "With only playit.gg's tray icon running (its agent stopped), the Dashboard doesn't say playit.gg is running.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 892,
+    "section": "Feature: The control panel away from home",
+    "step": "Remote access & phones → Away from home → Tailscale: Use Tailscale, then a phone on mobile data (Tailscale on) opens the https://….ts.net address and signs in.",
+    "type": "Core",
+    "tags": [
+      "security"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 893,
+    "section": "Feature: The control panel away from home",
+    "step": "Tailscale set up by 0.28.0 or earlier (tailscale serve status shows the usual port 8765): after the update it points at another port on 127.0.0.1, and the phone still opens the same address.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 894,
+    "section": "Feature: The control panel away from home",
+    "step": "Let the people you invited in: share this computer with a second Tailscale account; the invited person opens the address, signs in, and can do only what they were given.",
+    "type": "Core",
+    "tags": [
+      "security"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 895,
+    "section": "Feature: The control panel away from home",
+    "step": "Cloudflare quick tunnel: nothing downloads before Download cloudflared; Open to the internet for 4 hours lists the downsides first; the trycloudflare.com address works on a phone on mobile data; Stop now closes it.",
+    "type": "Core",
+    "tags": [
+      "security"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 896,
+    "section": "Feature: The control panel away from home",
+    "step": "Cloudflare quick tunnel: it closes by itself after 4 hours (with a notice), and closing Craft Conductor while it's open leaves no cloudflared running.",
+    "type": "Core",
+    "tags": [
+      "security"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 897,
+    "section": "Feature: The control panel away from home",
+    "step": "Through a tunnel (Tailscale, Cloudflare, or a playit.gg/ssh -R tunnel pointed at the control panel): the sign-in page offers no Reset it to PASSWORD, and a PIN is refused.",
+    "type": "Core",
+    "tags": [
+      "security"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 898,
+    "section": "Feature: Safety rules and the password reset",
+    "step": "Sign-in page → Reset it to PASSWORD on the server's computer: it asks for the code in craft-conductor-reset-code.txt in Craft Conductor's folder; the code works once; five wrong codes are refused for a few minutes.",
+    "type": "Core",
+    "tags": [
+      "security"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 899,
+    "section": "Feature: Safety rules and the password reset",
+    "step": "Craft Conductor settings → Advanced: ticking a safety rule asks first, only works on the server's own computer, shows an alert once, and a warning stays at the top of the page until it's unticked.",
+    "type": "Core",
+    "tags": [
+      "security"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 900,
+    "section": "Feature: Safety rules and the password reset",
+    "step": "With Tailscale may put the control panel on the internet ticked, Use it with Funnel works from a phone off Tailscale; Back to only my devices takes it off the internet.",
+    "type": "Core",
+    "tags": [
+      "security"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 901,
+    "section": "Feature: Safety rules and the password reset",
+    "step": "With You choose the port friends use from outside ticked, Choose the port yourself on the Friends page sets 25565, and the router forwarding and firewall rule follow it.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]

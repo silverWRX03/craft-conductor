@@ -314,13 +314,16 @@ def test_kick_whitelist_and_broadcast_follow_what_people_may_do(hub_env):
     base = "/api/servers/alpha"
     writes = [("/players/action", {"action": "kick", "name": "Steve"}), ("/players/action", {"action": "whitelist-on"}),
               ("/players/action", {"action": "whitelist-add", "name": "Sam"}), ("/players/action", {"action": "whitelist-remove", "name": "Sam"}),
-              ("/players/action", {"action": "whitelist-off"}), ("/broadcast", {"message": "hello everyone"})]
+              ("/players/action", {"action": "whitelist-off", "whitelist_off_ok": True}), ("/broadcast", {"message": "hello everyone"})]
     for path, body in writes:
         status, r, _ = viewer.post(base + path, body)
         assert status == 403 and "permission" in r["error"], (path, body)
     # (and with a bad message too: the permission is checked before anything else is looked at)
     assert viewer.post(base + "/broadcast", {"message": "a\nb"})[0] == 403
     for path, body in writes:
+        if body.get("action") == "whitelist-off":  # (reachable from the internet here: the same question as the owner's first)
+            status, r, _ = moderator.post(base + path, {"action": "whitelist-off"})
+            assert status == 409 and r["confirm"] == "whitelist-off"
         assert moderator.post(base + path, body)[0] == 200, (path, body)
     assert moderator.post(base + "/broadcast", {"message": "a\nb"})[0] == 400     # (the same rules as the console's)
     assert moderator.post(base + "/players/action", {"action": "op", "name": "Steve"})[0] == 403   # (OP is apart)

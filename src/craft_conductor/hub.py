@@ -241,7 +241,7 @@ class Hub:
             try:
                 old = configmod.load(self.home).web
                 web = WebConfig(host=old.host, port=old.port, password=old.password,
-                                allowed_hosts=list(old.allowed_hosts))
+                                allowed_hosts=list(old.allowed_hosts), risks_in_file=list(old.risks_in_file))
             except ConfigError:
                 pass
         saved = self._hub_file().get("web", {})
@@ -254,12 +254,16 @@ class Hub:
             web.allowed_hosts = [str(x).lower() for x in saved.get("allowed_hosts", web.allowed_hosts)]
             web.tls_cert = str(saved.get("tls_cert", web.tls_cert))
             web.tls_key = str(saved.get("tls_key", web.tls_key))
+            chosen = saved.get("accept_risks", [])  # (Craft Conductor settings → Advanced)
+            chosen = configmod._risks(chosen if isinstance(chosen, list) else [])
+            web.accept_risks = [x for x in configmod.RISKS if x in {*chosen, *web.risks_in_file}]
             if saved.get("password"):
                 from . import webauth
                 if not webauth.is_hashed(web.password):  # (typed into hub.json: kept there as its hash)
                     hashed = webauth.hash_password(web.password)
                     self._update_hub_file(lambda data: data.setdefault("web", {}).update(password=hashed))
                     web.password = hashed
+        web.accept_risks = web.accept_risks or list(web.risks_in_file)
         web.enabled = True
         return web
 
@@ -482,23 +486,14 @@ class Hub:
         address they opened the invite with)."""
         from .share import DEFAULT_PORT
         s = self._hub_file().get("share", {}) if not self.is_single else {}
-        return {"port": int(s.get("port", DEFAULT_PORT)), "address": str(s.get("address", "")),
-                "tunnel": str(s.get("tunnel", ""))}
+        return {"port": int(s.get("port", DEFAULT_PORT)), "address": str(s.get("address", ""))}
 
-    def share_tunnel(self) -> tuple[str, int] | None:
-        """The playit.gg tunnel friends' craft-conductor reaches the downloads through, if one is set."""
-        from .tunnel import TunnelError, parse_address
-        try:
-            return parse_address(self.share_settings().get("tunnel", ""), default_port=0) or None
-        except TunnelError:
-            return None
-
-    def save_share(self, port: int, address: str, tunnel: str | None = None) -> None:
-        def change(data: dict) -> None:
-            data["share"] = {"port": port, "address": address,
-                             "tunnel": tunnel if tunnel is not None else data.get("share", {}).get("tunnel", "")}
-        self._update_hub_file(change)
+    def save_share(self, port: int, address: str) -> None:
+        # (a playit.gg tunnel for the downloads, kept here before, needs a paid plan: no longer offered)
+        self._update_hub_file(lambda data: data.__setitem__("share", {"port": port, "address": address}))
         self.update_share(restart=True)
+        if address:
+            self.whitelist_when_reachable("a public address is set in Sharing with friends")
 
     def update_share(self, restart: bool = False) -> None:
         """Run the share server while any server has its friend download switched on, with a link
@@ -509,9 +504,12 @@ class Hub:
         now = time.time()
         wanted = any(d.m.config.client.link_works(now) for d in list(self.daemons.values()))
         port = self.share_settings()["port"]
+        was = self.share.port if self.share else None
         if self.share and (not wanted or restart or self.share.port != port):
             self.share.stop()
             self.share = None
+            if not wanted:
+                log.info("no invite link works any more, so friends' downloads stopped (port %s closed)", was)
         if wanted and self.share is None:
             server = ShareServer(self, port)
             try:
@@ -520,6 +518,11 @@ class Hub:
             except (OSError, ValueError) as e:  # (ssl.SSLError is an OSError)
                 self.share_error = f"port {port} is busy ({e.strerror or e}); pick another in Craft Conductor settings"
                 log.warning("couldn't start sharing: %s", self.share_error)
+        now_port = self.share.port if self.share else None
+        if now_port != was and self.upnp_settings()["enabled"]:
+            # The router forwards the download port only while a link works: taken back (or
+            # asked for again) now, not at the next half-hourly renewal.
+            threading.Thread(target=self.upnp_sync, daemon=True, name="upnp").start()
 
     def share_fingerprint(self) -> str:
         """The share server's certificate fingerprint (it goes in every invite)."""
@@ -613,6 +616,7 @@ class Hub:
                 self.daemons.pop(sid, None)
                 return
         self.problems.pop(sid, None)
+        self._end_long_link(sid, m)
         d = Daemon(m, tick=self.tick, autostart=False, server_id=sid, hub_managed=True)
         d.hub = self
         m.notifier.listeners.append(lambda message, sid=sid: self.phone_notify(sid, message))
@@ -621,6 +625,25 @@ class Hub:
         t = threading.Thread(target=d.run, daemon=True, name=f"server:{sid}")
         self._threads[sid] = t
         t.start()
+
+    def _end_long_link(self, sid: str, m) -> None:
+        """An invite link made before links worked a week at most ("until I make new ones", or
+        30 days) stops now: while it works, the download port is open. The owner was told in the
+        release notes before updating, and is told here again (activity and bell)."""
+        from .clientpack import stop_link
+        from .config import LINK_DAYS
+        c, now = m.config.client, time.time()
+        if not c.link_works(now) or (c.expires and c.expires <= now + max(LINK_DAYS) * 86400 + 3600):
+            return
+        try:
+            stop_link(m.config.path, now)
+            m.reload_config()
+        except (ConfigError, OSError) as e:
+            log.warning("couldn't stop %s's long-lived invite link: %s", sid, e)
+            return
+        log.info("stopped %s's invite link: links now work for a week at most", sid)
+        m.notifier.send("The friends' invite links of this server stopped: links now work for a week at most (the download "
+                        "port is only open while one works). Make new links on its Friends page; friends who already set up keep playing.")
 
     @property
     def health(self):
@@ -673,10 +696,15 @@ class Hub:
         return port
 
     def reserved_ports(self) -> set[int]:
-        """Ports craft-conductor itself listens on (the control panel and the friends' download)."""
+        """Ports craft-conductor itself listens on (the control panel, the tunnels' ways in to it, and
+        the friends' download)."""
         out = {self.web.port}
         if self.ui is not None and self.ui.httpd is not None:
             out.add(self.ui.httpd.server_address[1])
+        if self.ui is not None:
+            doors = getattr(self.ui, "doors", None)
+            if doors is not None:
+                out |= {p for p in (*doors.ports(), int(doors.saved_tailscale().get("port") or 0)) if p}
         if not self.is_single:
             out.add(self.share_settings()["port"])
         return out
@@ -704,6 +732,92 @@ class Hub:
                 name = server_name(read_properties(other.m.server_dir / "server.properties"), sid)
                 raise RuntimeError(f"port {port} is already used by {name}, which is running; "
                                    "stop it first, or give this server another port in its Settings")
+
+    # ------------------------------------------- reaching a server from outside (reach.py)
+    def taken_ports(self, exclude: str | None = None) -> set[int]:
+        """Every port a server here (but ``exclude``) or Craft Conductor itself uses: Minecraft's,
+        RCON's and the query port when they're on, Bedrock's (Geyser), the control panel's, the
+        friends' download's."""
+        from .properties import read_properties
+        from .reach import geyser_config, geyser_port
+        out = set(self.reserved_ports())
+        for sid, d in list(self.daemons.items()):
+            if sid == exclude:
+                continue
+            try:
+                props = read_properties(d.m.server_dir / "server.properties")
+                out.add(int(props.get("server-port", "25565") or 25565))
+                if props.get("enable-rcon") == "true":
+                    out.add(int(props.get("rcon.port", "25575") or 25575))
+                if props.get("enable-query") == "true":
+                    out.add(int(props.get("query.port", "25565") or 25565))
+                if geyser_config(d.m.server_dir) is not None:  # (Bedrock players, on UDP)
+                    out.add(geyser_port(d.m.server_dir))
+            except (OSError, ValueError):
+                continue
+        return out
+
+    def pick_open_port(self, exclude: str | None = None, udp: bool = False) -> int:
+        """A free port to open on the router for a server (reach.OPEN_RANGE, never 25565)."""
+        from . import reach
+        return reach.pick_port(self.taken_ports(exclude), reach.udp_free if udp else port_free)
+
+    def why_reachable(self, daemon: Daemon) -> list[str]:
+        """Why a server can be reached from the internet (reach.why_reachable)."""
+        from . import reach
+        from .properties import read_properties
+        try:
+            port = int(read_properties(daemon.m.server_dir / "server.properties").get("server-port", "25565") or 25565)
+        except ValueError:
+            port = 25565
+        c = daemon.m.config
+        return reach.why_reachable(c.reach_way, c.tunnel_address, self.upnp_settings()["enabled"],
+                                   "" if self.is_single else self.share_settings()["address"],
+                                   reach.read_state(c.state_dir).get("port_test"), port)
+
+    def before_start(self, daemon: Daemon) -> None:
+        """Before a server starts: the Bedrock port chosen for port forwarding goes into Geyser's
+        config (Geyser writes it on its first start), and a reachable server made with the
+        whitelist rule gets its whitelist on (reach.py)."""
+        from . import reach
+        wanted = reach.read_state(daemon.m.config.state_dir).get("bedrock_port")
+        if isinstance(wanted, int) and daemon.m.config.reach_way == "forward":
+            try:
+                reach.set_geyser_port(daemon.m.server_dir, wanted)
+            except (OSError, ValueError) as e:
+                log.warning("couldn't set the Bedrock port in Geyser's config: %s", e)
+        self.whitelist_when_reachable()
+
+    def whitelist_when_reachable(self, why: str = "") -> list[str]:
+        """Turn the whitelist on for each server made with this rule (reach.py) that can now be
+        reached from the internet and has it off, unless its owner turned it off knowingly.
+        Each one says so in its activity (and the bell). Returns the servers' ids."""
+        from . import reach
+        from .players import Players, PlayerError
+        from .properties import read_properties, server_name
+        done = []
+        for sid, d in list(self.daemons.items()):
+            state = reach.read_state(d.m.config.state_dir)
+            if not state.get("guarded") or state.get("opted_out"):
+                continue
+            props = read_properties(d.m.server_dir / "server.properties")
+            if props.get("white-list", "false") == "true":
+                continue
+            reasons = self.why_reachable(d)
+            if not reasons:
+                continue
+            running = d.state == "running"
+            try:
+                Players(d.m.server_dir, d.m.http, d.send_command if running else None).act("whitelist-on", "")
+            except (PlayerError, OSError) as e:
+                log.warning("couldn't turn on %s's whitelist: %s", sid, e)
+                continue
+            name = server_name(props, sid)
+            log.info("turned on %s's whitelist: %s", sid, reasons[0])
+            d.m.notifier.send(f"The whitelist of {name} is now on, because it can be reached from the internet "
+                              f"({why or reasons[0]}). Add your friends on the Players page.")
+            done.append(sid)
+        return done
 
     def _check_health(self) -> None:
         if not self._health_lock.acquire(blocking=False):
@@ -814,6 +928,13 @@ class Hub:
                     raise ConfigError(f"Craft Conductor itself uses port {spec.port} (the control panel or friends' "
                                       "downloads); pick another")
                 spec.port = self.free_port(spec.port)
+            from . import reach
+            if spec.reach == "forward" and not (reach.in_open_range(spec.port) and spec.port not in self.taken_ports()
+                                                and port_free(spec.port)):
+                spec.port = self.pick_open_port()  # (the router gets a port that isn't Minecraft's usual one)
+            spec.reachable = (spec.reach in ("playit", "forward") or self.upnp_settings()["enabled"]
+                              or bool(self.share_settings()["address"]))
+            setupmod.whitelist_defaults(spec)  # (refused before any file is written: whitelist off unconfirmed)
             spec.network_access = False  # the hub's own setting decides who can open the panel
             spec.world_source = self.world_source(spec.world)  # before any files are written
             setupmod.configure(root, spec)
@@ -971,7 +1092,8 @@ class Hub:
                                                               if isinstance(x, list) and len(x) == 2]}
 
     def upnp_wanted(self) -> list[tuple[int, str, str]]:
-        """(port, protocol, label) craft-conductor forwards: each server's Minecraft port and friends' downloads.
+        """(port, protocol, label) craft-conductor forwards: each server's Minecraft port (and Bedrock's, on
+        UDP, with Geyser) and friends' downloads (only while a link works: the share server runs).
         Never the control panel's port or a server's RCON port, even if one of those is the same number."""
         from .properties import read_properties, server_name
         out, private = [], {self.web.port}
@@ -986,6 +1108,9 @@ class Hub:
             except (OSError, ValueError):
                 continue
             out.append((port, "TCP", f"Craft Conductor {sid}"[:60]))
+            from .reach import geyser_config, geyser_port
+            if geyser_config(d.m.server_dir) is not None:  # Bedrock players (Geyser), on UDP
+                out.append((geyser_port(d.m.server_dir), "UDP", f"Craft Conductor {sid} Bedrock"[:60]))
         if self.share:
             out.append((self.share_settings()["port"], "TCP", "Craft Conductor friends' downloads"))
         seen, unique = set(), []
@@ -1066,6 +1191,48 @@ class Hub:
                                      "exposure": EXPOSURE_WARNING if settings["enabled"] else ""}
 
     # ---------------------------------------------------- playit.gg tunnels
+    AGENT_CHECK_EVERY = 10  # (the pages ask while someone sets playit.gg up: the process list is read at most this often)
+
+    def playit_agent(self) -> bool | None:
+        from . import tunnel
+        cached = getattr(self, "_agent_seen", None)
+        if cached is None or time.monotonic() - cached[0] > self.AGENT_CHECK_EVERY:
+            cached = self._agent_seen = (time.monotonic(), tunnel.agent_running())
+        return cached[1]
+
+    def playit_status(self) -> dict:
+        """Getting playit.gg's program: whether it runs here, and how far the guided download is."""
+        from . import tunnel
+        return {"platform": tunnel.platform(), "agent": self.playit_agent(),
+                "install": dict(getattr(self, "_playit_install", None) or {"state": "idle"}),
+                "apt": list(tunnel.APT_STEPS), "download_page": tunnel.DOWNLOAD, "guide": tunnel.GUIDE,
+                "signer": tunnel.SIGNER}
+
+    def playit_install(self) -> dict:
+        """Download playit.gg's installer, check it, and open it (Windows; only when asked)."""
+        from . import tunnel
+        if tunnel.platform() != "windows":
+            raise RuntimeError("on this system, install playit.gg its own way (the steps are on the page)")
+        with self._lock:
+            if (getattr(self, "_playit_install", None) or {}).get("state") == "downloading":
+                return self.playit_status()
+            self._playit_install = {"state": "downloading", "got": 0, "size": None}
+
+        def progress(got, size):
+            self._playit_install = {"state": "downloading", "got": got, "size": size}
+
+        def run():
+            try:
+                path, version = tunnel.download_installer(self.http, self.state_dir / "downloads" / "playit", progress)
+                tunnel.open_installer(path)
+                log.info("opened playit.gg's installer %s (checked: SHA-256 and %s's signature)", version, tunnel.SIGNER)
+                self._playit_install = {"state": "opened", "version": version}
+            except Exception as e:  # (said on the page; nothing that failed a check is kept or run)
+                log.warning("couldn't get playit.gg's program: %s", e)
+                self._playit_install = {"state": "error", "error": str(e)}
+        threading.Thread(target=run, daemon=True, name="playit-install").start()
+        return self.playit_status()
+
     def check_tunnels(self) -> None:
         """Check each server's playit.gg tunnel (every 5 minutes), and say when one stops or
         starts working again (in its activity, and to Discord if set up)."""

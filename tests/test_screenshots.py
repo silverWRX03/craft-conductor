@@ -276,6 +276,9 @@ def test_documentation_screenshots(tmp_path, http, modrinth, fake_java, monkeypa
 
     # This computer, as the pictures show it: not the one taking them.
     monkeypatch.setattr(cli, "lan_ip", lambda: "192.168.1.50")
+    from craft_conductor import tunnel
+    monkeypatch.setattr(tunnel, "agent_running", lambda: False)  # (playit.gg's steps from the start, whatever runs here)
+    monkeypatch.setattr(tunnel, "platform", lambda: "windows")
     monkeypatch.setattr(setupmod, "total_ram_gb", lambda: 32.0)
     monkeypatch.setattr(health, "memory_available_gb", lambda: 18.5)
     disk = shutil._ntuple_diskusage(1000 * 1024 ** 3, 412 * 1024 ** 3, 588 * 1024 ** 3)
@@ -382,6 +385,7 @@ def test_documentation_screenshots(tmp_path, http, modrinth, fake_java, monkeypa
     players_files(m.server_dir)
     write_properties(m.server_dir / "server.properties", {"white-list": "true", "enforce-whitelist": "true"})
     (m.server_dir / "players.txt").write_text(" ".join(ONLINE))
+    configmod.set_value(m.config.path, "reach", "way", '"playit"')  # (friends outside join through playit.gg)
     configmod.set_value(m.config.path, "client", "enabled", "true")
     configmod.set_value(m.config.path, "client", "mods", json.dumps(["xaeros-minimap"]))
     make_link(m.config.path, 7)

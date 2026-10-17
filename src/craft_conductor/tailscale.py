@@ -3,8 +3,10 @@
 Phones only install web apps and deliver their notifications for pages with a real certificate.
 ``tailscale serve`` gives this computer one, at ``https://<computer>.<tailnet>.ts.net``, reachable
 only from your own devices signed in to the same Tailscale account (it isn't on the internet). It
-passes requests on to the control panel on this computer, which treats them as coming from another
-device (so they need the strong password or a paired phone, as always).
+passes requests on to the control panel on this computer, through a door of the control panel's
+that only Tailscale uses (tunnels.py), so they're treated as coming from another device (they need
+the strong password or a paired phone, as always). Funnel puts that address on the internet for
+anyone: only when the owner accepted that risk ([web] accept_risks "tailscale-funnel").
 """
 
 from __future__ import annotations
@@ -41,8 +43,9 @@ def _run(args: list[str], timeout: float = 8) -> subprocess.CompletedProcess | N
 
 
 def status(port: int) -> dict:
-    """{"installed", "running", "name" (this computer's ts.net name), "serving" (the control panel)}."""
-    out = {"installed": exe() is not None, "running": False, "name": "", "serving": False}
+    """{"installed", "running", "name" (this computer's ts.net name), "serving" (the control panel,
+    on ``port``), "funnel" (on the internet too)}."""
+    out = {"installed": exe() is not None, "running": False, "name": "", "serving": False, "funnel": False}
     r = _run(["status", "--json"])
     if r is None or r.returncode != 0:
         return out
@@ -63,10 +66,11 @@ def status(port: int) -> dict:
                    for h in ((web or {}).get("Handlers") or {}).values()]
         out["serving"] = any(p.rstrip("/").endswith(f"127.0.0.1:{port}") or p.rstrip("/").endswith(f"localhost:{port}")
                              for p in proxies)
+        out["funnel"] = out["serving"] and any((config.get("AllowFunnel") or {}).values())
     return out
 
 
-def serve(port: int, timeout: float = 25) -> dict:
+def serve(port: int, funnel: bool = False, timeout: float = 25) -> dict:
     """Serve the control panel over HTTPS on the tailnet: {"ok", "message", "enable_url"}.
 
     When Serve or HTTPS isn't switched on for the account yet, ``tailscale serve`` prints a link to
@@ -74,7 +78,7 @@ def serve(port: int, timeout: float = 25) -> dict:
     rather than the wait ending in a timeout that looked like Tailscale wasn't installed."""
     import threading
     from .desktop import NO_WINDOW
-    argv = _argv(["serve", "--bg", "--https=443", f"http://127.0.0.1:{port}"])
+    argv = _argv(["funnel" if funnel else "serve", "--bg", "--https=443", f"http://127.0.0.1:{port}"])
     if not argv:
         return {"ok": False, "message": "Tailscale isn't installed on this computer", "enable_url": None}
     try:
@@ -108,6 +112,8 @@ def serve(port: int, timeout: float = 25) -> dict:
     return {"ok": True, "message": "", "enable_url": None}
 
 
-def unserve() -> bool:
+def unserve(funnel: bool = False) -> bool:
+    if funnel:
+        _run(["funnel", "--https=443", "off"], timeout=15)
     r = _run(["serve", "--https=443", "off"], timeout=15)
     return r is not None and r.returncode == 0

@@ -51,9 +51,18 @@ update_channel = "stable"        # or "beta": early versions too
 [web]
 host = "127.0.0.1"               # this computer only (the default); "0.0.0.0" opens it to your network
 password = ""                    # set one to fix the sign-in here; it's replaced by its hash when read
+# accept_risks = []              # safety rules you switch off, knowing the risk (also Craft Conductor
+                                 # settings → Advanced): "weak-remote-password" (a PIN or a short password
+                                 # from other devices and tunnels; never PASSWORD), "tailscale-funnel" (the
+                                 # control panel on the internet with Tailscale Funnel), "reset-without-code"
+                                 # (the forgotten-password reset without the code from the file),
+                                 # "no-sign-in-limit" (no limit on wrong passwords), "any-port" (choose the
+                                 # forwarded Minecraft port yourself, even 25565). Unknown names are ignored,
+                                 # with a warning in the log. A request through a tunnel always counts as
+                                 # remote, and downloads are always checked: those can't be switched off.
 
 [client]                         # the friends' download (the Friends page sets these)
-link_days = 7                    # how long a new invite link works: 1, 7, 30, or 0 = until replaced
+link_days = 3                    # how long a new invite link works: 1, 3 or 7 days (a week at most)
 expires = 0                      # when the current link stops (Unix time; written for you)
 
 [[mods]]

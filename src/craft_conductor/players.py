@@ -272,6 +272,10 @@ class Players:
                 raise PlayerError(f"{name!r} is not a valid IP address or player name")
             if action == "ban-ip" and not _is_ip(name) and self.send is None:
                 raise PlayerError("banning a player's IP by name needs the server running; enter the IP instead")
+            if action == "ban-ip" and _is_ip(name) and ipaddress.ip_address(name).is_loopback:
+                # (players who come through a tunnel on this computer, playit.gg's, all have this address)
+                raise PlayerError(f"{name} is this computer's own address: banning it would shut out everyone who joins "
+                                  "through playit.gg, and you too. Ban the player's name instead")
         elif action not in NO_TARGET and not NAME_RE.fullmatch(name):
             raise PlayerError(f"{name!r} is not a valid player name")
         if needs_running and self.send is None:

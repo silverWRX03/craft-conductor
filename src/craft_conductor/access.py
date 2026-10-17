@@ -288,6 +288,8 @@ SERVER_ROUTES: dict[tuple[str, str], str | tuple[str, ...]] = {
     ("GET", "/api/play-here"): OWNER,
     ("POST", "/api/play-here"): OWNER,
     ("GET", "/api/tunnel"): OWNER,
+    ("GET", "/api/reach"): OWNER,   # how friends outside join, the ports opened, the whitelist rule (reach.py)
+    ("POST", "/api/reach"): OWNER,
     ("GET", "/api/doctor"): OWNER,
     ("POST", "/api/doctor/internet"): OWNER,
     ("POST", "/api/doctor/fix"): OWNER,
@@ -365,6 +367,7 @@ SETTING_NEEDS: dict[str, tuple[str, ...]] = {
     # of passwords and keys, the address friends are given, the port the router and firewall open)
     "discord_webhook": (OWNER,), "backup_copy_to": (OWNER,), "backup_copy_keep": (OWNER,),
     "backup_include": (OWNER,), "tunnel_address": (OWNER,), "port": (OWNER,),
+    "whitelist_off_ok": (),  # (that the warning was seen: the whitelist itself is a server.properties setting)
 }
 # server.properties settings that need more than settings.safe.
 PROPERTY_NEEDS: dict[str, tuple[str, ...]] = {

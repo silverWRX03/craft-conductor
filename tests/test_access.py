@@ -14,7 +14,7 @@ import pytest
 from craft_conductor import access, push, users as usersmod, webauth, webpush
 from craft_conductor.config import ConfigError
 
-from test_hub import login
+from test_hub import reset_here, login
 from test_remote import PERSON_PASSWORD, STRONG, as_other_device, invite, pair_phone, ready_for_links
 from test_web import Client
 
@@ -286,7 +286,7 @@ def test_the_owner_can_always_recover(hub_env):
     pending = c.post("/api/hub/users/invite", {"name": "Later", "grants": {"alpha": ["status.view"]},
                                                "host": "mc.example.com"})[1]["url"].split("#invite=")[1]
     assert person.post("/api/auth/reset-local")[0] == 403   # (never over the network)
-    assert Client(c.base).post("/api/auth/reset-local")[0] == 200
+    assert reset_here(Client(c.base))[0] == 200
     assert person.get("/api/hub")[0] == 401 and phone.get("/api/hub")[0] == 401 and c.get("/api/hub")[0] == 401
     away = as_other_device(Client(c.base))
     assert away.post("/api/invite", {"token": pending})[0] == 404

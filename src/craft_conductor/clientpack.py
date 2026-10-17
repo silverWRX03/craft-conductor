@@ -56,21 +56,22 @@ def new_token() -> str:
 
 
 # A friends' invite link is shared (in a Discord channel, a group chat), so it's not single-use:
-# everyone with it can set up. Instead it stops working after the time the owner picked (7 days
-# unless they choose otherwise), and the owner can stop it, or replace it, whenever they like.
+# everyone with it can set up. Instead it stops working after the time the owner picked (3 days
+# unless they choose otherwise, a week at most), and the owner can stop it, or replace it, whenever
+# they like. While no link works, the friends' download port is closed (hub.update_share).
 def checked_link_days(days) -> int:
     try:
         days = int(days)
     except (TypeError, ValueError):
         raise ConfigError("pick how long the links work") from None
     if days not in LINK_DAYS:
-        raise ConfigError("pick how long the links work: 1, 7 or 30 days, or until you make new ones")
+        raise ConfigError("pick how long the links work: 1, 3 or 7 days")
     return days
 
 
 def link_expiry(days: int, now: float | None = None) -> int:
-    """When a link made (or renewed) now stops working; 0 = until a new one is made."""
-    return int((time.time() if now is None else now) + days * 86400) if days else 0
+    """When a link made (or renewed) now stops working."""
+    return int((time.time() if now is None else now) + days * 86400)
 
 
 def make_link(config_path: Path, days: int = DEFAULT_LINK_DAYS, now: float | None = None) -> None:
@@ -83,7 +84,7 @@ def make_link(config_path: Path, days: int = DEFAULT_LINK_DAYS, now: float | Non
 
 
 def renew_link(config_path: Path, days: int, now: float | None = None) -> None:
-    """Keep the link, working for ``days`` from now (or until a new one is made)."""
+    """Keep the link, working for ``days`` from now."""
     from . import config as configmod
     days = checked_link_days(days)
     configmod.set_value(config_path, "client", "link_days", str(days))
