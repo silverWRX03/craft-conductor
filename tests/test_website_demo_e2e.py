@@ -187,7 +187,10 @@ def test_authentic_first_run_form_can_create_server(base, page):
     page.goto(base+"demo/?mode=new")
     page.locator("#app").wait_for(state="visible",timeout=15000)
     page.locator(".setup button.choice").filter(has_text="Fabric").first.click()
-    page.get_by_role("heading",name="2. Minecraft version").wait_for(timeout=8000)
+    page.wait_for_timeout(500)
+    assert not errors, "After choosing Fabric: " + repr(errors)
+    assert page.get_by_role("heading",name="2. Minecraft version").count() > 0, (
+        "New server form failed to progress; DOM: " + page.locator("#main").inner_text()[:1800])
     page.get_by_role("heading",name="3. Mods").wait_for(timeout=8000)
     page.get_by_label("Server name (shown in the server list)").fill("My Kids World")
     page.get_by_text("I accept the",exact=False).locator("xpath=..").locator("input[type=checkbox]").check()
