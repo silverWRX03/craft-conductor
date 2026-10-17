@@ -229,6 +229,9 @@ const HEADERS = {'X-CRAFT-CONDUCTOR': '1'};
   await scrollTo('Web map');
   await shot('web-map');
   await go('s/survival/friends');
+  await page.getByText("Get playit.gg's program.").waitFor();
+  await shot('friends-outside');
+  await scrollTo('Invite links');
   await shot('friends');
 
   // When something goes wrong: the modded server didn't start.

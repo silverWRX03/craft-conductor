@@ -6,8 +6,19 @@ its fix will say which version it's in.
 
 ## Unreleased (not released yet)
 
+**Before you update:** friends' invite links set to work 30 days or "Until I make new ones" stop when this version starts: links now work 1, 3 or 7 days. Make new ones on the Friends page afterwards; friends who already set up keep playing.
+
 **Added**
 - **A bell for messages you missed.** The messages at the top of the screen still go after a few seconds (errors after 12), but the bell at the top right of every page now keeps the last 100: newest first, each with its time and its server, with a red dot while some are unread. It also has the notices that stay at the top (Undo, Mod test finished, Craft Conductor updates), the browser notifications this browser showed, and the phone notifications this device got. Opening it marks them read; **Clear** empties it. It's kept in this browser for the person signed in, and **Sign out** clears it.
+- **Friends outside your home: playit.gg first, and an open port explained.** A server's **Friends** page, **New server**'s Friends step and **Craft Conductor settings → Sharing with friends** ask how friends who aren't on your Wi-Fi join: **playit.gg** (chosen at first: nothing opened on your router, free for Minecraft), **Open a port on my router**, or **Only friends at home**. playit.gg's downsides are said plainly next to it (a separate company in the middle, an account, some lag, its free plan's limits, no players' addresses), and its setup goes step by step: on Windows, **Download and install playit.gg** downloads its installer from playit.gg's GitHub release only when pressed, and opens it only after checking it (GitHub's SHA-256 and the signature of Developed Methods LLC, playit.gg's company); on Linux, playit.gg's own commands to copy. Opening a port says the risks first (bots scan for Minecraft servers all day, griefing, your home's address becomes public), then Craft Conductor picks a free port that isn't 25565 (and a UDP one for Bedrock players with Geyser) and says which to forward; Router (UPnP) and the Windows Firewall rule use it.
+- **The whitelist is on whenever a server can be reached from the internet** (playit.gg or an open port, Router on, a public address, a playit.gg address, or Check my setup reaching it). New servers made that way start with it on, with **Your Minecraft name** put on it so you can join; a server made from now on that becomes reachable later gets it turned on, with a notice. Turning it off asks every time ("anyone who finds it can join"), on the Dashboard, the Players page, Settings and New server. Servers made before this are left as they are.
+
+**Changed**
+- **Invite links work 1, 3 (a weekend, the usual) or 7 days**, no longer 30 days or until replaced: the friends' download port is only open while a link works, and Router (UPnP) now takes it back from your router within a minute of the last link ending, not at its next half-hourly renewal.
+- The **playit.gg tunnel for friends' downloads** (Sharing with friends) is gone: playit.gg now asks for a paid plan for that kind of tunnel, and Craft Conductor never needs one. Friends outside download through your router's port instead, open only while a link works.
+
+**Fixed**
+- The Dashboard said playit.gg's program was running when only its tray icon was.
 
 ## 0.28.0 (2026-10-16)
 

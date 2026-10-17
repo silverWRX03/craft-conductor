@@ -77,8 +77,9 @@ sets up your game. See [Joining a friend's server](https://github.com/silverWRX0
 ## What Craft Conductor can't do
 
 - It can't make your computer reachable from the internet by itself: friends outside your home
-  need your **router's port forwarding** (Craft Conductor can set it up by itself with UPnP, or
-  shows you how), or a playit.gg tunnel.
+  join through a free **playit.gg** tunnel (Craft Conductor walks you through it) or your
+  **router's port forwarding** (Craft Conductor picks the port and can set it up with UPnP). Either
+  way, the whitelist is on.
 - It can't make mods work together when their authors haven't made them compatible. It can only
   find out, tell you, and wait for updates.
 - It isn't a hosting service: the server runs on your computer, which has to be on for people to

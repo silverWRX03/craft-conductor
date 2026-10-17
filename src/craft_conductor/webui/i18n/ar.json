@@ -483,7 +483,6 @@
   "No mods configured.": "لا توجد إضافات مُعدّة.",
   "No mods yet: the map shows plain Minecraft.": "لا توجد إضافات بعد: الخريطة تعرض Minecraft العادي.",
   "No operators": "لا يوجد مشرفون",
-  "No port forwarding? Use playit.gg": "لا يمكنك إعادة توجيه المنافذ؟ استخدم playit.gg",
   "No saved lists yet.": "لا توجد قوائم محفوظة بعد.",
   "No single-player games yet.": "لا توجد ألعاب لاعب واحد بعد.",
   "No thanks": "لا، شكرًا",
@@ -1096,5 +1095,16 @@
   "Show points of interest on the map?": "إظهار نقاط الاهتمام على الخريطة؟",
   "They mark the villages, temples, strongholds and other structures this world has, which players would normally have to discover by exploring. The land itself stays the same either way.": "إنها تُعلِّم القرى والمعابد والحصون وغيرها من المنشآت في هذا العالم، والتي يكتشفها اللاعبون عادةً بالاستكشاف. تبقى الأرض نفسها كما هي في الحالتين.",
   "In competitive speedrunning without a set seed, knowing where they are is an unfair advantage, and some Minecraft purists consider looking at them a “soft cheat”.": "في السباقات السريعة التنافسية (speedrunning) دون بذرة محددة، تُعد معرفة أماكنها ميزة غير عادلة، ويعتبر بعض متشددي Minecraft النظر إليها “غشًا خفيفًا”.",
-  "The map is made with villages, temples and other structures; this server's world won't have them (World → Villages, temples and other structures).": "تُصنع الخريطة مع القرى والمعابد والمنشآت الأخرى؛ لن يحتوي عالم هذا الخادم عليها (العالم ← القرى والمعابد والمنشآت الأخرى)."
+  "The map is made with villages, temples and other structures; this server's world won't have them (World → Villages, temples and other structures).": "تُصنع الخريطة مع القرى والمعابد والمنشآت الأخرى؛ لن يحتوي عالم هذا الخادم عليها (العالم ← القرى والمعابد والمنشآت الأخرى).",
+  "Friends outside your home": "أصدقاء خارج منزلك",
+  "🌍 playit.gg (recommended)": "🌍 playit.gg (موصى به)",
+  "🔓 Open a port on my router": "🔓 فتح منفذ على جهاز التوجيه",
+  "🏠 Only friends at home": "🏠 الأصدقاء في المنزل فقط",
+  "⬇ Download and install playit.gg": "⬇ تنزيل playit.gg وتثبيته",
+  "Turn the whitelist off?": "إيقاف القائمة البيضاء؟",
+  "Turn it off anyway": "إيقافها على أي حال",
+  "Keep it on": "إبقاؤها مفعّلة",
+  "Pick a port": "اختيار منفذ",
+  "Friends' download": "تنزيل الأصدقاء",
+  "3 days (a weekend)": "3 أيام (عطلة نهاية أسبوع)"
 }

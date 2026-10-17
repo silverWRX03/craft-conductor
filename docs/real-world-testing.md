@@ -221,7 +221,10 @@ reproduced.
    on mobile data (Wi-Fi off) joins the server. Switch UPnP off: the router's mapping goes away.
 2. **Carrier-grade NAT:** connect the PC to your phone's hotspot (mobile networks usually use
    CGNAT) and run **Check my setup**: record whether it says friends can't reach you directly and
-   suggests playit.gg or Tailscale; try the playit.gg route.
+   suggests playit.gg or Tailscale; try the playit.gg route: Friends page → Friends outside your
+   home → playit.gg → **Download and install playit.gg** (record that nothing downloads before the
+   press, and what the installer and claim step show), add a Minecraft Java tunnel, paste its
+   address, and join from the phone on mobile data. Check the whitelist was on by itself.
 3. **Invite links on a phone:** Friends page → make an invite link; open it on the phone on mobile
    data; record what works, and that it stops working when **Links work for** says.
 4. **The phone app over Tailscale** (the manual's *The phone app* section): pair, sign in, start

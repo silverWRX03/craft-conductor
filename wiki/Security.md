@@ -78,18 +78,40 @@ itself is after the `#` in the link, which browsers never send anywhere. Power u
 still use the raw invite code with `craft-conductor join <code>`.
 
 **Links that stop.** An invite link is made to be shared (in a Discord channel, say), so it isn't
-single-use. It stops working by itself after the time you pick on the Friends page (7 days unless
-you change it; or until you replace it), and **Stop these links** or **New links** ends it at once.
+single-use. It stops working by itself after the time you pick on the Friends page (3 days unless
+you change it, a week at most), and **Stop these links** or **New links** ends it at once.
 After that every request with it is refused, and when no server has a working link the friends'
-port closes. A link only ever gives the setup for players' computers and a way to **ask to be let
+port closes (and Router takes it back from your router within a minute). A link only ever gives the setup for players' computers and a way to **ask to be let
 in**: it never reaches the control panel, and with the whitelist on, you decide who plays.
+
+## Friends outside your home
+
+Each server's Friends page picks how friends outside your home join: **playit.gg** (chosen at
+first: nothing opened on your router), **Open a port on my router**, or **Only friends at home**.
+
+**The whitelist is on whenever a server can be reached from the internet** (playit.gg or an open
+port chosen, Router on, a public address set, a playit.gg address, or Check my setup reached it).
+Turning it off is allowed, but Craft Conductor asks every time, and the server refuses it until
+the warning has been seen.
+
+**Port forwarding** gets a port Craft Conductor picks: not 25565 (the port bots try first), nobody
+else's, between 30000 and 39999. That doesn't hide the server from a scan of every port; the
+whitelist is what keeps strangers out.
+
+**playit.gg's program** is downloaded only when you press the button, only from playit.gg's own
+GitHub release, and opened only after two checks: the SHA-256 GitHub lists for the file, and a
+valid Windows signature from Developed Methods LLC (playit.gg's company). A file that fails either is
+deleted. It runs as its own program; Craft Conductor never sees your playit.gg account or its key.
+playit.gg carries only Minecraft's game traffic to the server's port: the control panel is never
+reachable through it.
 
 ## The router (UPnP)
 
 **Open the ports on my router by itself** is off until you switch it on, and asks first: it makes
 your server reachable from the whole internet, and the page says so for as long as it's on. Only
-each server's Minecraft port and the friends' port are forwarded, never the control panel's port
-or a server's RCON port, and they're taken back when you switch it off or quit.
+each server's Minecraft port (and its Bedrock port, with Geyser) and the friends' port while a link
+works are forwarded, never the control panel's port or a server's RCON port, and they're taken back
+when you switch it off or quit.
 
 ## Secrets on your computer
 

@@ -466,7 +466,6 @@
   "No mods configured.": "Aucun mod configuré.",
   "No mods yet: the map shows plain Minecraft.": "Pas encore de mods : la carte montre Minecraft de base.",
   "No operators": "Aucun opérateur",
-  "No port forwarding? Use playit.gg": "Pas de redirection de port ? Utilisez playit.gg",
   "No saved lists yet.": "Aucune liste enregistrée pour l'instant.",
   "No single-player games yet.": "Pas encore de partie solo.",
   "No thanks": "Non merci",
@@ -1067,5 +1066,16 @@
   "Show points of interest on the map?": "Afficher les points d'intérêt sur la carte ?",
   "They mark the villages, temples, strongholds and other structures this world has, which players would normally have to discover by exploring. The land itself stays the same either way.": "Ils indiquent les villages, temples, forteresses et autres structures de ce monde, que les joueurs devraient normalement découvrir en explorant. Le terrain reste le même dans tous les cas.",
   "In competitive speedrunning without a set seed, knowing where they are is an unfair advantage, and some Minecraft purists consider looking at them a “soft cheat”.": "En speedrun compétitif sans graine imposée, savoir où ils se trouvent est un avantage injuste, et certains puristes de Minecraft considèrent que les regarder est une « triche douce ».",
-  "The map is made with villages, temples and other structures; this server's world won't have them (World → Villages, temples and other structures).": "La carte est faite avec les villages, temples et autres structures ; le monde de ce serveur n'en aura pas (Monde → Villages, temples et autres structures)."
+  "The map is made with villages, temples and other structures; this server's world won't have them (World → Villages, temples and other structures).": "La carte est faite avec les villages, temples et autres structures ; le monde de ce serveur n'en aura pas (Monde → Villages, temples et autres structures).",
+  "Friends outside your home": "Amis hors de chez vous",
+  "🌍 playit.gg (recommended)": "🌍 playit.gg (recommandé)",
+  "🔓 Open a port on my router": "🔓 Ouvrir un port sur ma box",
+  "🏠 Only friends at home": "🏠 Seulement les amis à la maison",
+  "⬇ Download and install playit.gg": "⬇ Télécharger et installer playit.gg",
+  "Turn the whitelist off?": "Désactiver la liste blanche ?",
+  "Turn it off anyway": "La désactiver quand même",
+  "Keep it on": "La garder activée",
+  "Pick a port": "Choisir un port",
+  "Friends' download": "Téléchargement pour les amis",
+  "3 days (a weekend)": "3 jours (un week-end)"
 }
