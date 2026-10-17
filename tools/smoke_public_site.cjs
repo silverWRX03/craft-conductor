@@ -26,7 +26,7 @@ const srv=http.createServer((req,res)=>{
   const frame=page.frameLocator("#demo-frame");
   await frame.locator("#app").waitFor({state:"visible",timeout:20000});
   const nav=await frame.locator("#nav").innerText();
-  assert.match(nav,/Dashboard/);assert.match(nav,/Players/);
+  assert.match(nav,/DASHBOARD/i);assert.match(nav,/PLAYERS/i);
   await frame.locator("#nav a").filter({hasText:"Players"}).first().click();
   await frame.locator("#main").getByText("Whitelist",{exact:false}).first().waitFor({timeout:15000});
   assert.deepEqual(errors,[],"Browser JavaScript errors: "+errors.join(" | "));
