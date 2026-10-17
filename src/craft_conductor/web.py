@@ -3758,6 +3758,11 @@ class Api:
             # Editing the JSON files now could race with the server starting up.
             raise ApiError(409, "the server is starting; try again in a moment")
         action = str(b.get("action", ""))
+        through_playit = self.m.config.reach_way == "playit" or bool(self.m.config.tunnel_address)
+        if action == "ban-ip" and through_playit and not re.fullmatch(r"[0-9A-Fa-f:.]{2,45}", str(b.get("name", "")).strip()):
+            # (by name, the server bans the address the player came from: through playit.gg, this computer's)
+            raise ApiError(400, "players who join through playit.gg all come from this computer's address, so banning "
+                                "a player's IP would shut out everyone who joins through it, and you too. Ban the name instead")
         warned = action == "whitelist-off" and self._whitelist_off(b.get("whitelist_off_ok") is True)
         message = self._players().act(action, str(b.get("name", "")), b.get("reason"))
         if action in ("whitelist-on", "whitelist-off"):

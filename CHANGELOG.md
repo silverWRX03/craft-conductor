@@ -19,6 +19,7 @@ its fix will say which version it's in.
 
 **Fixed**
 - The Dashboard said playit.gg's program was running when only its tray icon was.
+- **Ban IP** on a player who joined through playit.gg banned this computer's own address, which shut out everyone who joins through it and the owner too. It's now refused, with a reminder to ban the name instead.
 
 ## 0.28.0 (2026-10-16)
 

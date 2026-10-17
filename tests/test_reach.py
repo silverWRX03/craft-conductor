@@ -331,7 +331,8 @@ def test_the_installer_runs_only_with_playits_valid_signature(tmp_path, answer, 
         with pytest.raises(tunnel.AgentError):
             tunnel.check_signature(path, run=run)
     args = seen[0]
-    assert args[:4] == ["powershell", "-NoProfile", "-NonInteractive", "-EncodedCommand"]
+    assert re.search(r"[\\/]System32[\\/]WindowsPowerShell[\\/]v1\.0[\\/]powershell\.exe$", args[0], re.I)  # (by its full path)
+    assert args[1:4] == ["-NoProfile", "-NonInteractive", "-EncodedCommand"]
     import base64
     script = base64.b64decode(args[4]).decode("utf-16-le")
     assert "-LiteralPath 'C:" in script or "-LiteralPath '" in script
@@ -475,3 +476,17 @@ def test_playits_tray_icon_alone_isnt_the_agent(monkeypatch):
     assert tunnel.agent_running() is False
     monkeypatch.setattr(tunnel.subprocess, "run", listing('"playitd-tray.exe","1","Console","2","1 K"\n"playitd.exe","2","Services","0","5 K"\n'))
     assert tunnel.agent_running() is True
+
+
+def test_banning_this_computers_address_is_refused(hub_env, tmp_path):
+    """Through playit.gg every player comes from this computer's address: banning it shuts out everyone."""
+    from craft_conductor.players import Players, PlayerError
+    hub, c = hub_env
+    login(c)
+    for ip in ("127.0.0.1", "::1"):
+        with pytest.raises(PlayerError, match="this computer's own address"):
+            Players(tmp_path).act("ban-ip", ip)
+    Players(tmp_path).act("ban-ip", "203.0.113.7")  # (anyone else's still can be)
+    assert c.post("/api/servers/alpha/reach", {"way": "playit"})[0] == 200
+    status, r, _ = c.post("/api/servers/alpha/players/action", {"action": "ban-ip", "name": "Griefer"})
+    assert status == 400 and "Ban the name instead" in r["error"]

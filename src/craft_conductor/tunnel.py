@@ -256,7 +256,9 @@ def check_signature(path, run=None) -> None:
     from .firewall import _ps_string
     script = SIGNATURE_SCRIPT.format(path=_ps_string(str(path)))
     encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
-    args = ["powershell", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded]
+    # (Windows' own PowerShell by its full path: never one found in the current folder or on PATH)
+    powershell = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
+    args = [powershell, "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded]
     try:
         if run is None:
             from .desktop import NO_WINDOW

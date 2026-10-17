@@ -1672,7 +1672,7 @@ function forwardDetails(port, bedrock, lanIp) {
 // release and checks it before opening it; elsewhere, playit.gg's own steps.
 function playitSetup(port, bedrock, address, saveAddress) {
   const box = h("div", { class: "playit-setup mt-s" });
-  let timer = null;
+  let timer = null, waits = 0;
   const later = (ms) => { clearTimeout(timer); timer = setTimeout(() => { if (box.isConnected) load(); }, ms); };
   const copyLine = (text) => h("div", { class: "row" }, h("code", { class: "grow mono small" }, text),
     h("button", { class: "btn small ghost", onclick: () => navigator.clipboard.writeText(text).then(() => toast("Copied")) }, "Copy"));
@@ -1706,15 +1706,16 @@ function playitSetup(port, bedrock, address, saveAddress) {
         h("li", {}, h("strong", {}, "Connect it to a playit.gg account. "),
           "playit.gg's program shows a link to claim it: open it, and sign in or make a free account (you need to be 13 or older). Craft Conductor never sees your playit.gg account or its key."),
         h("li", {}, h("strong", {}, "Add a tunnel. "), "On playit.gg, add a ", h("strong", {}, "Minecraft Java"), ` tunnel to this computer's port ${port}`,
-          bedrock ? [", and a ", h("strong", {}, "Minecraft Bedrock"), ` tunnel to UDP port ${bedrock}`] : null, "."),
+          bedrock ? [", and a ", h("strong", {}, "Minecraft Bedrock"), ` tunnel to UDP port ${bedrock}`] : null, ". ",
+          h("strong", {}, "Never"), ` point a tunnel at the control panel's port (${location.port || (location.protocol === "https:" ? 443 : 80)}): anyone on the internet could then reach it.`),
         h("li", {}, h("strong", {}, "Paste the address playit.gg gives it: "),
           h("div", { class: "row mt-s" }, tunnelIn, h("button", { class: "btn", onclick: () => saveAddress(tunnelIn.value.trim()) }, "Save")),
           h("span", { class: "muted small" }, "Craft Conductor then checks that friends reach this server through it, and shows it on the Dashboard."))),
       h("p", { class: "muted small" }, h("a", { href: st.guide, target: "_blank", rel: "noopener noreferrer" }, "playit.gg's help ↗"), " · ",
         h("a", { href: "https://status.playit.gg", target: "_blank", rel: "noopener noreferrer" }, "playit.gg status ↗")));
-    // (while it downloads, or after the installer opened until the program runs: look again)
+    // (while it downloads, or after the installer opened until the program runs, for 10 minutes at most: look again)
     if (inst.state === "downloading") later(1000);
-    else if (!running && inst.state === "opened") later(5000);
+    else if (!running && inst.state === "opened" && ++waits <= 120) later(5000);
   };
   const load = () => api("/api/hub/playit").then(render).catch(() => null);
   load();
