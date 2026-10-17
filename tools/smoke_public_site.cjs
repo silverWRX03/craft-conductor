@@ -79,6 +79,10 @@ const srv=http.createServer((req,res)=>{
   await frame.getByRole("button",{name:"Create my server",exact:true}).click();
   await page.waitForTimeout(700);
   assert.equal(await frame.locator("#app").isVisible(),true);
+  const created=await (await (await page.locator("#demo-frame").elementHandle()).contentFrame())
+    .evaluate(()=>window.CC_DEMO_TEST.state.servers.map(s=>({name:s.name,state:s.state})));
+  assert.equal(created.length,1,"Creating the fake server must change the shared simulator state");
+  assert.equal(created[0].state,"stopped");
   await page.locator("#leave-demo").click();
   console.log("Public site demo browser smoke tests passed");
  }finally{await browser.close();await new Promise(resolve=>srv.close(resolve));}
