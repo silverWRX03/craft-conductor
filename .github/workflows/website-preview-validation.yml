@@ -61,6 +61,8 @@ jobs:
           node --check site/website.js
           node --check site/demo/mock-api.js
           node --check _site/demo/assets/app.js
+      - name: Verify beta-to-stable release selection rules
+        run: python -m pytest tests/test_website_release_policy.py -q
       - name: Browser smoke tests on assembled Pages candidate
         run: python -m pytest tests/test_website_demo_e2e.py -q
       - uses: actions/upload-artifact@v7
