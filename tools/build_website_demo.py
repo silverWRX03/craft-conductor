@@ -53,7 +53,9 @@ def build(destination: Path, version: str, channel: str, source: Path = SOURCE) 
             shutil.copy2(SOURCE / asset, assets / asset)
     if (source / "i18n").is_dir():
         shutil.copytree(SOURCE / "i18n", assets / "i18n", dirs_exist_ok=True)
-    shutil.copy2(SITE / "demo" / "mock-api.js", destination / "mock-api.js")
+    mock = (SITE / "demo" / "mock-api.js").read_text(encoding="utf8")
+    mock = mock.replace('const version = "demo";', "const version = " + json.dumps(version) + ";")
+    (destination / "mock-api.js").write_text(mock, encoding="utf8")
     manifest = {
         "id": "./?mobile=1", "start_url": "./?mode=existing&mobile=1",
         "scope": "./", "name": "Craft Conductor Demo", "short_name": "CC Demo",
