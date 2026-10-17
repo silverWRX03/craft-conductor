@@ -94,7 +94,7 @@ def test_mobile_standalone_is_genuine_production_frontend(base, page):
 
 def test_all_nine_production_server_routes(base, page):
     errors = []
-    page.on("pageerror", lambda exc: errors.append(str(exc)))
+    page.on("pageerror", lambda exc: errors.append(page.url + ": " + str(exc)))
     page.goto(base + "demo/?mode=existing")
     page.locator("#app").wait_for(state="visible", timeout=15000)
     for name in ("dashboard", "console", "players", "updates", "mods",
@@ -103,4 +103,5 @@ def test_all_nine_production_server_routes(base, page):
         page.wait_for_timeout(250)
         assert page.locator("#main").is_visible(), name
         assert page.locator("nav#nav a[href='#s/family-survival/" + name + "']").count() == 1, name
+        assert not errors, "Uncaught demo error in route " + name + ": " + repr(errors)
     assert not errors, "JavaScript exceptions while rendering production routes:\n" + "\n".join(errors)
