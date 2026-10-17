@@ -56,9 +56,9 @@ const fs = require('node:fs');
   await alert.waitFor();
   await alert.getByRole('button', { name: 'I understand' }).click();
   await page.locator('#health', { hasText: 'A safety rule is switched off:' }).waitFor({ timeout: 20000 });
-  await page.reload();   // (the same tab: not asked again once understood)
+  await page.reload();   // (not asked again: once is enough)
   await page.locator('#health', { hasText: 'A safety rule is switched off:' }).waitFor({ timeout: 20000 });
-  assert.equal(await page.getByRole('alertdialog').filter({ hasText: 'Safety rules are switched off' }).count(), 0);
+  assert.equal(await page.getByRole('alertdialog').filter({ hasText: 'safety rule' }).count(), 0);   // (the alert was once)
   await page.getByRole('button', { name: 'Advanced' }).click();
   await page.getByLabel(/No limit on wrong passwords and codes/).uncheck();
   await page.waitForFunction(() => !document.querySelector('#health') || !/safety rule/.test(document.querySelector('#health').innerText), null, { timeout: 20000 });

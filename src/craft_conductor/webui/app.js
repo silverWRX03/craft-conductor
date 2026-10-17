@@ -1434,7 +1434,6 @@ async function refreshStatus() {
   if (hb.auth && hb.auth.default && !hb.auth.managed && !promptDismissed()) showSecurity(true);
   offerGuide(hb);
   renderHealth(hb.health || []);
-  if (hb.risks && hb.risks.length) risksAlert(risksNow());
   if (hb.single && !server && hb.servers.length === 1) { location.hash = `#s/${hb.servers[0].id}/dashboard`; return; }
   renderNav();
   if (!server) {
@@ -7690,27 +7689,16 @@ function outsideChooser(strong) {
 
 // ------------------------------------------- safety rules you may switch off (Advanced)
 // Also `[web] accept_risks` in craft-conductor.toml. Switching one off asks first, only works at this
-// computer, and shows an alert to dismiss; while any is off the top of the page says so, and the
-// alert comes back once each time Craft Conductor is opened in a tab.
-const RISKS_SEEN_KEY = "craft-conductor-risks-seen";
-// (the rules switched off now, as the last status said: what "I understand" is remembered for)
-const risksNow = () => ((hubInfo && hubInfo.health) || []).filter((w) => w.risk).map((w) => w.risk);
-function risksAlert(texts, { fresh = false } = {}) {
-  if (!texts.length) return;
-  let seen = "";
-  try { seen = sessionStorage.getItem(RISKS_SEEN_KEY) || ""; } catch (_) { /* private mode */ }
+// computer, and shows an alert to dismiss, once; while any is off the top of the page says so.
+function risksAlert(text) {
   const id = "risks-alert";
-  if (document.getElementById(id)) { if (!fresh) return; closeToast(id); }  // (one at a time)
-  if (!fresh && seen === texts.join("|")) return;
+  closeToast(id);
   playSound("problem");
-  stickyToast(id, [h("strong", {}, fresh ? "A safety rule is switched off now" : "Safety rules are switched off"),
+  stickyToast(id, [h("strong", {}, "A safety rule is switched off now"),
     h("p", { class: "small" }, "While they're off, Craft Conductor is less protected:"),
-    h("ul", { class: "small" }, texts.map((x) => h("li", {}, t(x)))),
+    h("ul", { class: "small" }, h("li", {}, t(text))),
     h("p", { class: "small muted" }, "Switch them back on in Craft Conductor settings → Advanced."),
-    h("div", { class: "row mt-s" }, h("button", { class: "btn small primary", onclick: () => {
-      try { sessionStorage.setItem(RISKS_SEEN_KEY, (fresh ? risksNow() : texts).join("|")); } catch (_) { /* private mode */ }
-      closeToast(id);
-    } }, "I understand"))]);
+    h("div", { class: "row mt-s" }, h("button", { class: "btn small primary", onclick: () => closeToast(id) }, "I understand"))]);
 }
 function risksCard() {
   const body = h("div", {}, h("p", { class: "muted small" }, "Loading…"));
@@ -7723,7 +7711,7 @@ function risksCard() {
         const on = e.target.checked;
         if (on && !(await ask(t("Switch this safety rule off?") + "\n\n" + t(x.text) + ".", { ok: "Switch it off", danger: true, safe: true }))) { e.target.checked = false; return; }
         const done = await act(() => api("/api/hub/risks", { method: "POST", body: { name: x.name, on } }));
-        if (done && on) risksAlert([x.text], { fresh: true });
+        if (done && on) risksAlert(x.text);
         load();
       } }),
       h("span", {}, t(x.text), x.in_file ? h("span", { class: "muted small" }, " (set in craft-conductor.toml)") : null)));
