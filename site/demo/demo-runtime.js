@@ -4,6 +4,11 @@
    A released production frontend is assembled alongside this adapter at Pages build time. */
 (() => {
   const params = new URLSearchParams(location.search);
+  // Installability is only offered for the standalone simulated phone demo.
+  // This is NOT Craft Conductor's real push-notification worker.
+  if(window.self===window.top && params.get("phone")==="1" && "serviceWorker" in navigator){
+    navigator.serviceWorker.register("./demo-sw.js",{scope:"./"}).catch(()=>{});
+  }
   const storeKey = "cc-public-demo-state-v1";
   const now = () => Math.floor(Date.now() / 1000);
   const demoMod = (id, name) => ({id,source:"modrinth",key:"modrinth:"+id,name,version:"1.0.0",required:true,deps:[],filename:id+"-1.0.0.jar",status:"installed",channel:"release"});
