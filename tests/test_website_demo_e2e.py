@@ -91,3 +91,17 @@ def test_mobile_standalone_is_genuine_production_frontend(base, page):
     assert page.locator("#cc-app-menu").count() == 1
     assert page.locator("#nav").count() == 1
     assert page.locator(".cc-demo-ribbon").is_visible()
+
+def test_all_nine_production_server_routes(base, page):
+    errors = []
+    page.on("pageerror", lambda exc: errors.append(str(exc)))
+    page.goto(base + "demo/?mode=existing")
+    page.locator("#app").wait_for(state="visible", timeout=15000)
+    for name in ("dashboard", "console", "players", "updates", "mods",
+                 "friends", "backups", "java", "settings"):
+        page.evaluate("window.location.hash = '#s/family-survival/' + arguments[0]" if False
+                      else "(view) => { location.hash = '#s/family-survival/' + view; }", name)
+        page.wait_for_timeout(250)
+        assert page.locator("#main").is_visible(), name
+        assert page.locator("nav#nav a[href='#s/family-survival/" + name + "']").count() == 1, name
+    assert not errors, "JavaScript exceptions while rendering production routes:\n" + "\n".join(errors)
