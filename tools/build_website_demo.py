@@ -74,6 +74,28 @@ def build(destination: Path, version: str, channel: str, source: Path = SOURCE) 
     qr_url = "https://silverwrx03.github.io/craft-conductor/demo/?mode=existing&mobile=1"
     qr = qrcode.make(qr_url, image_factory=qrcode.image.svg.SvgPathImage)
     qr.save(str(destination / "phone-qr.svg"))
+    # Installable standalone phone demo, scoped ONLY to /craft-conductor/demo/.
+    # Unlike the production worker, this one has no push/network control logic
+    # and does not cache stale application assets between releases.
+    (destination / "demo-sw.js").write_text("""\
+"use strict";
+self.addEventListener("install", () => self.skipWaiting());
+self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));
+self.addEventListener("fetch", event => {
+  const url = new URL(event.request.url);
+  if (event.request.method === "GET" && url.origin === self.location.origin)
+    event.respondWith(fetch(event.request));
+});
+""", encoding="utf8")
+    (destination / "demo-pwa.js").write_text("""\
+"use strict";
+// Never register a worker at the project site root or on invitation/testing pages.
+if ("serviceWorker" in navigator)
+  navigator.serviceWorker.register("./demo-sw.js", { scope: "./" }).catch(() => {});
+""", encoding="utf8")
+    original = (destination / "index.html").read_text(encoding="utf8")
+    original = original.replace('</body>', '<script src="demo-pwa.js" defer></script></body>')
+    (destination / "index.html").write_text(original, encoding="utf8")
     (destination / "version.json").write_text(json.dumps({"version": version, "channel": channel, "source": "production-frontend", "simulated": True}), encoding="utf8")
 
 def main() -> None:
