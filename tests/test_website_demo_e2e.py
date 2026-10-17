@@ -99,8 +99,7 @@ def test_all_nine_production_server_routes(base, page):
     page.locator("#app").wait_for(state="visible", timeout=15000)
     for name in ("dashboard", "console", "players", "updates", "mods",
                  "friends", "backups", "java", "settings"):
-        page.evaluate("window.location.hash = '#s/family-survival/' + arguments[0]" if False
-                      else "(view) => { location.hash = '#s/family-survival/' + view; }", name)
+        page.evaluate("(view) => { location.hash = '#s/family-survival/' + view; }", name)
         page.wait_for_timeout(250)
         assert page.locator("#main").is_visible(), name
         assert page.locator("nav#nav a[href='#s/family-survival/" + name + "']").count() == 1, name
