@@ -1,5 +1,14 @@
 name: public demo validation
 on:
+  push:
+    branches: [main]
+    paths:
+      - "src/craft_conductor/webui/**"
+      - "site/**"
+      - "tools/build_public_site.py"
+      - "tools/smoke_public_site.cjs"
+  schedule:
+    - cron: "23 7 * * *"
   pull_request:
     paths:
       - "site/**"
