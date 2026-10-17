@@ -124,9 +124,21 @@
       players_mods:[],held:{},available:[],pending:[],updates:[],local:[],unmanaged:[],disabled:[],skipped:[],known_conflicts:[],summary:null
     };
   }
-  function client(s) {return {enabled:false,link_days:7,link_day_choices:[1,7,30,0],
-    mods:[],local_mods:[],held:{},pack:null,links:{},downloads:[],
-    local_link:"",internet_link:"",port:8766,server:s.id};}
+  function client(s) {
+    const enabled=!!s.friendsEnabled,expired=!!s.friendLinksStopped,days=s.linkDays===undefined?7:s.linkDays;
+    const suffix=encodeURIComponent(s.id+"-"+(s.inviteGeneration||1));
+    const fake="https://example.invalid/craft-conductor-demo/?server="+suffix;
+    const share={lan_ip:"192.0.2.10",address:s.shareAddr||"203.0.113.10",port:8766,
+      running:enabled&&!expired,error:null};
+    return {available:true,enabled,expired,expires:days?tick()+days*86400:null,
+      link_days:days,link_day_choices:[1,7,30,0],loader:s.loader,minecraft:s.minecraft,
+      memory_gb:s.friendMemory||4,mods:s.friendMods||[],mods_on_server:[],mod_details:[],
+      local_mods:[],held:{},pack:{minecraft:s.minecraft,loader:s.loader,loader_version:"Demo",
+        memory_gb:s.friendMemory||4,mods:[],manual:[],skipped:[],problems:[]},
+      links:enabled&&!expired?{local:fake+"#demo-local",internet:fake+"#demo-internet"}:{},
+      downloads:[],share,server:s.id,port:8766,players_deps:[],
+      also_on_server:[],server_skipped:[],friends_on:enabled};
+  }
   function join(s) {
     return {whitelist_on:s.whitelist_enabled,requests:s.requests.map((name,i)=>({id:"req-"+i,name,minecraft_name:name,created:tick()-60,ip:"demo",time:tick()-60})),count:s.requests.length};
   }
@@ -322,8 +334,27 @@
     if(p.startsWith("/api/mods/search"))return {results:[sampleMod("Fabric API","modrinth:fabric-api"),sampleMod("Lithium","modrinth:lithium")],mods:[],hidden:0,early_hidden:0};
     if(p.startsWith("/api/mods/versions"))return {versions:[],builds:[]};
     if(p==="/api/client"){
-      if(method==="POST")return client(s);
+      if(method==="POST"){
+        if(typeof body.enabled==="boolean")s.friendsEnabled=body.enabled;
+        if(typeof body.link_days==="number")s.linkDays=body.link_days;
+        if(typeof body.memory_gb==="number")s.friendMemory=body.memory_gb;
+        if(Array.isArray(body.mods))s.friendMods=body.mods;
+        if(body.enabled===true){s.friendLinksStopped=false;if(!s.inviteGeneration)s.inviteGeneration=1;}
+        log(s,body.enabled===true?"Enabled simulated friend invites":body.enabled===false
+          ?"Disabled simulated friend invites":"Updated friends' demo settings");
+      }
       return client(s);
+    }
+    if(p==="/api/client/new-link"&&method==="POST"){
+      s.inviteGeneration=(s.inviteGeneration||1)+1;s.friendLinksStopped=false;
+      log(s,"Generated new demo-only invitation links");return client(s);
+    }
+    if(p==="/api/client/stop-link"&&method==="POST"){
+      s.friendLinksStopped=true;log(s,"Stopped example friend invitations");return client(s);
+    }
+    if(p==="/api/hub/share/public-ip"&&method==="POST"){
+      s.shareAddr="203.0.113.10";
+      return {ip:s.shareAddr,notice:"Fictional example address only"};
     }
     if(p==="/api/join-requests/answer")return {message:"Demo request updated."};
     if(p==="/api/performance")return {running:s.state==="running",supported:true,status:"ok",words:"Keeping up",current:s.state==="running"?{tps:20,mspt:24}:null,samples:[],spark:false};
