@@ -10,3 +10,8 @@
 .phone-demo-hint span{text-align:center;color:var(--muted);font-size:11px}
 .demo-workspace:has(.phone-frame) .phone-demo-hint{display:none}
 @media(max-width:900px){.phone-demo-hint{display:none}.demo-topline{height:auto;min-height:54px;gap:8px;padding:9px;flex-wrap:wrap}.demo-mode-controls{justify-content:flex-start}.demo-workspace{min-height:calc(100dvh - 150px)}}
+
+/* The homepage showcase uses a real, release-tagged Craft Conductor screenshot. */
+.demo-screenshot{display:block;width:100%;padding:0;background:#090909;border:0;cursor:pointer;text-align:left}
+.demo-image{width:100%;height:auto;display:block;object-fit:contain;max-height:650px}
+.demo-screenshot:hover .demo-image{filter:brightness(1.07)}
