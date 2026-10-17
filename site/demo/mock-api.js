@@ -203,8 +203,25 @@
         body:"This is sample content for an offline website demo. No mods or modpacks are downloaded.",
         body_format:"plain",url:"https://modrinth.com/"};
     }
-    if(p.startsWith("/api/hub/mods/requires")||p.startsWith("/api/mods/requires"))
-      return {deps:[],compatible:true,reason:""};
+    if(p.startsWith("/api/hub/mods/requires")||p.startsWith("/api/mods/requires")){
+      const params=new URLSearchParams(p.split("?")[1]||"");
+      const id=String(params.get("id")||"fabric-api").replace(/^modrinth:/,"");
+      const loader=params.get("loader")||"fabric",minecraft=params.get("version")||"1.21.1";
+      const names={"fabric-api":"Fabric API",lithium:"Lithium","ferrite-core":"FerriteCore",
+        krypton:"Krypton",terralith:"Terralith","simple-voice-chat":"Simple Voice Chat",
+        "biomes-o-plenty":"Biomes O' Plenty",glitchcore:"GlitchCore"};
+      const name=names[id]||id.replace(/-/g," ").replace(/\\b\\w/g,x=>x.toUpperCase());
+      const incompatible=id==="biomes-o-plenty"&&loader==="neoforge"&&minecraft==="1.21.4";
+      const dependency=id==="lithium"&&loader==="fabric"
+        ? [{name:"Fabric API",slug:"fabric-api",id:"fabric-api",source:"modrinth",
+            channel:"release",compatible:true,environment:"both",needed_by:"Lithium"}] : [];
+      return {project:{name,id,environment:"both"},deps:dependency,compatible:!incompatible,
+        loader,minecraft,channel:"release",reason:incompatible
+          ?"Biomes O' Plenty requires GlitchCore, but no compatible GlitchCore release was found for this version after checking Modrinth and CurseForge.":"",
+        chain:incompatible?["biomes-o-plenty","glitchcore"]:[],checked:["Modrinth","CurseForge"],
+        suggestions:incompatible?["1.21.1"]:[],builds:["fabric","neoforge"],datapack:false,
+        companions:[],from:null};
+    }
     if(p.startsWith("/api/hub/mods/versions"))return {versions:[],builds:[]};
     if(p.startsWith("/api/hub/modpack/preview"))return {minecraft:"1.21.1",loader:"fabric",mods:[],client_mods:[]};
     if(p==="/api/browse/added")return {keys:(s?s.mods:[]).map(m=>m.key)};
