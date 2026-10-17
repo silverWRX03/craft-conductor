@@ -202,3 +202,44 @@ def test_authentic_first_run_form_can_create_server(base, page):
     names=page.evaluate("""async()=> (await(await fetch('/api/hub')).json()).servers.map(s=>s.name)""")
     assert names==["My Kids World"]
     assert not errors,repr(errors)
+
+
+def test_mobile_pwa_is_scoped_and_uses_real_qr(base, page):
+    manifest=page.request.get(base+"demo/manifest.webmanifest")
+    assert manifest.ok
+    data=manifest.json()
+    assert data["scope"]=="./"
+    assert data["start_url"].startswith("./?mode=existing&mobile=1")
+    worker=page.request.get(base+"demo/demo-sw.js")
+    assert worker.ok
+    body=worker.text()
+    assert 'addEventListener("fetch"' in body
+    assert "notification" not in body.lower()
+    qr=page.request.get(base+"demo/phone-qr.svg")
+    assert qr.ok
+    assert "<svg" in qr.text()
+    page.goto(base+"demo/?mode=existing&mobile=1")
+    page.locator("#app").wait_for(state="visible",timeout=15000)
+    assert page.locator('link[rel="manifest"]').get_attribute("href")=="manifest.webmanifest"
+    assert page.locator('script[src="demo-pwa.js"]').count()==1
+
+
+def test_escape_returns_visitor_to_homepage(base, page):
+    page.goto(base)
+    button=page.get_by_role("button",name="Explore the interactive demo")
+    button.click()
+    assert page.locator("#demo-overlay").is_visible()
+    page.keyboard.press("Escape")
+    assert page.locator("#demo-overlay").is_hidden()
+    assert button.is_focused()
+
+
+def test_mobile_site_navigation(base, page):
+    page.set_viewport_size({"width":375,"height":812})
+    page.goto(base)
+    menu=page.locator("#menu-toggle")
+    assert menu.is_visible()
+    menu.click()
+    assert page.locator("#site-nav").evaluate("(node) => node.classList.contains('open')")
+    page.locator("#site-nav").get_by_text("Features").click()
+    assert not page.locator("#site-nav").evaluate("(node) => node.classList.contains('open')")
