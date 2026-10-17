@@ -64,14 +64,14 @@
   });
   function describe(s) {
     return { id:s.id,motd:s.motd,minecraft:s.minecraft,loader:s.loader,port:s.port,
-      state:s.state,players:s.state==="running"?s.online.length:0,
+      state:s.state,players:s.state==="running"?s.online.slice():[],
       max_players:s.max_players,online:s.state==="running"?s.online:[],
       cpu_percent:s.state==="running"?24:0,memory_used_gb:s.state==="running"?2.8:0,
       memory_gb:4,uptime:s.state==="running"?620:0,setup_pending:false,
       memory:"4G",job:null,update:s.update,mods:s.mods.length,problem:null,
-      strategy:"latest-compatible",disk:{used_gb:8.4,total_gb:100,free_gb:91.6},
+      strategy:"latest-compatible",disk:{used_bytes:9019431322,total_bytes:107374182400,free_bytes:98354751078},
       runtime:{java:"21",memory:"4G",port:s.port,loader:s.loader},
-      health:[],memory_percent:s.state==="running"?62:0
+      health:[],java_major:21,resources:s.state==="running"?{cpu_percent:24,cpus:8,memory_bytes:3006477107,memory_max_bytes:4294967296,system_memory_bytes:17179869184}:null,memory_percent:s.state==="running"?62:0
     };
   }
   function players(s) {
@@ -267,7 +267,7 @@
       return client(s);
     }
     if(p==="/api/join-requests/answer")return {message:"Demo request updated."};
-    if(p==="/api/performance")return {tps:20,mspt:24,samples:[],data:[],available:false};
+    if(p==="/api/performance")return {running:s.state==="running",supported:true,status:"ok",words:"Keeping up",current:s.state==="running"?{tps:20,mspt:24}:null,samples:[],spark:false};
     if(p==="/api/performance/lag")return {finder:null,findings:[]};
     if(p==="/api/updates")return {check:{installed:s.minecraft,latest:s.minecraft,target:null,
       up_to_date:true,manual:[],changes:[],blocked:[],dropped:[],lagging:null,checked_at:tick(),
