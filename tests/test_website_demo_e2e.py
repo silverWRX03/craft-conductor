@@ -65,7 +65,7 @@ def test_existing_server_renders_real_frontend(base, page):
     frame = page.frame_locator("#demo-iframe")
     frame.locator("#app").wait_for(state="visible", timeout=15000)
     assert frame.locator("nav#nav").is_visible()
-    assert frame.locator("a[href='#s/family-survival/players']").count() == 1
+    assert frame.locator("nav#nav a[href='#s/family-survival/players']").count() == 1
     assert not external_api, "Demo made real API requests: " + repr(external_api)
     page.locator("#preview-phone").click()
     assert "phone-frame" in page.locator("#demo-iframe").get_attribute("class")
