@@ -46,7 +46,7 @@ jobs:
       - name: Choose latest published release
         id: selected
         env:
-          ${{ github.token }}: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         run: python tools/select_website_release.py --github-output "$GITHUB_OUTPUT"
       - name: Extract exact tagged application frontend
         env:
