@@ -706,7 +706,15 @@ async function showLogin() {
   const reset = h("button", { type: "button", class: "link-btn", onclick: async () => {
     if (!(await ask("Go back to the default password, PASSWORD? Anyone signed in elsewhere is signed out, and you'll choose a new one after signing in.", { ok: "Reset", danger: true }))) return;
     try {
-      await api("/api/auth/reset-local", { method: "POST", body: {} });
+      // The code is written to a file in Craft Conductor's folder: proof that it's someone at this computer
+      // (a tunnel can make a request look like it comes from here; it can't open the file).
+      let code = "";
+      if (a.reset_code !== false) {
+        const made = await api("/api/auth/reset-code", { method: "POST", body: {} });
+        code = await askText(t("Open this file on this computer and type the code in it (it works once, for 10 minutes):") + "\n\n" + made.file, { ok: "Reset" });
+        if (code === null) return;
+      }
+      await api("/api/auth/reset-local", { method: "POST", body: { code } });
       toast("The password is PASSWORD again");
       showLogin();
     } catch (err) { $("#login-error").textContent = err.message; }
@@ -1426,6 +1434,7 @@ async function refreshStatus() {
   if (hb.auth && hb.auth.default && !hb.auth.managed && !promptDismissed()) showSecurity(true);
   offerGuide(hb);
   renderHealth(hb.health || []);
+  if (hb.risks && hb.risks.length) risksAlert(risksNow());
   if (hb.single && !server && hb.servers.length === 1) { location.hash = `#s/${hb.servers[0].id}/dashboard`; return; }
   renderNav();
   if (!server) {
@@ -1667,6 +1676,13 @@ function forwardDetails(port, bedrock, lanIp) {
     h("p", { class: "muted small" }, "Craft Conductor can ask your router to do it (Craft Conductor settings → Router), and let it through Windows Firewall (Check my setup). " +
       "By hand: Help → Router setup.")];
 }
+// The forwarded port chosen by hand (only when the owner switched that safety rule off: Advanced).
+function ownPort(r, save) {
+  const input = h("input", { type: "number", min: 1024, max: 65535, value: r.port, "aria-label": "Port to forward" });
+  return h("details", { class: "small mt-s" }, h("summary", {}, "Choose the port yourself"),
+    h("p", {}, "You switched off Craft Conductor's choice of port (Craft Conductor settings → Advanced). Any port from 1024 to 65535 that nothing else here uses, 25565 too (bots try that one first). The server needs to be stopped."),
+    h("div", { class: "row" }, input, h("button", { class: "btn small", onclick: () => save(Number(input.value)) }, "Use this port")));
+}
 // Getting playit.gg's program, step by step (only when the button is pressed: nothing is
 // downloaded before). On Windows, Craft Conductor downloads playit.gg's installer from its GitHub
 // release and checks it before opening it; elsewhere, playit.gg's own steps.
@@ -1745,6 +1761,10 @@ function reachCard(sid, { compact = false } = {}) {
       r.way === "playit" ? [h("div", { class: "notice warn small mt-s", role: "note" }, h("strong", {}, "About playit.gg: "), REACH_TEXT.playit),
         compact ? null : playitSetup(r.port, bedrock, r.tunnel_address, saveAddress)] : null,
       r.way === "forward" ? forwardDetails(r.port, bedrock, r.lan_ip) : null,
+      r.way === "forward" && r.any_port && !compact ? ownPort(r, async (port) => {
+        const res = await act(() => api(path, { method: "POST", body: { way: "forward", port } }));
+        if (res) { toast(res.message); render(res); }
+      }) : null,
       r.way === "home" ? h("p", { class: "small mt-s" }, "Friends outside your home can't join. Friends on your network use this computer's address" +
         (r.lan_ip ? ` (${r.lan_ip}:${r.port})` : "") + ".") : null,
       r.reachable.length ? h("p", { class: "small mt-s " + (r.whitelist_on ? "ok-text" : "bad-text") },
@@ -5638,7 +5658,7 @@ const HELP = [
     h("p", {}, "The hamburger menu at the top left opens navigation. The Light / Dark slider inside it remembers your theme. On desktop the slider is in the top bar. The Dashboard shows CPU, RAM, server-volume Disk usage and Players in four cards, above the boxed Live console."),
     screenshot("phone", "The Dashboard on a phone."),
     h("p", {}, "Open ", h("button", { type: "button", class: "link-btn", onclick: openRemoteAccess }, "Remote access & phones"),
-      ": set a strong password, allow other devices, and pair your phone by scanning a QR code (it works once, for five minutes). Until then, only this computer can open the control panel. Away from home, use Tailscale rather than opening ports."),
+      ": set a strong password, allow other devices, and pair your phone by scanning a QR code (it works once, for five minutes). Until then, only this computer can open the control panel. Away from home (step 3): Tailscale keeps it private to your own devices and the people you share this computer with; Cloudflare's quick tunnel puts it on the internet for 4 hours. Both are free. Never forward the control panel's port on your router."),
     screenshot("remote-access", "Remote access & phones: a strong password, then pair your phone.")]],
   ["people", "Letting other people help", () => [
     h("p", {}, "Open ", h("button", { type: "button", class: "link-btn", onclick: () => isOwner() ? openPeople() : toast("Only the owner of this Craft Conductor can invite people.", true) }, "People"),
@@ -5883,15 +5903,8 @@ function openRemoteAccess({ setup = currentName === "new" || currentName === "se
       setup ? "Finish creating your server first. Craft Conductor will apply remote access automatically, then return here for phone setup before Friends. Your setup and servers stay open."
         : ["Apply this change without closing Craft Conductor. Your servers and work stay open. ",
           h("button", { class: "btn small", onclick: async () => { await act(() => api("/api/hub/network/apply", { method: "POST" })); load(); } }, "Apply remote access")]) : null;
-    // 3. away from home
-    const away = [
-      h("p", { class: "small" }, "On your home Wi-Fi, a phone reaches this computer directly. To use it away from home, use a private network app instead of opening ports:"),
-      h("ol", { class: "steps small" },
-        h("li", {}, "Install ", h("a", { href: "https://tailscale.com/download", target: "_blank", rel: "noopener noreferrer" }, "Tailscale ↗"), " (free for personal use) on this computer and on your phone."),
-        h("li", {}, "Sign in to the same account on both."),
-        h("li", {}, "Reopen this window: a Tailscale address appears under “People, and their phones”.")),
-      h("div", { class: "notice warn small" }, h("strong", {}, "Don't forward the control panel's port on your router. "),
-        "That puts it on the open internet, where bots try passwords all day. Tailscale keeps it private and encrypted.")];
+    // 3. away from home: Tailscale, or Cloudflare's quick tunnel for a few hours
+    const away = [outsideChooser(r.strong)];
     // HTTPS (optional)
     const cert = h("input", { value: r.tls_cert || "", placeholder: "Certificate file (.crt / .pem)", "aria-label": "Certificate file" });
     const key = h("input", { value: r.tls_key || "", placeholder: "Key file (.key / .pem)", "aria-label": "Key file" });
@@ -7545,6 +7558,185 @@ async function phoneBanner() {
     h("div", { class: "row mt-s" }, h("button", { class: "btn small primary", onclick: openSettings }, "Turn on notifications"), notNow));
   $("#stage").before(box);
 }
+// ----------------------------------------------- the control panel from outside your home
+// Two free ways, for the control panel (HTTPS), not the game (each server's Friends page has that):
+// Tailscale keeps it private, for your own devices and the people you share this computer with;
+// Cloudflare's quick tunnel puts it on the internet for a few hours. Requests through either never
+// count as "on this computer" (tunnels.py), and both need a strong password.
+const OUTSIDE_TEXT = {
+  tailscale: "Private: only your own devices, and the people you share this computer with, can open it. Free for personal use (up to 6 people). Encrypted all the way: Tailscale can't see what passes through.",
+  cloudflare: "Anyone on the internet who has the address can reach the sign-in page, for a few hours. Free, and no account needed.",
+  never: "Don't forward the control panel's port on your router, and never point a playit.gg tunnel at it: those put it on the internet with nothing to tell the visitors apart.",
+};
+function outsideChooser(strong) {
+  const box = h("div", { class: "outside" });
+  let ts = null, cf = null, funnelAllowed = false, pick = null, polls = 0, pollTimer = null;
+  const out = h("div", { class: "mt-s" });
+  const load = async () => {
+    const [p, c] = await Promise.all([api("/api/hub/phone?tailscale=1").catch(() => null), api("/api/hub/cloudflare").catch(() => null)]);
+    ts = p && p.tailscale;
+    funnelAllowed = !!(p && p.funnel_allowed);
+    cf = c;
+    if (pick === null) pick = cf && cf.running ? "cloudflare" : "tailscale";
+    render();
+    clearTimeout(pollTimer);
+    // (while cloudflared downloads, or the tunnel opens: a few times, then it stops asking)
+    if (cf && (cf.download.state === "downloading" || cf.starting) && polls++ < 150 && box.isConnected) pollTimer = setTimeout(load, 2000);
+  };
+  const tailscaleUse = async (funnel) => {
+    if (funnel && !(await ask("Put the control panel on the internet with Tailscale Funnel?\n\nAnyone who finds the address can reach the sign-in page, and Tailscale can't tell your own devices from strangers there.", { ok: "Put it on the internet", danger: true, safe: true }))) return;
+    const r = await api("/api/hub/phone/tailscale", { method: "POST", body: { on: true, funnel } }).catch((e) => { toast(e.message, true); return null; });
+    if (!r) return;
+    if (!r.ok) {
+      fill(out, h("div", { class: "notice warn small" }, r.message,
+        r.enable_url ? h("div", {}, "Tailscale needs this switched on for your account first (one click): ",
+          h("a", { href: r.enable_url, target: "_blank", rel: "noopener noreferrer" }, "switch it on ↗"), ", then press the button again.") : null));
+      return;
+    }
+    toast(funnel ? "The control panel is on the internet at " + r.url : "Ready: your devices can open " + r.url);
+    load();
+  };
+  const tailscaleStop = async () => { await act(() => api("/api/hub/phone/tailscale", { method: "POST", body: { on: false } }), "Stopped"); load(); };
+  const tailscalePart = () => {
+    const recheck = h("button", { class: "link-btn", onclick: load }, "check again");
+    if (!ts) return h("p", { class: "small muted" }, "Couldn't ask Tailscale.");
+    if (!ts.installed) return h("ol", { class: "steps small" },
+      h("li", {}, "Install ", h("a", { href: "https://tailscale.com/download", target: "_blank", rel: "noopener noreferrer" }, "Tailscale ↗"), " on this computer and on your phone (free for personal use)."),
+      h("li", {}, "Sign in to the same account on both."),
+      h("li", {}, "Then ", recheck, "."));
+    if (!ts.running || !ts.name) return h("p", { class: "small" }, "Tailscale is installed but isn't signed in and connected on this computer. Open it and sign in, then ", recheck, ".");
+    const people = h("details", { class: "small mt-s" }, h("summary", {}, "Let the people you invited in, too"),
+      h("p", {}, "They need Tailscale on their phone or computer as well, with a free account of their own. Two ways:"),
+      h("ol", {},
+        h("li", {}, h("strong", {}, "Share just this computer (simplest): "), "in Tailscale's admin console, open Machines, find this computer, press Share… and send them the link. They reach this computer and nothing else of yours."),
+        h("li", {}, h("strong", {}, "Invite them to your Tailscale network: "), "admin console → Users → Invite users. They count toward the free plan's 6 people, and can reach your other devices too unless you limit it there.")),
+      h("p", {}, "Either way they open ", h("code", {}, `https://${ts.name}`), ", sign in with their own username and password, and can do only what you gave them (People)."));
+    if (ts.serving) return h("div", {},
+      h("div", { class: `notice ${ts.funnel ? "warn" : "ok"} small` }, ts.funnel ? "On the internet for anyone (Funnel): " : "Ready. On your devices (with Tailscale on), open ",
+        h("a", { href: `https://${ts.name}/`, target: "_blank", rel: "noopener noreferrer" }, h("strong", {}, `https://${ts.name}`))),
+      h("div", { class: "row mt-s wrap" },
+        ts.funnel ? h("button", { class: "btn small", onclick: () => tailscaleUse(false) }, "Back to only my devices")
+          : funnelAllowed ? h("button", { class: "btn small danger", onclick: () => tailscaleUse(true) }, "Put it on the internet too (Funnel)") : null,
+        h("button", { class: "btn small ghost", onclick: tailscaleStop }, "Stop using Tailscale for this")),
+      people, out);
+    return h("div", {},
+      h("p", { class: "small" }, `Tailscale is on (${ts.name}). Craft Conductor can give this computer a secure address there.`),
+      h("div", { class: "row wrap" }, h("button", { class: "btn primary small", disabled: !strong, onclick: () => tailscaleUse(false) }, "Use Tailscale"),
+        funnelAllowed ? h("button", { class: "btn small danger", disabled: !strong, onclick: () => tailscaleUse(true) }, "Use it with Funnel (on the internet)") : null),
+      people, out);
+  };
+  const cfDownload = async () => {
+    const r = await api("/api/hub/cloudflare/download", { method: "POST", body: {} }).catch((e) => { toast(e.message, true); return null; });
+    if (r) { polls = 0; load(); }
+  };
+  const cfStart = async () => {
+    if (!(await ask(`Open the control panel to the internet for ${cf.hours} hours?` + "\n\n" + cf.downsides.map((d) => "• " + t(d)).join("\n"),
+      { ok: "Open it", danger: true, safe: true }))) return;
+    fill(out, h("p", { class: "small muted" }, "Opening… (Cloudflare can take half a minute)"));
+    const r = await api("/api/hub/cloudflare/start", { method: "POST", body: {} }).catch((e) => { toast(e.message, true); return null; });
+    fill(out);
+    if (r && r.address) toast("The control panel is on the internet at " + r.address);
+    polls = 0;
+    load();
+  };
+  const cfStop = async () => { await act(() => api("/api/hub/cloudflare/stop", { method: "POST", body: {} }), "The control panel is off the internet again"); load(); };
+  const cloudflarePart = () => {
+    if (!cf) return h("p", { class: "small muted" }, "Couldn't load this.");
+    const about = h("p", { class: "small muted" }, "cloudflared is Cloudflare's program. Craft Conductor downloads it from Cloudflare's GitHub page only when you press the button, checks it (its checksum, and on Windows Cloudflare's signature), and runs it as its own program while the tunnel is open. It's stopped after ",
+      String(cf.hours), " hours, when you press Stop, or when Craft Conductor closes. ",
+      h("a", { href: cf.about, target: "_blank", rel: "noopener noreferrer" }, "About quick tunnels ↗"), " · ",
+      h("a", { href: cf.terms, target: "_blank", rel: "noopener noreferrer" }, "Cloudflare's terms ↗"));
+    const downsides = h("ul", { class: "small" }, cf.downsides.map((d) => h("li", {}, t(d))));
+    let action;
+    const dl = cf.download || {};
+    if (cf.running) {
+      const ends = new Date(cf.ends * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      action = cf.address ? h("div", {},
+        h("div", { class: "notice warn small" }, "On the internet until ", ends, ": ",
+          h("a", { href: cf.address, target: "_blank", rel: "noopener noreferrer" }, h("strong", {}, cf.address))),
+        h("div", { class: "row mt-s" }, h("button", { class: "btn small ghost", onclick: () => navigator.clipboard.writeText(cf.address).then(() => toast("Copied")) }, "Copy"),
+          h("button", { class: "btn small danger", onclick: cfStop }, "Stop now")))
+        : h("p", { class: "small muted" }, "Opening…");
+    } else if (!cf.installed && cf.mac) {
+      action = h("p", { class: "small" }, "On a Mac, install cloudflared with Homebrew (", h("code", {}, "brew install cloudflared"), "), then ", h("button", { class: "link-btn", onclick: load }, "check again"), ".");
+    } else if (!cf.installed) {
+      action = dl.state === "downloading"
+        ? h("p", { class: "small muted" }, "Downloading cloudflared… ", dl.size ? `${Math.round(100 * dl.got / dl.size)}%` : fmtBytes(dl.got || 0))
+        : h("div", {}, dl.state === "error" ? h("div", { class: "notice bad small" }, dl.error) : null,
+          h("button", { class: "btn small", onclick: cfDownload }, "Download cloudflared"));
+    } else {
+      action = h("div", {}, cf.error ? h("div", { class: "notice bad small" }, cf.error) : null,
+        h("button", { class: "btn primary small", disabled: !strong, onclick: cfStart }, `Open to the internet for ${cf.hours} hours`));
+    }
+    return h("div", {}, h("p", { class: "small" }, "Downsides:"), downsides, about, action, out);
+  };
+  const render = () => {
+    // (the same kind of chooser as Friends outside your home: one button each, the one picked pressed)
+    const choice = (id, title, tag) => h("button", { type: "button", class: "choice" + (pick === id ? " selected" : ""),
+      "aria-pressed": String(pick === id), "data-outside": id, onclick: () => { pick = id; fill(out); render(); } },
+      h("strong", {}, title, tag ? [" ", h("span", { class: "tag" }, tag)] : null), h("span", { class: "small muted" }, OUTSIDE_TEXT[id]));
+    fill(box,
+      h("p", { class: "small" }, "On your home Wi-Fi, a phone reaches this computer directly. Away from home, choose one (both are free; this is for the control panel, not the game):"),
+      h("div", { class: "choices", role: "group", "aria-label": "Reach the control panel from outside" },
+        choice("tailscale", "Tailscale", "recommended"), choice("cloudflare", "Cloudflare quick tunnel, for a few hours")),
+      !strong ? h("div", { class: "notice warn small" }, "First set a strong password (step 1): anyone using these signs in from another device.") : null,
+      pick === "tailscale" ? tailscalePart() : cloudflarePart(),
+      h("div", { class: "notice warn small mt-s" }, h("strong", {}, "Never: "), t(OUTSIDE_TEXT.never)));
+  };
+  fill(box, h("p", { class: "muted small" }, "Loading…"));
+  load();
+  return box;
+}
+
+// ------------------------------------------- safety rules you may switch off (Advanced)
+// Also `[web] accept_risks` in craft-conductor.toml. Switching one off asks first, only works at this
+// computer, and shows an alert to dismiss; while any is off the top of the page says so, and the
+// alert comes back once each time Craft Conductor is opened in a tab.
+const RISKS_SEEN_KEY = "craft-conductor-risks-seen";
+// (the rules switched off now, as the last status said: what "I understand" is remembered for)
+const risksNow = () => ((hubInfo && hubInfo.health) || []).filter((w) => w.risk).map((w) => w.risk);
+function risksAlert(texts, { fresh = false } = {}) {
+  if (!texts.length) return;
+  let seen = "";
+  try { seen = sessionStorage.getItem(RISKS_SEEN_KEY) || ""; } catch (_) { /* private mode */ }
+  const id = "risks-alert";
+  if (document.getElementById(id)) { if (!fresh) return; closeToast(id); }  // (one at a time)
+  if (!fresh && seen === texts.join("|")) return;
+  playSound("problem");
+  stickyToast(id, [h("strong", {}, fresh ? "A safety rule is switched off now" : "Safety rules are switched off"),
+    h("p", { class: "small" }, "While they're off, Craft Conductor is less protected:"),
+    h("ul", { class: "small" }, texts.map((x) => h("li", {}, t(x)))),
+    h("p", { class: "small muted" }, "Switch them back on in Craft Conductor settings → Advanced."),
+    h("div", { class: "row mt-s" }, h("button", { class: "btn small primary", onclick: () => {
+      try { sessionStorage.setItem(RISKS_SEEN_KEY, (fresh ? risksNow() : texts).join("|")); } catch (_) { /* private mode */ }
+      closeToast(id);
+    } }, "I understand"))]);
+}
+function risksCard() {
+  const body = h("div", {}, h("p", { class: "muted small" }, "Loading…"));
+  const el = card("Safety rules", body);
+  const load = async () => {
+    const r = await api("/api/hub/risks").catch((e) => { fill(body, h("div", { class: "notice bad small" }, e.message)); return null; });
+    if (!r) return;
+    const row = (x) => h("li", {}, h("label", { class: "row check-row grow" },
+      h("input", { type: "checkbox", checked: x.on, disabled: x.in_file, onchange: async (e) => {
+        const on = e.target.checked;
+        if (on && !(await ask(t("Switch this safety rule off?") + "\n\n" + t(x.text) + ".", { ok: "Switch it off", danger: true, safe: true }))) { e.target.checked = false; return; }
+        const done = await act(() => api("/api/hub/risks", { method: "POST", body: { name: x.name, on } }));
+        if (done && on) risksAlert([x.text], { fresh: true });
+        load();
+      } }),
+      h("span", {}, t(x.text), x.in_file ? h("span", { class: "muted small" }, " (set in craft-conductor.toml)") : null)));
+    fill(body,
+      h("p", { class: "small" }, "Craft Conductor keeps these rules on for everyone. If you know the risk and want to take it, tick one to allow it. Ticking only works in a browser on this computer; unticking works anywhere."),
+      h("ul", { class: "list" }, r.risks.map(row)),
+      h("p", { class: "muted small" }, "Power users can list them in craft-conductor.toml too: ", h("code", {}, '[web] accept_risks = ["any-port"]'),
+        ". Two rules can't be switched off: a request through a tunnel never counts as on this computer, and the programs Craft Conductor downloads are always checked."));
+  };
+  load();
+  return el;
+}
+
 function phoneCard({ deviceOnly = false } = {}) {  // deviceOnly: just this phone (the phone banner's window)
   const body = h("div", {}, h("p", { class: "muted small" }, "Loading…"));
   const el = card(deviceOnly ? null : "Phone app", body);
@@ -7669,7 +7861,7 @@ function phoneCard({ deviceOnly = false } = {}) {  // deviceOnly: just this phon
           h("li", {}, "iPhone or iPad: in Safari press Share → Add to Home Screen, then open Craft Conductor from the Home Screen. Android: in Chrome press ⋮ → Install app (or Add to Home screen)."),
           h("li", {}, "In the app, go to Craft Conductor settings → Connections → Phone app → Turn on notifications here."))),
       h("details", { class: "small" }, h("summary", {}, "Other ways to get a secure address"),
-        h("p", {}, "A Cloudflare Tunnel, or your own domain with a reverse proxy (Caddy, nginx) that has a real certificate, works too: add its host name to [web] allowed_hosts, and keep a strong password, since that address is on the internet."))]);
+        h("p", {}, "Cloudflare's quick tunnel gives one for a few hours (Remote access & phones → Away from home), but its address changes every time, so an installed app stops working. Your own domain with a reverse proxy (Caddy, nginx) that has a real certificate works too: add its host name to [web] allowed_hosts, and keep a strong password, since that address is on the internet."))]);
   };
   load();
   return el;
@@ -7848,6 +8040,7 @@ views["craft-conductor"] = () => {
     ["Connections", "Phones, sharing with friends and connected services.", network, phone, sharing, cf, dc,
       owner && hubInfo && !hubInfo.single ? conflictsCard() : null],
     ["About & updates", "Craft Conductor version, updates and licenses.", about, firewallCard],
+    ...(owner && hubInfo && !hubInfo.single ? [["Advanced", "Safety rules you may switch off, if you know the risk.", risksCard()]] : []),
   ];
   const panels = sections.map(([title, description, ...cards], i) => h("section", {
     id: `preferences-${i}`, class: "preferences-panel" + (i ? " hidden" : ""), "aria-labelledby": `preferences-button-${i}`,
