@@ -173,6 +173,44 @@
       const game={...body,id:"demo-game-"+Date.now()};
       state.games.push(game);return {id:game.id};
     }
+
+    if (/^\/api\/(?:hub\/)?browse\/(categories|search|project)/.test(p)) {
+      const kind = p.includes("categories") ? "categories" : p.includes("search") ? "search" : "project";
+      const q = new URLSearchParams(p.split("?")[1]||"");
+      if (kind==="categories") return {categories:[{id:"adventure",name:"Adventure"},{id:"optimization",name:"Optimization"},{id:"utility",name:"Utility"}]};
+      const base=[
+        {id:"fabric-api",slug:"fabric-api",name:"Fabric API",summary:"Essential APIs for Fabric mods",channel:"release",environment:"both",downloads:240000000,source:"modrinth",author:"modmuss50"},
+        {id:"lithium",slug:"lithium",name:"Lithium",summary:"Server performance optimization",channel:"release",environment:"server",downloads:90000000,source:"modrinth",author:"CaffeineMC"},
+        {id:"terralith",slug:"terralith",name:"Terralith",summary:"New biomes and exploration",channel:"release",environment:"both",downloads:50000000,source:"modrinth",author:"Stardust Labs"},
+        {id:"simple-voice-chat",slug:"simple-voice-chat",name:"Simple Voice Chat",summary:"Talk to players nearby",channel:"release",environment:"both",downloads:60000000,source:"modrinth",author:"henkelmax"},
+        {id:"biomes-o-plenty",slug:"biomes-o-plenty",name:"Biomes O' Plenty",summary:"More biomes for adventures; requires GlitchCore on NeoForge",channel:"release",environment:"both",downloads:67000000,source:"modrinth",author:"Forstride"}
+      ];
+      const projects=q.get("type")==="modpack"
+        ? [{id:"family-exploration",slug:"family-exploration",name:"Family Exploration (Demo Pack)",summary:"Fictional example pack for exploring the demo",source:"modrinth",channel:"release",downloads:12000,environment:"both"}]
+        : base;
+      if(kind==="search"){
+        const term=(q.get("q")||"").toLowerCase();
+        const filtered=projects.filter(x=>!term||x.name.toLowerCase().includes(term)||x.summary.toLowerCase().includes(term));
+        return {results:filtered,hidden:0,early_hidden:0,next:null};
+      }
+      const found=projects.find(x=>x.id===q.get("id"))||base.find(x=>x.id===q.get("id"))||projects[0];
+      return {...found,icon:null,follows:0,categories:[],gallery:[],links:{},
+        versions:found.id==="family-exploration"?[{id:"demo-pack-v1",name:"Demo pack",minecraft:["1.21.1"],loaders:["fabric"]}]:[],
+        body:"This is sample content for an offline website demo. No mods or modpacks are downloaded.",
+        body_format:"plain",url:"https://modrinth.com/"};
+    }
+    if(p.startsWith("/api/hub/mods/requires")||p.startsWith("/api/mods/requires"))
+      return {deps:[],compatible:true,reason:""};
+    if(p.startsWith("/api/hub/mods/versions"))return {versions:[],builds:[]};
+    if(p.startsWith("/api/hub/modpack/preview"))return {minecraft:"1.21.1",loader:"fabric",mods:[],client_mods:[]};
+    if(p==="/api/browse/added")return {keys:(s?s.mods:[]).map(m=>m.key)};
+    if(p==="/api/mods/add-many"&&method==="POST"){
+      const added=[];
+      for(const m of body.mods||[]){const key=(m.source||"modrinth")+":"+(m.id||m.slug);
+        if(!s.mods.some(x=>x.key===key)){s.mods.push({key,name:m.name,version:"1.0",required:true});added.push(m.name)}
+      }
+      return {added,skipped:[]};
+    }
     if (!s) throw Error("Create a demo server first.");
     if (p==="/api/status") return describe(s);
     if (p==="/api/console") return {last:s.log.length,lines:s.log.filter(x=>x.seq>Number(new URLSearchParams(rawPath.split("?")[1]||"").get("since")||0))};
