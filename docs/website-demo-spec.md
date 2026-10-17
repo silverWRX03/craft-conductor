@@ -71,4 +71,18 @@ Nested: mod browser and manager, world/map, single-player, friend setup, update 
 - No actual deployment or release publishing attempted from a draft PR.
 
 ## Current implementation status
-Website shell, left sidebar, default dark theme, demo slideout and preservation of original sample preview are implemented on the feature branch. The sample preview at `/preview/` remains a **temporary** stand-in, not a production-accurate simulator. Do not treat the draft as ready for merge before the above merge gates pass.
+### Implemented on the draft branch
+- Production HTML/CSS/JavaScript builds into `/demo/` using a browser-only simulated API; no genuine Minecraft/backend requests.
+- Homepage with actual app screenshot, persistent left navigation, dark default theme, two demo entries, a right-side drawer and Leave Demo control.
+- Fictional server creation, lifecycle, dashboard, console commands, player/whitelist operations, mod browse fixtures, backup records, and friends' invitations.
+- PWA-only manifest and service worker scoped to `/demo/`; independently stateful standalone phone route and real scannable QR.
+- Release selector (`both` beta+stable initially, explicit `stable` switch later), exact tagged frontend packaging and gated **single** Pages publisher.
+- Playwright browser smoke tests of global and server routes, server creation, whitelist requests, backup records, Friends controls, keyboard/mobile, original invite/testing paths and Help/manual assets, on both development and tagged-release frontends.
+
+### Remaining review work / do not merge
+- Add comprehensive fine-grained mock API and UI tests for advanced modpack workflows, world preview/maps, updates and rehearsals, Java configuration, permissions, and third-party integration panels.
+- Audit every enabled control for useful responses, and reject unsupported API contracts before calling the demo complete.
+- Perform full visual screenshot/keyboard/accessibility review across devices and production release tags.
+- Verify that a simulated update makes and restores backups as claimed in the invariant list.
+- Review release build and GitHub Pages deployment conditions; **do not merge or publish before these gates pass**.
+The original dashboard-only preview remains independently available at `/preview/`, but is no longer the interactive site's primary demo.
