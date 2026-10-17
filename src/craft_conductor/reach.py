@@ -120,7 +120,24 @@ def in_open_range(port: int) -> bool:
 
 # ------------------------------------------------------------- Geyser's port
 GEYSER_CONFIGS = ("config/Geyser-Fabric/config.yml", "config/Geyser-NeoForge/config.yml", "plugins/Geyser-Spigot/config.yml")
-_BEDROCK_PORT = re.compile(r"(^bedrock:[ \t]*\r?\n(?:(?:[ \t]+.*|[ \t]*#.*|[ \t]*)\r?\n)*?[ \t]+port:[ \t]*)(\d{1,5})", re.M)
+_PORT_LINE = re.compile(r"[ \t]+port:[ \t]*(\d{1,5})")
+
+
+def _bedrock_port(text: str) -> tuple[int, int, int] | None:
+    """Where the port is in the ``bedrock:`` section of Geyser's config.yml: (the line, and where the
+    number starts and ends in it). Read line by line (a pattern over the whole file could take very
+    long on an odd file); the section ends at the next line that isn't indented, blank or a comment."""
+    inside = False
+    for i, line in enumerate(text.splitlines()):
+        if not inside:
+            inside = line.rstrip(" \t") == "bedrock:"
+            continue
+        if line.strip() and not line.strip().startswith("#") and line[:1] not in (" ", "\t"):
+            return None  # (the next section)
+        m = _PORT_LINE.match(line)
+        if m:
+            return i, m.start(1), m.end(1)
+    return None
 
 
 def geyser_config(server_dir: Path) -> Path | None:
@@ -135,9 +152,13 @@ def geyser_port(server_dir: Path) -> int:
     """The UDP port Bedrock players use (Geyser's config.yml; 19132 until Geyser has written it)."""
     path = geyser_config(server_dir)
     if path is not None:
-        m = _BEDROCK_PORT.search(path.read_text(encoding="utf-8", errors="replace"))
-        if m and 1 <= int(m.group(2)) <= 65535:
-            return int(m.group(2))
+        text = path.read_text(encoding="utf-8", errors="replace")
+        found = _bedrock_port(text)
+        if found:
+            i, start, end = found
+            port = int(text.splitlines()[i][start:end])
+            if 1 <= port <= 65535:
+                return port
     return 19132
 
 
@@ -150,9 +171,13 @@ def set_geyser_port(server_dir: Path, port: int) -> bool:
     if path is None:
         return False
     text = path.read_text(encoding="utf-8", errors="replace")
-    new, n = _BEDROCK_PORT.subn(lambda m: m.group(1) + str(int(port)), text, count=1)
-    if not n:
+    found = _bedrock_port(text)
+    if found is None:
         return False
+    i, start, end = found
+    lines = text.splitlines(keepends=True)
+    lines[i] = lines[i][:start] + str(int(port)) + lines[i][end:]
+    new = "".join(lines)
     if new != text:
         tmp = path.with_name(path.name + ".tmp")
         tmp.write_text(new, encoding="utf-8")

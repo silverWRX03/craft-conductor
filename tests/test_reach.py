@@ -247,6 +247,17 @@ def test_geysers_port_is_read_and_written_in_its_bedrock_section_only(tmp_path):
     assert reach.geyser_port(tmp_path) == 31000 and "remote:\n  port: 25565" in text
     with pytest.raises(ValueError):
         reach.set_geyser_port(tmp_path, 70000)
+    # Windows line endings are kept; a port in the next section isn't Bedrock's.
+    cfg.write_bytes(b"bedrock:\r\n  address: 0.0.0.0\r\n  port: 19132\r\nremote:\r\n  port: 25565\r\n")
+    assert reach.set_geyser_port(tmp_path, 31001) and cfg.read_bytes() == \
+        b"bedrock:\r\n  address: 0.0.0.0\r\n  port: 31001\r\nremote:\r\n  port: 25565\r\n"
+    cfg.write_text("bedrock:\n  address: 0.0.0.0\nremote:\n  port: 25565\n")
+    assert reach.geyser_port(tmp_path) == 19132 and reach.set_geyser_port(tmp_path, 31000) is False
+    # An odd file is read quickly (a pattern over the whole file could take very long: CodeQL).
+    import time
+    cfg.write_text("bedrock:\n" + "\t\t\n" * 100_000 + "x")
+    start = time.monotonic()
+    assert reach.geyser_port(tmp_path) == 19132 and time.monotonic() - start < 2
 
 
 def test_the_firewall_rule_for_bedrock_is_udp():
