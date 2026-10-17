@@ -115,9 +115,9 @@
   }
   function mods(s) {
     return {minecraft:s.minecraft,loader:s.loader,plugins:false,
-      configured:s.mods.map(m=>({ ...sampleMod(m.name,m.key), ...m,slug:m.key.split(":").pop()})),
-      installed:s.mods.map(m=>({name:m.name,version:m.version,file:m.key.split(":").pop()+".jar"})),
-      players_mods:[],held:{},available:[],pending:[],updates:[],local:[],summary:null
+      configured:s.mods.map(m=>({ ...sampleMod(m.name,m.key), ...m,id:m.key.split(":").pop(),slug:m.key.split(":").pop(),deps:[]})),
+      installed:s.mods.map(m=>({name:m.name,key:m.key,source:"modrinth",version:m.version,filename:m.key.split(":").pop()+".jar"})),
+      players_mods:[],held:{},available:[],pending:[],updates:[],local:[],unmanaged:[],disabled:[],skipped:[],known_conflicts:[],summary:null
     };
   }
   function client(s) {return {enabled:false,link_days:7,link_day_choices:[1,7,30,0],
@@ -322,7 +322,7 @@
     if(p==="/api/doctor")return {checks:[{title:"Simulated server",status:"ok",detail:"This demonstration cannot access your computer or network."}]};
     if(p==="/api/tunnel")return {address:""};
     if(p==="/api/play-here")return {installed:true,server_gb:4,game_gb:4,system_gb:16,mods:s.mods.length,max_players:20};
-    if(p==="/api/configs")return {mods:[],files:[]};
+    if(p==="/api/configs")return {mods:[],other:[],files:[]};
     if(p==="/api/modsets")return {sets:[]};
     if(p==="/api/hub/manual/needed")return {items:[]};
     if(p==="/api/licenses")return {licenses:[]};
