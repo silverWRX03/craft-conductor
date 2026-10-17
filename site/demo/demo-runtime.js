@@ -9,7 +9,7 @@
   if(window.self===window.top && params.get("phone")==="1" && "serviceWorker" in navigator){
     navigator.serviceWorker.register("./demo-sw.js",{scope:"./"}).catch(()=>{});
   }
-  const storeKey = "cc-public-demo-state-v1";
+  const storeKey = params.get("phone")==="1" ? "cc-public-demo-phone-state-v1" : "cc-public-demo-desktop-state-v1";
   const now = () => Math.floor(Date.now() / 1000);
   const demoMod = (id, name) => ({id,source:"modrinth",key:"modrinth:"+id,name,version:"1.0.0",required:true,deps:[],filename:id+"-1.0.0.jar",status:"installed",channel:"release"});
   const example = () => ({id:"family-survival",name:"Family Survival",motd:"Family Survival",state:"running",loader:"fabric",minecraft:"1.21.1",memory_gb:8,max_players:20,port:25565,mods:[demoMod("fabric-api","Fabric API"),demoMod("lithium","Lithium"),demoMod("terralith","Terralith")],players:["Alex","Mia","KaiCrafts"],known:["Alex","Mia","KaiCrafts","Sam_Builds"],whitelist:["Alex","Mia","KaiCrafts"],requests:[{name:"Sam_Builds",time:now()}],bans:[],ops:["Alex"],backups:[{name:"before-update.tar.gz",size_bytes:158000000,created:now()-86400,kind:"automatic"}],settings:{memory_gb:8,motd:"Family Survival",max_players:20,port:25565},events:[],console:[]});
@@ -66,7 +66,7 @@
     if(p==="/api/players"&&get)return playersData(active(s));
     if(p==="/api/players/online"&&get)return playersOnline(active(s));
     if(p==="/api/join-requests"&&get)return {whitelist_on:true,requests:active(s).requests.slice()};
-    if(p==="/api/join-requests/answer"&&!get){s.requests=s.requests.filter(x=>x.name!==body.name);if(body.allow){if(!s.whitelist.includes(body.name))s.whitelist.push(body.name);appendLog(s,body.name+" was added to the whitelist");}save();return success(body.allow?"Added to whitelist.":"Request ignored.");}
+    if(p==="/api/join-requests/answer"&&!get){s.requests=s.requests.filter(x=>x.name!==body.name);if(body.allow){if(!s.whitelist.includes(body.name))s.whitelist.push(body.name);appendLog(s,body.name+" was added to the whitelist");setTimeout(()=>{if(s.state==="running" && s.whitelist.includes(body.name) && !s.bans.includes(body.name) && !s.players.includes(body.name)){s.players.push(body.name);appendLog(s,body.name+" joined the game");}},1800);}save();return success(body.allow?"Added to whitelist.":"Request ignored.");}
     if(p==="/api/players/action"&&!get){const a=body.action,n=String(body.name||"");if(a==="whitelist-add"&&!s.whitelist.includes(n))s.whitelist.push(n);if(a==="whitelist-remove")s.whitelist=s.whitelist.filter(x=>x!==n);if(a==="kick"){s.players=s.players.filter(x=>x!==n);appendLog(s,n+" left the game (kicked)");}if(a==="ban"){s.players=s.players.filter(x=>x!==n);if(!s.bans.includes(n))s.bans.push(n);}if(a==="pardon")s.bans=s.bans.filter(x=>x!==n);if(a==="op"&&!s.ops.includes(n))s.ops.push(n);if(a==="deop")s.ops=s.ops.filter(x=>x!==n);save();return success("Player action simulated: "+a);}
     if(p==="/api/players/activity"&&get)return {players:[],week:Array.from({length:7},()=>Array(24).fill(0)),days:Number(u.searchParams.get("days")||7)};
     if(p==="/api/mods"&&get)return modData(active(s));
