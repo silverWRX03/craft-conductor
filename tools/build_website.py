@@ -210,7 +210,10 @@ def check_downloads(output: Path, assets: set[str]) -> list[str]:
 def build_site(output: Path, source: Path, version: str, channel: str, release_url: str = "", site_url: str = SITE_URL,
                testing: bool = True) -> dict:
     frontend = source / "craft_conductor" / "webui"
-    if output.exists():
+    if output.exists() and any(output.iterdir()):
+        # Only an earlier build is replaced: a mistyped --output (the checkout itself) is never deleted.
+        if (output / ".git").exists() or not (output / "demo" / "version.json").is_file():
+            raise BuildError(f"{output} isn't empty and isn't an earlier site build: pick another --output")
         shutil.rmtree(output)
     shutil.copytree(SITE, output, ignore=shutil.ignore_patterns("catalog-release.js", "__pycache__"))
     shutil.copy2(frontend / "icon.png", output / "icon.png")

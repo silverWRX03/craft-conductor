@@ -36,9 +36,11 @@
     let scenario = SCENARIOS.includes(options.scenario) ? options.scenario : "existing";
     let mobile = !!options.mobile, hash = options.hash || "";
     let ready = false, saveTimer = null, pending = null;
-    // Each load of the frame is a session: what an earlier one sends as it goes (its last save,
-    // after a reset) is ignored, so a reset really starts again.
-    let session = 0;
+    // Each load of the frame is a session (a random token, given with "init"): what an earlier one sends as
+    // it goes (its last save, after a reset) is ignored, so a reset really starts again; nothing that didn't
+    // get this load's token can write the demo's saved state.
+    let session = "";
+    const newSession = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, "0")).join("");
     const listeners = [];
     const emit = (type, data) => { for (const fn of listeners) { try { fn(type, data); } catch (_) { /* a listener's problem */ } } };
     const stats = { unhandled: [], blocked: [], explained: [], notes: [] };
@@ -51,7 +53,7 @@
         case "cc-demo-hello":
           ready = false;
           flush();  // (the frame reloaded itself: it gets the newest state)
-          session += 1;
+          session = newSession();
           iframe.contentWindow.postMessage({ type: "cc-demo-init", session, scenario, mobile, hash, state: read("state:" + scenario),
             browser: read("browser") || {}, theme: options.theme ? options.theme() : null }, "*");
           break;
@@ -80,7 +82,7 @@
     const flush = () => { if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; } if (pending) write("state:" + scenario, pending); pending = null; };
     window.addEventListener("pagehide", flush);
 
-    const load = () => { ready = false; session += 1; iframe.src = appUrl; };
+    const load = () => { ready = false; session = newSession(); iframe.src = appUrl; };
     return {
       get scenario() { return scenario; },
       get ready() { return ready; },

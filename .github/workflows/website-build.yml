@@ -50,8 +50,9 @@ jobs:
         run: python tools/real_world_tests.py verify
       - name: The website, the release policy and the demo's simulation against the real API
         run: python -m pytest -q tests/test_website.py tests/test_website_release.py tests/test_website_demo_contract.py tests/test_webui_syntax.py
-      - name: In browsers, with this checkout's control panel
+      - name: In a browser, with this checkout's control panel (all three browsers for the release below)
         env:
+          CRAFT_UI_BROWSERS: chromium
           CRAFT_WEBSITE_OUT: ${{ runner.temp }}/screenshots/development
         run: python -m pytest -q tests/test_website_browser.py
 

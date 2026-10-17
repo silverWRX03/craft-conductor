@@ -118,10 +118,17 @@ dashboard and the owner's other Pages sites. Decisions:
   EventSource or beacon. The manual and translations are delivered as scripts for this reason.
 - **The panel refuses to start outside that frame** (`self.origin` must be `"null"` and it must be
   framed): opened on its own at `/demo/app/`, the real scripts never load.
-- **Messages:** the website only listens to its own frame's window, from an opaque origin, of the
-  current session (a frame it replaced can't write a saved state back after a reset); the frame only
-  talks to its parent at the site's origin, and ignores messages from anyone else. Saved data is
-  checked (only strings, size-limited).
+- **Messages:** the website only listens to its own frame's window, from an opaque origin, carrying
+  this load's random session token (a frame it replaced can't write a saved state back after a
+  reset); the frame only talks to its parent at the site's origin, and ignores messages from anyone
+  else. Saved data is checked (only strings, size-limited) and only ever shown as text.
+- **Clipboard:** the frame may write to the clipboard (`allow="clipboard-write"`), so the panel's Copy
+  buttons work; what they copy is the demo's made-up text. Reading the clipboard isn't allowed.
+- **What remains:** a sandboxed frame can still load another address into itself. The demo's links
+  never do that (outside links open in a new tab, the site's own are explained), but a page that got
+  there would only see and change the visitor's own made-up demo, never the website or its storage.
+  GitHub Pages can't send headers, so the site can't forbid being framed by another site
+  (`frame-ancestors`); nothing on it acts on the visitor's behalf, so that only matters for appearances.
 - **No real credentials:** the demo is signed in as the owner; the sign-in page (after Sign out) says
   no password is needed. Passwords, PINs, keys and tokens typed into the demo are never kept or
   sent (`/api/login`, `/api/auth/change`, CurseForge, Discord, webhooks). Passkeys are made up (the

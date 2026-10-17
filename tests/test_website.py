@@ -185,3 +185,20 @@ def test_the_website_tools_run_alone():
     for tool in ("build_website.py", "select_website_release.py", "check_demo_contract.py"):
         r = subprocess.run([sys.executable, str(ROOT / "tools" / tool), "--help"], capture_output=True, text=True)
         assert r.returncode == 0, r.stderr
+
+
+def test_the_build_never_deletes_what_isnt_a_build(tmp_path):
+    """--output pointing at the checkout (or any folder of yours) is refused, not emptied."""
+    precious = tmp_path / "mine"
+    precious.mkdir()
+    (precious / "notes.txt").write_text("keep me")
+    with pytest.raises(build_website.BuildError, match="isn't an earlier site build"):
+        build_website.build_site(precious, ROOT / "src", "development", "development", testing=False)
+    assert (precious / "notes.txt").read_text() == "keep me"
+    with pytest.raises(build_website.BuildError):
+        build_website.build_site(ROOT, ROOT / "src", "development", "development", testing=False)
+
+
+def test_only_the_current_frame_can_save_the_demo():
+    host = (SITE / "demo" / "host.js").read_text(encoding="utf-8")
+    assert "crypto.getRandomValues" in host and 'msg.session !== session' in host, "a random token for each load of the frame"

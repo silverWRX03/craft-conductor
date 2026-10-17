@@ -298,6 +298,7 @@
     p.online.sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" }));
     sim.known(s, name);
     p.history.push({ name, start: now(), end: null });
+    if (p.history.length > 600) p.history.splice(0, p.history.length - 600);  // (the Players page shows 30 days)
     sim.say(s, `${name} joined the game`);
     if (!quiet) sim.event(s, `${name} joined`);
     return true;
