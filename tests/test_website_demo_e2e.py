@@ -231,7 +231,7 @@ def test_escape_returns_visitor_to_homepage(base, page):
     assert page.locator("#demo-overlay").is_visible()
     page.keyboard.press("Escape")
     assert page.locator("#demo-overlay").is_hidden()
-    assert button.is_focused()
+    assert button.evaluate("(el) => document.activeElement === el")
 
 
 def test_mobile_site_navigation(base, page):
