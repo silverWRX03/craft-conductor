@@ -61,6 +61,15 @@ jobs:
           python tools/build_public_site.py --ui-root _release/src/craft_conductor/webui --output _site --version "$tag"
           python -m unittest discover -s tests -p test_public_site.py
           node tools/smoke_public_site.cjs
+      - name: Upload review screenshots and coverage
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: public-site-review
+          path: |
+            .site-test/report/
+            _site/demo/coverage.json
+          if-no-files-found: warn
       - name: Save failure reports
         if: failure()
         uses: actions/upload-artifact@v7
