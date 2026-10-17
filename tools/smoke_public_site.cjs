@@ -20,11 +20,14 @@ const srv=http.createServer((req,res)=>{
   const origin="http://127.0.0.1:"+srv.address().port;
   await page.goto(origin+"/craft-conductor/",{waitUntil:"domcontentloaded"});
   assert.match(await page.title(),/Craft Conductor/);
+  fs.mkdirSync(path.resolve(__dirname,"../.site-test/report"),{recursive:true});
+  await page.screenshot({path:path.resolve(__dirname,"../.site-test/report/homepage.png"),fullPage:true});
   await page.getByRole("button",{name:/Try the interactive demo/}).click();
   assert.equal(await page.locator("#demo-layer").isVisible(),true);
   await page.locator('[data-scenario="example"]').click();
   const frame=page.frameLocator("#demo-frame");
   await frame.locator("#app").waitFor({state:"visible",timeout:20000});
+  await page.screenshot({path:path.resolve(__dirname,"../.site-test/report/demo-dashboard.png")});
   const nav=await frame.locator("#nav").innerText();
   assert.match(nav,/DASHBOARD/i);assert.match(nav,/PLAYERS/i);
   await frame.locator("#nav a").filter({hasText:"Players"}).first().click();
@@ -52,6 +55,17 @@ const srv=http.createServer((req,res)=>{
   assert.deepEqual(errors,[],"Browser JavaScript errors:\n"+errors.join("\n"));
   await page.locator("#leave-demo").click();
   assert.equal(await page.locator("#demo-layer").isVisible(),false);
+  // Verify the first-server path renders the real setup controls.
+  await page.getByRole("button",{name:/Try the interactive demo/}).click();
+  await page.locator('[data-scenario="fresh"]').click();
+  await frame.locator("#app").waitFor({state:"visible",timeout:20000});
+  await frame.locator('button[aria-label^="Vanilla:"]').click();
+  await frame.locator("#setup-version").waitFor({timeout:10000});
+  await frame.locator('label').filter({hasText:"I accept the"}).locator("input[type=checkbox]").check();
+  await frame.getByRole("button",{name:"Create my server",exact:true}).click();
+  await page.waitForTimeout(700);
+  assert.equal(await frame.locator("#app").isVisible(),true);
+  await page.locator("#leave-demo").click();
   console.log("Public site demo browser smoke tests passed");
  }finally{await browser.close();await new Promise(resolve=>srv.close(resolve));}
 })().catch(e=>{console.error(e);process.exitCode=1;});
