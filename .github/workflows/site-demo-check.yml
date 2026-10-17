@@ -48,6 +48,19 @@ jobs:
           node --check _site/home.js
       - name: Browser interaction tests
         run: node tools/smoke_public_site.cjs
+      - name: Validate current published-release frontend too
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          tag="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=30" --jq '[.[] | select(.draft == false)] | sort_by(.published_at) | last | .tag_name')"
+          test -n "$tag"
+          mkdir -p _release
+          git fetch --force --depth=1 origin "refs/tags/$tag:refs/tags/$tag"
+          git archive "refs/tags/$tag" src/craft_conductor/webui | tar -x -C _release
+          python tools/build_public_site.py --ui-root _release/src/craft_conductor/webui --output _site --version "$tag"
+          python -m unittest discover -s tests -p test_public_site.py
+          node tools/smoke_public_site.cjs
       - name: Save failure reports
         if: failure()
         uses: actions/upload-artifact@v7
