@@ -100,10 +100,13 @@
   }
   function setupFixture() {
     return { loaders:[
-      {name:"fabric",label:"Fabric"},{name:"neoforge",label:"NeoForge"},
-      {name:"forge",label:"Forge"},{name:"quilt",label:"Quilt"},
-      {name:"paper",label:"Paper"},{name:"purpur",label:"Purpur"},
-      {name:"vanilla",label:"Vanilla"}],
+      {name:"fabric",label:"Fabric",mods:true,description:"Fabric mods and lightweight performance options"},
+      {name:"neoforge",label:"NeoForge",mods:true,description:"Modern Forge-style mods"},
+      {name:"forge",label:"Forge",mods:true,description:"Minecraft Forge mods"},
+      {name:"quilt",label:"Quilt",mods:true,description:"Quilt mods and compatible Fabric mods"},
+      {name:"paper",label:"Paper",mods:true,description:"Paper server plugins"},
+      {name:"purpur",label:"Purpur",mods:true,description:"Paper plugins and more server settings"},
+      {name:"vanilla",label:"Vanilla",mods:false,description:"Standard Minecraft without mods"}],
       versions:["1.21.1","1.21.4","1.21"],betas:[],memory_gb:4,network_access:false,
       port:25566,properties_schema:[],current:null,newest:"1.21.4",
       network_option:false};
