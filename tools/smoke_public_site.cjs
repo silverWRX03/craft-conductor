@@ -60,6 +60,12 @@ const srv=http.createServer((req,res)=>{
   await frame.getByRole("button",{name:/Phone \/ QR/}).click();
   await frame.locator("#demo-phone-panel img").waitFor();
   assert.match(await frame.locator("#demo-phone-panel a").getAttribute("href"),/phone=1/);
+  await frame.locator("#demo-phone-panel a").click();
+  await page.locator("#phone-layer").waitFor({state:"visible",timeout:10000});
+  await page.frameLocator("#phone-frame").locator("#app").waitFor({state:"visible",timeout:20000});
+  await page.locator("#phone-close").click();
+  assert.equal(await page.locator("#phone-layer").isVisible(),false);
+
   assert.deepEqual(errors,[],"Browser JavaScript errors:\n"+errors.join("\n"));
   await page.locator("#leave-demo").click();
   assert.equal(await page.locator("#demo-layer").isVisible(),false);
