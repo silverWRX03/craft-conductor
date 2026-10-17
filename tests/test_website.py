@@ -202,3 +202,17 @@ def test_the_build_never_deletes_what_isnt_a_build(tmp_path):
 def test_only_the_current_frame_can_save_the_demo():
     host = (SITE / "demo" / "host.js").read_text(encoding="utf-8")
     assert "crypto.getRandomValues" in host and 'msg.session !== session' in host, "a random token for each load of the frame"
+
+
+def test_a_failed_publish_is_reported_and_only_pages_publishes():
+    """pages.yml is the one publisher; a failure opens (or comments on) one issue, closed when it works again."""
+    flows = ROOT / ".github" / "workflows"
+    publishers = [f.name for f in flows.glob("*.yml") if "deploy-pages@" in f.read_text(encoding="utf-8")]
+    assert publishers == ["pages.yml"], publishers
+    pages = (flows / "pages.yml").read_text(encoding="utf-8")
+    assert "needs: build" in pages and "pages-artifact: true" in pages, "it publishes only what website-build.yml checked"
+    assert "if: failure()" in pages and 'title="Website not published"' in pages and "gh issue close" in pages
+    release = (flows / "release.yml").read_text(encoding="utf-8")
+    call = release[release.index("  invite-page:"):release.index("uses: ./.github/workflows/pages.yml")]
+    for permission in ("pages: write", "id-token: write", "issues: write"):
+        assert permission in call, f"release.yml's call to pages.yml needs {permission}"

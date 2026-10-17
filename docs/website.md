@@ -164,7 +164,10 @@ and by hand. It calls `website-build.yml`, which:
    uploads it (and the screenshots, as artifacts).
 
 Only then does `pages.yml`'s deploy job publish. Any failure stops it: the live site, demo and all,
-stays as it was, the run fails (GitHub emails the owner), and its summary says it wasn't published.
+stays as it was, the run fails (GitHub emails the owner), its summary says it wasn't published, and
+an issue **"Website not published"** is opened with the run's link (a later failure comments on the
+same issue; the next run that publishes closes it). release.yml's call to pages.yml grants
+`issues: write` for this.
 `website-preview-validation.yml` does the same for pull requests, without publishing (the
 `website-candidate` artifact is the site as it would be).
 

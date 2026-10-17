@@ -207,12 +207,14 @@ jobs:
   invite-page:
     # The website (pages.yml): the invite page links to this release's downloads (the friends'
     # craft-conductor-join files), and the homepage's demo shows this release, so it's published once
-    # they exist. Nothing is published unless the website's checks pass (website-build.yml).
+    # they exist. Nothing is published unless the website's checks pass (website-build.yml); when they
+    # don't, pages.yml opens a "Website not published" issue (issues: write).
     needs: publish
     permissions:
       contents: read
       pages: write
       id-token: write
+      issues: write
     uses: ./.github/workflows/pages.yml
 
   docker:

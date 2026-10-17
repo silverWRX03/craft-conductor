@@ -67,3 +67,47 @@ jobs:
           URL: ${{ steps.deployment.outputs.page_url }}
         run: |
           echo "### Published $URL, with the demo of Craft Conductor $VERSION ($CHANNEL)" >> "$GITHUB_STEP_SUMMARY"
+
+  # When the site couldn't be published (a check failed, or the deploy did): an issue says so, once
+  # (later failures comment on it), and it's closed by the next run that publishes.
+  report-failure:
+    needs: [build, deploy]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the "Website not published" issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Website not published"
+          number=$(gh issue list -R "$REPO" --state open --search "\"$title\" in:title" --json number,title \
+            --jq "map(select(.title == \"$title\")) | .[0].number // empty")
+          body="The website wasn't published: a check failed, so the live site (and its demo) stay as they were.
+
+          Run: $RUN (its summary and the failing step's log say why; the browser tests' screenshots are in its website-screenshots artifact).
+
+          This issue is closed by the next run that publishes the site."
+          if [ -n "$number" ]; then gh issue comment "$number" -R "$REPO" --body "$body"
+          else gh issue create -R "$REPO" --title "$title" --body "$body"; fi
+
+  close-report:
+    needs: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Close the "Website not published" issue, if there is one
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Website not published"
+          for number in $(gh issue list -R "$REPO" --state open --search "\"$title\" in:title" --json number,title \
+              --jq "map(select(.title == \"$title\")) | .[].number"); do
+            gh issue close "$number" -R "$REPO" --comment "Published again by $RUN."
+          done
