@@ -14,6 +14,7 @@ from __future__ import annotations
 import dataclasses
 import functools
 import hashlib
+import hmac
 import ipaddress
 import json
 import os
@@ -37,6 +38,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from . import __version__, access, backup, config as configmod, configs, licenses, limits, notice, passkeys, safearchive, selfupdate, serverprops, setup as setupmod, stats, webauth
+from . import peer, private, tunnels
 from . import users as usersmod
 from .config import ConfigError, ModSpec
 from .daemon import Daemon, set_current_server
@@ -106,6 +108,8 @@ RAW_UPLOADS = {"/api/hub/stage", "/api/hub/manual/stage", "/api/mods/local", "/a
 # from a browser on this computer.
 PROXY_HEADERS = ("X-Forwarded-For", "Forwarded", "X-Real-IP", "X-Forwarded-Host", "X-Forwarded-Proto", "Via",
                  "Tailscale-User-Login", "CF-Connecting-IP", "True-Client-IP")
+# The forgotten-password reset's code (in Craft Conductor's own folder: WebUI.new_reset_code).
+RESET_FILE = "craft-conductor-reset-code.txt"
 SERVER_PATH = re.compile(r"^/api/servers/([a-z0-9][a-z0-9-]{0,63})(/.*)$")
 
 
@@ -181,12 +185,25 @@ class WebUI:
         self.lock = threading.Lock()
         self.network_lock = threading.Lock()
         self.httpd: ThreadingHTTPServer | None = None
+        self.handler_class = None
+        self.doors = tunnels.Doors(self)   # Tailscale's and Cloudflare's own ways in (tunnels.py)
+        self.reset_code: tuple[str, float] | None = None   # (the code in RESET_FILE, until when it works)
         self._apis: dict[str, Api] = {}
         self.hub_api = HubApi(self)
 
     @property
     def auth(self) -> webauth.Auth:
         return self.store.get()
+
+    def risk(self, name: str) -> bool:
+        """Whether this safety rule was switched off ([web] accept_risks, or Craft Conductor settings → Advanced)."""
+        return name in self.hub.web.accept_risks
+
+    def remote_ok(self) -> bool:
+        """Sign-ins from other devices and tunnels may be allowed: a strong password, or the owner chose
+        to allow a weaker one (never the default PASSWORD, nor a one-time password)."""
+        a = self.auth
+        return a.remote_ready or (self.risk("weak-remote-password") and not a.default and not a.temporary)
 
     def api_for(self, sid: str) -> Api:
         d = self.hub.get(sid)
@@ -223,6 +240,7 @@ class WebUI:
 
         class Handler(RequestHandler):
             web = ui
+        self.handler_class = Handler
         try:
             self.httpd = _Server((self.host, self.port), Handler)
         except OSError as e:
@@ -245,6 +263,19 @@ class WebUI:
                 self.hub.web.tls_cert = ""
         threading.Thread(target=self.httpd.serve_forever, daemon=True, name="web").start()
         log.info("web UI at %s - password: %s", self.url, webauth.describe(self.auth))
+        if not self.hub.is_single:
+            threading.Thread(target=self._resume_tunnels, daemon=True, name="tunnels").start()
+
+    def _resume_tunnels(self) -> None:
+        """Tailscale's way in, as it was set up (and moved there from the usual port, from before); a
+        Cloudflare tunnel left running when Craft Conductor closed suddenly is stopped."""
+        from . import tailscale
+        try:
+            self.doors.leftover()
+            if tailscale.exe() is not None or self.doors.saved_tailscale():
+                self.doors.resume(tailscale.status, lambda port, funnel: tailscale.serve(port, funnel))
+        except Exception as e:  # (never a reason the control panel doesn't start)
+            log.warning("couldn't set up the Tailscale address again: %s", e)
 
     def _another_port(self, handler, error: OSError):
         """A listener on the next free port after the usual one, leaving out the ones Craft Conductor
@@ -265,6 +296,7 @@ class WebUI:
         return None
 
     def stop(self) -> None:
+        self.doors.close_all()
         if self.httpd:
             self.httpd.shutdown()
             self.httpd.server_close()
@@ -275,7 +307,7 @@ class WebUI:
             target = self.hub.web.host
             if target == self.host:
                 return
-            if target not in ("127.0.0.1", "localhost", "::1") and not self.auth.remote_ready:
+            if target not in ("127.0.0.1", "localhost", "::1") and not self.remote_ok():
                 raise ApiError(400, "first set a strong password before allowing other devices")
             old = self.httpd
             if old is None:
@@ -303,7 +335,10 @@ class WebUI:
     # ------------------------------------------------------------ sessions
     def _attempt(self, keys: list[str], now: float) -> None:
         """Five tries per five minutes, for each of ``keys`` (the address, and the username tried);
-        counted before the check, not after: tries sent all at once can't slip past the limit."""
+        counted before the check, not after: tries sent all at once can't slip past the limit.
+        None when the owner switched the limit off ([web] accept_risks "no-sign-in-limit")."""
+        if self.risk("no-sign-in-limit"):
+            return
         with self.lock:
             if len(self.failures) > 1000:  # forget old attempts, so the table can't grow without end
                 self.failures = {k: v for k, v in self.failures.items() if v and now - v[-1] < 300}
@@ -318,7 +353,7 @@ class WebUI:
             return self.user_login(username, password, client)
         now = time.time()
         auth = self.auth
-        if not local and not auth.remote_ready and not auth.temporary:
+        if not local and not self.remote_ok() and not auth.temporary:
             raise ApiError(403, "signing in from another device needs a strong password "
                                 f"({webauth.STRONG_RULES}); set one in Craft Conductor settings on the server's own computer")
         self._attempt([client], now)
@@ -356,7 +391,7 @@ class WebUI:
             raise ApiError(401, str(e)) from None
         who = used.get("owner", "owner")
         if who == "owner":
-            if not local and not self.auth.remote_ready:
+            if not local and not self.remote_ok():
                 raise ApiError(403, "signing in from another device needs a strong password set first")
             epoch = 0
         else:
@@ -435,7 +470,8 @@ class WebUI:
     def _change(self, mode: str, secret: str, local: bool) -> str:
         """Change how the panel is protected; signs the owner out everywhere else (their passkeys
         go too) and returns a new session. Invited people keep their own sign-ins."""
-        if self.remote_on() and not (mode == "password" and webauth.strong_password(secret)):
+        if self.remote_on() and not (mode == "password" and webauth.strong_password(secret)) \
+                and not self.risk("weak-remote-password"):
             raise ApiError(400, "remote access is on, so the password must be strong: " + webauth.STRONG_RULES
                            + ". PINs can't be used then")
         if self.auth.temporary and not local and not (mode == "password" and webauth.strong_password(secret)):
@@ -452,6 +488,43 @@ class WebUI:
     def remote_on(self) -> bool:
         """Other devices can reach the panel (network access is on)."""
         return any(host not in ("127.0.0.1", "localhost", "::1") for host in (self.hub.web.host, self.host))
+
+    RESET_MINUTES = 10
+
+    def reset_file(self) -> Path:
+        """Where the code to reset the password is written: Craft Conductor's own folder, which only
+        someone at this computer (or signed in to it) can open."""
+        return (self.hub._single.m.config.root if self.hub.is_single else self.hub.home) / RESET_FILE
+
+    def new_reset_code(self, now: float | None = None) -> Path:
+        """A new code for the forgotten-password reset, in RESET_FILE (the last one stops working)."""
+        now = time.time() if now is None else now
+        code = "-".join("".join(secrets.choice("23456789ABCDEFGHJKLMNPQRSTUVWXYZ") for _ in range(4)) for _ in range(2))
+        path = self.reset_file()
+        private.write_text(path, f"Craft Conductor: the code to reset its password is\n\n    {code}\n\n"
+                                 f"Type it on the sign-in page. It works once, for {self.RESET_MINUTES} minutes "
+                                 f"(made {time.strftime('%Y-%m-%d %H:%M', time.localtime(now))}).\n"
+                                 "Didn't ask for it? Delete this file; nothing has changed.\n")
+        with self.lock:
+            self.reset_code = (code, now + self.RESET_MINUTES * 60)
+        log.info("a code to reset the password was written to %s", path)
+        return path
+
+    def use_reset_code(self, typed: str, now: float | None = None) -> None:
+        now = time.time() if now is None else now
+        self._attempt(["reset-code"], now)
+        typed = re.sub(r"[\s-]", "", str(typed)).upper()
+        with self.lock:
+            code = self.reset_code
+            ok = bool(code and now < code[1] and typed and hmac.compare_digest(typed, code[0].replace("-", "")))
+            if ok:
+                self.reset_code = None
+        if not ok:
+            raise ApiError(401, "that isn't the code in the file, or it expired: make a new one")
+        try:
+            self.reset_file().unlink(missing_ok=True)
+        except OSError:
+            pass
 
     def reset_to_default(self) -> None:
         """A forgotten password, from the server's own computer: back to the default, and everyone
@@ -625,7 +698,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         return data
 
     def _cookie(self, token: str, name: str = SESSION_COOKIE, ttl: int = SESSION_TTL) -> str:
-        secure = "; Secure" if self.web.tls else ""
+        secure = "; Secure" if self.web.tls or self._door() else ""  # (a tunnel's address is HTTPS)
         return f"{name}={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age={ttl}{secure}"
 
     def _cookie_value(self, name: str) -> str | None:
@@ -635,12 +708,12 @@ class RequestHandler(BaseHTTPRequestHandler):
     def _pair(self):
         """A phone that scanned the pairing QR code: swap the one-time code for its own key."""
         now = time.time()
-        client = self.client_address[0]
-        if not self.web.auth.remote_ready:
+        client = self._visitor()
+        if not self.web.remote_ok():
             raise ApiError(403, "set a strong password on the server's computer before pairing a phone")
         with self.web.lock:
             recent = [t for t in self.web.failures.get("pair:" + client, []) if now - t < 300]
-            if len(recent) >= 5:
+            if len(recent) >= 5 and not self.web.risk("no-sign-in-limit"):
                 raise ApiError(429, "too many attempts; wait a few minutes")
             self.web.failures["pair:" + client] = recent + [now]  # (forgotten again if it works)
         b = self._body()
@@ -660,16 +733,44 @@ class RequestHandler(BaseHTTPRequestHandler):
                  f" (phone {subject.device_name})" if subject.device else "")
 
     def _local(self) -> bool:
-        """A browser on this computer, talking to us directly (not through a proxy).
+        """A browser on this computer, talking to us directly (not through a proxy), by what the
+        request says; _here() also checks which program sent it.
 
         "Local" unlocks the PIN and no-password modes and the forgotten-password reset, so
         anything that looks like a proxy on this computer (nginx, Caddy, `tailscale serve`,
-        a tunnel) counts as remote, and so does a Host that isn't this computer's loopback name."""
-        if not is_loopback(self.client_address[0]) or any(self.headers.get(h) for h in PROXY_HEADERS):
+        a tunnel) counts as remote, and so does a Host that isn't this computer's loopback name,
+        and anything through a tunnel's own way in (tunnels.py)."""
+        if self._door() or not is_loopback(self.client_address[0]) or any(self.headers.get(h) for h in PROXY_HEADERS):
             return False
         host = (self.headers.get("Host") or "localhost").strip().lower()
         host = host[1:host.find("]")] if host.startswith("[") and "]" in host else host.rsplit(":", 1)[0]
         return host in ("localhost", "127.0.0.1", "::1")
+
+    def _door(self) -> str | None:
+        """Which tunnel's way in this request came through ("tailscale", "cloudflare"), or None."""
+        return getattr(self.server, "tunnel", None)
+
+    def _here(self) -> bool:
+        """On this computer (see _local), and the connection's program is one of this account's,
+        not a tunnel's (peer.py: playit.gg's tunnels, for one, add no header to tell). Worked out
+        once for each connection."""
+        if not self._local():
+            return False
+        if getattr(self, "_here_for", None) != self.client_address:
+            self._here_for = self.client_address
+            self._here_was = peer.a_person_here(self.client_address, self.server.server_address[1])
+        return self._here_was
+
+    def _visitor(self) -> str:
+        """Whose sign-in tries these are, and the address said in the activity: at a tunnel's way in,
+        what that tunnel says about the visitor; on this computer, "this computer" (never shared
+        with a tunnel that adds no header); otherwise the address the connection came from."""
+        door = self._door()
+        if door:
+            return tunnels.visitor_key(door, self.headers)
+        if is_loopback(self.client_address[0]):
+            return "this computer" if self._here() else "passed on from this computer"
+        return self.client_address[0]
 
     def _rp(self) -> tuple[str, set[str]]:
         """The passkey "relying party": this address's host name, and the page origins that may
@@ -689,6 +790,12 @@ class RequestHandler(BaseHTTPRequestHandler):
         return host, origins
 
     def _host_ok(self) -> bool:
+        door = self._door()
+        if door:  # (a tunnel's way in answers only for that tunnel's own address)
+            if self.web.doors.host_ok(door, self.headers.get("Host")):
+                return True
+            self._send(421, b"This address isn't this tunnel's.\n", "text/plain; charset=utf-8")
+            return False
         if host_allowed(self.headers.get("Host"), self.web.hub.web.allowed_hosts):
             return True
         self._send(421, b"This address isn't allowed. If you reach craft-conductor through a reverse proxy or a custom "
@@ -731,7 +838,8 @@ class RequestHandler(BaseHTTPRequestHandler):
                 raise ApiError(404, "not found")
             if method == "POST" and self.headers.get("X-CRAFT-CONDUCTOR") != "1":
                 raise ApiError(403, "missing X-CRAFT-CONDUCTOR header")
-            local = self._local()
+            local = self._here()
+            visitor = self._visitor()
             if path == "/api/auth" and method == "GET":
                 info = self.web.auth.info()
                 try:
@@ -742,16 +850,17 @@ class RequestHandler(BaseHTTPRequestHandler):
                 # access on, or when replacing a one-time password from another device)
                 expected = (query.get("expected") or [""])[-1]
                 return self._json(200, {**info, "local": local, "version": __version__,
+                                        "reset_code": not self.web.risk("reset-without-code"),
                                         "matches": selfupdate.same_version(expected, __version__),
                                         "last_update": self._last_update(),
                                         "strong_required": self.web.remote_on() or (bool(info.get("temporary")) and not local)})
             if path == "/api/login" and method == "POST":
                 b = self._body()
-                token = self.web.login(str(b.get("password", "")), self.client_address[0], local,
+                token = self.web.login(str(b.get("password", "")), visitor, local,
                                        username=str(b.get("username") or "").strip())
                 return self._json(200, {"ok": True}, {"Set-Cookie": self._cookie(token)})
             if path == "/api/invite" and method == "POST":  # what an invite link is for (doesn't use it up)
-                self.web._attempt(["invite:" + self.client_address[0]], time.time())
+                self.web._attempt(["invite:" + visitor], time.time())
                 try:
                     return self._json(200, self.web.users.invite_info(str(self._body().get("token", "")), time.time()))
                 except usersmod.UserError as e:
@@ -759,7 +868,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             if path == "/api/invite/accept" and method == "POST":
                 b = self._body()
                 token = self.web.accept_invite(str(b.get("token", "")), str(b.get("username", "")),
-                                               str(b.get("password", "")), self.client_address[0])
+                                               str(b.get("password", "")), visitor)
                 return self._json(200, {"ok": True}, {"Set-Cookie": self._cookie(token)})
             if path == "/api/pair" and method == "POST":
                 return self._pair()
@@ -770,17 +879,27 @@ class RequestHandler(BaseHTTPRequestHandler):
                 return self._json(200, self.web.passkeys.request_options(rp_id))
             if path == "/api/passkey/login" and method == "POST":
                 rp_id, origins = self._rp()
-                token = self.web.passkey_login(rp_id, origins, self._body(), self.client_address[0], local)
+                token = self.web.passkey_login(rp_id, origins, self._body(), visitor, local)
                 return self._json(200, {"ok": True}, {"Set-Cookie": self._cookie(token)})
-            if path == "/api/auth/reset-local" and method == "POST":
-                # Forgot the password? Whoever sits at the server's own computer can go back to
-                # the default (the same as `craft-conductor web-password --reset`); never over the network.
+            if path == "/api/auth/reset-code" and method == "POST":
+                # Forgot the password? A code is written to a file in Craft Conductor's folder, which
+                # only someone at this computer can open (a request through a tunnel that hides
+                # itself can't); typing it resets. Never over the network.
                 if not local:
                     raise ApiError(403, "this only works in a browser on the server's own computer")
+                self.web._attempt(["reset-code-made"], time.time())
+                return self._json(200, {"ok": True, "file": str(self.web.new_reset_code())})
+            if path == "/api/auth/reset-local" and method == "POST":
+                # Whoever sits at the server's own computer can go back to the default (the same as
+                # `craft-conductor web-password --reset`), with the code from the file.
+                if not local:
+                    raise ApiError(403, "this only works in a browser on the server's own computer")
+                if not self.web.risk("reset-without-code"):
+                    self.web.use_reset_code(str(self._body().get("code", "")))
                 self.web.reset_to_default()
                 return self._json(200, {"ok": True, **self.web.auth.info()})
             # Who's asking: the owner, an invited person, or a person's paired phone (access.py).
-            subject = self.web.subject(self._token(), self._cookie_value(DEVICE_COOKIE), self.client_address[0])
+            subject = self.web.subject(self._token(), self._cookie_value(DEVICE_COOKIE), visitor)
             if subject is None:
                 raise ApiError(401, "login required")
             if subject.device and path == "/api/logout":  # a phone signing out forgets its key
@@ -834,6 +953,8 @@ class RequestHandler(BaseHTTPRequestHandler):
                     body = {**body, "__rp": self._rp()}  # (from this request's address, not the page's say-so)
                 if (method, path) in access.HUB_ROUTES:
                     body = {**body, "__subject": subject}  # (who's asking: from the session, not the page)
+                if path == "/api/hub/risks" and method == "POST":
+                    body = {**body, "__local": local}  # (from this request, not the page's say-so)
                 if not subject.is_owner and method == "POST":
                     log.info("%s: %s", subject.name, path.removeprefix("/api/"))
                 result = handler(q, body)
@@ -902,6 +1023,8 @@ class RequestHandler(BaseHTTPRequestHandler):
                         raise ApiError(403, "you don't have permission to do that on this server")
             if path == "/api/doctor/fix":
                 body = {**body, "__local": local and subject.is_owner}  # (from this request, not the page's say-so)
+            if path == "/api/reach" and method == "POST":
+                body = {**body, "__any_port": self.web.risk("any-port")}
             return self._json(200, access.server_answer(subject, sid, path, handler(q, body)))
         except ApiError as e:
             self._fail(e.status, str(e), e.confirm)
@@ -1439,6 +1562,12 @@ class HubApi:
         r[("POST", "/api/hub/phone/prefs")] = self.phone_prefs
         r[("POST", "/api/hub/phone/remove")] = self.phone_remove
         r[("POST", "/api/hub/phone/tailscale")] = self.phone_tailscale
+        r[("GET", "/api/hub/cloudflare")] = self.cloudflare_info
+        r[("POST", "/api/hub/cloudflare/download")] = self.cloudflare_download
+        r[("POST", "/api/hub/cloudflare/start")] = self.cloudflare_start
+        r[("POST", "/api/hub/cloudflare/stop")] = self.cloudflare_stop
+        r[("GET", "/api/hub/risks")] = self.risks_info
+        r[("POST", "/api/hub/risks")] = self.set_risk
         r[("GET", "/api/hub/singleplayer")] = self.sp_list
         r[("POST", "/api/hub/singleplayer")] = self.sp_create
         r[("POST", "/api/hub/singleplayer/edit")] = self.sp_edit
@@ -1472,7 +1601,12 @@ class HubApi:
             "servers": hub.summary(),
             "share": hub.share_status() if not hub.is_single else None,
             "guide": None if hub.is_single else self._guide_state(),
-            "health": hub._health.warnings if getattr(hub, "_health", None) else [],  # (checked every minute: health.py)
+            "health": [*(hub._health.warnings if getattr(hub, "_health", None) else []),  # (checked every minute: health.py)
+                       *({"id": f"risk-{name}", "level": "warn", "title": "A safety rule is switched off:", "risk": configmod.RISKS[name],
+                          "detail": configmod.RISKS[name] + ". Craft Conductor settings → Advanced"
+                                    + (" (set in craft-conductor.toml)" if name in hub.web.risks_in_file else "")}
+                         for name in hub.web.accept_risks)],
+            "risks": list(hub.web.accept_risks),
         }
 
     def modpack_preview(self, q, b) -> dict:
@@ -1652,9 +1786,13 @@ class HubApi:
     def _port(self) -> int:
         return self.web.httpd.server_address[1] if self.web.httpd else self.web.port
 
+    def _tailscale_port(self) -> int:
+        """Where `tailscale serve` should point: Tailscale's own way in (tunnels.py), once there is one."""
+        return self.web.doors.port("tailscale") or int(self.web.doors.saved_tailscale().get("port") or 0) or self._port()
+
     def phone_info(self, q, b) -> dict:
         from . import tailscale
-        ts = tailscale.status(self._port()) if q.get("tailscale") == "1" else None
+        ts = tailscale.status(self._tailscale_port()) if q.get("tailscale") == "1" else None
         if ts and ts["serving"]:
             self._allow_host(ts["name"])  # (it's offered as the secure address)
         subject = b.get("__subject") or access.OWNER_SUBJECT
@@ -1663,7 +1801,7 @@ class HubApi:
                     "tailscale": None, "secure_url": None, "strong": True}
         return {"public_key": self.hub.push.public_key(), "devices": self.hub.push.subscriptions(),
                 "tailscale": ts, "secure_url": f"https://{ts['name']}/" if ts and ts["serving"] and ts["name"] else None,
-                "strong": self.web.auth.remote_ready}
+                "strong": self.web.remote_ok(), "funnel_allowed": self.web.risk("tailscale-funnel")}
 
     @staticmethod
     def _who(b) -> str | None:
@@ -1725,23 +1863,83 @@ class HubApi:
         from . import tailscale
         if self.hub.is_single:
             raise ApiError(400, "the phone app needs the full Craft Conductor (not `craft-conductor run`)")
-        port = self._port()
         if b.get("on") is False:
-            tailscale.unserve()
-            return {"ok": True, "tailscale": tailscale.status(port)}
-        if not self.web.auth.remote_ready:
+            self.web.doors.tailscale_off(tailscale.unserve)
+            if self._port() and tailscale.status(self._port())["serving"]:  # (from an earlier version)
+                tailscale.unserve()
+            return {"ok": True, "tailscale": tailscale.status(self._tailscale_port())}
+        funnel = b.get("funnel") is True
+        if funnel and not self.web.risk("tailscale-funnel"):
+            raise ApiError(403, "putting the control panel on the internet with Funnel is switched off: "
+                                "Craft Conductor settings → Advanced")
+        if not self.web.remote_ok():
             raise ApiError(400, "first set a strong password (" + webauth.STRONG_RULES + "): the phone signs in from another device")
-        st = tailscale.status(port)
+        st = tailscale.status(self._tailscale_port())
         if not st["installed"]:
             raise ApiError(400, "Tailscale isn't installed on this computer: get it from tailscale.com/download, sign in, then try again")
         if not st["running"] or not st["name"]:
             raise ApiError(400, "Tailscale is installed but not signed in and connected on this computer")
-        r = tailscale.serve(port)
+        if self._port() and tailscale.status(self._port())["serving"]:  # (an earlier version pointed it at the usual port)
+            tailscale.unserve()
+        if not funnel and st["funnel"]:  # (off the internet again: only your own devices)
+            tailscale.unserve(True)
+        r = self.web.doors.tailscale_on(st["name"], funnel, lambda port, f: tailscale.serve(port, f))
         if not r["ok"]:
             return {"ok": False, "message": r["message"], "enable_url": r["enable_url"], "tailscale": st}
         self._allow_host(st["name"])
-        log.info("the control panel is on %s over HTTPS (Tailscale)", st["name"])
-        return {"ok": True, "url": f"https://{st['name']}/", "tailscale": tailscale.status(port)}
+        log.info("the control panel is on %s over HTTPS (Tailscale%s)", st["name"],
+                 ", Funnel: on the internet for anyone" if funnel else ", only your own devices")
+        return {"ok": True, "url": f"https://{st['name']}/", "tailscale": tailscale.status(self._tailscale_port())}
+
+    # ------------------------------------------------ Cloudflare quick tunnel
+    def cloudflare_info(self, q, b) -> dict:
+        return {**self.web.doors.quick_info(), "strong": self.web.remote_ok()}
+
+    def cloudflare_download(self, q, b) -> dict:
+        """Download Cloudflare's program (cloudflared), checked: only when the owner presses the button."""
+        self.web.doors.download(self.hub.http)
+        return self.cloudflare_info(q, b)
+
+    def cloudflare_start(self, q, b) -> dict:
+        """Open the control panel to the internet for a few hours (cloudflare.HOURS)."""
+        from .tunnel import AgentError
+        if not self.web.remote_ok():
+            raise ApiError(400, "first set a strong password (" + webauth.STRONG_RULES + "): anyone on the internet can reach the sign-in page")
+        try:
+            info = self.web.doors.start_quick()
+        except AgentError as e:
+            raise ApiError(400, str(e)) from None
+        except OSError as e:
+            raise ApiError(500, f"cloudflared couldn't be started: {e}") from None
+        return {**info, "strong": True}
+
+    def cloudflare_stop(self, q, b) -> dict:
+        self.web.doors.stop_quick("asked")
+        log.info("the control panel is off the internet again (Cloudflare tunnel stopped)")
+        return self.cloudflare_info(q, b)
+
+    # ------------------------------------------------ safety rules switched off
+    def risks_info(self, q, b) -> dict:
+        web = self.hub.web
+        return {"risks": [{"name": k, "text": v, "on": k in web.accept_risks, "in_file": k in web.risks_in_file}
+                          for k, v in configmod.RISKS.items()]}
+
+    def set_risk(self, q, b) -> dict:
+        """Switch a safety rule off (only from a browser on this computer) or back on (from anywhere)."""
+        name, on = str(b.get("name", "")), b.get("on") is True
+        if name not in configmod.RISKS:
+            raise ApiError(400, "unknown setting")
+        web = self.hub.web
+        if not on and name in web.risks_in_file:
+            raise ApiError(409, "that's set in craft-conductor.toml ([web] accept_risks): change it there")
+        if on and not b.get("__local"):
+            raise ApiError(403, "switching a safety rule off only works in a browser on the server's own computer")
+        chosen = [x for x in configmod.RISKS if x in ({*self.hub._hub_file().get("web", {}).get("accept_risks", []), name}
+                                                       if on else set(self.hub._hub_file().get("web", {}).get("accept_risks", [])) - {name})]
+        self.hub.save_web(accept_risks=chosen)
+        web.accept_risks = [x for x in configmod.RISKS if x in {*chosen, *web.risks_in_file}]
+        (log.warning if on else log.info)("safety rule %s: %s", "switched off" if on else "back on", configmod.RISKS[name])
+        return self.risks_info(q, b)
 
     def _allow_host(self, name: str) -> None:
         """Let the control panel answer at this host name (Tailscale's address for this computer)."""
@@ -2124,7 +2322,7 @@ class HubApi:
         if lan:
             out.append({"label": f"Home network ({lan})", "host": lan, "kind": "lan"})
         from . import tailscale
-        st = tailscale.status(self._port())
+        st = tailscale.status(self._tailscale_port())
         if st["serving"] and st["name"]:  # (HTTPS with a real certificate: the phone app works there; listed first)
             self._allow_host(st["name"])  # (Serve may have been on already, from before: the address must open)
             out.insert(0, {"label": f"Tailscale, secure ({st['name']}): for the phone app", "host": st["name"], "kind": "tailscale-https"})
@@ -2184,7 +2382,7 @@ class HubApi:
         return {"available": not self.hub.is_single, "network_access": self.web.remote_on(),
                 "configured": self.hub.web.host not in ("127.0.0.1", "localhost", "::1"),
                 "running_on_network": self.web.host not in ("127.0.0.1", "localhost", "::1"),
-                "strong": auth.remote_ready, "mode": auth.mode, "rules": webauth.STRONG_RULES,
+                "strong": self.web.remote_ok(), "mode": auth.mode, "rules": webauth.STRONG_RULES,
                 "port": self.web.httpd.server_address[1] if self.web.httpd else self.web.port,
                 "tls": self.web.tls, "tls_cert": self.hub.web.tls_cert, "tls_key": self.hub.web.tls_key,
                 "addresses": self._addresses(), "devices": self.web.devices.list(), "people": self.web.users.list(time.time())}
@@ -2213,7 +2411,7 @@ class HubApi:
         from . import qr
         if self.hub.is_single:
             raise ApiError(400, "phone pairing needs `craft-conductor start` (the server list)")
-        if not self.web.auth.remote_ready:
+        if not self.web.remote_ok():
             raise ApiError(400, "first set a strong password (" + webauth.STRONG_RULES + ")")
         person = self.web.users.get(str(b.get("user", "")))
         if person is None or not person.get("password"):
@@ -2281,7 +2479,7 @@ class HubApi:
     def invite_person(self, q, b) -> dict:
         if self.hub.is_single:
             raise ApiError(400, "inviting people needs `craft-conductor start` (the server list)")
-        if not self.web.auth.remote_ready:
+        if not self.web.remote_ok():
             raise ApiError(400, "first set a strong password (" + webauth.STRONG_RULES + ")")
         grants = self._grants(b.get("grants"))
         if not grants:
@@ -2608,7 +2806,7 @@ class HubApi:
             raise ApiError(400, "set [web] host in craft-conductor.toml for `craft-conductor run`")
         enabled = b.get("enabled") is True
         with self.web.network_lock:
-            if enabled and not self.web.auth.remote_ready:
+            if enabled and not self.web.remote_ok():
                 raise ApiError(400, "first set a strong password (" + webauth.STRONG_RULES + "); "
                                     "PINs can't be used for access from other devices")
             self.hub.save_web(host="0.0.0.0" if enabled else "127.0.0.1")
@@ -3656,7 +3854,7 @@ class Api:
                 "tunnel_address": self.m.config.tunnel_address, "range": list(reach.OPEN_RANGE),
                 "playit": hub.playit_status(), "router_risks": reach.ROUTER_RISKS,
                 "playit_downsides": reach.PLAYIT_DOWNSIDES, "whitelist_warning": reach.WHITELIST_OFF_WARNING,
-                "status_page": tunnel.STATUS_PAGE}
+                "status_page": tunnel.STATUS_PAGE, "any_port": self.web.risk("any-port")}
 
     def set_reach(self, q, b) -> dict:
         """Choose how friends outside join. Port forwarding gets a port picked by Craft Conductor
@@ -3674,9 +3872,28 @@ class Api:
         bedrock = self.bedrock({}, {})
         message = {"playit": "Friends outside join through playit.gg", "home": "Only friends on your network can join",
                    "forward": "Friends outside join through the port on your router"}[way]
+        chosen = b.get("port")
+        if way == "forward" and chosen not in (None, ""):
+            # (the owner picks it: only when they switched that rule off, Craft Conductor settings → Advanced)
+            if not b.get("__any_port"):
+                raise ApiError(403, "choosing the port yourself is switched off (Craft Conductor settings → Advanced)")
+            try:
+                chosen = int(chosen)
+            except (TypeError, ValueError):
+                raise ApiError(400, "the port is a number from 1024 to 65535") from None
+            if not 1024 <= chosen <= 65535:
+                raise ApiError(400, "the port is a number from 1024 to 65535")
+            if chosen in hub.taken_ports(exclude=self.sid):
+                raise ApiError(409, f"port {chosen} is used by another server or by Craft Conductor")
+            if chosen != port:
+                if self.d.state != "stopped" or self.d.job:
+                    raise ApiError(409, "stop the server first: it gets a new port")
+                write_properties(props_path, {"server-port": str(chosen)})
+                log.info("the server now uses port %s (chosen by hand), to forward on the router", chosen)
+            port = chosen
         if way == "forward":
             taken = hub.taken_ports(exclude=self.sid)
-            new_port = port if reach.in_open_range(port) and port not in taken else None
+            new_port = port if (reach.in_open_range(port) or chosen not in (None, "")) and port not in taken else None
             new_udp = None
             if bedrock["supported"] and bedrock["geyser"] and not (reach.in_open_range(bedrock["port"]) and bedrock["port"] not in taken):
                 new_udp = hub.pick_open_port(exclude=self.sid, udp=True)

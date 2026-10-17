@@ -241,7 +241,7 @@ class Hub:
             try:
                 old = configmod.load(self.home).web
                 web = WebConfig(host=old.host, port=old.port, password=old.password,
-                                allowed_hosts=list(old.allowed_hosts))
+                                allowed_hosts=list(old.allowed_hosts), risks_in_file=list(old.risks_in_file))
             except ConfigError:
                 pass
         saved = self._hub_file().get("web", {})
@@ -254,12 +254,16 @@ class Hub:
             web.allowed_hosts = [str(x).lower() for x in saved.get("allowed_hosts", web.allowed_hosts)]
             web.tls_cert = str(saved.get("tls_cert", web.tls_cert))
             web.tls_key = str(saved.get("tls_key", web.tls_key))
+            chosen = saved.get("accept_risks", [])  # (Craft Conductor settings → Advanced)
+            chosen = configmod._risks(chosen if isinstance(chosen, list) else [])
+            web.accept_risks = [x for x in configmod.RISKS if x in {*chosen, *web.risks_in_file}]
             if saved.get("password"):
                 from . import webauth
                 if not webauth.is_hashed(web.password):  # (typed into hub.json: kept there as its hash)
                     hashed = webauth.hash_password(web.password)
                     self._update_hub_file(lambda data: data.setdefault("web", {}).update(password=hashed))
                     web.password = hashed
+        web.accept_risks = web.accept_risks or list(web.risks_in_file)
         web.enabled = True
         return web
 
@@ -692,10 +696,15 @@ class Hub:
         return port
 
     def reserved_ports(self) -> set[int]:
-        """Ports craft-conductor itself listens on (the control panel and the friends' download)."""
+        """Ports craft-conductor itself listens on (the control panel, the tunnels' ways in to it, and
+        the friends' download)."""
         out = {self.web.port}
         if self.ui is not None and self.ui.httpd is not None:
             out.add(self.ui.httpd.server_address[1])
+        if self.ui is not None:
+            doors = getattr(self.ui, "doors", None)
+            if doors is not None:
+                out |= {p for p in (*doors.ports(), int(doors.saved_tailscale().get("port") or 0)) if p}
         if not self.is_single:
             out.add(self.share_settings()["port"])
         return out

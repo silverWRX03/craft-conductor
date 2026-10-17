@@ -249,9 +249,10 @@ def _subject_organization(subject: str) -> str:
     return ""
 
 
-def check_signature(path, run=None) -> None:
+def check_signature(path, run=None, signer: str = SIGNER, whose: str = "playit.gg's company",
+                    what: str = "the installer", done: str = "opened") -> None:
     """The file is signed, the signature is valid (Windows checks the certificate chain), and
-    the signer is playit.gg's company. Raises AgentError otherwise."""
+    the signer is ``signer`` (playit.gg's company unless said). Raises AgentError otherwise."""
     import base64
     from .firewall import _ps_string
     script = SIGNATURE_SCRIPT.format(path=_ps_string(str(path)))
@@ -267,11 +268,11 @@ def check_signature(path, run=None) -> None:
             out = run(args)
         data = json.loads(out or "null")
     except (OSError, subprocess.SubprocessError, ValueError) as e:
-        raise AgentError(f"Windows couldn't check the installer's signature ({e}), so it wasn't opened") from None
+        raise AgentError(f"Windows couldn't check {what}'s signature ({e}), so it wasn't {done}") from None
     if not isinstance(data, dict) or data.get("status") != "Valid":
-        raise AgentError("the installer's signature isn't valid, so it wasn't opened (it may have been changed)")
-    if _subject_organization(str(data.get("subject") or "")) != SIGNER:
-        raise AgentError(f"the installer isn't signed by {SIGNER} (playit.gg's company), so it wasn't opened")
+        raise AgentError(f"{what}'s signature isn't valid, so it wasn't {done} (it may have been changed)")
+    if _subject_organization(str(data.get("subject") or "")) != signer:
+        raise AgentError(f"{what} isn't signed by {signer} ({whose}), so it wasn't {done}")
 
 
 def download_installer(http, folder, progress=None, check=check_signature):

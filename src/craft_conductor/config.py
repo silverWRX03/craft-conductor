@@ -203,6 +203,26 @@ class ScheduleConfig:
     restart_when_empty: bool = False  # skip a scheduled restart while players are online
 
 
+# Safety rules a power user (or anyone, knowingly) may switch off: ``[web] accept_risks`` in
+# craft-conductor.toml, or Craft Conductor settings → Advanced. What each one allows.
+RISKS = {
+    "weak-remote-password": "Other devices and tunnels may sign in with a PIN or a password that isn't strong (never the default PASSWORD)",
+    "tailscale-funnel": "Tailscale may put the control panel on the internet, for anyone (Funnel)",
+    "reset-without-code": "Resetting the password on this computer doesn't need the code from the file",
+    "no-sign-in-limit": "No limit on wrong passwords and codes",
+    "any-port": "You choose the port friends use from outside, even 25565",
+}
+
+
+def _risks(value) -> list[str]:
+    if not isinstance(value, list):
+        raise ConfigError("[web] accept_risks must be a list, like [\"any-port\"]")
+    unknown = [str(x) for x in value if str(x) not in RISKS]
+    if unknown:
+        log.warning("[web] accept_risks: unknown %s (known: %s)", ", ".join(unknown), ", ".join(RISKS))
+    return [x for x in RISKS if x in {str(v) for v in value}]
+
+
 @dataclass
 class WebConfig:
     enabled: bool = False
@@ -212,6 +232,8 @@ class WebConfig:
     allowed_hosts: list[str] = field(default_factory=list)  # extra host names, e.g. behind a proxy
     tls_cert: str = ""   # HTTPS: a certificate and its key (PEM files), e.g. from `tailscale cert`
     tls_key: str = ""
+    accept_risks: list[str] = field(default_factory=list)   # RISKS switched off: these and Craft Conductor settings' own
+    risks_in_file: list[str] = field(default_factory=list)  # the ones from craft-conductor.toml (the page can't undo them)
 
 
 @dataclass
@@ -486,6 +508,8 @@ def parse(root: Path, data: dict) -> Config:
             allowed_hosts=[str(x).lower() for x in data.get("web", {}).get("allowed_hosts", [])],
             tls_cert=str(data.get("web", {}).get("tls_cert", "")),
             tls_key=str(data.get("web", {}).get("tls_key", "")),
+            accept_risks=_risks(data.get("web", {}).get("accept_risks", [])),
+            risks_in_file=_risks(data.get("web", {}).get("accept_risks", [])),
         ),
         discord_webhook=data.get("notify", {}).get("discord_webhook", ""),
         curseforge_api_key=(data.get("curseforge", {}).get("api_key", "")
