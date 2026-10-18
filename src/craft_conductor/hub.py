@@ -1274,9 +1274,13 @@ class Hub:
                 for sid, d in ds.items():
                     d.stop_requested.set()
                     t = self._threads.pop(sid, None)
+                    stopped[sid] = d
                     if t:
                         t.join(timeout=30)
-                    stopped[sid] = d
+                        if t.is_alive():  # (its manager is stuck: nothing moves under it, and it isn't started twice)
+                            self._threads[sid] = t
+                            del stopped[sid]
+                            raise RuntimeError(f"{sid} didn't stop in time; nothing was moved. Try again in a moment")
 
             def switch() -> None:
                 places = {k: self.locations()[k] for k in locmod.KINDS}

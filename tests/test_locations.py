@@ -24,6 +24,7 @@ def moved(c, timeout=60):
 # ------------------------------------------------------------------ choosing
 def test_the_first_use_choice_offers_todays_folders(hub_env):
     hub, c = hub_env
+    hub._save_locations(hub.locations(), chosen=False)  # (a new install: not chosen yet)
     login(c)
     home = hub.home
     assert c.get("/api/hub")[1]["locations"] == {"chosen": False, "choosable": True}
@@ -129,6 +130,20 @@ def test_places_that_are_refused(hub_env, tmp_path, monkeypatch):
     full.mkdir()
     (full / "something.txt").write_text("x")
     assert "must be new or empty" in refused(servers=str(full))
+
+
+def test_the_downloaded_programs_folder(tmp_path, monkeypatch):
+    """The program often sits in Downloads: that folder can't be a place (nor one holding it), but a
+    folder inside it can."""
+    downloads = tmp_path / "you" / "Downloads"
+    downloads.mkdir(parents=True)
+    monkeypatch.setattr(locmod.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(locmod.sys, "executable", str(downloads / "craft-conductor-windows-x64.exe"))
+    state = tmp_path / "home" / ".craft-conductor"
+    for refused in (downloads, tmp_path / "you"):
+        with pytest.raises(locmod.LocationError, match="holds Craft Conductor's program"):
+            locmod.check_place("exports", str(refused), {}, state)
+    assert locmod.check_place("exports", str(downloads / "Exports"), {}, state)[0] == Path(os.path.realpath(downloads / "Exports"))
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows network paths")

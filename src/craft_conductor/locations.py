@@ -179,17 +179,19 @@ def is_synced(path: Path) -> str | None:
     return None
 
 
-def own_folders(state_dir: Path) -> list[Path]:
-    """Craft Conductor's own folders, never a place: its settings folder, and its program (the
-    folder of the program file when it's a download; the package when it's installed with pip)."""
-    out = [state_dir]
+def own_folders(state_dir: Path) -> tuple[list[Path], list[Path]]:
+    """Craft Conductor's own folders: nothing goes in them, and no place holds them (its settings
+    folder; its program files when it's installed with pip, or a build's _internal folder). And the
+    folder the downloaded program file is in (Downloads, often): never a place itself, nor one that
+    holds it, but a folder inside it can be."""
+    inside_too, itself = [state_dir], []
     if getattr(sys, "frozen", False):
-        out.append(Path(sys.executable).parent)
+        itself.append(Path(sys.executable).parent)
         if (Path(sys.executable).parent / "_internal").is_dir():
-            out.append(Path(sys.executable).parent / "_internal")
+            inside_too.append(Path(sys.executable).parent / "_internal")
     else:
-        out.append(Path(__file__).resolve().parent)
-    return out
+        inside_too.append(Path(__file__).resolve().parent)
+    return inside_too, itself
 
 
 def check_place(kind: str, text: str, places: dict, state_dir: Path) -> tuple[Path, list[str]]:
@@ -204,6 +206,8 @@ def check_place(kind: str, text: str, places: dict, state_dir: Path) -> tuple[Pa
     if is_network(path):
         raise LocationError(f"{text} is on the network: Craft Conductor keeps its files on this computer's own drives")
     path = Path(os.path.realpath(path))
+    if is_network(path):  # (a link that leads to the network)
+        raise LocationError(f"{text} leads to the network: Craft Conductor keeps its files on this computer's own drives")
     base = _existing(path)
     if base is None:
         raise LocationError(f"there's no drive or folder for {text}")
@@ -216,10 +220,14 @@ def check_place(kind: str, text: str, places: dict, state_dir: Path) -> tuple[Pa
                             "missing whenever it's unplugged")
     if is_system(path):
         raise LocationError(f"{path} is one of the computer's own folders: pick a folder of yours, or make one")
-    for own in own_folders(state_dir):
+    inside_too, itself = own_folders(state_dir)
+    for own in inside_too:
         if inside(path, own) or inside(own, path):
             raise LocationError(f"{path} {'is inside' if inside(path, own) else 'holds'} Craft Conductor's own folder "
                                 f"({own}): pick another folder")
+    for own in itself:
+        if inside(own, path):
+            raise LocationError(f"{path} holds Craft Conductor's program ({own}): pick another folder, or a new folder inside it")
     for other in KINDS:
         where = places.get(other)
         if other == kind or not where:

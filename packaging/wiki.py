@@ -46,7 +46,8 @@ TITLES = {"Friends: playing with friends": "Playing with friends",
 # Screenshots under each section or sub-section, after its first paragraph: (file in SHOTS, caption).
 # The same as "See this screen" in the app's manual (MANUAL_PICTURES in app.js; test_wiki.py checks).
 IMAGES = {
-    "Getting started": [("sign-in.png", "Signing in the first time"), ("choose-password.png", "Choosing your own password")],
+    "Getting started": [("sign-in.png", "Signing in the first time"), ("choose-password.png", "Choosing your own password"),
+                        ("choose-folders.png", "Then, once: where to keep your servers, backups and exports")],
     "The guided setup": [("guided-setup.png", "The guided setup's checklist, in a corner of the page")],
     "Creating a server": [("new-server.png", "New server"), ("mod-browser.png", "The mod browser"),
                           ("map-preview.png", "World generation & map preview: a clean map, points of interest hidden"),
@@ -55,7 +56,8 @@ IMAGES = {
     "On another computer (Linux, over SSH)": [("ssh-install.png", "Install on a Linux computer or rented server (SSH)")],
     "Messages": [("question.png", "A question waits in the middle of the screen"),
                  ("bell.png", "The bell: messages you may have missed, newest first")],
-    "Your servers": [("servers.png", "Your servers, and a modded single-player game")],
+    "Your servers": [("servers.png", "Your servers, and a modded single-player game"),
+                     ("import-list.png", "Import a server…: the exports in the exports folder")],
     "Dashboard": [("dashboard.png", "The Dashboard of a running server"),
                   ("dashboard-problem.png", "A server that didn't start: what went wrong, and the fix")],
     "Connected Players": [("connected-players.png", "Connected Players: a row's actions open, and the Whitelist panel")],
@@ -79,6 +81,7 @@ IMAGES = {
                                     ("person-edit.png", "Editing what someone may do: a role for each server, and Customize permissions")],
     "Craft Conductor settings": [("craft-conductor-settings.png", "Craft Conductor settings: Connections"),
                                  ("display.png", "Appearance: language, size, contrast and motion"),
+                                 ("folders.png", "Folders: where files are kept, and where mods downloaded by hand are looked for"),
                                  ("update-available.png", "A Craft Conductor update is available"),
                                  ("update-dots.png", "About & updates: the red dots, and the update waiting"),
                                  ("updating.png", "Updating Craft Conductor, with the step it's on"),

@@ -8065,5 +8065,59 @@
       "curseforge"
     ],
     "source": "added-in-git"
+  },
+  {
+    "id": 920,
+    "section": "Feature: Choose where files are kept",
+    "step": "Fresh install on Windows: after choosing your password, Where should Craft Conductor keep your files? shows Servers and Exports in C:\\Users\\<you>\\craft-conductor and Backups in each server's own folder. Change… for Exports, open another drive, New folder…, Use this folder, then Use these folders: Saved., a README.txt in each chosen folder, the guided setup is offered afterwards, and the page isn't shown again (also after a reload).",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 921,
+    "section": "Feature: Choose where files are kept",
+    "step": "With a test server stopped, Craft Conductor settings → Folders → Servers → Change… to a new folder on another drive: it asks Move what's there now? with the size, shows the progress, then Saved.; the server starts from its new folder with its world, mods and friends' invite intact, a friend can join, and the old servers folder is gone. With the server running, the move is refused (Stop these first: …).",
+    "type": "Core",
+    "tags": [
+      "minecraft"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 922,
+    "section": "Feature: Choose where files are kept",
+    "step": "Folders → Backups → Change… to a folder on another drive: the test server's backups move to <folder>\\<server>; Create backup and a scheduled backup go there; restoring one works; Keep them in each server's folder moves them back. A server whose craft-conductor.toml names its own backups folder keeps it (the question says so).",
+    "type": "Core",
+    "tags": [
+      "minecraft"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 923,
+    "section": "Feature: Choose where files are kept",
+    "step": "Export a test server: the .zip is in the exports folder under the server's name. Copy an export from another computer into the exports folder: Servers → Import a server… lists it with its size and date, Import works (asking for its password when it has a locked part), and Another file… still imports one from elsewhere.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 924,
+    "section": "Feature: Choose where files are kept",
+    "step": "Refusals, each saying why: a USB stick or memory card, a network share (\\NAS\\share or a mapped drive), C:\\, C:\\Windows, a folder inside the servers folder for backups, a folder with files in it. A OneDrive (or Dropbox/Google Drive) folder for servers shows the sync warning first; for backups it's used without one.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 925,
+    "section": "Feature: Choose where files are kept",
+    "step": "Stop Craft Conductor (end it in Task Manager) halfway through moving a big test server to another drive: the next start says the move was stopped halfway and everything was put back; the server starts from its old folder with everything there. Also: Linux (a desktop and a headless one), a Mac (/Volumes drives refused), Docker (Folders shows /data and can't be changed) and craft-conductor run (not offered).",
+    "type": "Extra",
+    "tags": [
+      "minecraft"
+    ],
+    "source": "added-in-git"
   }
 ]

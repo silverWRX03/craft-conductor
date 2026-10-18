@@ -62,6 +62,8 @@ Get the file for your computer. It's a single file: no installer, no Python, and
 2. **Your browser opens Craft Conductor.** Until you've made a server, it first asks whether you're
    joining a friend: press **Run my own server** (under "Or run a Minecraft server of your own").
    In the control panel, accept the notice, sign in with `PASSWORD`, and choose your own password.
+   It then asks once where to keep your servers, backups and exports (change them later in
+   Craft Conductor settings → Folders).
 3. **Press New server,** pick the kind of server and your mods, and **Create my server**. Then
    **Start**, and join it from Minecraft.
 

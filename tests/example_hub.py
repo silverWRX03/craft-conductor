@@ -339,6 +339,12 @@ def example_hub(tmp_path, http, modrinth, fake_java, monkeypatch):
     monkeypatch.setattr(javamod, "default_store", lambda: store)
     managed_java(store, fake_java)
     installed_javas(tmp_path / "Program Files", monkeypatch)
+    # An export copied from another computer, for Import a server… (only its name, size and date are shown).
+    exports = home / "exports" / "survival"
+    exports.mkdir(parents=True, exist_ok=True)
+    made = exports / "Survival with friends 2026-10-12 2030.craft-conductor.zip"
+    made.write_bytes(b"PK\x05\x06" + bytes(2_400_000))
+    os.utime(made, (time.time() - 6 * 86400,) * 2)  # (as its name says: made last week)
     # The main server: friends play on it every evening. Its backups go back a week.
     survival = servers / "survival"
     m = make_server(http, fake_java, survival, [s for s, *_ in MODS if s not in ("simple-voice-chat", "bluemap", "xaeros-minimap")],
@@ -389,6 +395,7 @@ def example_hub(tmp_path, http, modrinth, fake_java, monkeypatch):
     (adventure.server_dir / "mods" / "betterend-21.0.11.jar").write_bytes(b"example")
 
     hub = Hub(home, make_manager=lambda cfg: docs_manager(cfg, http), http=http, tick=0.1)
+    hub._save_locations(hub.locations())  # (the first-use folders page answered; its picture is taken on purpose)
     hub.web.port = 0
     hub.save_share(8766, "203.0.113.25")  # (a documentation address, not a real one)
     t = threading.Thread(target=hub.run, daemon=True)

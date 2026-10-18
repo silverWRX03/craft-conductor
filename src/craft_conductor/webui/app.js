@@ -1310,7 +1310,10 @@ function offerGuide(hb) {
   if (!g || (hb.role && hb.role !== "owner")) return;
   if (g.active) { if (!$("#guide")) showGuide(); return; }
   if (g.asked || guideOffered) return;
-  if ($("#security") || $("#notice")) { setTimeout(() => hubInfo && offerGuide(hubInfo), 1500); return; }
+  if ($("#security") || $("#notice") || $("#locations") || (hb.locations && !hb.locations.chosen && hb.locations.choosable && !hb.single)) {
+    setTimeout(() => hubInfo && offerGuide(hubInfo), 1500);
+    return;
+  }
   guideOffered = true;
   const answer = async (action) => {
     closeToast("guide-offer");
@@ -1432,6 +1435,7 @@ async function refreshStatus() {
   settleUpdateMark(hb);
   offerSelfUpdate(hb.self_update);
   if (hb.auth && hb.auth.default && !hb.auth.managed && !promptDismissed()) showSecurity(true);
+  offerLocations(hb);  // (where files go: once, after the password)
   offerGuide(hb);
   renderHealth(hb.health || []);
   if (hb.single && !server && hb.servers.length === 1) { location.hash = `#s/${hb.servers[0].id}/dashboard`; return; }
@@ -4492,7 +4496,7 @@ const fileCheckBad = (check, side = null) => !!(check && !check.running && check
 // the server lists the folders in each folder (never the files in them, never links: folders.py),
 // and a box takes a typed path. The owner's only. `actions`: the buttons at the bottom, each
 // { label, primary, pick(path) }; the browser closes when `pick` is done, unless it gives false.
-function openFolderBrowser({ title, intro = "", start = "", actions }) {
+function openFolderBrowser({ title, intro = "", start = "", actions, newFolder = false }) {
   const old = document.getElementById("folder-browser");
   if (old) old.remove();
   const box = h("input", { type: "text", class: "grow", spellcheck: "false", "aria-label": "Folder",
@@ -4502,6 +4506,13 @@ function openFolderBrowser({ title, intro = "", start = "", actions }) {
   let shown = null;  // the folder listed (its real path); null on "This computer"
   const buttons = actions.map((a) => h("button", { type: "button", class: "btn" + (a.primary ? " primary" : ""), disabled: true,
     onclick: () => choose(a) }, a.label));
+  // New folder… (choosing where files are kept): made in the folder listed, then opened.
+  const make = newFolder ? h("button", { type: "button", class: "btn", disabled: true, onclick: async () => {
+    const name = await askText("Name of the new folder", { ok: "Make it", maxLength: 100 });
+    if (!name || !shown) return;
+    try { list.replaceChildren(); showListing(await api("/api/hub/folders/new", { method: "POST", body: { parent: shown, name } })); }
+    catch (e) { if (!(e instanceof Unauthorized)) note.textContent = e.message; show(shown); }
+  } }, "New folder…") : null;
   const show = async (path) => {
     note.textContent = "";
     let r;
@@ -4511,18 +4522,24 @@ function openFolderBrowser({ title, intro = "", start = "", actions }) {
       if (!(e instanceof Unauthorized)) note.textContent = e.message;
       return false;
     }
+    showListing(r);
+    return true;
+  };
+  const showListing = (r) => {
     shown = r.path;
     box.value = r.path || "";
     buttons.forEach((b) => { b.disabled = !r.path; });
+    if (make) make.disabled = !r.path;
     fill(list,
       r.path ? h("button", { type: "button", class: "folder-row", onclick: () => show(r.parent || "") }, r.parent ? "⬆ Up" : "⬆ This computer") : null,
       r.folders.map((f) => h("button", { type: "button", class: "folder-row", onclick: () => show(f.path) },
         h("span", { "aria-hidden": "true" }, "📁 "), f.name)),
       r.folders.length ? null : h("p", { class: "muted small" }, r.path ? "There are no folders in here." : "No folders to show."),
       r.more ? h("p", { class: "muted small" }, "Only the first 1,000 folders are shown: type the path of the one you want.") : null);
-    return true;
   };
-  const onKey = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); } };
+  const onKey = (e) => {  // (a question on top, like New folder…'s name, answers Escape itself)
+    if (e.key === "Escape" && !document.querySelector(".toast-dialog")) { e.preventDefault(); e.stopPropagation(); close(); }
+  };
   const close = () => { document.removeEventListener("keydown", onKey, true); backdrop.remove(); };
   const choose = async (a) => {
     const typed = box.value.trim();
@@ -4534,13 +4551,154 @@ function openFolderBrowser({ title, intro = "", start = "", actions }) {
     h("div", { class: "modal folder-browser" },
       h("h2", { id: "folder-browser-title" }, title),
       intro ? h("p", { class: "small" }, intro) : null,
-      h("div", { class: "row" }, box, h("button", { type: "button", class: "btn", onclick: () => show(box.value.trim()) }, "Open")),
+      h("div", { class: "row" }, box, h("button", { type: "button", class: "btn", onclick: () => show(box.value.trim()) }, "Open"), make),
       note, list,
       h("p", { class: "muted small" }, "These are the folders on the computer Craft Conductor runs on."),
       h("div", { class: "row mt" }, buttons, h("button", { type: "button", class: "btn ghost", onclick: close }, "Cancel"))));
   document.addEventListener("keydown", onKey, true);
   document.body.append(backdrop);
   show(start).then(() => box.focus());
+}
+
+// ------------------------------------------------------------------ where files are kept
+// Servers, backups and exports each have a folder (locations.py): chosen once after the first
+// sign-in (offerLocations), and changed in Craft Conductor settings → Folders, which moves what's there.
+const PLACES = [
+  ["servers", "Servers", "Worlds, mods and settings: one folder per server."],
+  ["backups", "Backups", "One folder per server, with its backups."],
+  ["exports", "Exports", "Servers packed to move to another computer."],
+];
+const placeName = (kind) => (PLACES.find((p) => p[0] === kind) || [kind, kind])[1];
+// Where a place is, shown in a row: `places` as GET /api/hub/locations says them.
+const placeText = (places, kind) => kind === "backups" && !places.backups ? t("In each server's own folder") : places[kind];
+// Change… for one place: the folder browser, where a new folder can be made too.
+function choosePlace(kind, places, pick) {
+  const parent = (p) => p && p.replace(/[\\/][^\\/]+[\\/]?$/, "");
+  openFolderBrowser({ title: `Where should Craft Conductor keep ${t(placeName(kind)).toLowerCase()}?`, newFolder: true,
+    start: (kind === "backups" && !places.backups ? parent(places.servers) : places[kind]) || "",
+    intro: "Open the folder, or make a new one with New folder…, then press Use this folder. It must be new or empty if there's something to move into it.",
+    actions: [{ label: "Use this folder", primary: true, pick }] });
+}
+// Choosing places (`wanted`: kind -> folder, "" for backups in each server's folder): what it would
+// do is asked first, then it's saved and what's there moved, with `onMove(status)` as it goes.
+async function changePlaces(wanted, onMove) {
+  let plan;
+  try { plan = await api("/api/hub/locations", { method: "POST", body: wanted }); } catch (e) {
+    if (!(e instanceof Unauthorized)) toast(e.message, true, 12000);
+    return null;
+  }
+  if (plan.busy.length) { toast(`Stop these first: ${plan.busy.join("; ")}. Then try again.`, true, 12000); return null; }
+  const moves = plan.changes.filter((x) => x.count);
+  if (moves.length || plan.warnings.length) {
+    const lines = moves.map((x) => `${t(placeName(x.kind))}: ${x.count} ${x.count === 1 ? t("folder") : t("folders")} (${fmtBytes(x.size)}), ` +
+      `from ${x.from || t("each server's own folder")} to ${x.to || t("each server's own folder")}.`);
+    if (!(await ask([moves.length ? t("Move what's there now?") : t("Use this folder?"), ...lines, ...plan.warnings, ...plan.keeps,
+      ...(moves.length ? [t("Each file is copied and checked before the old one is deleted. The servers concerned can't start until it's done.")] : [])].join("\n\n"),
+      { ok: moves.length ? "Move" : "Use it anyway" }))) return null;
+  }
+  let r;
+  try { r = await api("/api/hub/locations", { method: "POST", body: { ...wanted, go: true } }); } catch (e) {
+    if (!(e instanceof Unauthorized)) toast(e.message, true, 12000);
+    return null;
+  }
+  let move = r.move;
+  while (move && move.running) {
+    if (onMove) onMove(move);
+    await new Promise((done) => setTimeout(done, 1000));
+    const now = await api("/api/hub/locations").catch(() => null);
+    move = now ? now.move : move;
+    if (now) r.locations = now;
+  }
+  if (move && move.ok === false) { toast(`The files weren't moved: ${move.message} Everything is where it was.`, true, 15000); return null; }
+  toast(move && move.left && move.left.length ? t("Moved. Some old files were in use: they're still in their old place.") : t("Saved."));
+  return r.locations;
+}
+const moveLine = (move) => h("div", { class: "notice mt-s", role: "status" }, h("span", { class: "spinner" }), " ",
+  `Moving the ${t(placeName(move.kind)).toLowerCase()}… ${Math.round((move.progress || 0) * 100)}%`);
+// The three places, each with Change… (`onPick(kind, path)`), and for backups, back to each server's folder.
+function placeRows(places, onPick, { fixed = false } = {}) {
+  return h("div", { class: "place-rows" }, PLACES.map(([kind, label, what]) => h("div", { class: "place-row" },
+    h("div", { class: "grow" }, h("strong", {}, label), h("div", {}, h("code", {}, placeText(places, kind))), h("div", { class: "muted small" }, what)),
+    fixed ? null : h("div", { class: "row" },
+      kind === "backups" && places.backups ? h("button", { type: "button", class: "btn ghost small", onclick: () => onPick(kind, "") }, "Keep them in each server's folder") : null,
+      h("button", { type: "button", class: "btn small", onclick: () => choosePlace(kind, places, (path) => onPick(kind, path)) }, "Change…")))));
+}
+// The first time (after choosing your password): where files go. An install that already has
+// servers shows where they are; changing one moves them, asked first.
+let locationsOffered = false;
+async function offerLocations(hb) {
+  const l = hb.locations;
+  if (!l || l.chosen || !l.choosable || hb.single || !isOwner() || locationsOffered || $("#locations")) return;
+  if ($("#security") || $("#notice") || (hb.auth && hb.auth.default && !promptDismissed())) return;  // (the password first)
+  locationsOffered = true;
+  const r = await api("/api/hub/locations").catch(() => null);
+  if (!r) { locationsOffered = false; return; }
+  const draft = { servers: r.servers, backups: r.backups || "", exports: r.exports };
+  const box = h("div", { class: "modal" });
+  const render = (moving = null, error = "") => fill(box,
+    h("h2", { id: "locations-title" }, "Where should Craft Conductor keep your files?"),
+    h("p", {}, "Servers, their backups and exports can each go in a folder of your choice. These are where Craft Conductor keeps them unless you change them."),
+    placeRows({ ...draft, backups: draft.backups || null }, (kind, path) => { draft[kind] = path; render(); }, { fixed: !!moving }),
+    h("p", { class: "muted small" }, "You can change these later in Craft Conductor settings → Folders: Craft Conductor moves what's there for you."),
+    error ? h("p", { class: "error" }, error) : null,
+    moving ? moveLine(moving) : h("div", { class: "row mt" }, h("button", { type: "button", class: "btn primary", onclick: save }, "Use these folders")));
+  const save = async () => {
+    const done = await changePlaces(draft, (m) => render(m));
+    if (!done) { render(); return; }
+    $("#locations").remove();
+    refreshStatus();
+  };
+  render();
+  document.body.append(h("div", { class: "modal-backdrop", id: "locations", role: "dialog", "aria-modal": "true", "aria-labelledby": "locations-title" }, box));
+  const first = box.querySelector("button.primary");
+  if (first) first.focus();
+}
+// Craft Conductor settings → Folders: where files are kept, each with Change… (it moves what's there).
+function locationsCard() {
+  const box = h("div", { class: "mb" });
+  let places = null, moving = null;
+  const render = () => fill(box, places ? card("Where files are kept",
+    places.why_not ? h("p", { class: "small" }, places.why_not)
+      : h("p", { class: "muted small" }, "Change a folder and Craft Conductor moves what's there: each file is copied and checked before the old one is deleted. The servers concerned must be stopped first."),
+    placeRows(places, async (kind, path) => {
+      const done = await changePlaces({ [kind]: path }, (m) => { moving = m; render(); });
+      moving = null;
+      if (done) places = done;
+      render();
+    }, { fixed: !!places.why_not || !!moving }),
+    moving ? moveLine(moving) : null,
+    hubInfo && hubInfo.local && !places.single ? h("div", { class: "row mt-s" },
+      ["servers", "exports", ...(places.backups ? ["backups"] : [])].map((what) => h("button", { type: "button", class: "btn ghost small",
+        onclick: () => api("/api/hub/open", { method: "POST", body: { what } }).catch((e) => { if (!(e instanceof Unauthorized)) toast(e.message, true); }) },
+      "📂 ", `${t(placeName(what))} folder`))) : null) : null);
+  api("/api/hub/locations").then((r) => {
+    places = r;
+    render();
+    if (r.move && r.move.ok === false && r.move.message) toast(r.move.message, true, 15000);  // (a move cut off last time, put back)
+  }).catch(() => {});
+  return box;
+}
+// Import a server…: the exports in the exports folder, each with Import; Another file… for one from elsewhere.
+async function openExportsList({ pick, take }) {
+  const r = await api("/api/hub/exports").catch((e) => { if (!(e instanceof Unauthorized)) toast(e.message, true); return null; });
+  if (!r) return;
+  const close = () => { document.removeEventListener("keydown", onKey, true); backdrop.remove(); };
+  const onKey = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); } };
+  const backdrop = h("div", { class: "modal-backdrop", id: "exports-list", role: "dialog", "aria-modal": "true", "aria-labelledby": "exports-list-title" },
+    h("div", { class: "modal" },
+      h("h2", { id: "exports-list-title" }, "Import a server"),
+      h("p", { class: "small" }, "From the exports folder ", h("code", {}, r.folder), ". Copy an export from another computer there, or press Another file… to pick it from elsewhere."),
+      r.exports.length ? h("div", { class: "mod-manager-list" }, r.exports.map((x) => h("div", { class: "mod-manager-row" },
+        h("div", { class: "grow" }, h("strong", {}, x.name),
+          h("div", { class: "muted small" }, [x.server, fmtBytes(x.size), fmtTime(x.created)].filter(Boolean).join(" · "))),
+        h("button", { type: "button", class: "btn small primary", onclick: () => { close(); take(x); } }, "Import"))))
+        : h("p", { class: "empty" }, "There are no exports in the exports folder yet."),
+      h("div", { class: "row mt" }, h("button", { type: "button", class: "btn", onclick: () => { close(); pick(); } }, "Another file…"),
+        h("button", { type: "button", class: "btn ghost", onclick: close }, "Cancel"))));
+  document.addEventListener("keydown", onKey, true);
+  document.body.append(backdrop);
+  const first = backdrop.querySelector("button.primary, button");
+  if (first) first.focus();
 }
 
 // Mods to download by hand, found where the browser saved them (handdownload.py): in this
@@ -5833,7 +5991,10 @@ const HELP = [
     h("p", {}, "To play on this computer too, press ", h("strong", {}, "Play on this computer"), " on the server's Dashboard: Craft Conductor sets up Minecraft here ",
       "with the server's mods (it says first whether this computer has the memory for both)."),
     h("p", {}, "Closing this browser tab doesn't stop Craft Conductor: servers keep running and jobs carry on. Open Craft Conductor again from its icon to come back; ",
-      h("strong", {}, "Quit"), " (bottom left) stops everything.")]],
+      h("strong", {}, "Quit"), " (bottom left) stops everything."),
+    h("p", {}, "Servers, backups and exports each have a folder: Craft Conductor asks once where, after you choose your password. To keep them somewhere else later (another drive, say), use ",
+      h("strong", {}, "Craft Conductor settings → Folders"), ": ", h("strong", {}, "Change…"), " moves what's there, each file copied and checked before the old one is deleted. ",
+      h("strong", {}, "Import a server…"), " on the Servers page lists the exports in the exports folder.")]],
   ["friends", "Letting friends join", () => [
     h("p", {}, "On a server's ", h("strong", {}, "Friends"), " page, turn on the friends' download and send the link. Their copy of Craft Conductor sets up ",
       "the right Minecraft version, mod loader and mods in their launcher, and adds your server to their list."),
@@ -5913,7 +6074,8 @@ const MANUAL_ON_GITHUB = "https://github.com/silverWRX03/craft-conductor/wiki/Cr
 // The pictures under each heading ("See this screen"): [picture, caption]. The wiki shows the same ones
 // (IMAGES in packaging/wiki.py; test_wiki.py keeps the two lists the same).
 const MANUAL_PICTURES = {
-  "Getting started": [["sign-in", "Signing in the first time"], ["choose-password", "Choosing your own password"]],
+  "Getting started": [["sign-in", "Signing in the first time"], ["choose-password", "Choosing your own password"],
+    ["choose-folders", "Then, once: where to keep your servers, backups and exports"]],
   "The guided setup": [["guided-setup", "The guided setup's checklist, in a corner of the page"]],
   "Creating a server": [["new-server", "New server"], ["mod-browser", "The mod browser"],
     ["map-preview", "World generation & map preview: a clean map, points of interest hidden"],
@@ -5921,7 +6083,7 @@ const MANUAL_PICTURES = {
     ["folder-browser", "Saved somewhere else? Choose the folder… opens a folder browser"]],
   "On another computer (Linux, over SSH)": [["ssh-install", "Install on a Linux computer or rented server (SSH)"]],
   "Messages": [["question", "A question waits in the middle of the screen"], ["bell", "The bell: messages you may have missed, newest first"]],
-  "Your servers": [["servers", "Your servers, and a modded single-player game"]],
+  "Your servers": [["servers", "Your servers, and a modded single-player game"], ["import-list", "Import a server…: the exports in the exports folder"]],
   "Dashboard": [["dashboard", "The Dashboard of a running server"],
     ["dashboard-problem", "A server that didn't start: what went wrong, and the fix"]],
   "Connected Players": [["connected-players", "Connected Players: a row's actions open, and the Whitelist panel"]],
@@ -5943,6 +6105,7 @@ const MANUAL_PICTURES = {
     ["person-edit", "Editing what someone may do: a role for each server, and Customize permissions"]],
   "Craft Conductor settings": [["craft-conductor-settings", "Craft Conductor settings: Connections"],
     ["display", "Appearance: language, size, contrast and motion"],
+    ["folders", "Folders: where files are kept, and where mods downloaded by hand are looked for"],
     ["update-available", "A Craft Conductor update is available"], ["update-dots", "About & updates: the red dots, and the update waiting"],
     ["updating", "Updating Craft Conductor, with the step it's on"], ["update-restarting", "Restarting Craft Conductor while the control panel is away"],
     ["update-failed", "An update that didn't work"], ["update-launch", "Another browser is offered the new version"]],
@@ -7160,24 +7323,34 @@ views.servers = () => {
     h("span", { class: "grow" }, h("strong", {}, t("The import didn't happen: ")), lastImportProblem.file ? `${lastImportProblem.file}: ` : "", lastImportProblem.message),
     h("button", { class: "btn ghost small", onclick: () => { lastImportProblem = null; showImportProblem(); } }, "Dismiss")) : null);
   showImportProblem();
-  const importBtn = h("button", { class: "btn", onclick: () => picker.click() }, "Import a server…");
-  picker.addEventListener("change", async () => {
+  // Import a server… lists the exports in the exports folder (nothing to upload: Import on one);
+  // Another file… picks one from elsewhere (it's uploaded first).
+  const importBtn = h("button", { class: "btn", onclick: () => openExportsList({ pick: () => picker.click(), take: (x) => doImport(x.name, async () => ({ export: x.path })) }) },
+    "Import a server…");
+  picker.addEventListener("change", () => {
     const f = picker.files[0];
     picker.value = "";
     if (!f) return;
+    doImport(f.name, async () => {
+      const staged = await upload(`/api/hub/stage?filename=${encodeURIComponent(f.name.replace(/[^A-Za-z0-9 ()\[\]+_.,'-]/g, "_"))}`, f,
+        (done) => { importNote.textContent = `Uploading ${f.name}: ${Math.round(done * 100)}%`; });
+      return { id: staged.id };
+    });
+  });
+  // `which()`: what to import ({id} of an upload, or {export} in the exports folder), asked for once.
+  const doImport = async (label, which) => {
     importBtn.disabled = true;
     lastImportProblem = null;
     showImportProblem();
     try {
-      const staged = await upload(`/api/hub/stage?filename=${encodeURIComponent(f.name.replace(/[^A-Za-z0-9 ()\[\]+_.,'-]/g, "_"))}`, f,
-        (done) => { importNote.textContent = `Uploading ${f.name}: ${Math.round(done * 100)}%`; });
+      const body = await which();
       importNote.textContent = t("Unpacking…");
-      let r = await api("/api/hub/import", { method: "POST", body: { id: staged.id } });
+      let r = await api("/api/hub/import", { method: "POST", body });
       while (r.needs_password) {
         const answer = await askImportPassword(r.locked);
         if (!answer) { toast("Not imported"); return; }
         try {
-          r = await api("/api/hub/import", { method: "POST", body: answer.skip ? { id: staged.id, skip_locked: true } : { id: staged.id, password: answer.password } });
+          r = await api("/api/hub/import", { method: "POST", body: answer.skip ? { ...body, skip_locked: true } : { ...body, password: answer.password } });
         } catch (e) {
           if (e instanceof Unauthorized) throw e;
           toast(e.message, true);  // (a wrong password: ask again)
@@ -7191,14 +7364,14 @@ views.servers = () => {
     } catch (e) {
       if (!(e instanceof Unauthorized)) {
         toast(e.message, true);
-        lastImportProblem = { file: f.name, message: e.message };
+        lastImportProblem = { file: label, message: e.message };
         showImportProblem();
       }
     } finally {
       importBtn.disabled = false;
       importNote.textContent = "";
     }
-  });
+  };
   const sp = hubInfo && !hubInfo.single && isOwner() ? singleplayerCard() : null;
   fill($("#main"),
     closingTip(),
@@ -8284,7 +8457,7 @@ views["craft-conductor"] = () => {
         h("button", { class: "btn", onclick: openPeople }, "People…")) : null],
     ["Connections", "Phones, sharing with friends and connected services.", network, phone, sharing, cf, dc,
       owner && hubInfo && !hubInfo.single ? conflictsCard() : null],
-    ...(owner ? [["Folders", "The folders on this computer Craft Conductor looks in for you.", handFoldersCard()]] : []),
+    ...(owner ? [["Folders", "Where Craft Conductor keeps your files, and the folders it looks in for you.", locationsCard(), handFoldersCard()]] : []),
     ["About & updates", "Craft Conductor version, updates and licenses.", about, firewallCard],
     ...(owner && hubInfo && !hubInfo.single ? [["Advanced", "Safety rules you may switch off, if you know the risk.", risksCard()]] : []),
   ];

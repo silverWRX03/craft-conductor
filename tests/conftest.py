@@ -353,6 +353,7 @@ def hub_env(tmp_path, http, modrinth, fake_template):
     setupmod.mark_pending(home)
 
     hub = Hub(home, make_manager=lambda cfg: manager(cfg, http, ["1.21.1"]), http=http, tick=0.1)
+    hub._save_locations(hub.locations())  # (the first-use folders page answered: tests of it ask again)
     hub.web.port = 0
     t = threading.Thread(target=hub.run, daemon=True)
     t.start()
