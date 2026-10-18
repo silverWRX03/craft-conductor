@@ -350,7 +350,7 @@ def maven_version(text: str) -> list:
     start, digit = 0, False
 
     def push(i: int):
-        nonlocal cur, start
+        nonlocal start
         cur.append(0 if i == start else _item(digit, text[start:i]))
         start = i + 1
 

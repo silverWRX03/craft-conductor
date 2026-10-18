@@ -26,7 +26,7 @@ class FakeServer:
             return parse(["The world border is currently 59999968 block(s) wide"])
         if name in known:
             return parse([f"Gamerule {name} is currently set to: {known[name]}"])
-        return parse([f"Incorrect argument for command at position 9: gamerule <--[HERE]"])
+        return parse(["Incorrect argument for command at position 9: gamerule <--[HERE]"])
 
     def send(self, command):
         self.sent.append(command)

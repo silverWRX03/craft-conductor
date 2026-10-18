@@ -26,6 +26,7 @@
     players_mods: s.client.mods.slice(),
     held: Object.fromEntries(s.mods.filter((m) => m.pinned).map((m) => [keyOf(m), { version: m.pinned, number: m.version }])),
     skipped: [], unmanaged: s.mods.filter((m) => m.manual).map((m) => m.filename), disabled: s.disabledJars || [], known_conflicts: [],
+    players_only: (s.playersOnly || []).slice(),
   });
   // Adding a mod: it needs a build for this server's Minecraft and server type, and the mods it
   // needs come along. A mod that doesn't fit is refused with the reason (never a quiet version change).
@@ -407,6 +408,18 @@
       } else m.pinned = null;
       return { ok: true };
     },
+    // A mod moved to players' mods (off the server, in the friends' download), or back.
+    "POST /api/mods/players": (r) => {
+      const key = String(r.b.key || "");
+      if (!/^(modrinth|curseforge):[A-Za-z0-9]{1,40}$/.test(key)) throw new ApiError(400, "which mod?");
+      const s = r.s, on = r.b.on !== false;
+      s.playersOnly = (s.playersOnly || []).filter((k) => k !== key).concat(on ? [key] : []);
+      const m = s.mods.find((x) => keyOf(x) === key);
+      if (on && m && !s.client.mods.includes(m.slug)) s.client.mods.push(m.slug);
+      const name = m ? m.name : key;
+      return { ok: true, message: on ? `Moved ${name} to players' mods: it comes off the server at the next update check or start, and friends get it in their download`
+        : `${name} goes back on the server at the next update check or start` };
+    },
     "POST /api/mods/jar": (r) => {
       const action = String(r.b.action || ""), name = String(r.b.name || "");
       if (!["enable", "disable", "remove"].includes(action)) throw new ApiError(400, "unknown action");
@@ -507,6 +520,10 @@
       rr.state = "cancelled"; rr.log.push("Stopped.");
       return { ok: true };
     },
+    // The demo's servers weren't made from a modpack: nothing to update the pack to.
+    "GET /api/modpack": () => ({ pack: null }),
+    "POST /api/modpack/check": () => ({ pack: null, current: null, newer: [] }),
+    "POST /api/modpack/update": () => { throw new ApiError(400, "this server wasn't made from a modpack"); },
     "GET /api/beta": (r) => ({ betas: cat().BETAS.slice(), current: r.s.minecraft, copies: true }),
     "POST /api/beta/test": (r) => {
       const version = String(r.b.version || "");

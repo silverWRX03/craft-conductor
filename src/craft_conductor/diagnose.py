@@ -10,7 +10,7 @@ patterns and maps what it finds (mod ids, jar names) to the installed mods:
 * Mixins: "Mixin [x.mixins.json:...] from mod x" / "Mixin apply for mod x failed"
 * Paper plugins: "Could not load 'plugins/x.jar'", "Error occurred while enabling X"
 * crash reports: "Suspected Mod(s):", "Mod File: .../x.jar"
-* stack traces naming a jar: "[x.jar:?]" or "(x.jar)"
+* stack traces naming a jar: "[x.jar:?]" or "(x.jar)", or a mod (NeoForge and Forge: "TRANSFORMER/x@1.0/")
 """
 
 from __future__ import annotations
@@ -37,6 +37,8 @@ RULES: list[tuple[re.Pattern, str, str]] = [
     (re.compile(r"Suspected Mods?: ([^\n]+)"), "list", "the crash report suspects it"),
     (re.compile(r"Mod File: [^\n]*?([^/\\\n]+\.jar)"), "jar", "the crash report points at its file"),
     (re.compile(r"[\[(]([\w.+-]+\.jar)[:\])]"), "jar", "it appears in the error's stack trace"),
+    (re.compile(r"\b(?:TRANSFORMER|MC-BOOTSTRAP|SECURE-BOOTSTRAP|GAME)/([a-z][a-z0-9_.-]*)@"), "id",
+     "it appears in the error's stack trace"),
 ]
 SKIP_IDS = {"minecraft", "java", "fabricloader", "fabric", "forge", "neoforge", "quilt_loader", "mixinextras", "unknown"}
 

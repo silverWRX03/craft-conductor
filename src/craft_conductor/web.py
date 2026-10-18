@@ -2894,6 +2894,9 @@ class Api:
         post("/api/updates/check", lambda q, b: self._job("update check", self.d.check_only, b.get("target")))
         post("/api/updates/apply", lambda q, b: self._job(
             "update", self.d.check_for_updates, True, b.get("target") or None))
+        get("/api/modpack", self.modpack)
+        post("/api/modpack/check", self.modpack_check)
+        post("/api/modpack/update", self.modpack_update)
         get("/api/setup", self.setup_options)
         post("/api/setup", self.setup_apply)
         get("/api/mods", self.mods)
@@ -2904,6 +2907,7 @@ class Api:
         post("/api/mods/required", self.set_required)
         get("/api/mods/versions", self.mod_versions)
         post("/api/mods/pin", self.pin_mod)
+        post("/api/mods/players", self.players_mod)
         post("/api/mods/filecheck", self.start_filecheck)
         post("/api/manual/upload", lambda q, b: None)  # handled specially (raw body)
         post("/api/manual/stop", self.stop_manual_wait)
@@ -3219,7 +3223,10 @@ class Api:
             "held": {k: {"version": pin.version, "number": next((x.version_number for x in lk.mods
                                                                    if x.key == k and x.version_id == pin.version), "")}
                      for k, pin in self.m.config.pins.items()},
-            "skipped": [{"key": k, "reason": v} for k, v in lk.skipped.items()],
+            # not installed, and why; the ones only players run can go in players' mods (or are there: "players")
+            "skipped": [{"key": k, "reason": v, "name": lk.client_only.get(k, ""), "client_only": k in lk.client_only}
+                        for k, v in lk.skipped.items()],
+            "players_only": self.m.config.client.only,  # moved to players' mods: never on the server
             "unmanaged": self.m.unmanaged_jars(),
             "disabled": self.m.disabled_jars(),
             # combinations other people found don't work (conflicts.py; empty until the list exists)
@@ -3472,6 +3479,60 @@ class Api:
                 log.info("%s is on Modrinth but can't be added (%s); keeping it as a local file", name, e)
         log.info("added %s as a local mod (Craft Conductor won't update it)", name)
         return {"ok": True, "name": name, "managed": False}
+
+    # ------------------------------------------------------ the modpack it was made from
+    def modpack(self, q, b) -> dict:
+        cfg = self.m.config
+        rec = cfg.modpack
+        return {"pack": None if rec is None else {"source": rec.source, "project": rec.project, "version": rec.version,
+                                                    "name": rec.name, "loader": cfg.server.loader,
+                                                    "loader_version": cfg.server.loader_version}}
+
+    def modpack_check(self, q, b) -> dict:
+        """The pack's newer versions; with ``version``, what updating to it would change (asked first)."""
+        from . import packupdate
+        version = str(b.get("version") or "")
+        try:
+            return packupdate.preview(self.m, version) if version else packupdate.versions(self.m)
+        except (ModError, HttpError) as e:
+            raise ApiError(400 if isinstance(e, ModError) else 502, str(e)) from None
+
+    def modpack_update(self, q, b) -> dict:
+        from . import packupdate
+        version = str(b.get("version") or "")
+        if self.m.config.modpack is None:
+            raise ApiError(400, "this server wasn't made from a modpack")
+        if not re.fullmatch(r"[A-Za-z0-9]{1,10}", version):
+            raise ApiError(400, "which version of the pack?")
+        return self._job("pack update", packupdate.run, self.d, version)
+
+    def players_mod(self, q, b) -> dict:
+        """Move a mod to players' mods (``on``): it comes off the server, even when a server mod lists it
+        as required, and stays in the friends' download. ``on: false`` puts it back on the server."""
+        key = str(b.get("key", ""))
+        if not configmod.PIN_KEY.fullmatch(key):
+            raise ApiError(400, "which mod?")
+        return {"ok": True, "message": self._to_players(key, b.get("on") is not False)}
+
+    def _to_players(self, key: str, on: bool, name: str = "") -> str:
+        cfg, lk = self.m.config, self.m.lock
+        name = name or next((x.name for x in lk.mods + lk.players if x.key == key), "") or lk.client_only.get(key) or key
+        configmod.set_value(cfg.path, "client", "only", json.dumps([k for k in cfg.client.only if k != key] + ([key] if on else [])))
+        if on:
+            source, pid = key.split(":", 1)
+            entry = f"curseforge:{pid}" if source == "curseforge" else pid
+            names = {entry}
+            if source == "modrinth":
+                try:
+                    names.add(self._modrinth().project(pid).slug)  # (listed by its slug already?)
+                except Exception:
+                    pass
+            if not names & set(cfg.client.mods):
+                configmod.set_value(cfg.path, "client", "mods", json.dumps(cfg.client.mods + [entry]))
+        self.m.reload_config()
+        log.info("%s %s", "moved to players' mods:" if on else "put back on the server:", name)
+        return (f"Moved {name} to players' mods: it comes off the server at the next update check or start, and friends get it in their download"
+                if on else f"{name} goes back on the server at the next update check or start")
 
     def remove_mod(self, q, b) -> dict:
         if not configmod.remove_mod(self.m.config.path, b.get("source", "modrinth"), str(b.get("id", ""))):
@@ -4324,6 +4385,11 @@ class Api:
                 raise ApiError(409, f"{mf.name} isn't in the mod list: remove it on the Mods page")
             self.m.reload_config()
             message = f"Removed {', '.join(removed)}: it's gone at the next update check or start"
+        elif kind == "players-only":
+            mf = next((m for m in self.m.lock.mods if m.filename == action["filename"]), None)
+            if mf is None:
+                raise ApiError(409, "it's not installed any more")
+            message = self._to_players(mf.key, True, mf.name)
         elif kind == "disable-jar":
             from .manager import UpgradeError
             try:
@@ -4741,6 +4807,9 @@ class Api:
         def prepare(root: Path) -> None:
             path = root / configmod.CONFIG_NAME
             configmod.set_value(path, "server", "minecraft", json.dumps(version))
+            configmod.hold_loader(path, "")  # (a modpack's build is for its own Minecraft: the beta's newest)
+            for key in ("source", "project", "version", "name"):  # (nor is it a version of the pack to update)
+                configmod.unset_value(path, "modpack", key)
             configmod.set_value(path, "updates", "strategy", '"mods-only"')  # stays on the beta
             for spec in configmod.load(root).mods:  # run with whichever mods support the beta
                 configmod.set_mod_required(path, spec.source, spec.id, False)

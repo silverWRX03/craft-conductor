@@ -117,6 +117,12 @@ class Plan:
     blockers: list[Blocker] = field(default_factory=list)   # required mods that are not ready
     dropped: list[Blocker] = field(default_factory=list)    # optional / client-only mods left out
     loader_reason: str | None = None  # why the loader has no build, when it isn't "not yet"
+    #: mods left off the server because only players need them (sides.py): in the friends' download
+    players: list[ModFile] = field(default_factory=list)
+    #: what each mod in the plan needs, by its mod site (mod key -> the keys, in the plan, it requires)
+    needs: dict[str, list[str]] = field(default_factory=dict)
+    pack_keys: set[str] = field(default_factory=set)    # mods from a modpack (held at the pack's files)
+    projects: dict[str, Project] = field(default_factory=dict)  # mod key -> its project (name, slug, sides)
 
     @property
     def complete(self) -> bool:
@@ -242,8 +248,11 @@ class Planner:
         return None
 
     def plan_for(self, minecraft: str) -> Plan:
+        # A modpack's loader build is held while the server is on the pack's Minecraft (players on
+        # the pack have that build: a newer one on the server can refuse them, #95).
+        held = self.config.server.loader_version if minecraft == self.config.server.minecraft else ""
         plan = Plan(minecraft=minecraft, loader=self.loader.name,
-                    loader_version=self.loader.latest_version(minecraft))
+                    loader_version=held or self.loader.latest_version(minecraft))
         if plan.loader_version is None:
             plan.loader_reason = self.loader.missing_reason(minecraft)
             if (self.lock.installed and minecraft == self.lock.minecraft and self.lock.loader == self.loader.name
@@ -270,6 +279,7 @@ class Planner:
         projects: dict[str, Project] = {}  # key -> project, to spot the same mod coming from another site
         queue = deque(self.config.mods)
         pack_keys: set[str] = set()  # mods from a modpack: the pack lists what else they need
+        only = set(self.config.client.only)  # moved to players' mods: never on the server
 
         def known(project: Project) -> str | None:
             """The key of the same mod already in the plan from another site, if it is."""
@@ -294,6 +304,11 @@ class Planner:
                 listed.setdefault(key, config_id)
             elif key not in projects and (same := known(project)):
                 alias[key] = key = same  # one copy, whichever site it came from first
+            if key in only and key not in client_only:
+                client_only.add(key)
+                plan.dropped.append(Blocker(key, project.name, f"{project.name} is in players' mods only (moved off the server)",
+                                            False, spec.dependency_of, client_only=True, config=config_id))
+                continue
             if key in resolved or key in failed or key in client_only:
                 # Something required depends on it, so it is required too.
                 if spec.required:
@@ -366,6 +381,11 @@ class Planner:
                     changed = True
 
         plan.mods = sorted(resolved.values(), key=lambda m: m.name.lower())
+        for key, mod in resolved.items():
+            plan.needs[key] = [k for k in dict.fromkeys(alias.get(k, k) for k in (f"{mod.source}:{d}" for d in mod.dependencies))
+                               if k in resolved and k != key]
+        plan.pack_keys = pack_keys & set(resolved)
+        plan.projects = {k: p for k, p in projects.items() if k in resolved}
         for b in failed.values():
             (plan.blockers if b.required else plan.dropped).append(b)
         if self.config.updates.wait_for_all_mods and self.lock.installed and minecraft != self.lock.minecraft:

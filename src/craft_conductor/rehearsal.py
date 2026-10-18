@@ -21,7 +21,7 @@ import time
 from pathlib import Path
 
 from . import config as configmod, perf
-from .properties import read_properties, write_properties
+from .properties import write_properties
 
 log = logging.getLogger(__name__)
 

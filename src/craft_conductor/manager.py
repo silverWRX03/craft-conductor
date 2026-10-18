@@ -274,8 +274,17 @@ class Manager:
         if hasattr(self.http, "clear_cache"):
             self.http.clear_cache()  # always look at fresh release data
         decision = self.planner().decide(target, retry_failed=retry_failed)
+        self.trim(decision.plan)
         changes = decision.plan.changes(self.lock) if decision.plan else None
         return decision, changes
+
+    def trim(self, plan: Plan | None) -> None:
+        """Leave off the server the mods only players run, that the mod sites didn't say (sides.py)."""
+        from . import sides
+        try:
+            sides.trim(self, plan)
+        except Exception as e:  # (never a reason to fail a check: they go on the server, as before)
+            log.warning("couldn't work out which mods only players run: %s", e)
 
     @property
     def mods_dir(self) -> Path:
@@ -487,15 +496,21 @@ class Manager:
         new.java_major = staged.java_major
         new.mods = [copy.copy(m) for m in plan.mods]
         new.skipped = {b.key: b.reason for b in plan.dropped}
+        new.client_only = {b.key: b.name for b in plan.dropped if b.client_only}
+        new.players = [copy.copy(m) for m in plan.players]
         return new
 
     # --------------------------------------------------------------- upgrade
     def apply(self, plan: Plan, server: ServerProcess | None = None, restart: bool = False,
-              verify: bool | None = None, make_backup: bool = True) -> Result:
+              verify: bool | None = None, make_backup: bool = True, prepare=None) -> Result:
         """Apply ``plan``. If ``server`` is running it is stopped first.
 
         Without ``make_backup`` (a throwaway copy of a server, see rehearsal.py) no backup is made, and
         a failed update isn't put back.
+
+        ``prepare`` is called once the backup is made, before the new files go in: other changes to
+        the server folder that belong to this update (a modpack's new config files: packupdate.py),
+        put back with the rest when it fails.
 
         With ``restart`` the upgraded (or rolled back) server is left running and
         returned in :attr:`Result.process`.
@@ -574,6 +589,8 @@ class Manager:
         proc = None
         try:
             self.server_dir.mkdir(parents=True, exist_ok=True)
+            if prepare is not None:
+                prepare()
             new_lock = self._swap(staged, plan)
             if will_boot:
                 proc = self.start_server(new_lock)

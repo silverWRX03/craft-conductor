@@ -1,6 +1,6 @@
 """Trying beta Minecraft versions: offered in setup, and tested on a copy of a server."""
 
-from craft_conductor import setup as setupmod
+from craft_conductor import config as configmod, packupdate, setup as setupmod
 from craft_conductor.config import ModSpec
 from craft_conductor.lock import Lock
 
@@ -31,8 +31,13 @@ def test_test_copy_on_a_beta(hub_env):
     r = c.get("/api/servers/alpha/beta")[1]
     assert r["betas"] == ["99w01a"] and r["copies"]
     assert c.post("/api/servers/alpha/beta/test", {"version": "1.21.1"})[0] == 400
-    assert c.post("/api/servers/alpha/beta/test", {"version": "99w01a"})[0] == 200
     alpha = hub.get("alpha")
+    # (made from a modpack: its loader held at the pack's build, for the pack's Minecraft)
+    configmod.set_value(alpha.m.config.path, "server", "minecraft", '"1.21.1"')
+    configmod.hold_loader(alpha.m.config.path, "0.16.0")
+    packupdate.record(alpha.m.config.root, "modrinth", "PACKPROJ", "PACKV001", "Test Pack 1.0", {}, [], {}, {})
+    alpha.m.reload_config()
+    assert c.post("/api/servers/alpha/beta/test", {"version": "99w01a"})[0] == 200
     wait_for(lambda: alpha.last_job and alpha.last_job["name"] == "beta test copy", timeout=30)
     assert alpha.last_job["ok"], alpha.last_job
     copy = hub.get("alpha-beta-99w01a")
@@ -40,5 +45,8 @@ def test_test_copy_on_a_beta(hub_env):
     assert copy.last_job["ok"], copy.last_job
     assert copy.m.lock.minecraft == "99w01a" and copy.m.config.updates.strategy == "mods-only"
     assert all(not s.required for s in copy.m.config.mods)
+    # The pack's loader build is for the pack's Minecraft, and the copy isn't a version of the pack.
+    assert copy.m.lock.loader_version == "loader-99w01a" and copy.m.config.modpack is None
     assert alpha.m.lock.minecraft == "1.21.1"  # the original is untouched
+    assert alpha.m.config.server.loader_version == "0.16.0" and alpha.m.config.modpack is not None
     assert c.get("/api/hub")[1]["servers"]

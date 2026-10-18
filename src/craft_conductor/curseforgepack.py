@@ -20,14 +20,13 @@ from __future__ import annotations
 import json
 import logging
 import re
-import shutil
 import tempfile
 import threading
 import time
 import zipfile
 from pathlib import Path, PurePosixPath
 
-from . import config as configmod, remotezip, safearchive
+from . import config as configmod, packupdate, remotezip, safearchive
 from .config import ModSpec
 from .http import HttpClient, HttpError
 from .modpack import MAX_INDEX, MAX_PACK, MAX_PACK_FILES, ModpackError, _override_members
@@ -164,7 +163,8 @@ def read_manifest(pack: Path) -> tuple[dict, zipfile.ZipFile]:
     return manifest, z
 
 
-def _platform(manifest: dict) -> tuple[str, str]:
+def _platform(manifest: dict) -> tuple[str, str, str]:
+    """Minecraft, loader and the loader's build ("" if it doesn't say): ``"neoforge-21.1.109"``."""
     mc = manifest["minecraft"]
     minecraft = str(mc.get("version", ""))
     if not _MINECRAFT.fullmatch(minecraft):
@@ -172,9 +172,9 @@ def _platform(manifest: dict) -> tuple[str, str]:
     loaders = [x for x in mc.get("modLoaders") or [] if isinstance(x, dict)]
     loaders.sort(key=lambda x: not x.get("primary"))
     for x in loaders:
-        name = str(x.get("id", "")).split("-", 1)[0].lower()
-        if name in cf.LOADER_TYPES:
-            return minecraft, name
+        name, _, build = str(x.get("id", "")).partition("-")
+        if name.lower() in cf.LOADER_TYPES:
+            return minecraft, name.lower(), configmod.loader_build(build, minecraft)
     raise ModpackError("the modpack's mod loader isn't one Craft Conductor runs (Fabric, Quilt, Forge or NeoForge)")
 
 
@@ -206,6 +206,28 @@ def _server_jars(api: _Api, mod: dict, f: dict, tmp: Path) -> set[str] | None:
         return None
 
 
+def _players_only(http: HttpClient, mods: list[dict], files: dict) -> set[str]:
+    """Without a server pack, the pack's mods that the same mod on Modrinth says only run on players'
+    computers (found by the file's checksum, else its slug and name: sides.py), by project id."""
+    from . import sides
+    from .mods.base import ModFile, Project
+    from .mods.modrinth import ModrinthProvider
+    items, projects = [], {}
+    for m in mods:
+        f = files.get(int(m["version_id"])) or {}
+        sha1 = next((h.get("value") for h in f.get("hashes", []) if h.get("algo") == 1), None)
+        key = f"curseforge:{m['project_id']}"
+        items.append(ModFile(key=key, source="curseforge", project_id=m["project_id"], name=m["name"],
+                             version_id=m["version_id"], version_number=m["version"], filename=PurePosixPath(m["path"]).name,
+                             url="", sha1=sha1))
+        projects[key] = Project("curseforge", m["project_id"], m["slug"], m["name"])
+    found = sides.on_modrinth(ModrinthProvider(http), items, projects)
+    out = {k.split(":", 1)[1] for k, p in found.items() if p.server_side == "unsupported"}
+    if out:
+        log.info("Modrinth says %d of the pack's mods only run on players' computers: they go in the friends' download", len(out))
+    return out
+
+
 def preview(http: HttpClient, key: str, version: str) -> dict:
     """What a CurseForge modpack file would add to a new server, without changing one. Cached for
     an hour, so creating the server doesn't download and look everything up again."""
@@ -220,7 +242,7 @@ def preview(http: HttpClient, key: str, version: str) -> dict:
         pack = _download(api, mod, f, Path(tmp) / "pack.zip", "modpack file")
         manifest, z = read_manifest(pack)
         z.close()
-        minecraft, loader = _platform(manifest)
+        minecraft, loader, build = _platform(manifest)
         entries = manifest["files"]
         files = api.files([x["fileID"] for x in entries])
         projects = api.mods(sorted({x["projectID"] for x in entries}))
@@ -244,11 +266,16 @@ def preview(http: HttpClient, key: str, version: str) -> dict:
         if found < max(1, len(mods) // 2):  # (a server pack of other versions says nothing about these)
             log.info("%s's server pack doesn't match the pack's mods; every mod goes on the server", mod.get("name"))
             on_server = None
+    players = set() if on_server is not None else _players_only(http, mods, files)
     for m in mods:
-        m["included_on_server"] = on_server is None or PurePosixPath(m["path"]).name in on_server
+        m["included_on_server"] = (on_server is None or PurePosixPath(m["path"]).name in on_server) and m["project_id"] not in players
         m["for_friends"] = not m["included_on_server"]
+        if m["project_id"] in players:
+            m["side_from"] = "modrinth"  # (no server pack: Modrinth says it only runs on players' computers)
     out = {"source": "curseforge", "name": f"{mod.get('name', 'Modpack')} {f.get('displayName') or ''}".strip(),
-           "minecraft": minecraft, "loader": loader, "mods": mods, "server_pack": on_server is not None,
+           "project": str(mod.get("id", "")),
+           "minecraft": minecraft, "loader": loader, "loader_version": build, "mods": mods, "server_pack": on_server is not None,
+           "sides_from_modrinth": len(players),
            "count": sum(1 for m in mods if m["included_on_server"]),
            "client_only": sum(1 for m in mods if not m["included_on_server"]), "other": other,
            "overrides": str(manifest.get("overrides") or "overrides")}
@@ -261,10 +288,10 @@ def preview(http: HttpClient, key: str, version: str) -> dict:
 
 def apply(root: Path, version: str, http: HttpClient, key: str, exclude: tuple[str, ...] | list[str] = ()) -> dict:
     """Install a CurseForge modpack file into the server at ``root`` (whose craft-conductor.toml
-    exists): its loader and Minecraft, its server mods as CurseForge mods Craft Conductor keeps
-    up to date, and its overrides. Its mods for players are the setup page's to add to the friends'
-    download (they come back in ``friends``). ``exclude``: ``mods/*.jar`` paths removed on the
-    setup page."""
+    exists): its loader (held at the pack's build) and Minecraft, its server mods as CurseForge mods held at the files the pack
+    lists, and its overrides. Its mods for players are the setup page's to add to the friends'
+    download (they come back in ``friends``), held at the pack's files too. ``exclude``: ``mods/*.jar``
+    paths removed on the setup page."""
     info = preview(http, key, version)
     api = _Api(http, key)
     mod, f = _pack(api, file_id(version))
@@ -272,7 +299,7 @@ def apply(root: Path, version: str, http: HttpClient, key: str, exclude: tuple[s
         pack = _download(api, mod, f, Path(tmp) / "pack.zip", "modpack file")
         manifest, z = read_manifest(pack)
         with z:
-            minecraft, loader = _platform(manifest)
+            minecraft, loader, build = _platform(manifest)
             what = f"the modpack {safearchive.printable(info['name'])}"
             prefix = str(manifest.get("overrides") or "overrides") + "/"
             # Every check that can refuse the pack happens before the server's settings change.
@@ -280,6 +307,7 @@ def apply(root: Path, version: str, http: HttpClient, key: str, exclude: tuple[s
             cfg_path = root / configmod.CONFIG_NAME
             configmod.set_value(cfg_path, "server", "loader", json.dumps(loader))
             configmod.set_value(cfg_path, "server", "minecraft", json.dumps(minecraft))
+            configmod.hold_loader(cfg_path, build)  # (the pack's build: players on the pack have it)
             configmod.set_value(cfg_path, "updates", "strategy", '"mods-only"')
             cfg = configmod.load(root)
             server_dir = cfg.server.dir
@@ -287,11 +315,19 @@ def apply(root: Path, version: str, http: HttpClient, key: str, exclude: tuple[s
             listed = {(s.source, s.id) for s in cfg.mods}
             excluded = set(exclude)
             added, friends, removed = [], [], 0
+            held, players, left_out, files = {}, {}, [], {}  # (what's remembered for updating the pack: packupdate.py)
             for m in info["mods"]:
                 if not m["included_on_server"]:
-                    friends.append(f"curseforge:{m['project_id']}")
+                    key = f"curseforge:{m['project_id']}"
+                    friends.append(key)
+                    players[key] = m["version_id"]
+                    # Players get the file the pack lists too, not the newest build (#95): unless a
+                    # version was picked for it on the setup page.
+                    if key not in cfg.pins:
+                        configmod.set_pin(cfg_path, key, configmod.Pin(m["version_id"], minecraft))
                 elif m["path"] in excluded:
                     removed += 1
+                    left_out.append(f"curseforge:{m['project_id']}")
                 elif ("curseforge", m["project_id"]) not in listed:
                     # A mod whose file in the pack is a beta or an alpha (many only have those for
                     # older Minecraft) accepts them, or setup finds "no build" for it.
@@ -303,17 +339,19 @@ def apply(root: Path, version: str, http: HttpClient, key: str, exclude: tuple[s
                     configmod.set_pin(cfg_path, f"curseforge:{m['project_id']}", configmod.Pin(m["version_id"], minecraft))
                     listed.add(("curseforge", m["project_id"]))
                     added.append(m["project_id"])
+                    held[f"curseforge:{m['project_id']}"] = m["version_id"]
             copied = 0
             blocked = safearchive.Skipped(what)
             for member, parts in overrides:
                 try:
-                    with safearchive.open_new(server_dir, parts) as out, z.open(member) as src:
-                        shutil.copyfileobj(src, out, 1 << 20)
+                    files["/".join(parts)] = packupdate.copy_member(z, member, server_dir, parts)
                 except safearchive.UnsafeName as e:
                     blocked.add(member.filename, str(e))
                     continue
                 copied += 1
             blocked.log()
+    packupdate.record(root, "curseforge", str(mod.get("id", "")), str(file_id(version)), info["name"], held, left_out,
+                      players, files)
     log.info("applied %s: Minecraft %s, %s, %d mods from CurseForge, %d for players, %d config files",
              info["name"], minecraft, loader, len(added), len(friends), copied)
     return {"name": info["name"], "minecraft": minecraft, "loader": loader, "mods": len(added), "files": 0,

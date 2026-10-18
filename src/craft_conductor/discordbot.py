@@ -57,7 +57,9 @@ class WebSocket:
         if u.scheme != "wss" or not u.hostname:
             raise GatewayError("the gateway address isn't a secure websocket")
         raw = socket.create_connection((u.hostname, u.port or 443), timeout=timeout)
-        sock = ssl.create_default_context().wrap_socket(raw, server_hostname=u.hostname)
+        context = ssl.create_default_context()
+        context.minimum_version = ssl.TLSVersion.TLSv1_2  # (Python's default too, but said here, not left to OpenSSL)
+        sock = context.wrap_socket(raw, server_hostname=u.hostname)
         key = base64.b64encode(os.urandom(16)).decode()
         path = (u.path or "/") + (f"?{u.query}" if u.query else "")
         sock.sendall((f"GET {path} HTTP/1.1\r\nHost: {u.hostname}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"

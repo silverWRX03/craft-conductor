@@ -213,6 +213,9 @@ SERVER_ROUTES: dict[tuple[str, str], str | tuple[str, ...]] = {
     ("GET", "/api/beta"): "updates.check",
     ("POST", "/api/updates/check"): "updates.check",
     ("POST", "/api/updates/apply"): "updates.apply",
+    ("GET", "/api/modpack"): "updates.check",
+    ("POST", "/api/modpack/check"): "updates.check",
+    ("POST", "/api/modpack/update"): "updates.apply",
     ("POST", "/api/updates/remove-and-upgrade"): "updates.apply",
     ("GET", "/api/updates/rehearsal"): "updates.apply",
     ("POST", "/api/updates/rehearsal"): "updates.apply",
@@ -251,6 +254,7 @@ SERVER_ROUTES: dict[tuple[str, str], str | tuple[str, ...]] = {
     ("POST", "/api/mods/jar"): "mods.manage",
     ("POST", "/api/mods/required"): "mods.manage",
     ("POST", "/api/mods/pin"): "mods.manage",
+    ("POST", "/api/mods/players"): "mods.manage",
     ("POST", "/api/mods/local"): "mods.manage",
     ("POST", "/api/manual/upload"): "mods.manage",
     ("POST", "/api/manual/stop"): "mods.manage",
@@ -377,7 +381,7 @@ PROPERTY_NEEDS: dict[str, tuple[str, ...]] = {
 }
 PROBLEM_NEEDS: dict[str, str] = {
     "dismiss": "server.power", "memory-up": "runtime.configure", "java-auto": "runtime.configure",
-    "add-mod": "mods.manage", "remove-mod": "mods.manage", "disable-jar": "mods.manage",
+    "add-mod": "mods.manage", "remove-mod": "mods.manage", "disable-jar": "mods.manage", "players-only": "mods.manage",
 }
 
 

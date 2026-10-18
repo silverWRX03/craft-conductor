@@ -67,7 +67,7 @@ def test_a_connection_from_this_program_is_a_person_here():
     srv = socket.socket()
     srv.bind(("127.0.0.1", 0))
     srv.listen()
-    with srv, socket.create_connection(srv.getsockname()) as c:
+    with srv, socket.create_connection(srv.getsockname()):
         conn, addr = srv.accept()
         with conn:
             prog = peer.program(addr, srv.getsockname()[1])

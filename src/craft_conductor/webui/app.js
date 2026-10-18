@@ -2536,6 +2536,58 @@ function rehearsalCard(c, applyNow, applyBtn) {
   return el;
 }
 
+// A server made from a modpack: its newer versions, what moving to one changes, and Update the pack
+// (packupdate.py). Empty for other servers.
+function modpackCard() {
+  const box = h("div");
+  api("/api/modpack").then((r) => {
+    if (!r.pack) return;
+    const out = h("div", { class: "mt-s", "aria-live": "polite" });
+    const names = (list) => list.length > 6 ? `${listNames(list.slice(0, 6))} and ${list.length - 6} more` : listNames(list);
+    const changes = (v, x, where) => {
+      const lines = [
+        x.minecraft ? `Minecraft moves to ${x.minecraft} (the world is upgraded; a backup is made first).` : null,
+        x.loader_version ? `${LOADER_LABELS[x.loader] || x.loader} moves to ${x.loader_version}, the pack's build.` : null,
+        x.added.length ? `Adds ${names(x.added)}.` : null,
+        x.removed.length ? `Takes off ${names(x.removed)}.` : null,
+        x.updated ? `${x.updated} mod(s) move to the pack's new files.` : null,
+        x.kept_removed.length ? `${names(x.kept_removed)} stay${x.kept_removed.length === 1 ? "s" : ""} left out, as you chose.` : null,
+        x.kept_held.length ? `${names(x.kept_held)} stay${x.kept_held.length === 1 ? "s" : ""} at the version you picked.` : null,
+        x.friends_added.length || x.friends_removed.length || x.friends_updated
+          ? `Friends' download: ${[x.friends_added.length ? `adds ${names(x.friends_added)}` : null, x.friends_removed.length ? `takes off ${names(x.friends_removed)}` : null,
+            x.friends_updated ? `${x.friends_updated} mod(s) move to the pack's new files` : null].filter(Boolean).join(", ")}.` : null,
+        "Its config files are updated too, except the ones you changed since (they're kept).",
+      ].filter(Boolean);
+      fill(where, h("div", { class: "notice mt-s" }, h("strong", {}, `Updating to ${x.name}:`), h("ul", { class: "list small" }, lines.map((l) => h("li", {}, l)))),
+        can("updates.apply") ? h("div", { class: "row mt-s" }, h("button", { class: "btn primary", onclick: async () => {
+          if (!(await ask(`Update the pack to ${x.name}?\n\nA backup is made first; if the server doesn't start on the new version, everything is put back as it was.`, { ok: "Update the pack" }))) return;
+          act(() => api("/api/modpack/update", { method: "POST", body: { version: v.id } }), "Updating the pack…");
+        } }, "Update the pack")) : null);
+    };
+    const look = async () => {
+      fill(out, h("p", { class: "muted small" }, "Looking for newer versions of the pack…"));
+      const v = await api("/api/modpack/check", { method: "POST", body: {} }).catch((e) => { fill(out, h("div", { class: "notice warn small" }, e.message)); return null; });
+      if (!v) return;
+      if (!v.newer.length) { fill(out, h("p", { class: "ok-text small" }, `✓ ${v.current ? v.current.name : r.pack.name} is the newest version of the pack.`)); return; }
+      const pick = h("select", { "aria-label": "Version of the pack" }, v.newer.map((x) => h("option", { value: x.id },
+        `${x.name}${x.minecraft.length ? ` (Minecraft ${x.minecraft[x.minecraft.length - 1]})` : ""}${x.channel !== "release" ? ` · ${x.channel}` : ""}`)));
+      const see = async () => {
+        const x = v.newer.find((y) => y.id === pick.value);
+        fill(more, h("p", { class: "muted small" }, "Downloading the pack to see what changes…"));
+        const d = await api("/api/modpack/check", { method: "POST", body: { version: x.id } }).catch((e) => { fill(more, h("div", { class: "notice warn small" }, e.message)); return null; });
+        if (d) changes(x, d, more);
+      };
+      const more = h("div");
+      fill(out, h("div", { class: "row wrap" }, pick, h("button", { class: "btn", onclick: see }, "See what changes")), more);
+    };
+    const loader = r.pack.loader_version ? ` and ${LOADER_LABELS[r.pack.loader] || r.pack.loader} at ${r.pack.loader_version}` : "";
+    fill(box, card("Modpack", h("p", { class: "muted small" }, `This server was made from ${r.pack.name || "a modpack"}. Its mods are held at the pack's files${loader}, ` +
+      "so players on the pack can join; a new version of the pack is what moves them on."),
+      h("div", { class: "row" }, h("button", { class: "btn", onclick: look }, "Look for a new version of the pack")), out));
+  }).catch(() => {});
+  return box;
+}
+
 views.updates = () => {
   const body = h("div");
   const load = async () => {
@@ -2558,8 +2610,9 @@ views.updates = () => {
           act(() => api("/api/beta/test", { method: "POST", body: { version: pick.value } }), "Copying the server…");
         } }, "Make a test copy"))));
     }).catch(() => {});
+    const packCard = modpackCard();
     if (!c) {
-      fill(body, card(null, h("p", {}, "No update check has run yet."), checkBtn), h("div", { class: "mt" }, betaCard));
+      fill(body, card(null, h("p", {}, "No update check has run yet."), checkBtn), packCard, h("div", { class: "mt" }, betaCard));
       return;
     }
     const applyNow = async () => {
@@ -2625,7 +2678,7 @@ views.updates = () => {
       summary,
       laggingNotice(c.lagging, c.installed, true),
       h("div", { class: "row mb mt-s" }, applyBtn, checkBtn, h("span", { class: "muted small" }, `Last checked ${ago(c.checked_at)}`)),
-      manual, rehearseCard, changes, blocked, dropped, h("div", { class: "mt" }, betaCard));
+      manual, rehearseCard, changes, blocked, dropped, packCard, h("div", { class: "mt" }, betaCard));
   };
   fill($("#main"), h("h2", { class: "view-title" }, "Updates"), body);
   load();
@@ -2920,6 +2973,14 @@ views.mods = () => {
     const configured = r.configured || [];
     const installed = new Map((r.installed || []).map((m) => [m.key, m]));
     const skipped = new Map((r.skipped || []).map((m) => [m.key, m.reason]));
+    const onlyPlayers = new Set(r.players_only || []);
+    const clientOnly = new Set((r.skipped || []).filter((m) => m.client_only).map((m) => m.key));
+    // A mod only players run goes in players' mods (off the server, in the friends' download), or back.
+    const playersButton = (key) => onlyPlayers.has(key) || clientOnly.has(key) ? h("button", { class: "btn small", onclick: async () => {
+      const res = await act(() => api("/api/mods/players", { method: "POST", body: { key, on: !onlyPlayers.has(key) } }));
+      if (res) { toast(res.message); await load(); }
+    } }, onlyPlayers.has(key) ? "Put back on the server" : "Move to players' mods") : null;
+    const playersTag = (key) => onlyPlayers.has(key) ? "players only" : null;
     const items = [];
     const seen = new Set();
     const needersOf = (key) => configured.filter((c) => (c.deps || []).some((d) => d.key === key));
@@ -2936,7 +2997,7 @@ views.mods = () => {
         key: spec.key, name: spec.name, source: spec.source, version: (inst || spec).version || "",
         channel: (inst || spec).channel || "release", minecraft: r.minecraft, loader: r.loader,
         origin: "selected by you",
-        tags: [spec.required ? null : "optional", inst && inst.datapack ? "datapack" : null,
+        tags: [spec.required ? null : "optional", inst && inst.datapack ? "datapack" : null, playersTag(spec.key),
           inst && spec.source && inst.source !== spec.source ? `from ${inst.source === "curseforge" ? "CurseForge" : "Modrinth"}` : null].filter(Boolean),
         warning: skipped.get(spec.key) || "",
         versions: inst && inst.datapack ? null : versionsFor(spec.key, (inst || spec).source), held: heldLabel(spec.key),
@@ -2948,7 +3009,7 @@ views.mods = () => {
               await act(() => api("/api/mods/required", { method: "POST", body: { source: spec.source, id: spec.id, required: e.target.checked } }));
               await load();
             } }), "required"),
-          serverConfigButton(spec.key)),
+          serverConfigButton(spec.key), playersButton(spec.key)),
         remove: async () => {
           const shared = (spec.deps || []).map((d) => [d, needersOf(d.key).filter((c) => c.key !== spec.key)]).filter(([, others]) => others.length);
           const going = (spec.deps || []).filter((d) => !shared.some(([x]) => x.key === d.key));
@@ -2975,10 +3036,10 @@ views.mods = () => {
         key, name: dep.name, source: dep.source || (inst || {}).source || "modrinth",
         version: dep.version || (inst || {}).version || "", channel: dep.channel || (inst || {}).channel || "release",
         minecraft: r.minecraft, loader: r.loader, dependency: true, neededBy: dep.needers.map((x) => x.name).join(", "),
-        warning: skipped.get(key) || "", detail: inst ? inst.filename : "",
+        warning: skipped.get(key) || "", detail: inst ? inst.filename : "", tags: [playersTag(key)].filter(Boolean),
         versions: versionsFor(key, dep.source || (inst || {}).source || "modrinth"), held: heldLabel(key),
         problems: problemsFor(modCheck && modCheck.result, key, "server"),
-        controls: () => serverConfigButton(key),
+        controls: () => h("div", { class: "row wrap" }, serverConfigButton(key), playersButton(key)),
         remove: async () => {
           const needers = needersOf(key);
           if (!(await ask(`${dep.name} is needed by ${needers.map((c) => c.name).join(", ")}, so removing it removes ${needers.length === 1 ? "that mod" : "those mods"} too. Continue?`,
@@ -2993,9 +3054,10 @@ views.mods = () => {
       key: m.key, name: m.name, source: m.source, version: m.version, channel: m.channel || "release",
       minecraft: r.minecraft, loader: r.loader, dependency: !!m.dependency_of,
       neededBy: m.dependency_of ? ((r.installed || []).find((x) => x.key === m.dependency_of) || {}).name : "",
-      origin: m.dependency_of ? "" : "installed", tags: m.manual ? ["manual download"] : [], detail: m.filename,
+      origin: m.dependency_of ? "" : "installed", tags: [m.manual ? "manual download" : null, playersTag(m.key)].filter(Boolean), detail: m.filename,
       versions: m.datapack ? null : versionsFor(m.key, m.source), held: heldLabel(m.key),
       problems: problemsFor(modCheck && modCheck.result, m.key, "server"),
+      controls: () => playersButton(m.key),
     });
     for (const [name, on] of [...(r.unmanaged || []).map((x) => [x, true]), ...(r.disabled || []).map((x) => [x, false])]) {
       items.push({
@@ -3014,7 +3076,8 @@ views.mods = () => {
       });
     }
     for (const x of r.skipped || []) if (!seen.has(x.key)) items.push({
-      key: x.key, name: x.key, source: "unknown", warning: x.reason, origin: "not installed",
+      key: x.key, name: x.name || x.key, source: x.key.split(":")[0] || "unknown", warning: x.reason, origin: "not installed",
+      tags: [playersTag(x.key)].filter(Boolean), controls: () => playersButton(x.key),
     });
     return items;
   };
@@ -5634,7 +5697,10 @@ const HELP = [
       h("strong", {}, "Change version"), " on any mod lists its builds (release ones always, beta and alpha ones when you ask) and holds it at the one you pick; updates then leave it there. " +
       "Until the mods check out, a new server isn't created, an update isn't installed and friends' invites wait."),
     screenshot("mod-versions", "A players' mod that wouldn't start: the version that works, and Change version."),
-    h("p", {}, h("strong", {}, "Modpacks"), " come from Modrinth or CurseForge (pick the source in the mod browser). A CurseForge pack's mods that its official server pack leaves out only run on players' computers, so they go in your friends' download instead of on the server."),
+    h("p", {}, h("strong", {}, "Modpacks"), " come from Modrinth or CurseForge (pick the source in the mod browser). The server runs the pack's own files and its build of the mod loader, so players on the pack can join. A CurseForge pack's mods that its official server pack leaves out only run on players' computers, so they go in your friends' download instead of on the server; without a server pack, Modrinth says which ones. " +
+      "When the pack has a new version, ", h("strong", {}, "Updates → Look for a new version of the pack"), " shows what changes and ", h("strong", {}, "Update the pack"), " moves the server to it, with a backup first."),
+    h("p", {}, "Mods that only run on players' computers stay off the server when Craft Conductor can tell (Modrinth says so, or another mod's file needs them only there), and go in your friends' download. " +
+      "One that stops the server anyway can be moved there: ", h("strong", {}, "Move … to players' mods"), " on the Dashboard, or in ", h("strong", {}, "Manage Mods"), "."),
     h("p", {}, "Some CurseForge authors don't let other apps download their mods. A panel then slides open on the right with a ", h("strong", {}, "Download ↗"),
       " link for each: download the files from CurseForge and drag them onto ", h("strong", {}, "Drag mods that were downloaded here"),
       " at the bottom. Each file is checked against CurseForge's checksum. A new server's setup waits for them and carries on by itself.")]],
@@ -7827,12 +7893,12 @@ function phoneCard({ deviceOnly = false } = {}) {  // deviceOnly: just this phon
         ? h("div", { class: "notice small" }, iOS && !standalone
           ? "On iPhone and iPad, first add Craft Conductor to the Home Screen: press Share, then Add to Home Screen. Open it from there, and turn notifications on here."
           : "This browser can't get notifications from web apps.")
-        : h("div", { class: "row wrap" },
-          mine ? [h("span", { class: "ok-text small grow" }, "✓ Notifications are on for this device."),
-            h("button", { class: "btn small", onclick: test }, "Send a test"),
-            h("button", { class: "btn small ghost", onclick: disable }, "Turn off")]
-            : [h("span", { class: "small grow" }, "Get a notification when a server crashes, a friend asks to join, an update is held back or it lags."),
-              h("button", { class: "btn primary small", onclick: enable }, "Turn on notifications here")]);
+        : h("div", {},  // (the words above the buttons: beside them, a phone squeezes them to a sliver, #117)
+          mine ? [h("p", { class: "ok-text small" }, "✓ Notifications are on for this device."),
+            h("div", { class: "row wrap" }, h("button", { class: "btn small", onclick: test }, "Send a test"),
+              h("button", { class: "btn small ghost", onclick: disable }, "Turn off"))]
+            : [h("p", { class: "small" }, "Get a notification when a server crashes, a friend asks to join, an update is held back or it lags."),
+              h("div", { class: "row wrap" }, h("button", { class: "btn primary small", onclick: enable }, "Turn on notifications here"))]);
     fill(body,
       h("p", { class: "muted small" }, "Craft Conductor can live on your phone's home screen like an app, and tell you when something needs you, even when it's closed."),
       h("h4", {}, "This device"), here, choices(),
@@ -8387,7 +8453,9 @@ function setupServerModItems() {
         problems: m.project_id ? problemsFor(st.fileCheck && st.fileCheck.result, `${m.source}:${m.project_id}`, "server") : [],
         excludedFromCount: !onServer,
         tags: [...(onServer ? [] : ["client only", "not installed on server"]), ...(m.manual ? ["manual download"] : [])],
-        detail: onServer ? m.path : m.for_friends
+        detail: onServer ? m.path : m.side_from === "modrinth"
+          ? `${m.path} · The pack has no server pack, and Modrinth says this mod only runs on players' computers, so it goes in your friends' download instead of on the server.`
+          : m.for_friends
           ? `${m.path} · The pack's server pack leaves it out, so it goes in your friends' download instead of on the server.`
           : `${m.path} · This modpack marks it client-only, so Craft Conductor already leaves it off the server.`,
         // (no question: removing ten pack mods took ten pop-ups; an Undo bar shows instead, see undoToast)

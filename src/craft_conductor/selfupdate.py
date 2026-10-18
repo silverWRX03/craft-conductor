@@ -77,8 +77,9 @@ class Release:
                    bool(d.get("prerelease")))
 
 
-_VERSION = re.compile(r"[vV]?(\d+)\.(\d+)(?:\.(\d+))?"
-                      r"(?:[-.]?(a|alpha|b|beta|c|rc|pre|preview)[-.]?(\d*))?", re.IGNORECASE)
+# (release names come from GitHub: counted digits keep reading a long one quick)
+_VERSION = re.compile(r"[vV]?(\d{1,6})\.(\d{1,6})(?:\.(\d{1,6}))?"
+                      r"(?:[-.]?(a|alpha|b|beta|c|rc|pre|preview)[-.]?(\d{0,6}))?", re.IGNORECASE)
 _PRE_RANK = {"a": 0, "alpha": 0, "b": 1, "beta": 1, "c": 2, "rc": 2, "pre": 2, "preview": 2}
 FINAL = 9  # a release sorts after its own alphas, betas and release candidates
 

@@ -83,6 +83,8 @@ def test_version_compare():
     assert selfupdate.newer("1.0.0", "1.0.0rc1") and selfupdate.newer("1.0.0rc1", "1.0.0b2")
     assert selfupdate.newer("1.0.0b2", "1.0.0-beta.1") and selfupdate.is_prerelease("1.0.0-rc1")
     assert not selfupdate.newer("1.0.0", "1.0.0") and selfupdate.version_key("nightly") is None
+    # (a release name from GitHub: a long run of digits isn't a version, and is read quickly)
+    assert selfupdate.version_key("9" * 100_000) is None and selfupdate.version_key("1." + "9" * 100_000 + "!") is None
 
 
 def test_check(http):

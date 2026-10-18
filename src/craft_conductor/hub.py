@@ -678,7 +678,7 @@ class Hub:
 
     def ports(self, exclude: str | None = None) -> dict[int, str]:
         """Minecraft port -> server id, for every server here."""
-        from .properties import read_properties, server_name
+        from .properties import read_properties
         out = {}
         for sid, d in self.daemons.items():
             if sid != exclude:
@@ -1095,7 +1095,7 @@ class Hub:
         """(port, protocol, label) craft-conductor forwards: each server's Minecraft port (and Bedrock's, on
         UDP, with Geyser) and friends' downloads (only while a link works: the share server runs).
         Never the control panel's port or a server's RCON port, even if one of those is the same number."""
-        from .properties import read_properties, server_name
+        from .properties import read_properties
         out, private = [], {self.web.port}
         if self.ui is not None and getattr(self.ui, "httpd", None) is not None:
             private.add(self.ui.httpd.server_address[1])  # (the port it actually listens on)

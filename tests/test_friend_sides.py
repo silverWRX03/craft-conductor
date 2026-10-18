@@ -287,7 +287,7 @@ def test_a_name_from_modrinth_is_never_written_to_the_config_unchecked(hub_env, 
     modrinth.version("QUO", "1.0", ["1.21.1"])
     base = "/api/servers/alpha"
     # (found by its id, as a slug can't be asked for) it's written under its id, which is plain
-    http.json[f"https://api.modrinth.com/v2/project/oddmod"] = http.json["https://api.modrinth.com/v2/project/QUO"]
+    http.json["https://api.modrinth.com/v2/project/oddmod"] = http.json["https://api.modrinth.com/v2/project/QUO"]
     assert c.post(f"{base}/mods/add", {"id": "oddmod"})[0] == 200
     text = hub.get("alpha").m.config.path.read_text()
     assert 'id = "QUO"' in text and "odd\"slug" not in text
