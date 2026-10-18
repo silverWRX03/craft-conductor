@@ -248,8 +248,11 @@ class Planner:
         return None
 
     def plan_for(self, minecraft: str) -> Plan:
+        # A modpack's loader build is held while the server is on the pack's Minecraft (players on
+        # the pack have that build: a newer one on the server can refuse them, #95).
+        held = self.config.server.loader_version if minecraft == self.config.server.minecraft else ""
         plan = Plan(minecraft=minecraft, loader=self.loader.name,
-                    loader_version=self.loader.latest_version(minecraft))
+                    loader_version=held or self.loader.latest_version(minecraft))
         if plan.loader_version is None:
             plan.loader_reason = self.loader.missing_reason(minecraft)
             if (self.lock.installed and minecraft == self.lock.minecraft and self.lock.loader == self.loader.name

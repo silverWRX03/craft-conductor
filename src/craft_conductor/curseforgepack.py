@@ -163,7 +163,8 @@ def read_manifest(pack: Path) -> tuple[dict, zipfile.ZipFile]:
     return manifest, z
 
 
-def _platform(manifest: dict) -> tuple[str, str]:
+def _platform(manifest: dict) -> tuple[str, str, str]:
+    """Minecraft, loader and the loader's build ("" if it doesn't say): ``"neoforge-21.1.109"``."""
     mc = manifest["minecraft"]
     minecraft = str(mc.get("version", ""))
     if not _MINECRAFT.fullmatch(minecraft):
@@ -171,9 +172,9 @@ def _platform(manifest: dict) -> tuple[str, str]:
     loaders = [x for x in mc.get("modLoaders") or [] if isinstance(x, dict)]
     loaders.sort(key=lambda x: not x.get("primary"))
     for x in loaders:
-        name = str(x.get("id", "")).split("-", 1)[0].lower()
-        if name in cf.LOADER_TYPES:
-            return minecraft, name
+        name, _, build = str(x.get("id", "")).partition("-")
+        if name.lower() in cf.LOADER_TYPES:
+            return minecraft, name.lower(), configmod.loader_build(build, minecraft)
     raise ModpackError("the modpack's mod loader isn't one Craft Conductor runs (Fabric, Quilt, Forge or NeoForge)")
 
 
@@ -241,7 +242,7 @@ def preview(http: HttpClient, key: str, version: str) -> dict:
         pack = _download(api, mod, f, Path(tmp) / "pack.zip", "modpack file")
         manifest, z = read_manifest(pack)
         z.close()
-        minecraft, loader = _platform(manifest)
+        minecraft, loader, build = _platform(manifest)
         entries = manifest["files"]
         files = api.files([x["fileID"] for x in entries])
         projects = api.mods(sorted({x["projectID"] for x in entries}))
@@ -273,7 +274,7 @@ def preview(http: HttpClient, key: str, version: str) -> dict:
             m["side_from"] = "modrinth"  # (no server pack: Modrinth says it only runs on players' computers)
     out = {"source": "curseforge", "name": f"{mod.get('name', 'Modpack')} {f.get('displayName') or ''}".strip(),
            "project": str(mod.get("id", "")),
-           "minecraft": minecraft, "loader": loader, "mods": mods, "server_pack": on_server is not None,
+           "minecraft": minecraft, "loader": loader, "loader_version": build, "mods": mods, "server_pack": on_server is not None,
            "sides_from_modrinth": len(players),
            "count": sum(1 for m in mods if m["included_on_server"]),
            "client_only": sum(1 for m in mods if not m["included_on_server"]), "other": other,
@@ -287,7 +288,7 @@ def preview(http: HttpClient, key: str, version: str) -> dict:
 
 def apply(root: Path, version: str, http: HttpClient, key: str, exclude: tuple[str, ...] | list[str] = ()) -> dict:
     """Install a CurseForge modpack file into the server at ``root`` (whose craft-conductor.toml
-    exists): its loader and Minecraft, its server mods as CurseForge mods held at the files the pack
+    exists): its loader (held at the pack's build) and Minecraft, its server mods as CurseForge mods held at the files the pack
     lists, and its overrides. Its mods for players are the setup page's to add to the friends'
     download (they come back in ``friends``), held at the pack's files too. ``exclude``: ``mods/*.jar``
     paths removed on the setup page."""
@@ -298,7 +299,7 @@ def apply(root: Path, version: str, http: HttpClient, key: str, exclude: tuple[s
         pack = _download(api, mod, f, Path(tmp) / "pack.zip", "modpack file")
         manifest, z = read_manifest(pack)
         with z:
-            minecraft, loader = _platform(manifest)
+            minecraft, loader, build = _platform(manifest)
             what = f"the modpack {safearchive.printable(info['name'])}"
             prefix = str(manifest.get("overrides") or "overrides") + "/"
             # Every check that can refuse the pack happens before the server's settings change.
@@ -306,6 +307,7 @@ def apply(root: Path, version: str, http: HttpClient, key: str, exclude: tuple[s
             cfg_path = root / configmod.CONFIG_NAME
             configmod.set_value(cfg_path, "server", "loader", json.dumps(loader))
             configmod.set_value(cfg_path, "server", "minecraft", json.dumps(minecraft))
+            configmod.hold_loader(cfg_path, build)  # (the pack's build: players on the pack have it)
             configmod.set_value(cfg_path, "updates", "strategy", '"mods-only"')
             cfg = configmod.load(root)
             server_dir = cfg.server.dir

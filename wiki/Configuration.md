@@ -7,6 +7,8 @@ Every server has an `craft-conductor.toml` in its folder. The control panel's Se
 ```toml
 [server]
 loader = "fabric"
+# loader_version = "0.16.5"      # hold the loader at this build while on the Minecraft in `minecraft`
+                                 # (a modpack sets it to its own, and updating the pack moves it); unset = newest
 memory = "6G"
 find_lag = true                  # when it keeps lagging with players on, find out why by itself
 

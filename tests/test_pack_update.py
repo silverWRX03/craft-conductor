@@ -36,13 +36,13 @@ def build(http, modrinth, pid: str, vid: str, name: str) -> dict:
             "env": {"server": "required", "client": "required"}}
 
 
-def publish(http, vid: str, name: str, date: str, files: list[dict], overrides: dict[str, str]) -> None:
+def publish(http, vid: str, name: str, date: str, files: list[dict], overrides: dict[str, str], loader: str = "0.16.0") -> None:
     """A version of the pack on Modrinth."""
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
         z.writestr("modrinth.index.json", json.dumps({
             "formatVersion": 1, "game": "minecraft", "name": "Test Pack", "versionId": name,
-            "dependencies": {"minecraft": "1.21.1", "fabric-loader": "0.16.0"}, "files": files}))
+            "dependencies": {"minecraft": "1.21.1", "fabric-loader": loader}, "files": files}))
         for path, text in overrides.items():
             z.writestr(path, text)
     data = buf.getvalue()
@@ -68,18 +68,22 @@ def test_a_modrinth_pack_moves_to_its_next_version(make_config, http, modrinth):
     state = packupdate.load_state(cfg.root)
     assert state["mods"] == {"modrinth:GOODMODA": "GOODV001", "modrinth:OLDMODAA": "OLDV0001"}
     assert state["removed"] == ["modrinth:CUTMODAA"] and set(state["files"]) == {"config/a.txt", "config/mine.txt"}
+    assert cfg.server.loader_version == "0.16.0"
     m = manager(cfg, http, ["1.21.1"])
     assert update(m).ok
     assert {x.name for x in m.lock.mods} == {"Good Mod", "Old Mod"}
+    # The pack's loader build, not the newest ("loader-1.21.1" here): players on the pack have that one (#95).
+    assert m.lock.loader_version == "0.16.0" and m.check()[1].empty
     (m.server_dir / "config" / "mine.txt").write_text("mine")  # (changed by hand since)
 
     good2, new = build(http, modrinth, "GOODMODA", "GOODV002", "Good Mod"), build(http, modrinth, "NEWMODAA", "NEWV0001", "New Mod")
     publish(http, "PACKV002", "Test Pack 1.1", "2026-02-01T00:00:00Z", [good2, new, cut],
-            {"overrides/config/a.txt": "two", "overrides/config/mine.txt": "pack 2", "overrides/config/new.txt": "new"})
+            {"overrides/config/a.txt": "two", "overrides/config/mine.txt": "pack 2", "overrides/config/new.txt": "new"}, loader="0.16.5")
     found = packupdate.versions(m)
     assert found["current"]["id"] == "PACKV001" and [v["id"] for v in found["newer"]] == ["PACKV002"]
     what = packupdate.preview(m, "PACKV002")
     assert (what["added"], what["removed"], what["updated"], what["kept_removed"]) == (["New Mod"], ["Old Mod"], 1, ["Cut Mod"])
+    assert (what["loader"], what["loader_version"]) == ("fabric", "0.16.5")
 
     d = SimpleNamespace(m=m, proc=None, want_running=False, last_check=None)
     message = packupdate.run(d, "PACKV002")
@@ -90,6 +94,7 @@ def test_a_modrinth_pack_moves_to_its_next_version(make_config, http, modrinth):
     assert (server / "config" / "mine.txt").read_text() == "mine"  # (yours, kept)
     cfg = m.config
     assert cfg.modpack.version == "PACKV002" and cfg.modpack.name == "Test Pack 1.1"
+    assert cfg.server.loader_version == m.lock.loader_version == "0.16.5"
     assert ("modrinth", "CUTMODAA") not in {(s.source, s.id) for s in cfg.mods}  # (still left out)
     assert packupdate.load_state(cfg.root)["mods"] == {"modrinth:GOODMODA": "GOODV002", "modrinth:NEWMODAA": "NEWV0001"}
     assert packupdate.versions(m)["newer"] == []
@@ -113,6 +118,34 @@ def test_a_modrinth_pack_moves_to_its_next_version(make_config, http, modrinth):
     assert configmod.read_text(m.config.path) == before and m.config.modpack.version == "PACKV002"
     assert (server / "config" / "a.txt").read_text() == "two" and not (server / "config" / "extra.txt").exists()
     assert {x.name for x in m.lock.mods} == {"Good Mod", "New Mod"}
+
+    # A version that only moves the loader to another build: the server is updated for it all the same.
+    publish(http, "PACKV005", "Test Pack 1.4", "2026-05-01T00:00:00Z", [good2, new], {"overrides/config/a.txt": "two"}, loader="0.16.9")
+    assert packupdate.preview(m, "PACKV005")["loader_version"] == "0.16.9"
+    assert packupdate.run(d, "PACKV005").startswith("Updated the pack to Test Pack 1.4")
+    assert m.config.server.loader_version == m.lock.loader_version == "0.16.9"
+    assert (server / "runtime-1.21.1.txt").read_text() == "0.16.9"
+
+
+def test_a_packs_loader_build_is_read_as_the_loader_takes_it(tmp_path):
+    assert configmod.loader_build("1.20.1-47.2.0", "1.20.1") == "47.2.0"  # (Forge, as some packs write it)
+    assert configmod.loader_build("26.1.2.109", "26.1.2") == "26.1.2.109"
+    assert configmod.loader_build("21.1.0-beta", "1.21.1") == "21.1.0-beta"
+    for odd in ("", "latest", "../21.1", "21.1.109/../../x", "21.1.109;x", "1" * 50):
+        assert configmod.loader_build(odd, "1.21.1") == ""
+    with pytest.raises(configmod.ConfigError, match="loader_version"):
+        configmod.parse(tmp_path, {"server": {"loader": "neoforge", "loader_version": "21.1/../x"}})
+
+
+def test_the_loader_is_held_only_on_the_minecraft_its_build_is_for(make_config, http):
+    cfg = make_config()
+    configmod.set_value(cfg.path, "server", "minecraft", '"1.21.1"')
+    configmod.hold_loader(cfg.path, "0.16.0")
+    planner = manager(configmod.load(cfg.root), http, ["1.21.1", "1.21.4"]).planner()
+    assert planner.plan_for("1.21.1").loader_version == "0.16.0"
+    assert planner.plan_for("1.21.4").loader_version == "loader-1.21.4"  # (another Minecraft: the newest build)
+    configmod.hold_loader(cfg.path, "")
+    assert configmod.load(cfg.root).server.loader_version == ""
 
 
 def test_what_updating_a_curseforge_pack_keeps_as_you_chose(make_config, http):

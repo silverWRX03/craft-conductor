@@ -77,7 +77,7 @@ def serve_pack(http, *, server_pack=True, pack_download=True, overrides="overrid
 def test_a_curseforge_pack_sends_what_its_server_pack_leaves_out_to_friends(http):
     serve_pack(http)
     p = curseforgepack.preview(http, "key", "curseforge:9001")
-    assert (p["minecraft"], p["loader"], p["server_pack"], p["other"]) == ("1.20.1", "forge", True, 1)
+    assert (p["minecraft"], p["loader"], p["loader_version"], p["server_pack"], p["other"]) == ("1.20.1", "forge", "47.2.0", True, 1)
     by_name = {m["name"]: m for m in p["mods"]}
     assert set(by_name) == {"Core Mod", "Fancy Client"}  # (the resource pack isn't a mod)
     assert by_name["Core Mod"]["included_on_server"] and not by_name["Core Mod"]["for_friends"]
@@ -117,6 +117,7 @@ def test_a_curseforge_pack_is_applied(tmp_path, http):
     assert r["friends"] == ["curseforge:22"] and r["mods"] == 1 and r["overrides"] == 1
     cfg = configmod.load(root)
     assert (cfg.server.loader, cfg.server.minecraft, cfg.updates.strategy) == ("forge", "1.20.1", "mods-only")
+    assert cfg.server.loader_version == "47.2.0"  # (the pack's Forge, not the newest: #95)
     assert [(m.source, m.id, m.pack) for m in cfg.mods] == [("curseforge", "11", True)]
     # The pack's files, for the server and for players (#95: friends got the newest builds instead)
     assert {k: (p.version, p.minecraft) for k, p in cfg.pins.items()} == {"curseforge:11": ("111", "1.20.1"),

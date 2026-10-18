@@ -3482,9 +3482,11 @@ class Api:
 
     # ------------------------------------------------------ the modpack it was made from
     def modpack(self, q, b) -> dict:
-        rec = self.m.config.modpack
+        cfg = self.m.config
+        rec = cfg.modpack
         return {"pack": None if rec is None else {"source": rec.source, "project": rec.project, "version": rec.version,
-                                                    "name": rec.name}}
+                                                    "name": rec.name, "loader": cfg.server.loader,
+                                                    "loader_version": cfg.server.loader_version}}
 
     def modpack_check(self, q, b) -> dict:
         """The pack's newer versions; with ``version``, what updating to it would change (asked first)."""
@@ -4805,6 +4807,9 @@ class Api:
         def prepare(root: Path) -> None:
             path = root / configmod.CONFIG_NAME
             configmod.set_value(path, "server", "minecraft", json.dumps(version))
+            configmod.hold_loader(path, "")  # (a modpack's build is for its own Minecraft: the beta's newest)
+            for key in ("source", "project", "version", "name"):  # (nor is it a version of the pack to update)
+                configmod.unset_value(path, "modpack", key)
             configmod.set_value(path, "updates", "strategy", '"mods-only"')  # stays on the beta
             for spec in configmod.load(root).mods:  # run with whichever mods support the beta
                 configmod.set_mod_required(path, spec.source, spec.id, False)

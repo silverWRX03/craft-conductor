@@ -12,7 +12,8 @@ each file it copied in (configs, scripts...). Updating the pack:
 * copies its new files in, except the ones you changed since the pack put them there (they're
   kept, and the result says which). A mod file the pack had in its own files and no longer has
   goes, unless you changed it;
-* moves the server to the pack's Minecraft version when the new version has another one.
+* moves the server to the pack's Minecraft version when the new version has another one, and
+  its loader to the new version's build.
 
 The server is then updated as usual: a backup first, the new files, a test start. If that fails,
 the server is put back from the backup and craft-conductor.toml as it was: nothing is half done.
@@ -103,6 +104,7 @@ class Pack:
     loader: str
     server: dict[str, Mod] = field(default_factory=dict)
     friends: dict[str, Mod] = field(default_factory=dict)
+    loader_version: str = ""   # the loader's build it was made with ("" when it doesn't say)
 
 
 def _key(m) -> str:
@@ -115,7 +117,8 @@ def _key(m) -> str:
 def _curseforge(m, version: str) -> Pack:
     from . import curseforgepack
     info = curseforgepack.preview(m.http, _key(m), f"curseforge:{version}")
-    pack = Pack("curseforge", str(info.get("project", "")), version, info["name"], info["minecraft"], info["loader"])
+    pack = Pack("curseforge", str(info.get("project", "")), version, info["name"], info["minecraft"], info["loader"],
+                loader_version=info.get("loader_version") or "")
     for x in info["mods"]:
         early = x.get("channel") if x.get("channel") in ("beta", "alpha") else None
         mod = Mod(f"curseforge:{x['project_id']}", x["version_id"], x["name"], x["path"], x["required"], early)
@@ -127,7 +130,8 @@ def _modrinth(m, version: str) -> Pack:
     from . import modpack
     info = modpack.version_info(m.http, version)
     data = modpack.preview(m.http, version)
-    pack = Pack("modrinth", info["project_id"], version, info["name"], data["minecraft"], data["loader"])
+    pack = Pack("modrinth", info["project_id"], version, info["name"], data["minecraft"], data["loader"],
+                loader_version=data.get("loader_version") or "")
     for x in data["mods"]:
         if x["project_id"] and x["included_on_server"]:
             pack.server[f"modrinth:{x['project_id']}"] = Mod(f"modrinth:{x['project_id']}", x["version_id"], x["name"], x["path"])
@@ -194,10 +198,12 @@ class Plan:
     friends_remove: list[str] = field(default_factory=list)
     friends_move: list[Mod] = field(default_factory=list)
     minecraft: str | None = None                          # the new Minecraft, when it changes
+    loader_version: str | None = None                     # the loader's new build, when it changes
 
     def to_dict(self, names: dict[str, str]) -> dict:
         n = lambda k: names.get(k) or k  # noqa: E731
         return {"name": self.new.name, "version": self.new.version, "minecraft": self.minecraft,
+                "loader": self.new.loader, "loader_version": self.loader_version,
                 "added": [x.name for x in self.add], "removed": [n(k) for k in self.remove], "updated": len(self.move),
                 "kept_removed": [x.name for x in self.kept_removed], "kept_held": [x.name for x in self.kept_held],
                 "friends_added": [x.name for x in self.friends_add], "friends_removed": [n(k) for k in self.friends_remove],
@@ -213,6 +219,8 @@ def plan(m, new: Pack) -> Plan:
     listed = {f"{s.source}:{s.id}": s for s in cfg.mods}
     gone = set(state["removed"]) | {k for k in old if k not in listed}  # removed when it was set up, or since
     p = Plan(new, minecraft=new.minecraft if new.minecraft != (lk.minecraft or cfg.server.minecraft) else None)
+    if new.loader_version and new.loader_version != (lk.loader_version if lk.installed else cfg.server.loader_version):
+        p.loader_version = new.loader_version
     for key, mod in new.server.items():
         if key in gone:
             p.kept_removed.append(mod)
@@ -282,6 +290,7 @@ class Change:
             configmod.set_value(path, "client", "mods", json.dumps(mods))
         if p.minecraft:
             configmod.set_value(path, "server", "minecraft", json.dumps(p.minecraft))
+        configmod.hold_loader(path, new.loader_version)  # (held at the new version's build)
         configmod.set_value(path, "modpack", "version", json.dumps(new.version))
         configmod.set_value(path, "modpack", "name", configmod.toml_string(new.name[:200]))
         self.m.reload_config()

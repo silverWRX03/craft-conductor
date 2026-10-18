@@ -4,7 +4,8 @@ A modpack fixes the Minecraft version and mod loader and lists its mods. craft-c
 the pack's ``modrinth.index.json`` and:
 
 * sets the server's loader and Minecraft version, and keeps it on that version
-  (strategy "mods-only": the pack's mods are made to work together on it);
+  (strategy "mods-only": the pack's mods are made to work together on it), with the loader held
+  at the pack's build (players on the pack have that one);
 * adds every mod hosted on Modrinth as a craft-conductor mod held at the version the pack lists (a pin: only
   the pack's next version changes it, and its dependencies are the pack's own to list);
 * downloads other files the server needs (checked against their hashes);
@@ -96,12 +97,14 @@ def read_index(pack: Path) -> tuple[dict, zipfile.ZipFile]:
     return index, z
 
 
-def _platform(index: dict) -> tuple[str, str]:
-    """Minecraft and loader declared by a Modrinth pack index."""
+def _platform(index: dict) -> tuple[str, str, str]:
+    """Minecraft, loader and the loader's build ("" if it doesn't say) declared by a Modrinth pack index."""
     deps = index.get("dependencies", {})
     minecraft = str(deps.get("minecraft", ""))
-    loaders = [LOADER_KEYS[k] for k in deps if k in LOADER_KEYS]
-    return minecraft, loaders[0] if loaders else "vanilla"
+    keys = [k for k in deps if k in LOADER_KEYS]
+    if not keys:
+        return minecraft, "vanilla", ""
+    return minecraft, LOADER_KEYS[keys[0]], configmod.loader_build(deps[keys[0]], minecraft)
 
 
 def preview_file(pack: Path, http: HttpClient, name: str = "") -> dict:
@@ -113,7 +116,7 @@ def preview_file(pack: Path, http: HttpClient, name: str = "") -> dict:
     """
     index, z = read_index(pack)
     with z:
-        minecraft, loader = _platform(index)
+        minecraft, loader, build = _platform(index)
         raw = []
         project_ids, version_ids = [], []
         client_only = 0
@@ -176,6 +179,7 @@ def preview_file(pack: Path, http: HttpClient, name: str = "") -> dict:
         "name": name or str(index.get("name") or pack.name),
         "minecraft": minecraft,
         "loader": loader,
+        "loader_version": build,
         "mods": raw,
         "count": sum(1 for m in raw if m["included_on_server"]),
         "client_only": client_only,
@@ -262,18 +266,16 @@ def apply_file(root: Path, pack: Path, http: HttpClient, name: str = "", exclude
     from . import packupdate
     index, z = read_index(pack)
     with z:
-        deps = index.get("dependencies", {})
-        minecraft = str(deps.get("minecraft", ""))
+        minecraft, loader, build = _platform(index)
         if not re.fullmatch(r"\d+(\.\d+){1,3}(-[A-Za-z0-9.]+)?", minecraft):
             raise ModpackError("the modpack doesn't say which Minecraft version it's for")
-        loaders = [LOADER_KEYS[k] for k in deps if k in LOADER_KEYS]
-        loader = loaders[0] if loaders else "vanilla"
         what = f"the modpack {safearchive.printable(name or str(index.get('name') or pack.name))}"
         # Every check that can refuse the pack happens before the server's settings change.
         overrides = _override_members(z, configmod.load(root).server.dir, what)
         cfg_path = root / configmod.CONFIG_NAME
         configmod.set_value(cfg_path, "server", "loader", json.dumps(loader))
         configmod.set_value(cfg_path, "server", "minecraft", json.dumps(minecraft))
+        configmod.hold_loader(cfg_path, build)  # (the pack's build: players on the pack have it)
         configmod.set_value(cfg_path, "updates", "strategy", '"mods-only"')
         cfg = configmod.load(root)
         server_dir = cfg.server.dir

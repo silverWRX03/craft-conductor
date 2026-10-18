@@ -2547,6 +2547,7 @@ function modpackCard() {
     const changes = (v, x, where) => {
       const lines = [
         x.minecraft ? `Minecraft moves to ${x.minecraft} (the world is upgraded; a backup is made first).` : null,
+        x.loader_version ? `${LOADER_LABELS[x.loader] || x.loader} moves to ${x.loader_version}, the pack's build.` : null,
         x.added.length ? `Adds ${names(x.added)}.` : null,
         x.removed.length ? `Takes off ${names(x.removed)}.` : null,
         x.updated ? `${x.updated} mod(s) move to the pack's new files.` : null,
@@ -2579,8 +2580,9 @@ function modpackCard() {
       const more = h("div");
       fill(out, h("div", { class: "row wrap" }, pick, h("button", { class: "btn", onclick: see }, "See what changes")), more);
     };
-    fill(box, card("Modpack", h("p", { class: "muted small" }, `This server was made from ${r.pack.name || "a modpack"}. Its mods are held at the pack's files; ` +
-      "a new version of the pack is what moves them on."),
+    const loader = r.pack.loader_version ? ` and ${LOADER_LABELS[r.pack.loader] || r.pack.loader} at ${r.pack.loader_version}` : "";
+    fill(box, card("Modpack", h("p", { class: "muted small" }, `This server was made from ${r.pack.name || "a modpack"}. Its mods are held at the pack's files${loader}, ` +
+      "so players on the pack can join; a new version of the pack is what moves them on."),
       h("div", { class: "row" }, h("button", { class: "btn", onclick: look }, "Look for a new version of the pack")), out));
   }).catch(() => {});
   return box;
@@ -5695,7 +5697,7 @@ const HELP = [
       h("strong", {}, "Change version"), " on any mod lists its builds (release ones always, beta and alpha ones when you ask) and holds it at the one you pick; updates then leave it there. " +
       "Until the mods check out, a new server isn't created, an update isn't installed and friends' invites wait."),
     screenshot("mod-versions", "A players' mod that wouldn't start: the version that works, and Change version."),
-    h("p", {}, h("strong", {}, "Modpacks"), " come from Modrinth or CurseForge (pick the source in the mod browser). A CurseForge pack's mods that its official server pack leaves out only run on players' computers, so they go in your friends' download instead of on the server; without a server pack, Modrinth says which ones. " +
+    h("p", {}, h("strong", {}, "Modpacks"), " come from Modrinth or CurseForge (pick the source in the mod browser). The server runs the pack's own files and its build of the mod loader, so players on the pack can join. A CurseForge pack's mods that its official server pack leaves out only run on players' computers, so they go in your friends' download instead of on the server; without a server pack, Modrinth says which ones. " +
       "When the pack has a new version, ", h("strong", {}, "Updates → Look for a new version of the pack"), " shows what changes and ", h("strong", {}, "Update the pack"), " moves the server to it, with a backup first."),
     h("p", {}, "Mods that only run on players' computers stay off the server when Craft Conductor can tell (Modrinth says so, or another mod's file needs them only there), and go in your friends' download. " +
       "One that stops the server anyway can be moved there: ", h("strong", {}, "Move … to players' mods"), " on the Dashboard, or in ", h("strong", {}, "Manage Mods"), "."),

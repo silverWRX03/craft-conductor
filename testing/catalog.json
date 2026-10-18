@@ -8005,5 +8005,15 @@
       "minecraft"
     ],
     "source": "added-in-git"
+  },
+  {
+    "id": 914,
+    "section": "Fix: The server runs the pack's loader build (#95)",
+    "step": "Make a server from All the Mods 11 (CurseForge, NeoForge) and from a Modrinth NeoForge or Fabric pack: the Dashboard shows the pack's loader build (26.1.2.109 for All the Mods 11, not the newest), Updates -> Modpack says it's held, and a Prism client on the real pack joins without 'Incompatible client'. Updating the pack to a version with another loader build moves the server to it.",
+    "type": "Core",
+    "tags": [
+      "minecraft"
+    ],
+    "source": "added-in-git"
   }
 ]

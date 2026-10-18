@@ -166,6 +166,23 @@ class ServerConfig:
     find_lag: bool = True           # when it lags with players on, find out why by itself (lagfinder.py)
     cpu_cores: int = 0              # CPU cores it may use; 0: all (limits.py; not on macOS)
     priority: str = "normal"        # "low": the rest of the computer comes first
+    #: the loader held at this build while the server is on ``minecraft`` (a modpack's own: players on
+    #: the pack can join); "" = its newest build
+    loader_version: str = ""
+
+
+# A loader build (NeoForge 21.1.109, Forge 47.2.0, Fabric 0.16.5, 26.1.0.33-beta): it goes in
+# download addresses and file paths.
+LOADER_BUILD = re.compile(r"\d{1,4}(?:\.\d{1,6}){1,4}(?:[-+][0-9A-Za-z]{1,20}(?:\.[0-9A-Za-z]{1,20}){0,3})?")
+
+
+def loader_build(text: str, minecraft: str = "") -> str:
+    """A modpack's loader build as the server's loader takes it ("" when it's odd or missing): Forge's
+    without the Minecraft version some packs put first ("1.20.1-47.2.0")."""
+    text = str(text or "").strip()
+    if minecraft and text.startswith(f"{minecraft}-"):
+        text = text[len(minecraft) + 1:]
+    return text if LOADER_BUILD.fullmatch(text) else ""
 
 
 @dataclass
@@ -462,7 +479,10 @@ def parse(root: Path, data: dict) -> Config:
         cpu_cores=_limits(s)[0], priority=_limits(s)[1],
         startup_timeout=parse_duration(s.get("startup_timeout", 600)),
         stop_timeout=parse_duration(s.get("stop_timeout", 120)),
+        loader_version=str(s.get("loader_version", "")),
     )
+    if server.loader_version and not LOADER_BUILD.fullmatch(server.loader_version):
+        raise ConfigError('[server] loader_version must be a loader build like "21.1.109" (or leave it out for the newest)')
 
     u = data.get("updates", {})
     updates = UpdateConfig(
@@ -566,6 +586,7 @@ TEMPLATE = """\
 dir = "server"                 # server directory (world, config/, mods/, server.properties)
 loader = "{loader}"            # fabric | quilt | neoforge | forge | paper | purpur | vanilla
 minecraft = "{minecraft}"      # version a new server is made on, whatever its mods ("latest" = newest release the loader runs)
+# loader_version = "21.1.109"  # hold the loader at this build while on that Minecraft (a modpack sets it); unset = newest
 memory = "4G"
 jvm_args = []                  # extra JVM flags, e.g. ["-XX:+UseZGC"]
 aikar_flags = false            # Aikar's GC flags: fewer lag spikes with lots of memory (16 GB+)
@@ -769,3 +790,11 @@ def unset_value(path: Path, table: str, key: str) -> bool:
             write_text(path, "".join(lines))
             return True
     return False
+
+
+def hold_loader(path: Path, build: str) -> None:
+    """Hold the loader at a modpack's build (``[server] loader_version``); "" lets it take the newest."""
+    if build:
+        set_value(path, "server", "loader_version", json.dumps(build))
+    else:
+        unset_value(path, "server", "loader_version")
