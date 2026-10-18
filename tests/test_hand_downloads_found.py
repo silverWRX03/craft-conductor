@@ -120,6 +120,12 @@ def test_only_the_files_asked_for_are_read(downloads, monkeypatch):
     assert opened == ["fancy-client-2.1.jar"]  # (looked at, empty: not read; nothing else opened)
 
 
+def test_names_like_a_file_are_found_without_reading_them_all():
+    names = handdownload._Names(["notes.txt", "Fancy-Client-2.1 (1).jar", "fancy-client-2.10.jar", "fancy-client-2.1-3.jar", "zz.jar"])
+    assert names.starting("fancy-client-2.1") == ["fancy-client-2.1 (1).jar", "fancy-client-2.1-3.jar", "fancy-client-2.10.jar"]
+    assert handdownload._candidates(names, "fancy-client-2.1.jar") == [("Fancy-Client-2.1 (1).jar", True), ("fancy-client-2.1-3.jar", False)]
+
+
 def test_a_file_is_read_once_until_it_changes(downloads, monkeypatch):
     import hashlib as hl
     reads = []

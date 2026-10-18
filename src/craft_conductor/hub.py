@@ -919,17 +919,19 @@ class Hub:
     def look_for_hand_downloads(self, files: list[dict], extra: Path | None, into: Callable[[dict], Path]) -> dict:
         """Look for ``files`` (mods to download by hand, with CurseForge's SHA-1) in the Downloads
         folder, the folders to always look in and ``extra``; copy each one found to ``into(file)``.
-        The answer names only the files asked for, never anything else in those folders."""
-        from . import handdownload
-        places = handdownload.where_to_look(self.hand_folders(), extra)
-        found, wrong = handdownload.look([p for _, p in places], files)
+        The answer names only the files asked for, never anything else in those folders, and says
+        where it looks (``downloads``: None when there's no Downloads folder it can read)."""
+        from . import folders, handdownload
+        downloads, remembered = folders.downloads_dir(), self.hand_folders()
+        places = handdownload.where_to_look(remembered, extra, downloads)
+        found, wrong = handdownload.look([p for _, p in places], files) if files else ({}, {})
         taken, _ = handdownload.copy_found(found, files, into)
         label = {p: name for name, p in places}
         by_name = {x["filename"]: x for x in files}
         return {"found": [{"filename": x["filename"], "name": x["name"], "where": label.get(found[x["filename"]].parent, "")}
                           for x in taken],
                 "wrong": [{"filename": f, "name": by_name[f]["name"], "where": label.get(p.parent, "")} for f, p in wrong.items()],
-                "looked": [name for name, _ in places]}
+                "looked": [name for name, _ in places], "downloads": str(downloads) if downloads else None, "folders": remembered}
 
     def take_staged(self, stage_ids: list[str], mods_dir: Path) -> int:
         """Move jars picked with "Local files" on the setup page into a server's mods folder."""

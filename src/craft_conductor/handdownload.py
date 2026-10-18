@@ -17,6 +17,7 @@ copied, never moved, and kept only when the copy's SHA-1 is CurseForge's.
 
 from __future__ import annotations
 
+import bisect
 import logging
 import os
 import re
@@ -49,7 +50,7 @@ MAX_FOLDERS = 20         # folders remembered to look in
 LIST_AGAIN = 60          # seconds: a folder's names are read again when it changed, or after this long
 _PARTIAL = (".crdownload", ".part", ".download", ".partial")  # a browser still saving the file beside it
 _hashed: dict[tuple[str, int, int], str] = {}  # (path, size, modified) -> its SHA-1: a file is read once
-_listed: dict[str, tuple[int, float, dict[str, str]]] = {}  # folder -> (its modified time, when, lower-case name -> name)
+_listed: dict[str, tuple[int, float, "_Names"]] = {}  # folder -> (its modified time, when, its names)
 _look_lock = threading.Lock()  # one look at a time (two pages open don't read the same files twice)
 
 
@@ -128,12 +129,30 @@ def wanted_named(filenames: list[str]) -> list[dict]:
 
 
 # ------------------------------------------------------- found where the browser saved them
-def _names(folder: Path) -> dict[str, str]:
-    """The names in a folder (lower case -> as written), read again only when it changed."""
+class _Names(dict):
+    """A folder's names (lower case -> as written), and the lower-case ones sorted, so the names
+    that start like a file are found without going through them all (a big Downloads folder)."""
+
+    def __init__(self, names):
+        super().__init__({n.lower(): n for n in names})
+        self.order = sorted(self)
+
+    def starting(self, prefix: str) -> list[str]:
+        i = bisect.bisect_left(self.order, prefix)
+        out = []
+        while i < len(self.order) and self.order[i].startswith(prefix) and len(out) < 200:
+            out.append(self.order[i])
+            i += 1
+        return out
+
+
+def _names(folder: Path) -> _Names:
+    """The names in a folder, read again only when it changed (or now and then, for drives that
+    don't say when a folder changes)."""
     try:
         changed = folder.stat().st_mtime_ns
     except OSError:
-        return {}
+        return _Names([])
     now = time.monotonic()
     with _lock:
         hit = _listed.get(str(folder))
@@ -141,9 +160,9 @@ def _names(folder: Path) -> dict[str, str]:
         return hit[2]
     try:
         with os.scandir(folder) as entries:
-            names = {e.name.lower(): e.name for e in entries}
+            names = _Names(e.name for e in entries)
     except OSError:
-        return {}
+        return _Names([])
     with _lock:
         if len(_listed) > 50:
             _listed.clear()
@@ -151,7 +170,7 @@ def _names(folder: Path) -> dict[str, str]:
     return names
 
 
-def _candidates(names: dict[str, str], filename: str) -> list[tuple[str, bool]]:
+def _candidates(names: _Names, filename: str) -> list[tuple[str, bool]]:
     """The files in a folder that may be ``filename``: that name, and the names browsers give a
     second copy (``name (1).jar``, Firefox's ``name(1).jar``; and, quietly, ``name-1.jar`` and
     ``name 2.jar``). ``True`` when a different file there under that name is worth saying so."""
@@ -160,11 +179,11 @@ def _candidates(names: dict[str, str], filename: str) -> list[tuple[str, bool]]:
     loud = re.compile(re.escape(stem.lower()) + r" ?\(\d{1,4}\)" + re.escape(ext.lower()))
     quiet = re.compile(re.escape(stem.lower()) + r"[ -]\d{1,4}" + re.escape(ext.lower()))
     out = [(names[filename.lower()], True)] if filename.lower() in names else []
-    for low, name in names.items():
+    for low in names.starting(stem.lower()):
         if loud.fullmatch(low):
-            out.append((name, True))
+            out.append((names[low], True))
         elif quiet.fullmatch(low):
-            out.append((name, False))
+            out.append((names[low], False))
     return out[:40]
 
 
@@ -280,14 +299,16 @@ def take(source: Path, dest: Path, sha1: str) -> Path:
     return dest
 
 
-def where_to_look(remembered: list[str], extra: Path | None = None) -> list[tuple[str, Path]]:
-    """Where to look for files downloaded by hand: the Downloads folder, the folders the owner said
-    to always look in, and ``extra`` (one chosen just this time). Each as (what the page calls it,
-    the real folder); one that isn't there now (a drive unplugged) is left out."""
+def where_to_look(remembered: list[str], extra: Path | None = None, downloads: Path | None | bool = True) -> list[tuple[str, Path]]:
+    """Where to look for files downloaded by hand: the Downloads folder (``downloads``, found here
+    when it's left out), the folders the owner said to always look in, and ``extra`` (one chosen
+    just this time). Each as (what the page calls it, the real folder); one that isn't there now
+    (a drive unplugged) is left out."""
     from . import folders
     out: list[tuple[str, Path]] = []
-    downloads = folders.downloads_dir()
-    if downloads is not None:
+    if downloads is True:
+        downloads = folders.downloads_dir()
+    if downloads:
         out.append(("Downloads", Path(os.path.realpath(downloads))))
     for text in [*remembered[:MAX_FOLDERS], *([str(extra)] if extra else [])]:
         try:

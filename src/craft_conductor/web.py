@@ -2789,7 +2789,7 @@ class HubApi:
         out = self.hub.look_for_hand_downloads(files, chosen_folder(b.get("folder")), into)
         for x in out["found"]:
             x["id"] = ids[x["filename"]]
-        return {**out, **self.hand_folders_info()}
+        return out
 
     def hand_folders_info(self, q=None, b=None) -> dict:
         """Where mods downloaded by hand are looked for: this computer's Downloads folder (None when
@@ -3733,8 +3733,7 @@ class Api:
             if c:
                 c["manual"] = [x for x in c.get("manual") or [] if x["filename"] not in got]
             self.d.manual_arrived()
-        return {**out, "left": len((self.d.last_check or {}).get("manual") or []),
-                **self.web.hub_api.hand_folders_info()}
+        return {**out, "left": len((self.d.last_check or {}).get("manual") or [])}
 
     def stop_manual_wait(self, q, b) -> dict:
         """Stop a setup that's waiting for mods to be downloaded by hand."""
