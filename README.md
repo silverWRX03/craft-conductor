@@ -104,8 +104,9 @@ an API key. It follows CurseForge's
   takes priority over the built-in one.
 - **Authors' wishes are respected.** When an author doesn't allow downloads by other apps,
   CurseForge gives no download link and Craft Conductor doesn't look for one. It shows you the file's
-  page to download it yourself (you drop the file on its manual downloads panel), then checks that file
-  against CurseForge's checksum. A modpack whose author doesn't allow it isn't installed.
+  page to download it yourself in your browser (it then finds the file in your Downloads folder, or you
+  drop it on its manual downloads panel), then checks that file against CurseForge's checksum. A
+  modpack whose author doesn't allow it isn't installed.
 - **Files come from CurseForge, not from Craft Conductor.** Every mod is downloaded from CurseForge's own
   servers straight to the computer that needs it (yours, or your friends' through their
   invite) and hash-checked. Craft Conductor doesn't host or re-share CurseForge files. A CurseForge

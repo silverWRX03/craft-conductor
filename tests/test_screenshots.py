@@ -60,7 +60,7 @@ def test_documentation_screenshots(tmp_path, http, modrinth, fake_java, monkeypa
         friend.open_browser = lambda url: None
         friend_url = friend.start()
         try:
-            env = {**os.environ, "CRAFT_UI_HOME": str(tmp_path / "home"), "CRAFT_UI_FRIEND": friend_url,
+            env = {**os.environ, "CRAFT_UI_HOME": str(tmp_path / "home"), "CRAFT_UI_USER": str(tmp_path / "you"), "CRAFT_UI_FRIEND": friend_url,
                    "CRAFT_UI_PROGRAMS": str(tmp_path / "Program Files"),
                    "CRAFT_UI_INVITE": invite.page_link("Survival with friends").split("#", 1)[1],
                    "CRAFT_UI_SITE": str(site / "join" / "index.html")}

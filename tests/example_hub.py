@@ -265,6 +265,16 @@ def example_hub(tmp_path, http, modrinth, fake_java, monkeypatch):
     disk = shutil._ntuple_diskusage(1000 * 1024 ** 3, 412 * 1024 ** 3, 588 * 1024 ** 3)
     monkeypatch.setattr(shutil, "disk_usage", lambda path: disk)
     monkeypatch.setattr(stats, "sample", lambda pid: (int(3.1 * 1024 ** 3), time.monotonic() * 0.28 * (os.cpu_count() or 1)))
+    # Its user's folders (the folder browser, and Downloads for mods downloaded by hand): made up,
+    # in tmp_path / "you", which the pictures show as C:\Users\you.
+    from craft_conductor import folders
+    you = tmp_path / "you"
+    for sub in ("Desktop", "Documents/Minecraft mods", "Documents/School", "Downloads", "Music", "Pictures"):
+        (you / sub).mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(folders, "downloads_dir", lambda *a, **k: you / "Downloads")
+    monkeypatch.setattr(folders, "places", lambda *a, **k: [{"name": name, "path": str(you / sub)} for name, sub in
+                                                            (("Home", ""), ("Desktop", "Desktop"), ("Documents", "Documents"),
+                                                             ("Downloads", "Downloads"))])
     if os.environ.get("CRAFT_UI_WORLD"):  # the map preview draws a real world instead of making one
         from craft_conductor import preview
         monkeypatch.setattr(preview.MapSession, "generate", lambda session, center, radius, report=None:

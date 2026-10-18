@@ -8015,5 +8015,55 @@
       "minecraft"
     ],
     "source": "added-in-git"
+  },
+  {
+    "id": 915,
+    "section": "Feature: Hand downloads found by themselves",
+    "step": "New server → a CurseForge modpack (or a CurseForge mod) with a file its author keeps to CurseForge: press its Download from CurseForge ↗ link and download it in Chrome or Edge, then in Firefox. Without dropping anything, Craft Conductor finds it in Downloads, says Found … in your Downloads folder, the orange Manage Mods glow and the warnings go, Create my server works, and the file is still in Downloads.",
+    "type": "Core",
+    "tags": [
+      "curseforge"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 916,
+    "section": "Feature: Hand downloads found by themselves",
+    "step": "Save the hand-downloaded file in another folder (not Downloads): after pressing its link and coming back, the section asks Not found in your Downloads folder. Where did you save it?; Choose the folder… opens the folder browser in Downloads; open the other folder and press Just this time: it's found. Again with Always look here: Craft Conductor settings → Folders lists the folder, it's looked in for the next server too, and Forget takes it away.",
+    "type": "Core",
+    "tags": [
+      "curseforge"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 917,
+    "section": "Feature: Hand downloads found by themselves",
+    "step": "Put another version of the mod in Downloads under the exact file name CurseForge lists: the row says wrong file and a message says it isn't the file CurseForge lists; nothing is loaded. Download the right one (it becomes name (1).jar): it's found and loaded.",
+    "type": "Core",
+    "tags": [
+      "curseforge"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 918,
+    "section": "Feature: Hand downloads found by themselves",
+    "step": "Open the setup page from a phone or another computer (signed in as the owner): the section says what you download there is saved on that device; dropping the file on the section works. Signed in as an invited person with Manage mods on a server waiting for a hand download: the panel has the drop box but no Downloads line or Choose the folder….",
+    "type": "Core",
+    "tags": [
+      "curseforge"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 919,
+    "section": "Feature: Hand downloads found by themselves",
+    "step": "Where Downloads is: on Windows, move Downloads to another drive (Downloads → Properties → Location) and check Craft Conductor finds the hand-downloaded file there; on a Mac, ~/Downloads; on Linux with a desktop whose Downloads folder has another name (another language, or XDG_DOWNLOAD_DIR changed). On a Linux service or Docker, the section asks where the files are from the start. Also: an update that needs a new hand file (Updates → Download them by hand) finds it in Downloads while the panel is open.",
+    "type": "Extra",
+    "tags": [
+      "curseforge"
+    ],
+    "source": "added-in-git"
   }
 ]

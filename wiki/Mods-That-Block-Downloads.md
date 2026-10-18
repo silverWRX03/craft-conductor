@@ -23,5 +23,13 @@ drag the downloaded files onto; each one is matched to its mod by CurseForge's c
 server page they're found as soon as a modpack or mods are chosen, and loaded in **Manage Mods** before
 the server is created (see "Mods you download by hand" in the manual).
 
+While the page or the panel waits for them, Craft Conductor also looks for the files in the computer's
+Downloads folder (Windows' Downloads known folder, wherever it was moved; `~/Downloads` on a Mac;
+`XDG_DOWNLOAD_DIR` from `~/.config/user-dirs.dirs` on Linux) and in the folders chosen with **Always
+look here** (kept in `.craft-conductor/hub.json` as `hand_folders`). Only the expected names are looked
+at (and browsers' renames like `name (1).jar`); a file is copied, never moved, and kept only when the
+copy's SHA-1 is CurseForge's. Craft Conductor running as a service under another account, or in
+Docker, sees no Downloads folder: the page then asks where the files are, or takes them dropped on it.
+
 ---
 [← Power users](Power-Users)
