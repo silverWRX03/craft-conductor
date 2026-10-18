@@ -2651,7 +2651,8 @@ views.updates = () => {
     if (c.manual.length && manualKey !== manualShown) { manualShown = manualKey; openManual(); }  // (slides open once per set)
     const manual = c.manual.length ? card("Manual downloads needed",
       h("p", { class: "muted" }, `${c.manual.length} mod(s) can't be downloaded by Craft Conductor: their authors don't allow other apps to. ` +
-        "Download each from CurseForge and drop the files on the panel (or copy them into the manual-downloads folder)."),
+        "Download each from CurseForge and drop the files on the panel (or copy them into the manual-downloads folder).",
+        isOwner() ? " " + t("While the panel is open, Craft Conductor also finds them in your Downloads folder.") : ""),
       h("ul", { class: "list" }, c.manual.map((m) => h("li", {}, h("strong", {}, m.name), " ", h("code", {}, m.filename)))),
       h("div", { class: "row" }, h("button", { class: "btn primary", onclick: openManual }, "Download them by hand"),
         folderBtn("manual", "Manual-downloads folder"))) : null;
@@ -4486,16 +4487,135 @@ function fileCheckNotice(check, side, what) {
 const fileCheckBad = (check, side = null) => !!(check && !check.running && check.result &&
   (check.result.problems || []).some((p) => !side || p.side === side));
 
+// ------------------------------------------------------------------ folder browser
+// A folder on the computer Craft Conductor runs on. A page can't give the server a real path, so
+// the server lists the folders in each folder (never the files in them, never links: folders.py),
+// and a box takes a typed path. The owner's only. `actions`: the buttons at the bottom, each
+// { label, primary, pick(path) }; the browser closes when `pick` is done, unless it gives false.
+function openFolderBrowser({ title, intro = "", start = "", actions }) {
+  const old = document.getElementById("folder-browser");
+  if (old) old.remove();
+  const box = h("input", { type: "text", class: "grow", spellcheck: "false", "aria-label": "Folder",
+    placeholder: "Type a folder's full path, or open one below" });
+  const list = h("div", { class: "folder-list" });
+  const note = h("div", { class: "small bad-text", role: "alert" });
+  let shown = null;  // the folder listed (its real path); null on "This computer"
+  const buttons = actions.map((a) => h("button", { type: "button", class: "btn" + (a.primary ? " primary" : ""), disabled: true,
+    onclick: () => choose(a) }, a.label));
+  const show = async (path) => {
+    note.textContent = "";
+    let r;
+    try {
+      r = await api(path ? `/api/hub/folders?path=${encodeURIComponent(path)}` : "/api/hub/folders");
+    } catch (e) {
+      if (!(e instanceof Unauthorized)) note.textContent = e.message;
+      return false;
+    }
+    shown = r.path;
+    box.value = r.path || "";
+    buttons.forEach((b) => { b.disabled = !r.path; });
+    fill(list,
+      r.path ? h("button", { type: "button", class: "folder-row", onclick: () => show(r.parent || "") }, r.parent ? "⬆ Up" : "⬆ This computer") : null,
+      r.folders.map((f) => h("button", { type: "button", class: "folder-row", onclick: () => show(f.path) },
+        h("span", { "aria-hidden": "true" }, "📁 "), f.name)),
+      r.folders.length ? null : h("p", { class: "muted small" }, r.path ? "There are no folders in here." : "No folders to show."),
+      r.more ? h("p", { class: "muted small" }, "Only the first 1,000 folders are shown: type the path of the one you want.") : null);
+    return true;
+  };
+  const onKey = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); } };
+  const close = () => { document.removeEventListener("keydown", onKey, true); backdrop.remove(); };
+  const choose = async (a) => {
+    const typed = box.value.trim();
+    if (typed && typed !== shown && !(await show(typed))) return;  // (a path typed but not opened yet)
+    if (shown && (await a.pick(shown)) !== false) close();
+  };
+  box.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); show(box.value.trim()); } });
+  const backdrop = h("div", { class: "modal-backdrop", id: "folder-browser", role: "dialog", "aria-modal": "true", "aria-labelledby": "folder-browser-title" },
+    h("div", { class: "modal folder-browser" },
+      h("h2", { id: "folder-browser-title" }, title),
+      intro ? h("p", { class: "small" }, intro) : null,
+      h("div", { class: "row" }, box, h("button", { type: "button", class: "btn", onclick: () => show(box.value.trim()) }, "Open")),
+      note, list,
+      h("p", { class: "muted small" }, "These are the folders on the computer Craft Conductor runs on."),
+      h("div", { class: "row mt" }, buttons, h("button", { type: "button", class: "btn ghost", onclick: close }, "Cancel"))));
+  document.addEventListener("keydown", onKey, true);
+  document.body.append(backdrop);
+  show(start).then(() => box.focus());
+}
+
+// Mods to download by hand, found where the browser saved them (handdownload.py): in this
+// computer's Downloads folder, the folders the owner said to always look in, and one chosen just
+// this time. Only the owner's: they're this computer's own folders.
+const handWhere = (where) => where === "Downloads" ? t("your Downloads folder") : where;
+function handFoundToast(found, left) {
+  if (!found.length) return;
+  const where = [...new Set(found.map((x) => handWhere(x.where)))].join(", ");
+  toast(`Found ${found.map((x) => x.name).join(", ")} in ${where}. ` +
+    (left ? `${left} still to download.` : t("All the mods to download by hand are in.")));
+}
+function handWrongToasts(wrong, told) {  // (`told`: what was already said, once each)
+  for (const w of wrong) {
+    if (told.has(`${w.filename}|${w.where}`)) continue;
+    told.add(`${w.filename}|${w.where}`);
+    toast(`${w.filename} in ${handWhere(w.where)} isn't the file CurseForge lists (another version, or a download that ` +
+      "went wrong): download it again from its link.", true, 12000);
+  }
+}
+// Where Craft Conductor looks (the look's answer): Downloads, and the folders it always looks in, each with ✕.
+function handPlaces(places, onChange) {
+  if (!places) return null;
+  const forget = async (path) => {
+    const r = await api("/api/hub/manual/folders", { method: "POST", body: { remove: path } })
+      .catch((e) => { if (!(e instanceof Unauthorized)) toast(e.message, true); return null; });
+    if (r) onChange(r);
+  };
+  return h("div", { class: "small mt-s hand-places" },
+    places.downloads ? h("div", {}, t("Craft Conductor looks for them by itself in your Downloads folder"), " ", h("code", {}, places.downloads))
+      : h("div", {}, "Craft Conductor can't see a Downloads folder on this computer. Press Choose the folder… to say where you saved them."),
+    places.folders.length ? h("div", { class: "row mt-s" }, h("span", {}, "It always looks in:"),
+      places.folders.map((p) => h("span", { class: "tag" }, h("code", {}, p),
+        h("button", { type: "button", class: "btn ghost small", title: `Stop looking in ${p}`, onclick: () => forget(p) }, "✕")))) : null);
+}
+const handOtherDevice = () => hubInfo && !hubInfo.local ? h("p", { class: "small notice warn mt-s" },
+  "You're using Craft Conductor from another device: what you download here is saved on this device, not on the computer " +
+  "Craft Conductor runs on. Press Load downloaded mods or drag the files here. Files downloaded on that computer are found by themselves.") : null;
+// "Choose the folder…": the folder browser, then look there always (`always(path, places)`) or just this time (`once(path)`).
+function chooseHandFolder(places, { once, always }) {
+  openFolderBrowser({ title: "Where did you save the mods?", start: (places && places.downloads) || "",
+    intro: "Open the folder you saved the downloaded mods in. Craft Conductor looks only for the mods it's waiting for, " +
+      "by their names, and checks each one against CurseForge's checksum.",
+    actions: [
+      { label: "Always look here", primary: true, pick: async (path) => {
+        const r = await api("/api/hub/manual/folders", { method: "POST", body: { add: path } })
+          .catch((e) => { if (!(e instanceof Unauthorized)) toast(e.message, true); return null; });
+        if (!r) return false;
+        always(path, r);
+      } },
+      { label: "Just this time", pick: (path) => { once(path); } },
+    ] });
+}
+// After a look in a folder that was just chosen: say so when none of the mods were there.
+function handNoneIn(path, r) {
+  if (r && !r.found.some((x) => x.where === path)) toast(`None of the mods Craft Conductor is waiting for are in ${path}.`, true);
+}
+
 // Mods whose authors don't let other apps download them (CurseForge): a panel slides in from the
 // right with a link to each file's page and, at the bottom, a box to drop the downloaded files on.
 // The server matches each file to its mod by CurseForge's checksum, so what it's called doesn't matter.
+// For the owner, it also looks for them in Downloads while the panel is open (`manualPanelLook`).
+let manualPanelLook = null;
+const manualPanelPoll = () => { if (manualPanelLook) manualPanelLook(); };
 function openManualDownloads({ items, intro, onArrived = null, onStop = null }) {
   const got = new Set();
+  const look = isOwner() ? { places: null, clicked: new Set(), wrong: new Map(), told: new Set(), once: null, ask: false, busy: null } : null;
   const getItems = () => items.map((m) => ({
-    key: m.filename, name: m.name, detail: m.filename,
-    tags: [got.has(m.filename) ? "✓ received" : "waiting for the file"],
+    key: m.filename, name: m.name, detail: look && look.wrong.has(m.filename) && !got.has(m.filename)
+      ? `${m.filename} · ${t("The file there is another one (another version, or a download that went wrong): download it again from its link.")}`
+      : m.filename,
+    tags: [got.has(m.filename) ? "✓ received" : look && look.wrong.has(m.filename) ? "wrong file" : "waiting for the file"],
     controls: got.has(m.filename) ? null
-      : h("a", { class: "btn small primary", href: m.url, target: "_blank", rel: "noopener noreferrer" }, "Download ↗"),
+      : h("a", { class: "btn small primary", href: m.url, target: "_blank", rel: "noopener noreferrer",
+        onclick: () => { if (look) look.clicked.add(m.filename); } }, "Download ↗"),
   }));
   const left = () => items.filter((m) => !got.has(m.filename)).length;
   const note = h("div", { class: "small mt-s", role: "status" });
@@ -4512,6 +4632,7 @@ function openManualDownloads({ items, intro, onArrived = null, onStop = null }) 
     }
     note.textContent = left() ? `${left()} still to go.` : "All the mods are in.";
     refreshModManager("manual-downloads");
+    renderLook();
   };
   const picker = h("input", { type: "file", accept: ".jar", multiple: true, class: "hidden" });
   picker.addEventListener("change", () => { take([...picker.files]); picker.value = ""; });
@@ -4524,16 +4645,61 @@ function openManualDownloads({ items, intro, onArrived = null, onStop = null }) 
   drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
   drop.addEventListener("dragleave", () => drop.classList.remove("over"));
   drop.addEventListener("drop", (e) => { e.preventDefault(); drop.classList.remove("over"); take([...e.dataTransfer.files]); });
+  // The owner's: found in Downloads (and the folders it always looks in) while the panel is open,
+  // every 5 s and at once when the page is seen again (after downloading one on CurseForge's page).
+  const lookBox = h("div", { class: "mb-s" });
+  const renderLook = () => {
+    if (!look) return;
+    const waiting = left();
+    const choose = () => chooseHandFolder(look.places, {
+      once: (path) => { look.once = path; lookNow(true).then((r) => handNoneIn(path, r)); },
+      always: (path, places) => { look.places = places; lookNow(true).then((r) => handNoneIn(path, r)); } });
+    fill(lookBox, waiting ? [
+      handOtherDevice(),
+      look.ask || (look.places && !look.places.downloads) ? h("div", { class: "notice warn row mt-s", role: "status" },
+        h("span", { class: "grow" }, look.places && !look.places.downloads ? "Where did you save the mods?" : "Not found in your Downloads folder. Where did you save it?"),
+        h("button", { type: "button", class: "btn small primary", onclick: choose }, "Choose the folder…")) : null,
+      handPlaces(look.places, (places) => { look.places = places; renderLook(); }),
+      look.ask || (look.places && !look.places.downloads) ? null
+        : h("div", { class: "row mt-s" }, h("button", { type: "button", class: "btn small", onclick: choose }, "Choose the folder…"))] : null);
+  };
+  const lookNow = (chosen = false) => {
+    if (!look || !drop.isConnected) { if (manualPanelLook === lookNow) manualPanelLook = null; return Promise.resolve(null); }
+    if (look.busy) return chosen ? look.busy.then(() => lookNow(true)) : look.busy;
+    if (!left()) return Promise.resolve(null);
+    look.busy = api("/api/manual/look", { method: "POST", body: look.once ? { folder: look.once } : {} }).then((r) => {
+      for (const x of r.found) { got.add(x.filename); look.wrong.delete(x.filename); }
+      for (const w of r.wrong) look.wrong.set(w.filename, w.where);
+      handWrongToasts(r.wrong, look.told);
+      handFoundToast(r.found, left());
+      look.places = { downloads: r.downloads, folders: r.folders };
+      look.ask = items.some((m) => !got.has(m.filename) && look.clicked.has(m.filename));
+      if (r.found.length) {
+        note.textContent = left() ? `${left()} still to go.` : "All the mods are in.";
+        if (onArrived) onArrived({ ...r.found[r.found.length - 1], left: r.left });
+      }
+      renderLook();
+      refreshModManager("manual-downloads");
+      return r;
+    }).catch((e) => { if (chosen && !(e instanceof Unauthorized)) toast(e.message, true); return null; })
+      .finally(() => { look.busy = null; });
+    return look.busy;
+  };
   openModManager({
     title: "Download these mods by hand", owner: "manual-downloads", showCounts: false, empty: "Nothing to download.",
-    description: intro || "Their authors don't let other apps download them. Download each file from CurseForge, then drag it onto the box at the bottom.",
+    description: (intro || "Their authors don't let other apps download them. Download each file from CurseForge, then drag it onto the box at the bottom.") +
+      (look ? " " + t("Craft Conductor also finds them in your Downloads folder by itself.") : ""),
     getItems,
-    footer: [drop, picker, onStop ? h("div", { class: "row mt-s" }, h("span", { class: "grow muted small" }, "Changed your mind?"),
+    footer: [lookBox, drop, picker, onStop ? h("div", { class: "row mt-s" }, h("span", { class: "grow muted small" }, "Changed your mind?"),
       h("button", { type: "button", class: "btn small danger", onclick: onStop }, "Stop setting up")) : null],
   });
   // A file dropped beside the box mustn't make the browser open it instead of this page.
   const backdrop = drop.closest(".mod-manager-backdrop");
   if (backdrop) for (const type of ["dragover", "drop"]) backdrop.addEventListener(type, (e) => e.preventDefault());
+  if (look) {
+    manualPanelLook = lookNow;
+    if (polls.includes(manualPanelPoll)) lookNow(); else every(5000, manualPanelPoll);
+  }
 }
 
 // ------------------------------------------------------------------ mod browser
@@ -7449,6 +7615,27 @@ function conflictsCard() {
   return box;
 }
 
+// Where mods downloaded by hand are looked for (handdownload.py): Downloads, and the folders chosen
+// with "Always look here" when Craft Conductor asked where they were saved, each with Forget.
+function handFoldersCard() {
+  const box = h("div", { class: "mb" });
+  const forget = async (path) => {
+    const r = await act(() => api("/api/hub/manual/folders", { method: "POST", body: { remove: path } }), "Craft Conductor won't look there any more");
+    if (r) render(r);
+  };
+  const render = (r) => fill(box, r ? card("Mods downloaded by hand",
+    h("p", { class: "muted small" }, "Some CurseForge mods can only be downloaded by hand. While Craft Conductor waits for them, it looks for them by itself " +
+      "in these folders on this computer: only for the mods it's waiting for, by their names, and each is checked against CurseForge's checksum."),
+    h("div", { class: "row" }, h("strong", {}, "Downloads"), r.downloads ? h("code", {}, r.downloads)
+      : h("span", { class: "muted small" }, "Craft Conductor can't see a Downloads folder on this computer.")),
+    r.folders.map((p) => h("div", { class: "row mt-s" }, h("code", { class: "grow" }, p),
+      h("button", { type: "button", class: "btn ghost small", onclick: () => forget(p) }, "Forget"))),
+    r.folders.length ? null : h("p", { class: "muted small mt-s" }, "No other folders yet. When Craft Conductor asks where you saved a mod, " +
+      "Always look here adds the folder to this list.")) : null);
+  api("/api/hub/manual/folders").then(render).catch(() => render(null));
+  return box;
+}
+
 function soundsCard() {
   const p = soundPrefs();
   const save = () => saveSoundPrefs(p);
@@ -8093,6 +8280,7 @@ views["craft-conductor"] = () => {
         h("button", { class: "btn", onclick: openPeople }, "People…")) : null],
     ["Connections", "Phones, sharing with friends and connected services.", network, phone, sharing, cf, dc,
       owner && hubInfo && !hubInfo.single ? conflictsCard() : null],
+    ...(owner ? [["Folders", "The folders on this computer Craft Conductor looks in for you.", handFoldersCard()]] : []),
     ["About & updates", "Craft Conductor version, updates and licenses.", about, firewallCard],
     ...(owner && hubInfo && !hubInfo.single ? [["Advanced", "Safety rules you may switch off, if you know the risk.", risksCard()]] : []),
   ];
@@ -8125,6 +8313,7 @@ const freshSetup = () => ({ target: null, friends: false, reach: "playit", loade
   network_access: null, accept_eula: false, submitted: false, prefilled: false, modpack: null, localMods: [], world: null, showBetas: false,
   aikar: false, clientMods: new Map(), clientMeta: new Map(), clientLocal: [], companionsSeen: new Set(),  // friends' download: slug -> name; staged files
   hand: [], handKey: "", handError: "", handCheck: null, handGot: new Map(),  // mods to download by hand: the files; filename -> staging id
+  handPlaces: null, handOnce: null, handClicked: new Set(), handWrong: new Map(), handTold: new Set(), handAsk: false, handBusy: null, handShown: "",  // ...found where they were saved
   pins: new Map(), fileCheck: null, fileCheckFor: "" });  // held versions (the mod's own key -> {version, number, minecraft}); the file check
 const setupState = freshSetup();
 function resetSetup() {
@@ -8386,11 +8575,41 @@ function setupHandCheck() {
     st.hand = r.mods || [];
     const left = setupHandMissing().length;
     if (left) toast(`${left} mod(s) must be downloaded from CurseForge by hand: see Manage Mods`);
+    if (left) setupHandLook();  // (maybe they're in Downloads already)
   }).catch((e) => {
     if (st.handKey !== key || e instanceof Unauthorized) return;
     st.hand = [];
     st.handError = e.message;
   }).finally(() => { if (st.handKey === key && st.onHand) st.onHand(); });
+}
+// While the page waits for them, Craft Conductor looks for them where the browser saved them
+// (every 5 s, and at once when the page is seen again, as after downloading one on CurseForge's
+// page): each one found is loaded as if it had been dropped here. `chosen`: a folder was just picked.
+function setupHandLook(chosen = false) {
+  const st = setupState;
+  if (st.handBusy) return chosen ? st.handBusy.then(() => setupHandLook(true)) : st.handBusy;
+  const missing = setupHandMissing().map((m) => m.filename);
+  if (!missing.length || st.submitted || !isOwner()) return Promise.resolve(null);
+  st.handBusy = api("/api/hub/manual/look", { method: "POST", body: { filenames: missing, ...(st.handOnce ? { folder: st.handOnce } : {}) } }).then((r) => {
+    for (const x of r.found) { st.handGot.set(x.filename, x.id); st.handWrong.delete(x.filename); }
+    for (const w of r.wrong) st.handWrong.set(w.filename, w.where);
+    handWrongToasts(r.wrong, st.handTold);
+    handFoundToast(r.found, setupHandMissing().length);
+    st.handPlaces = { downloads: r.downloads, folders: r.folders };
+    st.handAsk = setupHandMissing().some((m) => st.handClicked.has(m.filename));
+    const shown = JSON.stringify([st.handPlaces, st.handAsk, [...st.handWrong]]);
+    if ((r.found.length || shown !== st.handShown) && st.onHand) st.onHand();  // (the warnings go once they're in)
+    st.handShown = shown;
+    return r;
+  }).catch((e) => { if (chosen && !(e instanceof Unauthorized)) toast(e.message, true); return null; })
+    .finally(() => { st.handBusy = null; });
+  return st.handBusy;
+}
+function setupChooseHandFolder() {
+  const st = setupState;
+  chooseHandFolder(st.handPlaces, {
+    once: (path) => { st.handOnce = path; setupHandLook(true).then((r) => handNoneIn(path, r)); },
+    always: (path, places) => { st.handPlaces = places; setupHandLook(true).then((r) => handNoneIn(path, r)); } });
 }
 // "Load downloaded mods": a file picker that opens on the Downloads folder (where the browser has
 // one that can), each file checked against CurseForge's checksum as it's loaded.
@@ -8947,21 +9166,32 @@ views.setup = () => {
       if (!st.hand.length) return st.handError ? h("div", { class: "notice warn mb" },
         `Couldn't check which mods must be downloaded by hand (${st.handError}). If some must, setup asks for them while it creates the server.`) : null;
       const left = setupHandMissing().length;
+      const noDownloads = st.handPlaces && !st.handPlaces.downloads;
       const section = h("section", { class: "notice mb hand-downloads " + (left ? "bad" : "ok"), "aria-label": "Mods to download by hand" },
         h("strong", {}, left ? "The owners of these mods require you to download them directly from CurseForge."
           : "All the mods to download by hand are loaded."),
-        h("p", { class: "small" }, "CurseForge doesn't let Craft Conductor download these files for you. Open each link, download the file on CurseForge's page, " +
-          "then press Load downloaded mods and pick the files (they're usually in your Downloads folder). You can also drag them here."),
+        h("p", { class: "small" }, "CurseForge doesn't let Craft Conductor download these files for you. Open each link and download the file on CurseForge's page: " +
+          "Craft Conductor finds it in your Downloads folder by itself. You can also press Load downloaded mods and pick the files, or drag them here."),
+        left ? handOtherDevice() : null,
+        left && (st.handAsk || noDownloads) ? h("div", { class: "notice warn row mt-s", role: "status" },
+          h("span", { class: "grow" }, noDownloads ? "Where did you save the mods?" : "Not found in your Downloads folder. Where did you save it?"),
+          h("button", { type: "button", class: "btn small primary", onclick: setupChooseHandFolder }, "Choose the folder…")) : null,
         h("div", { class: "mod-manager-list mt-s" }, st.hand.map((m) => {
           const got = st.handGot.has(m.filename);
+          const wrong = !got && st.handWrong.has(m.filename);
           return h("div", { class: "mod-manager-row" },
             h("div", { class: "grow" },
               h("div", { class: "mod-manager-name" }, h("strong", {}, m.name),
-                h("span", { class: "tag" + (got ? "" : " warn") }, got ? "✓ loaded" : "not downloaded yet")),
-              h("div", { class: "muted small" }, [m.version, m.filename].filter(Boolean).join(" · "))),
-            got ? null : h("a", { class: "btn small primary", href: m.url, target: "_blank", rel: "noopener noreferrer" }, "Download from CurseForge ↗"));
+                h("span", { class: "tag" + (got ? "" : wrong ? " bad" : " warn") }, got ? "✓ loaded" : wrong ? "wrong file" : "not downloaded yet")),
+              h("div", { class: "muted small" }, [m.version, m.filename].filter(Boolean).join(" · ")),
+              wrong ? h("div", { class: "small bad-text" }, `The file in ${handWhere(st.handWrong.get(m.filename))} is another one ` +
+                "(another version, or a download that went wrong): download it again from its link.") : null),
+            got ? null : h("a", { class: "btn small primary", href: m.url, target: "_blank", rel: "noopener noreferrer",
+              onclick: () => st.handClicked.add(m.filename) }, "Download from CurseForge ↗"));
         })),
+        left && isOwner() ? handPlaces(st.handPlaces, (places) => { st.handPlaces = places; st.onHand(); }) : null,
         h("div", { class: "row mt-s" }, h("button", { type: "button", class: "btn" + (left ? " primary" : ""), onclick: () => setupLoadHand() }, "Load downloaded mods"),
+          left && isOwner() ? h("button", { type: "button", class: "btn", onclick: setupChooseHandFolder }, "Choose the folder…") : null,
           h("span", { class: "muted small" }, left ? `${left} still to load.` : "")));
       section.addEventListener("dragover", (e) => { e.preventDefault(); section.classList.add("over"); });
       section.addEventListener("dragleave", () => section.classList.remove("over"));
@@ -8992,6 +9222,7 @@ views.setup = () => {
     };
     const renderSelected = () => {
       setupHandCheck();
+      if (isOwner() && !polls.includes(setupHandLook)) every(5000, setupHandLook);  // (nothing to do until some are missing)
       const items = setupServerModItems();
       fill(selected, items.length || st.modpack
         ? modSummary(items, { noun: runsPlugins(st.loader) ? "plugins" : "mods",
