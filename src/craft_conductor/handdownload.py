@@ -48,6 +48,7 @@ _lock = threading.Lock()
 MAX_FILE = 512 << 20     # the biggest file looked at in a folder (the same as an upload)
 MAX_FOLDERS = 20         # folders remembered to look in
 LIST_AGAIN = 60          # seconds: a folder's names are read again when it changed, or after this long
+SETTLED = 2_000_000_000  # ns: a folder changed more recently than this is read again next time (its clock may not tick between two changes)
 _PARTIAL = (".crdownload", ".part", ".download", ".partial")  # a browser still saving the file beside it
 _hashed: dict[tuple[str, int, int], str] = {}  # (path, size, modified) -> its SHA-1: a file is read once
 _listed: dict[str, tuple[int, float, "_Names"]] = {}  # folder -> (its modified time, when, its names)
@@ -166,7 +167,10 @@ def _names(folder: Path) -> _Names:
     with _lock:
         if len(_listed) > 50:
             _listed.clear()
-        _listed[str(folder)] = (changed, now, names)
+        if time.time_ns() - changed > SETTLED:
+            _listed[str(folder)] = (changed, now, names)
+        else:
+            _listed.pop(str(folder), None)
     return names
 
 

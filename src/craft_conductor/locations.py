@@ -213,13 +213,13 @@ def check_place(kind: str, text: str, places: dict, state_dir: Path) -> tuple[Pa
         raise LocationError(f"there's no drive or folder for {text}")
     if path.exists() and not path.is_dir():
         raise LocationError(f"{path} is a file, not a folder")
-    if not os.access(base, os.W_OK | os.X_OK):
-        raise LocationError(f"Craft Conductor isn't allowed to write in {base}")
+    if is_system(path):
+        raise LocationError(f"{path} is one of the computer's own folders: pick a folder of yours, or make one")
     if is_removable(path):
         raise LocationError(f"{path} is on a removable drive (a USB stick or a memory card): the files would go "
                             "missing whenever it's unplugged")
-    if is_system(path):
-        raise LocationError(f"{path} is one of the computer's own folders: pick a folder of yours, or make one")
+    if not os.access(base, os.W_OK | os.X_OK):
+        raise LocationError(f"Craft Conductor isn't allowed to write in {base}")
     inside_too, itself = own_folders(state_dir)
     for own in inside_too:
         if inside(path, own) or inside(own, path):

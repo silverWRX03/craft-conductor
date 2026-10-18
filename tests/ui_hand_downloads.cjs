@@ -11,7 +11,7 @@ const path = require('node:path');
   const channel = process.env.CRAFT_UI_CHANNEL || (process.platform === 'win32' ? 'msedge' : undefined);
   const browser = await chromium.launch({ headless: true, ...(channel ? { channel } : {}) });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
-  await context.route(/curseforge\.com/, (route) => route.fulfill({ status: 200, contentType: 'text/html', body: 'CurseForge' }));
+  await context.route(/^https:\/\/www\.curseforge\.com\//, (route) => route.fulfill({ status: 200, contentType: 'text/html', body: 'CurseForge' }));
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
