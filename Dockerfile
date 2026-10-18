@@ -5,7 +5,7 @@
 #
 # Everything (servers, worlds, backups, the Java that craft-conductor downloads) lives in /data, so keep
 # that volume. See docs/docker.md.
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 # craft-conductor needs nothing but Python: it downloads Java (Eclipse Temurin) for each Minecraft version itself.
 RUN useradd --create-home --uid 1000 craft-conductor && mkdir /data && chown craft-conductor:craft-conductor /data
