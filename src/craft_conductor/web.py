@@ -1456,6 +1456,23 @@ def browse_categories(browser, q: dict) -> dict:
         raise ApiError(400, str(e)) from None
 
 
+def locations_choosable() -> bool:
+    from . import locations
+    return locations.choosable() is None
+
+
+def chosen_folder(value) -> Path | None:
+    """A folder on this computer chosen on the page (typed, or picked in the folder browser), as the
+    real folder it is; None when none was."""
+    from . import folders
+    if value in (None, ""):
+        return None
+    try:
+        return folders.check(str(value))
+    except folders.FolderError as e:
+        raise ApiError(400, str(e)) from None
+
+
 class HubApi:
     """The parts of the API that aren't about one server: the server list, new servers,
     the first-run notice, licenses and craft-conductor's own updates."""
@@ -1482,6 +1499,10 @@ class HubApi:
         r[("POST", "/api/hub/stage")] = self.stage
         r[("POST", "/api/hub/manual/needed")] = self.manual_needed
         r[("POST", "/api/hub/manual/stage")] = self.manual_stage
+        r[("POST", "/api/hub/manual/look")] = self.manual_look
+        r[("GET", "/api/hub/manual/folders")] = self.hand_folders_info
+        r[("POST", "/api/hub/manual/folders")] = self.save_hand_folders
+        r[("GET", "/api/hub/folders")] = self.folder_list
         r[("POST", "/api/hub/open")] = self.open_folder
         r[("POST", "/api/hub/quit")] = self.quit
         r[("GET", "/api/hub/curseforge")] = self.curseforge_info
@@ -1542,9 +1563,11 @@ class HubApi:
         r[("POST", "/api/hub/map/explore")] = self.map_explore
         r[("POST", "/api/hub/map/stop")] = self.map_stop
         r[("GET", "/api/hub/saves")] = self.saves
-        r[("POST", "/api/hub/import")] = lambda q, b: {"ok": True, **self.hub.import_server(
-            str(b.get("id", "")), password=str(b["password"]) if b.get("password") else None,
-            skip_locked=bool(b.get("skip_locked")))}
+        r[("POST", "/api/hub/import")] = self.import_server
+        r[("GET", "/api/hub/exports")] = lambda q, b: {"folder": str(self.hub.exports_dir), "exports": self.hub.exports_list()}
+        r[("GET", "/api/hub/locations")] = self.locations_info
+        r[("POST", "/api/hub/locations")] = self.save_locations
+        r[("POST", "/api/hub/folders/new")] = self.new_folder
         r[("GET", "/api/hub/browse/search")] = lambda q, b: browse_search(self.browser(), q)
         r[("GET", "/api/hub/browse/project")] = lambda q, b: browse_project(self.browser(), q)
         r[("GET", "/api/hub/browse/categories")] = lambda q, b: browse_categories(self.browser(), q)
@@ -1597,6 +1620,9 @@ class HubApi:
             "update_channel": hub.update_channel(),
             "auth": self.web.auth.info(),
             "home": str(hub.home),
+            # (the page asks once where files go: locations.py)
+            "locations": {"chosen": True, "choosable": False} if hub.is_single else
+                         {"chosen": hub.locations()["chosen"], "choosable": locations_choosable()},
             "network_access": hub.web.host in ("0.0.0.0", "::"),
             "servers": hub.summary(),
             "share": hub.share_status() if not hub.is_single else None,
@@ -2652,6 +2678,8 @@ class HubApi:
         """Close craft-conductor (stopping every server), for when there's no window to close."""
         if self.hub.is_single:
             raise ApiError(400, "this Craft Conductor was started with `craft-conductor run`; stop it where it runs")
+        if (m := self.hub.moving()) and m.get("running"):
+            raise ApiError(409, "Craft Conductor is moving its files to another folder: quit when it's done")
         log.info("quitting (asked from the web UI)")
         threading.Timer(0.5, self.hub.stop_requested.set).start()  # after this reply is sent
         return {"ok": True}
@@ -2671,7 +2699,8 @@ class HubApi:
 
     def open_folder(self, q, b) -> dict:
         from . import opener
-        where = {"home": self.hub.home, "exports": self.hub.exports_dir}.get(str(b.get("what", "")))
+        where = {"home": self.hub.home, "exports": self.hub.exports_dir, "servers": self.hub.servers_dir,
+                 "backups": self.hub.backups_location}.get(str(b.get("what", "")))
         if where is None:
             raise ApiError(400, "unknown folder")
         where.mkdir(parents=True, exist_ok=True)
@@ -2755,6 +2784,92 @@ class HubApi:
         log.info("received %s, downloaded by hand for a new server", found["filename"])
         return {"id": staged["id"], "filename": found["filename"], "name": found["name"]}
 
+    def manual_look(self, q, b) -> dict:
+        """The setup page's mods to download by hand that it still misses (``filenames``), found where
+        the browser saved them, or in ``folder`` (chosen on the page just this time): each one copied
+        to the staging area, as if it had been dropped on the page."""
+        import secrets
+        from . import handdownload
+        names = b.get("filenames")
+        if not isinstance(names, list) or len(names) > handdownload.MAX_MODS:
+            raise ApiError(400, "too many mods")
+        files = handdownload.wanted_named([str(x) for x in names])  # (only files the page was told about)
+        ids: dict[str, str] = {}
+
+        def into(x: dict) -> Path:
+            ids[x["filename"]] = secrets.token_hex(8)
+            return self.hub.staging_dir / ids[x["filename"]] / x["filename"]
+        out = self.hub.look_for_hand_downloads(files, chosen_folder(b.get("folder")), into)
+        for x in out["found"]:
+            x["id"] = ids[x["filename"]]
+        return out
+
+    def hand_folders_info(self, q=None, b=None) -> dict:
+        """Where mods downloaded by hand are looked for: this computer's Downloads folder (None when
+        Craft Conductor can't see one), and the folders the owner said to always look in."""
+        from . import folders
+        downloads = folders.downloads_dir()
+        return {"downloads": str(downloads) if downloads else None, "folders": self.hub.hand_folders()}
+
+    def save_hand_folders(self, q, b) -> dict:
+        """Always look in a folder (``add``), or not any more (``remove``)."""
+        if b.get("add"):
+            self.hub.remember_hand_folder(chosen_folder(b["add"]))
+        elif isinstance(b.get("remove"), str):
+            self.hub.forget_hand_folder(b["remove"])
+        else:
+            raise ApiError(400, "say which folder to add or remove")
+        return self.hand_folders_info()
+
+    def import_server(self, q, b) -> dict:
+        """Import a server: an export uploaded to the staging area (``id``), or one in the exports
+        folder (``export``, as GET /api/hub/exports lists it: nothing to upload)."""
+        password = str(b["password"]) if b.get("password") else None
+        if b.get("export"):
+            return {"ok": True, **self.hub.import_export(str(b["export"]), password=password, skip_locked=bool(b.get("skip_locked")))}
+        return {"ok": True, **self.hub.import_server(str(b.get("id", "")), password=password, skip_locked=bool(b.get("skip_locked")))}
+
+    def locations_info(self, q=None, b=None) -> dict:
+        """Where servers, backups and exports are kept; whether the owner has chosen (the page asks
+        once), why they can't be changed here (``why_not``), and the move under way (``move``)."""
+        from . import locations as locmod
+        hub = self.hub
+        if hub.is_single:
+            cfg = hub._single.m.config
+            return {"servers": str(cfg.root), "backups": str(cfg.backups.dir), "exports": str(cfg.root / "exports"),
+                    "chosen": True, "single": True, "move": None, "defaults": None,
+                    "why_not": "This Craft Conductor runs one server in its own folder (`craft-conductor run`): "
+                               "its backups and exports stay there."}
+        loc = hub.locations()
+        return {"servers": str(loc["servers"]), "backups": str(loc["backups"]) if loc["backups"] else None,
+                "exports": str(loc["exports"]), "chosen": loc["chosen"], "single": False, "why_not": locmod.choosable(),
+                "defaults": locmod.stored(locmod.defaults(hub.home), False), "move": hub.moving()}
+
+    def save_locations(self, q, b) -> dict:
+        """Choose where servers, backups ("" for each server's own folder) and exports are kept.
+        Without ``go``: what it would do (to ask first). With it: saved, and what's there moved."""
+        wanted = {k: "" if b[k] is None else str(b[k]) for k in ("servers", "backups", "exports") if k in b}
+        return {**self.hub.change_locations(wanted, go=bool(b.get("go"))), "locations": self.locations_info()}
+
+    def new_folder(self, q, b) -> dict:
+        """The folder browser's New folder…: made in ``parent``, then listed."""
+        from . import folders
+        try:
+            return folders.listing(str(folders.make(str(b.get("parent") or ""), str(b.get("name") or ""))))
+        except folders.FolderError as e:
+            raise ApiError(400, str(e)) from None
+
+    def folder_list(self, q, b) -> dict:
+        """The folder browser: the folders in a folder on this computer (never the files in it), or,
+        without a ``path``, where to start (the home folder, Documents, Downloads, the drives)."""
+        from . import folders
+        if not q.get("path"):
+            return {"path": None, "parent": None, "folders": folders.places(), "more": False}
+        try:
+            return folders.listing(q["path"])
+        except folders.FolderError as e:
+            raise ApiError(400, str(e)) from None
+
     def port_check(self, q, b) -> dict:
         try:
             port = int(q.get("port", ""))
@@ -2790,7 +2905,7 @@ class HubApi:
     def new_server_options(self, q, b) -> dict:
         return {**setup_options(self._get_mojang()), "pending": True, "network_option": False,
                 "port": self.hub.free_port(), "open_port": self.hub.pick_open_port(),
-                "server_dir": str(self.hub.home / "servers" / "<name>"), "current": None}
+                "server_dir": str(self.hub.servers_dir / "<name>"), "current": None}
 
     def create(self, q, b) -> dict:
         from . import filecheck
@@ -2911,6 +3026,7 @@ class Api:
         post("/api/mods/filecheck", self.start_filecheck)
         post("/api/manual/upload", lambda q, b: None)  # handled specially (raw body)
         post("/api/manual/stop", self.stop_manual_wait)
+        post("/api/manual/look", self.manual_look)
         get("/api/players/skin", lambda q, b: None)    # handled specially (an image)
         get("/api/backups", self.backups)
         post("/api/backups/create", self.create_backup)
@@ -3652,6 +3768,23 @@ class Api:
         self.d.manual_arrived()
         return {"ok": True, "name": match["name"], "filename": match["filename"],
                 "left": len((self.d.last_check or {}).get("manual") or [])}
+
+    def manual_look(self, q, b) -> dict:
+        """The mods this server waits for (setup, or an update), downloaded by hand, found where the
+        browser saved them or in ``folder`` (chosen just this time): copied into its manual-downloads
+        folder, as if they had been dropped on the panel. The owner's (the computer's own folders)."""
+        hub = self.web.hub
+        extra = chosen_folder(b.get("folder"))
+        waiting = [x for x in (self.d.last_check or {}).get("manual") or [] if x.get("sha1")]
+        folder = self.m.config.manual_dir
+        out = hub.look_for_hand_downloads(waiting, extra, lambda x: folder / x["filename"])
+        if out["found"]:
+            got = {x["filename"] for x in out["found"]}
+            c = self.d.last_check
+            if c:
+                c["manual"] = [x for x in c.get("manual") or [] if x["filename"] not in got]
+            self.d.manual_arrived()
+        return {**out, "left": len((self.d.last_check or {}).get("manual") or [])}
 
     def stop_manual_wait(self, q, b) -> dict:
         """Stop a setup that's waiting for mods to be downloaded by hand."""
@@ -4920,6 +5053,8 @@ class Api:
 
     def export(self, q, b) -> dict:
         from . import parts, secretzip, transfer
+        if (m := self.web.hub.moving()) and m.get("running") and m.get("kind") == "exports":
+            raise ApiError(409, "Craft Conductor is moving the exports to another folder: export when it's done")
         include_backups = bool(b.get("backups"))
         holds = b.get("parts", list(parts.CHOICES))
         chosen = b.get("secrets", [])

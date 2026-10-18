@@ -106,7 +106,7 @@ const assert = require('node:assert/strict');
     assert.equal(await popup.count(), 0);
     assert.equal(await page.locator('#nav a[href="#craft-conductor"] .update-dot:not(.hidden)').count(), 1);  // the dot stays
     await aboutAndUpdates();
-    assert.equal(await page.locator('#preferences-button-4 .update-dot:not(.hidden)').count(), 1);
+    assert.equal(await page.locator('.preferences-button', {hasText: 'About & updates'}).locator('.update-dot:not(.hidden)').count(), 1);
     const check = page.getByRole('button', {name: 'Check for Craft Conductor updates'});
     assert.equal(await check.locator('.update-dot:not(.hidden)').count(), 1);
     assert.match(await page.locator('#about-update').innerText(), /9\.9\.9 is available/);

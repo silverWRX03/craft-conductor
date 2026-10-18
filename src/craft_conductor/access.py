@@ -258,6 +258,7 @@ SERVER_ROUTES: dict[tuple[str, str], str | tuple[str, ...]] = {
     ("POST", "/api/mods/local"): "mods.manage",
     ("POST", "/api/manual/upload"): "mods.manage",
     ("POST", "/api/manual/stop"): "mods.manage",
+    ("POST", "/api/manual/look"): OWNER,    # reads this computer's Downloads and folders (the drop box is mods.manage)
     ("POST", "/api/modsets/save"): "mods.manage",
     ("POST", "/api/modsets/restore"): "mods.manage",
     ("POST", "/api/modsets/delete"): "mods.manage",

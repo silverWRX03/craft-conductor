@@ -4,6 +4,10 @@ The image holds Craft Conductor and Python. Craft Conductor downloads Minecraft,
 into `/data` when you create a server. Keep `/data` on a volume and your servers survive
 image updates. Java goes into `/data/.craft-conductor/java/`, one copy per Java version shared by every
 server in the container; Java installed on the Docker host isn't used inside the container.
+The servers, backups and exports folders stay in `/data` too: in Docker, Craft Conductor settings →
+Folders shows them but doesn't offer to change them (a folder outside the volume would be lost when
+the container is replaced). To keep backups elsewhere, mount another volume and set a server's
+**Also copy every backup to** (`backups.copy_to`) to a folder in it.
 
 ## Start it
 

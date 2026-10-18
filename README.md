@@ -62,6 +62,8 @@ Get the file for your computer. It's a single file: no installer, no Python, and
 2. **Your browser opens Craft Conductor.** Until you've made a server, it first asks whether you're
    joining a friend: press **Run my own server** (under "Or run a Minecraft server of your own").
    In the control panel, accept the notice, sign in with `PASSWORD`, and choose your own password.
+   It then asks once where to keep your servers, backups and exports (change them later in
+   Craft Conductor settings → Folders).
 3. **Press New server,** pick the kind of server and your mods, and **Create my server**. Then
    **Start**, and join it from Minecraft.
 
@@ -104,8 +106,9 @@ an API key. It follows CurseForge's
   takes priority over the built-in one.
 - **Authors' wishes are respected.** When an author doesn't allow downloads by other apps,
   CurseForge gives no download link and Craft Conductor doesn't look for one. It shows you the file's
-  page to download it yourself (you drop the file on its manual downloads panel), then checks that file
-  against CurseForge's checksum. A modpack whose author doesn't allow it isn't installed.
+  page to download it yourself in your browser (it then finds the file in your Downloads folder, or you
+  drop it on its manual downloads panel), then checks that file against CurseForge's checksum. A
+  modpack whose author doesn't allow it isn't installed.
 - **Files come from CurseForge, not from Craft Conductor.** Every mod is downloaded from CurseForge's own
   servers straight to the computer that needs it (yours, or your friends' through their
   invite) and hash-checked. Craft Conductor doesn't host or re-share CurseForge files. A CurseForge

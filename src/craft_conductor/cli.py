@@ -1212,8 +1212,9 @@ def _first_run_joining() -> bool:
         return False
     if selfupdate.friend_build() or invite_from_name(sys.executable) is not None:
         return True
+    from .locations import servers_folder
     home = default_home()  # someone who runs servers here gets their control panel
-    return not (home / "servers").exists() and not (home / configmod.CONFIG_NAME).exists()
+    return not servers_folder(home).exists() and not (home / configmod.CONFIG_NAME).exists()
 
 
 def _main(args) -> int:

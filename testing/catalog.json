@@ -8015,5 +8015,109 @@
       "minecraft"
     ],
     "source": "added-in-git"
+  },
+  {
+    "id": 915,
+    "section": "Feature: Hand downloads found by themselves",
+    "step": "New server → a CurseForge modpack (or a CurseForge mod) with a file its author keeps to CurseForge: press its Download from CurseForge ↗ link and download it in Chrome or Edge, then in Firefox. Without dropping anything, Craft Conductor finds it in Downloads, says Found … in your Downloads folder, the orange Manage Mods glow and the warnings go, Create my server works, and the file is still in Downloads.",
+    "type": "Core",
+    "tags": [
+      "curseforge"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 916,
+    "section": "Feature: Hand downloads found by themselves",
+    "step": "Save the hand-downloaded file in another folder (not Downloads): after pressing its link and coming back, the section asks Not found in your Downloads folder. Where did you save it?; Choose the folder… opens the folder browser in Downloads; open the other folder and press Just this time: it's found. Again with Always look here: Craft Conductor settings → Folders lists the folder, it's looked in for the next server too, and Forget takes it away.",
+    "type": "Core",
+    "tags": [
+      "curseforge"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 917,
+    "section": "Feature: Hand downloads found by themselves",
+    "step": "Put another version of the mod in Downloads under the exact file name CurseForge lists: the row says wrong file and a message says it isn't the file CurseForge lists; nothing is loaded. Download the right one (it becomes name (1).jar): it's found and loaded.",
+    "type": "Core",
+    "tags": [
+      "curseforge"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 918,
+    "section": "Feature: Hand downloads found by themselves",
+    "step": "Open the setup page from a phone or another computer (signed in as the owner): the section says what you download there is saved on that device; dropping the file on the section works. Signed in as an invited person with Manage mods on a server waiting for a hand download: the panel has the drop box but no Downloads line or Choose the folder….",
+    "type": "Core",
+    "tags": [
+      "curseforge"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 919,
+    "section": "Feature: Hand downloads found by themselves",
+    "step": "Where Downloads is: on Windows, move Downloads to another drive (Downloads → Properties → Location) and check Craft Conductor finds the hand-downloaded file there; on a Mac, ~/Downloads; on Linux with a desktop whose Downloads folder has another name (another language, or XDG_DOWNLOAD_DIR changed). On a Linux service or Docker, the section asks where the files are from the start. Also: an update that needs a new hand file (Updates → Download them by hand) finds it in Downloads while the panel is open.",
+    "type": "Extra",
+    "tags": [
+      "curseforge"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 920,
+    "section": "Feature: Choose where files are kept",
+    "step": "Fresh install on Windows: after choosing your password, Where should Craft Conductor keep your files? shows Servers and Exports in C:\\Users\\<you>\\craft-conductor and Backups in each server's own folder. Change… for Exports, open another drive, New folder…, Use this folder, then Use these folders: Saved., a README.txt in each chosen folder, the guided setup is offered afterwards, and the page isn't shown again (also after a reload).",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 921,
+    "section": "Feature: Choose where files are kept",
+    "step": "With a test server stopped, Craft Conductor settings → Folders → Servers → Change… to a new folder on another drive: it asks Move what's there now? with the size, shows the progress, then Saved.; the server starts from its new folder with its world, mods and friends' invite intact, a friend can join, and the old servers folder is gone. With the server running, the move is refused (Stop these first: …).",
+    "type": "Core",
+    "tags": [
+      "minecraft"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 922,
+    "section": "Feature: Choose where files are kept",
+    "step": "Folders → Backups → Change… to a folder on another drive: the test server's backups move to <folder>\\<server>; Create backup and a scheduled backup go there; restoring one works; Keep them in each server's folder moves them back. A server whose craft-conductor.toml names its own backups folder keeps it (the question says so).",
+    "type": "Core",
+    "tags": [
+      "minecraft"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 923,
+    "section": "Feature: Choose where files are kept",
+    "step": "Export a test server: the .zip is in the exports folder under the server's name. Copy an export from another computer into the exports folder: Servers → Import a server… lists it with its size and date, Import works (asking for its password when it has a locked part), and Another file… still imports one from elsewhere.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 924,
+    "section": "Feature: Choose where files are kept",
+    "step": "Refusals, each saying why: a USB stick or memory card, a network share (\\NAS\\share or a mapped drive), C:\\, C:\\Windows, a folder inside the servers folder for backups, a folder with files in it. A OneDrive (or Dropbox/Google Drive) folder for servers shows the sync warning first; for backups it's used without one.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 925,
+    "section": "Feature: Choose where files are kept",
+    "step": "Stop Craft Conductor (end it in Task Manager) halfway through moving a big test server to another drive: the next start says the move was stopped halfway and everything was put back; the server starts from its old folder with everything there. Also: Linux (a desktop and a headless one), a Mac (/Volumes drives refused), Docker (Folders shows /data and can't be changed) and craft-conductor run (not offered).",
+    "type": "Extra",
+    "tags": [
+      "minecraft"
+    ],
+    "source": "added-in-git"
   }
 ]

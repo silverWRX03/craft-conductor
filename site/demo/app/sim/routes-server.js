@@ -732,6 +732,7 @@
     "POST /api/open": () => { throw sim.explain("Craft Conductor would open this server's folder in your file manager, on the server's computer."); },
     "POST /api/manual/upload": (r) => ({ ok: true, name: (r.b.__file || {}).name || "mod.jar", filename: (r.b.__file || {}).name || "mod.jar", note: "In the demo the file isn't read." }),
     "POST /api/manual/stop": () => ({ ok: true }),
+    "POST /api/manual/look": () => ({ found: [], wrong: [], looked: ["Downloads"], left: 0, downloads: "C:\\Users\\you\\Downloads", folders: [] }),
 
     // Configuration files: a few made-up ones per mod.
     "GET /api/configs": (r) => {

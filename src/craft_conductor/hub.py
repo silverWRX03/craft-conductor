@@ -12,9 +12,11 @@ from __future__ import annotations
 import json
 import logging
 import os
+import tomllib
 import re
 import shutil
 import signal
+import stat
 import sys
 import threading
 import time
@@ -118,6 +120,18 @@ def port_free(port: int) -> bool:
 
 def slugify(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:40] or "server"
+
+
+def put_tomls(tomls: dict) -> None:
+    """Put back what servers' craft-conductor.toml said for [backups] dir (a move undone)."""
+    for path, literal in tomls.items():
+        try:
+            if literal is None:
+                configmod.unset_value(Path(path), "backups", "dir")
+            else:
+                configmod.set_value(Path(path), "backups", "dir", configmod.toml_string(literal))
+        except OSError as e:
+            log.warning("couldn't put back the backups folder in %s: %s", path, e)
 
 
 class Hub:
@@ -563,7 +577,7 @@ class Hub:
     def add_folder(self, root: Path) -> None:
         """Also list a server folder that lives somewhere else (e.g. where craft-conductor was started)."""
         root = root.resolve()
-        if root == self.home or root.parent == self.home / SERVERS_DIR:
+        if root == self.home or root.parent == self.servers_dir:
             return
 
         def change(data: dict) -> None:
@@ -577,7 +591,7 @@ class Hub:
         hidden = {Path(p) for p in self._hub_file().get("hidden", []) if isinstance(p, str)}
         if (self.home / configmod.CONFIG_NAME).exists() and self.home not in hidden:
             found[HOME_ID] = self.home
-        servers = self.home / SERVERS_DIR
+        servers = self.servers_dir
         if servers.is_dir():
             for d in sorted(servers.iterdir()):
                 if (d / configmod.CONFIG_NAME).exists() and d.name not in found and d.resolve() not in hidden:
@@ -592,7 +606,7 @@ class Hub:
 
     def scan(self) -> None:
         """Pick up new server folders, and restart the manager of any server whose manager stopped."""
-        if self.is_single:
+        if self.is_single or getattr(self, "_scan_paused", False):  # (not while servers are being moved)
             return
         with self._lock:
             for sid, root in self.discover().items():
@@ -895,6 +909,44 @@ class Hub:
             raise ConfigError("the uploaded world isn't here any more; upload it again")
         return found[0]
 
+    # ------------------------------------------- mods downloaded by hand, found where they were saved
+    def hand_folders(self) -> list[str]:
+        """The folders the owner said to always look in for mods downloaded by hand (besides Downloads)."""
+        from .handdownload import MAX_FOLDERS
+        return [p for p in self._hub_file().get("hand_folders", []) if isinstance(p, str)][:MAX_FOLDERS]
+
+    def remember_hand_folder(self, folder: Path) -> list[str]:
+        from .handdownload import MAX_FOLDERS
+
+        def change(data: dict) -> list[str]:
+            kept = [p for p in data.get("hand_folders", []) if isinstance(p, str) and p != str(folder)]
+            data["hand_folders"] = ([str(folder)] + kept)[:MAX_FOLDERS]
+            return data["hand_folders"]
+        return self._update_hub_file(change)
+
+    def forget_hand_folder(self, text: str) -> list[str]:
+        def change(data: dict) -> list[str]:
+            data["hand_folders"] = [p for p in data.get("hand_folders", []) if isinstance(p, str) and p != text]
+            return data["hand_folders"]
+        return self._update_hub_file(change)
+
+    def look_for_hand_downloads(self, files: list[dict], extra: Path | None, into: Callable[[dict], Path]) -> dict:
+        """Look for ``files`` (mods to download by hand, with CurseForge's SHA-1) in the Downloads
+        folder, the folders to always look in and ``extra``; copy each one found to ``into(file)``.
+        The answer names only the files asked for, never anything else in those folders, and says
+        where it looks (``downloads``: None when there's no Downloads folder it can read)."""
+        from . import folders, handdownload
+        downloads, remembered = folders.downloads_dir(), self.hand_folders()
+        places = handdownload.where_to_look(remembered, extra, downloads)
+        found, wrong = handdownload.look([p for _, p in places], files) if files else ({}, {})
+        taken, _ = handdownload.copy_found(found, files, into)
+        label = {p: name for name, p in places}
+        by_name = {x["filename"]: x for x in files}
+        return {"found": [{"filename": x["filename"], "name": x["name"], "where": label.get(found[x["filename"]].parent, "")}
+                          for x in taken],
+                "wrong": [{"filename": f, "name": by_name[f]["name"], "where": label.get(p.parent, "")} for f, p in wrong.items()],
+                "looked": [name for name, _ in places], "downloads": str(downloads) if downloads else None, "folders": remembered}
+
     def take_staged(self, stage_ids: list[str], mods_dir: Path) -> int:
         """Move jars picked with "Local files" on the setup page into a server's mods folder."""
         moved = 0
@@ -911,13 +963,14 @@ class Hub:
         """Make a new server folder from the setup page and start installing it (not running it)."""
         if self.is_single:
             raise RuntimeError("this Craft Conductor runs a single server (`craft-conductor run`); use `craft-conductor start` for several")
+        self._not_while_moving()
         with self._lock:
             base = slugify(spec.motd)
             sid, n = base, 2
             taken = set(self.discover()) | {HOME_ID}
-            while sid in taken or (self.home / SERVERS_DIR / sid).exists():
+            while sid in taken or (self.servers_dir / sid).exists():
                 sid, n = f"{base}-{n}", n + 1
-            root = self.home / SERVERS_DIR / sid
+            root = self.servers_dir / sid
             if spec.port in self.ports():
                 if spec.port_chosen:
                     other = self.ports()[spec.port]
@@ -939,6 +992,8 @@ class Hub:
             spec.world_source = self.world_source(spec.world)  # before any files are written
             setupmod.configure(root, spec)
             setupmod.mark_pending(root)
+            if self.backups_location is not None:  # (its backups in the folder chosen for backups)
+                self.set_server_backups(configmod.load(root), sid, self.backups_location)
             cfg = configmod.load(root)
             self.take_staged(spec.local_mods, cfg.server.dir / mods_folder(spec.loader))
             self.take_staged(spec.client_local, client_dir(cfg))  # friends' own files
@@ -953,9 +1008,331 @@ class Hub:
             raise RuntimeError("the new server is busy; try again")
         return sid
 
+    # ------------------------------------------------------------- where files are kept
+    def locations(self) -> dict:
+        """Where servers, backups (None: in each server's own folder) and exports are kept, and
+        whether the owner has chosen (locations.py)."""
+        from . import locations as places
+        cached = getattr(self, "_locations", None)
+        if cached is None:
+            cached = self._locations = places.read(self._hub_file(), self.home)
+        return cached
+
+    @property
+    def servers_dir(self) -> Path:
+        return self.locations()["servers"]
+
     @property
     def exports_dir(self) -> Path:
-        return self.home / "exports"
+        return self.locations()["exports"]
+
+    @property
+    def backups_location(self) -> Path | None:
+        return self.locations()["backups"]
+
+    def _save_locations(self, places: dict, chosen: bool = True) -> None:
+        from . import locations as locmod
+
+        def change(data: dict) -> None:
+            data["locations"] = locmod.stored(places, chosen)
+        self._update_hub_file(change)
+        self._locations = None
+
+    def _backups_literal(self, cfg) -> str | None:
+        """What a server's craft-conductor.toml says for [backups] dir (None when it says nothing)."""
+        try:
+            value = tomllib.loads(configmod.read_text(cfg.path)).get("backups", {}).get("dir")
+        except (OSError, ValueError):
+            return None
+        return value if isinstance(value, str) else None
+
+    def _backups_ours(self, sid: str, cfg) -> bool:
+        """Whether a server's backups are where Craft Conductor puts them (its own folder, or the
+        backups folder), so a move takes them along; a server whose file names another folder keeps it."""
+        literal = self._backups_literal(cfg)
+        loc = self.backups_location
+        return literal in (None, "backups") or (loc is not None and Path(literal) == loc / sid)
+
+    def set_server_backups(self, cfg, sid: str, location: Path | None) -> None:
+        """Point a server's backups at ``location``/<id>, or back at its own folder (None)."""
+        if location is None:
+            configmod.unset_value(cfg.path, "backups", "dir")
+        else:
+            configmod.set_value(cfg.path, "backups", "dir", configmod.toml_string(str(location / sid)))
+
+    def _not_while_moving(self) -> None:
+        if (m := self.moving()) and m.get("running"):
+            raise RuntimeError("Craft Conductor is moving its files to another folder; try again when it's done")
+
+    def _imported_backups(self, root: Path, sid: str) -> None:
+        """An imported server's backups go where this computer keeps backups (a backups folder from
+        the other computer means nothing here; a folder of its own inside the server stays)."""
+        from . import locations as locmod
+        cfg = configmod.load(root)
+        literal = self._backups_literal(cfg)
+        if literal not in (None, "backups") and not Path(literal).is_absolute():
+            return
+        loc = self.backups_location
+        self.set_server_backups(cfg, sid, loc)
+        own = root / "backups"
+        if loc is not None and own.is_dir() and not (loc / sid).exists():
+            plan = locmod.Plan("backups", None, loc, [locmod.Item(own, loc / sid)])
+            try:
+                locmod.prepare(plan)
+                locmod.Mover(plan, self.state_dir).run(lambda: None)
+            except (locmod.LocationError, OSError) as e:
+                log.warning("the imported server's backups stay in %s: %s", own, e)
+                configmod.unset_value(cfg.path, "backups", "dir")
+
+    def _busy(self, ds: dict) -> list[str]:
+        out = []
+        for sid, d in ds.items():
+            name = sid
+            try:
+                from .properties import read_properties, server_name
+                name = server_name(read_properties(d.m.server_dir / "server.properties"), sid)
+            except OSError:
+                pass
+            if d.proc and d.proc.running:
+                out.append(f"{name} is running")
+            elif d.job:
+                out.append(f"{name} is busy ({d.job['name']})")
+            elif d.m.journal_path.exists():
+                out.append(f"{name} has an interrupted update to put right first (start it once)")
+        return out
+
+    def _servers_plan(self, old: Path, new: Path):
+        """Moving the servers folder: each server folder in it (the ones on the list, and the ones
+        taken off it but kept), and the managers of the servers in it."""
+        from . import locations as locmod
+        items = []
+        if old.is_dir():
+            items = [locmod.Item(d, new / d.name) for d in sorted(old.iterdir())
+                     if d.is_dir() and (d / configmod.CONFIG_NAME).exists()]
+        ds = {sid: d for sid, d in self.daemons.items() if d.m.config.root.parent == old}
+        return locmod.Plan("servers", old, new, items), ds
+
+    def _backups_plan(self, old: Path | None, new: Path | None):
+        """Moving the backups to ``new``/<id> (None: each server's own folder): the servers whose
+        backups are where Craft Conductor puts them; the others keep theirs (said in ``keeps``)."""
+        from . import locations as locmod
+        items, ds, keeps = [], {}, []
+        for sid, d in sorted(self.daemons.items()):
+            cfg = d.m.config
+            if not self._backups_ours(sid, cfg):
+                keeps.append(f"{sid} keeps its own backups folder ({cfg.backups.dir}), set in its {configmod.CONFIG_NAME}")
+                continue
+            ds[sid] = d
+            dst = new / sid if new else cfg.root / "backups"
+            if cfg.backups.dir.is_dir() and locmod._norm(cfg.backups.dir) != locmod._norm(dst):
+                items.append(locmod.Item(cfg.backups.dir, dst))
+        return locmod.Plan("backups", old, new, items), ds, keeps
+
+    def _exports_plan(self, old: Path, new: Path):
+        """Moving the exports: each server's exports folder, and exports kept at the top."""
+        from . import locations as locmod
+        items = []
+        if old.is_dir():
+            items = [locmod.Item(x, new / x.name) for x in sorted(old.iterdir())
+                     if (x.is_dir() and any(x.glob("*.craft-conductor.zip"))) or x.name.endswith(".craft-conductor.zip")]
+        ds = {sid: d for sid, d in self.daemons.items() if d.job and d.job.get("name") == "export"}
+        return locmod.Plan("exports", old, new, items), ds
+
+    def plan_locations(self, wanted: dict) -> dict:
+        """What choosing ``wanted`` (kind -> a folder; "" for backups: in each server's own folder)
+        would do: the places, each move's plan, warnings, and the servers to stop first (``busy``).
+        Refused (locations.LocationError) when a place can't be one, or a move couldn't go ahead."""
+        from . import locations as locmod
+        if self.is_single:
+            raise locmod.LocationError("this Craft Conductor runs one server in its own folder (`craft-conductor run`): "
+                                       "its backups and exports stay there")
+        if (why := locmod.choosable()) is not None:
+            raise locmod.LocationError(why)
+        if (m := self.moving()) and m.get("running"):
+            raise locmod.LocationError("Craft Conductor is already moving files; wait for it to finish")
+        current = self.locations()
+        new = {k: current[k] for k in locmod.KINDS}
+        for kind, value in wanted.items():
+            if kind not in locmod.KINDS:
+                raise locmod.LocationError(f"unknown folder: {kind}")
+            new[kind] = None if kind == "backups" and not value else Path(str(value))
+        warnings: list[str] = []
+        for kind in locmod.KINDS:
+            if kind in wanted and new[kind] is not None:
+                new[kind], w = locmod.check_place(kind, str(new[kind]), new, self.state_dir)
+                warnings += w
+
+        def same(a, b) -> bool:
+            return (a and locmod._norm(a)) == (b and locmod._norm(b))
+        plans, affected, keeps = [], {}, []
+        if not same(new["servers"], current["servers"]):
+            plan, ds = self._servers_plan(current["servers"], new["servers"])
+            plans.append(plan)
+            affected.update(ds)
+        if not same(new["backups"], current["backups"]):
+            plan, ds, keeps = self._backups_plan(current["backups"], new["backups"])
+            plans.append(plan)
+            affected.update(ds)
+        if not same(new["exports"], current["exports"]):
+            plan, ds = self._exports_plan(current["exports"], new["exports"])
+            plans.append(plan)
+            affected.update(ds)
+        for plan in plans:
+            locmod.prepare(plan)
+        return {"places": new, "plans": plans, "warnings": warnings, "keeps": keeps, "busy": self._busy(affected)}
+
+    def change_locations(self, wanted: dict, go: bool = False) -> dict:
+        """Choose where files are kept (see plan_locations). Without ``go``, only what it would do;
+        with it, the places are saved and what's there is moved, in the background (``moving``)."""
+        from . import locations as locmod
+        p = self.plan_locations(wanted)
+        summary = {"changes": [{"kind": plan.kind, "from": str(plan.old) if plan.old else None, "to": str(plan.new) if plan.new else None,
+                                "count": len(plan.items), "size": plan.size} for plan in p["plans"]],
+                   "warnings": p["warnings"], "keeps": p["keeps"], "busy": p["busy"]}
+        if not go:
+            return summary
+        if p["busy"]:
+            raise locmod.LocationError("stop these first: " + "; ".join(p["busy"]))
+        if not any(plan.items for plan in p["plans"]):
+            self._save_locations(p["places"])  # (nothing to move: only the setting)
+            for kind in locmod.KINDS:
+                if p["places"][kind]:
+                    locmod.write_readme(kind, p["places"][kind])
+            return {**summary, "move": None}
+        self._mover = None
+        self._move = {"running": True, "ok": None, "message": "", "kind": p["plans"][0].kind, "progress": 0.0,
+                      "left": [], "changes": summary["changes"], "started": time.time()}
+        threading.Thread(target=self._run_moves, args=(p,), daemon=True, name="move-files").start()
+        return {**summary, "move": self.moving()}
+
+    def moving(self) -> dict | None:
+        """The move under way, or the last one (for the page): what, how far, and how it went."""
+        status = getattr(self, "_move", None)
+        mover = getattr(self, "_mover", None)
+        if status and mover is not None and status.get("running"):
+            status["progress"] = mover.progress()
+        return dict(status) if status else None
+
+    def _hold(self, ds: dict) -> list:
+        """Keep these servers from doing anything (starting, updating, backing up) while files move."""
+        held = []
+        try:
+            for sid, d in ds.items():
+                if not d.ops.acquire(blocking=False):
+                    raise RuntimeError(f"{sid} just started doing something; try again in a moment")
+                d.job = {"name": "moving its files", "started": time.time()}
+                held.append(d)
+        except BaseException:
+            self._release(held)
+            raise
+        return held
+
+    @staticmethod
+    def _release(held: list) -> None:
+        for d in held:
+            d.job = None
+            d.ops.release()
+
+    def _run_moves(self, p: dict) -> None:
+        from . import locations as locmod
+        status = self._move
+        try:
+            for plan in p["plans"]:
+                status["kind"], status["progress"] = plan.kind, 0.0
+                if plan.kind == "backups":  # (planned again: the servers may have just moved)
+                    plan = self._backups_plan(plan.old, plan.new)[0]
+                    locmod.prepare(plan)
+                status["left"] = status["left"] + self._move_one(plan)
+            status.update(running=False, ok=True, progress=1.0,
+                          message="Moved." if not status["left"] else "Moved. Some old files were in use: they're still in their old place.")
+            log.info("moved %s", ", ".join(f"{c['kind']} to {c['to'] or 'each server folder'}" for c in status["changes"]))
+        except Exception as e:
+            status.update(running=False, ok=False, message=str(e))
+            log.warning("moving files stopped: %s; everything is where it was", e)
+        finally:
+            self._mover = None
+            self._locations = None
+
+    def _move_one(self, plan) -> list[str]:
+        """Move one kind of files (servers, backups or exports), holding the servers concerned: the
+        old files that couldn't be deleted (in use)."""
+        from . import locations as locmod
+        servers_move = plan.kind == "servers"
+        if servers_move:
+            ds = self._servers_plan(plan.old, plan.new)[1]
+        elif plan.kind == "backups":
+            ds = self._backups_plan(plan.old, plan.new)[1]
+        else:
+            ds = {}  # (exports: a new export waits for the move instead: Api.export)
+        tomls = {str(d.m.config.path): self._backups_literal(d.m.config) for d in ds.values()} if plan.kind == "backups" else {}
+        mover = self._mover = locmod.Mover(plan, self.state_dir, {"tomls": tomls})
+        held = self._hold(ds)
+        stopped: dict = {}
+        try:
+            if servers_move:  # (their managers stop: every path they know changes)
+                self._scan_paused = True
+                for sid, d in ds.items():
+                    d.stop_requested.set()
+                    t = self._threads.pop(sid, None)
+                    stopped[sid] = d
+                    if t:
+                        t.join(timeout=30)
+                        if t.is_alive():  # (its manager is stuck: nothing moves under it, and it isn't started twice)
+                            self._threads[sid] = t
+                            del stopped[sid]
+                            raise RuntimeError(f"{sid} didn't stop in time; nothing was moved. Try again in a moment")
+
+            def switch() -> None:
+                places = {k: self.locations()[k] for k in locmod.KINDS}
+                places[plan.kind] = plan.new
+                if plan.kind == "backups":
+                    try:
+                        for sid, d in ds.items():
+                            self.set_server_backups(d.m.config, sid, plan.new)
+                    except BaseException:
+                        put_tomls(tomls)
+                        raise
+                if servers_move:
+                    def move_hidden(data: dict) -> None:  # (servers taken off the list moved too)
+                        data["hidden"] = [str(plan.new / Path(x).name) if Path(x).parent == plan.old else x
+                                          for x in data.get("hidden", []) if isinstance(x, str)]
+                    self._update_hub_file(move_hidden)
+                self._save_locations(places)
+            left = mover.run(switch)
+        finally:
+            self._release(held)
+            if servers_move:
+                for sid, d in stopped.items():
+                    moved = plan.new / d.m.config.root.name
+                    self._attach(sid, moved if (moved / configmod.CONFIG_NAME).exists() else d.m.config.root)
+                self._scan_paused = False
+            else:
+                for d in ds.values():
+                    try:
+                        d.m.reload_config()
+                    except (ConfigError, OSError):
+                        pass
+        if plan.new is not None:
+            locmod.write_readme(plan.kind, plan.new)
+        if plan.old is not None and plan.old.is_dir():
+            try:  # (the old folder, left with only its README: gone)
+                if not [x for x in plan.old.iterdir() if x.name != locmod.README]:
+                    (plan.old / locmod.README).unlink(missing_ok=True)
+                    plan.old.rmdir()
+            except OSError:
+                pass
+        return [str(x) for x in left]
+
+    def recover_move(self) -> str | None:
+        """A move cut off last time (the computer turned off): everything put back (locations.recover)."""
+        from . import locations as locmod
+        message = locmod.recover(self.state_dir, lambda extra: put_tomls(extra.get("tomls") or {}))
+        self._locations = None
+        if message:
+            log.warning(message)
+            self._move = {"running": False, "ok": False, "message": message[:1].upper() + message[1:] + ".", "kind": "",
+                          "progress": 0.0, "left": [], "changes": [], "started": time.time()}
+        return message
 
     def import_server(self, stage_id: str, password: str | None = None, skip_locked: bool = False) -> dict:
         """Add a server from an export (Settings → Export on another computer): its id, and the
@@ -979,21 +1356,66 @@ class Hub:
         return {"id": sid, "left_out": [str(x) for x in left_out] if isinstance(left_out, list) else [],
                 "opened": list(manifest.get("opened") or [])}
 
+    EXPORT = re.compile(r"[^\\/:*?\"<>|\0]{1,200}\.craft-conductor\.zip")
+
+    def exports_list(self) -> list[dict]:
+        """The exports in the exports folder (each server's folder in it, and the top), newest
+        first, for Import a server…: no upload needed for these."""
+        from . import folders
+        base, out = self.exports_dir, []
+        if not base.is_dir():
+            return out
+        for p in [*base.glob("*.craft-conductor.zip"), *base.glob("*/*.craft-conductor.zip")]:
+            try:
+                st = os.lstat(p)
+                if not stat.S_ISREG(st.st_mode) or folders.link_stat(st) or folders.link_stat(os.lstat(p.parent)):
+                    continue
+            except OSError:
+                continue
+            out.append({"path": p.relative_to(base).as_posix(), "server": p.parent.name if p.parent != base else "",
+                        "name": p.name, "size": st.st_size, "created": st.st_mtime})
+        return sorted(out, key=lambda x: -x["created"])[:500]
+
+    def import_export(self, rel: str, password: str | None = None, skip_locked: bool = False) -> dict:
+        """Import a server from an export in the exports folder (``rel``, as exports_list says it)."""
+        from . import folders, locations as locmod, transfer
+        if self.is_single:
+            raise RuntimeError("this Craft Conductor runs a single server (`craft-conductor run`); use `craft-conductor start` to import servers")
+        parts = str(rel or "").split("/")
+        if not 1 <= len(parts) <= 2 or not self.EXPORT.fullmatch(parts[-1]) or any(x in ("", ".", "..") or "\\" in x for x in parts):
+            raise ConfigError("that isn't an export in the exports folder")
+        path = self.exports_dir.joinpath(*parts)
+        try:
+            st = os.lstat(path)
+        except OSError:
+            raise ConfigError("that export isn't in the exports folder any more") from None
+        if not stat.S_ISREG(st.st_mode) or folders.link_stat(st) or not locmod.inside(path, self.exports_dir):
+            raise ConfigError("that isn't an export in the exports folder")
+        try:
+            sid, manifest = self.import_archive(path, password=password, skip_locked=skip_locked)
+        except transfer.NeedsPassword as e:
+            return {"needs_password": True, "locked": e.locked}
+        left_out = manifest.get("left_out")
+        return {"id": sid, "left_out": [str(x) for x in left_out] if isinstance(left_out, list) else [],
+                "opened": list(manifest.get("opened") or [])}
+
     def import_archive(self, archive: Path, name: str | None = None,
                        prepare: Callable[[Path], None] | None = None,
                        password: str | None = None, skip_locked: bool = False) -> tuple[str, dict]:
         """A new server from an export (``name`` renames it; ``prepare`` adjusts its folder
         before it's loaded): its id, and the export's details."""
         from . import transfer
+        self._not_while_moving()
         manifest = transfer.read_manifest(archive)
         with self._lock:
             base = slugify(name or manifest.get("name") or manifest.get("folder") or "imported")
             sid, n = base, 2
             taken = set(self.discover()) | {HOME_ID}
-            while sid in taken or (self.home / SERVERS_DIR / sid).exists():
+            while sid in taken or (self.servers_dir / sid).exists():
                 sid, n = f"{base}-{n}", n + 1
-            root = self.home / SERVERS_DIR / sid
+            root = self.servers_dir / sid
             manifest = transfer.import_into(archive, root, password=password, skip_locked=skip_locked)
+            self._imported_backups(root, sid)
             from .properties import read_properties, server_name, write_properties
             props_path = configmod.load(root).server.dir / "server.properties"
             if name:
@@ -1058,7 +1480,11 @@ class Hub:
             if not delete_files:
                 log.info("removed server %s from the list; its files are still in %s", sid, root)
                 return f"removed from the list; its files are still in {root}"
-            if root.parent == self.home / SERVERS_DIR:
+            from . import locations as locmod
+            loc = self.backups_location
+            if loc is not None and locmod.inside(cfg.backups.dir, loc / sid) and cfg.backups.dir.is_dir():
+                _rmtree(cfg.backups.dir)  # (its backups, in the folder chosen for backups)
+            if root.parent == self.servers_dir:
                 _rmtree(root)  # craft-conductor's own folder for this server
             else:
                 # A folder craft-conductor doesn't own (the home folder, or one you pointed it at): delete
@@ -1483,6 +1909,7 @@ class Hub:
                 signal.signal(sig, lambda *_: self.stop_requested.set())
         ui = None
         try:
+            self.recover_move()
             self.scan()
             ui = WebUI(self)
             ui.start(fallback=not self.web_port_chosen)

@@ -29,6 +29,7 @@ const HEADERS = {'X-CRAFT-CONDUCTOR': '1'};
   // (and Java "installed" in a test folder, where Windows keeps programs)
   const places = [[home, 'C:\\Users\\you\\craft-conductor']];
   if (process.env.CRAFT_UI_PROGRAMS) places.push([process.env.CRAFT_UI_PROGRAMS, 'C:\\Program Files']);
+  if (process.env.CRAFT_UI_USER) places.push([process.env.CRAFT_UI_USER, 'C:\\Users\\you']);  // (Downloads, the folder browser)
   const tidy = () => page.evaluate((places) => {
     for (const [folder, shown] of places) {
       const swap = s => s.split(folder).map((part, i) => i ? part.replace(/^[^\s,;)]*/, p => p.replace(/\//g, '\\')) : part).join(shown);
@@ -71,10 +72,22 @@ const HEADERS = {'X-CRAFT-CONDUCTOR': '1'};
   await shot('choose-password');
   await page.locator('#security').getByRole('button', {name: 'Save', exact: true}).click();
   await page.locator('#security').waitFor({state: 'detached'});
+  // Then, once: where files are kept (the example hub has answered, so it's shown on purpose).
+  await page.evaluate(() => { locationsOffered = false; return offerLocations({...hubInfo, locations: {chosen: false, choosable: true}}); });
+  await page.locator('#locations .place-row').first().waitFor();
+  await page.waitForTimeout(300);
+  await shot('choose-folders');
+  await page.evaluate(() => $('#locations').remove());
 
   // Your servers, and New server.
   await go('servers');
   await shot('servers');
+  // Import a server…: the exports in the exports folder.
+  await page.getByRole('button', {name: 'Import a server…'}).click();
+  await page.locator('#exports-list .mod-manager-row').first().waitFor();
+  await page.waitForTimeout(300);
+  await shot('import-list');
+  await page.locator('#exports-list').getByRole('button', {name: 'Cancel'}).click();
   await page.evaluate(() => startGuide());
   await page.locator('#guide').waitFor();
   await page.waitForTimeout(400);
@@ -184,8 +197,19 @@ const HEADERS = {'X-CRAFT-CONDUCTOR': '1'};
     {name: 'Lantern Lights', filename: 'lantern-lights-1.21.1-2.0.4.jar',
      url: 'https://www.curseforge.com/minecraft/mc-mods/lantern-lights/files/5550002'}]}));
   await page.locator('.drop-zone').waitFor();
+  await page.getByText('Craft Conductor looks for them by itself in your Downloads folder').waitFor();
   await page.waitForTimeout(400);
   await shot('manual-downloads');
+  // Saved somewhere else: Choose the folder… opens the folder browser (in Downloads); open Documents.
+  await page.locator('.mod-manager-drawer').getByRole('button', {name: 'Choose the folder…'}).click();
+  const chooser = page.locator('#folder-browser');
+  await chooser.locator('.folder-row').first().waitFor();
+  await chooser.locator('input').fill(path.join(process.env.CRAFT_UI_USER, 'Documents'));
+  await chooser.getByRole('button', {name: 'Open', exact: true}).click();
+  await chooser.locator('.folder-row', {hasText: 'Minecraft mods'}).waitFor();
+  await page.waitForTimeout(300);
+  await shot('folder-browser');
+  await chooser.getByRole('button', {name: 'Cancel'}).click();
   await close();
   await page.evaluate(() => openReadiness(['1.21.4', '1.21.1'], '1.21.1'));
   await page.locator('.ready-row').first().waitFor();
@@ -247,6 +271,10 @@ const HEADERS = {'X-CRAFT-CONDUCTOR': '1'};
   await page.getByRole('button', {name: 'Appearance', exact: true}).click();
   await page.waitForTimeout(400);
   await shot('display');
+  await page.getByRole('button', {name: 'Folders', exact: true}).click();
+  await page.locator('.card', {hasText: 'Where files are kept'}).locator('.place-row').first().waitFor();
+  await page.waitForTimeout(400);
+  await shot('folders');
   await page.evaluate(() => openRemoteAccess());
   await page.locator('.remote-step').first().waitFor();
   await page.waitForTimeout(500);

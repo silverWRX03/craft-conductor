@@ -24,6 +24,8 @@ remind_days = 30                 # then remind you monthly about the mods still 
 rehearse = false                 # try a new Minecraft on a copy of the server before updating by itself
 
 [backups]
+# dir = 'D:\Craft Conductor backups\survival'   # where its backups go: set by Craft Conductor settings → Folders
+                                                # (default: "backups", inside the server's folder)
 keep = 10
 include = ["world", "mods", "configs", "players", "maps"]   # also "secrets" and "logs" (locked to this computer)
 copy_to = "/media/usb/craft-conductor-backups"   # also copy every backup here (optional)

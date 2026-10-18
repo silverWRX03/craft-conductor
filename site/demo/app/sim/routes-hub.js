@@ -27,6 +27,23 @@
   });
   const shareStatus = () => ({ port: hub().share.port, address: hub().share.address, running: st().servers.some((s) => s.client.enabled),
     error: null, lan_ip: LAN });
+  // A made-up computer for the folder browser (folders.py): never the visitor's own folders.
+  const USER = "C:\\Users\\you";
+  const FOLDERS = { [USER]: ["craft-conductor", "Desktop", "Documents", "Downloads", "Music", "Pictures"],
+    [`${USER}\\Documents`]: ["Minecraft mods", "School"], [`${USER}\\Downloads`]: ["Old mods"], [`${USER}\\craft-conductor`]: ["servers"],
+    "C:\\": ["Program Files", "Users"], "C:\\Users": ["you"], "D:\\": ["Backups", "Games"] };
+  const demoHandFolders = () => ({ downloads: `${USER}\\Downloads`, folders: [] });
+  const demoLocations = () => ({ servers: `${HOME}\\servers`, backups: null, exports: `${HOME}\\exports`, chosen: true, single: false,
+    why_not: null, move: null, defaults: { servers: `${HOME}\\servers`, backups: null, exports: `${HOME}\\exports`, chosen: false } });
+  const demoFolders = (path) => {
+    if (!path) return { path: null, parent: null, more: false, folders: [["Home", USER], ["Desktop", `${USER}\\Desktop`],
+      ["Documents", `${USER}\\Documents`], ["Downloads", `${USER}\\Downloads`], ["C:\\", "C:\\"], ["D:\\", "D:\\"]].map(([name, p]) => ({ name, path: p })) };
+    const p = /^[A-Za-z]:[\\/]*$/.test(path) ? path.slice(0, 2) + "\\" : String(path).replace(/[\\/]+$/, "");  // ("C:" is "C:\")
+    if (!(p in FOLDERS) && !p.startsWith(USER + "\\")) throw new ApiError(400, `there's no folder at ${path} (the demo has only a made-up computer's folders)`);
+    const up = /^[A-Za-z]:\\$/.test(p) ? null : p.replace(/\\[^\\]+$/, "");
+    return { path: p, parent: up === null ? null : /^[A-Za-z]:$/.test(up) ? up + "\\" : up, more: false,
+      folders: (FOLDERS[p] || []).map((name) => ({ name, path: (p.endsWith("\\") ? p : p + "\\") + name })) };
+  };
   const guideSteps = () => {
     const servers = st().servers;
     const ticked = new Set(hub().guide.ticked);
@@ -364,7 +381,7 @@
 
     "GET /api/hub": () => ({
       version: version(), single: false, notice_accepted: true, self_update: hub().self_update, update_result: null,
-      update_channel: hub().update_channel, auth: auth(), home: HOME, network_access: hub().network_access,
+      update_channel: hub().update_channel, auth: auth(), home: HOME, locations: { chosen: true, choosable: true }, network_access: hub().network_access,
       servers: st().servers.map(sim.serverSummary), share: shareStatus(), guide: { asked: hub().guide.asked || st().servers.length > 0, active: hub().guide.active },
       health: hub().risks.map((name) => { const r = (rel().risks || []).find((x) => x.name === name) || { text: name };
         return { id: `risk-${name}`, level: "warn", title: "A safety rule is switched off:", risk: r.text, detail: `${r.text}. Craft Conductor settings → Advanced` }; }),
@@ -481,6 +498,19 @@
         played: now() - 40 * 86400, path: "C:\\Users\\you\\AppData\\Roaming\\.minecraft\\saves\\Castle Build", icon: "" }] }),
     "POST /api/hub/manual/needed": () => ({ items: [] }),
     "POST /api/hub/manual/stage": (r) => ({ ok: true, name: (r.b.__file || {}).name || "mod.jar", note: "In the demo the file isn't read." }),
+    // Mods downloaded by hand, looked for where the browser saved them, and the folder browser: made-up folders.
+    "POST /api/hub/manual/look": () => ({ found: [], wrong: [], looked: ["Downloads"], ...demoHandFolders() }),
+    "GET /api/hub/manual/folders": () => demoHandFolders(),
+    "POST /api/hub/manual/folders": () => { throw sim.explain("Craft Conductor would remember this folder and look in it for mods you download by hand. The demo doesn't read your folders."); },
+    "GET /api/hub/folders": (r) => demoFolders(r.q.path || ""),
+    "POST /api/hub/folders/new": () => { throw sim.explain("Craft Conductor would make a new folder on its computer. The demo doesn't change your folders."); },
+    // Where servers, backups and exports are kept (locations.py): the demo's are the made-up computer's.
+    "GET /api/hub/locations": () => demoLocations(),
+    "POST /api/hub/locations": (r) => {
+      if (r.b.go) throw sim.explain("Craft Conductor would keep its files in the folders you chose, and move what's there. The demo doesn't change your folders.");
+      return { changes: [], warnings: [], keeps: [], busy: [], locations: demoLocations() };
+    },
+    "GET /api/hub/exports": () => ({ folder: `${HOME}\\exports`, exports: [] }),
     "POST /api/hub/open": () => { throw sim.explain("Craft Conductor would open the folder in your file manager, on the server's computer."); },
     "POST /api/hub/quit": () => { throw sim.explain("Quit stops every server and closes Craft Conductor. The demo stays open."); },
     "POST /api/hub/remote-install": () => { throw sim.explain("Craft Conductor would set itself up on another computer over SSH. The demo can't reach other computers."); },
