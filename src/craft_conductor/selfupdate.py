@@ -77,18 +77,17 @@ class Release:
                    bool(d.get("prerelease")))
 
 
-_VERSION = re.compile(r"[vV]?(\d+)\.(\d+)(?:\.(\d+))?"
-                      r"(?:[-.]?(a|alpha|b|beta|c|rc|pre|preview)[-.]?(\d*))?", re.IGNORECASE)
+# (release names come from GitHub: counted digits keep reading a long one quick)
+_VERSION = re.compile(r"[vV]?(\d{1,6})\.(\d{1,6})(?:\.(\d{1,6}))?"
+                      r"(?:[-.]?(a|alpha|b|beta|c|rc|pre|preview)[-.]?(\d{0,6}))?", re.IGNORECASE)
 _PRE_RANK = {"a": 0, "alpha": 0, "b": 1, "beta": 1, "c": 2, "rc": 2, "pre": 2, "preview": 2}
 FINAL = 9  # a release sorts after its own alphas, betas and release candidates
 
 
 def version_key(v: str) -> tuple[int, int, int, int, int] | None:
     """A version as something to compare: 0.23.0b1 < 0.23.0b2 < 0.23.0rc1 < 0.23.0 < 0.23.1.
-    None for anything that isn't a version like that (never installed: it can't be compared).
-    Release names come from GitHub: a long one isn't a version, and isn't read (the pattern would be slow)."""
-    text = str(v).strip().split("+")[0]
-    m = _VERSION.fullmatch(text) if len(text) <= 40 else None
+    None for anything that isn't a version like that (never installed: it can't be compared)."""
+    m = _VERSION.fullmatch(str(v).strip().split("+")[0])
     if not m:
         return None
     major, minor, patch = int(m[1]), int(m[2]), int(m[3] or 0)
