@@ -10,6 +10,7 @@ and a path typed by hand is resolved to one before it's used.
 from __future__ import annotations
 
 import os
+import re
 import stat
 import sys
 from pathlib import Path
@@ -136,6 +137,44 @@ def _hidden(entry: os.DirEntry) -> bool:
         return True
 
 
+NETWORK_FS = {"nfs", "nfs4", "cifs", "smb3", "smbfs", "fuse.sshfs", "sshfs", "9p", "davfs", "fuse.davfs2", "afs", "glusterfs",
+              "ceph", "fuse.rclone"}
+
+
+def is_network(path: Path | str) -> bool:
+    r"""A folder on another computer: a Windows network path (\\server\share) or network drive, or
+    a Linux network file system (NFS, SMB, SSHFS...). Said without connecting to it."""
+    text = str(path)
+    if os.name == "nt":
+        if text.startswith(("\\\\", "//")):
+            return True
+        drive = os.path.splitdrive(text)[0]
+        if len(drive) != 2:
+            return False
+        import ctypes
+        return ctypes.windll.kernel32.GetDriveTypeW(drive + "\\") == 4  # (DRIVE_REMOTE)
+    if sys.platform == "darwin":
+        return False  # (macOS: network shares and other drives both appear under /Volumes: locations.py)
+    return mount_type(Path(text)) in NETWORK_FS
+
+
+def mount_type(path: Path) -> str:
+    """Linux: the file system type of the mount ``path`` is on (from /proc/mounts)."""
+    try:
+        lines = Path("/proc/mounts").read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return ""
+    real, best, kind = os.path.realpath(path), "", ""
+    for line in lines:
+        parts = line.split()
+        if len(parts) < 3:
+            continue
+        point = parts[1].replace("\\040", " ")
+        if (real == point or real.startswith(point.rstrip("/") + "/")) and len(point) > len(best):
+            best, kind = point, parts[2]
+    return kind
+
+
 def check(text: str) -> Path:
     """A folder typed or picked on the page: a full path to a folder that's there and can be read,
     as the real folder it is (links followed to where they lead, ``..`` gone)."""
@@ -145,12 +184,36 @@ def check(text: str) -> Path:
     path = Path(os.path.expanduser(text))
     if not path.is_absolute():
         raise FolderError(f"{text} isn't a full path (it starts with a drive like C:\\ or with /)")
+    if is_network(path):
+        raise FolderError(f"{text} is on another computer (the network): Craft Conductor only uses this computer's own folders")
     real = Path(os.path.realpath(path))
+    if is_network(real):  # (a link that leads to the network)
+        raise FolderError(f"{text} leads to another computer (the network): Craft Conductor only uses this computer's own folders")
     if not real.is_dir():
         raise FolderError(f"there's no folder at {text}")
     if not readable(real):
         raise FolderError(f"Craft Conductor can't read {real} (it isn't allowed to)")
     return real
+
+
+_BAD_NAME = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
+_RESERVED = re.compile(r"(?i)^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$")  # (Windows' own names)
+
+
+def make(parent: str, name: str) -> Path:
+    """A new folder ``name`` in ``parent`` (the folder browser's New folder…); one already there is opened."""
+    folder = check(parent)
+    name = str(name or "").strip()
+    if not name or len(name) > 100 or name in (".", "..") or name.endswith(".") or _BAD_NAME.search(name) or _RESERVED.match(name):
+        raise FolderError("a folder's name can't be empty, end with a dot, or have \\ / : * ? \" < > | in it")
+    path = folder / name
+    try:
+        path.mkdir(exist_ok=True)
+    except OSError as e:
+        raise FolderError(f"couldn't make the folder {path}: {e.strerror or e}") from None
+    if not path.is_dir():
+        raise FolderError(f"{path} is a file, not a folder")
+    return path
 
 
 def _drives() -> list[Path]:
@@ -163,7 +226,7 @@ def _drives() -> list[Path]:
     for i in range(26):
         if mask & (1 << i):
             root = f"{chr(65 + i)}:\\"
-            if ctypes.windll.kernel32.GetDriveTypeW(root) not in (0, 1, 5):  # unknown, no root, CD/DVD
+            if ctypes.windll.kernel32.GetDriveTypeW(root) not in (0, 1, 4, 5):  # unknown, no root, network, CD/DVD
                 out.append(Path(root))
     return out
 
