@@ -10,7 +10,6 @@ the notice and never downloads or starts a Minecraft server.
 from __future__ import annotations
 
 import os
-import shutil
 import socket
 import subprocess
 import sys

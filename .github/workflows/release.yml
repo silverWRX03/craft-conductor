@@ -6,6 +6,8 @@
 # The first creates the tag itself. Installed copies of craft-conductor find the release and offer to update.
 # A beta (a version like 0.3.0b1) is published as a GitHub pre-release: only copies set to the beta
 # channel are offered it, and the container image's :latest tag stays on the newest stable release.
+# Actions from outside GitHub are pinned to a commit, not a tag that can be moved: this workflow holds
+# the signing and Docker credentials. Dependabot updates the commit and its version comment.
 name: release
 
 on:
@@ -99,7 +101,7 @@ jobs:
       - name: Code-sign (Windows, SignPath)
         id: sign
         if: runner.os == 'Windows' && vars.SIGNPATH_ORGANIZATION_ID != ''
-        uses: signpath/github-action-submit-signing-request@v3
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092  # v3.0
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
@@ -170,7 +172,7 @@ jobs:
             python packaging/release_note.py "$TAG"
             echo "NOTE_END"
           } >> "$GITHUB_OUTPUT"
-      - uses: softprops/action-gh-release@v3
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64  # v3.0.3
         with:
           # From "Run workflow" this also creates the tag, on the commit that was built.
           tag_name: ${{ env.TAG }}
@@ -233,9 +235,9 @@ jobs:
         env:
           CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
         run: python3 packaging/write_build_keys.py
-      - uses: docker/setup-qemu-action@v4
-      - uses: docker/setup-buildx-action@v4
-      - uses: docker/login-action@v4
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1  # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -247,7 +249,7 @@ jobs:
           # :latest is the newest stable release; a beta moves :beta instead.
           if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "MOVING_TAG=$image:latest" >> "$GITHUB_ENV"
           else echo "MOVING_TAG=$image:beta" >> "$GITHUB_ENV"; fi
-      - uses: docker/build-push-action@v7
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
         with:
           context: .
           platforms: linux/amd64,linux/arm64

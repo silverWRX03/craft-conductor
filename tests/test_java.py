@@ -386,6 +386,31 @@ def test_the_probe_runs_only_version_without_injected_options(tmp_path, monkeypa
     assert "JAVA_TOOL_OPTIONS" not in seen["env"]
 
 
+def test_a_java_that_couldnt_be_run_just_now_is_asked_again(tmp_path, monkeypatch):
+    """A timeout (an antivirus scanning a new java.exe, say) isn't remembered as "not Java" until the
+    file changes: a look a minute later runs it again, and only what it answers is remembered."""
+    from craft_conductor import java as javamod
+    answers = [subprocess.TimeoutExpired(["java"], 20), subprocess.CompletedProcess([], 0, "", 'openjdk version "21.0.4"\n')]
+
+    def run(argv, **kw):
+        answer = answers.pop(0)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+    binary = tmp_path / "java"
+    binary.write_text("")
+    monkeypatch.setattr(javamod.shutil, "which", lambda b: str(binary))
+    monkeypatch.setattr(javamod.subprocess, "run", run)
+    checked = javamod._Checked(tmp_path / "checked.json")
+    assert checked.get(str(binary), javamod.run_version) is None
+    assert checked.get(str(binary), javamod.run_version) is None and len(answers) == 1  # (not run again at once)
+    monkeypatch.setattr(javamod, "ASK_AGAIN", 0)
+    assert checked.get(str(binary), javamod.run_version).major == 21
+    assert checked.get(str(binary), javamod.run_version).major == 21 and not answers  # (remembered now)
+    answers.append(OSError("in use"))
+    assert javamod.probe(str(binary)) is None  # (the plain probe says "no Java" rather than raising)
+
+
 def test_the_java_page(running):  # noqa: F811  (the fixture)
     from test_web import login
     d, c, cfg = running

@@ -85,8 +85,10 @@ FINAL = 9  # a release sorts after its own alphas, betas and release candidates
 
 def version_key(v: str) -> tuple[int, int, int, int, int] | None:
     """A version as something to compare: 0.23.0b1 < 0.23.0b2 < 0.23.0rc1 < 0.23.0 < 0.23.1.
-    None for anything that isn't a version like that (never installed: it can't be compared)."""
-    m = _VERSION.fullmatch(str(v).strip().split("+")[0])
+    None for anything that isn't a version like that (never installed: it can't be compared).
+    Release names come from GitHub: a long one isn't a version, and isn't read (the pattern would be slow)."""
+    text = str(v).strip().split("+")[0]
+    m = _VERSION.fullmatch(text) if len(text) <= 40 else None
     if not m:
         return None
     major, minor, patch = int(m[1]), int(m[2]), int(m[3] or 0)

@@ -116,8 +116,14 @@ def parse_info(output: str) -> JavaInfo | None:
 _JAVA_ENV = ("JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS", "JDK_JAVA_OPTIONS", "JAVA_OPTIONS", "CLASSPATH")
 
 
+class NoAnswer(Exception):
+    """A Java that couldn't be run just now (it timed out, or Windows had the file in use, an antivirus
+    scanning it say): unlike one that ran and isn't Java, it isn't remembered, so a look a minute later asks again."""
+
+
 def run_version(binary: str) -> JavaInfo | None:
-    """What a Java is: its version and architecture, from running it with ``-version`` (nothing else runs)."""
+    """What a Java is: its version and architecture, from running it with ``-version`` (nothing else runs).
+    Raises :class:`NoAnswer` when it couldn't be run."""
     if shutil.which(binary) is None:
         return None
     from .desktop import NO_WINDOW, child_env
@@ -125,13 +131,16 @@ def run_version(binary: str) -> JavaInfo | None:
     try:
         out = subprocess.run([binary, "-XshowSettings:properties", "-version"], capture_output=True, text=True,
                              errors="replace", timeout=20, env=env, stdin=subprocess.DEVNULL, **NO_WINDOW)
-    except (OSError, subprocess.SubprocessError, ValueError):
-        return None
+    except (OSError, subprocess.SubprocessError, ValueError) as e:
+        raise NoAnswer(f"{binary}: {e}") from e
     return parse_info(out.stderr + out.stdout)
 
 
 def probe(binary: str) -> int | None:
-    info = run_version(binary)
+    try:
+        info = run_version(binary)
+    except NoAnswer:
+        return None
     return info.major if info else None
 
 
@@ -180,14 +189,19 @@ def install_folders() -> list[str]:
             "/opt/jdk*/bin/java"]
 
 
+ASK_AGAIN = 60  # seconds before a Java that couldn't be run is tried again (one that hangs takes 20 each time)
+
+
 class _Checked:
     """What each Java turned out to be, remembered by its file's size and date: ``-version`` runs once per
-    Java, not on every look. Kept in the store (``checked.json``) so a restart doesn't run them again."""
+    Java, not on every look. Kept in the store (``checked.json``) so a restart doesn't run them again.
+    One that couldn't be run (:class:`NoAnswer`) is only left alone for a minute, here."""
 
     def __init__(self, file: Path | None):
         self.file = file
         self.lock = threading.Lock()
         self.data: dict | None = None
+        self.unanswered: dict[str, tuple[list, float]] = {}  # real path -> (stamp, when it didn't answer)
 
     def _load(self) -> dict:
         if self.data is None:
@@ -206,7 +220,10 @@ class _Checked:
         except OSError:
             real = st = None
         if st is None:  # (nothing there: nothing to remember it by)
-            return run(binary)
+            try:
+                return run(binary)
+            except NoAnswer:
+                return None
         stamp = [st.st_mtime_ns, st.st_size]
         with self.lock:
             hit = self._load().get(real)
@@ -215,8 +232,18 @@ class _Checked:
                     return JavaInfo(**hit["info"]) if hit.get("info") else None
                 except TypeError:
                     pass
-        info = run(binary)
+            quiet = self.unanswered.get(real)
+            if quiet and quiet[0] == stamp and time.monotonic() - quiet[1] < ASK_AGAIN:
+                return None
+        try:
+            info = run(binary)
+        except NoAnswer as e:
+            log.info("couldn't ask which Java this is just now (%s): asking again in a minute", e)
+            with self.lock:
+                self.unanswered[real] = (stamp, time.monotonic())
+            return None
         with self.lock:
+            self.unanswered.pop(real, None)
             data = self._load()
             data[real] = {"stamp": stamp, "info": info.__dict__ if info else None}
             if self.file:
