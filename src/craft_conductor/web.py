@@ -1456,6 +1456,18 @@ def browse_categories(browser, q: dict) -> dict:
         raise ApiError(400, str(e)) from None
 
 
+def chosen_folder(value) -> Path | None:
+    """A folder on this computer chosen on the page (typed, or picked in the folder browser), as the
+    real folder it is; None when none was."""
+    from . import folders
+    if value in (None, ""):
+        return None
+    try:
+        return folders.check(str(value))
+    except folders.FolderError as e:
+        raise ApiError(400, str(e)) from None
+
+
 class HubApi:
     """The parts of the API that aren't about one server: the server list, new servers,
     the first-run notice, licenses and craft-conductor's own updates."""
@@ -1482,6 +1494,10 @@ class HubApi:
         r[("POST", "/api/hub/stage")] = self.stage
         r[("POST", "/api/hub/manual/needed")] = self.manual_needed
         r[("POST", "/api/hub/manual/stage")] = self.manual_stage
+        r[("POST", "/api/hub/manual/look")] = self.manual_look
+        r[("GET", "/api/hub/manual/folders")] = self.hand_folders_info
+        r[("POST", "/api/hub/manual/folders")] = self.save_hand_folders
+        r[("GET", "/api/hub/folders")] = self.folder_list
         r[("POST", "/api/hub/open")] = self.open_folder
         r[("POST", "/api/hub/quit")] = self.quit
         r[("GET", "/api/hub/curseforge")] = self.curseforge_info
@@ -2755,6 +2771,54 @@ class HubApi:
         log.info("received %s, downloaded by hand for a new server", found["filename"])
         return {"id": staged["id"], "filename": found["filename"], "name": found["name"]}
 
+    def manual_look(self, q, b) -> dict:
+        """The setup page's mods to download by hand that it still misses (``filenames``), found where
+        the browser saved them, or in ``folder`` (chosen on the page just this time): each one copied
+        to the staging area, as if it had been dropped on the page."""
+        import secrets
+        from . import handdownload
+        names = b.get("filenames")
+        if not isinstance(names, list) or len(names) > handdownload.MAX_MODS:
+            raise ApiError(400, "too many mods")
+        files = handdownload.wanted_named([str(x) for x in names])  # (only files the page was told about)
+        ids: dict[str, str] = {}
+
+        def into(x: dict) -> Path:
+            ids[x["filename"]] = secrets.token_hex(8)
+            return self.hub.staging_dir / ids[x["filename"]] / x["filename"]
+        out = self.hub.look_for_hand_downloads(files, chosen_folder(b.get("folder")), into)
+        for x in out["found"]:
+            x["id"] = ids[x["filename"]]
+        return {**out, **self.hand_folders_info()}
+
+    def hand_folders_info(self, q=None, b=None) -> dict:
+        """Where mods downloaded by hand are looked for: this computer's Downloads folder (None when
+        Craft Conductor can't see one), and the folders the owner said to always look in."""
+        from . import folders
+        downloads = folders.downloads_dir()
+        return {"downloads": str(downloads) if downloads else None, "folders": self.hub.hand_folders()}
+
+    def save_hand_folders(self, q, b) -> dict:
+        """Always look in a folder (``add``), or not any more (``remove``)."""
+        if b.get("add"):
+            self.hub.remember_hand_folder(chosen_folder(b["add"]))
+        elif isinstance(b.get("remove"), str):
+            self.hub.forget_hand_folder(b["remove"])
+        else:
+            raise ApiError(400, "say which folder to add or remove")
+        return self.hand_folders_info()
+
+    def folder_list(self, q, b) -> dict:
+        """The folder browser: the folders in a folder on this computer (never the files in it), or,
+        without a ``path``, where to start (the home folder, Documents, Downloads, the drives)."""
+        from . import folders
+        if not q.get("path"):
+            return {"path": None, "parent": None, "folders": folders.places(), "more": False}
+        try:
+            return folders.listing(q["path"])
+        except folders.FolderError as e:
+            raise ApiError(400, str(e)) from None
+
     def port_check(self, q, b) -> dict:
         try:
             port = int(q.get("port", ""))
@@ -2911,6 +2975,7 @@ class Api:
         post("/api/mods/filecheck", self.start_filecheck)
         post("/api/manual/upload", lambda q, b: None)  # handled specially (raw body)
         post("/api/manual/stop", self.stop_manual_wait)
+        post("/api/manual/look", self.manual_look)
         get("/api/players/skin", lambda q, b: None)    # handled specially (an image)
         get("/api/backups", self.backups)
         post("/api/backups/create", self.create_backup)
@@ -3652,6 +3717,24 @@ class Api:
         self.d.manual_arrived()
         return {"ok": True, "name": match["name"], "filename": match["filename"],
                 "left": len((self.d.last_check or {}).get("manual") or [])}
+
+    def manual_look(self, q, b) -> dict:
+        """The mods this server waits for (setup, or an update), downloaded by hand, found where the
+        browser saved them or in ``folder`` (chosen just this time): copied into its manual-downloads
+        folder, as if they had been dropped on the panel. The owner's (the computer's own folders)."""
+        hub = self.web.hub
+        extra = chosen_folder(b.get("folder"))
+        waiting = [x for x in (self.d.last_check or {}).get("manual") or [] if x.get("sha1")]
+        folder = self.m.config.manual_dir
+        out = hub.look_for_hand_downloads(waiting, extra, lambda x: folder / x["filename"])
+        if out["found"]:
+            got = {x["filename"] for x in out["found"]}
+            c = self.d.last_check
+            if c:
+                c["manual"] = [x for x in c.get("manual") or [] if x["filename"] not in got]
+            self.d.manual_arrived()
+        return {**out, "left": len((self.d.last_check or {}).get("manual") or []),
+                **self.web.hub_api.hand_folders_info()}
 
     def stop_manual_wait(self, q, b) -> dict:
         """Stop a setup that's waiting for mods to be downloaded by hand."""

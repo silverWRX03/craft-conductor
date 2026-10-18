@@ -895,6 +895,42 @@ class Hub:
             raise ConfigError("the uploaded world isn't here any more; upload it again")
         return found[0]
 
+    # ------------------------------------------- mods downloaded by hand, found where they were saved
+    def hand_folders(self) -> list[str]:
+        """The folders the owner said to always look in for mods downloaded by hand (besides Downloads)."""
+        from .handdownload import MAX_FOLDERS
+        return [p for p in self._hub_file().get("hand_folders", []) if isinstance(p, str)][:MAX_FOLDERS]
+
+    def remember_hand_folder(self, folder: Path) -> list[str]:
+        from .handdownload import MAX_FOLDERS
+
+        def change(data: dict) -> list[str]:
+            kept = [p for p in data.get("hand_folders", []) if isinstance(p, str) and p != str(folder)]
+            data["hand_folders"] = ([str(folder)] + kept)[:MAX_FOLDERS]
+            return data["hand_folders"]
+        return self._update_hub_file(change)
+
+    def forget_hand_folder(self, text: str) -> list[str]:
+        def change(data: dict) -> list[str]:
+            data["hand_folders"] = [p for p in data.get("hand_folders", []) if isinstance(p, str) and p != text]
+            return data["hand_folders"]
+        return self._update_hub_file(change)
+
+    def look_for_hand_downloads(self, files: list[dict], extra: Path | None, into: Callable[[dict], Path]) -> dict:
+        """Look for ``files`` (mods to download by hand, with CurseForge's SHA-1) in the Downloads
+        folder, the folders to always look in and ``extra``; copy each one found to ``into(file)``.
+        The answer names only the files asked for, never anything else in those folders."""
+        from . import handdownload
+        places = handdownload.where_to_look(self.hand_folders(), extra)
+        found, wrong = handdownload.look([p for _, p in places], files)
+        taken, _ = handdownload.copy_found(found, files, into)
+        label = {p: name for name, p in places}
+        by_name = {x["filename"]: x for x in files}
+        return {"found": [{"filename": x["filename"], "name": x["name"], "where": label.get(found[x["filename"]].parent, "")}
+                          for x in taken],
+                "wrong": [{"filename": f, "name": by_name[f]["name"], "where": label.get(p.parent, "")} for f, p in wrong.items()],
+                "looked": [name for name, _ in places]}
+
     def take_staged(self, stage_ids: list[str], mods_dir: Path) -> int:
         """Move jars picked with "Local files" on the setup page into a server's mods folder."""
         moved = 0
