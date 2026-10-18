@@ -248,7 +248,8 @@ Added 2026-10-16 (briefs in "Additional requests (2026-10-16)" below; numbering 
         worlds, backups and exports.
 39. [ ] **Choose where files are kept:** on first use, choose the folders for servers, backups and
         exports separately; a clear folder structure; Import a server opens the exports folder.
-40. [ ] **Backups to Google Drive, Dropbox and OneDrive** (later, after 39), if the user chooses.
+40. [ ] **Backups to Google Drive, Dropbox, OneDrive and iCloud Drive** (later, after 39), if the user
+        chooses.
 41. [x] **Notification bell:** a log of every on-screen message, to find one that was missed.
         Merged in #118, in the next release (the last 100, kept in this browser for the person
         signed in).
@@ -525,10 +526,14 @@ clear folder structure; on first use choose where saved files are stored).
 - Check first how `backups.copy_to` and the home folder (`hub.home`) work today, and the
   `craft-conductor` rule in AGENTS.md about not migrating earlier installation paths.
 
-**40. Backups to Google Drive, Dropbox and OneDrive** — later, after 39.
-- If the user chooses, backups go to (or are copied to) Google Drive, Dropbox or OneDrive, so a
-  server is always backed up off the computer. To decide: the synced folder of each app on the
-  computer (no API, nothing to sign in to) or each service's API (sign-in, tokens to keep safe).
+**40. Backups to Google Drive, Dropbox, OneDrive and iCloud Drive** — later, after 39.
+- If the user chooses, backups go to (or are copied to) Google Drive, Dropbox, OneDrive or iCloud
+  Drive, so a server is always backed up off the computer. To decide: the synced folder of each
+  app on the computer (no API, nothing to sign in to) or each service's API (sign-in, tokens to
+  keep safe).
+- iCloud Drive has no API for other apps' files, so it works only through its synced folder (the
+  iCloud app on Windows, Finder on a Mac; nothing official on Linux). Free plans only (each
+  service's free storage; check the current sizes): a big world can be larger than that.
 
 **41. Notification bell** — small/medium.
 - Keep today's on-screen message timing (5 s, errors 12 s).
