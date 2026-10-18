@@ -7939,5 +7939,71 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 907,
+    "section": "Fix: Phone app notifications on Android (#117)",
+    "step": "On an Android phone in the installed app, open Craft Conductor settings → Connections → Phone app: under This device, the sentence about notifications reads as one paragraph above the Turn on notifications here button (not squeezed beside it); after turning them on, ✓ Notifications are on for this device sits above Send a test and Turn off.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 908,
+    "section": "Fix: A CurseForge pack's mods for players stay at the pack's files (#95)",
+    "step": "Make a server from a CurseForge modpack with an official server pack (All the Mods 11, say): on the Friends page, the pack's players-only mods show held at the pack's builds, and a friend who sets up through the invite gets those exact files (compare with the pack's own instance in Prism) and can join.",
+    "type": "Core",
+    "tags": [
+      "minecraft"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 909,
+    "section": "Fix: A Java that was slow to answer once isn't treated as missing",
+    "step": "On Windows with an antivirus scanning, point [java.versions] at a freshly unzipped Java (or one on a slow USB drive) and start the server: if the first check times out, starting again a minute later finds that Java instead of saying it isn't Java or downloading another.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 910,
+    "section": "Fix: Mods only players need stay off the server (#93)",
+    "step": "On a NeoForge server, add Iris Search from CurseForge (it needs Iris, which needs Sodium): Manage Mods lists Iris and Sodium as not installed because only players need them, the server starts, and a friend's download has Iris Search, Iris and Sodium.",
+    "type": "Core",
+    "tags": [
+      "minecraft"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 911,
+    "section": "Feature: Modrinth decides for CurseForge mods (#94)",
+    "step": "New server → a CurseForge modpack with no server pack (or add Sodium from CurseForge to a server): the mods Modrinth says only run on players' computers go in the friends' download (their rows say so), and the server starts.",
+    "type": "Core",
+    "tags": [
+      "minecraft"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 912,
+    "section": "Feature: Move a mod to players' mods (#94)",
+    "step": "Add a client-only mod that Modrinth doesn't know to a server so it stops at start: the Dashboard says it only runs on players' computers and offers Move … to players' mods; pressing it and starting again works, the mod is in the friends' download, and Manage Mods → Put back on the server undoes it.",
+    "type": "Core",
+    "tags": [
+      "minecraft"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 913,
+    "section": "Feature: Update a modpack server (#95)",
+    "step": "Make a server from an older version of a modpack (Modrinth and CurseForge), change one of its config files and remove one pack mod, then Updates → Look for a new version of the pack → See what changes → Update the pack: the mods move to the new version's files, your config change and the removed mod stay, a friend on the real pack's new version can join, and a version that fails puts everything back.",
+    "type": "Core",
+    "tags": [
+      "minecraft"
+    ],
+    "source": "added-in-git"
   }
 ]

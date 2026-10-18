@@ -186,6 +186,7 @@ def for_server(m, fixes: bool = True, progress=None, client_mods: list[str] | No
         from .planner import newest_release
         minecraft = newest_release(m.mojang, m.loader)
     plan = m.planner().plan_for(minecraft)
+    m.trim(plan)  # (what only players run stays off the server, as the update leaves it: sides.py)
     loader_version = plan.loader_version or lk.loader_version
     java_major = lk.java_major
     if java_major is None:
@@ -193,7 +194,7 @@ def for_server(m, fixes: bool = True, progress=None, client_mods: list[str] | No
             java_major = m.mojang.info(minecraft).java_major
         except Exception:
             java_major = None
-    players = players_mods(m, plan.mods, minecraft, loader_version, java_major, client_mods)
+    players = players_mods(m, plan.mods, minecraft, loader_version, java_major, client_mods, plan.players)
     entries = list(players["mods"])
     there = {e.get("project") for e in entries}
     for x in plan.mods:
@@ -269,7 +270,6 @@ def _pack_part(hub, spec) -> tuple[list, list[Path], list[str], dict]:
     import json
     import shutil
     import time
-    from . import config as configmod, setup as setupmod
     if not spec.modpack_version:
         return [], [], [], {}
     base = hub.state_dir / PACKS_DIR
@@ -279,7 +279,7 @@ def _pack_part(hub, spec) -> tuple[list, list[Path], list[str], dict]:
                 shutil.rmtree(old, ignore_errors=True)
         except OSError:
             pass
-    key = hashlib.sha256(json.dumps([2, spec.loader, spec.modpack_version, sorted(spec.modpack_exclude)]).encode()).hexdigest()[:20]
+    key = hashlib.sha256(json.dumps([3, spec.loader, spec.modpack_version, sorted(spec.modpack_exclude)]).encode()).hexdigest()[:20]
     folder = base / key
     done = folder / "pack.json"
     with _packs_lock:  # (two checks of the same pack unpack it once)

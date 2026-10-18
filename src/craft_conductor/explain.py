@@ -37,6 +37,12 @@ MISSING = [
     re.compile(r"Mod ID: '([\w.-]+)', Requested by: '[\w.-]+', Expected range: '[^']*', Actual version: '\[MISSING\]'"),
 ]
 SKIP = {"minecraft", "java", "fabricloader", "fabric", "forge", "neoforge", "quilt_loader"}
+# A mod that only runs on players' computers, on a server: it reached for the parts of Minecraft only
+# players' computers have (its menus, its graphics), or said it's for players only.
+CLIENT_ONLY = re.compile(
+    r"invalid dist DEDICATED_SERVER|in environment type SERVER|"
+    r"(?:NoClassDefFoundError|ClassNotFoundException|Attempted to load class)[^\n]*net[/.]minecraft[/.]client[/.]|"
+    r"\bclient[- ]?(?:side[- ]?)?only mod\b|only (?:works|runs) on (?:the )?client", re.I)
 
 
 def _line(text: str, pos: int) -> str:
@@ -67,13 +73,24 @@ def explain(lines: list[str], server_dir=None, mods=(), since: float | None = No
     d = diagnose(lines, server_dir, mods, since=since)
     if d.suspects:
         by_file = {m.filename: m for m in mods}
+        first = d.suspects[0]
+        players = CLIENT_ONLY.search(text)
+        if players and first.filename in by_file:  # (players get it instead: Move it to players' mods)
+            return {**base, "cause": "players-only", "title": f"{first.name} only runs on players' computers",
+                    "words": f"{first.name} reached for parts of Minecraft that only players' computers have, so the server "
+                             "stopped. Moving it to players' mods takes it off the server and keeps it in your friends' "
+                             "download (Craft Conductor couldn't tell before: its mod site doesn't say where it runs).",
+                    "evidence": _line(text, players.start()),
+                    "actions": [{"kind": "players-only", "filename": first.filename, "name": first.name,
+                                 "label": f"Move {first.name} to players' mods"},
+                                {"kind": "remove-mod", "filename": first.filename, "name": first.name,
+                                 "label": f"Remove {first.name}"}]}
         actions = []
         for s in d.suspects[:3]:
             managed = s.filename in by_file
             actions.append({"kind": "remove-mod" if managed else "disable-jar", "filename": s.filename, "name": s.name,
                             "label": f"Remove {s.name}" if managed else f"Switch {s.name} off"})
         names = ", ".join(s.name for s in d.suspects[:3])
-        first = d.suspects[0]
         return {**base, "cause": "mod", "title": f"{names} stopped the server" if len(d.suspects) == 1 else f"These mods look to blame: {names}",
                 "words": f"{first.name}: {first.reason}. Removing it (or switching it off) usually gets the server going; "
                          "check for an update of it later.",

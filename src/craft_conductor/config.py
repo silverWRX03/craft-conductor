@@ -245,6 +245,9 @@ class ClientConfig:
     memory_gb: int = 4              # memory the friends' Minecraft gets
     expires: int = 0                # when the invite link stops working (Unix time); 0 = never
     link_days: int = DEFAULT_LINK_DAYS  # how long new links work (one of LINK_DAYS)
+    #: mods only players get, never the server ("source:project id"), even when a server mod lists
+    #: one as required: moved there after it stopped the server, or in Manage Mods
+    only: list[str] = field(default_factory=list)
 
     def link_works(self, now: float) -> bool:
         return bool(self.enabled and self.token) and (not self.expires or now < self.expires)
@@ -275,6 +278,7 @@ class Config:
     reach_way: str = ""        # how friends outside join: playit | forward | home ("" = not chosen; reach.py)
     #: mods held at one version (Manage Mods → Change version): "source:project id" -> Pin
     pins: dict[str, "Pin"] = field(default_factory=dict)
+    modpack: "Modpack | None" = None   # the modpack it was made from, if it was
 
     @property
     def path(self) -> Path:
@@ -408,8 +412,39 @@ def _client(c: dict) -> ClientConfig:
         raise ConfigError("client.expires must be a time (or 0 for never)")
     if days not in LINK_DAYS:  # (30 days and "until replaced" were offered before: now a week at most)
         days = max(LINK_DAYS)
+    only = c.get("only", [])
+    if not isinstance(only, list) or not all(isinstance(k, str) and PIN_KEY.fullmatch(k) for k in only):
+        raise ConfigError('client.only must be a list of mods like "modrinth:<project id>" or "curseforge:<project id>"')
     return ClientConfig(enabled=bool(c.get("enabled", False)), token=token, mods=list(mods), memory_gb=memory,
-                        expires=expires, link_days=days)
+                        expires=expires, link_days=days, only=list(dict.fromkeys(only)))
+
+
+@dataclass(frozen=True)
+class Modpack:
+    """The modpack a server was made from (``[modpack]``): its site, project and the version it's on.
+    Updating the pack moves it to another version (packupdate.py)."""
+    source: str        # modrinth | curseforge
+    project: str       # the pack's project id
+    version: str       # Modrinth's version id, or CurseForge's file id
+    name: str = ""     # the pack and version, as people know it ("All the Mods 11 1.2")
+
+
+def toml_string(text: str) -> str:
+    """Any text (a modpack's name, emoji and all) as a TOML string. JSON's escapes are TOML's, except
+    for characters outside the Basic Multilingual Plane, which JSON escapes in halves TOML refuses:
+    they're written as they are (the file is UTF-8). DEL is the one control character JSON leaves."""
+    clean = "".join(ch for ch in text if not 0xD800 <= ord(ch) <= 0xDFFF)
+    return json.dumps(clean, ensure_ascii=False).replace("\x7f", "\\u007f")
+
+
+def _modpack(raw) -> "Modpack | None":
+    if not raw:
+        return None
+    source, project, version = (str(raw.get(k, "")) for k in ("source", "project", "version")) if isinstance(raw, dict) else ("", "", "")
+    ids = r"[A-Za-z0-9]{8}" if source == "modrinth" else r"\d{1,10}"
+    if source not in ("modrinth", "curseforge") or not re.fullmatch(ids, project) or not re.fullmatch(ids, version):
+        raise ConfigError("[modpack] needs source (modrinth or curseforge), project and version")
+    return Modpack(source, project, version, str(raw.get("name", ""))[:200])
 
 
 def parse(root: Path, data: dict) -> Config:
@@ -520,6 +555,7 @@ def parse(root: Path, data: dict) -> Config:
         tunnel_address=_tunnel(data.get("tunnel", {}).get("address", "")),
         reach_way=_reach(data.get("reach", {}).get("way", "")),
         pins=_pins(data.get("pins", {})),
+        modpack=_modpack(data.get("modpack")),
     )
 
 

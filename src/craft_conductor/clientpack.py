@@ -26,7 +26,7 @@ from urllib.parse import urlparse
 from . import modcheck
 from .config import DEFAULT_LINK_DAYS, LINK_DAYS, ConfigError, ModSpec
 from .http import HttpError, sha1_file
-from .mods.base import ModError, ModFile, Unavailable
+from .mods.base import ModError, ModFile, Project, Unavailable, same_project
 from .mods.modrinth import ModrinthProvider
 
 log = logging.getLogger(__name__)
@@ -164,13 +164,14 @@ class PackBuilder:
 
 
 def players_mods(m, server_mods: list, minecraft: str, loader_version: str | None, java_major: int | None,
-                 client_mods: list[str] | None = None) -> dict:
+                 client_mods: list[str] | None = None, players: list | None = None) -> dict:
     """What players' Minecraft gets for ``server_mods`` (the installed ones, or the ones a check
     is about to install): {"mods", "manual", "skipped", "problems"}.
 
-    The server's mods that also run on players' computers, the mods they need there, the
-    extras picked for players (``client_mods``, else the config's), a CurseForge modpack's
-    players' mods and your own files. Then the mod loader's own check (filecheck.py): a server
+    The server's mods that also run on players' computers, the mods they need there (``players``:
+    the ones left off the server because only players run them, sides.py; else the installed
+    server's), the extras picked for players (``client_mods``, else the config's), CurseForge
+    players' mods (a modpack's, or ones moved off the server) with what they need, and your own files. Then the mod loader's own check (filecheck.py): a server
     mod its site calls server-only goes in after all when a player's mod needs it (the site was
     wrong, and the loader would stop), and what's still wrong is in ``problems``."""
     cfg = m.config
@@ -205,9 +206,22 @@ def players_mods(m, server_mods: list, minecraft: str, loader_version: str | Non
         else:
             mods.append(_entry(x, "both", _here(m, x)))
 
+    # Mods the server's mods need on players' computers only, that the mod files said (sides.py).
+    names = {x.key: x.name for x in server_mods}
+    for x in m.lock.players if players is None else players:
+        if x.key in included or not loaders:
+            continue
+        included.add(x.key)
+        if x.manual or not allowed_url(x.url):
+            manual.append({"name": x.name, "filename": x.filename, "url": x.manual_url or x.url, "sha1": x.sha1})
+        else:
+            entry = _entry(x, "client")
+            if x.dependency_of:
+                entry["needed_by"] = names.get(x.dependency_of, x.dependency_of)  # a companion another mod needs
+            mods.append(entry)
+
     # Mods the server's mods need on players' computers only (the server skips those),
     # then the extras you picked for players; each with its required dependencies.
-    names = {x.key: x.name for x in server_mods}
     todo = [ModSpec("modrinth", dep, dependency_of=names.get(x.key, x.name))
             for x in server_mods if x.source == "modrinth"
             for dep in x.dependencies if f"modrinth:{dep}" not in included]
@@ -230,26 +244,35 @@ def players_mods(m, server_mods: list, minecraft: str, loader_version: str | Non
         todo += [ModSpec("modrinth", dep, dependency_of=f.name) for dep in f.dependencies
                  if f"modrinth:{dep}" not in included]
 
-    # A CurseForge modpack's mods for players' computers only.
+    # CurseForge mods for players' computers only (a modpack's, or ones moved off the server), with
+    # the mods they need that aren't here yet (a modpack's are, unless one was left out).
     curseforge = m.providers.get("curseforge")
-    for item in client_mods if loaders else []:
-        if not item.startswith("curseforge:"):
-            continue
-        spec = ModSpec("curseforge", item.split(":", 1)[1])
+    cf_todo = [ModSpec("curseforge", item.split(":", 1)[1]) for item in (client_mods if loaders else [])
+               if item.startswith("curseforge:")]
+    while cf_todo:
+        spec = cf_todo.pop(0)
         try:
             if curseforge is None:
                 raise ModError("CurseForge mods need a CurseForge API key")
             f = curseforge.resolve(spec, minecraft, loaders, cfg.updates.mod_channel)
         except (Unavailable, ModError, HttpError) as e:
-            skipped.append({"name": item, "reason": str(e)})
+            if spec.dependency_of is None:
+                skipped.append({"name": f"curseforge:{spec.id}", "reason": str(e)})
             continue
-        if f.key in included:
-            continue
+        mine = Project("curseforge", f.project_id, "", f.name)
+        if f.key in included or any(same_project(mine, Project(e.get("source") or "", "", "", e.get("name") or ""))
+                                    for e in mods + manual):
+            continue  # (here already, perhaps from Modrinth: two copies of one mod stop the game)
         included.add(f.key)
         if f.manual or not allowed_url(f.url):
             manual.append({"name": f.name, "filename": f.filename, "url": f.manual_url or f.url, "sha1": f.sha1})
         else:
-            mods.append(_entry(f, "client"))
+            entry = _entry(f, "client")
+            if spec.dependency_of:
+                entry["needed_by"] = spec.dependency_of
+            mods.append(entry)
+        cf_todo += [ModSpec("curseforge", dep, dependency_of=f.name) for dep in f.dependencies
+                    if f"curseforge:{dep}" not in included]
 
     # Your own files for players (the share server hands them out).
     for jar in ([] if plugins else local_jars(cfg)):

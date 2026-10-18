@@ -8,7 +8,7 @@ import zipfile
 
 import pytest
 
-from craft_conductor import config as configmod, curseforgepack, setup as setupmod
+from craft_conductor import config as configmod, curseforgepack, packupdate, setup as setupmod
 from craft_conductor.modpack import ModpackError
 from craft_conductor.mods import curseforge as cf
 
@@ -94,6 +94,21 @@ def test_without_a_server_pack_every_mod_goes_on_the_server(http):
     assert not p["server_pack"] and all(m["included_on_server"] for m in p["mods"]) and p["count"] == 2
 
 
+def test_without_a_server_pack_modrinth_says_which_mods_are_for_players(http, modrinth):
+    """The same mod on Modrinth (here found by its slug and name) says it only runs on players'
+    computers: it goes in the friends' download instead of on the server (#94)."""
+    from craft_conductor import sides
+    sides._known.clear()
+    serve_pack(http, server_pack=False)
+    modrinth.project("FANCYMRX", "fancy-client", "Fancy Client", server_side="unsupported")
+    modrinth.project("COREMRXX", "core-mod", "Core Mod")
+    p = curseforgepack.preview(http, "key", "curseforge:9001")
+    by_name = {m["name"]: m for m in p["mods"]}
+    assert by_name["Fancy Client"]["for_friends"] and by_name["Fancy Client"]["side_from"] == "modrinth"
+    assert by_name["Core Mod"]["included_on_server"] and "side_from" not in by_name["Core Mod"]
+    assert (p["count"], p["client_only"], p["sides_from_modrinth"]) == (1, 1, 1)
+
+
 def test_a_curseforge_pack_is_applied(tmp_path, http):
     serve_pack(http, overrides="Overrides Here")
     root = tmp_path / "srv"
@@ -103,14 +118,27 @@ def test_a_curseforge_pack_is_applied(tmp_path, http):
     cfg = configmod.load(root)
     assert (cfg.server.loader, cfg.server.minecraft, cfg.updates.strategy) == ("forge", "1.20.1", "mods-only")
     assert [(m.source, m.id, m.pack) for m in cfg.mods] == [("curseforge", "11", True)]
-    assert {k: (p.version, p.minecraft) for k, p in cfg.pins.items()} == {"curseforge:11": ("111", "1.20.1")}  # (the pack's file)
+    # The pack's files, for the server and for players (#95: friends got the newest builds instead)
+    assert {k: (p.version, p.minecraft) for k, p in cfg.pins.items()} == {"curseforge:11": ("111", "1.20.1"),
+                                                                           "curseforge:22": ("222", "1.20.1")}
     assert (cfg.server.dir / "config" / "core.toml").read_text() == "speed = 2"
     assert not (tmp_path / "escape.txt").exists()
+    # remembered for updating the pack later (packupdate.py)
+    assert cfg.modpack == configmod.Modpack("curseforge", "500", "9001", "Big Pack Big Pack 1.0")
+    state = packupdate.load_state(root)
+    assert (state["mods"], state["friends"], list(state["files"])) == ({"curseforge:11": "111"}, {"curseforge:22": "222"}, ["config/core.toml"])
 
     again = tmp_path / "srv2"
     setupmod.configure(again, setupmod.SetupSpec.from_dict({"loader": "fabric", "accept_eula": True}))
     r = curseforgepack.apply(again, "curseforge:9001", http, "key", exclude=["mods/core-1.0.jar"])
     assert r["removed"] == 1 and configmod.load(again).mods == []
+
+    # A version picked for a players' mod on the setup page stays picked.
+    picked = tmp_path / "srv3"
+    setupmod.configure(picked, setupmod.SetupSpec.from_dict({"loader": "fabric", "accept_eula": True}))
+    configmod.set_pin(picked / configmod.CONFIG_NAME, "curseforge:22", configmod.Pin("220", "1.20.1"))
+    curseforgepack.apply(picked, "curseforge:9001", http, "key")
+    assert configmod.load(picked).pins["curseforge:22"].version == "220"
 
 
 def test_a_pack_mod_with_only_early_builds_accepts_them(tmp_path, http):

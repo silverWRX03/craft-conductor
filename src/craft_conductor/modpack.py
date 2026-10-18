@@ -19,7 +19,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-import shutil
 import tempfile
 import zipfile
 from pathlib import Path
@@ -220,6 +219,30 @@ def _override_members(z: zipfile.ZipFile, server_dir: Path, what: str,
     return out
 
 
+def other_files(index: dict, server_dir: Path) -> list[tuple[str, str, dict]]:
+    """The files a pack lists that the server needs and aren't Modrinth mods (a mod hosted on
+    GitHub, a config): (path in the server folder, its download, its hashes). Names that would
+    land outside the server folder are left out."""
+    out = []
+    for f in index.get("files", []):
+        if (f.get("env") or {}).get("server") == "unsupported":
+            continue
+        path = str(f.get("path", ""))
+        urls = [u for u in f.get("downloads", []) if isinstance(u, str)]
+        if path.startswith("mods/") and path.endswith(".jar") and any(MODRINTH_FILE.match(u) for u in urls):
+            continue
+        url = next((u for u in urls if u.startswith(DOWNLOAD_HOSTS)), None)
+        hashes = f.get("hashes") if isinstance(f.get("hashes"), dict) else {}
+        if not url or not (hashes.get("sha1") or hashes.get("sha512")):
+            continue
+        try:
+            _safe_target(server_dir, path)
+        except safearchive.UnsafeName:
+            continue
+        out.append(("/".join(safearchive.parts(path)), url, hashes))
+    return out
+
+
 def apply(root: Path, version_id: str, http: HttpClient, exclude: tuple[str, ...] | list[str] = ()) -> dict:
     """Install a modpack version into the server at ``root`` (whose craft-conductor.toml exists).
 
@@ -230,10 +253,13 @@ def apply(root: Path, version_id: str, http: HttpClient, exclude: tuple[str, ...
         pack = http.download(info["url"], Path(tmp) / "pack.mrpack", sha1=info["sha1"], sha512=info["sha512"])
         if pack.stat().st_size > MAX_PACK:
             raise ModpackError("that modpack is too big")
-        return apply_file(root, pack, http, name=info["name"], exclude=exclude)
+        return apply_file(root, pack, http, name=info["name"], exclude=exclude, origin=(info["project_id"], info["id"]))
 
 
-def apply_file(root: Path, pack: Path, http: HttpClient, name: str = "", exclude: tuple[str, ...] | list[str] = ()) -> dict:
+def apply_file(root: Path, pack: Path, http: HttpClient, name: str = "", exclude: tuple[str, ...] | list[str] = (),
+               origin: tuple[str, str] | None = None) -> dict:
+    """``origin``: the pack's Modrinth project and version, remembered for updating the pack (packupdate.py)."""
+    from . import packupdate
     index, z = read_index(pack)
     with z:
         deps = index.get("dependencies", {})
@@ -255,6 +281,7 @@ def apply_file(root: Path, pack: Path, http: HttpClient, name: str = "", exclude
         listed = {s.id for s in cfg.mods}
 
         added, local, skipped, removed = [], [], 0, 0
+        held, left_out, files = {}, [], {}  # (what's remembered for updating the pack: packupdate.py)
         excluded = set(exclude)
         unsafe = safearchive.Skipped(f"the downloads listed by {what}")
         for f in index.get("files", []):
@@ -264,6 +291,9 @@ def apply_file(root: Path, pack: Path, http: HttpClient, name: str = "", exclude
             path = str(f.get("path", ""))
             if path in excluded and path.startswith("mods/") and path.endswith(".jar"):
                 removed += 1
+                gone = next((MODRINTH_FILE.match(u) for u in f.get("downloads", []) if isinstance(u, str) and MODRINTH_FILE.match(u)), None)
+                if gone:
+                    left_out.append(f"modrinth:{gone.group(1)}")
                 continue
             try:
                 target = _safe_target(server_dir, path)
@@ -280,6 +310,7 @@ def apply_file(root: Path, pack: Path, http: HttpClient, name: str = "", exclude
                     configmod.set_pin(cfg_path, f"modrinth:{pid}", configmod.Pin(m.group(2), minecraft))
                     listed.add(pid)
                     added.append(pid)
+                    held[f"modrinth:{pid}"] = m.group(2)
                 continue
             url = next((u for u in urls if u.startswith(DOWNLOAD_HOSTS)), None)
             hashes = f.get("hashes") or {}
@@ -288,20 +319,23 @@ def apply_file(root: Path, pack: Path, http: HttpClient, name: str = "", exclude
             target.parent.mkdir(parents=True, exist_ok=True)
             http.download(url, target, sha1=hashes.get("sha1"), sha512=hashes.get("sha512"))
             local.append(path)
+            if hashes.get("sha1"):
+                files["/".join(safearchive.parts(path))] = str(hashes["sha1"]).lower()
 
         unsafe.log()
         copied = 0
         blocked = safearchive.Skipped(what)
         for member, parts in overrides:
             try:
-                with safearchive.open_new(server_dir, parts) as out, z.open(member) as src:
-                    shutil.copyfileobj(src, out, 1 << 20)
+                files["/".join(parts)] = packupdate.copy_member(z, member, server_dir, parts)
             except safearchive.UnsafeName as e:
                 blocked.add(member.filename, str(e))
                 continue
             copied += 1
         blocked.log()
     title = name or index.get("name", "modpack")
+    if origin is not None:
+        packupdate.record(root, "modrinth", origin[0], origin[1], str(title), held, left_out, {}, files)
     log.info("applied %s: Minecraft %s, %s, %d mods from Modrinth, %d other files, %d config files",
              title, minecraft, loader, len(added), len(local), copied)
     return {"name": title, "minecraft": minecraft, "loader": loader, "mods": len(added), "files": len(local),
