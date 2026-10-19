@@ -1,0 +1,47 @@
+{
+    // Real-world testing: Terminal → Run Task… (see testing/README.md)
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Real-world tests: start Claude",
+            "detail": "Opens Claude Code in a terminal with /real-world-test for the run you name",
+            "type": "shell",
+            "command": "claude",
+            "args": ["/real-world-test ${input:run}"],
+            "options": { "cwd": "${workspaceFolder}" },
+            "presentation": { "panel": "dedicated", "focus": true, "reveal": "always" },
+            "problemMatcher": []
+        },
+        {
+            "label": "Real-world tests: summary",
+            "type": "process",
+            "command": "python",
+            "args": ["tools/real_world_tests.py", "summary"],
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": []
+        },
+        {
+            "label": "Real-world tests: what's left in a run",
+            "type": "process",
+            "command": "python",
+            "args": ["tools/real_world_tests.py", "report", "--run", "${input:run}", "--missing"],
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": []
+        },
+        {
+            "label": "Real-world tests: verify",
+            "type": "process",
+            "command": "python",
+            "args": ["tools/real_world_tests.py", "verify"],
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": []
+        }
+    ],
+    "inputs": [
+        {
+            "id": "run",
+            "type": "promptString",
+            "description": "Run id (e.g. v0.28.0-win11), 'new <version>', 'part N', or empty to choose"
+        }
+    ]
+}

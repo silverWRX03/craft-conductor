@@ -41,7 +41,9 @@ control panel, the router, a phone, turning a VM off). The prompts to start each
    `craft-conductor-windows-x64.exe` and `SHA256SUMS.txt`, into `C:\cc\release`. Download them in
    a browser (not with `curl`), so Windows checks them the way it does for everyone.
 5. `mkdir C:\cc\results`, then start Claude Code in the repository:
-   `cd C:\cc\craft-conductor; claude`.
+   `cd C:\cc\craft-conductor; claude`. In VS Code, **Terminal → Run Task… → Real-world tests:
+   start Claude** with `part N` does the same and starts Part N (see
+   [testing/README.md](../testing/README.md#testing-with-claude-in-vs-code)).
 
 Running real servers means accepting the [Minecraft EULA](https://aka.ms/MinecraftEULA) for the
 test servers (`--accept-eula`). Each running server needs 2–4 GB of memory.
