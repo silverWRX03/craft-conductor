@@ -9,6 +9,16 @@ This is the authoritative record of **manual real-hardware tests**. It complemen
 - `runs/legacy-spreadsheet-0.27.0.json` — import of the provided Excel snapshot; preserved separately as historical evidence. Its notes sometimes mention earlier runs, but the workbook does not constitute individually structured historic run records.
 - `imports/` — additional handoff/context imported from the workbook. Review before making public.
 
+## Testing with Claude in VS Code
+
+The `/real-world-test` command (`.claude/skills/real-world-test/SKILL.md`) has Claude Code carry out a run with you: it tests what it can on its own in an isolated installation, tells you what to do for the rest, and records only results that were actually done. Start it any of these ways:
+
+- **Terminal → Run Task… → Real-world tests: start Claude**, then type the run id (`v0.28.0-win11`), `new 0.28.0` for a new run, `part 2` for a part of [docs/real-world-testing.md](../docs/real-world-testing.md), or nothing to choose from the summary;
+- the terminal's **+** dropdown → **Claude (real-world tests)**;
+- in any Claude Code session (the VS Code panel or `claude` in a terminal): `/real-world-test v0.28.0-win11`.
+
+The other **Real-world tests:** tasks show the summary, what's left in a run, and the catalog check. They need `python` on the PATH and `claude` installed and signed in.
+
 ## Claude Code / VS Code commands
 
 Run these from the repository root in a VS Code terminal (Windows PowerShell is supported):
