@@ -129,7 +129,8 @@ def test_the_testing_page_has_the_homepages_sidebar():
 
 
 def test_the_sitemap():
-    """Every page search engines are told about exists, isn't marked noindex, and is on this site."""
+    """Every page search engines are told about exists, isn't marked noindex, and is on this site; the invite page
+    and the demo are kept out of search."""
     import xml.etree.ElementTree as ET
     ns = {"s": "http://www.sitemaps.org/schemas/sitemap/0.9"}
     urls = [u.text for u in ET.parse(SITE / "sitemap.xml").getroot().findall("s:url/s:loc", ns)]
@@ -138,6 +139,8 @@ def test_the_sitemap():
         page = SITE / url.removeprefix(build_website.SITE_URL) / "index.html"
         assert page.is_file(), url
         assert not any(t == "meta" and a.get("name") == "robots" for t, a in tags(page)), f"{url} says noindex"
+    for page in ("join/index.html", "demo/index.html"):  # useful only from an invite link / the homepage
+        assert ("meta", {"name": "robots", "content": "noindex"}) in tags(SITE / page), f"{page} is kept out of search"
 
 
 def test_the_demo_frame_is_kept_apart():

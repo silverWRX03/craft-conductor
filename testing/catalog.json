@@ -8131,7 +8131,7 @@
   {
     "id": 927,
     "section": "Feature: Project website and demo",
-    "step": "Open https://silverwrx03.github.io/craft-conductor/sitemap.xml: it lists the homepage and the Real-world testing page, and Google Search Console (Sitemaps) accepts it without errors. The README links to the website and the testing page.",
+    "step": "Open https://silverwrx03.github.io/craft-conductor/sitemap.xml: it lists the homepage and the Real-world testing page, and Google Search Console (Sitemaps) accepts it without errors. The README links to the website and the testing page. Searching Google for the invite page (site:silverwrx03.github.io/craft-conductor/join) finds nothing once Google has crawled it again.",
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
