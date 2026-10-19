@@ -47,8 +47,8 @@ def built(tmp_path_factory):
 
 
 def test_the_pages_that_must_stay():
-    for path in ("index.html", "website.js", "css/website.css", "join/index.html", "join/join.js", "testing/index.html",
-                 "testing/app.js", "googlef2c4a8b5e575e76a.html", "demo/index.html", "demo/host.js", "demo/sw.js",
+    for path in ("index.html", "website.js", "nav.js", "css/website.css", "sitemap.xml", "join/index.html", "join/join.js",
+                 "testing/index.html", "testing/app.js", "testing/testing.css", "googlef2c4a8b5e575e76a.html", "demo/index.html", "demo/host.js", "demo/sw.js",
                  "demo/manifest.webmanifest", "demo/app/sim/boot.js"):
         assert (SITE / path).is_file(), path
     assert not (SITE / "preview").exists(), "the old hand-made dashboard imitation is gone"
@@ -56,7 +56,7 @@ def test_the_pages_that_must_stay():
 
 def test_pages_load_only_their_own_scripts_and_styles():
     """No script or style written into the pages (their CSP allows none), nothing from other sites."""
-    for page in ("index.html", "demo/index.html"):
+    for page in ("index.html", "testing/index.html", "demo/index.html"):
         text = (SITE / page).read_text(encoding="utf-8")
         assert 'http-equiv="Content-Security-Policy"' in text, page
         csp = re.search(r'Content-Security-Policy" content="([^"]+)"', text).group(1)
@@ -85,6 +85,59 @@ def test_the_homepage_links():
         assert f"`{name}`" in release, f"{name} isn't a file the releases have"
     assert names == ["craft-conductor-windows-x64.exe", "craft-conductor-macos-arm64", "craft-conductor-linux-x64",
                      "craft-conductor-linux-arm64"]
+
+
+def sidebar(page: str) -> list:
+    """The sidebar's links: (address, words)."""
+    class Links(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.links, self.inside, self.href = [], False, None
+
+        def handle_starttag(self, tag, attrs):
+            attrs = dict(attrs)
+            if tag == "aside" and attrs.get("id") == "site-nav":
+                self.inside = True
+            elif self.inside and tag == "a" and "nav-link" in attrs.get("class", ""):
+                self.href = attrs["href"]
+                self.links.append([self.href, ""])
+
+        def handle_endtag(self, tag):
+            if tag == "aside":
+                self.inside = False
+            elif tag == "a":
+                self.href = None
+
+        def handle_data(self, data):
+            if self.href is not None and data.strip():
+                self.links[-1][1] += data.strip()
+    p = Links()
+    p.feed((SITE / page).read_text(encoding="utf-8"))
+    return [tuple(x) for x in p.links]
+
+
+def test_the_testing_page_has_the_homepages_sidebar():
+    """The same links, in the same order, from one folder down; Real-world testing is the page on show."""
+    home, testing = sidebar("index.html"), sidebar("testing/index.html")
+    assert len(home) >= 9 and [w for _, w in testing] == [w for _, w in home]
+    for (h, _), (t, words) in zip(home, testing):
+        expected = "./" if h == "testing/" else h if h.startswith("https://") else "../" + h
+        assert t == expected, f"{words}: {t}"
+    text = (SITE / "testing" / "index.html").read_text(encoding="utf-8")
+    assert '<a href="./" class="nav-link active" aria-current="page">' in text
+    assert '<script src="../nav.js" defer></script>' in text and 'href="../css/website.css"' in text
+
+
+def test_the_sitemap():
+    """Every page search engines are told about exists, isn't marked noindex, and is on this site."""
+    import xml.etree.ElementTree as ET
+    ns = {"s": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+    urls = [u.text for u in ET.parse(SITE / "sitemap.xml").getroot().findall("s:url/s:loc", ns)]
+    assert urls == [build_website.SITE_URL, build_website.SITE_URL + "testing/"]
+    for url in urls:
+        page = SITE / url.removeprefix(build_website.SITE_URL) / "index.html"
+        assert page.is_file(), url
+        assert not any(t == "meta" and a.get("name") == "robots" for t, a in tags(page)), f"{url} says noindex"
 
 
 def test_the_demo_frame_is_kept_apart():
@@ -116,7 +169,8 @@ def test_the_site_as_published(built):
     out, info = built
     for path in build_website.REQUIRED:
         assert (out / path).exists(), path
-    for page in ("join/index.html", "join/join.js", "testing/index.html", "testing/app.js", "googlef2c4a8b5e575e76a.html"):
+    for page in ("join/index.html", "join/join.js", "testing/index.html", "testing/app.js", "testing/testing.css", "nav.js",
+                 "sitemap.xml", "googlef2c4a8b5e575e76a.html"):
         assert (out / page).read_bytes() == (SITE / page).read_bytes(), f"{page} is published as it is"
     assert (out / "testing" / "data").is_dir() and any((out / "testing" / "data").iterdir()), "the testing dashboard's data"
     assert info["channel"] == "development" and info["simulated"]

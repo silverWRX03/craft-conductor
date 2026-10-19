@@ -5,14 +5,26 @@
 
 | Address | What | Source |
 |---|---|---|
-| `/` | the homepage | `site/index.html`, `site/website.js`, `site/css/website.css` |
+| `/` | the homepage | `site/index.html`, `site/website.js`, `site/nav.js`, `site/css/website.css` |
 | `/demo/` | the phone demo (the QR code opens it; installable) | `site/demo/index.html`, `shell.js`, `shell.css`, `sw.js`, `manifest.webmanifest` |
 | `/demo/app/` | the real control panel of a release, with the simulation in front of it | built from the release's `src/craft_conductor/webui/` + `site/demo/app/sim/` |
 | `/join/` | the friends' invite page (unchanged) | `site/join/` |
-| `/testing/` | the real-world testing dashboard (unchanged), with its data | `site/testing/` + `tools/real_world_tests.py publish` |
+| `/testing/` | the real-world testing dashboard, with the homepage's sidebar and look, and its data | `site/testing/` (+ `site/nav.js`, `site/css/website.css`) + `tools/real_world_tests.py publish` |
 | `/googlef2c4a8b5e575e76a.html` | Google's site verification (unchanged) | `site/` |
+| `/sitemap.xml` | the pages for search engines: the homepage and the testing dashboard | `site/sitemap.xml` |
 
 `tools/build_website.py` puts it all together (`_site/`); `tests/test_website.py` checks the result.
+
+**The sidebar** is the same on the homepage and the testing dashboard (`tests/test_website.py` checks
+the links match): `site/nav.js` runs it on both, with the Light/Dark switch (remembered for the whole
+site) and the ☰ Menu on phones. A link added to one page's sidebar goes in the other's too.
+
+**Search engines:** `sitemap.xml` lists the pages worth finding (the homepage and the testing
+dashboard; the demo is `noindex`, and the invite page is only useful from an invite link). A site
+under `/craft-conductor/` can't have the `robots.txt` that would point to it (that would be
+`silverwrx03.github.io/robots.txt`), so it's submitted in Google Search Console (Sitemaps), where the
+site is verified by `googlef2c4a8b5e575e76a.html`. A page added to the sitemap must exist and not be
+`noindex` (the tests check).
 
 ## The demo: the real control panel, with made-up data
 

@@ -1,6 +1,7 @@
 // The homepage (see test_website_browser.py): how it looks on a computer and a phone, its menu and
 // themes, opening and leaving the demo with the mouse and the keyboard, the QR code, the pages it must
-// keep (the invite page, the testing dashboard), and that the demo is kept apart from the website.
+// keep (the invite page, the testing dashboard, with the homepage's sidebar and theme), and that the demo is
+// kept apart from the website.
 const { assert, browsers, launch, watch, demoFrame, suite, shot, noSidewaysScroll, until } = require('./ui_website_lib.cjs');
 const base = process.argv[2];
 
@@ -41,8 +42,18 @@ const base = process.argv[2];
         assert.ok(r.ok() || (p === 'testing/data/' && r.status() === 404), `${p}: ${r.status()}`);
       }
       const testing = await ctx.newPage();
+      watch(testing, base, problems, `${name} testing dashboard`);
       await testing.goto(base + 'testing/');
       await until(async () => (await testing.locator('#tests tr').count()) > 10, 'the testing dashboard lists its tests');
+      const nav = await testing.locator('#site-nav').boundingBox();
+      assert.ok(nav.x === 0 && nav.width > 180, "the testing dashboard has the homepage's sidebar");
+      assert.equal(await testing.locator('#site-nav .nav-link').count(), await page.locator('#site-nav .nav-link').count(), 'the same links');
+      assert.match(await testing.textContent('#site-nav [aria-current="page"]'), /Real-world testing$/, 'Real-world testing is the page on show');
+      assert.ok((await testing.locator('#stats .card').count()) === 5, 'the counts');
+      await shot(testing, `${name}-testing-dark`);
+      await testing.click('#site-nav a[href="../#download"]');
+      await testing.waitForURL(/#download$/);
+      assert.ok(await testing.locator('section#download').isVisible(), 'its links go back to the homepage');
       await testing.close();
       const join = await ctx.newPage();
       await join.goto(base + 'join/');
@@ -59,6 +70,13 @@ const base = process.argv[2];
       await shot(page, `${name}-home-light`);
       await page.reload();
       assert.equal(await page.getAttribute('html', 'data-theme'), 'day', 'remembered');
+      const testing = await ctx.newPage();
+      await testing.goto(base + 'testing/');
+      assert.equal(await testing.getAttribute('html', 'data-theme'), 'day', 'the testing dashboard has the same theme');
+      assert.equal(await testing.evaluate(() => getComputedStyle(document.body).backgroundColor), 'rgb(244, 244, 244)');
+      await until(async () => (await testing.locator('#tests tr').count()) > 10, 'the testing dashboard lists its tests');
+      await shot(testing, `${name}-testing-light`);
+      await testing.close();
       await page.click('#theme-toggle');
       assert.equal(await page.getAttribute('html', 'data-theme'), 'night');
     });
@@ -177,6 +195,19 @@ const base = process.argv[2];
           await until(async () => (await p.getAttribute('#menu-toggle', 'aria-expanded')) === 'false', 'the menu closes');
         }
         await shot(p, `${name}-home-${label}`);
+        const testing = await small.newPage();
+        watch(testing, base, problems, `${name} ${label} testing dashboard`);
+        await testing.goto(base + 'testing/');
+        await until(async () => (await testing.locator('#tests tr').count()) > 10, 'the testing dashboard lists its tests');
+        await noSidewaysScroll(testing, `${label} testing dashboard`);
+        await shot(testing, `${name}-testing-${label}`);
+        if (w <= 820) {
+          await testing.click('#menu-toggle');
+          await until(async () => (await testing.locator('#site-nav').boundingBox()).x >= 0, 'the testing dashboard menu opens');
+          await testing.keyboard.press('Escape');
+          await until(async () => (await testing.getAttribute('#menu-toggle', 'aria-expanded')) === 'false', 'the testing dashboard menu closes');
+        }
+        await testing.close();
         await p.click('.hero-actions .launch-demo');
         await p.click('[data-start="new"]');
         const f = await demoFrame(p);

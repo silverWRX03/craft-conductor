@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Put together the whole GitHub Pages site (_site/): the homepage, the invite page (join/), the
-real-world testing dashboard (testing/, with its data), Google's site verification file, and the
+real-world testing dashboard (testing/, with its data), Google's site verification file, the sitemap, and the
 interactive demo (demo/) made from a released Craft Conductor's own control panel.
 
     python tools/build_website.py --output _site                      # this checkout's panel ("development")
@@ -48,8 +48,8 @@ RULE_DEFAULTS = {"keepInventory": "false", "doDaylightCycle": "true", "doWeather
                  "mobGriefing": "true", "doFireTick": "true", "doInsomnia": "true", "naturalRegeneration": "true",
                  "playersSleepingPercentage": "100", "announceAdvancements": "true", "showDeathMessages": "true",
                  "spawnRadius": "10"}
-REQUIRED = ("index.html", "website.js", "css/website.css", "join/index.html", "testing/index.html", "testing/data",
-            "googlef2c4a8b5e575e76a.html", "icon.png", "demo/index.html", "demo/host.js", "demo/sw.js",
+REQUIRED = ("index.html", "website.js", "nav.js", "css/website.css", "sitemap.xml", "join/index.html", "testing/index.html",
+            "testing/testing.css", "testing/data", "googlef2c4a8b5e575e76a.html", "icon.png", "demo/index.html", "demo/host.js", "demo/sw.js",
             "demo/manifest.webmanifest", "demo/phone-qr.svg", "demo/version.json", "demo/app/index.html",
             "demo/app/assets/app.js", "demo/app/sim/boot.js", "demo/app/sim/catalog-release.js", "demo/app/files/manual.md.js")
 

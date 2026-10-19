@@ -1,41 +1,14 @@
 "use strict";
-// The homepage: the theme switch, the menu on small screens, and the interactive demo. The demo is
-// the real control panel in a sandboxed frame (demo/host.js explains how it's kept apart); this page
-// opens it over the website (blurred and inactive behind it), with the Leave demo bar on its left.
+// The homepage: the section on screen marked in the menu, and the interactive demo (nav.js has the
+// theme switch and the menu on small screens). The demo is the real control panel in a sandboxed frame
+// (demo/host.js explains how it's kept apart); this page opens it over the website (blurred and
+// inactive behind it), with the Leave demo bar on its left.
 (function () {
   const $ = (id) => document.getElementById(id);
   const root = document.documentElement;
-  const website = $("website"), sidebar = $("site-nav"), menu = $("menu-toggle"), scrim = $("site-scrim");
+  const website = $("website"), sidebar = $("site-nav"), menu = $("menu-toggle");
   const overlay = $("demo-overlay"), intro = $("demo-intro"), stage = $("demo-stage"), holder = $("frame-holder");
 
-  // ------------------------------------------------------------ day and night
-  const THEME_KEY = "cc-site-theme";
-  const toggle = $("theme-toggle");
-  const setTheme = (dark) => {
-    root.dataset.theme = dark ? "night" : "day";
-    toggle.setAttribute("aria-checked", String(dark));
-    document.querySelector('meta[name="theme-color"]').setAttribute("content", dark ? "#0A0A0A" : "#F4F4F4");
-  };
-  let saved = null;
-  try { saved = localStorage.getItem(THEME_KEY); } catch (_) { /* private mode */ }
-  setTheme(saved !== "light");
-  toggle.addEventListener("click", () => {
-    const dark = root.dataset.theme !== "night";
-    setTheme(dark);
-    try { localStorage.setItem(THEME_KEY, dark ? "dark" : "light"); } catch (_) { /* private mode */ }
-  });
-
-  // ------------------------------------------------------------ the menu on phones
-  const openNav = (open) => {
-    sidebar.classList.toggle("open", open);
-    scrim.hidden = !open;
-    menu.setAttribute("aria-expanded", String(open));
-    if (open) sidebar.querySelector("a").focus();
-  };
-  menu.addEventListener("click", () => openNav(!sidebar.classList.contains("open")));
-  scrim.addEventListener("click", () => { openNav(false); menu.focus(); });
-  sidebar.addEventListener("click", (e) => { if (e.target.closest("a") && sidebar.classList.contains("open")) openNav(false); });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && sidebar.classList.contains("open")) { openNav(false); menu.focus(); } });
   // The section on screen is marked in the menu.
   const links = [...document.querySelectorAll(".nav-link[data-section]")];
   if ("IntersectionObserver" in window) {
