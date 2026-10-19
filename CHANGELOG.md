@@ -4,7 +4,7 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
-## Unreleased (not released yet)
+## 0.29.0 (2026-10-19)
 
 **Before you update:** friends' invite links set to work 30 days or "Until I make new ones" stop when this version starts: links now work 1, 3 or 7 days. Make new ones on the Friends page afterwards; friends who already set up keep playing.
 
