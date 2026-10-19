@@ -1,18 +1,67 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="light dark"><title>Real-world testing · Craft Conductor</title>
-<style>
-:root{font:16px/1.55 system-ui,sans-serif;color-scheme:light dark}body{max-width:1200px;margin:auto;padding:1.25rem}a{color:inherit}
-header{border-bottom:1px solid #8885;padding-bottom:1rem;margin-bottom:1.4rem}.muted{opacity:.7}nav a{margin-right:1.2rem}
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px;margin:1.4rem 0}.card{border:1px solid #8885;border-radius:12px;padding:14px}.count{font-size:1.8rem;font-weight:750}
-.toolbar{display:flex;gap:12px;flex-wrap:wrap;margin:1.5rem 0}select,input{padding:.6rem;min-width:180px;max-width:100%;border-radius:8px;border:1px solid #888}input{flex:1}
-.table-scroll{overflow:auto}table{border-collapse:collapse;width:100%;font-size:.92rem}th,td{text-align:left;padding:.7rem;border-bottom:1px solid #8883}th{white-space:nowrap}.pill{display:inline-block;padding:.16rem .5rem;border-radius:20px;background:#8882}.pass{color:#2b9262}.fail{color:#d85c53}.blocked{color:#bc8c38}
-tr:target{outline:2px solid #5a96cb}footer{margin-top:2rem;font-size:.9rem;opacity:.75}
-</style></head><body>
-<header><nav><a href="../">Craft Conductor</a><a href="https://github.com/silverWRX03/craft-conductor">Repository</a><a href="https://github.com/silverWRX03/craft-conductor/issues">Issues</a></nav>
-<h1>Real-world testing</h1><p class="muted">Versioned manual results from real machines. Historical passes do not automatically clear the next release.</p></header>
-<main><div class="toolbar"><label>Test run <select id="run"></select></label><label>Section <select id="section"><option value="">All sections</option></select></label><input id="search" aria-label="Search tests" placeholder="Search IDs, steps and sections"><label>Status <select id="status"><option value="">All statuses</option><option value="pass">Pass</option><option value="fail">Fail</option><option value="blocked">Blocked</option><option value="na">N/A</option><option value="not-tested">Not tested</option></select></label></div>
-<div class="cards" id="stats"></div><p id="scope-note" class="muted"></p>
-<div class="table-scroll"><table><thead><tr><th>ID</th><th>Section</th><th>Test step</th><th>Type</th><th>Status</th></tr></thead><tbody id="tests"></tbody></table></div>
-<footer>Public status view only. Evidence, tester identities and machine-specific notes are deliberately excluded. Use <code>python tools/real_world_tests.py</code> in VS Code/Claude Code to record results.</footer></main>
-<script src="app.js" defer></script></body></html>
+<html lang="en" data-theme="night">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="description" content="Craft Conductor's real-world testing: what was tried on real computers for each version, test by test, with passes, failures and what's still to test.">
+  <meta name="theme-color" content="#0A0A0A">
+  <meta name="color-scheme" content="dark light">
+  <title>Real-world testing · Craft Conductor</title>
+  <link rel="icon" type="image/png" href="../icon.png">
+  <link rel="stylesheet" href="../css/website.css">
+  <link rel="stylesheet" href="testing.css">
+  <script src="../nav.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#content">Skip to the content</a>
+<button id="menu-toggle" class="menu-toggle" type="button" aria-controls="site-nav" aria-expanded="false"><span aria-hidden="true">☰</span> Menu</button>
+<div class="site-scrim" id="site-scrim" hidden></div>
+
+<aside id="site-nav" class="sidebar" aria-label="Website">
+  <a class="brand" href="../"><img src="../icon.png" alt="" width="34" height="34"><span>Craft<br>Conductor</span></a>
+  <nav aria-label="Sections">
+    <a href="../#home" class="nav-link"><span class="nav-icon" aria-hidden="true">⌂</span>Home</a>
+    <a href="../#features" class="nav-link"><span class="nav-icon" aria-hidden="true">▦</span>What it does</a>
+    <a href="../#demo" class="nav-link"><span class="nav-icon" aria-hidden="true">▷</span>Try the demo</a>
+    <a href="../#download" class="nav-link"><span class="nav-icon" aria-hidden="true">↓</span>Download</a>
+    <a href="../#start" class="nav-link"><span class="nav-icon" aria-hidden="true">①</span>Getting started</a>
+    <a href="../#help" class="nav-link"><span class="nav-icon" aria-hidden="true">?</span>Help &amp; manual</a>
+    <a href="../#safety" class="nav-link"><span class="nav-icon" aria-hidden="true">◈</span>Safety &amp; releases</a>
+    <a href="./" class="nav-link active" aria-current="page"><span class="nav-icon" aria-hidden="true">✓</span>Real-world testing</a>
+    <a href="https://github.com/silverWRX03/craft-conductor" class="nav-link"><span class="nav-icon" aria-hidden="true">◇</span>GitHub</a>
+  </nav>
+  <div class="nav-bottom">
+    <div class="theme-control"><span>Light</span><button type="button" id="theme-toggle" class="theme-switch" role="switch" aria-checked="true" aria-label="Dark theme"><span class="thumb" aria-hidden="true"></span></button><span>Dark</span></div>
+    <p class="nav-version">Free and open source</p>
+  </div>
+</aside>
+
+<div id="website">
+<main id="content">
+  <section class="section testing" aria-labelledby="testing-title">
+    <p class="eyebrow"><span class="status-dot" aria-hidden="true"></span>Tested on real computers</p>
+    <h1 id="testing-title">Real-world testing</h1>
+    <p class="section-copy">Versioned manual results from real machines, besides the automated tests. Historical passes do not automatically clear the next release.</p>
+
+    <div class="toolbar">
+      <label>Test run <select id="run"></select></label>
+      <label>Section <select id="section"><option value="">All sections</option></select></label>
+      <label>Status <select id="status"><option value="">All statuses</option><option value="pass">Pass</option><option value="fail">Fail</option><option value="blocked">Blocked</option><option value="na">N/A</option><option value="not-tested">Not tested</option></select></label>
+      <label class="search">Search <input id="search" type="search" placeholder="IDs, steps and sections"></label>
+    </div>
+    <div class="cards" id="stats"></div>
+    <p id="scope-note" class="muted"></p>
+    <div class="table-scroll"><table><thead><tr><th>ID</th><th>Section</th><th>Test step</th><th>Type</th><th>Status</th></tr></thead><tbody id="tests"></tbody></table></div>
+    <p class="fineprint">Public status view only. Evidence, tester identities and machine-specific notes are deliberately excluded. Use <code>python tools/real_world_tests.py</code> in VS Code/Claude Code to record results.</p>
+  </section>
+</main>
+<footer class="site-footer">
+  <span class="footer-brand">Craft Conductor</span>
+  <span><a href="../">Home</a> · <a href="https://github.com/silverWRX03/craft-conductor/releases">Releases</a> · <a href="https://github.com/silverWRX03/craft-conductor/blob/main/SECURITY.md">Security</a> · <a href="https://github.com/silverWRX03/craft-conductor">Source code</a></span>
+</footer>
+</div>
+</body>
+</html>

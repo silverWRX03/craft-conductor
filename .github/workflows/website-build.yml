@@ -88,7 +88,7 @@ jobs:
         run: |
           python tools/build_website.py --output _site --source "$RUNNER_TEMP/release/src" \
             --version "$VERSION" --channel "$CHANNEL" --release-url "$URL" --release-assets "$RUNNER_TEMP/release.json"
-          for page in index.html join/index.html testing/index.html googlef2c4a8b5e575e76a.html demo/index.html demo/app/index.html; do
+          for page in index.html sitemap.xml join/index.html testing/index.html googlef2c4a8b5e575e76a.html demo/index.html demo/app/index.html; do
             test -s "_site/$page" || { echo "::error::_site/$page is missing"; exit 1; }
           done
 

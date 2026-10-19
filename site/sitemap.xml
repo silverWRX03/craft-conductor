@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The website's pages for search engines (docs/website.md). The demo and the invite page aren't listed (both are noindex). -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://silverwrx03.github.io/craft-conductor/</loc></url>
+  <url><loc>https://silverwrx03.github.io/craft-conductor/testing/</loc></url>
+</urlset>

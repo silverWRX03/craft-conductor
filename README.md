@@ -4,6 +4,9 @@
 
 ![Status: beta](https://img.shields.io/badge/status-beta-orange)
 
+**Website:** [silverwrx03.github.io/craft-conductor](https://silverwrx03.github.io/craft-conductor/): the demo, the
+downloads, and [real-world testing](https://silverwrx03.github.io/craft-conductor/testing/) (what was tried on real computers for each version).
+
 **Running a Minecraft server with friends should be as easy as playing on one.** Craft Conductor
 sets up a modded or plain Minecraft server on your own computer, keeps it running, and keeps it
 and its mods up to date for as long as you play. It also gets your friends' games ready to join.
