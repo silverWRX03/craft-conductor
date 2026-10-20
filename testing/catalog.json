@@ -8135,5 +8135,31 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 928,
+    "section": "Feature: The bell for missed messages",
+    "step": "Let a message at the top go by itself, and an error (which stays 12 seconds): the bell at the top right keeps both, newest first, each with its time and its server, with a red dot while unread. Undo, Mod test finished, a Craft Conductor update notice, a browser notification and a phone notification show in it too. Opening it marks them read; Clear empties it; Sign out clears it, and another person signing in on that browser doesn't see the first one's.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 929,
+    "section": "Feature: Safety rules and the password reset",
+    "step": "Wrong passwords are counted for each visitor: lock out one device with wrong passwords (another device on the Wi-Fi, or through Tailscale or Cloudflare); this computer and a different device still sign in with the right password, and a visitor through a tunnel that adds nothing (playit.gg or ssh -R pointed at the control panel) is counted apart from this computer.",
+    "type": "Core",
+    "tags": [
+      "security"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 930,
+    "section": "Changed: Friends' downloads without playit.gg",
+    "step": "Craft Conductor settings → Sharing with friends has no playit.gg tunnel for friends' downloads; one set up in 0.28.0 is gone after the update and nothing of it keeps running; a friend on mobile data downloads through the router's port while an invite link works.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]

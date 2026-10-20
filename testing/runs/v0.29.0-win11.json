@@ -1,0 +1,1266 @@
+{
+  "schema_version": 1,
+  "id": "v0.29.0-win11",
+  "cc_version": "0.29.0",
+  "minecraft_version": "",
+  "os": "Windows 11 Pro 23H2",
+  "kind": "minecraft",
+  "created_at": "2026-10-19T18:55:58+00:00",
+  "features": [
+    882,
+    883,
+    884,
+    885,
+    886,
+    887,
+    888,
+    889,
+    892,
+    893,
+    894,
+    895,
+    896,
+    897,
+    898,
+    899,
+    900,
+    901,
+    902,
+    903,
+    904,
+    905,
+    906,
+    911,
+    912,
+    913,
+    915,
+    916,
+    917,
+    918,
+    919,
+    920,
+    921,
+    922,
+    923,
+    924,
+    925,
+    926,
+    927,
+    928,
+    929,
+    930
+  ],
+  "fixes": [
+    890,
+    891,
+    907,
+    908,
+    909,
+    910,
+    914
+  ],
+  "required_ids": [
+    12,
+    35,
+    36,
+    64,
+    65,
+    66,
+    67,
+    68,
+    69,
+    70,
+    71,
+    72,
+    73,
+    74,
+    75,
+    76,
+    77,
+    78,
+    79,
+    80,
+    81,
+    82,
+    83,
+    84,
+    85,
+    86,
+    87,
+    88,
+    89,
+    90,
+    91,
+    92,
+    93,
+    94,
+    95,
+    96,
+    97,
+    98,
+    99,
+    100,
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108,
+    109,
+    110,
+    111,
+    112,
+    113,
+    114,
+    115,
+    116,
+    117,
+    118,
+    119,
+    120,
+    121,
+    122,
+    123,
+    124,
+    125,
+    126,
+    127,
+    128,
+    129,
+    130,
+    131,
+    132,
+    133,
+    134,
+    135,
+    136,
+    137,
+    138,
+    139,
+    140,
+    141,
+    142,
+    143,
+    144,
+    145,
+    146,
+    147,
+    148,
+    149,
+    150,
+    151,
+    152,
+    153,
+    154,
+    155,
+    156,
+    157,
+    158,
+    159,
+    160,
+    161,
+    162,
+    163,
+    164,
+    165,
+    166,
+    167,
+    168,
+    169,
+    170,
+    171,
+    172,
+    173,
+    174,
+    175,
+    183,
+    188,
+    196,
+    198,
+    215,
+    216,
+    391,
+    397,
+    398,
+    399,
+    418,
+    422,
+    435,
+    502,
+    512,
+    522,
+    523,
+    576,
+    577,
+    578,
+    579,
+    580,
+    581,
+    582,
+    583,
+    629,
+    653,
+    659,
+    691,
+    715,
+    716,
+    717,
+    718,
+    719,
+    720,
+    721,
+    722,
+    723,
+    724,
+    802,
+    803,
+    804,
+    805,
+    806,
+    807,
+    808,
+    809,
+    810,
+    811,
+    812,
+    813,
+    814,
+    815,
+    816,
+    817,
+    818,
+    819,
+    820,
+    821,
+    822,
+    823,
+    826,
+    827,
+    828,
+    829,
+    830,
+    832,
+    834,
+    840,
+    855,
+    857,
+    859,
+    869,
+    872,
+    873,
+    874,
+    875,
+    876,
+    877,
+    878,
+    879,
+    880,
+    881,
+    882,
+    883,
+    884,
+    885,
+    886,
+    887,
+    888,
+    889,
+    890,
+    891,
+    892,
+    893,
+    894,
+    895,
+    896,
+    897,
+    898,
+    899,
+    900,
+    901,
+    902,
+    903,
+    904,
+    905,
+    906,
+    907,
+    908,
+    909,
+    910,
+    911,
+    912,
+    913,
+    914,
+    915,
+    916,
+    917,
+    918,
+    919,
+    920,
+    921,
+    922,
+    923,
+    924,
+    925,
+    926,
+    927,
+    928,
+    929,
+    930
+  ],
+  "results": {
+    "898": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:06:56+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, through the control panel's API from this computer. Reset code requested: written to craft-conductor-reset-code.txt in Craft Conductor's folder. A wrong code was refused (401); the right code reset to PASSWORD, deleted the file and signed out existing sessions; the same code a second time was refused. With a new code, after five wrong tries even the right code got 429 'too many attempts; wait a few minutes'; after five minutes the same code worked. The sign-in page's look was not checked (API only).",
+      "evidence": ""
+    },
+    "64": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:20:16+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Created a Fabric server through New server (/api/hub/create): Minecraft 26.3 (newest), Fabric loader 0.19.5; setup test-booted it and reported updated.",
+      "evidence": ""
+    },
+    "65": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:20:16+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Minecraft 26.3 needs Java 25; this PC only has Java 21 and 22, so Craft Conductor downloaded a shared Java 25 (Adoptium jdk-25.0.4.1+1) into its own folder by itself and used it.",
+      "evidence": ""
+    },
+    "66": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:20:17+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Start: state running, Minecraft log Done.",
+      "evidence": ""
+    },
+    "68": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:20:17+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Added Lithium (Modrinth) to the server and installed it with the update on Minecraft 26.3; the jar is in mods/.",
+      "evidence": ""
+    },
+    "69": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:20:17+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. The update restarted the running server (after the 10/5/1 minute countdown) and it came back running; also stopped and started it again later.",
+      "evidence": ""
+    },
+    "70": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:20:17+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Minecraft log lists lithium 0.26.2+mc26.3 among the loaded mods and loads its config; server Done.",
+      "evidence": ""
+    },
+    "72": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:20:17+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Held Lithium at 0.26.1 (Change version) and installed it; set it back to Newest: the update check listed Lithium 0.26.1 -> 0.26.2 and applying it installed 0.26.2.",
+      "evidence": ""
+    },
+    "73": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:20:17+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. After the mod update the server started (Done) with Lithium 0.26.2 loaded.",
+      "evidence": ""
+    },
+    "105": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:20:18+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. This PC has Java 21 and 22 but nothing suitable for Minecraft 26.3 (Java 25).",
+      "evidence": ""
+    },
+    "106": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:20:18+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Java 25 was downloaded automatically during setup, nothing asked.",
+      "evidence": ""
+    },
+    "107": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:20:18+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. The server ran with the downloaded Java 25 (the start command and the Java page both show it).",
+      "evidence": ""
+    },
+    "115": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:20:18+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Older Java 21 and 22 are installed (one on PATH); the Java page lists them as found.",
+      "evidence": ""
+    },
+    "116": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:20:18+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Neither the installed Java 21 nor 22 was used for the 26.3 server; it uses the shared Java 25.",
+      "evidence": ""
+    },
+    "74": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:24:25+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Created a NeoForge server on Minecraft 1.21.1 (NeoForge 21.1.264); setup said ready.",
+      "evidence": ""
+    },
+    "75": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:24:25+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Started: state running.",
+      "evidence": ""
+    },
+    "77": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:24:25+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Added FerriteCore (Modrinth) and installed it (7.0.3-neoforge) with the update.",
+      "evidence": ""
+    },
+    "78": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:24:25+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Stopped and started again: running.",
+      "evidence": ""
+    },
+    "79": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:24:25+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. NeoForge log: Found mod file ferritecore-7.0.3-neoforge.jar, Ferrite Core 7.0.3 loaded; status shows 1 mod.",
+      "evidence": ""
+    },
+    "80": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:24:25+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Check for updates finished: up to date (Minecraft 1.21.1, the version chosen at setup), nothing blocked.",
+      "evidence": ""
+    },
+    "81": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:24:26+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Simulated: the test panel was restarted with HTTP(S)_PROXY pointing at a closed local port, so none of its requests could reach the internet (the PC itself stayed online), then Check for updates was run.",
+      "evidence": ""
+    },
+    "110": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:24:26+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. This PC has Oracle JDK 21 installed in Program Files.",
+      "evidence": ""
+    },
+    "111": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:24:26+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. The Java page lists the installed Java 21 and 22 as found.",
+      "evidence": ""
+    },
+    "112": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:24:26+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. The 1.21.1 NeoForge server chose the installed JDK 21 (your own Java at ...jdk-21.0.10) and ran with it; nothing was downloaded.",
+      "evidence": ""
+    },
+    "117": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:24:26+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Second server on Minecraft 1.21.1 (Java 21) next to the 26.3 server (Java 25).",
+      "evidence": ""
+    },
+    "118": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:24:26+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. 1.21.1 got Java 21 (installed one), 26.3 got Java 25 (downloaded).",
+      "evidence": ""
+    },
+    "119": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:24:27+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. The Java page data says which runtime each uses: shared Java 25 (jdk-25.0.4.1+1) in Craft Conductor folder, and your own Java at the JDK 21 path. Checked through the API, the text the page shows.",
+      "evidence": ""
+    },
+    "82": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:24:35+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. The check failed with: couldn't reach piston-meta.mojang.com; check your internet connection and try again (plus a details file). It did not say there was no compatible build.",
+      "evidence": ""
+    },
+    "83": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:27:08+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Created a Forge server on Minecraft 26.3 (Forge 66.0.13, Java 25).",
+      "evidence": ""
+    },
+    "84": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:27:08+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Started: running, log Done.",
+      "evidence": ""
+    },
+    "86": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:27:08+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Added Chunky (Modrinth, Forge build 1.5.4) and installed it with the update.",
+      "evidence": ""
+    },
+    "87": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:27:09+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Restarted after the install: running, 1 mod.",
+      "evidence": ""
+    },
+    "88": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:27:09+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Chunky loaded: its chunky command answers in the console (trim, selection, progress, reload).",
+      "evidence": ""
+    },
+    "877": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:27:09+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Forge 66.0.13 on Minecraft 26.3: the forge-26.3-66.0.13-shim.jar is kept in the server folder and the server starts (also after a mod install and restart).",
+      "evidence": ""
+    },
+    "90": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:33:50+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Created a Paper server on Minecraft 26.3 (Paper build 206, Java 25).",
+      "evidence": ""
+    },
+    "91": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:33:50+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Started: running.",
+      "evidence": ""
+    },
+    "93": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:33:50+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Added Chunky and TAB (Modrinth, Paper builds) and installed them; jars in plugins/.",
+      "evidence": ""
+    },
+    "94": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:33:50+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Restarted several times after installs: running.",
+      "evidence": ""
+    },
+    "95": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:33:50+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. The plugins command lists Chunky and TAB as loaded (green).",
+      "evidence": ""
+    },
+    "96": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:33:51+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. TAB held at 6.2.0 (Change version) and installed; set to Newest, the update check listed TAB 6.2.0 -> 6.2.1, applying it replaced the jar (old one removed) and the server started with 6.2.1.",
+      "evidence": ""
+    },
+    "97": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:33:51+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Created a Purpur server on Minecraft 26.3 (Purpur build 2652).",
+      "evidence": ""
+    },
+    "98": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:33:51+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Started: running.",
+      "evidence": ""
+    },
+    "100": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:33:51+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Added Chunky and PlaceholderAPI (Modrinth) and installed them.",
+      "evidence": ""
+    },
+    "101": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:33:51+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Restarted: running with 2 plugins.",
+      "evidence": ""
+    },
+    "102": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:33:51+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. plugins command: Bukkit Plugins (2): Chunky, PlaceholderAPI.",
+      "evidence": ""
+    },
+    "104": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:33:51+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Add: listed, then installed by the update as the page says (Run an update check to install it). Remove PlaceholderAPI then update: its jar was taken out of plugins/ (its own config folder stays), the plugins command lists only Chunky.",
+      "evidence": ""
+    },
+    "108": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:34:42+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Forge, Paper and Purpur servers on Minecraft 26.3 (Java 25) were made after the Fabric one.",
+      "evidence": ""
+    },
+    "109": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:34:42+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. No second Java 25 was downloaded: the Java page shows one shared Java 25 release used by Test Fabric, Forge, Paper and Purpur.",
+      "evidence": ""
+    },
+    "715": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:34:42+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Four servers on Minecraft 26.3 need Java 25.",
+      "evidence": ""
+    },
+    "716": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:34:42+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. All four use the same shared Java 25 (one release in the Java folder, used_by lists all four).",
+      "evidence": ""
+    },
+    "717": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:34:43+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Started Test Fabric and Test Paper at the same time.",
+      "evidence": ""
+    },
+    "718": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:34:43+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Both running together, each with the shared Java 25 binary (two java processes).",
+      "evidence": ""
+    },
+    "653": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:38:51+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Killed the running Paper server java process with taskkill /F: Craft Conductor said Server crashed (exit code 1); restarting, wrote a crash details file, and the server was running again about 20 seconds later.",
+      "evidence": ""
+    },
+    "810": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:38:51+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Paper server: placed a diamond block, saved, Create backup (created ... (checked)); removed the block; restore while running was refused (stop the server first); stopped, restored that backup (Minecraft 26.3, 2 mods), started: execute if block finds the diamond block again, plugins intact.",
+      "evidence": ""
+    },
+    "811": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:38:51+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Forge server: started a mod update (adding spark) and killed Craft Conductor and its Minecraft (taskkill /T) during the test start, after the files were swapped. After restarting Craft Conductor the server showed stopped; on Start it said Craft Conductor was stopped in the middle of something and put the backup made before the update back; spark was gone from mods, the update note removed, and the server ran with its old mods.",
+      "evidence": ""
+    },
+    "819": {
+      "status": "fail",
+      "tested_at": "2026-10-19T19:42:28+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Forge 26.3 server, update = adding spark. Rehearse it on a copy first while the server was running failed at once on Windows: copying the locked world/session.lock (WinError 33). With the server stopped the rehearsal worked (started in 19 s, 20 TPS, verdict good) and the real update matched it (spark installed, server started, spark works). But the rehearsal counted 96 errors (log4j stack lines) that the real server did not log. Bug report written, not filed yet.",
+      "evidence": ""
+    },
+    "886": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:44:20+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. New server with playit.gg: starts with white-list=true and enforce-whitelist=true, Your Minecraft name on whitelist.json; asking for it off at creation is refused with the warning until confirmed (no folder written). Turning it off from Players (twice) and Settings is refused with the warning (409, confirm whitelist-off) each time until confirmed. The page code sends Dashboard, Players, Settings and New server through the same question; the dialogs themselves were not looked at.",
+      "evidence": ""
+    },
+    "890": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:44:21+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. On a server set to playit.gg, Ban IP by player name is refused: players who join through playit.gg all come from this computer address ... Ban the name instead. Checked without a real player joining through playit.gg (the refusal depends only on the server using playit.gg).",
+      "evidence": ""
+    },
+    "576": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:47:42+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Fabric server on Minecraft 26.3 (Bedrock supported: true).",
+      "evidence": ""
+    },
+    "577": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:47:42+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Let Bedrock players join flow: bedrock/check offered Geyser (beta, the only 26.3 build) and Floodgate; both added and installed.",
+      "evidence": ""
+    },
+    "578": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:47:42+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Installed Geyser 2.12.0-b1265, Floodgate 2.2.7-b69 and Fabric API; the server starts and Geyser listens on UDP.",
+      "evidence": ""
+    },
+    "579": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:47:42+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. The Bedrock port is given (19132 at first; with port forwarding, the picked UDP port 38952, also in Geyser config.yml).",
+      "evidence": ""
+    },
+    "580": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:47:42+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Port forwarding message: Forward TCP port 32969 ... and UDP port 38952 for Bedrock players; Check my setup lists 38952 (Bedrock) under Windows Firewall.",
+      "evidence": ""
+    },
+    "215": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:47:42+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Enabled Geyser (and Floodgate) on a Fabric 26.3 server.",
+      "evidence": ""
+    },
+    "216": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:47:42+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Check my setup, Windows Firewall: lists port 38952 (Test Reach (Bedrock)) next to the Minecraft port; the rule list Craft Conductor builds adds the Bedrock port as UDP. (Here both were already let through by a Windows rule for the Java program.)",
+      "evidence": ""
+    },
+    "659": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:47:43+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Check my setup, Java: Java 25 is ready: shared Java 25 (jdk-25.0.4.1+1), in the Craft Conductor java folder. Correct.",
+      "evidence": ""
+    },
+    "120": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:51:34+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Mod browser search on Modrinth (Fabric 26.3 server) for lithium.",
+      "evidence": ""
+    },
+    "121": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:51:34+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Real results: lithium first; an empty search reports about 5,271 server mods.",
+      "evidence": ""
+    },
+    "139": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:51:34+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Narrow search (terrain): 3 incompatible results hidden, paging carried on to the end (24 shown + 3 hidden = 27 total) and next was empty only there. Checked at the API (the page uses next); the list on screen was not looked at.",
+      "evidence": ""
+    },
+    "141": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:51:34+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. CurseForge search (NeoForge 1.21.1 server) for jei: 186 results.",
+      "evidence": ""
+    },
+    "142": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:51:34+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. No key of my own: Craft Conductor uses its built-in CurseForge key (set, own false, builtin true).",
+      "evidence": ""
+    },
+    "143": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:51:34+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Added AppleSkin from CurseForge (project 248787); it was downloaded with the update.",
+      "evidence": ""
+    },
+    "144": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:51:35+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. appleskin-neoforge-mc1.21-3.0.9.jar installed in mods/; the server started with it (2 mods).",
+      "evidence": ""
+    },
+    "145": {
+      "status": "pass",
+      "tested_at": "2026-10-19T19:51:35+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. The jar SHA-1 equals the one CurseForge lists (recorded in craft-conductor.lock.json); downloads are checked against it.",
+      "evidence": ""
+    },
+    "146": {
+      "status": "pass",
+      "tested_at": "2026-10-19T20:53:14+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. I'm Fast (CurseForge 1111501), in All the Mods 11, may not be downloaded by other apps.",
+      "evidence": ""
+    },
+    "147": {
+      "status": "pass",
+      "tested_at": "2026-10-19T20:53:14+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Craft Conductor did not download it: setup waited for it, giving only CurseForge's own file page and the SHA-1 to check against.",
+      "evidence": ""
+    },
+    "148": {
+      "status": "pass",
+      "tested_at": "2026-10-19T20:53:15+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Setup waited for 1 mod to be downloaded by hand (with the CurseForge file link). The owner downloaded it in the browser; Craft Conductor found it in Downloads, checked it and setup carried on. The waiting panel on screen was not looked at.",
+      "evidence": ""
+    },
+    "826": {
+      "status": "pass",
+      "tested_at": "2026-10-19T20:53:15+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. New server from CurseForge All the Mods 11 0.11.1-beta, sending what the setup page sends: Minecraft 26.1.2, NeoForge 26.1.2.109, 245 mods and 2788 config files came from the pack; the 22 mods only for players (Sodium, Iris ...) went to the friends' download held at the pack files, not on the server.",
+      "evidence": ""
+    },
+    "913": {
+      "status": "fail",
+      "tested_at": "2026-10-19T20:53:15+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. ATM11 (CurseForge) made from 0.11.1-beta; changed a config file and removed FastFurnace. Look for a new version listed 0.12.0-beta; See what changes: 17 added, 47 updated, FastFurnace kept removed, 3 added for friends. Update the pack failed before changing anything: Stellaris 2.0.7 needs sky_aesthetics, which went to friends only (Modrinth says players only). Everything stayed as it was (0.11.1, config change and removal kept, server starts). Modrinth pack route not tried. Bug report written, not filed.",
+      "evidence": ""
+    },
+    "921": {
+      "status": "pass",
+      "tested_at": "2026-10-19T21:08:47+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Folders: Servers moved from C: to E: (7 servers, 5.8 GB): refused while one ran (stop these first: ... is running); stopped, it moved and said Moved; README.txt in the new folder; the old servers folder is gone; a world file is byte-identical; Test Paper started from the new folder with its world (marker block found) and mods; both invite links unchanged. A friend joining was not tried; the dialogs were not looked at.",
+      "evidence": ""
+    },
+    "922": {
+      "status": "fail",
+      "tested_at": "2026-10-19T21:08:47+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Backups moved to a folder on another drive (E: then C:): copied, the old one removed; a server whose craft-conductor.toml names its own backups folder kept it and the question said so; Create backup and a scheduled backup went to the new folder; restoring worked. But restoring a backup made before the change put back the old [backups] dir from that backup, so the server listed 0 backups, and Keep them in each server's folder said Moved but left its 12 backups behind in the chosen folder. Bug report written, not filed.",
+      "evidence": ""
+    },
+    "925": {
+      "status": "pass",
+      "tested_at": "2026-10-19T21:10:45+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Windows: moving the servers (5.8 GB) from E: to C:, Craft Conductor was killed (taskkill /F /T) at 32%. On the next start it said: Moving the servers was stopped halfway: everything was put back in E:\\cc-test\\servers; the partly copied files on C: were removed (an empty folder is left), all 7 servers listed, Test Paper started from its old folder with its world. Linux, Mac, Docker and craft-conductor run parts not tried (other systems).",
+      "evidence": ""
+    },
+    "897": {
+      "status": "pass",
+      "tested_at": "2026-10-19T21:13:35+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Simulated a tunnel that adds nothing (like playit.gg or ssh -R) with a local TCP forwarder running as socat.exe in front of the control panel. Through it: /api/auth says local false, so the sign-in page shows the On the server's own computer hint instead of the Reset it to PASSWORD button; reset-code and reset-local answer 403; with the panel set to a PIN, signing in with the PIN is refused (needs a strong password), while the PIN works on this computer. Tailscale and Cloudflare not tried.",
+      "evidence": ""
+    },
+    "923": {
+      "status": "pass",
+      "tested_at": "2026-10-19T21:14:29+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Export of Test Purpur: the zip is in exports\test-purpur\\ under the server name and time. An export copied into the exports folder is listed (name, size, date) with the others and Import works; an export with a locked part asks for its password (wrong one refused, right one imports); Another file (upload) still imports. Imported servers got free ports. (Two exports in the same minute overwrite each other: separate bug report.)",
+      "evidence": ""
+    },
+    "859": {
+      "status": "pass",
+      "tested_at": "2026-10-19T21:14:29+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Test Purpur with a fake Discord webhook and a fake CurseForge key: a normal export contains neither (no plain file in the zip has them). After importing, Craft Conductor reports them as left out (left_out: curseforge_api_key, discord_webhook, rcon) and the imported settings have an empty key. The page wording that says where to enter them was not looked at.",
+      "evidence": ""
+    },
+    "857": {
+      "status": "fail",
+      "tested_at": "2026-10-19T21:15:55+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Checked with Get-Acl/icacls. Private to this account (plus SYSTEM and Administrators): the panel sign-in file, backup.key, passkeys, the friends download TLS key, craft-conductor.toml files with a key or invite secret (also on drive E:), and exports Craft Conductor made. But after moving the servers folder from C: to E:, server.properties holding Minecraft management-server-secret was readable by Users (and modifiable by Authenticated Users) on 6 servers until each was started again. Bug report written, not filed.",
+      "evidence": ""
+    },
+    "889": {
+      "status": "pass",
+      "tested_at": "2026-10-19T21:19:05+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Made a server with 0.28.0 (release exe, checksum checked) and set its invite link to 30 days; quit, started 0.29.0 on the same folder. The GitHub release notes start with Before you update (links set to 30 days or Until I make new ones stop). After the update the link had stopped (no link, expired), choices are 1/3/7 days, the friends download port was closed, and the activity said: The friends invite links of this server stopped: links now work for a week at most ... Make new links on its Friends page. The bell was not looked at.",
+      "evidence": ""
+    },
+    "154": {
+      "status": "pass",
+      "tested_at": "2026-10-19T21:20:34+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. NeoForge 1.21.1 server, Friends - mods for players saved through /api/client as the page does. Friends mods for players list and its search work (mouse tweaks found).",
+      "evidence": ""
+    },
+    "155": {
+      "status": "pass",
+      "tested_at": "2026-10-19T21:20:34+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. NeoForge 1.21.1 server, Friends - mods for players saved through /api/client as the page does. Chose Jade (Modrinth: client optional, server optional = both sides).",
+      "evidence": ""
+    },
+    "156": {
+      "status": "pass",
+      "tested_at": "2026-10-19T21:20:34+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. NeoForge 1.21.1 server, Friends - mods for players saved through /api/client as the page does. Chose Mouse Tweaks (Modrinth: client required, server unsupported).",
+      "evidence": ""
+    },
+    "157": {
+      "status": "pass",
+      "tested_at": "2026-10-19T21:20:34+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. NeoForge 1.21.1 server, Friends - mods for players saved through /api/client as the page does. Saved both to the players mods list.",
+      "evidence": ""
+    },
+    "158": {
+      "status": "pass",
+      "tested_at": "2026-10-19T21:20:34+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. NeoForge 1.21.1 server, Friends - mods for players saved through /api/client as the page does. Jade was also added to the server mods (also_on_server: Jade).",
+      "evidence": ""
+    },
+    "159": {
+      "status": "pass",
+      "tested_at": "2026-10-19T21:20:34+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. NeoForge 1.21.1 server, Friends - mods for players saved through /api/client as the page does. Waystones (both sides) added for players went on the server with its required dependency Balm (also_on_server: Waystones, deps Balm).",
+      "evidence": ""
+    },
+    "161": {
+      "status": "pass",
+      "tested_at": "2026-10-19T21:20:34+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. NeoForge 1.21.1 server, Friends - mods for players saved through /api/client as the page does. Mouse Tweaks was not added to the server mods.",
+      "evidence": ""
+    },
+    "162": {
+      "status": "pass",
+      "tested_at": "2026-10-19T21:20:35+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. NeoForge 1.21.1 server, Friends - mods for players saved through /api/client as the page does. Removed Jade from the players list with remove it from the server too: it left the server mods as well.",
+      "evidence": ""
+    },
+    "822": {
+      "status": "pass",
+      "tested_at": "2026-10-19T21:21:03+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. New server with Minecraft left at the default (latest): made on 26.3, the first (newest) release in the setup list, for Fabric, Forge, Paper and Purpur alike.",
+      "evidence": ""
+    },
+    "719": {
+      "status": "pass",
+      "tested_at": "2026-10-19T21:21:24+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Deleted Test Purpur 4 (a Purpur 26.3 server needing Java 25, imported, never started) with its files. Note: after the servers folder moved to another drive, the Java page lists as users only the servers started since the move (Test Paper, Test Fabric).",
+      "evidence": "",
+      "supersedes": {
+        "status": "pass",
+        "tested_at": "2026-10-19T21:21:03+00:00",
+        "tester": "Claude Code",
+        "notes": "Release exe, isolated home, control panel API. Deleted Test Purpur 4 (one of the servers using the shared Java 25) with its files.",
+        "evidence": ""
+      }
+    },
+    "720": {
+      "status": "pass",
+      "tested_at": "2026-10-19T21:21:03+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. The shared Java 25 stayed (same release, java.exe present, still used by the other servers) and Test Fabric started with it afterwards.",
+      "evidence": ""
+    },
+    "855": {
+      "status": "pass",
+      "tested_at": "2026-10-19T21:22:30+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Test Purpur had a fake Discord webhook URL and a fake CurseForge key in its craft-conductor.toml. The bug report zip (README, checks, system, craft-conductor.toml, server.properties, the activity log, latest.log) contains neither, nor the panel password or the Minecraft management secret.",
+      "evidence": ""
+    },
+    "422": {
+      "status": "pass",
+      "tested_at": "2026-10-19T21:22:30+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Real mod updates on running and stopped servers: Lithium 0.26.1 -> 0.26.2 (Fabric), TAB 6.2.0 -> 6.2.1 (Paper), spark added (Forge): backup first, installed, server started.",
+      "evidence": ""
+    },
+    "391": {
+      "status": "pass",
+      "tested_at": "2026-10-19T21:23:22+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Fabric 26.3 server: backup (snapshot) with Lithium installed and a marker line in config/lithium.properties; then Lithium removed and the update applied (0 mods) and the config file rewritten; restored the snapshot. The mod list was changed (Lithium removed and uninstalled).",
+      "evidence": ""
+    },
+    "397": {
+      "status": "pass",
+      "tested_at": "2026-10-19T21:23:22+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Fabric 26.3 server: backup (snapshot) with Lithium installed and a marker line in config/lithium.properties; then Lithium removed and the update applied (0 mods) and the config file rewritten; restored the snapshot. After restore: Minecraft 26.3.",
+      "evidence": ""
+    },
+    "398": {
+      "status": "pass",
+      "tested_at": "2026-10-19T21:23:22+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Fabric 26.3 server: backup (snapshot) with Lithium installed and a marker line in config/lithium.properties; then Lithium removed and the update applied (0 mods) and the config file rewritten; restored the snapshot. After restore: Lithium installed and listed again; the server started with it.",
+      "evidence": ""
+    },
+    "399": {
+      "status": "pass",
+      "tested_at": "2026-10-19T21:23:22+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Fabric 26.3 server: backup (snapshot) with Lithium installed and a marker line in config/lithium.properties; then Lithium removed and the update applied (0 mods) and the config file rewritten; restored the snapshot. After restore: config/lithium.properties is the snapshot one (marker line back).",
+      "evidence": ""
+    },
+    "911": {
+      "status": "pass",
+      "tested_at": "2026-10-19T21:23:48+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, control panel API. Modpack route: New server from CurseForge All the Mods 11 0.11.1-beta, whose server pack is not used (preview server_pack false): the 22 mods Modrinth says only run on players computers (Sodium, Iris, Mouse Tweaks ...) went in the friends download at the pack files (21 of 22 in the download; More Overlays Updated may only be downloaded by hand), not on the server, and the server started (245 mods). Sent what the setup page sends; the rows on screen were not looked at. The other route (Sodium added from CurseForge) also keeps it off the server, offering Move to players mods.",
+      "evidence": ""
+    },
+    "814": {
+      "status": "fail",
+      "tested_at": "2026-10-19T21:25:49+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, command line (create, backup). Craft Conductor folder (CRAFT_CONDUCTOR_HOME) and server folder with accented letters (in Windows code page 1252): works (created, test start, Lithium loaded). Japanese letters in the server folder name only: works. Japanese letters in Craft Conductor own folder: the Java it downloads there will not start (could not find java.dll / Could not find Java SE Runtime Environment); the install rolled back cleanly; backups worked. Windows 11 English. Bug report written, not filed.",
+      "evidence": ""
+    },
+    "12": {
+      "status": "pass",
+      "tested_at": "2026-10-19T21:26:05+00:00",
+      "tester": "Claude Code",
+      "notes": "Minecraft Java versions tested in this run: 26.3 (Fabric 0.19.5, Forge 66.0.13, Paper build 206, Purpur build 2652), 26.1.2 (NeoForge 26.1.2.109, All the Mods 11), 1.21.1 (NeoForge 21.1.264).",
+      "evidence": ""
+    },
+    "899": {
+      "status": "pass",
+      "tested_at": "2026-10-20T03:32:46+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, Chrome. Advanced: ticking You choose the port friends use from outside asked Switch this safety rule off? (Cancel picked out), then showed A safety rule is switched off now once (not again after a reload); the warning bar stayed on every page and after a reload (Hide only hides it until then). Through a local tunnel stand-in (a forwarder under a tunnel program name, so not this computer), ticking another rule was refused: switching a safety rule off only works in a browser on the server own computer; unticking from there worked and the bar went away on both tabs.",
+      "evidence": ""
+    },
+    "828": {
+      "status": "pass",
+      "tested_at": "2026-10-20T03:36:42+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, Chrome. Test Fabric, Lithium, Manage Mods → Change version: builds newest first, releases only at first (0 betas), Show beta builds added 6 betas; builds for other Minecraft versions marked made for Minecraft …. Picked 0.26.1: row says held, the update installed 0.26.1, Check now then said up to date (held mod left alone). Newest again: the next check offered 0.26.1 to 0.26.2 and the update put it back.",
+      "evidence": ""
+    },
+    "829": {
+      "status": "pass",
+      "tested_at": "2026-10-20T03:42:01+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, Chrome. Test NeoForge 1.21.1 (friends download on): mod browser, Modrinth, Sophisticated Backpacks (server + client) → Add selected mods: Added 1 mod(s) and Sophisticated Backpacks also runs on players computers, so it was added to your friends mods too, with Sophisticated Core; both were in friends mods. Remove from Manage Mods asked: … is also in your friends mods. Remove it from their download too?; Remove from friends mods took it off. Side findings: the question names the mod by its slug and leaves Sophisticated Core in friends mods when the mod is removed before an update (bug report written); Quick add on the Mods page does not add both-sides mods to friends mods (only the mod browser does, as the manual says).",
+      "evidence": ""
+    },
+    "122": {
+      "status": "pass",
+      "tested_at": "2026-10-20T03:50:10+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, Chrome. Test NeoForge 1.21.1, Mods → Download mods, Modrinth. Scrolled with the mouse wheel past the first batch (18 shown, 2 already added hidden) to over 80 results.",
+      "evidence": ""
+    },
+    "123": {
+      "status": "pass",
+      "tested_at": "2026-10-20T03:50:10+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, Chrome. Test NeoForge 1.21.1, Mods → Download mods, Modrinth. With normal wheel scrolling the next batches loaded by themselves (18 to 34 to 50 to 68). After a fast jump to the bottom (scrollbar drag or several big wheel moves) nothing more loads until scrolling back up a little or pressing Load more (bug report written).",
+      "evidence": ""
+    },
+    "124": {
+      "status": "pass",
+      "tested_at": "2026-10-20T03:50:10+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, Chrome. Test NeoForge 1.21.1, Mods → Download mods, Modrinth. Measured in the page: the row on screen did not move when batches were added (shift 0 px each time).",
+      "evidence": ""
+    },
+    "125": {
+      "status": "pass",
+      "tested_at": "2026-10-20T03:50:10+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, Chrome. Test NeoForge 1.21.1, Mods → Download mods, Modrinth. Ticked Cloth Config API before the second batch loaded.",
+      "evidence": ""
+    },
+    "126": {
+      "status": "pass",
+      "tested_at": "2026-10-20T03:50:10+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, Chrome. Test NeoForge 1.21.1, Mods → Download mods, Modrinth. It stayed ticked (1 selected: Cloth Config API) through four more batches and a new search.",
+      "evidence": ""
+    },
+    "127": {
+      "status": "pass",
+      "tested_at": "2026-10-20T03:50:10+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, Chrome. Test NeoForge 1.21.1, Mods → Download mods, Modrinth. Opened Lithium details on the right.",
+      "evidence": ""
+    },
+    "128": {
+      "status": "pass",
+      "tested_at": "2026-10-20T03:50:10+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, Chrome. Test NeoForge 1.21.1, Mods → Download mods, Modrinth. Scrolled on: three more batches loaded.",
+      "evidence": ""
+    },
+    "129": {
+      "status": "pass",
+      "tested_at": "2026-10-20T03:50:10+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, Chrome. Test NeoForge 1.21.1, Mods → Download mods, Modrinth. Lithium details stayed open the whole time.",
+      "evidence": ""
+    },
+    "130": {
+      "status": "pass",
+      "tested_at": "2026-10-20T03:50:11+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, Chrome. Test NeoForge 1.21.1, Mods → Download mods, Modrinth. Turned the wheel fast through several batches (34 to 50 to 68, then Load more to 88).",
+      "evidence": ""
+    },
+    "131": {
+      "status": "pass",
+      "tested_at": "2026-10-20T03:50:11+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, Chrome. Test NeoForge 1.21.1, Mods → Download mods, Modrinth. Checked every row name in the page: no duplicates among 88 results.",
+      "evidence": ""
+    },
+    "132": {
+      "status": "pass",
+      "tested_at": "2026-10-20T03:50:11+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, Chrome. Test NeoForge 1.21.1, Mods → Download mods, Modrinth. Pressed Load more and, while it showed Loading more…, typed a new search (waystones).",
+      "evidence": ""
+    },
+    "133": {
+      "status": "pass",
+      "tested_at": "2026-10-20T03:50:11+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, Chrome. Test NeoForge 1.21.1, Mods → Download mods, Modrinth. Only waystones results were listed afterwards; none of the 88 earlier results came back.",
+      "evidence": ""
+    },
+    "138": {
+      "status": "pass",
+      "tested_at": "2026-10-20T03:50:11+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, Chrome. Test NeoForge 1.21.1, Mods → Download mods, Modrinth. Version 26.4-snapshot-4 (76 results on Modrinth for NeoForge): paged with Load more to the end.",
+      "evidence": ""
+    },
+    "140": {
+      "status": "pass",
+      "tested_at": "2026-10-20T03:50:11+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, Chrome. Test NeoForge 1.21.1, Mods → Download mods, Modrinth. That's everything appeared only at the true end: 62 shown plus 14 alpha/beta only is 76, the same as Modrinth's total; for waystones 19 shown plus 1 added plus 2 alpha/beta is 22, also Modrinth's total.",
+      "evidence": ""
+    },
+    "160": {
+      "status": "pass",
+      "tested_at": "2026-10-20T03:52:01+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, Chrome. Test NeoForge 1.21.1, Friends → Add Friends Mods. Added Farmer's Delight (server + client) for players: Added Farmer's Delight for players, then Farmer's Delight also runs on the server, so it was added there too; it was in the server mods.",
+      "evidence": ""
+    },
+    "163": {
+      "status": "pass",
+      "tested_at": "2026-10-20T03:52:01+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, Chrome. Test NeoForge 1.21.1, Friends → Add Friends Mods. Manage Friends Mods → Remove on it asked: farmers-delight is also one of the server mods. Remove it from the server too? (Cancel keeps it); Remove from the server took it off both lists. The question uses the slug, not the name.",
+      "evidence": ""
+    },
+    "910": {
+      "status": "fail",
+      "tested_at": "2026-10-20T03:52:01+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, Chrome (by eye, after the first session's installs). Test NeoForge 1.21.1: Manage Mods lists Iris & Oculus Search, Iris Shaders and Sodium as not installed, only runs on players computers (Modrinth says so), with Move to players mods (Sodium: Put back on the server). But the friends download has Iris Shaders (as a dependency needed by curseforge:1583035, an id) and Sodium, not Iris & Oculus Search itself. The Iris build picked declares Minecraft 1.21 only, so players Minecraft would not start and invite links are paused (that part is the mod file). Same rows also listed twice as pending adds (see bug 4). Server start not tried.",
+      "evidence": ""
+    },
+    "823": {
+      "status": "pass",
+      "tested_at": "2026-10-20T03:53:57+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, Chrome. New server, NeoForge, Minecraft 1.21.1, mod browser: Just Enough Items (JEI), whose MezzConfig has only beta builds; Cancel on the Add it anyway? question. Manage Mods row: Dependency unavailable, Just Enough Items (JEI) requires MezzConfig, but no compatible MezzConfig release was found for Minecraft 1.21.1 using NeoForge …; Craft Conductor will not change your server type or Minecraft version automatically; buttons Choose another Minecraft version and Remove Just Enough Items (JEI); the version stayed 1.21.1. No Use Minecraft … button, correctly: MezzConfig has no release build for NeoForge on any version.",
+      "evidence": ""
+    },
+    "902": {
+      "status": "pass",
+      "tested_at": "2026-10-20T04:00:41+00:00",
+      "tester": "Claude Code",
+      "notes": "Chrome on Windows, the published website. Try the demo → Start again → Create my first server: the real New server page (Vanilla Minecraft with friends, EULA, Create my server), the server started, a friend (Alex) joined, Simulate a join request brought two requests (Steve_the_Brave, Sam_Builds, with simulated phone notifications); Allow let Steve_the_Brave in; Dashboard (2 / 20, both listed), Players page and console (Added to the whitelist, joined the game) agreed. Network: only the site itself (demo page, icon) and inline data: images, nothing to other hosts. Small: the Friends page stayed blank for a few seconds after Create, and the demo hint bar still said The New server page is open after the server was made; the first load of the demo page once answered 503 but loaded.",
+      "evidence": ""
+    },
+    "906": {
+      "status": "pass",
+      "tested_at": "2026-10-20T04:00:42+00:00",
+      "tester": "Claude Code",
+      "notes": "Chrome on Windows, the published website, keyboard only (no screen reader tried). Enter on Try the demo in your browser opened it with focus on How would you like to start?; Tab reached Create my first server, Explore an existing server, Start again instead; Enter on Explore an existing server, then Tab went into the control panel (visible focus ring on its menu). Escape from inside the panel, and Enter on the Leave demo bar (Shift+Tab from the start), both closed the demo and put focus back on Try the demo in your browser.",
+      "evidence": ""
+    },
+    "920": {
+      "status": "pass",
+      "tested_at": "2026-10-20T04:09:18+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, a new empty folder as home (stand-in for C:/Users/<you>/craft-conductor), Chrome. After the Before you start notice and choosing a password, Where should Craft Conductor keep your files? showed Servers and Exports in the Craft Conductor folder and Backups In each server own folder. Exports → Change… → typed another drive folder, Open, New folder… (exports-920), Use this folder, then Use these folders: Saved., a README.txt in the servers folder and in the new exports folder, the guided setup was offered next, and the question did not come back after reloads. Small: the picker first opened on an error (the default exports folder did not exist yet) with nothing to browse (bug report written).",
+      "evidence": ""
+    },
+    "915": {
+      "status": "pass",
+      "tested_at": "2026-10-20T04:35:15+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, Chrome only (Firefox not tried). New server, NeoForge 1.21.1, CurseForge mod Entity Culling (hand download): Manage Mods glowed orange, Create was refused (Some mods must be downloaded from CurseForge first…). Pressed Download from CurseForge, downloaded on CurseForge in Chrome; back on the page without dropping anything: Found Entity Culling Fabric/Forge in your Downloads folder. All the mods to download by hand are in., row loaded, glow and warnings gone, Create my server went ahead and the server was made; the file stayed in Downloads. (It then left the mod off the server as players-only: bug report written.)",
+      "evidence": ""
+    },
+    "916": {
+      "status": "pass",
+      "tested_at": "2026-10-20T04:35:15+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, Chrome. Not Enough Animations downloaded from CurseForge, then moved to another folder (stand-in for saving it elsewhere; Chrome settings not changed). After pressing its link and coming back: Not found in your Downloads folder. Where did you save it?; Choose the folder… opened in Downloads; opened the other folder, Just this time: found. Then with another mod, Always look here: found; Craft Conductor settings → Folders listed the folder; a later setup found Not Enough Animations there by itself; Forget took it away (No other folders yet).",
+      "evidence": ""
+    },
+    "917": {
+      "status": "pass",
+      "tested_at": "2026-10-20T04:35:15+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, Chrome. Put another jar in Downloads under the exact file name CurseForge lists for Entity Culling: message … isn't the file CurseForge lists (another version, or a download that went wrong): download it again from its link., row wrong file, 1 still to load, nothing loaded. Downloaded the right one from its link (saved as name (1).jar): found and loaded.",
+      "evidence": ""
+    },
+    "875": {
+      "status": "pass",
+      "tested_at": "2026-10-20T04:35:15+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe, isolated home, Chrome. ATM11 0.11.1-beta (CurseForge) on New server needs I'm Fast by hand: Remove on it in Manage Mods (Undo offered) took the hand-download section away, it stayed removed after the mod check (244 total, 1 manually removed, 0 dependencies) and Create was usable. The blocked half was seen with a CurseForge mod that needs a hand download (same check): Create my server refused (Some mods must be downloaded from CurseForge first…) until it was loaded. With the pack itself the block could not be shown here: I'm Fast was already loaded from an earlier setup (kept in the setup draft) and is also found under its browser copy name.",
+      "evidence": ""
+    }
+  },
+  "notes": ""
+}
