@@ -36,7 +36,8 @@ const step = async (name) => { console.log('STEP ' + name); await lines.next(); 
   assert.ok(box.height < 520, 'the card stays compact with 25 players: ' + box.height);
   const sc = card.locator('.player-scroll');
   assert.ok(await sc.evaluate((el) => el.scrollHeight > el.clientHeight + 50), 'the list scrolls inside the card');
-  assert.ok(await rows.first().evaluate((el) => el.getBoundingClientRect().height) <= 40, 'a row is compact');
+  // (one 44-pixel target high: Modern's name button and Kick are big enough for a finger, and for a mouse)
+  assert.ok(await rows.first().evaluate((el) => el.getBoundingClientRect().height) <= 50, 'a row is compact');
 
   // each row: dot, head, name, role, ping, Kick; roles only from ops.json; ping a dash that says why
   await page.waitForFunction(() => document.querySelectorAll('.players-card .badge:not(.hidden)').length === 2);   // (the roles come with the first poll)

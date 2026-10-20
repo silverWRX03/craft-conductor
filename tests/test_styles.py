@@ -169,15 +169,79 @@ def test_colours_stay_readable():
         assert contrast(c["on-accent"], c["accent"]) >= 4.5, (name, "button text")
         if "warn" in c:
             assert contrast(c["warn"], panel) >= 4.5, (name, "warn")
-    assert sets["modern day"]["accent"].upper() == "#0969DA" and sets["modern night"]["accent"].upper() == "#3FB950"
+    assert sets["modern day"]["accent"].upper() == "#005364" and sets["modern night"]["accent"].upper() == "#00E5FF"
+    assert [sets["modern night"][k].upper() for k in ("bg", "panel", "panel-2")] == ["#0B0E11", "#13171C", "#1A2026"]
+    assert [sets["modern day"][k].upper() for k in ("bg", "panel", "panel-2", "text", "muted", "selected-bg")] == [
+        "#EDF2F5", "#FFFFFF", "#F6F8FA", "#142530", "#354C5C", "#DDF3F7"]
+    # Modern: every word at least 7:1 (WCAG AAA), on every surface it's shown on
     for name in ("modern day", "modern night"):
         c = sets[name]
-        assert contrast(c["console-fg"], c["console-bg"]) >= 4.5
-        assert contrast(c["accent"], c["selected-bg"]) >= 4.5, (name, "the open page in the menu")
-        assert contrast(c["info"], c["panel-2"]) >= 4.5, (name, "links in a notice")
-        assert contrast(c["on-accent"], c["accent-hover"]) >= 4.5, (name, "button text, hovered")
-        assert contrast(c["field-border"], c["panel"]) >= 3, (name, "a field's edge")
+        for fg in ("text", "muted", "accent", "info", "danger", "warn", "ok-fg", "warn-fg", "bad-fg"):
+            for surface in ("bg", "panel", "panel-2", "hover-bg"):
+                assert contrast(c[fg], c[surface]) >= 7, (name, fg, surface)
+        for fg, surface in (("ok-strong", "ok-bg"), ("warn-strong", "warn-bg"), ("bad-strong", "bad-bg"), ("bad-fg", "bad-bg"),
+                            ("accent", "selected-bg"), ("text", "selected-bg"), ("muted", "selected-bg"),  # the open page, the Running pill
+                            ("on-accent", "accent"), ("on-accent", "accent-hover"), ("console-fg", "console-bg")):
+            assert contrast(c[fg], c[surface]) >= 7, (name, fg, surface)
+        for edge in ("field-border", "accent"):  # a field's edge, the keyboard ring
+            for surface in ("bg", "panel", "panel-2"):
+                assert contrast(c[edge], c[surface]) >= 3, (name, edge, surface)
         assert luminance(c["console-bg"]) < 0.05, (name, "the console stays dark")
+    # what's inside the console and the config editor (dark in both themes)
+    inside = tokens(modern, ':root[data-style="modern"]:not([data-contrast="high"]) :is(.console')
+    for fg in ("text", "muted", "accent", "silver-basalt", "ok-fg", "warn-fg", "bad-fg", "info-fg"):
+        assert contrast(inside[fg], inside["bg"]) >= 7 and contrast(inside[fg], inside["panel-2"]) >= 7, fg
+    assert contrast(inside["on-accent"], inside["accent"]) >= 7
+    for colour in re.findall(r'\.tk-\w \{ color:(#[0-9A-F]{6})', modern):
+        assert contrast(colour, inside["bg"]) >= 7, colour
+
+
+def test_modern_targets_light_and_motion():
+    """Modern: 44-pixel targets with a mouse too, light only on what can be pressed, nothing moves with less motion, and
+    forced colours keep edges."""
+    modern = (WEBUI / "craft-conductor-modern.css").read_text(encoding="utf-8")
+    flat = re.sub(r"@media[^{]*\{", "", modern)  # (not only for fingers: outside any media query)
+    for what in ('.btn { min-height:44px;', '.btn.small { min-width:44px;', '.sidebar nav a { min-height:46px;',
+                 '.bell { width:44px; height:44px;', '.cc-style-switch label { min-height:44px; min-width:44px;',
+                 '.cc-theme-switch::after { content:""; position:absolute; inset:-9px -2px; }', '.help-toc a {'):
+        assert what in flat, what
+    assert re.search(r'input:not\(\[type=checkbox\], \[type=radio\], \[type=range\], \[type=file\]\), select, textarea:not\(\.code-input\)\) \{\s*min-height:44px', modern)
+    # the lift: only under a mouse, never on a card that only shows something, and never with less motion
+    hover = modern.split("@media (hover: hover) and (pointer: fine) {", 1)[1].split("\n}", 1)[0]
+    assert "translateY(-2px)" in hover and ".card:hover" not in hover and ".server-card:hover" not in hover
+    assert ':root[data-style="modern"] .server-card:not(a):hover { transform:none;' in modern
+    reduced = modern.split("@media (prefers-reduced-motion: reduce) {", 1)[1].split("\n}", 1)[0]
+    assert "transition:none" in reduced and "transform:none" in reduced
+    assert ':root[data-style="modern"][data-motion="less"]' in modern
+    # the glow is the approved 69% (alpha .18) and high contrast has none of the light
+    assert modern.count("--cc-glow:rgb(0 229 255 / .18)") == 3
+    base = re.search(r':root\[data-style="modern"\] \{([^}]*)\}', modern).group(1)
+    for token in ("--cc-reflection", "--cc-ambient", "--cc-low-shadow", "--cc-glow"):
+        assert f"{token}:transparent" in base, token
+    forced = modern.split("@media (forced-colors: active) {", 1)[1]
+    assert "CanvasText" in forced and "Highlight" in forced
+    # the grid paper is Classic's: Modern's background is plain
+    assert ':root[data-style="modern"] body { background-image:none; }' in modern
+
+
+def test_modern_high_contrast_is_aaa_too():
+    """High contrast in Modern: its own cyan (not Classic's orange), every word 7:1 on high contrast's black or white."""
+    modern = (WEBUI / "craft-conductor-modern.css").read_text(encoding="utf-8")
+    night = tokens(modern, ':root[data-style="modern"][data-contrast="high"]:not(')
+    day = tokens(modern, ':root[data-style="modern"][data-contrast="high"]:is(')
+    for c, surfaces in ((night, ("#000000", "#0A0A0A", "#141414", "#1C1C1C", "#070707")), (day, ("#FFFFFF", "#F0F0F0", "#EAEAEA", "#FAFAFA"))):
+        for fg in ("accent", "info", "silver-basalt"):
+            for surface in surfaces:
+                assert contrast(c[fg], surface) >= 7, (fg, c[fg], surface)
+        assert contrast(c["on-accent"], c["accent"]) >= 7
+
+
+def test_page_titles_are_the_one_h1():
+    """The page's title is its main heading (h1), in both styles; cards and dialogs keep theirs below it."""
+    app = (WEBUI / "app.js").read_text(encoding="utf-8")
+    page = (WEBUI / "index.html").read_text(encoding="utf-8")
+    assert '<h1 id="page-title" class="page-title hidden"></h1>' in page
+    assert 'h("h2", { class: "view-title' not in app and app.count('h("h1", { class: "view-title') >= 14
 
 
 def test_the_new_files_are_served(running):  # noqa: F811

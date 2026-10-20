@@ -8165,7 +8165,7 @@
   {
     "id": 931,
     "section": "Feature: Classic and Modern looks",
-    "step": "On a computer: with nothing chosen yet the page is Modern; switch to Classic with the mouse, and with Tab and the arrow keys (a screen reader says 'Interface style', Classic or Modern, checked). Switching keeps the page, a half-typed setting, the console's lines and the scroll; check all four (Classic and Modern, each Light and Dark) on the Dashboard, Console, Settings, a dialog (Check my setup) and the config editor: readable text, a dark console and editor in Modern Light, a thick outline where the keyboard is (orange in Classic, blue in Modern Light, green in Modern Dark).",
+    "step": "On a computer: with nothing chosen yet the page is Modern; switch to Classic with the mouse, and with Tab and the arrow keys (a screen reader says 'Interface style', Classic or Modern, checked). Switching keeps the page, a half-typed setting, the console's lines and the scroll; check all four (Classic and Modern, each Light and Dark) on the Dashboard, Console, Settings, a dialog (Check my setup) and the config editor: readable text, a dark console and editor in Modern Light, a thick outline where the keyboard is (orange in Classic, cyan in Modern).",
     "type": "Core",
     "tags": [],
     "source": "added-in-git"
@@ -8204,6 +8204,30 @@
     "tags": [
       "mobile"
     ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 936,
+    "section": "Feature: Modern's cyan look",
+    "step": "On a computer, Modern Dark and Modern Light, on the Dashboard (server stopped, then running), Console, Settings, a dialog (Check my setup), the bell's messages and the config editor: Dark is near-black (#0B0E11) with slightly lighter panels and electric cyan; Light is cool grey-white with white panels and deep cyan; panels have rounded corners, a fine lit top edge and a soft shadow, no grid behind them; the page you're on, the Running label and the main buttons have a gentle cyan glow while body text stays crisp; Stopped is a grey label; the console and editor stay dark in Light. With a mouse, buttons and menu links lift a little and their shadow grows; the server cards and the Dashboard's cards don't move. Switch to Classic: it looks exactly as before (square, capitals, orange, graph paper) in Light and Dark.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 937,
+    "section": "Feature: Modern's cyan look",
+    "step": "Modern's accessibility on a computer: every button, menu link, switch, field and the Help and manual contents links are at least 44 pixels with a mouse; Tab through the Dashboard, Settings and a dialog shows the thick cyan (Light: deep cyan) outline on every stop, not only a glow; at browser zoom 200% and 400% (Ctrl and +) every page fits without scrolling sideways and nothing is cut off; Windows Settings, Accessibility, Contrast themes (on, then off): edges and the open page's bar stay visible, and Craft Conductor settings, Display, High contrast still works in Modern; Windows' Animation effects off, or Display, Less motion: nothing lifts or slides.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 938,
+    "section": "Fix: Page titles are the main heading",
+    "step": "With a screen reader (NVDA: press H, or Insert+F7 for the headings list) on Your servers, a server's Dashboard and Settings, Help and Craft Conductor settings, in both looks: the page's title is the first heading and is a level 1 heading; cards' headings come after it. Classic and Modern look the same as before.",
+    "type": "Core",
+    "tags": [],
     "source": "added-in-git"
   }
 ]

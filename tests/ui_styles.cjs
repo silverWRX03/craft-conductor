@@ -112,15 +112,27 @@ const path = require('node:path');
   await page.locator('#cc-app-theme [data-theme-toggle]').click();
   assert.equal(await theme(page), night);
 
-  // Classic stays Classic: square, capital letters; Modern has 6px corners and ordinary words.
+  // Classic stays Classic: square, capital letters, graph paper; Modern has 16px panels, 8px controls, ordinary words,
+  // a plain background and 44-pixel buttons with a mouse too.
   const look = () => page.evaluate(() => {
     const b = document.querySelector('.actions .btn'), c = document.querySelector('main .card');
-    return { caps: getComputedStyle(b).textTransform, button: getComputedStyle(b).borderTopLeftRadius, card: getComputedStyle(c).borderTopLeftRadius };
+    return { caps: getComputedStyle(b).textTransform, button: getComputedStyle(b).borderTopLeftRadius, card: getComputedStyle(c).borderTopLeftRadius,
+      paper: getComputedStyle(document.body).backgroundImage !== 'none', tall: b.getBoundingClientRect().height >= 44 };
   });
   await classic.check();
-  assert.deepEqual(await look(), { caps: 'uppercase', button: '0px', card: '0px' });
+  assert.deepEqual(await look(), { caps: 'uppercase', button: '0px', card: '0px', paper: true, tall: false });
   await modern.check();
-  assert.deepEqual(await look(), { caps: 'none', button: '6px', card: '6px' });
+  assert.deepEqual(await look(), { caps: 'none', button: '8px', card: '16px', paper: false, tall: true });
+  // under a mouse a button lifts, and stays still when the computer asks for less motion
+  const lift = () => page.locator('main .btn:visible').first().evaluate((b) => getComputedStyle(b).transform);
+  await page.locator('main .btn:visible').first().hover();
+  await page.waitForTimeout(250);
+  assert.equal(await lift(), 'matrix(1, 0, 0, 1, 0, -2)');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.waitForTimeout(50);
+  assert.equal(await lift(), 'none');
+  await page.emulateMedia({ reducedMotion: null });
+  await page.mouse.move(1, 1);
 
   // Remembered: Classic after a reload, and on the sign-in page.
   await classic.check();

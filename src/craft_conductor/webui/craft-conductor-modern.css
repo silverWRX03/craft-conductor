@@ -1,156 +1,277 @@
-/* The Modern style: server hardware, readable and precise. Built on craft-conductor-theme.css (Classic); every rule
-   here starts with :root[data-style="modern"], so none of it reaches Classic (tests/test_styles.py checks). Day and
-   night, high contrast and the invite page's automatic light or dark all work as in Classic. */
+/* The Modern style: electric cyan on deep slate (dark) or deep cyan on cool grey-white (light), tonal panels with a fine
+   top-edge reflection, soft ambient shadows and a restrained cyan glow on what is active. Built on
+   craft-conductor-theme.css (Classic); every rule here starts with :root[data-style="modern"], so none of it reaches Classic
+   (tests/test_styles.py checks). Text is at least 7:1 against what's behind it (WCAG AAA), and everything that can be
+   pressed is at least 44 by 44 pixels, with a mouse too. High contrast, forced colours, less motion and the invite page's
+   automatic light or dark all keep working. */
 
-/* ------------------------------------------------------------------ colours and shapes */
-/* What both themes share, and the values high contrast keeps (its own colours come from style.css). */
+/* ------------------------------------------------------------------ colours, shapes and light */
+/* What both themes share. The light (reflection, shadows, glow) is off unless a theme below turns it on: high contrast
+   keeps none of it, and its own colours come from style.css. */
 :root[data-style="modern"] {
-  --radius:6px; --field-bg:var(--bg); --field-border:var(--border); --console-fg:var(--text); --console-border:var(--border);
-  --accent-hover:var(--accent-2); --shadow-1:none; --shadow-pop:0 12px 32px var(--shadow-strong);
+  --radius:16px; --cc-control-radius:8px; --cc-inner-radius:12px;
+  --field-bg:var(--bg); --field-border:var(--border); --console-fg:var(--text); --console-border:var(--border);
+  --accent-hover:var(--accent-2); --cc-panel-stroke:var(--border); --cc-disabled-border:var(--border);
+  --cc-reflection:transparent; --cc-primary-reflection:transparent; --cc-ambient:transparent; --cc-low-shadow:transparent;
+  --cc-glow:transparent; --cc-glow-inner:transparent; --cc-ring:var(--accent);
+  --shadow-1:none; --shadow-pop:0 12px 32px var(--shadow-strong);
 }
+/* Dark: base #0B0E11, panels #13171C, raised surfaces and the console #1A2026, electric cyan. */
 :root[data-style="modern"]:not([data-contrast="high"]):not([data-theme="day"],[data-theme="light"]) {
   color-scheme:dark;
-  --bg:#0B0E11; --panel:#13171C; --panel-2:#1A2026; --border:#26303A;
-  --text:#E9EEF2; --muted:#B2BDC8; --bright:#F5F8FA;
-  --accent:#3FB950; --accent-2:#3FB950; --accent-3:#2EA043; --accent-hover:#56D364; --on-accent:#0B0E11;
-  --info:#3FB950; --info-fg:#E9EEF2; --danger:#F87171; --warn:#EAB308;
-  --console-bg:#07090C; --console-fg:#E9EEF2; --console-border:#1E262F; --field-bg:#0B0E11; --field-border:#6B7A88;
-  --hover-border:#4A5663; --hover-bg:#1E252C; --selected-bg:#12261A; --selected-bad-bg:#2A1519;
-  --focus:#3FB95066; --faint:#ffffff0d; --depth-grid:rgba(233,238,242,.035); --silver-basalt:#8B98A5;
-  --shadow:rgba(0,0,0,.35); --shadow-strong:rgba(0,0,0,.5);
-  --shadow-1:0 1px 2px rgba(0,0,0,.3); --shadow-pop:0 16px 40px rgba(0,0,0,.45),0 2px 8px rgba(0,0,0,.3);
+  --bg:#0B0E11; --panel:#13171C; --panel-2:#1A2026; --border:#353E4B;
+  --text:#F5F7FA; --muted:#BDC5D0; --bright:#FFFFFF;
+  --accent:#00E5FF; --accent-2:#00E5FF; --accent-3:#00B8CC; --accent-hover:#00E5FF; --on-accent:#071C20;
+  --info:#00E5FF; --info-fg:#79F1FF; --danger:#FFA3AC; --warn:#FFC24D;
+  --ok-fg:#86EFAC; --ok-strong:#B6F2CC; --ok-bg:#0F2A1D; --ok-border:#3D8F63;
+  --warn-fg:#FFD580; --warn-strong:#FFE7B0; --warn-bg:#2B2410; --warn-border:#8C7330; --warn-soft:#FFC24D55;
+  --bad-fg:#FFB8BF; --bad-strong:#FFD6DA; --bad-bg:#2E1519; --bad-border:#CC8690;
+  --console-bg:#1A2026; --console-fg:#F5F7FA; --console-border:#1A2026; --field-bg:#1A2026; --field-border:#8390A3;
+  --hover-border:#9AA6B8; --hover-bg:#252D36; --selected-bg:#123139; --selected-bad-bg:#2E1519;
+  --focus:#00E5FF66; --faint:#ffffff12; --depth-grid:transparent; --silver-basalt:#AEBBD0; --backdrop:#000000b3;
+  --shadow:rgba(0,0,0,.3); --shadow-strong:rgba(0,0,0,.5); --cc-panel-stroke:transparent; --cc-disabled-border:#52647C;
+  --cc-reflection:rgb(255 255 255 / .1); --cc-primary-reflection:rgb(255 255 255 / .38);
+  --cc-ambient:rgb(0 0 0 / .3); --cc-low-shadow:rgb(0 0 0 / .24);
+  --cc-glow:rgb(0 229 255 / .18); --cc-glow-inner:rgb(0 229 255 / .06);
+  --shadow-pop:inset 0 1px 0 var(--cc-reflection),0 16px 40px rgb(0 0 0 / .45),0 2px 8px var(--cc-low-shadow);
 }
+/* Light: base #EDF2F5, panels white, secondary surfaces #F6F8FA, deep cyan; the console stays dark (below). */
 :root[data-style="modern"]:not([data-contrast="high"]):is([data-theme="day"],[data-theme="light"]) {
   color-scheme:only light;
-  --bg:#F4F4F4; --panel:#FFFFFF; --panel-2:#E9EDF0; --border:#CBD2D8;
-  --text:#1C252D; --muted:#4C5B68; --bright:#1C252D;
-  --accent:#0969DA; --accent-2:#0969DA; --accent-3:#0550AE; --accent-hover:#0757BA; --on-accent:#FFFFFF;
-  --info:#0860CA; --info-fg:#1C252D; --danger:#C62828; --warn:#B45309;
-  --console-bg:#161B20; --console-fg:#E9EEF2; --console-border:#161B20; --field-bg:#FFFFFF; --field-border:#7B8794;
-  --hover-border:#7B8794; --hover-bg:#EEF1F4; --selected-bg:#EAF3FF; --selected-bad-bg:#FDECEC;
-  --focus:#0969DA55; --faint:#1C252D0d; --depth-grid:rgba(28,37,45,.05); --silver-basalt:#8B98A5;
-  --shadow:rgba(28,37,45,.12); --shadow-strong:rgba(28,37,45,.22);
-  --shadow-1:0 1px 2px rgba(28,37,45,.06),0 1px 3px rgba(28,37,45,.05); --shadow-pop:0 12px 32px rgba(28,37,45,.16),0 2px 6px rgba(28,37,45,.08);
+  --bg:#EDF2F5; --panel:#FFFFFF; --panel-2:#F6F8FA; --border:#CED7DF;
+  --text:#142530; --muted:#354C5C; --bright:#0B1A24;
+  --accent:#005364; --accent-2:#005364; --accent-3:#003E4B; --accent-hover:#004554; --on-accent:#FFFFFF;
+  --info:#005364; --info-fg:#005364; --danger:#8E1830; --warn:#6B4200;
+  --ok-fg:#0B5A2E; --ok-strong:#08451F; --ok-bg:#E3F4E8; --ok-border:#5E9C76;
+  --warn-fg:#6B4200; --warn-strong:#573500; --warn-bg:#FFF4DA; --warn-border:#B08A3E; --warn-soft:#6B420044;
+  --bad-fg:#8E1830; --bad-strong:#74101F; --bad-bg:#FBE8ED; --bad-border:#B85A6A;
+  --console-bg:#1A2026; --console-fg:#F5F7FA; --console-border:#1A2026; --field-bg:#FFFFFF; --field-border:#6A7C89;
+  --hover-border:#4F6270; --hover-bg:#E7F0F3; --selected-bg:#DDF3F7; --selected-bad-bg:#FBE8ED;
+  --focus:#00536455; --faint:#1425300f; --depth-grid:transparent; --silver-basalt:#354C5C; --backdrop:#14253080;
+  --shadow:rgb(28 49 64 / .16); --shadow-strong:rgb(28 49 64 / .26); --cc-panel-stroke:transparent; --cc-disabled-border:#7B8A95;
+  --cc-reflection:rgb(255 255 255 / .1); --cc-primary-reflection:rgb(255 255 255 / .38);
+  --cc-ambient:rgb(28 49 64 / .3); --cc-low-shadow:rgb(28 49 64 / .24);
+  --cc-glow:rgb(0 229 255 / .18); --cc-glow-inner:rgb(0 229 255 / .06);
+  --shadow-pop:0 16px 40px rgb(28 49 64 / .22),0 2px 8px rgb(28 49 64 / .12);
 }
 /* The invite page has no saved setting: it follows the computer's light or dark. */
 @media (prefers-color-scheme: light) {
   :root[data-style="modern"]:not([data-contrast="high"]):not([data-theme]) {
     color-scheme:only light;
-    --bg:#F4F4F4; --panel:#FFFFFF; --panel-2:#E9EDF0; --border:#CBD2D8;
-    --text:#1C252D; --muted:#4C5B68; --bright:#1C252D;
-    --accent:#0969DA; --accent-2:#0969DA; --accent-3:#0550AE; --accent-hover:#0757BA; --on-accent:#FFFFFF;
-    --info:#0860CA; --info-fg:#1C252D; --danger:#C62828; --warn:#B45309;
-    --console-bg:#161B20; --console-fg:#E9EEF2; --console-border:#161B20; --field-bg:#FFFFFF; --field-border:#7B8794;
-    --hover-border:#7B8794; --hover-bg:#EEF1F4; --selected-bg:#EAF3FF; --selected-bad-bg:#FDECEC;
-    --focus:#0969DA55; --faint:#1C252D0d; --depth-grid:rgba(28,37,45,.05); --silver-basalt:#8B98A5;
-    --shadow:rgba(28,37,45,.12); --shadow-strong:rgba(28,37,45,.22);
-    --shadow-1:0 1px 2px rgba(28,37,45,.06),0 1px 3px rgba(28,37,45,.05); --shadow-pop:0 12px 32px rgba(28,37,45,.16),0 2px 6px rgba(28,37,45,.08);
+    --bg:#EDF2F5; --panel:#FFFFFF; --panel-2:#F6F8FA; --border:#CED7DF;
+    --text:#142530; --muted:#354C5C; --bright:#0B1A24;
+    --accent:#005364; --accent-2:#005364; --accent-3:#003E4B; --accent-hover:#004554; --on-accent:#FFFFFF;
+    --info:#005364; --info-fg:#005364; --danger:#8E1830; --warn:#6B4200;
+    --ok-fg:#0B5A2E; --ok-strong:#08451F; --ok-bg:#E3F4E8; --ok-border:#5E9C76;
+    --warn-fg:#6B4200; --warn-strong:#573500; --warn-bg:#FFF4DA; --warn-border:#B08A3E; --warn-soft:#6B420044;
+    --bad-fg:#8E1830; --bad-strong:#74101F; --bad-bg:#FBE8ED; --bad-border:#B85A6A;
+    --console-bg:#1A2026; --console-fg:#F5F7FA; --console-border:#1A2026; --field-bg:#FFFFFF; --field-border:#6A7C89;
+    --hover-border:#4F6270; --hover-bg:#E7F0F3; --selected-bg:#DDF3F7; --selected-bad-bg:#FBE8ED;
+    --focus:#00536455; --faint:#1425300f; --depth-grid:transparent; --silver-basalt:#354C5C; --backdrop:#14253080;
+    --shadow:rgb(28 49 64 / .16); --shadow-strong:rgb(28 49 64 / .26); --cc-panel-stroke:transparent; --cc-disabled-border:#7B8A95;
+    --cc-reflection:rgb(255 255 255 / .1); --cc-primary-reflection:rgb(255 255 255 / .38);
+    --cc-ambient:rgb(28 49 64 / .3); --cc-low-shadow:rgb(28 49 64 / .24);
+    --cc-glow:rgb(0 229 255 / .18); --cc-glow-inner:rgb(0 229 255 / .06);
+    --shadow-pop:0 16px 40px rgb(28 49 64 / .22),0 2px 8px rgb(28 49 64 / .12);
   }
 }
-/* The console and the config editor stay dark in both themes: what's inside them uses dark-surface colours. */
+/* High contrast (Display, or the computer's own setting) keeps its black or white and its borders from style.css, with
+   Modern's cyan instead of Classic's orange; every word stays at least 7:1. */
+:root[data-style="modern"][data-contrast="high"]:not([data-theme="day"],[data-theme="light"]) {
+  --accent:#00E5FF; --accent-2:#00E5FF; --info:#00E5FF; --focus:#00E5FF; --on-accent:#000000; --silver-basalt:#E0E4E8; }
+:root[data-style="modern"][data-contrast="high"]:is([data-theme="day"],[data-theme="light"]) {
+  --accent:#00404D; --accent-2:#00404D; --info:#00404D; --focus:#00404D; --on-accent:#FFFFFF; --silver-basalt:#1F2A33; }
+/* The console and the config editor are dark in both themes: what's inside them uses the dark colours. (--cc-ring, the
+   keyboard ring drawn round them on the page, keeps the page's own accent.) */
 :root[data-style="modern"]:not([data-contrast="high"]) :is(.console, .console-input, .code-editor) {
-  --text:#E9EEF2; --muted:#9AA7B4; --bright:#FFFFFF; --border:#2E3842; --panel-2:#1B2228;
-  --accent:#3FB950; --accent-hover:#56D364; --on-accent:#0B0E11; --focus:#3FB95059; --silver-basalt:#8B98A5;
-  --ok-fg:#4ADE80; --warn-fg:#FACC15; --bad-fg:#F87171; --info-fg:#7EC8FF;
+  --bg:#1A2026; --panel-2:#232A31; --text:#F5F7FA; --muted:#BDC5D0; --bright:#FFFFFF; --border:#353E4B;
+  --accent:#00E5FF; --accent-2:#00E5FF; --accent-hover:#00E5FF; --on-accent:#071C20; --focus:#00E5FF59;
+  --field-bg:#1A2026; --field-border:#8390A3; --hover-bg:#252D36; --hover-border:#9AA6B8; --silver-basalt:#AEBBD0;
+  --ok-fg:#86EFAC; --warn-fg:#FFD580; --bad-fg:#FFB8BF; --info-fg:#79F1FF;
+  --cc-reflection:rgb(255 255 255 / .1); --cc-primary-reflection:rgb(255 255 255 / .38);
+  --cc-ambient:rgb(0 0 0 / .3); --cc-low-shadow:rgb(0 0 0 / .24);
 }
 
-/* ------------------------------------------------------------------ words */
+/* ------------------------------------------------------------------ words: 16px Roboto, sentence case */
 :root[data-style="modern"] :is(h1, h2, h3, .view-title, .page-title, .brand, .card h3, .props legend, th, .meter-head span, .cc-theme-control) {
   text-transform:none; letter-spacing:normal; }
-:root[data-style="modern"] .view-title { font-size:24px; font-weight:600; line-height:1.25; }
+:root[data-style="modern"] body { background-image:none; }
+:root[data-style="modern"] .view-title { font-size:28px; font-weight:600; line-height:1.25; letter-spacing:-.02em; }
 :root[data-style="modern"] .page-title { font-size:18px; font-weight:600; }
 :root[data-style="modern"] .modal h2 { font-size:20px; font-weight:600; }
-:root[data-style="modern"] .card h3 { font-size:16px; font-weight:600; color:var(--bright); }
-:root[data-style="modern"] .props legend, :root[data-style="modern"] th { font-size:14px; font-weight:600; }
-:root[data-style="modern"] .brand { letter-spacing:.01em; }
-:root[data-style="modern"] .pill { letter-spacing:.03em; }
-:root[data-style="modern"] .cc-theme-control { font-size:14px; }
+:root[data-style="modern"] .card h3 { font-size:16px; font-weight:600; color:var(--bright); border-bottom-color:var(--border); }
+:root[data-style="modern"] :is(.props legend, th) { font-size:14px; font-weight:600; }
+:root[data-style="modern"] .brand { letter-spacing:-.01em; }
+:root[data-style="modern"] .cc-theme-control { font-size:14px; color:var(--muted); }
+:root[data-style="modern"] ::placeholder { color:var(--muted); opacity:1; }
 
-/* ------------------------------------------------------------------ surfaces: subtle borders, soft shadows, 6px */
-:root[data-style="modern"] :is(.card, .cc-panel, .choice, .props fieldset, .cfg-body) {
-  background-color:var(--panel); background-image:none; border:1px solid var(--border); border-radius:6px; box-shadow:var(--shadow-1); }
-:root[data-style="modern"] :is(.props fieldset, .cfg-body) { box-shadow:none; }
+/* ------------------------------------------------------------------ surfaces: tonal panels, 16px corners */
+:root[data-style="modern"] :is(.card, .cc-panel, .props fieldset, .cfg-body) {
+  background-color:var(--panel); background-image:none; border:1px solid var(--cc-panel-stroke); border-radius:var(--radius);
+  box-shadow:inset 0 1px 0 var(--cc-reflection),0 7px 22px var(--cc-low-shadow); }
+/* (a panel inside a panel is a raised surface, without its own shadow) */
+:root[data-style="modern"] :is(.props fieldset, .cfg-body) { background-color:var(--panel-2); border-radius:var(--cc-inner-radius); box-shadow:inset 0 1px 0 var(--cc-reflection); }
+/* The Dashboard: its cards sit straight on the page, apart by their own tone. */
+:root[data-style="modern"] .cc-dashboard { padding:0; background:transparent; border:0; box-shadow:none; }
 :root[data-style="modern"] :is(.login-card, .modal, .guide, .bell-panel) {
-  background-color:var(--panel); background-image:none; border:1px solid var(--border); border-radius:6px; box-shadow:var(--shadow-pop); }
-:root[data-style="modern"] .toast { border-radius:6px; box-shadow:var(--shadow-pop); }  /* (its coloured edge stays) */
-/* (what the border above would otherwise hide) */
+  background-color:var(--panel); background-image:none; border:1px solid var(--cc-panel-stroke); border-radius:var(--radius); box-shadow:var(--shadow-pop); }
+:root[data-style="modern"] .guide.min { background:none; border:0; box-shadow:none; }
+:root[data-style="modern"] .toast { border-radius:var(--cc-inner-radius); box-shadow:var(--shadow-pop); }  /* (its coloured edge stays) */
 :root[data-style="modern"] .danger-zone { border-color:var(--bad-border); }
-:root[data-style="modern"] a.server-card.new { border-style:dashed; }
 :root[data-style="modern"] .browse { background-image:none; border:0; border-radius:0; box-shadow:none; }
-:root[data-style="modern"] .cc-dashboard { box-shadow:var(--shadow-1); }
-:root[data-style="modern"] .card h3 { border-bottom-color:var(--border); }
-:root[data-style="modern"] :is(.notice, .mod-summary, .mod-manager-row, .drop-zone, .result, .place-row, .folder-list, .version-picker,
-  .map-frame, .map-thumb, .grant-row, .cfg-files, .gallery-wait, .rehearsal-stat, .guide-steps li, .help-img, .update-log, .log,
-  .player-actions, .foot-panel, .map-status, .rich pre, fieldset.choices) { border-radius:6px; }
-:root[data-style="modern"] :is(.bar, .bar-fill) { border-radius:3px; }
-:root[data-style="modern"] .server-card:hover, :root[data-style="modern"] .choice:hover:not(:disabled) { box-shadow:var(--shadow-pop); }
+:root[data-style="modern"] :is(.notice, .player-actions, .foot-panel, .rehearsal-stat, .update-log) {
+  background:var(--panel-2); border-color:var(--cc-panel-stroke); border-radius:var(--cc-inner-radius); box-shadow:inset 0 1px 0 var(--cc-reflection); }
+:root[data-style="modern"] .notice { border-inline-start:4px solid var(--info); }
+:root[data-style="modern"] .notice.warn { border-inline-start-color:var(--warn); }
+:root[data-style="modern"] .notice.ok { border-inline-start-color:var(--ok-border); }
+:root[data-style="modern"] .notice.bad { border-inline-start-color:var(--danger); }
+:root[data-style="modern"] :is(.mod-summary, .mod-manager-row, .drop-zone, .result, .place-row, .folder-list, .version-picker,
+  .map-frame, .map-thumb, .grant-row, .cfg-files, .gallery-wait, .guide-steps li, .help-img, .log,
+  .map-status, .rich pre, fieldset.choices) { border-radius:var(--cc-inner-radius); }
+:root[data-style="modern"] .bar { height:6px; border-radius:4px; background:#343E4C; }
+:root[data-style="modern"]:is([data-theme="day"],[data-theme="light"]):not([data-contrast="high"]) .bar { background:#CDD7DF; }
+:root[data-style="modern"] .bar-fill { border-radius:4px; }
+:root[data-style="modern"] .tag { border-radius:6px; }
+:root[data-style="modern"] .guide-steps li.done .guide-tick { color:var(--on-accent); }
+/* Narrow screens (a phone, or a window zoomed to 400%): nothing is wider than the screen. A column of the settings grid
+   fits the width there is, long names and paths break, and a button's words wrap. */
+:root[data-style="modern"] .grid { grid-template-columns:repeat(auto-fit, minmax(min(280px, 100%), 1fr)); }
+:root[data-style="modern"] :is(code, .muted, .small) { overflow-wrap:anywhere; }
+:root[data-style="modern"] .btn { white-space:normal; }
 
 /* ------------------------------------------------------------------ the frame: sidebar, menu and top bar */
 :root[data-style="modern"] .sidebar { background:var(--panel); border-inline-end:1px solid var(--border); box-shadow:none; }
-:root[data-style="modern"] .sidebar nav { gap:2px; padding-inline:8px; }
-:root[data-style="modern"] .sidebar nav a { min-height:42px; padding:8px 12px; border-inline-start:0; border-radius:6px; color:var(--text);
+:root[data-style="modern"] .sidebar nav { gap:4px; padding-inline:10px; }
+:root[data-style="modern"] .sidebar nav a { min-height:46px; padding:10px 12px; border-inline-start:0; border-radius:var(--cc-control-radius); color:var(--text);
   text-transform:none; letter-spacing:normal; font-size:15px; font-weight:500; }
 :root[data-style="modern"] .sidebar nav a:hover { background:var(--hover-bg); }
-:root[data-style="modern"] .sidebar nav a.active { background:var(--selected-bg); color:var(--accent); box-shadow:inset 3px 0 0 var(--accent); font-weight:600; }
+:root[data-style="modern"] .sidebar nav a.active { background:var(--selected-bg); color:var(--accent); font-weight:600;
+  box-shadow:inset 3px 0 0 var(--accent),inset 0 1px 0 var(--cc-reflection),0 3px 12px var(--cc-low-shadow),0 0 20px var(--cc-glow); }
 :root[data-style="modern"] .sidebar nav a:focus-visible:not(.active) { background:var(--hover-bg); color:var(--text); box-shadow:none; font-weight:500; }
 :root[data-style="modern"] .cc-nav-icon { width:18px; height:18px; flex-basis:18px; }
-:root[data-style="modern"] .nav-server { font-size:15px; }
-:root[data-style="modern"] .topbar { background:var(--panel); border-bottom:1px solid var(--border); box-shadow:none; }
-:root[data-style="modern"] .cc-menu-trigger { border-radius:6px; box-shadow:var(--shadow-1); }
-:root[data-style="modern"] .cc-theme-switch { border-radius:999px; }
+:root[data-style="modern"] .nav-server { font-size:14px; color:var(--muted); }
+:root[data-style="modern"] .topbar { background:var(--panel); border-bottom:1px solid var(--border); box-shadow:inset 0 1px 0 var(--cc-reflection),0 5px 20px var(--cc-low-shadow); }
+:root[data-style="modern"] .cc-menu-trigger { border-radius:var(--cc-control-radius); border-color:var(--field-border); box-shadow:inset 0 1px 0 var(--cc-reflection),0 2px 5px var(--cc-low-shadow); }
+:root[data-style="modern"] .cc-theme-switch { border-radius:999px; border-color:var(--field-border); background:var(--selected-bg); }
 :root[data-style="modern"] .cc-theme-switch .cc-thumb { border-radius:50%; }
-:root[data-style="modern"] .cc-style-switch { border-radius:6px; background:var(--panel-2); }
-:root[data-style="modern"] .cc-style-switch::before { border-radius:4px; box-shadow:var(--shadow-1); }
-:root[data-style="modern"] .cc-style-switch label { text-transform:none; letter-spacing:normal; font-size:14px; font-weight:500; border-radius:4px; }
+/* (the day / night switch keeps its look; its button reaches 44 pixels around it) */
+:root[data-style="modern"] .cc-theme-switch::after { content:""; position:absolute; inset:-9px -2px; }
+:root[data-style="modern"] .cc-style-switch { padding:1px; border-color:var(--border); border-radius:var(--cc-control-radius); background:var(--panel-2); }
+:root[data-style="modern"] .cc-style-switch::before { inset-block:1px; inset-inline-start:1px; width:calc(50% - 1px); border-radius:7px; background:var(--selected-bg);
+  box-shadow:inset 0 0 0 1px var(--accent),inset 0 1px 0 var(--cc-reflection); }
+:root[data-style="modern"] .cc-style-switch label { min-height:44px; min-width:44px; text-transform:none; letter-spacing:normal; font-size:14px; font-weight:500;
+  border-radius:7px; color:var(--muted); }
+:root[data-style="modern"] .cc-style-switch label:has(input:checked) { color:var(--text); font-weight:600; }
+:root[data-style="modern"] .bell { width:44px; height:44px; background:transparent; border-color:var(--field-border); border-radius:var(--cc-control-radius);
+  box-shadow:inset 0 1px 0 var(--cc-reflection),0 2px 5px var(--cc-low-shadow); }
+:root[data-style="modern"] .bell-dot { box-shadow:0 0 0 2px var(--panel); }
 
-/* ------------------------------------------------------------------ controls */
-:root[data-style="modern"] .btn { padding:8px 14px; border:1px solid var(--field-border); border-radius:6px; background:var(--panel);
-  color:var(--text); font-size:15px; font-weight:500; text-transform:none; letter-spacing:normal; box-shadow:var(--shadow-1); }
+/* ------------------------------------------------------------------ status */
+:root[data-style="modern"] .pill { display:inline-block; border-radius:999px; text-transform:none; letter-spacing:.01em; font-size:13px; }
+:root[data-style="modern"] .pill::first-letter { text-transform:uppercase; }
+:root[data-style="modern"] .pill.running { color:var(--accent); background:var(--selected-bg); border-color:var(--accent);
+  box-shadow:inset 0 1px 0 var(--cc-reflection),0 0 20px var(--cc-glow),inset 0 0 10px var(--cc-glow-inner); }
+:root[data-style="modern"] .pill.running::before { background:var(--accent); animation:none; box-shadow:0 0 6px var(--cc-glow); }
+:root[data-style="modern"] .pill.stopped { color:var(--muted); background:var(--panel-2); border-color:var(--field-border); }
+
+/* ------------------------------------------------------------------ controls: 44px, 8px corners, lit from above */
+:root[data-style="modern"] .btn { min-height:44px; padding:9px 14px; border:1px solid var(--field-border); border-radius:var(--cc-control-radius);
+  background:var(--panel-2); color:var(--text); font-size:14px; font-weight:500; line-height:1.4; text-transform:none; letter-spacing:normal;
+  box-shadow:inset 0 1px 0 var(--cc-reflection),0 2px 5px var(--cc-low-shadow); }
+:root[data-style="modern"] a.btn { display:inline-flex; align-items:center; justify-content:center; }
 :root[data-style="modern"] .btn:hover:not(:disabled) { background:var(--hover-bg); border-color:var(--hover-border); color:var(--text); }
-:root[data-style="modern"] .btn.small { padding:5px 10px; font-size:14px; }
-:root[data-style="modern"] .btn.big { padding:11px 22px; font-size:16px; }
-:root[data-style="modern"] .btn.primary { background:var(--accent); border-color:var(--accent); color:var(--on-accent); box-shadow:var(--shadow-1); }
+:root[data-style="modern"] .btn.small { min-width:44px; padding:6px 12px; font-size:14px; }
+:root[data-style="modern"] .btn.big { padding:12px 22px; font-size:16px; }
+:root[data-style="modern"] .btn.primary { background:var(--accent); border-color:var(--accent); color:var(--on-accent); font-weight:600;
+  box-shadow:inset 0 1px 0 var(--cc-primary-reflection),0 3px 8px var(--cc-ambient),0 0 22px var(--cc-glow); }
 :root[data-style="modern"] .btn.primary:hover:not(:disabled) { background:var(--accent-hover); border-color:var(--accent-hover); color:var(--on-accent); }
-:root[data-style="modern"] .btn.primary:active:not(:disabled) { box-shadow:none; }
-:root[data-style="modern"] .btn.danger { border-color:var(--bad-border); color:var(--bad-fg); }
+:root[data-style="modern"] .btn.danger { background:transparent; border-color:var(--bad-border); color:var(--bad-fg); }
 :root[data-style="modern"] .btn.danger:hover:not(:disabled) { background:var(--bad-bg); border-color:var(--danger); color:var(--bad-fg); }
 :root[data-style="modern"] .btn.ghost { background:transparent; border-color:transparent; box-shadow:none; color:var(--muted); }
 :root[data-style="modern"] .btn.ghost:hover:not(:disabled) { background:var(--hover-bg); border-color:transparent; color:var(--text); }
 :root[data-style="modern"] .btn.chip { border-radius:999px; }
-:root[data-style="modern"] .btn:disabled { opacity:.5; box-shadow:none; }
+/* (unavailable: no colour, no light and no lift, but still readable) */
+:root[data-style="modern"] .btn:disabled { opacity:1; background:var(--panel-2); border-color:var(--cc-disabled-border); color:var(--muted);
+  box-shadow:inset 0 1px 0 var(--cc-reflection); }
+:root[data-style="modern"] .btn:active:not(:disabled) { transform:translateY(0); box-shadow:inset 0 1px 3px var(--cc-ambient),0 1px 2px var(--cc-low-shadow); }
 :root[data-style="modern"] :is(input:not([type=checkbox], [type=radio], [type=range], [type=file]), select, textarea:not(.code-input)) {
-  background:var(--field-bg); color:var(--text); border:1px solid var(--field-border); border-radius:6px; }
+  min-height:44px; background:var(--field-bg); color:var(--text); border:1px solid var(--field-border); border-radius:var(--cc-control-radius);
+  box-shadow:inset 0 1px 0 var(--cc-reflection); }
 :root[data-style="modern"] :is(input, select, textarea):focus { border-color:var(--accent); }
 :root[data-style="modern"] :is(input[type=checkbox], input[type=radio]) { accent-color:var(--accent); }
+:root[data-style="modern"] :is(.switch, .link-btn, .guide-pill, .choice, .preferences-button, .map-thumb, button.prow-open, .folder-row, .cfg-files button, summary) { min-height:44px; }
+:root[data-style="modern"] .switch { min-width:44px; }
+/* (the contents of Help and the manual: a list of links, so each one is a 44-pixel target too) */
+:root[data-style="modern"] .help-toc li { break-inside:avoid; }
+:root[data-style="modern"] .help-toc a { display:inline-flex; align-items:center; min-height:44px; min-width:44px; }
+:root[data-style="modern"] .eye { width:44px; height:44px; inset-inline-end:0; }
+:root[data-style="modern"] .pw-field input { padding-inline-end:48px; }
+:root[data-style="modern"] :is(label:has(> input[type=checkbox]:first-child), label:has(> input[type=radio]:first-child)) { min-height:44px; align-items:center; }
+:root[data-style="modern"] .choice { border:1px solid var(--border); border-radius:var(--radius); background:var(--panel); background-image:none;
+  box-shadow:inset 0 1px 0 var(--cc-reflection),0 2px 5px var(--cc-low-shadow); }
 :root[data-style="modern"] .choice.selected { border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); background:var(--selected-bg); }
 :root[data-style="modern"] .choice.selected.danger { border-color:var(--danger); box-shadow:inset 0 0 0 1px var(--danger); background:var(--selected-bad-bg); }
+:root[data-style="modern"] .preferences-button[aria-pressed="true"] { background:var(--selected-bg); border-color:var(--accent); color:var(--text); box-shadow:inset 3px 0 var(--accent); }
+:root[data-style="modern"] a.server-card.new { border:1px dashed var(--field-border); }
+
+/* What can be pressed lifts a little under a mouse, its shadow grows and its top edge stays lit; the cards that only show
+   something stay still. (Fingers and the keyboard get the press and the ring instead: nothing depends on the lift.) */
+:root[data-style="modern"] :is(.btn:not(:disabled), .sidebar nav a, a.server-card.new, .choice:not(:disabled), .bell, .cc-menu-trigger) {
+  transition:transform 160ms ease,box-shadow 160ms ease,background-color 160ms ease,border-color 160ms ease; }
+:root[data-style="modern"] .server-card:not(a):hover { transform:none; box-shadow:inset 0 1px 0 var(--cc-reflection),0 7px 22px var(--cc-low-shadow); }
+@media (hover: hover) and (pointer: fine) {
+  :root[data-style="modern"] :is(.btn:not(:disabled, .ghost), .sidebar nav a, a.server-card.new, .choice:not(:disabled), .bell):hover {
+    transform:translateY(-2px); box-shadow:inset 0 1px 0 var(--cc-reflection),0 8px 18px var(--cc-ambient); }
+  :root[data-style="modern"] .btn.ghost:hover:not(:disabled) { transform:translateY(-2px); }
+  :root[data-style="modern"] .btn.primary:hover:not(:disabled) { box-shadow:inset 0 1px 0 var(--cc-primary-reflection),0 8px 18px var(--cc-ambient),0 0 27px var(--cc-glow); }
+  :root[data-style="modern"] .sidebar nav a.active:hover {
+    box-shadow:inset 3px 0 0 var(--accent),inset 0 1px 0 var(--cc-reflection),0 8px 18px var(--cc-ambient),0 0 22px var(--cc-glow); }
+  :root[data-style="modern"] .choice.selected:hover:not(:disabled) { box-shadow:inset 0 0 0 1px var(--accent),0 8px 18px var(--cc-ambient); }
+}
+/* Less motion (the computer's setting, or Display → Less): nothing moves. */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-style="modern"]:not([data-motion="normal"]) :is(.btn, .sidebar nav a, a.server-card.new, .choice, .bell, .cc-menu-trigger, .card) { transition:none; }
+  :root[data-style="modern"]:not([data-motion="normal"]) :is(.btn, .sidebar nav a, a.server-card.new, .choice, .bell, .cc-menu-trigger, .card):is(:hover, :active) { transform:none; }
+}
+:root[data-style="modern"][data-motion="less"] :is(.btn, .sidebar nav a, a.server-card.new, .choice, .bell, .cc-menu-trigger, .card):is(:hover, :active) { transform:none; }
 
 /* ------------------------------------------------------------------ telemetry, console and editor */
+:root[data-style="modern"] .cc-telemetry-grid { gap:12px; margin-bottom:18px; }
+:root[data-style="modern"] .cc-dashboard-layout { gap:18px; }
+:root[data-style="modern"] .cc-dashboard-rail { gap:18px; }
+:root[data-style="modern"] .cc-telemetry-grid .card { padding:19px 17px 17px; }
 :root[data-style="modern"] .cc-metric-card .meter-head span { font-size:14px; font-weight:500; color:var(--muted); }
-:root[data-style="modern"] .cc-metric-card .meter-head strong { font-size:28px; font-weight:600; line-height:1.15; font-variant-numeric:tabular-nums; }
+:root[data-style="modern"] .cc-metric-card .meter-head strong { font-size:30px; font-weight:500; line-height:1.25; letter-spacing:-.03em; font-variant-numeric:tabular-nums; }
 :root[data-style="modern"] .meter-head span { font-size:14px; }
-:root[data-style="modern"] .console { background:var(--console-bg); color:var(--text); border:1px solid var(--console-border); border-radius:6px;
-  box-shadow:inset 0 1px 3px rgba(0,0,0,.35); }
+:root[data-style="modern"] .console { background:var(--console-bg); color:var(--text); border:1px solid var(--console-border); border-radius:var(--cc-control-radius);
+  font-size:14px; line-height:1.6; box-shadow:inset 0 1px 0 var(--cc-reflection),0 3px 9px var(--cc-low-shadow); }
 :root[data-style="modern"] .console:has(+ .console-input) { border-end-start-radius:0; border-end-end-radius:0; }
-:root[data-style="modern"] .console-input { background:var(--console-bg); border-color:var(--console-border); border-radius:0 0 6px 6px; }
-:root[data-style="modern"] .console-input input { background:transparent; color:var(--text); border:0; border-radius:0; }
-:root[data-style="modern"] .code-editor { background:var(--console-bg); border-color:var(--console-border); border-radius:6px; }
+/* (room round the box and Send, so their keyboard rings stay on the dark surface) */
+:root[data-style="modern"] .console-input { gap:8px; padding:8px; background:var(--console-bg); border:1px solid var(--console-border);
+  border-top-color:var(--border); border-radius:0 0 var(--cc-control-radius) var(--cc-control-radius); box-shadow:0 3px 9px var(--cc-low-shadow); }
+:root[data-style="modern"] .console-input input { min-height:44px; background:var(--field-bg); color:var(--text); border:1px solid var(--field-border); border-radius:6px; }
+:root[data-style="modern"] .console-input .btn { flex:none; }
+:root[data-style="modern"] .code-editor { background:var(--console-bg); border-color:var(--console-border); border-radius:var(--cc-control-radius); }
+:root[data-style="modern"] .code-editor:has(.code-input:focus-visible) { outline-color:var(--cc-ring); }
 :root[data-style="modern"] .code-gutter { background:var(--panel-2); color:var(--muted); border-color:var(--border); }
 :root[data-style="modern"] .code-hl { color:var(--text); }
-/* (the colours of a config file, as on any dark editor: the light theme's darker ones are for Classic's light editor) */
+/* (the colours of a config file on the dark editor, each at least 7:1) */
 :root[data-style="modern"]:not([data-contrast="high"]) .tk-k { color:#9CDCFE; }
-:root[data-style="modern"]:not([data-contrast="high"]) .tk-s { color:#CE9178; }
+:root[data-style="modern"]:not([data-contrast="high"]) .tk-s { color:#E8B49B; }
 :root[data-style="modern"]:not([data-contrast="high"]) .tk-n { color:#B5CEA8; }
-:root[data-style="modern"]:not([data-contrast="high"]) .tk-h { color:#4EC9B0; }
-:root[data-style="modern"]:not([data-contrast="high"]) .tk-b { color:#569CD6; }
-:root[data-style="modern"]:not([data-contrast="high"]) .tk-c { color:#6A9955; }
-:root[data-style="modern"]:not([data-contrast="high"]) .tk-p { color:#9AA4AE; }
-:root[data-style="modern"]:not([data-contrast="high"]) .tk-t { color:#C586C0; }
+:root[data-style="modern"]:not([data-contrast="high"]) .tk-h { color:#7EE0CC; }
+:root[data-style="modern"]:not([data-contrast="high"]) .tk-b { color:#9CC4F0; }
+:root[data-style="modern"]:not([data-contrast="high"]) .tk-c { color:#A6D18E; font-style:italic; }
+:root[data-style="modern"]:not([data-contrast="high"]) .tk-p { color:#BDC5D0; }
+:root[data-style="modern"]:not([data-contrast="high"]) .tk-t { color:#E3A8E0; }
 :root[data-style="modern"] .cfg-files button.active { background:var(--selected-bg); color:var(--accent); box-shadow:inset 3px 0 0 var(--accent); }
 
-@media (max-width: 1023px) {
-  :root[data-style="modern"] .sidebar nav a { min-height:44px; }
-}
-@media (pointer: coarse) {
-  :root[data-style="modern"] .sidebar nav a { min-height:44px; }
+/* ------------------------------------------------------------------ Windows high contrast themes */
+/* (the system draws no shadows: edges and the open page's bar take their place) */
+@media (forced-colors: active) {
+  :root[data-style="modern"] :is(.card, .cc-panel, .choice, .login-card, .modal, .guide, .bell-panel, .notice) { border:1px solid CanvasText; }
+  :root[data-style="modern"] .cc-dashboard { border:0; }
+  :root[data-style="modern"] .sidebar nav a.active { border-inline-start:3px solid Highlight; }
+  :root[data-style="modern"] .cc-style-switch::before { border:2px solid Highlight; }
+  :root[data-style="modern"] :is(.btn, .bell, .cc-menu-trigger) { border:1px solid ButtonText; }
 }

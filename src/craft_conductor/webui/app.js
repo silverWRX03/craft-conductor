@@ -2413,7 +2413,7 @@ views.dashboard = () => {
   };
 
   fill($("#main"),
-    h("h2", { class: "view-title" }, "Dashboard"),
+    h("h1", { class: "view-title" }, "Dashboard"),
     problemBox,
     lagBanner,
     h("section", { class: "cc-panel cc-dashboard", "aria-label": "Server dashboard" },
@@ -2748,7 +2748,7 @@ views.updates = () => {
       h("div", { class: "row mb mt-s" }, applyBtn, checkBtn, h("span", { class: "muted small" }, `Last checked ${ago(c.checked_at)}`)),
       manual, rehearseCard, changes, blocked, dropped, packCard, h("div", { class: "mt" }, betaCard));
   };
-  fill($("#main"), h("h2", { class: "view-title" }, "Updates"), body);
+  fill($("#main"), h("h1", { class: "view-title" }, "Updates"), body);
   load();
   return { onJobDone: load };
 };
@@ -2840,7 +2840,7 @@ views.players = () => {
                         onclick: () => name.value.trim() && run("ban-ip", name.value.trim()) }, "Ban IP")));
   const requests = joinRequestsCard(() => load());
   const activity = activityCard();
-  fill($("#main"), h("h2", { class: "view-title" }, "Players"), requests.el, manage, h("div", { class: "mt" }, body), h("div", { class: "mt" }, activity.el));
+  fill($("#main"), h("h1", { class: "view-title" }, "Players"), requests.el, manage, h("div", { class: "mt" }, body), h("div", { class: "mt" }, activity.el));
   load();
   every(5000, load);
   every(10000, requests.load);
@@ -3279,7 +3279,7 @@ views.mods = () => {
     picker);
 
   fill($("#main"), 
-    h("h2", { class: "view-title" }, plugins ? "Plugins" : "Mods"),
+    h("h1", { class: "view-title" }, plugins ? "Plugins" : "Mods"),
     card(plugins ? "Add plugins" : "Add mods", sources, h("h3", { class: "mt" }, "Quick add"), q, earlyRow, results,
       plugins ? h("p", { class: "muted small mt-s" }, "Paper and Purpur run Paper, Spigot and Bukkit plugins from their plugins folder. Players don't need them.")
         : h("div", { class: "row mt-s" }, cfId,
@@ -3563,7 +3563,7 @@ views.backups = () => {
       } }), "Saved").then(loadSettings) }, "Save backup settings")));
   };
   fill($("#main"),
-    h("h2", { class: "view-title" }, "Backups"),
+    h("h1", { class: "view-title" }, "Backups"),
     card("Create backup", h("p", { class: "muted" }, "Each backup is a snapshot of the whole server: the world, the mods, their settings and Craft Conductor's settings for it. One is also made automatically before every update."),
       h("p", { class: "muted small" }, "What backups hold: Backup settings, below."),
       h("div", { class: "row" }, label, h("button", { class: "btn primary", onclick: () => act(() => api("/api/backups/create", { method: "POST", body: { label: label.value } }), "Backing up…") }, "Back up now"))),
@@ -3653,7 +3653,7 @@ views.java = () => {
       ` (${fmtBytes(r.old_bytes)}). It isn't used any more: delete that folder by hand to free the space. `, folderBtn("old-java", "Open it")) : null;
     fill(body, old, h("div", { class: "grid" }, runtime, shared), found);
   }
-  fill($("#main"), h("h2", { class: "view-title" }, "Java"), body);
+  fill($("#main"), h("h1", { class: "view-title" }, "Java"), body);
   load();
   return { onJobDone: load };
 };
@@ -3972,7 +3972,7 @@ views.settings = () => {
   worldCard.classList.add("mt");
   const tools = worldTools();
   const map = webMapCard();
-  fill($("#main"), h("h2", { class: "view-title" }, "Server settings"), form, worldCard, tools.el, map.el, exportCard, danger);
+  fill($("#main"), h("h1", { class: "view-title" }, "Server settings"), form, worldCard, tools.el, map.el, exportCard, danger);
   tools.load();
   map.load();
   load();
@@ -4314,7 +4314,7 @@ views.friends = () => {
     refreshModManager("friends-mods");
     checkPlayers();
   };
-  fill($("#main"), h("h2", { class: "view-title" }, "Friends"), isOwner() ? reachCard(server) : null, h("div", { class: "mt" }, body),
+  fill($("#main"), h("h1", { class: "view-title" }, "Friends"), isOwner() ? reachCard(server) : null, h("div", { class: "mt" }, body),
     h("div", { class: "mt" }, bedrockCard()));
   api("/api/client").then((r) => { data = r; render(); }).catch((e) => { if (!(e instanceof Unauthorized)) toast(e.message, true); });
   return { refresh: reload };
@@ -6188,7 +6188,7 @@ views.manual = (target = $("#main")) => {
   const body = h("div", { class: "card manual" }, h("p", { class: "empty" }, "Loading the manual…"));
   const toc = h("nav", { class: "help-toc card" }, h("strong", {}, "Contents"));
   fill(target,
-    h("div", { class: "row mb" }, h("h2", { class: "view-title grow" }, "User manual"),
+    h("div", { class: "row mb" }, h("h1", { class: "view-title grow" }, "User manual"),
       h("button", { class: "btn small", onclick: () => window.print() }, "🖨 Print"),
       h("a", { class: "btn small ghost", href: MANUAL_ON_GITHUB, target: "_blank", rel: "noopener noreferrer" }, "On the wiki, with pictures ↗")),
     toc, h("div", { class: "mt" }, body));
@@ -6213,7 +6213,7 @@ views.manual = (target = $("#main")) => {
 };
 
 views.help = (target = $("#main")) => {
-  fill(target, h("h2", { class: "view-title" }, "Help"),
+  fill(target, h("h1", { class: "view-title" }, "Help"),
     hubInfo && hubInfo.guide ? h("div", { class: "card mb row" }, h("div", { class: "grow" }, h("strong", {}, "🧭 Guided setup"),
       h("div", { class: "muted small" }, "Step by step from making a server to a friend joining it, with each step ticked as you go.")),
       h("button", { class: "btn primary", onclick: startGuide }, hubInfo.guide.active ? "Show the guide" : "Start the guided setup")) : null,
@@ -8370,7 +8370,7 @@ views["craft-conductor"] = () => {
       ["Sounds & notifications", "Choose what you hear and which alerts you see.", soundsCard(), notificationsCard(),
         hubInfo && !hubInfo.single ? phoneCard({ deviceOnly: true }) : null],
     ];
-    fill($("#main"), h("h2", { class: "view-title" }, "Craft Conductor settings"),
+    fill($("#main"), h("h1", { class: "view-title" }, "Craft Conductor settings"),
       ...sections.map(([title, description, ...cards]) => h("section", { class: "preferences-panel" },
         h("h3", {}, title), h("p", { class: "muted" }, description), ...cards.filter(Boolean))));
     return {};
@@ -8546,7 +8546,7 @@ views["craft-conductor"] = () => {
       panels.forEach((panel, n) => panel.classList.toggle("hidden", n !== i));
       buttons.forEach((button, n) => button.setAttribute("aria-pressed", String(n === i)));
     } }, title, title === "About & updates" ? updateDot() : null));
-  fill($("#main"), h("h2", { class: "view-title" }, "Craft Conductor settings"),
+  fill($("#main"), h("h1", { class: "view-title" }, "Craft Conductor settings"),
     h("p", { class: "muted" }, "Choose a section to find the settings you need."),
     h("div", { class: "preferences-layout" }, h("nav", { class: "preferences-nav", "aria-label": "Settings sections" }, buttons),
       h("div", { class: "preferences-content" }, panels)));
@@ -9362,7 +9362,7 @@ views.setup = () => {
       onclick: () => { st.loader = l.name; if (!l.mods) { st.mods.clear(); st.localMods = []; } else setupRecheckMods(true); renderForm(); },
     }, h("strong", {}, l.label), h("span", { class: "small muted" }, l.description))));
     const intro = [
-      h("h2", { class: "view-title" }, isNew ? "Create a new server" : "Set up your server"),
+      h("h1", { class: "view-title" }, isNew ? "Create a new server" : "Set up your server"),
       h("p", { class: "muted" }, "Choose what kind of server you want. Craft Conductor downloads everything it needs (Minecraft, the mod loader, mods and Java) and keeps it up to date from then on. " +
         (opts.network_option ? "" : "It won't start until you press Start.")),
       error ? h("div", { class: "notice bad" }, h("strong", {}, "Setup didn't finish: "), failureText(error, server),
@@ -9853,7 +9853,7 @@ views.setup = () => {
       if (first) open();
     };
     const panel = h("div", { class: "progress-panel" },
-      h("h2", { class: "view-title" }, "Creating your server…"),
+      h("h1", { class: "view-title" }, "Creating your server…"),
       h("div", { class: "notice" }, h("div", { class: "row" }, h("span", { class: "spinner" }),
         h("span", { class: "grow" }, "Downloading Java, the mod loader, Minecraft and your mods, then checking that the server starts. This usually takes a few minutes.")),
         h("div", { class: "small muted mt-s" }, "You can close this page: Craft Conductor keeps going. Open Craft Conductor again and choose See progress on the server.")),
