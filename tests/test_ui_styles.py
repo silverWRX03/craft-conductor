@@ -21,5 +21,5 @@ def test_classic_and_modern(hub_env):
     token, _ = hub.ui.users.invite("Morgan", {"alpha": access.PRESETS["manager"]}, time.time())  # (someone else on the same browser)
     hub.ui.users.accept(token, "morgan", "Morgan-Strong-Pass-3", time.time())
     result = subprocess.run([os.environ["CRAFT_UI_NODE"], str(Path(__file__).with_name("ui_styles.cjs")), client.base],
-                            capture_output=True, text=True, timeout=600)
+                            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600)
     assert result.returncode == 0, result.stdout + result.stderr

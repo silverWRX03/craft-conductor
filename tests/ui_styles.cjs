@@ -225,13 +225,24 @@ const path = require('node:path');
     await phone.locator('#cc-app-menu').click();
     const menu = await phone.evaluate(() => {
       const links = [...document.querySelectorAll('#nav a')].map((a) => a.getBoundingClientRect().height);
+      // nothing in the menu shows (or answers a tap) beside or under the close button, scrolled or not
+      const button = document.querySelector('#cc-app-menu').getBoundingClientRect();
+      const under = () => [...document.querySelectorAll('.sidebar a, .sidebar button, .sidebar .brand')].filter((el) => {
+        const r = el.getBoundingClientRect();
+        for (let y = Math.max(r.top + 1, 0); y < Math.min(r.bottom, button.bottom); y += 4) if (document.elementFromPoint(r.left + r.width / 2, y)?.closest('a, button, .brand') === el) return true;
+        return false;
+      }).map((el) => el.textContent.trim());
+      const coveredAtTop = under();
       document.querySelector('#cc-app-theme').scrollIntoView({ block: 'center' });
+      const coveredScrolled = under();
+      if (coveredAtTop.length || coveredScrolled.length) return { coveredAtTop, coveredScrolled };
       const sw = document.querySelector('#cc-app-theme .cc-theme-switch').getBoundingClientRect();
       const at = (x, y) => document.elementFromPoint(x, y);
       const hit = (x, y) => !!at(x, y)?.closest('.cc-theme-switch') || (at(x, y)?.className || at(x, y)?.tagName || 'nothing');
       const cx = sw.left + sw.width / 2, cy = sw.top + sw.height / 2;
       return { shortest: Math.min(...links), hitTop: hit(cx, cy - 21), hitBottom: hit(cx, cy + 21), hitLeft: hit(sw.left, cy), hitRight: hit(sw.right - 1, cy) };
     });
+    assert.ok(!menu.coveredAtTop, `${s}: in the menu, beside the close button: ${JSON.stringify(menu)}`);
     assert.ok(menu.shortest >= 44, `${s}: menu links ${menu.shortest}px`);
     assert.ok(menu.hitTop === true && menu.hitBottom === true && menu.hitLeft === true && menu.hitRight === true, `${s}: the day / night switch answers 44 pixels: ${JSON.stringify(menu)}`);
     if (shots) await phone.screenshot({ path: path.join(shots, `${s}-phone-menu.png`) });

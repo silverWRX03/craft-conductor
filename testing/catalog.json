@@ -8165,7 +8165,7 @@
   {
     "id": 931,
     "section": "Feature: Classic and Modern looks",
-    "step": "On a computer: with nothing chosen yet the page is Modern; switch to Classic with the mouse, and with Tab and the arrow keys (a screen reader says 'Interface style', Classic or Modern, checked). Switching keeps the page, a half-typed setting, the console's lines and the scroll; check all four (Classic and Modern, each Light and Dark) on the Dashboard, Console, Settings, a dialog (Check my setup) and the config editor: readable text, a dark console and editor in Modern Light, a thick orange outline where the keyboard is.",
+    "step": "On a computer: with nothing chosen yet the page is Modern; switch to Classic with the mouse, and with Tab and the arrow keys (a screen reader says 'Interface style', Classic or Modern, checked). Switching keeps the page, a half-typed setting, the console's lines and the scroll; check all four (Classic and Modern, each Light and Dark) on the Dashboard, Console, Settings, a dialog (Check my setup) and the config editor: readable text, a dark console and editor in Modern Light, a thick outline where the keyboard is (orange in Classic, blue in Modern Light, green in Modern Dark).",
     "type": "Core",
     "tags": [],
     "source": "added-in-git"
@@ -8194,6 +8194,16 @@
     "step": "In the mod browser and on a friend's page (Resource packs), drag the scroll bar straight to the bottom of the results, on a computer and on a phone: the next results load by themselves (no need to press Load more), until That's everything.",
     "type": "Core",
     "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 935,
+    "section": "Fix: The phone menu's top stays clear",
+    "step": "On a phone (or a narrow window), in the light theme and the dark theme, both looks: open the menu (top left). The Craft Conductor title and every link are below the close button, none of them beside or under it; on a short screen (a phone turned sideways) only the links scroll, and the title, Light / Dark and Sign out stay put.",
+    "type": "Core",
+    "tags": [
+      "mobile"
+    ],
     "source": "added-in-git"
   }
 ]

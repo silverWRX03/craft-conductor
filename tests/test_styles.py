@@ -169,9 +169,13 @@ def test_colours_stay_readable():
         assert contrast(c["on-accent"], c["accent"]) >= 4.5, (name, "button text")
         if "warn" in c:
             assert contrast(c["warn"], panel) >= 4.5, (name, "warn")
+    assert sets["modern day"]["accent"].upper() == "#0969DA" and sets["modern night"]["accent"].upper() == "#3FB950"
     for name in ("modern day", "modern night"):
         c = sets[name]
         assert contrast(c["console-fg"], c["console-bg"]) >= 4.5
+        assert contrast(c["accent"], c["selected-bg"]) >= 4.5, (name, "the open page in the menu")
+        assert contrast(c["info"], c["panel-2"]) >= 4.5, (name, "links in a notice")
+        assert contrast(c["on-accent"], c["accent-hover"]) >= 4.5, (name, "button text, hovered")
         assert contrast(c["field-border"], c["panel"]) >= 3, (name, "a field's edge")
         assert luminance(c["console-bg"]) < 0.05, (name, "the console stays dark")
 

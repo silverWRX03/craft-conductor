@@ -95,11 +95,11 @@ input,select,textarea { background:var(--console-bg); color:var(--text); font-fa
 .cc-nav-icon svg { width:100%; height:100%; }
 .topbar { background:var(--panel); box-shadow:0 1px 0 var(--depth-highlight); }
 .cc-theme-control { display:flex; align-items:center; gap:8px; font-size:13px; text-transform:uppercase; }
-.cc-theme-switch { width:42px; height:22px; position:relative; padding:3px; border:1px solid var(--border); background:var(--console-bg); cursor:pointer; flex:0 0 42px; }
-.cc-theme-switch .cc-thumb { display:block; width:14px; height:14px; background:var(--bright); }
+.cc-theme-switch { width:52px; height:28px; position:relative; padding:3px; border:1px solid var(--border); background:var(--console-bg); cursor:pointer; flex:0 0 52px; }
+.cc-theme-switch .cc-thumb { display:block; width:20px; height:20px; background:var(--bright); }
 .cc-theme-switch[aria-checked="true"] { border-color:var(--accent); }
-.cc-theme-switch[aria-checked="true"] .cc-thumb { transform:translateX(20px); background:var(--accent); }
-[dir="rtl"] .cc-theme-switch[aria-checked="true"] .cc-thumb { transform:translateX(-20px); }
+.cc-theme-switch[aria-checked="true"] .cc-thumb { transform:translateX(24px); background:var(--accent); }
+[dir="rtl"] .cc-theme-switch[aria-checked="true"] .cc-thumb { transform:translateX(-24px); }
 .cc-login-theme { position:fixed; top:16px; inset-inline-end:16px; z-index:5; }
 #cc-app-theme { margin-inline-start:auto; }
 #cc-theme-mobile:empty { display:none; }
@@ -113,6 +113,10 @@ input,select,textarea { background:var(--console-bg); color:var(--text); font-fa
   .sidebar { position:fixed; inset-block:0; inset-inline-start:0; width:260px; height:calc(100 * var(--vh)); z-index:80; display:flex; flex-direction:column; align-items:stretch; padding:64px 0 16px; transform:translateX(-100%); visibility:hidden; }
   [dir="rtl"] .sidebar { transform:translateX(100%); }
   .sidebar.open { transform:none; visibility:visible; }
+  /* Room for the menu button above everything (the light theme's own .sidebar rule above would take it away), and only
+     the links scroll when there are more than the screen holds: nothing slides up beside the button. */
+  .sidebar, :root[data-theme="day"] .sidebar { padding-top:64px; overflow:hidden; }
+  .sidebar nav { flex:1 1 auto; min-height:0; align-content:start; overflow-y:auto; overscroll-behavior:contain; }
   .sidebar nav { display:grid; }
   .sidebar-foot { margin-top:auto; flex-wrap:wrap; }
   .cc-menu-trigger { display:flex; flex-direction:column; justify-content:center; align-items:center; gap:5px; width:40px; height:40px; position:fixed; top:16px; inset-inline-start:16px; z-index:81; background:var(--panel); border:1px solid var(--border); cursor:pointer; }
@@ -173,7 +177,7 @@ input,select,textarea { background:var(--console-bg); color:var(--text); font-fa
   .cc-style-switch label { min-height:44px; min-width:44px; }
   #cc-style { top:12px; }
   /* the day / night switch keeps its look; its button reaches 44 pixels around it (nothing else is that close) */
-  .cc-theme-switch::after { content:""; position:absolute; inset:-12px -2px; }  /* (from inside its 1px border) */
+  .cc-theme-switch::after { content:""; position:absolute; inset:-9px -2px; }  /* (from inside its 1px border: 26 + 18 = 44) */
   input[type=checkbox], input[type=radio] { width:22px; height:22px; }
   label:has(> input[type=checkbox]:first-child), label:has(> input[type=radio]:first-child) { min-height:44px; align-items:center; }
   label:has(> input[type=checkbox]:first-child) > input[type=checkbox], label:has(> input[type=radio]:first-child) > input[type=radio] { margin-top:0; }

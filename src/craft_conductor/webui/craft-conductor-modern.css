@@ -10,13 +10,13 @@
 }
 :root[data-style="modern"]:not([data-contrast="high"]):not([data-theme="day"],[data-theme="light"]) {
   color-scheme:dark;
-  --bg:#161B20; --panel:#20272E; --panel-2:#28323C; --border:#3A4652;
+  --bg:#0B0E11; --panel:#13171C; --panel-2:#1A2026; --border:#26303A;
   --text:#E9EEF2; --muted:#B2BDC8; --bright:#F5F8FA;
-  --accent:#FF8A50; --accent-2:#FF8A50; --accent-3:#E06A30; --accent-hover:#FFA272; --on-accent:#161B20;
-  --info:#FF8A50; --info-fg:#E9EEF2; --danger:#F87171; --warn:#EAB308;
-  --console-bg:#0F1317; --console-fg:#E9EEF2; --console-border:#2E3842; --field-bg:#161B20; --field-border:#6B7A88;
-  --hover-border:#56636F; --hover-bg:#2E3943; --selected-bg:#3A2A24; --selected-bad-bg:#3A2024;
-  --focus:#FF8A5066; --faint:#ffffff0d; --depth-grid:rgba(233,238,242,.035); --silver-basalt:#8B98A5;
+  --accent:#3FB950; --accent-2:#3FB950; --accent-3:#2EA043; --accent-hover:#56D364; --on-accent:#0B0E11;
+  --info:#3FB950; --info-fg:#E9EEF2; --danger:#F87171; --warn:#EAB308;
+  --console-bg:#07090C; --console-fg:#E9EEF2; --console-border:#1E262F; --field-bg:#0B0E11; --field-border:#6B7A88;
+  --hover-border:#4A5663; --hover-bg:#1E252C; --selected-bg:#12261A; --selected-bad-bg:#2A1519;
+  --focus:#3FB95066; --faint:#ffffff0d; --depth-grid:rgba(233,238,242,.035); --silver-basalt:#8B98A5;
   --shadow:rgba(0,0,0,.35); --shadow-strong:rgba(0,0,0,.5);
   --shadow-1:0 1px 2px rgba(0,0,0,.3); --shadow-pop:0 16px 40px rgba(0,0,0,.45),0 2px 8px rgba(0,0,0,.3);
 }
@@ -24,11 +24,11 @@
   color-scheme:only light;
   --bg:#F4F4F4; --panel:#FFFFFF; --panel-2:#E9EDF0; --border:#CBD2D8;
   --text:#1C252D; --muted:#4C5B68; --bright:#1C252D;
-  --accent:#C53000; --accent-2:#C53000; --accent-3:#9A2600; --accent-hover:#A82900; --on-accent:#FFFFFF;
-  --info:#C53000; --info-fg:#1C252D; --danger:#C62828; --warn:#B45309;
+  --accent:#0969DA; --accent-2:#0969DA; --accent-3:#0550AE; --accent-hover:#0757BA; --on-accent:#FFFFFF;
+  --info:#0860CA; --info-fg:#1C252D; --danger:#C62828; --warn:#B45309;
   --console-bg:#161B20; --console-fg:#E9EEF2; --console-border:#161B20; --field-bg:#FFFFFF; --field-border:#7B8794;
-  --hover-border:#7B8794; --hover-bg:#EEF1F4; --selected-bg:#FCEDE8; --selected-bad-bg:#FDECEC;
-  --focus:#C5300055; --faint:#1C252D0d; --depth-grid:rgba(28,37,45,.05); --silver-basalt:#8B98A5;
+  --hover-border:#7B8794; --hover-bg:#EEF1F4; --selected-bg:#EAF3FF; --selected-bad-bg:#FDECEC;
+  --focus:#0969DA55; --faint:#1C252D0d; --depth-grid:rgba(28,37,45,.05); --silver-basalt:#8B98A5;
   --shadow:rgba(28,37,45,.12); --shadow-strong:rgba(28,37,45,.22);
   --shadow-1:0 1px 2px rgba(28,37,45,.06),0 1px 3px rgba(28,37,45,.05); --shadow-pop:0 12px 32px rgba(28,37,45,.16),0 2px 6px rgba(28,37,45,.08);
 }
@@ -38,11 +38,11 @@
     color-scheme:only light;
     --bg:#F4F4F4; --panel:#FFFFFF; --panel-2:#E9EDF0; --border:#CBD2D8;
     --text:#1C252D; --muted:#4C5B68; --bright:#1C252D;
-    --accent:#C53000; --accent-2:#C53000; --accent-3:#9A2600; --accent-hover:#A82900; --on-accent:#FFFFFF;
-    --info:#C53000; --info-fg:#1C252D; --danger:#C62828; --warn:#B45309;
+    --accent:#0969DA; --accent-2:#0969DA; --accent-3:#0550AE; --accent-hover:#0757BA; --on-accent:#FFFFFF;
+    --info:#0860CA; --info-fg:#1C252D; --danger:#C62828; --warn:#B45309;
     --console-bg:#161B20; --console-fg:#E9EEF2; --console-border:#161B20; --field-bg:#FFFFFF; --field-border:#7B8794;
-    --hover-border:#7B8794; --hover-bg:#EEF1F4; --selected-bg:#FCEDE8; --selected-bad-bg:#FDECEC;
-    --focus:#C5300055; --faint:#1C252D0d; --depth-grid:rgba(28,37,45,.05); --silver-basalt:#8B98A5;
+    --hover-border:#7B8794; --hover-bg:#EEF1F4; --selected-bg:#EAF3FF; --selected-bad-bg:#FDECEC;
+    --focus:#0969DA55; --faint:#1C252D0d; --depth-grid:rgba(28,37,45,.05); --silver-basalt:#8B98A5;
     --shadow:rgba(28,37,45,.12); --shadow-strong:rgba(28,37,45,.22);
     --shadow-1:0 1px 2px rgba(28,37,45,.06),0 1px 3px rgba(28,37,45,.05); --shadow-pop:0 12px 32px rgba(28,37,45,.16),0 2px 6px rgba(28,37,45,.08);
   }
@@ -50,7 +50,7 @@
 /* The console and the config editor stay dark in both themes: what's inside them uses dark-surface colours. */
 :root[data-style="modern"]:not([data-contrast="high"]) :is(.console, .console-input, .code-editor) {
   --text:#E9EEF2; --muted:#9AA7B4; --bright:#FFFFFF; --border:#2E3842; --panel-2:#1B2228;
-  --accent:#FF8A50; --accent-hover:#FFA272; --on-accent:#161B20; --focus:#FF8A5059; --silver-basalt:#8B98A5;
+  --accent:#3FB950; --accent-hover:#56D364; --on-accent:#0B0E11; --focus:#3FB95059; --silver-basalt:#8B98A5;
   --ok-fg:#4ADE80; --warn-fg:#FACC15; --bad-fg:#F87171; --info-fg:#7EC8FF;
 }
 
@@ -88,7 +88,7 @@
 /* ------------------------------------------------------------------ the frame: sidebar, menu and top bar */
 :root[data-style="modern"] .sidebar { background:var(--panel); border-inline-end:1px solid var(--border); box-shadow:none; }
 :root[data-style="modern"] .sidebar nav { gap:2px; padding-inline:8px; }
-:root[data-style="modern"] .sidebar nav a { min-height:40px; padding:8px 12px; border-inline-start:0; border-radius:6px; color:var(--text);
+:root[data-style="modern"] .sidebar nav a { min-height:42px; padding:8px 12px; border-inline-start:0; border-radius:6px; color:var(--text);
   text-transform:none; letter-spacing:normal; font-size:15px; font-weight:500; }
 :root[data-style="modern"] .sidebar nav a:hover { background:var(--hover-bg); }
 :root[data-style="modern"] .sidebar nav a.active { background:var(--selected-bg); color:var(--accent); box-shadow:inset 3px 0 0 var(--accent); font-weight:600; }
