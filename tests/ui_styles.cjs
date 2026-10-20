@@ -123,6 +123,7 @@ const path = require('node:path');
   assert.deepEqual(await look(), { caps: 'uppercase', button: '0px', card: '0px', paper: true, tall: false });
   await modern.check();
   assert.deepEqual(await look(), { caps: 'none', button: '8px', card: '16px', paper: false, tall: true });
+  assert.ok(await page.evaluate(() => document.getElementById('skip-link').getBoundingClientRect().height >= 44), 'Skip to main content is 44 pixels too');
   // under a mouse a button lifts, and stays still when the computer asks for less motion
   const lift = () => page.locator('main .btn:visible').first().evaluate((b) => getComputedStyle(b).transform);
   await page.locator('main .btn:visible').first().hover();
