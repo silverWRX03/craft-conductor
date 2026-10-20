@@ -4,6 +4,20 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.30.0 (not released yet)
+
+**Added**
+- **Two looks: Modern and Classic.** The **Classic / Modern** switch at the top right of every page (beside the bell, on phones too) changes how Craft Conductor looks. **Modern**, the look it now has at first, is calm and precise: ordinary capital letters, slightly rounded corners, soft shadows, and a dark console and config editor in the light theme too. **Classic** is the look Craft Conductor had until now. Both have Light and Dark, the graph-paper background and every page and number, and switching keeps what you typed, the console and where you were. Each person's choice is remembered in their browser for them (someone else signing in there gets their own, or Modern), apart from Light / Dark. Friends' invite pages are Modern.
+
+**Changed**
+- Text is bigger and easier to read: the pages use the Roboto font, which comes with Craft Conductor (never fetched from the internet), at 16 pixels for ordinary text; the console and the config editor keep their fixed-width font.
+- The keyboard's outline is a thick orange ring on everything, in both looks, and is no longer cut off at the edge of the menu and of lists.
+- On a phone or tablet, buttons, menu links and switches are at least 44 pixels across, so they're easier to tap.
+- In the light theme the orange, the warning yellow and the error red are a little deeper, so text in them is easier to read; so are the console's times in the dark theme.
+
+**Fixed**
+- A long list of results (the mod browser, a friend's Shaders, Resource packs and More mods) could stop at its last loaded row with **Load more** when you dragged the scroll bar straight to the bottom, instead of loading the next ones by itself.
+
 ## 0.29.0 (2026-10-19)
 
 **Before you update:** friends' invite links set to work 30 days or "Until I make new ones" stop when this version starts: links now work 1, 3 or 7 days. Make new ones on the Friends page afterwards; friends who already set up keep playing.

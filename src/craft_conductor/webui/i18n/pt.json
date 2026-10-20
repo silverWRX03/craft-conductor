@@ -1170,5 +1170,8 @@
   "folder": "pasta",
   "folders": "pastas",
   "each server's own folder": "a própria pasta de cada servidor",
-  "Change…": "Alterar…"
+  "Change…": "Alterar…",
+  "Classic": "Clássico",
+  "Modern": "Moderno",
+  "Interface style": "Estilo da interface"
 }

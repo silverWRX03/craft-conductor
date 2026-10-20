@@ -1,0 +1,156 @@
+/* The Modern style: server hardware, readable and precise. Built on craft-conductor-theme.css (Classic); every rule
+   here starts with :root[data-style="modern"], so none of it reaches Classic (tests/test_styles.py checks). Day and
+   night, high contrast and the invite page's automatic light or dark all work as in Classic. */
+
+/* ------------------------------------------------------------------ colours and shapes */
+/* What both themes share, and the values high contrast keeps (its own colours come from style.css). */
+:root[data-style="modern"] {
+  --radius:6px; --field-bg:var(--bg); --field-border:var(--border); --console-fg:var(--text); --console-border:var(--border);
+  --accent-hover:var(--accent-2); --shadow-1:none; --shadow-pop:0 12px 32px var(--shadow-strong);
+}
+:root[data-style="modern"]:not([data-contrast="high"]):not([data-theme="day"],[data-theme="light"]) {
+  color-scheme:dark;
+  --bg:#161B20; --panel:#20272E; --panel-2:#28323C; --border:#3A4652;
+  --text:#E9EEF2; --muted:#B2BDC8; --bright:#F5F8FA;
+  --accent:#FF8A50; --accent-2:#FF8A50; --accent-3:#E06A30; --accent-hover:#FFA272; --on-accent:#161B20;
+  --info:#FF8A50; --info-fg:#E9EEF2; --danger:#F87171; --warn:#EAB308;
+  --console-bg:#0F1317; --console-fg:#E9EEF2; --console-border:#2E3842; --field-bg:#161B20; --field-border:#6B7A88;
+  --hover-border:#56636F; --hover-bg:#2E3943; --selected-bg:#3A2A24; --selected-bad-bg:#3A2024;
+  --focus:#FF8A5066; --faint:#ffffff0d; --depth-grid:rgba(233,238,242,.035); --silver-basalt:#8B98A5;
+  --shadow:rgba(0,0,0,.35); --shadow-strong:rgba(0,0,0,.5);
+  --shadow-1:0 1px 2px rgba(0,0,0,.3); --shadow-pop:0 16px 40px rgba(0,0,0,.45),0 2px 8px rgba(0,0,0,.3);
+}
+:root[data-style="modern"]:not([data-contrast="high"]):is([data-theme="day"],[data-theme="light"]) {
+  color-scheme:only light;
+  --bg:#F4F4F4; --panel:#FFFFFF; --panel-2:#E9EDF0; --border:#CBD2D8;
+  --text:#1C252D; --muted:#4C5B68; --bright:#1C252D;
+  --accent:#C53000; --accent-2:#C53000; --accent-3:#9A2600; --accent-hover:#A82900; --on-accent:#FFFFFF;
+  --info:#C53000; --info-fg:#1C252D; --danger:#C62828; --warn:#B45309;
+  --console-bg:#161B20; --console-fg:#E9EEF2; --console-border:#161B20; --field-bg:#FFFFFF; --field-border:#7B8794;
+  --hover-border:#7B8794; --hover-bg:#EEF1F4; --selected-bg:#FCEDE8; --selected-bad-bg:#FDECEC;
+  --focus:#C5300055; --faint:#1C252D0d; --depth-grid:rgba(28,37,45,.05); --silver-basalt:#8B98A5;
+  --shadow:rgba(28,37,45,.12); --shadow-strong:rgba(28,37,45,.22);
+  --shadow-1:0 1px 2px rgba(28,37,45,.06),0 1px 3px rgba(28,37,45,.05); --shadow-pop:0 12px 32px rgba(28,37,45,.16),0 2px 6px rgba(28,37,45,.08);
+}
+/* The invite page has no saved setting: it follows the computer's light or dark. */
+@media (prefers-color-scheme: light) {
+  :root[data-style="modern"]:not([data-contrast="high"]):not([data-theme]) {
+    color-scheme:only light;
+    --bg:#F4F4F4; --panel:#FFFFFF; --panel-2:#E9EDF0; --border:#CBD2D8;
+    --text:#1C252D; --muted:#4C5B68; --bright:#1C252D;
+    --accent:#C53000; --accent-2:#C53000; --accent-3:#9A2600; --accent-hover:#A82900; --on-accent:#FFFFFF;
+    --info:#C53000; --info-fg:#1C252D; --danger:#C62828; --warn:#B45309;
+    --console-bg:#161B20; --console-fg:#E9EEF2; --console-border:#161B20; --field-bg:#FFFFFF; --field-border:#7B8794;
+    --hover-border:#7B8794; --hover-bg:#EEF1F4; --selected-bg:#FCEDE8; --selected-bad-bg:#FDECEC;
+    --focus:#C5300055; --faint:#1C252D0d; --depth-grid:rgba(28,37,45,.05); --silver-basalt:#8B98A5;
+    --shadow:rgba(28,37,45,.12); --shadow-strong:rgba(28,37,45,.22);
+    --shadow-1:0 1px 2px rgba(28,37,45,.06),0 1px 3px rgba(28,37,45,.05); --shadow-pop:0 12px 32px rgba(28,37,45,.16),0 2px 6px rgba(28,37,45,.08);
+  }
+}
+/* The console and the config editor stay dark in both themes: what's inside them uses dark-surface colours. */
+:root[data-style="modern"]:not([data-contrast="high"]) :is(.console, .console-input, .code-editor) {
+  --text:#E9EEF2; --muted:#9AA7B4; --bright:#FFFFFF; --border:#2E3842; --panel-2:#1B2228;
+  --accent:#FF8A50; --accent-hover:#FFA272; --on-accent:#161B20; --focus:#FF8A5059; --silver-basalt:#8B98A5;
+  --ok-fg:#4ADE80; --warn-fg:#FACC15; --bad-fg:#F87171; --info-fg:#7EC8FF;
+}
+
+/* ------------------------------------------------------------------ words */
+:root[data-style="modern"] :is(h1, h2, h3, .view-title, .page-title, .brand, .card h3, .props legend, th, .meter-head span, .cc-theme-control) {
+  text-transform:none; letter-spacing:normal; }
+:root[data-style="modern"] .view-title { font-size:24px; font-weight:600; line-height:1.25; }
+:root[data-style="modern"] .page-title { font-size:18px; font-weight:600; }
+:root[data-style="modern"] .modal h2 { font-size:20px; font-weight:600; }
+:root[data-style="modern"] .card h3 { font-size:16px; font-weight:600; color:var(--bright); }
+:root[data-style="modern"] .props legend, :root[data-style="modern"] th { font-size:14px; font-weight:600; }
+:root[data-style="modern"] .brand { letter-spacing:.01em; }
+:root[data-style="modern"] .pill { letter-spacing:.03em; }
+:root[data-style="modern"] .cc-theme-control { font-size:14px; }
+
+/* ------------------------------------------------------------------ surfaces: subtle borders, soft shadows, 6px */
+:root[data-style="modern"] :is(.card, .cc-panel, .choice, .props fieldset, .cfg-body) {
+  background-color:var(--panel); background-image:none; border:1px solid var(--border); border-radius:6px; box-shadow:var(--shadow-1); }
+:root[data-style="modern"] :is(.props fieldset, .cfg-body) { box-shadow:none; }
+:root[data-style="modern"] :is(.login-card, .modal, .guide, .bell-panel) {
+  background-color:var(--panel); background-image:none; border:1px solid var(--border); border-radius:6px; box-shadow:var(--shadow-pop); }
+:root[data-style="modern"] .toast { border-radius:6px; box-shadow:var(--shadow-pop); }  /* (its coloured edge stays) */
+/* (what the border above would otherwise hide) */
+:root[data-style="modern"] .danger-zone { border-color:var(--bad-border); }
+:root[data-style="modern"] a.server-card.new { border-style:dashed; }
+:root[data-style="modern"] .browse { background-image:none; border:0; border-radius:0; box-shadow:none; }
+:root[data-style="modern"] .cc-dashboard { box-shadow:var(--shadow-1); }
+:root[data-style="modern"] .card h3 { border-bottom-color:var(--border); }
+:root[data-style="modern"] :is(.notice, .mod-summary, .mod-manager-row, .drop-zone, .result, .place-row, .folder-list, .version-picker,
+  .map-frame, .map-thumb, .grant-row, .cfg-files, .gallery-wait, .rehearsal-stat, .guide-steps li, .help-img, .update-log, .log,
+  .player-actions, .foot-panel, .map-status, .rich pre, fieldset.choices) { border-radius:6px; }
+:root[data-style="modern"] :is(.bar, .bar-fill) { border-radius:3px; }
+:root[data-style="modern"] .server-card:hover, :root[data-style="modern"] .choice:hover:not(:disabled) { box-shadow:var(--shadow-pop); }
+
+/* ------------------------------------------------------------------ the frame: sidebar, menu and top bar */
+:root[data-style="modern"] .sidebar { background:var(--panel); border-inline-end:1px solid var(--border); box-shadow:none; }
+:root[data-style="modern"] .sidebar nav { gap:2px; padding-inline:8px; }
+:root[data-style="modern"] .sidebar nav a { min-height:40px; padding:8px 12px; border-inline-start:0; border-radius:6px; color:var(--text);
+  text-transform:none; letter-spacing:normal; font-size:15px; font-weight:500; }
+:root[data-style="modern"] .sidebar nav a:hover { background:var(--hover-bg); }
+:root[data-style="modern"] .sidebar nav a.active { background:var(--selected-bg); color:var(--accent); box-shadow:inset 3px 0 0 var(--accent); font-weight:600; }
+:root[data-style="modern"] .sidebar nav a:focus-visible:not(.active) { background:var(--hover-bg); color:var(--text); box-shadow:none; font-weight:500; }
+:root[data-style="modern"] .cc-nav-icon { width:18px; height:18px; flex-basis:18px; }
+:root[data-style="modern"] .nav-server { font-size:15px; }
+:root[data-style="modern"] .topbar { background:var(--panel); border-bottom:1px solid var(--border); box-shadow:none; }
+:root[data-style="modern"] .cc-menu-trigger { border-radius:6px; box-shadow:var(--shadow-1); }
+:root[data-style="modern"] .cc-theme-switch { border-radius:999px; }
+:root[data-style="modern"] .cc-theme-switch .cc-thumb { border-radius:50%; }
+:root[data-style="modern"] .cc-style-switch { border-radius:6px; background:var(--panel-2); }
+:root[data-style="modern"] .cc-style-switch::before { border-radius:4px; box-shadow:var(--shadow-1); }
+:root[data-style="modern"] .cc-style-switch label { text-transform:none; letter-spacing:normal; font-size:14px; font-weight:500; border-radius:4px; }
+
+/* ------------------------------------------------------------------ controls */
+:root[data-style="modern"] .btn { padding:8px 14px; border:1px solid var(--field-border); border-radius:6px; background:var(--panel);
+  color:var(--text); font-size:15px; font-weight:500; text-transform:none; letter-spacing:normal; box-shadow:var(--shadow-1); }
+:root[data-style="modern"] .btn:hover:not(:disabled) { background:var(--hover-bg); border-color:var(--hover-border); color:var(--text); }
+:root[data-style="modern"] .btn.small { padding:5px 10px; font-size:14px; }
+:root[data-style="modern"] .btn.big { padding:11px 22px; font-size:16px; }
+:root[data-style="modern"] .btn.primary { background:var(--accent); border-color:var(--accent); color:var(--on-accent); box-shadow:var(--shadow-1); }
+:root[data-style="modern"] .btn.primary:hover:not(:disabled) { background:var(--accent-hover); border-color:var(--accent-hover); color:var(--on-accent); }
+:root[data-style="modern"] .btn.primary:active:not(:disabled) { box-shadow:none; }
+:root[data-style="modern"] .btn.danger { border-color:var(--bad-border); color:var(--bad-fg); }
+:root[data-style="modern"] .btn.danger:hover:not(:disabled) { background:var(--bad-bg); border-color:var(--danger); color:var(--bad-fg); }
+:root[data-style="modern"] .btn.ghost { background:transparent; border-color:transparent; box-shadow:none; color:var(--muted); }
+:root[data-style="modern"] .btn.ghost:hover:not(:disabled) { background:var(--hover-bg); border-color:transparent; color:var(--text); }
+:root[data-style="modern"] .btn.chip { border-radius:999px; }
+:root[data-style="modern"] .btn:disabled { opacity:.5; box-shadow:none; }
+:root[data-style="modern"] :is(input:not([type=checkbox], [type=radio], [type=range], [type=file]), select, textarea:not(.code-input)) {
+  background:var(--field-bg); color:var(--text); border:1px solid var(--field-border); border-radius:6px; }
+:root[data-style="modern"] :is(input, select, textarea):focus { border-color:var(--accent); }
+:root[data-style="modern"] :is(input[type=checkbox], input[type=radio]) { accent-color:var(--accent); }
+:root[data-style="modern"] .choice.selected { border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); background:var(--selected-bg); }
+:root[data-style="modern"] .choice.selected.danger { border-color:var(--danger); box-shadow:inset 0 0 0 1px var(--danger); background:var(--selected-bad-bg); }
+
+/* ------------------------------------------------------------------ telemetry, console and editor */
+:root[data-style="modern"] .cc-metric-card .meter-head span { font-size:14px; font-weight:500; color:var(--muted); }
+:root[data-style="modern"] .cc-metric-card .meter-head strong { font-size:28px; font-weight:600; line-height:1.15; font-variant-numeric:tabular-nums; }
+:root[data-style="modern"] .meter-head span { font-size:14px; }
+:root[data-style="modern"] .console { background:var(--console-bg); color:var(--text); border:1px solid var(--console-border); border-radius:6px;
+  box-shadow:inset 0 1px 3px rgba(0,0,0,.35); }
+:root[data-style="modern"] .console:has(+ .console-input) { border-end-start-radius:0; border-end-end-radius:0; }
+:root[data-style="modern"] .console-input { background:var(--console-bg); border-color:var(--console-border); border-radius:0 0 6px 6px; }
+:root[data-style="modern"] .console-input input { background:transparent; color:var(--text); border:0; border-radius:0; }
+:root[data-style="modern"] .code-editor { background:var(--console-bg); border-color:var(--console-border); border-radius:6px; }
+:root[data-style="modern"] .code-gutter { background:var(--panel-2); color:var(--muted); border-color:var(--border); }
+:root[data-style="modern"] .code-hl { color:var(--text); }
+/* (the colours of a config file, as on any dark editor: the light theme's darker ones are for Classic's light editor) */
+:root[data-style="modern"]:not([data-contrast="high"]) .tk-k { color:#9CDCFE; }
+:root[data-style="modern"]:not([data-contrast="high"]) .tk-s { color:#CE9178; }
+:root[data-style="modern"]:not([data-contrast="high"]) .tk-n { color:#B5CEA8; }
+:root[data-style="modern"]:not([data-contrast="high"]) .tk-h { color:#4EC9B0; }
+:root[data-style="modern"]:not([data-contrast="high"]) .tk-b { color:#569CD6; }
+:root[data-style="modern"]:not([data-contrast="high"]) .tk-c { color:#6A9955; }
+:root[data-style="modern"]:not([data-contrast="high"]) .tk-p { color:#9AA4AE; }
+:root[data-style="modern"]:not([data-contrast="high"]) .tk-t { color:#C586C0; }
+:root[data-style="modern"] .cfg-files button.active { background:var(--selected-bg); color:var(--accent); box-shadow:inset 3px 0 0 var(--accent); }
+
+@media (max-width: 1023px) {
+  :root[data-style="modern"] .sidebar nav a { min-height:44px; }
+}
+@media (pointer: coarse) {
+  :root[data-style="modern"] .sidebar nav a { min-height:44px; }
+}

@@ -151,6 +151,9 @@ def _script_file(path: str, text: str) -> str:
 def build_demo(dest: Path, frontend: Path, catalog: dict, release: dict) -> None:
     """demo/app/: the release's control panel page with the simulation in front of it."""
     index = (frontend / "index.html").read_text(encoding="utf-8")
+    # (appearance.js puts the saved look on before the page is drawn; in the demo the saved settings come from the
+    # website later, with the simulation, and app.js puts them on itself)
+    index = index.replace('\n  <script src="/appearance.js"></script>', "")
     if "app.js" not in index or not (frontend / "app.js").is_file():
         raise BuildError(f"{frontend} has no control panel (index.html and app.js)")
     scripts = re.findall(r'<script src="/([\w.-]+\.js)"></script>', index)

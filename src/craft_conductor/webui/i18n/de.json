@@ -1163,5 +1163,8 @@
   "folder": "Ordner",
   "folders": "Ordner",
   "each server's own folder": "dem eigenen Ordner jedes Servers",
-  "Change…": "Ändern…"
+  "Change…": "Ändern…",
+  "Classic": "Klassisch",
+  "Modern": "Modern",
+  "Interface style": "Oberflächenstil"
 }

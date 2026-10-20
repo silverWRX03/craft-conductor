@@ -51,8 +51,7 @@ function currentTheme() {
 }
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
-  const bar = document.querySelector('meta[name="theme-color"]');  // (the phone's status bar and the app's title bar)
-  if (bar) bar.setAttribute("content", theme === "day" ? "#F4F4F4" : "#0A0A0A");
+  themeBar();
   for (const b of document.querySelectorAll("[data-theme-toggle]")) {
     if (b.getAttribute("role") === "switch") b.setAttribute("aria-checked", String(theme === "night"));
     else b.setAttribute("aria-pressed", String(theme === "day"));
@@ -72,6 +71,52 @@ document.addEventListener("click", (e) => {
   applyTheme(next);
   setTimeout(() => document.documentElement.classList.remove("theme-switching"), 700);
 });
+
+// The phone's status bar and the app's title bar: the page's own background.
+function themeBar() {
+  const bar = document.querySelector('meta[name="theme-color"]');
+  const modern = document.documentElement.dataset.style !== "classic";
+  if (bar) bar.setAttribute("content", document.documentElement.dataset.theme === "day" ? "#F4F4F4" : modern ? "#161B20" : "#0A0A0A");
+}
+
+// ------------------------------------------------------------------ Classic / Modern
+// How the page looks, apart from day or night: each person's own choice, kept in this browser by who they are
+// ("owner" or "user:<id>", access.Subject.key, as the bell's), Modern until they pick one. Before anyone has signed
+// in it's the one last used here (STYLE_KEY: appearance.js puts it on before the page is drawn). Switching only
+// changes data-style on the page: nothing is drawn again, so what's typed, the console and the page stay.
+const STYLE_KEY = "craft-conductor-style", STYLES = ["classic", "modern"];
+let styleWho = null;
+const personKey = (hb) => hb.role === "user" ? (hb.user && hb.user.id ? `user:${hb.user.id}` : null) : "owner";
+function savedStyle(key) {
+  try { const v = localStorage.getItem(key); return STYLES.includes(v) ? v : null; } catch (_) { return null; }  // (private mode)
+}
+function applyStyle(style) {
+  document.documentElement.dataset.style = style;
+  for (const r of document.querySelectorAll("input[data-style-choice]")) r.checked = r.value === style;
+  themeBar();
+}
+applyStyle(savedStyle(STYLE_KEY) || "modern");
+// With each look at /api/hub: a different person (another account signed in, here or in another tab) gets theirs.
+function styleSignedIn(hb) {
+  const who = personKey(hb);
+  if (!who || who === styleWho) return;
+  styleWho = who;
+  const style = savedStyle(`${STYLE_KEY}:${who}`) || "modern";
+  try { localStorage.setItem(STYLE_KEY, style); } catch (_) { /* private mode */ }
+  applyStyle(style);
+}
+function styleSignedOut() { styleWho = null; }
+document.addEventListener("change", (e) => {
+  const r = e.target.closest && e.target.closest("input[data-style-choice]");
+  if (!r || !r.checked || !STYLES.includes(r.value)) return;
+  try {
+    if (styleWho) localStorage.setItem(`${STYLE_KEY}:${styleWho}`, r.value);
+    localStorage.setItem(STYLE_KEY, r.value);
+  } catch (_) { /* private mode: kept for this page */ }
+  applyStyle(r.value);
+});
+// (chosen in another tab by the same person)
+window.addEventListener("storage", (e) => { if (styleWho && e.key === `${STYLE_KEY}:${styleWho}`) applyStyle(savedStyle(e.key) || "modern"); });
 
 // ------------------------------------------------------------------ accessibility
 // Contrast and motion (Craft Conductor settings → Appearance → Display), kept per browser; Automatic follows the
@@ -323,7 +368,7 @@ function bellAdd(items) {
 }
 // Called with each look at /api/hub (the page's usual refresh): who's signed in, and what they may see.
 function bellSignedIn(hb) {
-  const who = hb.role === "user" ? (hb.user ? `user:${hb.user.id}` : null) : "owner";
+  const who = personKey(hb);
   if (!who) return;
   if (bell.who !== who) {
     let saved = null;
@@ -595,6 +640,22 @@ function refill(el, key, ...children) {
   }
   return true;
 }
+// A part that refill() rebuilds every few seconds doesn't give each new button its own listener: one click listener
+// on the part itself (which stays) finds the button by its data-act and calls what `actions` has for it (the latest
+// call's, so they see the latest data). Registered once per part; a button inside a nested part is that part's.
+function delegate(el, actions) {
+  el._actions = actions;
+  if (el._delegated) return el;
+  el._delegated = true;
+  el.dataset.delegate = "";
+  el.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-act]");
+    if (!b || b.parentElement.closest("[data-delegate]") !== el || b.disabled || b.getAttribute("aria-disabled") === "true") return;
+    const fn = el._actions[b.dataset.act];
+    if (fn) fn(b, e);
+  });
+  return el;
+}
 // (text that is already there isn't set again: a screen reader may say it again)
 function setText(el, text) { if (el && el.textContent !== text) el.textContent = text; }
 function card(title, ...children) { return h("div", { class: "card" }, title ? h("h3", {}, title) : null, ...children); }
@@ -693,6 +754,7 @@ const PROMPT_KEY = "craft-conductor-password-prompt-dismissed";
 async function showLogin() {
   clearTimers();
   bellSignedOut();
+  styleSignedOut();
   $("#app").classList.add("hidden");
   $("#login").classList.remove("hidden");
   let a = null;
@@ -1424,6 +1486,7 @@ async function refreshStatus() {
   }
   const hb = hubInfo;
   bellSignedIn(hb);
+  styleSignedIn(hb);
   chimeFor(hb.servers);
   $("#version").textContent = "v" + hb.version + " beta";
   $("#version").title = t("Craft Conductor is in beta: expect some rough edges, and keep backups.");
@@ -1939,8 +2002,8 @@ Windows asks for permission once. If another Craft Conductor on this computer us
     catch (e) { if (!(e instanceof Unauthorized)) fill(internet, h("p", { class: "bad-text small" }, e.message)); }
     testBtn.disabled = false;
   } }, "🌐 Test from the internet");
-  const close = () => { $("#doctor").remove(); document.removeEventListener("keydown", onKey); };
-  const onKey = (e) => { if (e.key === "Escape") close(); };
+  const close = () => { const m = $("#doctor"); if (m) m.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = (e) => { if (!$("#doctor") || e.key === "Escape") close(); };  // (gone some other way: the listener goes too)
   document.addEventListener("keydown", onKey);
   const box = h("div", { class: "modal doctor" },
     h("div", { class: "row" }, h("h2", { id: "doctor-title", class: "grow" }, "Check my setup"),
@@ -2252,7 +2315,7 @@ function playersCard(con) {
 
 views.dashboard = () => {
   const statusBody = h("dl", { class: "kv" });
-  const update = h("div");
+  const update = delegate(h("div"), { check: () => act(() => api("/api/updates/check", { method: "POST", body: {} }), "Checking for updates…") });
   const events = h("div", { class: "events" });
   const cpu = meter("CPU"), mem = meter("RAM"), disk = meter("Disk"), players = meter("Players");
   const perf = perfCard();
@@ -2334,7 +2397,7 @@ views.dashboard = () => {
         : h("div", { class: "notice bad" }, `Minecraft ${u.latest} is out but nothing installable yet.`),
       u ? h("p", { class: "muted small" }, `Checked ${ago(u.checked_at)} · strategy ${s.strategy} · auto-upgrade ${s.auto_upgrade ? "on" : "off"}`) : null,
       h("div", { class: "row" },
-        can("updates.check") ? h("button", { class: "btn", onclick: () => act(() => api("/api/updates/check", { method: "POST", body: {} }), "Checking for updates…"), "data-fkey": "check" }, "Check now") : null,
+        can("updates.check") ? h("button", { class: "btn", "data-act": "check", "data-fkey": "check" }, "Check now") : null,
         canView("updates") ? h("a", { href: link("updates"), class: "btn ghost", "data-fkey": "details" }, "Details →") : null),
     );
   };
@@ -2708,8 +2771,10 @@ views.players = () => {
   };
   // (data-fkey: where the focus goes when the list is rebuilt; Op and De-op, Ban and Pardon, are one place)
   const SLOT = { kick: "kick", op: "op", deop: "op", "whitelist-add": "wl", "whitelist-remove": "wl", ban: "ban", pardon: "ban", "ban-ip": "banip", "pardon-ip": "banip" };
-  const btn = (label, action, target, cls = "", where = "") => h("button", { class: `btn small ${cls}`, onclick: () => run(action, target),
-    "data-fkey": `${where}:${target}:${SLOT[action] || action}` }, label);
+  const btn = (label, action, target, cls = "", where = "") => h("button", { class: `btn small ${cls}`, "data-act": "player", "data-action": action,
+    "data-target": target, "data-fkey": `${where}:${target}:${SLOT[action] || action}` }, label);
+  delegate(body, { player: (b) => run(b.dataset.action, b.dataset.target),
+    whitelist: () => data && run(data.whitelist_enabled ? "whitelist-off" : "whitelist-on", "") });
 
   const load = async () => {
     const r = await api("/api/players").catch(() => null);
@@ -2750,7 +2815,7 @@ views.players = () => {
           h("div", { class: "row mb" },
             h("span", { class: "grow" }, "Whitelist is ", h("strong", {}, r.whitelist_enabled ? "on" : "off"),
               h("span", { class: "muted small" }, r.whitelist_enabled ? ": only listed players can join" : ": anyone can join")),
-            h("button", { class: "btn small", onclick: () => run(r.whitelist_enabled ? "whitelist-off" : "whitelist-on", ""), "data-fkey": "wl-toggle" }, r.whitelist_enabled ? "Turn off" : "Turn on")),
+            h("button", { class: "btn small", "data-act": "whitelist", "data-fkey": "wl-toggle" }, r.whitelist_enabled ? "Turn off" : "Turn on")),
           r.whitelist.length ? h("ul", { class: "list" }, r.whitelist.map((w) => h("li", {}, h("div", { class: "grow" }, w.name), btn("Remove", "whitelist-remove", w.name, "", "wl"))))
             : h("p", { class: "empty" }, "Nobody whitelisted")),
         card("Banned",
@@ -2844,20 +2909,20 @@ function activityCard() {
 
 // Friends asking to be let in (their Craft Conductor sends their Minecraft name with the invite).
 function joinRequestsCard(after = () => {}) {
-  const el = h("div");
+  const answer = (name, allow) => act(() => api("/api/join-requests/answer", { method: "POST", body: { name, allow } }),
+    allow ? `${name} can join now` : `Ignored ${name}`).then(() => { load(); after(); });
+  const el = delegate(h("div"), { allow: (b) => answer(b.dataset.name, true), ignore: (b) => answer(b.dataset.name, false) });
   const load = async () => {
     const r = await api("/api/join-requests").catch(() => null);
     if (!r) return;
     if (!r.requests.length) { refill(el, "none"); return; }
-    const answer = (name, allow) => act(() => api("/api/join-requests/answer", { method: "POST", body: { name, allow } }),
-      allow ? `${name} can join now` : `Ignored ${name}`).then(() => { load(); after(); });
     refill(el, JSON.stringify([r.whitelist_on, r.requests.map((x) => [x.name, ago(x.time)])]), h("div", { class: "card mb" }, h("h3", {}, "Asking to join"),
       h("p", { class: "muted small" }, r.whitelist_on ? "These friends used your invite and asked to be let in. Allow adds them to the whitelist."
         : "These friends asked to be let in. The whitelist is off, so anyone can join anyway; Allow adds them for when it's on."),
       h("ul", { class: "list" }, r.requests.map((x) => h("li", {},
         h("strong", { class: "grow" }, x.name, h("span", { class: "muted small" }, ` · ${ago(x.time)}`)),
-        h("button", { class: "btn small primary", onclick: () => answer(x.name, true), "data-fkey": `req:${x.name}:allow` }, "Allow"),
-        h("button", { class: "btn small ghost", onclick: () => answer(x.name, false), "data-fkey": `req:${x.name}:ignore` }, "Ignore"))))));
+        h("button", { class: "btn small primary", "data-act": "allow", "data-name": x.name, "data-fkey": `req:${x.name}:allow` }, "Allow"),
+        h("button", { class: "btn small ghost", "data-act": "ignore", "data-name": x.name, "data-fkey": `req:${x.name}:ignore` }, "Ignore"))))));
   };
   return { el, load };
 }
@@ -3859,15 +3924,17 @@ views.settings = () => {
       return !!r;
     };
   };
-  const danger = h("div", { class: "card danger-zone mt" });
+  const thisServer = () => hubInfo && hubInfo.servers ? hubInfo.servers.find((x) => x.id === server) : null;
+  const danger = delegate(h("div", { class: "card danger-zone mt" }), {
+    delete: () => { const me = thisServer(); if (me) deleteServer(me, () => { location.hash = "#servers"; }); } });
   const renderDanger = () => {
-    const me = hubInfo && hubInfo.servers ? hubInfo.servers.find((x) => x.id === server) : null;
+    const me = thisServer();
     if (!me || hubInfo.single || !can("server.delete")) { refill(danger, "none"); danger.classList.add("hidden"); return; }
     danger.classList.remove("hidden");
     refill(danger, JSON.stringify([me.id, me.name, me.state, me.folder]), h("h3", {}, "Delete this server"),
       h("div", { class: "row" },
         h("span", { class: "grow muted" }, "Take it off your list, and choose whether to also erase its world, mods and backups."),
-        h("button", { class: "btn danger", onclick: () => deleteServer(me, () => { location.hash = "#servers"; }), "data-fkey": "delete" }, "Delete server…")));
+        h("button", { class: "btn danger", "data-act": "delete", "data-fkey": "delete" }, "Delete server…")));
   };
   // Move to another computer: export everything to one file, import it there.
   const exportCard = h("div", { class: "card mt" });
@@ -4501,7 +4568,7 @@ function openFolderBrowser({ title, intro = "", start = "", actions, newFolder =
   if (old) old.remove();
   const box = h("input", { type: "text", class: "grow", spellcheck: "false", "aria-label": "Folder",
     placeholder: "Type a folder's full path, or open one below" });
-  const list = h("div", { class: "folder-list" });
+  const list = delegate(h("div", { class: "folder-list" }), { open: (b) => show(b.dataset.path) });
   const note = h("div", { class: "small bad-text", role: "alert" });
   let shown = null;  // the folder listed (its real path); null on "This computer"
   const buttons = actions.map((a) => h("button", { type: "button", class: "btn" + (a.primary ? " primary" : ""), disabled: true,
@@ -4531,13 +4598,14 @@ function openFolderBrowser({ title, intro = "", start = "", actions, newFolder =
     buttons.forEach((b) => { b.disabled = !r.path; });
     if (make) make.disabled = !r.path;
     fill(list,
-      r.path ? h("button", { type: "button", class: "folder-row", onclick: () => show(r.parent || "") }, r.parent ? "⬆ Up" : "⬆ This computer") : null,
-      r.folders.map((f) => h("button", { type: "button", class: "folder-row", onclick: () => show(f.path) },
+      r.path ? h("button", { type: "button", class: "folder-row", "data-act": "open", "data-path": r.parent || "" }, r.parent ? "⬆ Up" : "⬆ This computer") : null,
+      r.folders.map((f) => h("button", { type: "button", class: "folder-row", "data-act": "open", "data-path": f.path },
         h("span", { "aria-hidden": "true" }, "📁 "), f.name)),
       r.folders.length ? null : h("p", { class: "muted small" }, r.path ? "There are no folders in here." : "No folders to show."),
       r.more ? h("p", { class: "muted small" }, "Only the first 1,000 folders are shown: type the path of the one you want.") : null);
   };
   const onKey = (e) => {  // (a question on top, like New folder…'s name, answers Escape itself)
+    if (!backdrop.isConnected) { document.removeEventListener("keydown", onKey, true); return; }
     if (e.key === "Escape" && !document.querySelector(".toast-dialog")) { e.preventDefault(); e.stopPropagation(); close(); }
   };
   const close = () => { document.removeEventListener("keydown", onKey, true); backdrop.remove(); };
@@ -4683,7 +4751,10 @@ async function openExportsList({ pick, take }) {
   const r = await api("/api/hub/exports").catch((e) => { if (!(e instanceof Unauthorized)) toast(e.message, true); return null; });
   if (!r) return;
   const close = () => { document.removeEventListener("keydown", onKey, true); backdrop.remove(); };
-  const onKey = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); } };
+  const onKey = (e) => {
+    if (!backdrop.isConnected) { document.removeEventListener("keydown", onKey, true); return; }
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); }
+  };
   const backdrop = h("div", { class: "modal-backdrop", id: "exports-list", role: "dialog", "aria-modal": "true", "aria-labelledby": "exports-list-title" },
     h("div", { class: "modal" },
       h("h2", { id: "exports-list-title" }, "Import a server"),
@@ -5293,7 +5364,9 @@ function mapExplorer(m, info, readout, poi) {
     else if (e.key === "+" || e.key === "=") zoom(0.8);
     else if (e.key === "-") zoom(1.25);
   });
-  new ResizeObserver(() => draw()).observe(frame);
+  // (a map taken off the page has a last change of size: then the observer lets go of it)
+  const resized = new ResizeObserver(() => { if (frame.isConnected) draw(); else resized.disconnect(); });
+  resized.observe(frame);
 
   const tools = h("div", { class: "row map-tools mt-s" },
     h("button", { type: "button", class: "btn small", title: "Zoom in", "aria-label": "Zoom in", onclick: () => zoom(0.5) }, "+"),
@@ -6050,7 +6123,7 @@ const HELP = [
       h("a", { href: "https://github.com/silverWRX03/craft-conductor/blob/main/docs/headless.md", target: "_blank", rel: "noopener noreferrer" }, "Step-by-step guide ↗"),
       " · ", h("a", { href: "https://github.com/silverWRX03/craft-conductor/blob/main/docs/docker.md", target: "_blank", rel: "noopener noreferrer" }, "Docker ↗"))]],
   ["remote", "Using Craft Conductor from your phone", () => [
-    h("p", {}, "The hamburger menu at the top left opens navigation. The Light / Dark slider inside it remembers your theme. On desktop the slider is in the top bar. The Dashboard shows CPU, RAM, server-volume Disk usage and Players in four cards, above the boxed Live console."),
+    h("p", {}, "The hamburger menu at the top left opens navigation. The Light / Dark slider inside it remembers your theme. On desktop the slider is in the top bar. The Classic / Modern switch at the top right (beside the bell, on phones too) changes how Craft Conductor looks: Modern at first, and each person's own choice is remembered in this browser, apart from Light / Dark. The Dashboard shows CPU, RAM, server-volume Disk usage and Players in four cards, above the boxed Live console."),
     screenshot("phone", "The Dashboard on a phone."),
     h("p", {}, "Open ", h("button", { type: "button", class: "link-btn", onclick: openRemoteAccess }, "Remote access & phones"),
       ": set a strong password, allow other devices, and pair your phone by scanning a QR code (it works once, for five minutes). Until then, only this computer can open the control panel. Away from home (step 3): Tailscale keeps it private to your own devices and the people you share this computer with; Cloudflare's quick tunnel puts it on the internet for 4 hours. Both are free. Never forward the control panel's port on your router."),
@@ -7097,12 +7170,13 @@ function openConfigEditor(title, files, first) {
   const saveBtn = h("button", { class: "btn primary small", disabled: true }, "Save");
   const revertBtn = h("button", { class: "btn small", disabled: true }, "Revert");
   const keys = (e) => {
+    if (!$("#config-editor")) { document.removeEventListener("keydown", keys); return; }  // (closed some other way)
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); save(); }
     if (e.key === "Escape" && !(e.target.dataset && e.target.dataset.keys === "own")) close();  // (in the editor, Escape readies Tab to leave it)
   };
   const close = async () => {
     if (dirty && !(await ask("Close without saving your changes?", { ok: "Close without saving", danger: true }))) return;
-    $("#config-editor").remove();
+    const m = $("#config-editor"); if (m) m.remove();
     document.removeEventListener("keydown", keys);
   };
   const checkJson = () => {
@@ -7270,6 +7344,9 @@ let lastImportProblem = null;  // why the last Import a server… was refused, u
 views.servers = () => {
   const list = h("div", { class: "server-list" });
   const busy = new Set();
+  const named = (b) => hubInfo && hubInfo.servers ? hubInfo.servers.find((x) => x.id === b.dataset.sid) : null;
+  delegate(list, { start: (b) => { const s = named(b); if (s) control(s, "start"); }, stop: (b) => { const s = named(b); if (s) control(s, "stop"); },
+    delete: (b) => { const s = named(b); if (s) deleteServer(s, refreshStatus); } });
   const control = async (s, action) => {
     if (action === "stop" && !(await confirmStop(s.players, s.name))) return;
     if (action === "start" && !(await memoryOkToStart(s.id, s.name))) return;
@@ -7303,10 +7380,10 @@ views.servers = () => {
           s.setup_pending ? (can("runtime.configure", s.id) ? h("a", { class: "btn primary", href: `#s/${s.id}/setup`, "data-fkey": `${s.id}:power` }, s.job ? "See progress" : "Finish setup") : null)
             : !can("server.power", s.id) ? null
             : s.state === "stopped"
-              ? h("button", { class: "btn primary", disabled: !!s.job || busy.has(s.id), onclick: () => control(s, "start"), "data-fkey": `${s.id}:power` }, "Start")
-              : h("button", { class: "btn danger", disabled: busy.has(s.id), onclick: () => control(s, "stop"), "data-fkey": `${s.id}:power` }, "Stop"),
+              ? h("button", { class: "btn primary", disabled: !!s.job || busy.has(s.id), "data-act": "start", "data-sid": s.id, "data-fkey": `${s.id}:power` }, "Start")
+              : h("button", { class: "btn danger", disabled: busy.has(s.id), "data-act": "stop", "data-sid": s.id, "data-fkey": `${s.id}:power` }, "Stop"),
           s.setup_pending ? null : h("a", { class: "btn", href: `#s/${s.id}/dashboard`, "data-fkey": `${s.id}:open` }, "Open"),
-          !hb.single && !s.job && can("server.delete", s.id) ? h("button", { class: "btn ghost", onclick: () => deleteServer(s, refreshStatus), "data-fkey": `${s.id}:delete` }, "Delete") : null),
+          !hb.single && !s.job && can("server.delete", s.id) ? h("button", { class: "btn ghost", "data-act": "delete", "data-sid": s.id, "data-fkey": `${s.id}:delete` }, "Delete") : null),
         !isOwner() ? null : h("div", { class: "row" }, h("div", { class: "muted small folder grow" }, s.folder),
           ((b) => { if (b) b.setAttribute("data-fkey", `${s.id}:folder`); return b; })(folderBtn("server", "Folder", s.id))))),
       hb.single || !isOwner() ? null : h("a", { class: "card server-card new", href: "#new", "data-fkey": "new" },
@@ -8401,7 +8478,7 @@ views["craft-conductor"] = () => {
       h("div", { class: "mt" }, card("What Craft Conductor does and doesn't do",
         h("ul", { class: "notice-points" }, n.points.map((p) => h("li", {}, p))))),
       h("div", { class: "mt" }, card("Open-source licenses",
-        h("p", { class: "muted" }, "Craft Conductor has no third-party runtime dependencies, and the web UI uses no third-party code, fonts or images. Software it downloads for you is never bundled or redistributed by Craft Conductor."),
+        h("p", { class: "muted" }, "Craft Conductor has no third-party runtime dependencies, and the web UI uses no third-party code or images: its one third-party file is its font, Roboto (SIL Open Font License), which comes with it. Software it downloads for you is never bundled or redistributed by Craft Conductor."),
         table("Used by Craft Conductor", lic.runtime),
         table("Bundled into the downloadable executables", lic.bundled),
         table("Used only for development", lic.development),
@@ -9988,6 +10065,7 @@ async function start() {
   if ($("#pairing")) $("#pairing").remove();
   try { hubInfo = await api("/api/hub"); } catch (_) { return; }
   bellSignedIn(hubInfo);  // (whose bell, before the first page's messages)
+  styleSignedIn(hubInfo);  // (and their own Classic or Modern, before the page shows)
   $("#login").classList.add("hidden");
   $("#app").classList.remove("hidden");
   registerWorker();

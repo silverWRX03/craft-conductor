@@ -1,4 +1,5 @@
-/* Industrial Silver / Obsidian / Magma: shared app, invite and preview surfaces. */
+/* Industrial Silver / Obsidian / Magma: shared app, invite and preview surfaces. This is the Classic style, and the
+   base the Modern style (craft-conductor-modern.css) builds on; the end of the file is for both. */
 :root, :root[data-theme="night"], :root[data-theme="dark"] {
   color-scheme: dark;
   --bg:#0A0A0A; --panel:#121212; --panel-2:#191919; --border:#2C2C2C;
@@ -8,46 +9,45 @@
   --ok-fg:#22C55E; --ok-strong:#86EFAC; --ok-bg:#102417; --ok-border:#245D38;
   --warn-fg:#EAB308; --warn-strong:#FDE68A; --warn-bg:#28230C; --warn-border:#665416; --warn-soft:#EAB30855;
   --bad-fg:#F87171; --bad-strong:#FECACA; --bad-bg:#2A1212; --bad-border:#713030;
-  --hover-border:#64748B; --hover-bg:#202020; --selected-bg:#242424; --selected-bad-bg:#2A1212;
-  --focus:#FF3E0066; --faint:#ffffff0a; --shadow:#0008; --shadow-strong:#000b;
+  --hover-border:#64748B; --hover-bg:#202020; --selected-bg:#1C1C1C; --selected-bad-bg:#2A1212;
+  --focus:#FF3E0066; --on-accent:#070707; --faint:#ffffff0a; --shadow:#0008; --shadow-strong:#000b;
   --depth-shadow:rgba(0,0,0,.48); --depth-highlight:rgba(255,255,255,.055); --depth-grid:rgba(255,255,255,.014);
   --radius:0; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   --bg-bedrock:var(--bg); --bg-obsidian:var(--panel); --bg-recessed:var(--console-bg); --border-basalt:var(--border);
-  --silver-bright:var(--bright); --silver-industrial:var(--text); --silver-steel:var(--muted); --silver-basalt:#64748B;
+  --silver-bright:var(--bright); --silver-industrial:var(--text); --silver-steel:var(--muted); --silver-basalt:#7A8699;
   --magma-orange:var(--accent); --state-nominal:var(--ok-fg); --state-caution:var(--warn-fg); --state-rupture:var(--bad-fg);
 }
 :root[data-theme="day"], :root[data-theme="light"] {
   color-scheme:only light;
   --bg:#F4F4F4; --panel:#FFFFFF; --panel-2:#FAFAFA; --border:#121212;
   --text:#1A1A1A; --muted:#4B5563; --bright:#121212;
-  --accent:#D63300; --accent-2:#D63300; --accent-3:#A62700; --danger:#DC2626; --warn:#D97706;
-  --info:#D63300; --info-fg:#1A1A1A; --console-bg:#FAFAFA;
+  --accent:#C53000; --accent-2:#C53000; --accent-3:#9A2600; --danger:#C62828; --warn:#B45309;
+  --info:#C53000; --info-fg:#1A1A1A; --console-bg:#FAFAFA;
   --ok-fg:#166534; --ok-strong:#14532D; --ok-bg:#F0FDF4; --ok-border:#86A990;
-  --warn-fg:#92400E; --warn-strong:#78350F; --warn-bg:#FFFBEB; --warn-border:#B89B62; --warn-soft:#D9770644;
+  --warn-fg:#92400E; --warn-strong:#78350F; --warn-bg:#FFFBEB; --warn-border:#B89B62; --warn-soft:#B4530944;
   --bad-fg:#B91C1C; --bad-strong:#991B1B; --bad-bg:#FEF2F2; --bad-border:#CA8F8F;
   --hover-border:#4B5563; --hover-bg:#EAEAEA; --selected-bg:#EAEAEA; --selected-bad-bg:#FEF2F2;
-  --focus:#D6330066; --faint:#00000012; --shadow:#1218201f; --shadow-strong:#12182040;
+  --focus:#C5300066; --on-accent:#FFFFFF; --faint:#00000012; --shadow:#1218201f; --shadow-strong:#12182040;
   --depth-shadow:rgba(18,24,32,.12); --depth-highlight:rgba(255,255,255,.95); --depth-grid:rgba(18,24,32,.023);
   --silver-basalt:#6B7280;
 }
 /* Automatic appearance on invite pages, which don't have the app's stored setting. */
 @media(prefers-color-scheme:light) {
-  :root:not([data-theme]) { color-scheme:only light; --bg:#F4F4F4; --panel:#FFFFFF; --panel-2:#FAFAFA; --border:#121212; --text:#1A1A1A; --muted:#4B5563; --bright:#121212; --accent:#D63300; --accent-2:#D63300; --console-bg:#FAFAFA; --info-fg:#1A1A1A; --depth-shadow:rgba(18,24,32,.12); --depth-highlight:rgba(255,255,255,.95); --depth-grid:rgba(18,24,32,.023); }
+  :root:not([data-theme]) { color-scheme:only light; --bg:#F4F4F4; --panel:#FFFFFF; --panel-2:#FAFAFA; --border:#121212; --text:#1A1A1A; --muted:#4B5563; --bright:#121212; --accent:#C53000; --accent-2:#C53000; --on-accent:#FFFFFF; --console-bg:#FAFAFA; --info-fg:#1A1A1A; --depth-shadow:rgba(18,24,32,.12); --depth-highlight:rgba(255,255,255,.95); --depth-grid:rgba(18,24,32,.023); }
 }
-*, *::before, *::after { border-radius:0 !important; }
-body { background:var(--bg); background-image:linear-gradient(var(--depth-grid) 1px,transparent 1px),linear-gradient(90deg,var(--depth-grid) 1px,transparent 1px); background-size:32px 32px; color:var(--text); font:13px/1.5 var(--mono); }
+:root:not([data-style="modern"]) *, :root:not([data-style="modern"]) *::before, :root:not([data-style="modern"]) *::after { border-radius:0 !important; }
+body { background:var(--bg); background-image:linear-gradient(var(--depth-grid) 1px,transparent 1px),linear-gradient(90deg,var(--depth-grid) 1px,transparent 1px); background-size:32px 32px; color:var(--text); font:16px/1.5 var(--sans); }
 :root:not([data-theme="day"]) body { background-image:linear-gradient(var(--depth-grid) 1px,transparent 1px),linear-gradient(90deg,var(--depth-grid) 1px,transparent 1px); background-size:32px 32px; }
 .topbar::after { display:none; }
 .login::before, .login::after { display:none; }
 h1,h2,h3,.view-title,.page-title,.brand { color:var(--bright); text-transform:uppercase; letter-spacing:.08em; }
-.btn,.cc-btn { font-family:var(--mono); font-size:12px; text-transform:uppercase; font-weight:600; letter-spacing:.06em; background:var(--panel); color:var(--bright); box-shadow:0 2px 4px -2px var(--depth-shadow),inset 0 1px 0 var(--depth-highlight); }
-.btn.primary { background:var(--accent); border-color:var(--accent); color:#070707; }
-:root[data-theme="day"] .btn.primary, :root[data-theme="light"] .btn.primary { color:#fff; }
+.btn,.cc-btn { font-family:var(--sans); font-size:14px; text-transform:uppercase; font-weight:600; letter-spacing:.06em; background:var(--panel); color:var(--bright); box-shadow:0 2px 4px -2px var(--depth-shadow),inset 0 1px 0 var(--depth-highlight); }
+.btn.primary { background:var(--accent); border-color:var(--accent); color:var(--on-accent); }
 .btn.primary:hover:not(:disabled) { background:var(--panel); color:var(--accent); border-color:var(--accent); }
 .btn.danger { border-color:var(--danger); color:var(--bad-fg); }
 .btn.ghost { color:var(--muted); }
 a { color:var(--accent); }
-input,select,textarea { background:var(--console-bg); color:var(--text); font-family:var(--mono); }
+input,select,textarea { background:var(--console-bg); color:var(--text); font-family:var(--sans); }
 .card,.cc-panel,.login-card,.modal,.guide,.choice,.props fieldset,.cfg-body,.browse {
   background-color:var(--panel); background-image:linear-gradient(135deg,var(--depth-highlight),transparent 75%);
   border:1px solid var(--border); border-top-color:color-mix(in srgb,var(--muted) 35%,var(--border));
@@ -58,7 +58,7 @@ input,select,textarea { background:var(--console-bg); color:var(--text); font-fa
 .cc-telemetry-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-bottom:12px; }
 .cc-telemetry-grid .card { margin:0; padding:16px; }
 .cc-metric-card .meter-head { flex-direction:column; align-items:stretch; }
-.cc-metric-card .meter-head span { font-size:11px; }
+.cc-metric-card .meter-head span { font-size:13px; }
 .cc-metric-card .meter-head strong { color:var(--bright); font-size:26px; }
 .cc-dashboard-layout { display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:12px; align-items:start; }
 .cc-dashboard-rail { display:flex; flex-direction:column; gap:12px; }
@@ -86,15 +86,15 @@ input,select,textarea { background:var(--console-bg); color:var(--text); font-fa
 .app { grid-template-columns:240px minmax(0,1fr); }
 .sidebar, :root[data-theme="day"] .sidebar { background:var(--panel); padding:18px 0; gap:16px; overflow-y:auto; box-shadow:6px 0 18px -12px var(--depth-shadow); }
 .sidebar .brand,.sidebar-foot { margin-inline:12px; }
-.sidebar .brand { font-size:13px; letter-spacing:.04em; }
+.sidebar .brand { font-size:15px; letter-spacing:.04em; }
 .sidebar nav { gap:0; }
-.sidebar nav a { min-height:34px; padding:8px 12px 8px 10px; gap:8px; justify-content:flex-start; border-inline-start:3px solid transparent; color:var(--text); text-transform:uppercase; font-size:11px; font-weight:400; letter-spacing:.08em; }
+.sidebar nav a { min-height:34px; padding:8px 12px 8px 10px; gap:8px; justify-content:flex-start; border-inline-start:3px solid transparent; color:var(--text); text-transform:uppercase; font-size:13px; font-weight:400; letter-spacing:.08em; }
 .sidebar nav a.active,.sidebar nav a:focus-visible { background:var(--selected-bg); color:var(--accent); border-inline-start-color:var(--accent); box-shadow:inset 0 1px 0 var(--depth-highlight),inset 0 -1px 0 var(--depth-highlight); font-weight:600; }
 .sidebar nav a .dot,.sidebar nav a .update-dot { margin-inline-start:auto; }
 .cc-nav-icon { width:14px; height:14px; display:inline-flex; flex:0 0 14px; }
 .cc-nav-icon svg { width:100%; height:100%; }
 .topbar { background:var(--panel); box-shadow:0 1px 0 var(--depth-highlight); }
-.cc-theme-control { display:flex; align-items:center; gap:8px; font-size:11px; text-transform:uppercase; }
+.cc-theme-control { display:flex; align-items:center; gap:8px; font-size:13px; text-transform:uppercase; }
 .cc-theme-switch { width:42px; height:22px; position:relative; padding:3px; border:1px solid var(--border); background:var(--console-bg); cursor:pointer; flex:0 0 42px; }
 .cc-theme-switch .cc-thumb { display:block; width:14px; height:14px; background:var(--bright); }
 .cc-theme-switch[aria-checked="true"] { border-color:var(--accent); }
@@ -131,3 +131,50 @@ input,select,textarea { background:var(--console-bg); color:var(--text); font-fa
 @media(max-width:767px) { main { padding:16px; } .cc-dashboard { padding:12px; } .cc-telemetry-grid .card { padding:12px; } .cc-metric-card .meter-head strong { font-size:20px; overflow-wrap:anywhere; } .console.compact { height:360px; } }
 @media(max-width:1023px) { .view-title { text-align:center; } }
 @media print { .cc-menu-trigger,.cc-nav-overlay { display:none!important; } }
+
+/* ------------------------------------------------------------------ both styles */
+/* Classic or Modern (app.js applyStyle): two radio buttons drawn as a switch whose block slides to the one chosen. */
+.cc-style-switch { position:relative; display:grid; grid-template-columns:1fr 1fr; flex:none; min-width:0; margin:0; padding:3px;
+  border:1px solid var(--border); background:var(--console-bg); }
+.cc-style-switch::before { content:""; position:absolute; inset-block:3px; inset-inline-start:3px; width:calc(50% - 3px);
+  background:var(--accent); transition:transform .2s ease; }
+.cc-style-switch:has(input[value="modern"]:checked)::before { transform:translateX(100%); }
+[dir="rtl"] .cc-style-switch:has(input[value="modern"]:checked)::before { transform:translateX(-100%); }
+.cc-style-switch label { position:relative; z-index:1; display:flex; align-items:center; justify-content:center; min-height:28px;
+  padding:2px 12px; color:var(--muted); font-size:13px; text-transform:uppercase; letter-spacing:.06em; cursor:pointer; white-space:nowrap; }
+.cc-style-switch input { position:absolute; inset:0; width:100%; height:100%; margin:0; padding:0; border:0; opacity:0; cursor:pointer; }
+.cc-style-switch label:has(input:checked) { color:var(--on-accent); font-weight:600; }
+.cc-style-switch label:hover:not(:has(input:checked)) { color:var(--text); }
+.cc-style-switch input:focus-visible { outline:none; }
+.cc-style-switch label:has(input:focus-visible) { outline:3px solid var(--accent); outline-offset:2px; }
+@media (prefers-reduced-motion: reduce) { :root:not([data-motion="normal"]) .cc-style-switch::before { transition:none; } }
+@media (forced-colors: active) { .cc-style-switch label:has(input:checked) { outline:2px solid Highlight; outline-offset:-2px; } }
+#cc-style { margin-inline-start:8px; }
+@media(max-width:1023px) {
+  /* beside the bell, top right; the bar's words and buttons keep clear of both */
+  #cc-style { position:absolute; top:16px; inset-inline-end:64px; margin:0; }
+  .topbar { padding-inline-end:252px; }
+}
+@media(max-width:767px) {
+  /* a phone: the menu, the switch and the bell have the top row to themselves */
+  .topbar { padding:72px 16px 12px; }
+}
+
+/* Fingers (a phone or a tablet): everything that can be pressed is at least 44 by 44 pixels. */
+@media (pointer: coarse) {
+  .btn, .btn.small, .switch, .link-btn, .guide-pill, .choice, .preferences-button, .map-thumb, button.prow-open, .folder-row,
+  .cfg-files button, summary, select, input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]) { min-height:44px; }
+  .btn.small, .switch { min-width:44px; }
+  a.btn { display:inline-flex; align-items:center; justify-content:center; }
+  .sidebar nav a { min-height:44px; }
+  .bell, .cc-menu-trigger { width:44px; height:44px; }
+  .eye { width:44px; height:44px; inset-inline-end:0; }
+  .pw-field input { padding-inline-end:48px; }
+  .cc-style-switch label { min-height:44px; min-width:44px; }
+  #cc-style { top:12px; }
+  /* the day / night switch keeps its look; its button reaches 44 pixels around it (nothing else is that close) */
+  .cc-theme-switch::after { content:""; position:absolute; inset:-12px -2px; }  /* (from inside its 1px border) */
+  input[type=checkbox], input[type=radio] { width:22px; height:22px; }
+  label:has(> input[type=checkbox]:first-child), label:has(> input[type=radio]:first-child) { min-height:44px; align-items:center; }
+  label:has(> input[type=checkbox]:first-child) > input[type=checkbox], label:has(> input[type=radio]:first-child) > input[type=radio] { margin-top:0; }
+}

@@ -1186,5 +1186,8 @@
   "folder": "폴더",
   "folders": "폴더",
   "each server's own folder": "각 서버의 폴더",
-  "Change…": "변경…"
+  "Change…": "변경…",
+  "Classic": "클래식",
+  "Modern": "모던",
+  "Interface style": "인터페이스 스타일"
 }

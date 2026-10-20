@@ -1187,5 +1187,8 @@
   "folder": "مجلد",
   "folders": "مجلدات",
   "each server's own folder": "مجلد كل خادم الخاص",
-  "Change…": "تغيير…"
+  "Change…": "تغيير…",
+  "Classic": "كلاسيكي",
+  "Modern": "حديث",
+  "Interface style": "نمط الواجهة"
 }

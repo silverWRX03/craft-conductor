@@ -42,9 +42,13 @@ STATIC = {"": ("join.html", "text/html; charset=utf-8"), "join.js": ("join.js", 
           "pager.js": ("pager.js", "text/javascript; charset=utf-8"),
           "style.css": ("style.css", "text/css; charset=utf-8"), "icon.png": ("icon.png", "image/png"),
           "craft-conductor-theme.css": ("craft-conductor-theme.css", "text/css; charset=utf-8"),
+          "craft-conductor-modern.css": ("craft-conductor-modern.css", "text/css; charset=utf-8"),
           "i18n.js": ("i18n.js", "text/javascript; charset=utf-8"),
           **{f"i18n/{code}.json": (f"i18n/{code}.json", "application/json; charset=utf-8")
-             for code in ("es", "pt", "fr", "de", "hi", "zh", "vi", "ar", "ko")}}
+             for code in ("es", "pt", "fr", "de", "hi", "zh", "vi", "ar", "ko")},
+          # the pages' font and its license (as web.FONTS)
+          **{f"fonts/{f.name}": (f"fonts/{f.name}", "font/woff2" if f.name.endswith(".woff2") else "text/plain; charset=utf-8")
+             for f in resources.files("craft_conductor").joinpath("webui", "fonts").iterdir() if f.name.endswith((".woff2", "OFL.txt"))}}
 ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
 START_SERVER = -1  # run() result: the person chose to run their own server instead
 IDLE_SECONDS = 180  # the page pings while it's open; stop a while after it's closed
