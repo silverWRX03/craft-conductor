@@ -14,6 +14,9 @@ pytestmark = pytest.mark.skipif(not (os.environ.get("CRAFT_UI_NODE") and os.envi
 
 def test_focus_stays_where_it_was(hub_env):
     hub, client = hub_env
+    config = hub.get("alpha").m.server_dir / "config"  # (a config file for the editor)
+    config.mkdir(exist_ok=True)
+    (config / "sample.properties").write_text("enabled=true\nview-distance=12\n", encoding="utf-8")
     result = subprocess.run([os.environ["CRAFT_UI_NODE"], str(Path(__file__).with_name("ui_focus.cjs")), client.base],
                             capture_output=True, text=True, timeout=300)
     assert result.returncode == 0, result.stdout + result.stderr

@@ -61,6 +61,27 @@ const assert = require('node:assert/strict');
     const replaced = await page.evaluate(() => window.__m.filter(([e]) => !e.isConnected).map(([, n]) => n));
     assert.deepEqual(replaced, [], view + ' rebuilt controls that had not changed');
   }
+  // the config editor: Escape then Tab leaves the text for the window's next button, never for the page behind (#149)
+  await page.goto(base + '/#s/alpha/mods');
+  await page.locator('button', { hasText: '⚙ Open' }).first().click();
+  const text = page.locator('#config-editor .code-input');
+  await text.waitFor();
+  await text.focus();
+  const contents = await text.inputValue();
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Tab');
+  const where = () => page.evaluate(() => ({ inWindow: !!document.activeElement.closest('#config-editor'), text: document.activeElement.classList.contains('code-input'),
+    name: (document.activeElement.textContent || '').trim() }));
+  const after = await where();
+  assert.ok(after.inWindow && !after.text, 'Tab after Escape went to ' + JSON.stringify(after));
+  assert.equal(await text.inputValue(), contents, 'the Tab that left the editor typed nothing');
+  await page.keyboard.press('Shift+Tab');
+  assert.ok((await where()).inWindow, 'Shift+Tab stays in the window too');
+  // and out again to a button, where Escape closes the window
+  if ((await where()).text) { await page.keyboard.press('Escape'); await page.keyboard.press('Tab'); }
+  await page.keyboard.press('Escape');
+  await page.locator('#config-editor').waitFor({ state: 'detached' });
+
   assert.deepEqual(errors, []);
   await browser.close();
 })().catch((e) => { console.error(e); process.exit(1); });

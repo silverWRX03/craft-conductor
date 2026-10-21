@@ -158,7 +158,8 @@ new MutationObserver((changes) => {
 }).observe(document.body, { childList: true });
 document.addEventListener("keydown", (e) => {
   const dialog = topDialog();
-  if (!dialog || (e.target.dataset && e.target.dataset.keys === "own" && (e.key === "Escape" || !e.shiftKey))) return;  // (the code editor's Tab and Escape)
+  // (the code editor's Tab and Escape are its own, except the Tab that leaves it after Escape: the window keeps that one, #149)
+  if (!dialog || (e.target.dataset && e.target.dataset.keys === "own" && (e.key === "Escape" || (!e.shiftKey && !("leaving" in e.target.dataset))))) return;
   if (e.key === "Escape") {
     const names = [t("Close"), t("Cancel"), t("Not now")];
     const close = [...dialog.querySelectorAll("button")].find((b) => names.includes(b.textContent.trim()));
@@ -7131,7 +7132,7 @@ function codeEditor(text, lang, onChange) {
   const input = h("textarea", { class: "code-input", spellcheck: "false", autocapitalize: "off", autocomplete: "off", wrap: "off", "aria-label": "File contents",
     "data-keys": "own", "aria-description": t("Tab indents. To leave the editor with the keyboard, press Escape, then Tab.") });
   input.value = text;
-  let lines = 0, frame = 0, leaving = false;
+  let lines = 0, frame = 0;
   const sync = () => { pre.scrollTop = input.scrollTop; pre.scrollLeft = input.scrollLeft; gutter.scrollTop = input.scrollTop; };
   const paint = () => {
     frame = 0;
@@ -7142,11 +7143,12 @@ function codeEditor(text, lang, onChange) {
   };
   input.addEventListener("input", () => { if (!frame) frame = requestAnimationFrame(paint); onChange(); });
   input.addEventListener("scroll", sync);
-  input.addEventListener("blur", () => { leaving = false; });
+  input.addEventListener("blur", () => { delete input.dataset.leaving; });
   input.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") { leaving = true; return; }  // (then Tab leaves, as in other code editors)
-    if (e.key === "Tab" && leaving) return;
-    leaving = false;
+    if (e.defaultPrevented) return;  // (the window took the Tab that left the editor round to its first button)
+    if (e.key === "Escape") { input.dataset.leaving = ""; return; }  // (then Tab leaves, as in other code editors)
+    if (e.key === "Tab" && "leaving" in input.dataset) return;
+    delete input.dataset.leaving;
     if (e.key === "Tab" && !e.ctrlKey && !e.metaKey && !e.altKey) {  // indent instead of leaving the editor
       e.preventDefault();
       input.setRangeText("  ", input.selectionStart, input.selectionEnd, "end");

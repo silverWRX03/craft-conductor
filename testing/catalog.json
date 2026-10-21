@@ -8231,6 +8231,14 @@
     "source": "added-in-git"
   },
   {
+    "id": 939,
+    "section": "Fix: The config editor keeps Tab inside its window (#149)",
+    "step": "Open a config file in the editor (Mods, Mod config files, Open), in both looks: click in the text, press Escape, then Tab: the keyboard goes to the window's next button (round to its first, Config folder, when the editor is last), never to the page behind (Skip to main content); Shift+Tab stays in the window too; the Tab that left typed nothing. Tab without Escape still indents (then Revert and Save come after the editor). With a screen reader the editor still says to press Escape, then Tab; Escape on a button closes the window and the keyboard goes back to Open.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
     "id": 940,
     "section": "Fix: Check my setup reads Windows Firewall with accented letters (#150)",
     "step": "On Windows, with a firewall rule for a program in a folder with accented letters (for example a server in C:\\cc\\servers\\ünïcødé that Windows asked about, or any rule on Windows in another language): open Check my setup on a server whose port is allowed, then one whose port isn't. The Windows Firewall line says whether the port gets through (with Let them through Windows Firewall when it doesn't), not only that Windows asks the first time; nothing about 'charmap' or UnicodeDecodeError appears in Craft Conductor's window.",
