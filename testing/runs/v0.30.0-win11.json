@@ -46,7 +46,9 @@
     935,
     936,
     937,
-    938
+    938,
+    939,
+    940
   ],
   "results": {
     "936": {
@@ -104,6 +106,69 @@
       "tester": "Owner",
       "notes": "Partly done, on a real iPhone and Android phone over Tailscale (the home-network address timed out from the phone; nothing reached the PC, so not counted against Craft Conductor): in both looks the switch sits beside the bell without covering the menu, the title or Start/Stop, everything is easy to tap and nothing scrolls sideways. Not done yet: the font with the network cut after the first load, and a friend's invite page in Modern.",
       "evidence": "PR #148 CI test build (test.yml run 39516616440, commit b063eae)"
+    },
+    "802": {
+      "status": "pass",
+      "tested_at": "2026-10-21T01:35:57+00:00",
+      "tester": "Claude",
+      "notes": "Fresh Craft Conductor home and a fresh browser profile for it (Chrome, stored settings cleared): the exe started with no setup, the sign-in page said the first password is PASSWORD, signing in asked to choose my own (a strong one), then where to keep servers, backups and exports (kept the suggested folders), then Your servers. Modern Dark at first (the computer is in dark mode).",
+      "evidence": "main CI test build (test.yml run 39524817696, commit 3043963), isolated install, Windows 11"
+    },
+    "803": {
+      "status": "pass",
+      "tested_at": "2026-10-21T01:35:57+00:00",
+      "tester": "Claude",
+      "notes": "New server, Quick start Smooth survival: Fabric 0.19.5 on Minecraft 26.3 (newest), Java 25 downloaded by itself, home-only friends, port 25591, 2 GB. Created with its test start, then Start: Done in 0.4 s, and a Minecraft status request (what a player's game asks first) answered version 26.3, RC Fabric, 0/20. No player joined (no Minecraft client on this test).",
+      "evidence": "main CI test build (test.yml run 39524817696, commit 3043963), isolated install, Windows 11"
+    },
+    "804": {
+      "status": "pass",
+      "tested_at": "2026-10-21T01:35:57+00:00",
+      "tester": "Claude",
+      "notes": "The same server's mods, from Modrinth: Fabric API 0.164.0, Lithium 0.26.2, FerriteCore 9.0.0 and Krypton 0.3.2 all listed as loaded in the server's log, no errors, Done; their config files (lithium.properties, ferritecore.mixin.properties) appear under Mod config files.",
+      "evidence": "main CI test build (test.yml run 39524817696, commit 3043963), isolated install, Windows 11"
+    },
+    "810": {
+      "status": "pass",
+      "tested_at": "2026-10-21T01:35:57+00:00",
+      "tester": "Claude",
+      "notes": "Fabric server running: setblock a diamond block at 0 100 0 (chunk force-loaded), Backups, Back up now (134 MB, checked); removed the block (execute if block: Test failed); while running the page offers Stop the server first instead of Roll back; stopped, Roll back to this, confirmed; Start: execute if block finds the diamond block again (Test passed). The roll back wrote nothing to Craft Conductor's window and no message was seen, only the result.",
+      "evidence": "main CI test build (test.yml run 39524817696, commit 3043963), isolated install, Windows 11"
+    },
+    "811": {
+      "status": "pass",
+      "tested_at": "2026-10-21T01:35:57+00:00",
+      "tester": "Claude",
+      "notes": "Fabric server: added spark (Mods, Quick add), Updates showed Up to date until Check now, then + spark; Apply update; killed Craft Conductor and its Minecraft (taskkill /T) 2 s into the update's test start, after spark was put in mods and the before-update backup made. Restarted Craft Conductor: the server showed Stopped with 4 mods; Start said Craft Conductor was stopped in the middle of something and put the before-update backup back; spark gone from mods, the update not retried by itself, and the server started (status request answered 26.3).",
+      "evidence": "main CI test build (test.yml run 39524817696, commit 3043963), isolated install, Windows 11"
+    },
+    "935": {
+      "status": "pass",
+      "tested_at": "2026-10-21T01:35:58+00:00",
+      "tester": "Claude",
+      "notes": "Narrow window (Microsoft Edge, phone-sized 390x844 with touch, and sideways 844x390), on a server's Dashboard, Classic and Modern, Light and Dark: in the open menu the Craft Conductor title and every link are below the close button (none beside or under it, measured); scrolling the links moves only them, the title, Light / Dark and Sign out stay where they were; nothing scrolls sideways. Screenshots looked at for both. Not tried on a real phone.",
+      "evidence": "main CI test build (test.yml run 39524817696, commit 3043963), isolated install, Windows 11"
+    },
+    "939": {
+      "status": "pass",
+      "tested_at": "2026-10-21T01:35:58+00:00",
+      "tester": "Claude",
+      "notes": "Lithium's config in the editor, Modern and Classic: in the text, Escape then Tab goes to the window's first button (Config folder, the editor being last), nothing typed; Shift+Tab goes back into the text; Tab without Escape indents, then Escape, Tab goes to Revert; Revert (Undo) puts the text back; Escape on a button closes the window and the keyboard is back on the Config button that opened it. Not checked with a screen reader.",
+      "evidence": "main CI test build (test.yml run 39524817696, commit 3043963), isolated install, Windows 11"
+    },
+    "940": {
+      "status": "pass",
+      "tested_at": "2026-10-21T01:35:58+00:00",
+      "tester": "Claude",
+      "notes": "On a Windows 11 PC with a firewall rule for a program in a folder named with accented letters (ünïcødé; the kind of rule that broke it): Check my setup's Windows Firewall line says Windows Firewall blocks port 25591 (Windows' own prompt was answered Cancel) with Let them through Windows Firewall, not the general hint; nothing about charmap or UnicodeDecodeError in Craft Conductor's window. Only the blocked case was tried (allowing it needs an administrator prompt).",
+      "evidence": "main CI test build (test.yml run 39524817696, commit 3043963), isolated install, Windows 11"
+    },
+    "934": {
+      "status": "not-tested",
+      "tested_at": "2026-10-21T01:35:58+00:00",
+      "tester": "Claude",
+      "notes": "Partly done: on a computer (Chrome), the mod browser searching chunk (38 results): dragging the scroll bar straight to the bottom loaded the next results by themselves (17, 34, then 38 and That's everything) without pressing Load more. Not done yet: a friend's page (Resource packs) and a phone.",
+      "evidence": "main CI test build (test.yml run 39524817696, commit 3043963), isolated install, Windows 11"
     }
   },
   "notes": "Started on the PR #148 CI test build (commit 6131cbf, reports 0.29.0 before the version bump); results on later builds are recorded separately."
