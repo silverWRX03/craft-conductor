@@ -207,6 +207,7 @@ def changes(before: dict, after: dict) -> list[str]:
 
 
 _listed: dict[Path, tuple[tuple, dict]] = {}  # (the Backups page asks every few seconds)
+_UNKNOWN = object()  # (roll_back: where the backups are kept couldn't be read)
 
 
 def listing(backups_dir: Path) -> dict[str, dict]:
@@ -250,7 +251,14 @@ def roll_back(archive: Path, m) -> str:
     note = load(archive)
     root = m.config.root
     toml_path = root / CONFIG_NAME
-    mine = _secrets(configmod.read_text(toml_path) if toml_path.exists() else None, {})["toml"]
+    current = configmod.read_text(toml_path) if toml_path.exists() else None
+    mine = _secrets(current, {})["toml"]
+    # Where the backups are kept now (Folders → Backups may have moved them since): the backup's own
+    # setting would lose them.
+    try:
+        backups_dir = tomllib.loads(current).get("backups", {}).get("dir") if current is not None else _UNKNOWN
+    except tomllib.TOMLDecodeError:
+        backups_dir = _UNKNOWN  # (can't tell: the backup's own setting stays)
     result = backup.restore(archive, m.server_dir)
     forget = getattr(m, "forget_interrupted_update", lambda: None)  # (this backup was chosen: an interrupted
     if note is None:                                                 # update mustn't put another one back)
@@ -261,6 +269,10 @@ def roll_back(archive: Path, m) -> str:
             tmp = root / (name + ".rollback")
             configmod.write_text(tmp, text)
             os.replace(tmp, root / name)
+    if isinstance(backups_dir, str):
+        configmod.set_value(toml_path, "backups", "dir", configmod.toml_string(backups_dir))
+    elif backups_dir is None:
+        configmod.unset_value(toml_path, "backups", "dir")
     theirs = None
     if note.get("secrets"):
         try:

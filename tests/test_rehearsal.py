@@ -1,6 +1,7 @@
 """Update rehearsal: an update tried on a copy of the server, which isn't touched."""
 
 import json
+import os
 
 import pytest
 from types import SimpleNamespace
@@ -153,12 +154,70 @@ def test_complaints_are_grouped_by_mod():
         "[12:00:04] [Server thread/INFO]: Create says hello",
     ]
     c = rehearsal.complaints(lines, mods)
-    assert [(x["name"], x["warnings"], x["errors"]) for x in c["mods"]] == [("Create", 0, 2), ("Sodium", 1, 0)]
+    assert [(x["name"], x["warnings"], x["errors"]) for x in c["mods"]] == [("Create", 0, 1), ("Sodium", 1, 0)]
     assert c["other"]["warnings"] == 1 and c["lag"] == {"count": 1, "worst_ms": 2500}
     result = {"started": True, "crashed": False, "tps_avg": 19.9, "complaints": c}
     assert rehearsal.verdict(result)[0] == "warn"
     assert rehearsal.verdict({**result, "complaints": {**c, "mods": [], "lag": {"count": 0}}})[0] == "good"
     assert rehearsal.verdict({"started": False, "error": "boom"})[0] == "bad"
+
+
+def test_a_stack_trace_is_one_error():
+    """A logged exception is one error, however many lines its stack trace has (#131: 96 "errors"
+    that were the lines of a few traces); a trace through a mod's code is that mod's."""
+    mods = [SimpleNamespace(name="Create", filename="create-1.21.1-6.0.jar", key="modrinth:create")]
+    frames = [f"	at SECURE-BOOTSTRAP/org.apache.logging.log4j.core@2.26.0/org.apache.logging.log4j.core.config."
+              f"AppenderControl.tryCallAppender(AppenderControl.java:{n})" for n in range(40)]
+    lines = [
+        "[12:00:00] [main/ERROR]: An exception was thrown while logging",
+        *frames,
+        "Caused by: java.lang.IllegalStateException: Error: something else",
+        *frames,
+        "	... 12 more",
+        "	Suppressed: java.io.IOException: Error: closed",
+        "[12:00:01] [Server thread/ERROR]: Exception ticking a block entity",
+        "	at com.simibubi.create.content.Press.tick(Press.java:10) [create-1.21.1-6.0.jar:?]",
+        "	at net.minecraft.world.level.Level.tick(Level.java:1)",
+        "java.lang.NullPointerException: Error: no world",  # (printed without a level: still one)
+        "	at net.minecraft.server.Main.main(Main.java:1)",
+    ]
+    c = rehearsal.complaints(lines, mods)
+    assert c["other"]["errors"] == 2 and c["other"]["warnings"] == 0, c
+    assert [(x["name"], x["errors"]) for x in c["mods"]] == [("Create", 1)]
+    assert c["other"]["examples"][0].endswith("An exception was thrown while logging")
+    assert not any(e.startswith("at ") for e in c["other"]["examples"])
+
+
+def test_the_copy_leaves_out_the_locked_session_lock(make_config, http, modrinth):
+    """While the server runs, Minecraft holds a lock on world/session.lock (and each dimension's),
+    which Windows won't let anyone read: the copy leaves it out (the copy makes its own as it starts)
+    instead of failing at once (#131)."""
+    cfg, _ = installed(make_config, http, modrinth)
+    (cfg.server.dir / "world_nether").mkdir()
+    locks = [cfg.server.dir / "world" / "session.lock", cfg.server.dir / "world_nether" / "session.lock"]
+    held = []
+    for path in locks:
+        path.write_bytes("☃".encode())  # (what Minecraft writes in it)
+        f = open(path, "r+b")
+        held.append(f)
+        if os.name == "nt":
+            import msvcrt
+            msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)  # (as Java's FileChannel.lock() does)
+    copied = []
+    real = rehearsal.Rehearsal._copy
+
+    def watching(self):
+        real(self)
+        copied.extend(p.relative_to(self.root / "server").as_posix() for p in (self.root / "server").rglob("*"))
+    try:
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(rehearsal.Rehearsal, "_copy", watching)
+            r, result = rehearse(cfg, http, ["1.21.1", "1.21.4"])
+    finally:
+        for f in held:
+            f.close()
+    assert r.state == "done" and result["verdict"] == "good", r.log
+    assert "world/level.dat" in copied and not any(p.endswith("session.lock") for p in copied), copied
 
 
 def test_rehearsal_from_the_page(hub_env):

@@ -33,7 +33,9 @@ FRESH = 7 * 24 * 3600        # a passing rehearsal lets an automatic update go a
 REPORT_NAME = "rehearsal.json"
 SKIP = ("logs", "crash-reports", "backups", "debug")  # not copied (not needed to run)
 
-_LEVEL = re.compile(r"[/\[ ](WARN|WARNING|ERROR|FATAL|SEVERE)\]|^\s*at\s|\b(Exception|Error):", re.I)
+_LEVEL = re.compile(r"[/\[ ](WARN|WARNING|ERROR|FATAL|SEVERE)\]|\b(Exception|Error):", re.I)
+# The rest of a logged exception (its stack trace): part of the error before it, not more errors.
+_TRACE = re.compile(r"^\s*(at\s|\.\.\. \d+ more|Caused by:|Suppressed:)")
 _LAG = re.compile(r"Can't keep up! .*?Running (\d+)ms or (\d+) ticks behind", re.I)
 _WORD = re.compile(r"[a-z0-9]+")
 
@@ -82,8 +84,31 @@ def complaints(lines: list[str], mods) -> dict:
     by_mod: dict[str, dict] = {}
     other = {"warnings": 0, "errors": 0, "examples": []}
     lag = {"count": 0, "worst_ms": 0}
+    last = None  # (the complaint a stack trace belongs to: [entry, "errors"|"warnings", its line])
+
+    def mod_entry(who: str) -> dict:
+        return by_mod.setdefault(who, {"name": who, "warnings": 0, "errors": 0, "examples": []})
+
+    def example(entry: dict, line: str) -> None:
+        if len(entry["examples"]) < 3 and line.strip() not in entry["examples"]:
+            entry["examples"].append(line.strip()[:300])
+
+    def named(line: str) -> str | None:
+        low = line.lower()
+        return next((n for n, words in names if any(w in low for w in words)), None)
+
     for raw in lines:
         line = raw.rstrip()
+        if _TRACE.match(line):
+            if last and last[0] is other and (who := named(line)):  # (a trace through a mod's code: that mod's)
+                other[last[1]] -= 1
+                if last[2].strip()[:300] in other["examples"]:
+                    other["examples"].remove(last[2].strip()[:300])
+                last[0] = mod_entry(who)
+                last[0][last[1]] += 1
+                example(last[0], last[2])
+            continue
+        last = None
         if m := _LAG.search(line):
             lag["count"] += 1
             lag["worst_ms"] = max(lag["worst_ms"], int(m.group(1)))
@@ -91,13 +116,12 @@ def complaints(lines: list[str], mods) -> dict:
         hit = _LEVEL.search(line)
         if not hit:
             continue
-        error = not re.search(r"WARN", hit.group(0), re.I)
-        low = line.lower()
-        who = next((n for n, words in names if any(w in low for w in words)), None)
-        entry = other if who is None else by_mod.setdefault(who, {"name": who, "warnings": 0, "errors": 0, "examples": []})
-        entry["errors" if error else "warnings"] += 1
-        if len(entry["examples"]) < 3 and line.strip() not in entry["examples"]:
-            entry["examples"].append(line.strip()[:300])
+        kind = "warnings" if re.search(r"WARN", hit.group(0), re.I) else "errors"
+        who = named(line)
+        entry = other if who is None else mod_entry(who)
+        entry[kind] += 1
+        example(entry, line)
+        last = [entry, kind, line]
     ranked = sorted(by_mod.values(), key=lambda e: (-e["errors"], -e["warnings"], e["name"]))
     return {"mods": ranked, "other": other, "lag": lag}
 
@@ -193,8 +217,11 @@ class Rehearsal:
         try:
             if proc:  # save everything, and keep the world files still while they're copied
                 proc.pause_saving()
+            # (each world's session.lock is locked while the server runs, and Windows won't let it be
+            # read: the copy makes its own as it starts)
             shutil.copytree(m.server_dir, self.root / "server", symlinks=True,
-                            ignore=lambda d, names: [n for n in names if n in SKIP] if Path(d) == m.server_dir else [])
+                            ignore=lambda d, names: [n for n in names if n == "session.lock"
+                                                     or (n in SKIP and Path(d) == m.server_dir)])
         finally:
             if proc:
                 proc.resume_saving()

@@ -1,5 +1,7 @@
 """Snapshots: backups that say what changed, and roll the whole server back."""
 
+import tomllib
+
 from craft_conductor import backup, config as configmod, snapshots
 from craft_conductor.config import ModSpec
 from craft_conductor.daemon import Daemon
@@ -70,6 +72,37 @@ def test_what_changed_and_rolling_back(make_config, http, modrinth):
     # Pruning takes the notes away with the backups.
     backup.prune(cfg.backups.dir, 1)
     assert sorted(p.name for p in cfg.backups.dir.iterdir() if not p.name.startswith(".")) == [names[2], names[2] + ".json"]
+
+
+def test_rolling_back_keeps_where_the_backups_are_kept(make_config, http, modrinth, tmp_path):
+    """A backup made before Folders → Backups moved them carries the server's settings from then
+    ([backups] dir its own folder): restoring it keeps the backups where they are now, so they're
+    still listed and move with the others (#136)."""
+    modrinth.project("AAA", "goodmod", "Good Mod")
+    modrinth.version("AAA", "1.0", ["1.21.1"])
+    cfg = make_config([ModSpec("modrinth", "goodmod")])
+    m = manager(cfg, http, ["1.21.1"])
+    assert update(m).ok
+    assert "created" in Daemon(m, autostart=False).backup_now("before the move")
+    old = backup.list_backups(cfg.backups.dir)[-1]
+    elsewhere = tmp_path / "backups-elsewhere" / "alpha"  # (what the move does: the files, then the setting)
+    elsewhere.parent.mkdir()
+    cfg.backups.dir.rename(elsewhere)
+    configmod.set_value(cfg.path, "backups", "dir", configmod.toml_string(str(elsewhere)))
+    m.reload_config()
+    assert "rolled back" in snapshots.roll_back(elsewhere / old.name, m)
+    assert m.config.backups.dir == elsewhere and configmod.load(cfg.root).backups.dir == elsewhere
+    assert [p.name for p in backup.list_backups(m.config.backups.dir)] == [old.name]
+    # One made while they were there, restored after they went back to the server's own folder.
+    assert "created" in Daemon(m, autostart=False).backup_now("while elsewhere")
+    newer = backup.list_backups(elsewhere)[-1]
+    assert str(elsewhere).replace("\\", "\\\\") in snapshots.load(newer)["toml"]
+    elsewhere.rename(cfg.root / "backups")
+    configmod.unset_value(cfg.path, "backups", "dir")
+    m.reload_config()
+    assert "rolled back" in snapshots.roll_back(cfg.root / "backups" / newer.name, m)
+    assert m.config.backups.dir == cfg.root / "backups"
+    assert "dir" not in tomllib.loads(configmod.read_text(cfg.path)).get("backups", {})
 
 
 def test_an_older_backup_restores_its_files(make_config, http, modrinth):

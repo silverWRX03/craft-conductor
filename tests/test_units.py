@@ -612,3 +612,33 @@ def test_an_exit_code_is_said_in_words():
     assert exit_words(1) == "exit code 1" and exit_words(3221225477 - (1 << 32)) == "exit code -1073741819"
     assert exit_words(3221225477) == "exit code -1073741819"  # (a Windows crash: its code as a signed number)
     assert exit_words(None) == "no exit code"
+
+
+PAPER_COLOURS = r"""
+import sys
+sys.stdout.reconfigure(encoding="utf-8")  # (as Java is told to write)
+esc = chr(27)
+print(f"[12:00:00 INFO]: {esc}[38;2;52;159;218mℹ {esc}[38;2;255;255;255mServer Plugins (2):{esc}[0m", flush=True)
+print(f"[12:00:00 INFO]:  {esc}[38;2;85;85;85m- {esc}[0m{esc}[38;2;85;255;85mChunky{esc}[0m, {esc}[1;32mTAB{esc}[m", flush=True)
+print("[12:00:00 INFO]: Done (1.0s)! For help, type \"help\"", flush=True)
+sys.stdin.read()
+"""
+
+
+def test_colour_codes_in_the_server_output_are_left_out(tmp_path):
+    """Paper's plugins (`plugins`, TAB's start-up lines) write colour codes even to a program: the
+    Console showed them as "␛[38;2;85;255;85mChunky␛[0m" (#132). They're left out of what's kept."""
+    import sys
+    import time as _time
+    from craft_conductor.process import ServerProcess
+    proc = ServerProcess([sys.executable, "-c", PAPER_COLOURS], tmp_path, echo=False)
+    seen = []
+    proc.on_line = seen.append
+    proc.start()
+    try:
+        assert proc.wait_ready(20)
+        _time.sleep(0.2)
+    finally:
+        proc.stop(10)
+    assert list(proc.lines)[:2] == ["[12:00:00 INFO]: ℹ Server Plugins (2):", "[12:00:00 INFO]:  - Chunky, TAB"]
+    assert seen[:2] == list(proc.lines)[:2]

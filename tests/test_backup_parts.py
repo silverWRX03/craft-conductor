@@ -65,6 +65,7 @@ def test_passwords_keys_ip_bans_and_logs_go_in_locked_to_this_computer(tmp_path)
     result = backup.restore(archive, sd)
     assert result["opened"] == ["logs", "secrets"] and result["why"] is None
     assert read_properties(sd / "server.properties")["rcon.password"] == "fake-rcon-password"
+    assert only_mine(sd / "server.properties"), access(sd / "server.properties")  # (its password back: private too)
     assert (sd / "logs" / "latest.log").read_text().startswith("Steve")
     assert b"203.0.113.9" in (sd / "banned-ips.json").read_bytes()
 

@@ -197,11 +197,31 @@ def export(manager, dest: Path, include_backups: bool = False, say: Callable[[st
             if include_backups and cfg.backups.dir.is_dir():
                 for path, rel in _walk(cfg.backups.dir):
                     add(path, f"backups/{rel}")
-        os.replace(tmp, dest)
+        dest = _put_in_place(tmp, dest)
     finally:
         tmp.unlink(missing_ok=True)
     say(f"exported {files} files to {dest} ({dest.stat().st_size / 1e6:.0f} MB)")
     return dest
+
+
+def _put_in_place(tmp: Path, dest: Path) -> Path:
+    """Give the finished export its name, never replacing another file: one by that name already
+    (two exports in the same minute: #137) makes this ``<name> (2).craft-conductor.zip``, and so on."""
+    suffix = ".craft-conductor.zip" if dest.name.endswith(".craft-conductor.zip") else dest.suffix
+    stem = dest.name[:len(dest.name) - len(suffix)]
+    for n in range(1, 1000):
+        candidate = dest if n == 1 else dest.with_name(f"{stem} ({n}){suffix}")
+        try:
+            os.link(tmp, candidate)  # (fails when there's a file by that name: nothing is replaced)
+            return candidate
+        except FileExistsError:
+            continue
+        except OSError:  # (a drive without links)
+            if candidate.exists():
+                continue
+            os.replace(tmp, candidate)
+            return candidate
+    raise OSError(f"there are too many exports named {dest.name} in {dest.parent}")
 
 
 def read_manifest(archive: Path) -> dict:

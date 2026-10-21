@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from craft_conductor import folders, locations as locmod
+from craft_conductor import folders, locations as locmod, private
 
 from test_access import owner_ready
 from test_hub import login
@@ -231,6 +231,33 @@ def test_a_copy_that_isnt_the_same_stops_the_move(tmp_path, monkeypatch):
         locmod.copy_tree(src, tmp_path / "dst", lambda n: None)
 
 
+def test_a_file_that_holds_a_secret_stays_private_when_copied(tmp_path, monkeypatch):
+    """Moving the servers to another drive copies each file: one that was this account's only
+    (server.properties with Minecraft's management secret) is so in its new place too, before the
+    secret is written there (#138); other files take the new folder's permissions as before."""
+    from test_secrets import access, only_mine
+    src = tmp_path / "server"
+    src.mkdir()
+    props, world = src / "server.properties", src / "level.dat"
+    props.write_text("management-server-secret=fake-secret-for-tests\n", encoding="utf-8")
+    assert private.protect(props)
+    world.write_bytes(b"world")
+    seen = {}
+    real_copy = locmod._copy_checked
+
+    def watching(a, b, done):  # (the copy's permissions as the secret goes in)
+        def written(n):
+            seen.setdefault(b.name, only_mine(b))
+            done(n)
+        real_copy(a, b, written)
+    monkeypatch.setattr(locmod, "_copy_checked", watching)
+    locmod.copy_tree(src, tmp_path / "moved", lambda n: None)
+    assert seen.get("server.properties"), "the copy was readable by others while the secret was written"
+    assert only_mine(tmp_path / "moved" / "server.properties"), access(tmp_path / "moved" / "server.properties")
+    assert not only_mine(tmp_path / "moved" / "level.dat")
+    assert (tmp_path / "moved" / "server.properties").read_text(encoding="utf-8").startswith("management-server-secret=")
+
+
 def test_folders_with_links_in_them_arent_moved(tmp_path):
     src = tmp_path / "server"
     (src / "world").mkdir(parents=True)
@@ -254,6 +281,23 @@ def test_new_folder_in_the_folder_browser(hub_env, tmp_path):
     assert status == 200 and r["path"] == os.path.realpath(tmp_path / "Minecraft servers") and r["folders"] == []
     for bad in ("", "..", "a/b", "con", "what?"):
         assert c.post("/api/hub/folders/new", {"parent": str(tmp_path), "name": bad})[0] == 400, bad
+
+
+def test_the_folder_browser_opens_on_the_nearest_folder_there(hub_env, tmp_path):
+    """On a fresh install the exports folder isn't made until it's used: Change… for it opened on
+    "there's no folder at …\\exports" with nothing to browse (#145). It opens on the nearest folder
+    that's there; a path typed that isn't there is still said so."""
+    from urllib.parse import quote
+    hub, c = hub_env
+    login(c)
+    missing = tmp_path / "craft-conductor" / "exports"
+    (tmp_path / "craft-conductor").mkdir()
+    status, r, _ = c.get(f"/api/hub/folders?path={quote(str(missing))}&nearest=1")
+    assert status == 200 and r["path"] == os.path.realpath(tmp_path / "craft-conductor") and r["parent"], r
+    status, r, _ = c.get(f"/api/hub/folders?path={quote(str(missing))}")
+    assert status == 400 and "there's no folder" in r["error"]
+    status, r, _ = c.get(f"/api/hub/folders?path={quote('nowhere')}&nearest=1")  # (not a full path: said why)
+    assert status == 400 and "isn't a full path" in r["error"]
 
 
 # ------------------------------------------------------------------ where it doesn't apply

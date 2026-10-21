@@ -228,6 +228,26 @@ def _players_only(http: HttpClient, mods: list[dict], files: dict) -> set[str]:
     return out
 
 
+def _required_on_server(mods: list[dict], files: dict, players: set[str]) -> set[str]:
+    """Of ``players``, the ones a mod staying on the server requires (CurseForge's required
+    dependencies, and theirs in turn): the server couldn't start without them, whatever Modrinth
+    says (All the Mods 11's Stellaris and Sky Aesthetics: #135)."""
+    requires = {m["project_id"]: {str(d.get("modId")) for d in (files.get(int(m["version_id"])) or {}).get("dependencies") or []
+                                  if isinstance(d, dict) and d.get("relationType") == cf.REQUIRED_DEPENDENCY}
+                for m in mods}
+    kept: set[str] = set()
+    todo = [m["project_id"] for m in mods if m["project_id"] not in players]
+    while todo:
+        for dep in requires.get(todo.pop(), ()):
+            if dep in players and dep not in kept:
+                kept.add(dep)
+                todo.append(dep)
+    if kept:
+        log.info("%d of the pack's mods Modrinth says only run on players' computers stay on the server: "
+                 "the pack's server mods require them", len(kept))
+    return kept
+
+
 def preview(http: HttpClient, key: str, version: str) -> dict:
     """What a CurseForge modpack file would add to a new server, without changing one. Cached for
     an hour, so creating the server doesn't download and look everything up again."""
@@ -267,6 +287,7 @@ def preview(http: HttpClient, key: str, version: str) -> dict:
             log.info("%s's server pack doesn't match the pack's mods; every mod goes on the server", mod.get("name"))
             on_server = None
     players = set() if on_server is not None else _players_only(http, mods, files)
+    players -= _required_on_server(mods, files, players)
     for m in mods:
         m["included_on_server"] = (on_server is None or PurePosixPath(m["path"]).name in on_server) and m["project_id"] not in players
         m["for_friends"] = not m["included_on_server"]

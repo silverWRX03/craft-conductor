@@ -196,6 +196,22 @@ def check(text: str) -> Path:
     return real
 
 
+def nearest(text: str) -> str:
+    """``text``, or the nearest folder above it that's there: the folder browser opens on a place
+    that isn't made yet (the exports folder, made when first used: #145) without an error. "" when
+    none is; a path check() refuses (a network folder, a part path) as it is, for check() to say why."""
+    text = str(text or "").strip()
+    if not text or len(text) > 1000 or "\0" in text:
+        return text
+    path = Path(os.path.expanduser(text))
+    if not path.is_absolute() or is_network(path):
+        return text
+    for p in (path, *path.parents):
+        if p.is_dir():
+            return str(p)
+    return ""
+
+
 _BAD_NAME = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
 _RESERVED = re.compile(r"(?i)^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$")  # (Windows' own names)
 

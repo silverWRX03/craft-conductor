@@ -137,3 +137,25 @@ def test_mod_summary_and_management_drawer_in_a_real_browser(hub_env, modrinth):
         capture_output=True, text=True, timeout=180,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.skipif(not (os.environ.get("CRAFT_UI_NODE") and os.environ.get("CRAFT_UI_PLAYWRIGHT")),
+                    reason="optional browser verification")
+def test_a_mod_you_picked_that_another_needs_is_listed_once_in_a_real_browser(hub_env, modrinth):
+    """Fabric API picked by you and needed by AppleSkin: Manage Mods listed it twice, as yours and as
+    AppleSkin's dependency, and removing AppleSkin said Fabric API would go too. It's one row, saying
+    who else needs it, and it stays."""
+    from test_hub import login
+    from test_manager import update
+    hub, c = hub_env
+    login(c)
+    modrinth.project("FAPI", "fabric-api", "Fabric API", client_side="unsupported")
+    modrinth.version("FAPI", "0.116", ["1.21.1"])
+    modrinth.project("APPLE", "appleskin", "AppleSkin", client_side="unsupported")
+    modrinth.version("APPLE", "3.0.6", ["1.21.1"], deps=["FAPI"])
+    for mod in ("fabric-api", "appleskin"):
+        assert c.post("/api/servers/alpha/mods/add", {"source": "modrinth", "id": mod})[0] == 200
+    assert update(hub.get("alpha").m).ok
+    result = subprocess.run([os.environ["CRAFT_UI_NODE"], str(Path(__file__).with_name("ui_mods_picked_and_needed.cjs")), c.base],
+                            capture_output=True, text=True, timeout=180)
+    assert result.returncode == 0, result.stdout + result.stderr

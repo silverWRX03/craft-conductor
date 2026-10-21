@@ -8245,5 +8245,103 @@
     "type": "Core",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 941,
+    "section": "Fix: A move put back is said once (#141)",
+    "step": "Start a Folders → Servers move to another drive and end Craft Conductor halfway (Task Manager), then start it again: everything is back in the old folder. Open Craft Conductor settings → Folders: \"Moving the servers was stopped halfway…\" shows once (and once in the bell). Open settings again, reload, open it in another browser: it isn't shown again in this browser.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 942,
+    "section": "Fix: Two exports in a minute are both kept (#137)",
+    "step": "Settings → Export this server, then at once again with other choices (the second with a secret, so password-locked): both finish, the second named \"… (2).craft-conductor.zip\"; Import a server… lists both, and each imports with what it was made with.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 943,
+    "section": "Fix: Removing a mod before the next update asks about what came with it (#142)",
+    "step": "With the friends' download on: Mods → Download mods → Modrinth → Sophisticated Backpacks → Add selected mods (it goes in friends' mods too, with Sophisticated Core). Before any update, Manage Mods → Remove it: the question names \"Sophisticated Backpacks and Sophisticated Core\" (names, not slugs); Remove from friends' mods takes both off Manage Friends Mods.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 944,
+    "section": "Fix: Dependency unavailable's Remove asks about friends' mods (#147)",
+    "step": "New server, NeoForge 1.21.1, friends' download on: mod browser → Modrinth → Just Enough Items → Add selected mods. If its row says Dependency unavailable, press Remove Just Enough Items (JEI) there: it asks whether to remove it (and MezzConfig) from friends' mods too; Remove from friends' mods leaves Manage Friends Mods without them, and Create my server isn't stopped by them.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 945,
+    "section": "Fix: A mod whose library only has beta builds can be added (#133)",
+    "step": "On an existing NeoForge 1.21.1 server: Mods → add Just Enough Items (JEI) from Modrinth (search Add, Quick add, and the mod browser's Add selected mods): it says MezzConfig only has beta builds and asks to add it anyway (no \"no compatible release\"); Add anyway, then Update: JEI and MezzConfig install and the server starts.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 946,
+    "section": "Fix: A players-only mod added by slug is noted at Check now (#134)",
+    "step": "Fabric server, up to date: Mods → Quick add → sodium → Add from CurseForge, then Updates → Check now (nothing to install). Manage Mods shows Sodium once, by its name, as not installed because only players run it, with Move to players' mods, and the friends' download has it. A CurseForge mod added by slug and installed (AppleSkin) is listed once.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 947,
+    "section": "Fix: New server doesn't ask for a players-only mod by hand (#146)",
+    "step": "New server, NeoForge 1.21.1, friends' download off: mod browser → CurseForge → Entity Culling (kept to CurseForge by its author) → Add selected mods. Manage Mods doesn't ask for it to be downloaded by hand and Create my server goes ahead; afterwards it's left off the server as players-only.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 948,
+    "section": "Fix: Paper's console has no colour codes (#132)",
+    "step": "Paper server with the Chunky and TAB plugins: start it; Console → plugins. The Console and the Dashboard's live console show \"Server Plugins (2)\" and \"Chunky, TAB\" without codes like [38;2;…m, and TAB's \"Enabled in …ms\" line too.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 949,
+    "section": "Fix: Mod test finished is in the middle (#140)",
+    "step": "In a wide window (2560 px or more): Mods → Test these mods → Start a test boot → Keep working. When it ends, \"Mod test finished\" is in the middle of the screen with the whole page dimmed and blurred behind it (not clickable); See the results and Close work. While it runs, \"Testing mods\" is a small message at the top.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 950,
+    "section": "Fix: The folder browser opens on a folder that's there (#145)",
+    "step": "Fresh install (new folder): after choosing the password, Where should Craft Conductor keep your files? → Exports → Change…: the browser opens on Craft Conductor's folder (no error), with Up and its folders, and the drives reachable from there without typing a path.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 951,
+    "section": "Fix: JEI installs on NeoForge 1.21.1 (#158)",
+    "step": "Existing NeoForge 1.21.1 server: add Just Enough Items (JEI) from Modrinth (Add anyway for MezzConfig's beta builds), then Updates → Check now → Update: JEI and MezzConfig install and the server starts, with no \"made for Minecraft 1.21 only\" from Manage Mods, the rehearsal or the update.",
+    "type": "Core",
+    "tags": [
+      "minecraft"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 952,
+    "section": "Fix: A mod you picked that another needs is listed once (#159)",
+    "step": "Fabric server: add Fabric API, then AppleSkin (which needs it), and update. Manage Mods lists Fabric API once, selected by you, with \"also needed by AppleSkin\" (no second dependency row; the count says 0 dependencies); Remove on AppleSkin doesn't say Fabric API goes too, and after the update Fabric API is still installed.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]

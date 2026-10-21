@@ -23,3 +23,11 @@ def test_classic_and_modern(hub_env):
     result = subprocess.run([os.environ["CRAFT_UI_NODE"], str(Path(__file__).with_name("ui_styles.cjs")), client.base],
                             capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600)
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_mod_test_finished_covers_the_whole_page(hub_env):
+    """#140: "Mod test finished" in the middle with the page blurred behind it, not a 380-pixel strip."""
+    _, client = hub_env
+    result = subprocess.run([os.environ["CRAFT_UI_NODE"], str(Path(__file__).with_name("ui_tester_finished.cjs")), client.base],
+                            capture_output=True, text=True, timeout=180)
+    assert result.returncode == 0, result.stdout + result.stderr
