@@ -362,6 +362,20 @@ def test_the_probe_starts_java_by_its_short_name(tmp_path, monkeypatch):
     assert javamod.run_version(str(plain)) and seen["argv"][0] == str(plain)
 
 
+def test_off_windows_any_folder_name_will_do(monkeypatch):
+    """The code page is Windows' alone: elsewhere there's none to check (and no "mbcs" to check it with)."""
+    from craft_conductor import java as javamod
+    monkeypatch.setattr(javamod.os, "name", "posix")
+    assert javamod._in_code_page("/home/日本語/java")
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows has its code page")
+def test_java_downloads_into_a_folder_named_in_japanese_off_windows(tmp_path, http):
+    publish(http, 21, "jdk-21.0.4+7")
+    jm = JavaManager(server(tmp_path, "S"), http, platform_fn=LINUX_X64, store=tmp_path / "日本語" / "java")
+    assert "日本語" in jm.select(21)
+
+
 def test_java_isnt_downloaded_where_it_couldnt_start(tmp_path, http, monkeypatch):
     """Where there's no short name to use (a drive that keeps none), it says why before downloading."""
     from craft_conductor import java as javamod

@@ -122,6 +122,8 @@ class NoAnswer(Exception):
 
 
 def _in_code_page(path: str) -> bool:
+    if os.name != "nt":  # (the code page is Windows' alone)
+        return True
     try:
         path.encode("mbcs")  # (Windows' own code page, nothing guessed: strict)
         return True
