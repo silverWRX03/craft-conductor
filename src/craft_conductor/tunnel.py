@@ -254,8 +254,8 @@ def check_signature(path, run=None, signer: str = SIGNER, whose: str = "playit.g
     """The file is signed, the signature is valid (Windows checks the certificate chain), and
     the signer is ``signer`` (playit.gg's company unless said). Raises AgentError otherwise."""
     import base64
-    from .firewall import _ps_string
-    script = SIGNATURE_SCRIPT.format(path=_ps_string(str(path)))
+    from .firewall import _ps_string, UTF8_OUTPUT
+    script = UTF8_OUTPUT + SIGNATURE_SCRIPT.format(path=_ps_string(str(path)))  # (a signer or folder with accents, #150)
     encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
     # (Windows' own PowerShell by its full path: never one found in the current folder or on PATH)
     powershell = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
@@ -263,7 +263,8 @@ def check_signature(path, run=None, signer: str = SIGNER, whose: str = "playit.g
     try:
         if run is None:
             from .desktop import NO_WINDOW
-            out = subprocess.run(args, capture_output=True, text=True, timeout=60, **NO_WINDOW).stdout
+            out = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
+                                 **NO_WINDOW).stdout
         else:
             out = run(args)
         data = json.loads(out or "null")
