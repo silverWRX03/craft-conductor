@@ -473,6 +473,10 @@ def test_cloudflared_signer_is_cloudflare():
         check_signature("x.exe", run=lambda a: json.dumps({"status": "Valid", "subject": "CN=Someone, O=Someone"}),
                         signer=cloudflare.SIGNER, whose="Cloudflare", what="cloudflared", done="run")
     assert seen["args"][0].replace("\\", "/").lower().endswith("system32/windowspowershell/v1.0/powershell.exe")
+    # (it answers in UTF-8, as the firewall's read does: a signer or folder with accents is read right, #150)
+    import base64
+    from craft_conductor.firewall import UTF8_OUTPUT
+    assert base64.b64decode(seen["args"][-1]).decode("utf-16-le").startswith(UTF8_OUTPUT)
 
 
 # --------------------------------------------------------- the reset's code

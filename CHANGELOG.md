@@ -19,6 +19,7 @@ its fix will say which version it's in.
 - A long list of results (the mod browser, a friend's Shaders, Resource packs and More mods) could stop at its last loaded row with **Load more** when you dragged the scroll bar straight to the bottom, instead of loading the next ones by itself.
 - Screen readers now find each page's title as its main heading, once (it was a second-level heading, with no main one, and Help, User manual, New server and Craft Conductor settings had it twice).
 - On a phone or a narrow window in the light theme, the menu's close button covered the Craft Conductor title, and links scrolled up beside it. The title now sits below the button, and only the links scroll when they don't fit.
+- **Check my setup** stopped checking Windows Firewall, showing only the general hint that Windows asks the first time, when one of the computer's firewall rules had an accented letter in its name or folder (as Windows' own rules have outside English) (#150).
 
 ## 0.29.0 (2026-10-19)
 

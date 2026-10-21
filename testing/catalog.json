@@ -8229,5 +8229,13 @@
     "type": "Core",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 940,
+    "section": "Fix: Check my setup reads Windows Firewall with accented letters (#150)",
+    "step": "On Windows, with a firewall rule for a program in a folder with accented letters (for example a server in C:\\cc\\servers\\ünïcødé that Windows asked about, or any rule on Windows in another language): open Check my setup on a server whose port is allowed, then one whose port isn't. The Windows Firewall line says whether the port gets through (with Let them through Windows Firewall when it doesn't), not only that Windows asks the first time; nothing about 'charmap' or UnicodeDecodeError appears in Craft Conductor's window.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]

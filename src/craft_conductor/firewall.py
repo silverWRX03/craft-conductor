@@ -25,8 +25,12 @@ GROUP = "Craft Conductor"
 ALLOW, BLOCK = 2, 4                                  # (NetSecurity's Action values)
 PROFILE_FLAGS = {"Domain": 1, "DomainAuthenticated": 1, "Private": 2, "Public": 4}  # (a rule's Profile: 0 is any)
 
+# PowerShell writes to a pipe in the console's code page (437, 850...), not in what Python reads it with: a rule
+# whose name or folder had an accented letter (Windows' own, outside English) made the whole read fail (#150).
+UTF8_OUTPUT = "[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false\n"
+
 # Everything the check needs, in one call, in words that don't depend on Windows' language.
-QUERY = r"""
+QUERY = UTF8_OUTPUT + r"""
 $ErrorActionPreference = 'SilentlyContinue'
 $profiles = @(Get-NetFirewallProfile | ForEach-Object { [pscustomobject]@{ name = "$($_.Name)"; on = ("$($_.Enabled)" -eq 'True') } })
 $networks = @(Get-NetConnectionProfile | ForEach-Object { [pscustomobject]@{ category = "$($_.NetworkCategory)";
@@ -58,7 +62,7 @@ def available() -> bool:
 def _powershell(script: list[str], timeout: float) -> subprocess.CompletedProcess:
     from .desktop import NO_WINDOW
     return subprocess.run(["powershell", "-NoProfile", "-NonInteractive", *script], capture_output=True, text=True,
-                          timeout=timeout, **NO_WINDOW)
+                          encoding="utf-8", errors="replace", timeout=timeout, **NO_WINDOW)
 
 
 CACHE_SECONDS = 15  # (Check my setup opened again soon, or on several pages: one read)

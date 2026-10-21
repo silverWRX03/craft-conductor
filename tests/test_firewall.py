@@ -1,5 +1,6 @@
 """Windows Firewall in Check my setup: reading whether the ports get through, and letting them through."""
 
+import json
 import os
 import re
 import subprocess
@@ -117,6 +118,23 @@ def test_the_firewall_is_read_once_in_a_while(monkeypatch):
     assert len(runs) == 1
     firewall.read(fresh=True)  # (after letting ports through: what's there now)
     assert len(runs) == 2
+
+
+def test_accented_rule_names_and_folders_are_read(monkeypatch):
+    """PowerShell writes UTF-8 and it's read as UTF-8: a rule for a folder with accents (or Windows' own rule
+    names outside English) no longer made the whole read fail (#150)."""
+    seen = {}
+    monkeypatch.setattr(subprocess, "run", lambda args, **kw: seen.update(args=args, **kw) or subprocess.CompletedProcess(args, 0, "", ""))
+    firewall._powershell(["-Command", firewall.QUERY], 30)
+    assert seen["encoding"] == "utf-8" and seen["errors"] == "replace"
+    assert seen["args"][-1].startswith(firewall.UTF8_OUTPUT)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows PowerShell")
+def test_powershell_really_answers_in_utf8():
+    name = "C:\\servers\\ünïcødé 日本語"
+    r = firewall._powershell(["-Command", firewall.UTF8_OUTPUT + f"'{name}' | ConvertTo-Json"], 60)
+    assert r.returncode == 0 and json.loads(r.stdout) == name
 
 
 def test_only_at_this_computer(hub_env, monkeypatch):
