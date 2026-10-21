@@ -167,6 +167,34 @@
       "tester": "Claude",
       "notes": "Checked with icacls on the CI build, isolated install. Servers folder moved from C: to E: (7 servers, 2.2 GB) with Folders -> Servers -> Change...: on E:, without starting anything, the vanilla 26.3 server's server.properties holding Minecraft's management-server-secret (the 0.29.0 failure), a craft-conductor.toml with a Discord webhook, the friends servers' craft-conductor.toml files and an IP ban list stayed readable by this account only (SYSTEM and Administrators besides, nothing inherited); files without secrets took the new folder's permissions. Same after an earlier C:<-E: move. Craft Conductor's own folder: sign-in, backup.key, passkeys, push keys, the friends' HTTPS key and hub.json (where the CurseForge key and Discord token go) private; exports private. Not done here: a CurseForge key or Discord token actually entered (hub.json was checked without them), RCON password (no switch on the page).",
       "evidence": "PR #157 CI test build (test.yml run 39649348536, commit 05b43f3)"
+    },
+    "946": {
+      "status": "pass",
+      "tested_at": "2026-10-21T19:02:07+00:00",
+      "tester": "Claude",
+      "notes": "Chrome on Windows 11, isolated install with a CurseForge key, Fabric 1.21.1 server with the friends' download on. AppleSkin added by slug with Add from CurseForge and installed; then Quick add -> sodium -> Add from CurseForge, Updates -> Check now: up to date, nothing to install. Manage Mods shows Sodium once, by its name: \"Sodium only runs on players' computers (Modrinth says so) / Not installed.\" with Move to players' mods; AppleSkin is listed once. Manage Friends Mods: AppleSkin, Fabric API and Sodium (players only); What friends get says 3 mods. Seen besides: Fabric API is listed twice in Manage Mods (selected by you, and as a dependency needed by AppleSkin).",
+      "evidence": "PR #157 CI test build (test.yml run 39649348536, commit 05b43f3)"
+    },
+    "947": {
+      "status": "pass",
+      "tested_at": "2026-10-21T19:04:32+00:00",
+      "tester": "Claude",
+      "notes": "Chrome on Windows 11, isolated install with a CurseForge key. New server, NeoForge, Minecraft 1.21.1, friends' download off: mod browser -> CurseForge -> Entity Culling Fabric/Forge -> Add selected mods: no question, and Manage Mods lists it with no request to download it by hand. Create my server went ahead: the setup said it was left off the server as only players run it (Modrinth says so), and NeoForge 21.1.264 installed and started with no mods.",
+      "evidence": "PR #157 CI test build (test.yml run 39649348536, commit 05b43f3)"
+    },
+    "910": {
+      "status": "pass",
+      "tested_at": "2026-10-21T19:16:31+00:00",
+      "tester": "Claude",
+      "notes": "Chrome on Windows 11, isolated install with a CurseForge key, NeoForge 1.21.1 (21.1.264) server with the friends' download on. Mod browser -> CurseForge -> Iris & Oculus Search -> Add selected mods; Check now: nothing to install on the server. Manage Mods lists Iris & Oculus Search (selected by you), Iris Shaders and Sodium as not installed because they only run on players' computers (Modrinth says so), each once, with Move to players' mods. Manage Friends Mods has Iris & Oculus Search itself (players only), Iris Shaders (needed by Iris & Oculus Search, by name) and Sodium (needed by Iris Shaders). Start: the server started (Done, no errors) with only its own mods.",
+      "evidence": "PR #157 CI test build (test.yml run 39649348536, commit 05b43f3)"
+    },
+    "913": {
+      "status": "blocked",
+      "tested_at": "2026-10-21T19:37:52+00:00",
+      "tester": "Claude",
+      "notes": "Partly done, the rest needs the owner. CurseForge route on the CI build, isolated install with a CurseForge key: New server -> A modpack -> All the Mods 11 0.11.1-beta (pack applied: 246 mods, 21 for players; the setup said 1 of the pack's players-only mods stays on the server because the pack's server mods require it: #135), made and test-started. Changed config/comforts-server.toml by hand and removed FastFurnace in Manage Mods. Updates -> Look for a new version of the pack listed 0.12.0-beta; See what changes: 20 added, 47 move to the pack's new files, FastFurnace stays left out, changed config files kept. Update the pack: backup, then updated (20 added, 47 moved, changes kept), the server started on 0.12.0-beta (Done); the config change is still there, FastFurnace stays out, Stellaris 2.0.7 and Sky Aesthetics 2.1.4 are both on the server (the 0.29.0 failure). Not done: a friend joining on the pack's new version (needs a Minecraft client), the Modrinth pack route, and a version that fails being put back. The server pack (556 MB) was too big to read (#92).",
+      "evidence": "PR #157 CI test build (test.yml run 39649348536, commit 05b43f3)"
     }
   },
   "notes": "Started on the PR #157 CI test build (test.yml run 39615873563, commit e0122fb; reports 0.30.0 before the version bump). Fix retests only for now; the release-gate cases are left for later."
