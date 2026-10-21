@@ -59,7 +59,8 @@
     947,
     948,
     949,
-    950
+    950,
+    951
   ],
   "results": {
     "950": {
@@ -98,11 +99,18 @@
       "evidence": "PR #157 CI test build (test.yml run 39615873563, commit e0122fb)"
     },
     "945": {
-      "status": "fail",
-      "tested_at": "2026-10-21T15:50:11+00:00",
+      "status": "pass",
+      "tested_at": "2026-10-21T18:23:53+00:00",
       "tester": "Claude",
-      "notes": "Chrome on Windows 11, isolated install, existing NeoForge 1.21.1 (21.1.264) server with the friends' download on. Fixed part works: Quick add search -> Just Enough Items (JEI) -> Add, and the mod browser's Add selected mods, both ask \"Just Enough Items (JEI) and MezzConfig only have beta builds for Minecraft 1.21.1 ... Add it anyway?\"; Add anyway added it; Check now listed + JEI 19.69.0.457 and + MezzConfig 0.6.8. Failed: (1) the update can't install: the check says \"Just Enough Items 19.69.0.457 is made for Minecraft 1.21 only, not 1.21.1\" (its mods.toml says minecraft [1.21, 1.21.1), as do all JEI builds for 1.21.1), and Update anyway is refused the same way. But NeoForge itself loads both and starts (checked on a copy: Done, no warning): FML's VersionSupportMatrix accepts mods made for Minecraft 1.21 (and NeoForge 21.0.166) on 1.21.1, which Craft Conductor's check doesn't know. (2) The mod browser's selection line still says \"no compatible MezzConfig release was found\" before the question. (3) The question names JEI as beta-only though JEI has a release build (19.64.0.455); with the beta channel JEI's newest beta is picked.",
-      "evidence": "PR #157 CI test build (test.yml run 39615873563, commit e0122fb)"
+      "notes": "Retest after the fixes (05b43f3), existing NeoForge 1.21.1 server with the friends' download on. Mod browser -> Just Enough Items (JEI): the line under the selection says \"Just Enough Items (JEI) requires MezzConfig, which only has beta builds for Minecraft 1.21.1 using NeoForge\" (no \"no compatible release\"); Add selected mods asks \"MezzConfig only has beta builds for Minecraft 1.21.1 (Just Enough Items (JEI) takes its beta builds too) ... Add it anyway?\". Add anyway, Check now (+ JEI 19.69.0.457, + MezzConfig 0.6.8), Apply update: backup made, both installed, the server started (Done, no errors), Manage Mods shows them as beta builds with no warning. (Search Add asks the same server-side question; it was seen asking on the earlier build and wasn't repeated here.)",
+      "evidence": "PR #157 CI test build (test.yml run 39649348536, commit 05b43f3)",
+      "supersedes": {
+        "status": "fail",
+        "tested_at": "2026-10-21T15:50:11+00:00",
+        "tester": "Claude",
+        "notes": "Chrome on Windows 11, isolated install, existing NeoForge 1.21.1 (21.1.264) server with the friends' download on. Fixed part works: Quick add search -> Just Enough Items (JEI) -> Add, and the mod browser's Add selected mods, both ask \"Just Enough Items (JEI) and MezzConfig only have beta builds for Minecraft 1.21.1 ... Add it anyway?\"; Add anyway added it; Check now listed + JEI 19.69.0.457 and + MezzConfig 0.6.8. Failed: (1) the update can't install: the check says \"Just Enough Items 19.69.0.457 is made for Minecraft 1.21 only, not 1.21.1\" (its mods.toml says minecraft [1.21, 1.21.1), as do all JEI builds for 1.21.1), and Update anyway is refused the same way. But NeoForge itself loads both and starts (checked on a copy: Done, no warning): FML's VersionSupportMatrix accepts mods made for Minecraft 1.21 (and NeoForge 21.0.166) on 1.21.1, which Craft Conductor's check doesn't know. (2) The mod browser's selection line still says \"no compatible MezzConfig release was found\" before the question. (3) The question names JEI as beta-only though JEI has a release build (19.64.0.455); with the beta channel JEI's newest beta is picked.",
+        "evidence": "PR #157 CI test build (test.yml run 39615873563, commit e0122fb)"
+      }
     },
     "943": {
       "status": "pass",
@@ -133,11 +141,32 @@
       "evidence": "PR #157 CI test build (test.yml run 39615873563, commit e0122fb)"
     },
     "814": {
-      "status": "fail",
-      "tested_at": "2026-10-21T16:14:57+00:00",
+      "status": "pass",
+      "tested_at": "2026-10-21T18:21:48+00:00",
       "tester": "Claude",
-      "notes": "Chrome on Windows 11 (English), CI build with Craft Conductor's own folder named with Japanese letters on C: (short names on). New vanilla 26.3 server: Craft Conductor downloaded Java 25 into its folder and started it by the short name (C:\\cc\\V030~2.1-C\\...\\java.exe), which gets past the launcher, but the server didn't start: the JVM looks for lib\\modules and net.dll under its long path with the Japanese letters as ??? (UnsatisfiedLinkError ... net.dll: Can't find dependent libraries); the setup rolled back cleanly. Checked by hand: started by short name or through a directory junction, java -version works and java.home is the short/junction path, but running any jar fails the same way, because Windows resolves jvm.dll's own path to the real long one. So #139's short-name fix only fixes java -version, not running servers.",
-      "evidence": "PR #157 CI test build (test.yml run 39615873563, commit e0122fb)"
+      "notes": "Retest after the fix (7960350): fresh install with Craft Conductor's own folder named with Japanese letters on C: (English Windows 11). New vanilla 26.3 server: Craft Conductor said Java can't run from its own folder and downloaded Java 25 into C:\\ProgramData\\craft-conductor-java-<account id> instead (SYSTEM, Administrators and this account only, inherited by the files in it); the setup's test start worked, Start from the Dashboard ran the server (Server is up), and Back up now made a backup in the Japanese-named folder.",
+      "evidence": "PR #157 CI test build (test.yml run 39649348536, commit 05b43f3)",
+      "supersedes": {
+        "status": "fail",
+        "tested_at": "2026-10-21T16:14:57+00:00",
+        "tester": "Claude",
+        "notes": "Chrome on Windows 11 (English), CI build with Craft Conductor's own folder named with Japanese letters on C: (short names on). New vanilla 26.3 server: Craft Conductor downloaded Java 25 into its folder and started it by the short name (C:\\cc\\V030~2.1-C\\...\\java.exe), which gets past the launcher, but the server didn't start: the JVM looks for lib\\modules and net.dll under its long path with the Japanese letters as ??? (UnsatisfiedLinkError ... net.dll: Can't find dependent libraries); the setup rolled back cleanly. Checked by hand: started by short name or through a directory junction, java -version works and java.home is the short/junction path, but running any jar fails the same way, because Windows resolves jvm.dll's own path to the real long one. So #139's short-name fix only fixes java -version, not running servers.",
+        "evidence": "PR #157 CI test build (test.yml run 39615873563, commit e0122fb)"
+      }
+    },
+    "951": {
+      "status": "pass",
+      "tested_at": "2026-10-21T18:23:54+00:00",
+      "tester": "Claude",
+      "notes": "Chrome on Windows 11, isolated install, existing NeoForge 1.21.1 (21.1.264) server: JEI 19.69.0.457 (its file says minecraft [1.21, 1.21.1)) added from Modrinth with Add anyway for MezzConfig's beta builds; Check now and Apply update installed JEI and MezzConfig 0.6.8 and the server started with no errors; no \"made for Minecraft 1.21 only\" in Manage Mods or the update.",
+      "evidence": "PR #157 CI test build (test.yml run 39649348536, commit 05b43f3)"
+    },
+    "857": {
+      "status": "pass",
+      "tested_at": "2026-10-21T18:35:41+00:00",
+      "tester": "Claude",
+      "notes": "Checked with icacls on the CI build, isolated install. Servers folder moved from C: to E: (7 servers, 2.2 GB) with Folders -> Servers -> Change...: on E:, without starting anything, the vanilla 26.3 server's server.properties holding Minecraft's management-server-secret (the 0.29.0 failure), a craft-conductor.toml with a Discord webhook, the friends servers' craft-conductor.toml files and an IP ban list stayed readable by this account only (SYSTEM and Administrators besides, nothing inherited); files without secrets took the new folder's permissions. Same after an earlier C:<-E: move. Craft Conductor's own folder: sign-in, backup.key, passkeys, push keys, the friends' HTTPS key and hub.json (where the CurseForge key and Discord token go) private; exports private. Not done here: a CurseForge key or Discord token actually entered (hub.json was checked without them), RCON password (no switch on the page).",
+      "evidence": "PR #157 CI test build (test.yml run 39649348536, commit 05b43f3)"
     }
   },
   "notes": "Started on the PR #157 CI test build (test.yml run 39615873563, commit e0122fb; reports 0.30.0 before the version bump). Fix retests only for now; the release-gate cases are left for later."
