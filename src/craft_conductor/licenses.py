@@ -9,6 +9,8 @@ PROJECT = ("Craft Conductor", "GPL-3.0-or-later",
 RUNTIME = [
     ("Python and its standard library", "runs Craft Conductor; Craft Conductor has no other runtime dependencies",
      "PSF-2.0", "https://docs.python.org/3/license.html"),
+    ("Roboto (font)", "the text of the web pages; shipped in webui/fonts with its license, OFL.txt",
+     "OFL-1.1", "https://github.com/googlefonts/roboto-3-classic"),
 ]
 
 # Only inside the downloadable executables (not pip/pipx installs); full texts ship inside them.
@@ -80,7 +82,7 @@ def as_text() -> str:
     lines += [f"  {n}: {lic}  ({use})  {url}" for n, use, lic, url in DOWNLOADED]
     lines += ["", "Online services it talks to:"]
     lines += [f"  {n}  {url}" for n, url in SERVICES]
-    lines += ["", "The web UI uses no third-party code, fonts or images."]
+    lines += ["", "The web UI uses no third-party code or images; its font is Roboto (above)."]
     return "\n".join(lines)
 
 

@@ -1173,5 +1173,8 @@
   "folder": "carpeta",
   "folders": "carpetas",
   "each server's own folder": "la propia carpeta de cada servidor",
-  "Change…": "Cambiar…"
+  "Change…": "Cambiar…",
+  "Classic": "Clásico",
+  "Modern": "Moderno",
+  "Interface style": "Estilo de la interfaz"
 }

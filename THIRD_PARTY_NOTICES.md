@@ -4,8 +4,8 @@ craft-conductor itself is licensed under the [GNU General Public License v3.0 or
 
 craft-conductor has **no third-party runtime dependencies**: it uses only Python and its
 standard library. The web UI is hand-written HTML, CSS and JavaScript, with **no
-third-party code, fonts, icons or images**. Nothing from another project is copied
-into this repository. The downloadable executables bundle the Python runtime and the
+third-party code, icons or images**. Its one third-party file is its font, Roboto, listed
+below with its license. The downloadable executables bundle the Python runtime and the
 PyInstaller bootloader; they're listed below.
 
 `craft-conductor licenses` prints this list, and the web UI shows it under **Settings → About**.
@@ -16,6 +16,7 @@ The list itself lives in `src/craft_conductor/licenses.py`; keep the two in sync
 | Software | License | Notes |
 |---|---|---|
 | [Python](https://www.python.org/) and its standard library | [PSF License 2.0](https://docs.python.org/3/license.html) | Runs craft-conductor. Installed by you, not bundled. |
+| [Roboto](https://github.com/googlefonts/roboto-3-classic) (font) | [SIL Open Font License 1.1](src/craft_conductor/webui/fonts/OFL.txt) | The web pages' text. Shipped unmodified, in Google Fonts' pieces by alphabet, in `src/craft_conductor/webui/fonts/` with its license; served by craft-conductor itself, never fetched from a font service. |
 
 ## Bundled into the downloadable executables
 

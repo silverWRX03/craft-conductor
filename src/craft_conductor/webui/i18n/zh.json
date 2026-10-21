@@ -1187,5 +1187,8 @@
   "folder": "个文件夹",
   "folders": "个文件夹",
   "each server's own folder": "每个服务器自己的文件夹",
-  "Change…": "更改…"
+  "Change…": "更改…",
+  "Classic": "经典",
+  "Modern": "现代",
+  "Interface style": "界面风格"
 }

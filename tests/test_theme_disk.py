@@ -23,7 +23,7 @@ def test_theme_is_packaged_and_served_with_css_content_type():
     assert JOIN_STATIC["craft-conductor-theme.css"] == (name, content_type)
     assert content_type.startswith("text/css")
     body, etag = static_file(name)
-    assert b"--accent:#FF3E00" in body and b"--accent:#D63300" in body
+    assert b"--accent:#FF3E00" in body and b"--accent:#C53000" in body
     assert etag
 
 

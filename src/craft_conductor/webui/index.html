@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-style="modern">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -12,6 +12,8 @@
   <meta name="color-scheme" content="light dark">
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/craft-conductor-theme.css">
+  <link rel="stylesheet" href="/craft-conductor-modern.css">
+  <script src="/appearance.js"></script>
 </head>
 <body>
   <button type="button" id="skip-link" class="skip-link">Skip to main content</button>
@@ -56,7 +58,7 @@
 
     <div class="content">
       <header class="topbar">
-        <h2 id="page-title" class="page-title hidden"></h2>
+        <h1 id="page-title" class="page-title hidden"></h1>
         <div class="server-id">
           <span id="state-pill" class="pill" role="status">…</span>
           <span id="server-title" class="title"></span>
@@ -68,6 +70,11 @@
           <button id="btn-stop" class="btn danger">Stop</button>
         </div>
         <div id="cc-theme-desktop"><div id="cc-app-theme" class="cc-theme-control"><span>Light</span><button type="button" class="cc-theme-switch" data-theme-toggle role="switch" aria-label="Switch between day and night" aria-checked="true"><span class="cc-thumb" aria-hidden="true"></span></button><span>Dark</span></div></div>
+        <fieldset id="cc-style" class="cc-style-switch">
+          <legend class="sr-only">Interface style</legend>
+          <label><input type="radio" name="cc-style" value="classic" data-style-choice><span>Classic</span></label>
+          <label><input type="radio" name="cc-style" value="modern" data-style-choice checked><span>Modern</span></label>
+        </fieldset>
         <button type="button" id="bell" class="bell" aria-label="Messages" title="Messages" aria-haspopup="dialog" aria-expanded="false" aria-controls="bell-list">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4l2-2Z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg>
           <span id="bell-dot" class="bell-dot hidden" aria-hidden="true"></span>

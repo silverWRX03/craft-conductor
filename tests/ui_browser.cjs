@@ -363,10 +363,10 @@ const assert = require('node:assert/strict');
   await page.locator('.ready-row.green').first().waitFor();
   await page.getByText('This server is set to stay on its current Minecraft version.', {exact:false}).waitFor();
   const color = await page.locator('.dotc.green').first().evaluate(el => getComputedStyle(el).backgroundColor);
-  assert.equal(color, 'rgb(34, 197, 94)');
+  assert.equal(color, 'rgb(134, 239, 172)');  // (Modern's green, the look it has at first)
   await page.waitForTimeout(400);
   await page.evaluate(() => applyTheme('day'));
-  assert.equal(await page.locator('.dotc.green').first().evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(22, 101, 52)');
+  assert.equal(await page.locator('.dotc.green').first().evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(11, 90, 46)');
   await page.evaluate(() => applyTheme('night'));
   await page.getByRole('button', {name:'Check Minecraft 1.21.2', exact:true}).click();
   await page.locator('.inpage-browser').waitFor({state:'detached'});

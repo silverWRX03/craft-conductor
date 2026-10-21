@@ -56,6 +56,8 @@ function resultPager({ list, fetchPage, row, key, empty, onPage, failed, leaveOu
       if (entries.some((e) => e.boundingClientRect.height > 0 && (e.isIntersecting || e.boundingClientRect.bottom <= top))) more();
     });
     io.observe(marker);  // (observing reports where it is right away, so a list that doesn't fill its box keeps going)
+    // and the bottom row: a jump past the marker (dragging the scroll bar) never has it on screen, but the bottom is
+    if (marker !== foot) io.observe(foot);
   };
   const more = async () => {
     if (loading || next === null) return;

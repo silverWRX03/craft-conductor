@@ -75,6 +75,8 @@ STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/manual.md": ("manual.md", "text/markdown; charset=utf-8"),
           "/style.css": ("style.css", "text/css; charset=utf-8"),
           "/craft-conductor-theme.css": ("craft-conductor-theme.css", "text/css; charset=utf-8"),
+          "/craft-conductor-modern.css": ("craft-conductor-modern.css", "text/css; charset=utf-8"),
+          "/appearance.js": ("appearance.js", "text/javascript; charset=utf-8"),
           "/icon.png": ("icon.png", "image/png"),
           "/icon-192.png": ("icon-192.png", "image/png"),
           "/icon-512.png": ("icon-512.png", "image/png"),
@@ -89,6 +91,11 @@ STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
 SCREENSHOTS = sorted(f.name for f in resources.files("craft_conductor").joinpath("webui", "screenshots").iterdir()
                      if f.name.endswith(".png"))
 STATIC.update({f"/screenshots/{name}": (f"screenshots/{name}", "image/png") for name in SCREENSHOTS})
+# Roboto, the pages' font, with its license (webui/fonts): in pieces by alphabet, each fetched only by a page
+# that shows its letters. The names are the folder's own files, never taken from a request.
+FONTS = sorted(f.name for f in resources.files("craft_conductor").joinpath("webui", "fonts").iterdir() if f.name.endswith(".woff2"))
+STATIC.update({f"/fonts/{name}": (f"fonts/{name}", "font/woff2") for name in FONTS})
+STATIC["/fonts/OFL.txt"] = ("fonts/OFL.txt", "text/plain; charset=utf-8")
 SECURITY_HEADERS = {
     "Content-Security-Policy": "default-src 'self'; img-src 'self' https: data:; style-src 'self'; "
                                "script-src 'self'; connect-src 'self'; frame-ancestors 'none'",
