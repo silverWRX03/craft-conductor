@@ -1279,6 +1279,17 @@ def mod_requirements(provider: ModrinthProvider, mod_id: str, loaders: tuple[str
                     return other, other_source, found
         return None
 
+    def early_channel(source: str, project) -> str | None:
+        """With release builds asked for: the early channel (beta, else alpha) a Modrinth mod has a build
+        for this Minecraft in, when it has no release one."""
+        if channel != "release" or source != "modrinth":
+            return None
+        try:
+            versions = [v for v in provider._versions(project.id, loaders, minecraft) if minecraft in v.get("game_versions", [])]
+        except (ModError, HttpError):
+            return None
+        return next((c for c in ("beta", "alpha") if any(provider._acceptable(v, c) for v in versions)), None)
+
     def suggestions(chain: list) -> list[str]:
         """Releases every mod in ``chain`` ((site, project), the picked mod first) has a build for."""
         common: set[str] | None = None
@@ -1397,6 +1408,12 @@ def mod_requirements(provider: ModrinthProvider, mod_id: str, loaders: tuple[str
     chain, checked, unchecked = failure
     names = [p.name for _, p in chain]
     needs = "".join(f", which requires {n}" for n in names[2:])
+    early = early_channel(*chain[-1]) if minecraft else None
+    if early:  # (#133: it has builds, only early ones; adding it asks)
+        return {**base, "compatible": False, "deps": deps, "companions": companions, "chain": names, "early": early,
+                "checked": checked, "suggestions": [],
+                "reason": f"{names[0]} requires {names[1]}{needs}, which only has {early} builds for Minecraft {minecraft} "
+                          f"using {loader_name}."}
     reason = (f"{names[0]} requires {names[1]}{needs}, but no compatible {names[-1]} release was found for "
               f"Minecraft {minecraft} using {loader_name}." if minecraft else
               f"{names[0]} requires {names[1]}{needs}, which has no build for this server type.")
@@ -3489,12 +3506,14 @@ class Api:
                 raise ApiError(400, f"couldn't check {project.name}'s required mods: {e}") from e
             if req is not None:
                 if not req["compatible"] and self.m.lock.minecraft:
-                    if early is None and (only := self._early_only(project)) is not None:  # (#133)
-                        channel, names = only
+                    if early is None and (only := self._early_only(project, len(req.get("chain") or []) > 1)) is not None:  # (#133)
+                        channel, names, takes = only
                         names = names or [project.name]
                         said = names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
+                        # (the mod itself has a release, but added anyway it takes its newer early build: said)
+                        also = f" ({project.name} takes its {channel} builds too)" if takes and project.name not in names else ""
                         raise ApiError(409, f"{said} only {'has' if len(names) == 1 else 'have'} "
-                                            f"{channel} builds for Minecraft {self.m.lock.minecraft}", confirm=f"early:{channel}")
+                                            f"{channel} builds for Minecraft {self.m.lock.minecraft}{also}", confirm=f"early:{channel}")
                     raise ApiError(400, f"can't add {project.name}: " + (req["reason"] or "no compatible build"))
                 deps = req["deps"]
         # The name written to craft-conductor.toml comes from the site's answer (Modrinth allows quote marks in a
@@ -3507,9 +3526,11 @@ class Api:
         log.info("added %s%s", project.name, f" (with {', '.join(d['name'] for d in deps)})" if deps else "")
         return deps
 
-    def _early_only(self, project) -> tuple[str, list[str]] | None:
+    def _early_only(self, project, has_release: bool) -> tuple[str, list[str], bool] | None:
         """A Modrinth mod that can't be added with release builds: the early channel (beta, else alpha)
-        it and what it needs can be, and the mods that only have such builds; None when none can."""
+        it and what it needs can be, the mods that only have such builds (the mod itself only when it
+        has no release: ``has_release``, what it needs failed), and whether the mod takes an early build
+        itself with that channel; None when none can be had."""
         for channel in ("beta", "alpha"):
             try:
                 req = mod_requirements(self._modrinth(), project.id, self.m.loader.mod_loaders, self.m.lock.minecraft,
@@ -3518,9 +3539,10 @@ class Api:
                 return None
             if req is not None and req["compatible"]:
                 early = [d["name"] for d in req["deps"] if d.get("channel") not in (None, "release")]
-                if req.get("channel") not in (None, "release"):
+                takes = req.get("channel") not in (None, "release")
+                if takes and not has_release:
                     early.insert(0, project.name)
-                return channel, early
+                return channel, early, takes
         return None
 
     def _browser(self):

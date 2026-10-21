@@ -8325,5 +8325,15 @@
     "type": "Core",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 951,
+    "section": "Fix: JEI installs on NeoForge 1.21.1 (#158)",
+    "step": "Existing NeoForge 1.21.1 server: add Just Enough Items (JEI) from Modrinth (Add anyway for MezzConfig's beta builds), then Updates → Check now → Update: JEI and MezzConfig install and the server starts, with no \"made for Minecraft 1.21 only\" from Manage Mods, the rehearsal or the update.",
+    "type": "Core",
+    "tags": [
+      "minecraft"
+    ],
+    "source": "added-in-git"
   }
 ]

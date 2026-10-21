@@ -227,11 +227,18 @@ def test_a_mod_whose_required_library_only_has_beta_builds_can_be_added_to_a_ser
     modrinth.version("MEZZ", "0.6.8", ["1.21.1"], version_type="beta")
     modrinth.project("JEIM", "jei", "Just Enough Items (JEI)")
     modrinth.version("JEIM", "19.0", ["1.21.1"], deps=["MEZZ"])
+    modrinth.version("JEIM", "19.1-beta", ["1.21.1"], deps=["MEZZ"], version_type="beta")
     m = hub.get("alpha").m
     assert update(m).ok
     status, r, _ = c.post("/api/servers/alpha/mods/add", {"source": "modrinth", "id": "jei"})
     assert status == 409 and r["confirm"] == "early:beta", r
-    assert "MezzConfig only has beta builds" in r["error"] and "no compatible" not in r["error"]
+    # (JEI has a release: only MezzConfig is said to have nothing but beta builds, and that JEI then takes its betas)
+    assert r["error"].startswith("MezzConfig only has beta builds for Minecraft 1.21.1"), r["error"]
+    assert "Just Enough Items (JEI) takes its beta builds too" in r["error"] and "no compatible" not in r["error"]
+    # The mod browser's line under the selection says so too, before anything is added.
+    r = c.get("/api/servers/alpha/mods/requires?id=jei")[1]
+    assert not r["compatible"] and r.get("early") == "beta", r
+    assert "MezzConfig, which only has beta builds for Minecraft 1.21.1" in r["reason"] and "no compatible" not in r["reason"]
     assert not any(s.id == "jei" for s in configmod.load(m.config.root).mods)  # (nothing added yet)
     # The mod browser's Add selected mods says the same about it, and which channel would do.
     r = c.post("/api/servers/alpha/mods/add-many", {"mods": [{"source": "modrinth", "id": "jei", "name": "JEI"}]})[1]

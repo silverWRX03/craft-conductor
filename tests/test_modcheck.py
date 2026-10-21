@@ -133,7 +133,8 @@ def test_forge_mandatory_dependencies_and_ranges():
     assert [p.kind for p in forge_check(needs, forge_jar("flywheel", "0.6.9"))] == ["version"]
     assert forge_check(needs, forge_jar("flywheel", "0.6.10-7")) == []
     assert [p.kind for p in forge_check(needs, forge_jar("flywheel", "0.6.11"), minecraft="1.21.1")] == ["minecraft"]
-    assert [p.kind for p in forge_check(needs, forge_jar("flywheel", "0.6.11"), loader_version="46.0.1")] == ["loader"]
+    assert [p.kind for p in forge_check(needs, forge_jar("flywheel", "0.6.11"), minecraft="1.20", loader_version="46.0.1")] \
+        == ["loader", "minecraft"]
 
 
 def test_forge_versions_from_the_jar_manifest_and_client_side_dependencies():
@@ -256,5 +257,23 @@ def test_maven_builds_with_a_hyphen_are_compared_the_way_maven_does():
 def test_a_minecraft_range_of_one_version_reads_plainly():
     """[1.21,1.21.1) said "1.21 or later, older than 1.21.1, not 1.21.1": it means 1.21 and nothing after."""
     needs = forge_jar("farmersdelight", "1.0", dep("farmersdelight", "minecraft", "[1.21,1.21.1)", True), name="Farmer's Delight")
-    assert [p.text for p in forge_check(needs, minecraft="1.21.1")] == ["Farmer's Delight 1.0 is made for Minecraft 1.21 only, not 1.21.1."]
+    assert [p.text for p in forge_check(needs, minecraft="1.21.4")] == ["Farmer's Delight 1.0 is made for Minecraft 1.21 only, not 1.21.4."]
     assert modcheck.wanted("forge", ["[1.20,1.22)"]) == "1.20 or later, older than 1.22"
+
+
+def test_what_the_loader_also_takes_for_a_minecraft_version_passes():
+    """NeoForge on 1.21.1 loads a mod made for Minecraft 1.21 (every JEI for 1.21.1 says [1.21, 1.21.1)) or for
+    NeoForge 21.0.166, as its own loader says (FancyModLoader's VersionSupportMatrix); Forge has its own (#158)."""
+    jei = forge_jar("jei", "19.69.0.457", dep("jei", "minecraft", "[1.21, 1.21.1)", kind="required")
+                    + dep("jei", "neoforge", "[21.0.166,21.0.167)", kind="required"),
+                    path="META-INF/neoforge.mods.toml", name="Just Enough Items")
+    assert forge_check(jei, loader="neoforge", minecraft="1.21.1", loader_version="21.1.264") == []
+    assert [p.kind for p in forge_check(jei, loader="neoforge", minecraft="1.21.4", loader_version="21.4.1")] == ["minecraft", "loader"]
+    seven = forge_jar("seven", "1.0", dep("seven", "minecraft", "[1.21.7]", kind="required"), path="META-INF/neoforge.mods.toml")
+    assert forge_check(seven, loader="neoforge", minecraft="1.21.8", loader_version="21.8.1") == []
+    old = forge_jar("old", "1.0", dep("old", "minecraft", "[1.21,1.21.1)", True) + dep("old", "forge", "[51.0.33]", True))
+    assert forge_check(old, minecraft="1.21.1", loader_version="52.1.20") == []
+    assert [p.kind for p in forge_check(old, minecraft="1.21.3", loader_version="53.1.16")] == ["minecraft", "loader"]
+    tight = forge_jar("tight", "1.0", dep("tight", "forge", "[47.1.79,47.1.80)", True))
+    assert forge_check(tight, minecraft="1.20.1", loader_version="47.4.28") == []
+    assert [p.kind for p in forge_check(old, loader="neoforge", minecraft="1.21.1")] == ["missing"]  # (Forge's own ids aren't NeoForge's)

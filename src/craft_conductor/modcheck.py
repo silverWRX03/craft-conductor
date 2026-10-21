@@ -42,6 +42,15 @@ BUILTIN = {
     "forge": ("minecraft", "forge", "fml", "javafml", "lowcodefml", "mcp"),
     "neoforge": ("minecraft", "neoforge", "fml", "javafml", "lowcodefml", "mixinextras"),
 }
+#: Versions the loader takes as well, on one Minecraft version: a mod made for Minecraft 1.21 loads on NeoForge
+#: 1.21.1 (every JEI for 1.21.1 says [1.21, 1.21.1), #158). From each loader line's VersionSupportMatrix.
+ALSO = {
+    ("neoforge", "1.21.1"): {"minecraft": ("1.21",), "neoforge": ("21.0.166",)},
+    ("neoforge", "1.21.8"): {"minecraft": ("1.21.7",), "neoforge": ("21.7.26-beta",)},
+    ("forge", "1.19.2"): {"minecraft": ("1.19.1",), "forge": ("42.0.9",)},
+    ("forge", "1.20.1"): {"forge": ("47.1.79",)},
+    ("forge", "1.21.1"): {"minecraft": ("1.21",), "forge": ("51.0.33",)},
+}
 
 
 @dataclass
@@ -521,6 +530,7 @@ def check(mods: list[ModInfo], *, loader: str, minecraft: str | None, loader_ver
     if loader not in LOADERS:
         return []
     matches = fabric_matches if loader == "fabric" else maven_matches
+    also = ALSO.get((loader, minecraft), {})
     loaded = [m for m in mods if m.side in ("both", side)]
     have: dict[str, list[tuple[str | None, str]]] = {}   # mod id -> [(version, name)]
     for m in loaded:
@@ -557,6 +567,8 @@ def check(mods: list[ModInfo], *, loader: str, minecraft: str | None, loader_ver
             else:
                 results = [matches(v, dep.ranges) if v is not None else None for v, _ in present]
                 if any(r is not False for r in results):
+                    continue
+                if any(matches(v, dep.ranges) is True for v in also.get(dep.id, ())):
                     continue
                 v, name = present[0]
                 if dep.id == "minecraft":
