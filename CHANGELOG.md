@@ -4,7 +4,7 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
-## 0.30.1 (not released yet)
+## 0.30.1 (2026-10-21)
 
 **Fixed**
 - After **Craft Conductor settings → Folders** moved the servers (or the backups, or the exports) to another drive, files that hold a secret had that folder's permissions, readable by every account on the computer: a server's `server.properties` with Minecraft's management secret until the server started again, and backups with their locked part. They're now this account's only in their new place, as they were before. A `server.properties` with its passwords put back by restoring a backup was the same until the server started; it's private at once now too (#138).
