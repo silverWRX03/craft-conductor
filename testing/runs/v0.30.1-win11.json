@@ -60,7 +60,8 @@
     948,
     949,
     950,
-    951
+    951,
+    952
   ],
   "results": {
     "950": {
@@ -195,6 +196,13 @@
       "tester": "Claude",
       "notes": "Partly done, the rest needs the owner. CurseForge route on the CI build, isolated install with a CurseForge key: New server -> A modpack -> All the Mods 11 0.11.1-beta (pack applied: 246 mods, 21 for players; the setup said 1 of the pack's players-only mods stays on the server because the pack's server mods require it: #135), made and test-started. Changed config/comforts-server.toml by hand and removed FastFurnace in Manage Mods. Updates -> Look for a new version of the pack listed 0.12.0-beta; See what changes: 20 added, 47 move to the pack's new files, FastFurnace stays left out, changed config files kept. Update the pack: backup, then updated (20 added, 47 moved, changes kept), the server started on 0.12.0-beta (Done); the config change is still there, FastFurnace stays out, Stellaris 2.0.7 and Sky Aesthetics 2.1.4 are both on the server (the 0.29.0 failure). Not done: a friend joining on the pack's new version (needs a Minecraft client), the Modrinth pack route, and a version that fails being put back. The server pack (556 MB) was too big to read (#92).",
       "evidence": "PR #157 CI test build (test.yml run 39649348536, commit 05b43f3)"
+    },
+    "952": {
+      "status": "pass",
+      "tested_at": "2026-10-21T20:20:29+00:00",
+      "tester": "Claude",
+      "notes": "Chrome on Windows 11, isolated install, Fabric 1.21.1 server with Fabric API (Modrinth) and AppleSkin (added from CurseForge, which needs Fabric API) installed, the server from test 946. Manage Mods lists Fabric API once: selected by you, \"also needed by AppleSkin\", no dependency row; the count says 3 total, 0 dependencies. Remove on AppleSkin asked only \"Remove AppleSkin? It's uninstalled at the next update.\"; Check now listed - AppleSkin only; after Apply update the server started with Fabric API still installed.",
+      "evidence": "PR #157 CI test build (test.yml run 39667033920, commit c631c51)"
     }
   },
   "notes": "Started on the PR #157 CI test build (test.yml run 39615873563, commit e0122fb; reports 0.30.0 before the version bump). Fix retests only for now; the release-gate cases are left for later."
