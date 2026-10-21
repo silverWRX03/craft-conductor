@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "id": "v0.30.0-win11",
+  "cc_version": "0.30.0",
+  "minecraft_version": "",
+  "os": "Windows 11",
+  "kind": "feature",
+  "created_at": "2026-10-20T21:31:45+00:00",
+  "features": [
+    931,
+    932,
+    933,
+    936,
+    937,
+    938
+  ],
+  "fixes": [
+    934,
+    935
+  ],
+  "required_ids": [
+    802,
+    803,
+    804,
+    805,
+    806,
+    807,
+    808,
+    809,
+    810,
+    811,
+    812,
+    813,
+    814,
+    815,
+    816,
+    817,
+    818,
+    819,
+    820,
+    821,
+    931,
+    932,
+    933,
+    934,
+    935,
+    936,
+    937,
+    938
+  ],
+  "results": {
+    "936": {
+      "status": "pass",
+      "tested_at": "2026-10-20T21:40:44+00:00",
+      "tester": "Claude",
+      "notes": "Chrome on Windows 11, isolated install with a running Fabric test server. Modern Dark and Light on Dashboard (stopped, starting, running), Console, Server settings, Check my setup, the bell's messages and the config editor: dark base with lighter tonal panels and cyan, light grey-white with white panels and deep cyan, rounded lit panels with soft shadows and no grid, cyan glow on the open page, the Running pill and Start/Send while text stays crisp, Stopped grey, console and editor dark in Light. With Display > Motion set to Normal, Restart, Console menu link and New server lift 2px with a bigger shadow; the server card and the Dashboard cards stay still. Classic Dark and Light on the same screens look as before (square, capitals, orange, graph paper).",
+      "evidence": "PR #148 CI test build (test.yml run 39492517482, commit 6131cbf; served stylesheet matches the commit)"
+    },
+    "937": {
+      "status": "pass",
+      "tested_at": "2026-10-20T23:47:24+00:00",
+      "tester": "Claude + Owner",
+      "notes": "Retest after the fix (b063eae): Skip to main content is now 44 pixels in Modern Light and Dark, like every other target. Claude: all buttons, menu links, switches, fields and Help/manual contents links at least 44 pixels on 14 pages; Tab on Dashboard, Settings and a dialog shows the cyan (Light: deep cyan) ring on every stop; Display High contrast works in Modern; Less motion and Windows animation effects off stop the lift. Owner: browser zoom 200% and 400% fit without sideways scrolling or cut-off; Windows Contrast themes on then off keep edges and the open page's bar visible.",
+      "evidence": "PR #148 CI test build (test.yml run 39516616440, commit b063eae; served stylesheet matches the commit)",
+      "supersedes": {
+        "status": "fail",
+        "tested_at": "2026-10-20T21:43:53+00:00",
+        "tester": "Claude",
+        "notes": "Failed: Skip to main content (shown on the first Tab) is 43 px tall in Modern, not 44. Everything else measured in Chrome on 14 pages is at least 44x44 with a mouse (buttons, fields, menu links, both switches, Help and manual contents links). Tab walks: Dashboard 39 stops, Settings 45 stops and Check my setup all show the thick cyan ring; the dialog keeps Tab inside and Escape returns to its button. Display High contrast in Modern: black or white, visible edges, underlined links, cyan, no shadows. Windows animation effects off (Automatic) and Display Less motion: nothing lifts. Not done on this build: browser zoom 200% and 400%, Windows Contrast themes (owner's steps).",
+        "evidence": "PR #148 CI test build (test.yml run 39492517482, commit 6131cbf)"
+      }
+    },
+    "931": {
+      "status": "pass",
+      "tested_at": "2026-10-20T23:47:23+00:00",
+      "tester": "Claude + Owner",
+      "notes": "Chrome on Windows 11, isolated install. Claude: a fresh browser starts at Modern; switched with the mouse and with Tab and the arrow keys (thick ring, orange in Classic, cyan in Modern); a half-typed setting, the scroll and the console's lines were kept; all four (Classic and Modern, each Light and Dark) on Dashboard, Console, Settings, Check my setup and the config editor: readable, console and editor dark in Modern Light. Owner: NVDA reads the switch as Interface style, Classic or Modern, checked.",
+      "evidence": "PR #148 CI test builds (commits 6131cbf and b063eae)"
+    },
+    "932": {
+      "status": "pass",
+      "tested_at": "2026-10-20T23:47:23+00:00",
+      "tester": "Claude",
+      "notes": "Chrome on Windows 11. Owner chose Classic: still Classic after reload and after closing and reopening the tab; the sign-in page showed Classic. Signed in on the same browser as an invited person: Modern (their own default); chose Classic then Modern for them; signed back in as the owner: Classic again. Light / Dark stayed the browser's own choice throughout. A fresh Microsoft Edge profile (155) started at Modern with nothing stored. (Closing the tab, not a full Chrome restart, was checked.)",
+      "evidence": "PR #148 CI test build (test.yml run 39516616440, commit b063eae; served stylesheet matches the commit)"
+    },
+    "938": {
+      "status": "pass",
+      "tested_at": "2026-10-21T00:22:03+00:00",
+      "tester": "Claude + Owner",
+      "notes": "Recheck after the fix (79ca80a), as the earlier pass heard the title twice on some pages. Owner (NVDA, earlier build): on Your servers the top bar's title is read first as a level 1 heading (that page is unchanged). Claude (Chrome, Classic and Modern): on Your servers, a server's Dashboard and Settings, Help, User manual, Craft Conductor settings and New server the page's title is the first heading and the only level 1 heading; cards' headings come after it. Chrome's accessibility tree shows the top bar's copy of the title as plain text on the pages with their own title, so it is heard once.",
+      "evidence": "PR #148 CI test build (test.yml run 39518827741, commit 79ca80a; served app.js matches the commit)",
+      "supersedes": {
+        "status": "pass",
+        "tested_at": "2026-10-20T23:47:24+00:00",
+        "tester": "Claude + Owner",
+        "notes": "Owner: NVDA headings on Your servers read the top bar's title first, Your servers, level 1. Claude (Chrome DOM, same tags in both looks): the page title is the first heading and level 1 on Your servers, a server's Dashboard and Settings, Help, User manual and Craft Conductor settings; cards' headings come after it. Note: on Help, User manual, New server and Craft Conductor settings the title appears twice as level 1 (top bar and page), as it did at level 2 before.",
+        "evidence": "PR #148 CI test build (test.yml run 39516616440, commit b063eae; served stylesheet matches the commit)"
+      }
+    },
+    "933": {
+      "status": "not-tested",
+      "tested_at": "2026-10-21T00:18:13+00:00",
+      "tester": "Owner",
+      "notes": "Partly done, on a real iPhone and Android phone over Tailscale (the home-network address timed out from the phone; nothing reached the PC, so not counted against Craft Conductor): in both looks the switch sits beside the bell without covering the menu, the title or Start/Stop, everything is easy to tap and nothing scrolls sideways. Not done yet: the font with the network cut after the first load, and a friend's invite page in Modern.",
+      "evidence": "PR #148 CI test build (test.yml run 39516616440, commit b063eae)"
+    }
+  },
+  "notes": "Started on the PR #148 CI test build (commit 6131cbf, reports 0.29.0 before the version bump); results on later builds are recorded separately."
+}
