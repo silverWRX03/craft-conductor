@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "id": "v0.30.1-win11",
+  "cc_version": "0.30.1",
+  "minecraft_version": "",
+  "os": "Windows 11",
+  "kind": "patch",
+  "created_at": "2026-10-21T15:12:27+00:00",
+  "features": [],
+  "fixes": [
+    814,
+    819,
+    857,
+    910,
+    913,
+    922,
+    941,
+    942,
+    943,
+    944,
+    945,
+    946,
+    947,
+    948,
+    949,
+    950
+  ],
+  "required_ids": [
+    802,
+    803,
+    804,
+    805,
+    806,
+    807,
+    808,
+    809,
+    810,
+    811,
+    812,
+    813,
+    814,
+    815,
+    816,
+    817,
+    818,
+    819,
+    820,
+    821,
+    857,
+    910,
+    913,
+    922,
+    941,
+    942,
+    943,
+    944,
+    945,
+    946,
+    947,
+    948,
+    949,
+    950
+  ],
+  "results": {
+    "950": {
+      "status": "pass",
+      "tested_at": "2026-10-21T15:25:33+00:00",
+      "tester": "Claude",
+      "notes": "Chrome on Windows 11, fresh install in a new folder. After choosing the password, Where should Craft Conductor keep your files? -> Exports -> Change... opened on Craft Conductor's own folder with no error, Up listed its folders, Up again reached the drive (E:\\) and then This computer (Home, Desktop, Documents, Downloads, C:\\, D:\\, E:\\) without typing a path.",
+      "evidence": "PR #157 CI test build (test.yml run 39615873563, commit e0122fb)"
+    },
+    "948": {
+      "status": "pass",
+      "tested_at": "2026-10-21T15:27:46+00:00",
+      "tester": "Claude",
+      "notes": "Chrome on Windows 11, isolated install. Paper 1.21.1 (build 133) server with Chunky 1.4.40 and TAB 6.2.1 from Modrinth, started from the page; Console -> plugins: the Console and the Dashboard's live console show \"Server Plugins (2):\", \"Bukkit Plugins:\" and \" - Chunky, TAB\" with no colour codes, and \"[TAB] Enabled in 346ms\" too; no escape or [38;2...m codes anywhere in either console's text.",
+      "evidence": "PR #157 CI test build (test.yml run 39615873563, commit e0122fb)"
+    },
+    "942": {
+      "status": "pass",
+      "tested_at": "2026-10-21T15:32:08+00:00",
+      "tester": "Claude",
+      "notes": "Chrome on Windows 11, isolated install, running Paper 1.21.1 server. Settings -> Export server... with everything, then as soon as it finished (11 s later, same minute) again without the world and with IP bans ticked (a ban-ip of a documentation address): both finished, \"test <date> 1030.craft-conductor.zip\" and \"test <date> 1030 (2).craft-conductor.zip\" (password shown once). The page runs one export at a time, so the second starts after the first. Import a server... listed both; (2) asked for the password and imported without a world and with the IP ban; the other imported with its worlds and no IP bans. Imports renamed to test (2)/(3) with free ports.",
+      "evidence": "PR #157 CI test build (test.yml run 39615873563, commit e0122fb)"
+    },
+    "941": {
+      "status": "pass",
+      "tested_at": "2026-10-21T15:36:41+00:00",
+      "tester": "Claude",
+      "notes": "Chrome on Windows 11, isolated install, three stopped servers (754 MB) in a folder on C:. Folders -> Servers -> Change... to a new folder on E:, Move; when 350 MB had been copied Craft Conductor was ended by force (taskkill /F, as Task Manager's End task) and started again: it said everything was put back in the C: folder, the C: folder had all three servers, the E: folder was empty. Craft Conductor settings showed \"Moving the servers was stopped halfway: everything was put back in ...\" once, and the bell listed it once. Folders, leaving and opening settings again, a reload with sign-in, and a second tab: not shown again. Another browser wasn't tried.",
+      "evidence": "PR #157 CI test build (test.yml run 39615873563, commit e0122fb)"
+    },
+    "922": {
+      "status": "pass",
+      "tested_at": "2026-10-21T15:43:36+00:00",
+      "tester": "Claude",
+      "notes": "Chrome on Windows 11, isolated install, Paper servers in a folder on C:. Made a backup (before-change) in the server's own folder; gave test-3 its own backups folder in craft-conductor.toml by hand. Folders -> Backups -> Change... to a new folder on E:: the question said test-3 keeps its own folder (named it); the backup moved to <folder>\\test and the old folder was removed; test-3's setting unchanged. Back up now and a scheduled daily backup (set for two minutes later) both went to the E: folder. Roll back to this on the backup made before the change (#136): the server's settings went back (the later backup schedule was undone) but [backups] dir still named the E: folder and all three backups stayed listed. Keep them in each server's folder moved all three back to the server's folder, removed the E: folder, and left test-3's own folder setting alone.",
+      "evidence": "PR #157 CI test build (test.yml run 39615873563, commit e0122fb)"
+    },
+    "945": {
+      "status": "fail",
+      "tested_at": "2026-10-21T15:50:11+00:00",
+      "tester": "Claude",
+      "notes": "Chrome on Windows 11, isolated install, existing NeoForge 1.21.1 (21.1.264) server with the friends' download on. Fixed part works: Quick add search -> Just Enough Items (JEI) -> Add, and the mod browser's Add selected mods, both ask \"Just Enough Items (JEI) and MezzConfig only have beta builds for Minecraft 1.21.1 ... Add it anyway?\"; Add anyway added it; Check now listed + JEI 19.69.0.457 and + MezzConfig 0.6.8. Failed: (1) the update can't install: the check says \"Just Enough Items 19.69.0.457 is made for Minecraft 1.21 only, not 1.21.1\" (its mods.toml says minecraft [1.21, 1.21.1), as do all JEI builds for 1.21.1), and Update anyway is refused the same way. But NeoForge itself loads both and starts (checked on a copy: Done, no warning): FML's VersionSupportMatrix accepts mods made for Minecraft 1.21 (and NeoForge 21.0.166) on 1.21.1, which Craft Conductor's check doesn't know. (2) The mod browser's selection line still says \"no compatible MezzConfig release was found\" before the question. (3) The question names JEI as beta-only though JEI has a release build (19.64.0.455); with the beta channel JEI's newest beta is picked.",
+      "evidence": "PR #157 CI test build (test.yml run 39615873563, commit e0122fb)"
+    },
+    "943": {
+      "status": "pass",
+      "tested_at": "2026-10-21T15:52:24+00:00",
+      "tester": "Claude",
+      "notes": "Chrome on Windows 11, isolated install, NeoForge 1.21.1 server with the friends' download on. Mods -> Download mods -> Modrinth -> Sophisticated Backpacks -> Add selected mods (it said it also adds Sophisticated Core): friends get 2 mods. Before any update, Manage Mods -> Remove Sophisticated Backpacks: after the usual confirmation it asked \"Sophisticated Backpacks and Sophisticated Core are also in your friends' mods. Remove them from their download too?\" (names, not slugs); Remove from friends' mods left the friends' download with 0 mods. The same happened for JEI added by Quick add (\"Just Enough Items (JEI) and MezzConfig are also in your friends' mods...\").",
+      "evidence": "PR #157 CI test build (test.yml run 39615873563, commit e0122fb)"
+    },
+    "949": {
+      "status": "pass",
+      "tested_at": "2026-10-21T15:55:07+00:00",
+      "tester": "Claude",
+      "notes": "Chrome on Windows 11, isolated install, NeoForge 1.21.1 server with FerriteCore; window 2560 CSS px wide. Mods -> Test these mods -> Start a test boot -> Keep working: \"Testing mods\" is a small message at the top. When it ended, \"Mod test finished / The server started with these mods\" was in the middle (card centre at 1280 of 2560 and 593 of 1185 px), the whole page dimmed (70% black) and blurred (5px) behind it, and points all over the page (corners, top, bottom) hit the dimmed layer, not the page. See the results opened the results; on a second run Close closed the message.",
+      "evidence": "PR #157 CI test build (test.yml run 39615873563, commit e0122fb)"
+    },
+    "944": {
+      "status": "pass",
+      "tested_at": "2026-10-21T15:57:59+00:00",
+      "tester": "Claude",
+      "notes": "Chrome on Windows 11, isolated install. New server, NeoForge, Minecraft 1.21.1, friends' download on: mod browser -> Modrinth -> Just Enough Items (JEI) -> Add selected mods asked \"MezzConfig only has alpha or beta builds ... Add it anyway?\"; Cancel left JEI's row saying Dependency unavailable. Remove Just Enough Items (JEI) in that box asked \"Just Enough Items (JEI) and MezzConfig are also in your friends' mods. Remove them from their download too?\"; Remove from friends' mods said both were removed and Your friends' mods was empty. Create my server then went ahead and made the server (NeoForge 21.1.264, no mods). Not tried: Add anyway on New server (JEI then hits the 1.21-only check seen in 945).",
+      "evidence": "PR #157 CI test build (test.yml run 39615873563, commit e0122fb)"
+    },
+    "819": {
+      "status": "pass",
+      "tested_at": "2026-10-21T16:12:36+00:00",
+      "tester": "Claude",
+      "notes": "Chrome on Windows 11, isolated install. NeoForge 1.21.1 (21.1.264) server running, update = adding FerriteCore 7.0.3. Rehearse it on a copy first while the server ran (#131: the copy no longer stops on the locked session.lock): copied 0.19 GB, started in 13.3 s, 20 TPS, never fell behind, ran 3 min, verdict worked; mods that complained: FerriteCore 10 warnings, 3 other warnings, no errors. Update for real: backup made, FerriteCore installed, server started (Done); the real server's log had 0 errors and 13 warnings, 10 of them FerriteCore's: the same as the rehearsal reported.",
+      "evidence": "PR #157 CI test build (test.yml run 39615873563, commit e0122fb)"
+    },
+    "814": {
+      "status": "fail",
+      "tested_at": "2026-10-21T16:14:57+00:00",
+      "tester": "Claude",
+      "notes": "Chrome on Windows 11 (English), CI build with Craft Conductor's own folder named with Japanese letters on C: (short names on). New vanilla 26.3 server: Craft Conductor downloaded Java 25 into its folder and started it by the short name (C:\\cc\\V030~2.1-C\\...\\java.exe), which gets past the launcher, but the server didn't start: the JVM looks for lib\\modules and net.dll under its long path with the Japanese letters as ??? (UnsatisfiedLinkError ... net.dll: Can't find dependent libraries); the setup rolled back cleanly. Checked by hand: started by short name or through a directory junction, java -version works and java.home is the short/junction path, but running any jar fails the same way, because Windows resolves jvm.dll's own path to the real long one. So #139's short-name fix only fixes java -version, not running servers.",
+      "evidence": "PR #157 CI test build (test.yml run 39615873563, commit e0122fb)"
+    }
+  },
+  "notes": "Started on the PR #157 CI test build (test.yml run 39615873563, commit e0122fb; reports 0.30.0 before the version bump). Fix retests only for now; the release-gate cases are left for later."
+}

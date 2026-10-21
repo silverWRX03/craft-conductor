@@ -16,6 +16,7 @@ import pytest
 from craft_conductor import backup, config as configmod, setup as setupmod
 from craft_conductor.http import HashMismatch
 from craft_conductor.java import ADOPTIUM, LEASES, JavaError, JavaInfo, JavaManager, parse_info
+from craft_conductor.java import default_store as real_default_store  # (conftest gives each test its own)
 
 from conftest import FakeLoader, FakeMojang
 from test_manager import update
@@ -317,49 +318,80 @@ def in_code_page(path: str) -> bool:
         return False
 
 
-def short_names_here(folder: Path) -> bool:
-    import ctypes
-    buf = ctypes.create_unicode_buffer(32768)
-    return 0 < ctypes.windll.kernel32.GetShortPathNameW(str(folder), buf, len(buf)) and in_code_page(buf.value)
-
-
-@windows_only
-def test_java_in_a_folder_with_letters_outside_the_code_page_is_started_by_its_short_name(tmp_path, http):
-    """Windows' Java can't find its own java.dll in a folder named with letters outside the computer's
-    code page ("could not find java.dll"): Craft Conductor's folder in a user folder named in Japanese on an
-    English Windows (#139). The Java it downloads there is started by the folder's short name."""
-    store = tmp_path / "日本語-ünïcødé" / "java"
-    store.mkdir(parents=True)
-    if not short_names_here(store):
-        pytest.skip("this drive keeps no short names")
-    publish(http, 21, "jdk-21.0.4+7")
-    jm = JavaManager(server(tmp_path, "S"), http, platform_fn=LINUX_X64, store=store)
-    binary = jm.select(21)
-    assert in_code_page(binary) and "日本語" not in binary, binary
-    assert os.path.samefile(binary, jm.installed()[21].binary)
-    assert jm.select(21) == binary  # (the shared one, the second time)
-
-
-@windows_only
-def test_the_probe_starts_java_by_its_short_name(tmp_path, monkeypatch):
+@pytest.fixture
+def japanese_home(tmp_path, monkeypatch):
+    """Craft Conductor's folder named with letters outside an English Windows' code page (a user folder
+    named in Japanese, #139), and a ProgramData of the test's own."""
     from craft_conductor import java as javamod
-    folder = tmp_path / "日本語"
-    folder.mkdir()
-    if not short_names_here(folder):
-        pytest.skip("this drive keeps no short names")
-    binary = folder / "java.exe"
-    binary.write_bytes(b"")
-    seen = {}
+    home = tmp_path / "日本語" / "craft-conductor"
+    home.mkdir(parents=True)
+    monkeypatch.setenv("CRAFT_CONDUCTOR_HOME", str(home))
+    monkeypatch.setenv("ProgramData", str(tmp_path / "ProgramData"))
+    (tmp_path / "ProgramData").mkdir()
+    monkeypatch.setattr(javamod, "default_store", real_default_store)
+    javamod._plain_store.cache_clear()
+    yield home
+    javamod._plain_store.cache_clear()
 
-    def run(argv, **kw):
-        seen["argv"] = argv
-        return subprocess.CompletedProcess(argv, 0, "", 'openjdk version "21.0.4"\n    os.arch = amd64\n')
-    monkeypatch.setattr(javamod.shutil, "which", lambda b: str(binary))
-    monkeypatch.setattr(javamod.subprocess, "run", run)
-    assert javamod.run_version(str(binary)) == JavaInfo(21, "x64")
-    assert in_code_page(seen["argv"][0]) and os.path.samefile(seen["argv"][0], binary)
-    plain = tmp_path / "java.exe"  # (a path that's fine stays as it is)
-    assert javamod.run_version(str(plain)) and seen["argv"][0] == str(plain)
+
+@windows_only
+def test_java_for_a_folder_it_cant_run_from_goes_in_a_plain_letter_folder(tmp_path, http, japanese_home):
+    """Windows' Java finds its own files (net.dll, lib\\modules) by its folder's real name, through the
+    computer's code page: in a folder named 日本語 on an English Windows it gets "???" and can't run a
+    server, whatever name it was started by (a short name or a junction resolve to the real one). So
+    the Java Craft Conductor downloads then goes in a folder of this account's own in ProgramData."""
+    from craft_conductor import java as javamod, private
+    store = javamod.default_store()
+    assert store.parent == tmp_path / "ProgramData" and store.name.startswith("craft-conductor-java-S-1-")
+    assert in_code_page(str(store)) and store.is_dir()
+    rights = subprocess.run(["icacls", str(store)], capture_output=True, text=True).stdout
+    assert "BUILTIN\\Users" not in rights and "Authenticated Users" not in rights and "(I)" not in rights, rights
+    publish(http, 21, "jdk-21.0.4+7")
+    jm = JavaManager(server(tmp_path, "S"), http, platform_fn=LINUX_X64)
+    binary = jm.select(21)
+    assert Path(binary).is_relative_to(store) and in_code_page(binary), binary
+    assert "(I)" in subprocess.run(["icacls", binary], capture_output=True, text=True).stdout  # (inherits the folder's)
+    assert private.own_folder(store)  # (the second time: it's there, and this account's)
+
+
+@windows_only
+def test_a_plain_letter_folder_another_account_made_isnt_used(tmp_path, http, japanese_home, monkeypatch):
+    """ProgramData is every account's: a folder of that name another account made first could hold
+    anything, so Java isn't taken from it or put in it. Craft Conductor says why before downloading."""
+    from craft_conductor import java as javamod, private
+    monkeypatch.setattr(private, "_owner_sid", lambda path: "S-1-5-21-1-2-3-1001")
+    store = javamod.default_store()
+    assert store == japanese_home.resolve() / ".craft-conductor" / "java"
+    link = publish(http, 21, "jdk-21.0.4+7")
+    jm = JavaManager(server(tmp_path, "S"), http, platform_fn=LINUX_X64)
+    with pytest.raises(JavaError, match="Java can't start from .*install Java 21 yourself"):
+        jm.select(21)
+    assert downloads(http, link) == 0 and 21 not in jm.installed()
+
+
+@windows_only
+def test_the_plain_letter_folder_is_checked_each_time(tmp_path, http, japanese_home, monkeypatch):
+    """Made another account's while Craft Conductor runs (deleted, then made again by someone else):
+    the Java in it isn't run, and none is put in it."""
+    from craft_conductor import private
+    link = publish(http, 21, "jdk-21.0.4+7")
+    jm = JavaManager(server(tmp_path, "S"), http, platform_fn=LINUX_X64)
+    assert jm.select(21) and 21 in jm.installed()
+    monkeypatch.setattr(private, "_owner_sid", lambda path: "S-1-5-21-1-2-3-1001")
+    assert jm.installed() == {}
+    with pytest.raises(JavaError, match="isn't this account's own folder any more"):
+        jm.select(21)
+    assert downloads(http, link) == 1
+
+
+@windows_only
+def test_a_link_in_place_of_the_plain_letter_folder_isnt_followed(tmp_path, japanese_home):
+    from craft_conductor import private
+    target = tmp_path / "elsewhere"
+    target.mkdir()
+    link = tmp_path / "ProgramData" / "link"
+    subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)], capture_output=True, check=True)
+    assert not private.own_folder(link)
 
 
 def test_off_windows_any_folder_name_will_do(monkeypatch):
@@ -377,10 +409,9 @@ def test_java_downloads_into_a_folder_named_in_japanese_off_windows(tmp_path, ht
 
 
 def test_java_isnt_downloaded_where_it_couldnt_start(tmp_path, http, monkeypatch):
-    """Where there's no short name to use (a drive that keeps none), it says why before downloading."""
+    """Where no plain-letter folder can be had, it says why before downloading."""
     from craft_conductor import java as javamod
     monkeypatch.setattr(javamod, "_in_code_page", lambda p: "日本語" not in p)
-    monkeypatch.setattr(javamod, "launchable", lambda p: p)  # (no short names)
     link = publish(http, 21, "jdk-21.0.4+7")
     jm = JavaManager(server(tmp_path, "S"), http, platform_fn=LINUX_X64, store=tmp_path / "日本語" / "java")
     with pytest.raises(JavaError, match="Java can't start from .*install Java 21 yourself"):

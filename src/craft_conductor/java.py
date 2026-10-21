@@ -56,9 +56,39 @@ class JavaError(Exception):
 
 
 def default_store() -> Path:
-    """The shared Java folder: in Craft Conductor's own folder, next to the servers (``/data`` in Docker)."""
+    """The shared Java folder: in Craft Conductor's own folder, next to the servers (``/data`` in Docker).
+    On Windows, Java can't run from a folder named with letters outside the computer's code page (日本語 on
+    an English Windows, as in a user folder: Java finds its own files by its folder's real name, through
+    the code page, and gets "???", #139), so then it's a folder of this account's own in ProgramData."""
     home = Path(os.environ.get("CRAFT_CONDUCTOR_HOME") or Path.home() / "craft-conductor")
-    return home.resolve() / ".craft-conductor" / "java"
+    store = home.resolve() / ".craft-conductor" / "java"
+    if os.name == "nt" and not _in_code_page(str(store)):
+        from . import private
+        plain = _plain_store()
+        if plain is not None and private.own_folder(plain):  # (else installing says why)
+            if plain not in _said:
+                _said.add(plain)
+                log.info("Java can't run from %s (its name has letters outside this computer's code page): "
+                         "the Java Craft Conductor downloads goes in %s instead", store, plain)
+            return plain
+    return store
+
+
+_said: set[Path] = set()
+
+
+@lru_cache(maxsize=1)
+def _plain_store() -> Path | None:
+    """``C:\\ProgramData\\craft-conductor-java-<this account's SID>``: plain letters, whatever the account's
+    name. It's only used while it's this account's own (private.own_folder): ProgramData is every account's,
+    and another's folder of that name could hold anything."""
+    from . import private
+    try:
+        folder = Path(os.environ.get("ProgramData") or r"C:\ProgramData") / f"craft-conductor-java-{private.account_sid()}"
+    except OSError as e:
+        log.warning("no folder for Java outside Craft Conductor's (%s)", e)
+        return None
+    return folder if _in_code_page(str(folder)) else None
 
 
 # ------------------------------------------------------------------ what a Java is
@@ -131,19 +161,6 @@ def _in_code_page(path: str) -> bool:
         return False
 
 
-def launchable(path: str) -> str:
-    """``path`` as Java can be started from it. On Windows, Java finds its own files (java.dll) through
-    the computer's code page, so it can't start from a folder whose name has letters outside it (日本語 on
-    an English Windows: #139): such a path is given in its short form (``C:\\Users\\5E74~1\\...``), which
-    is plain letters, when the drive keeps short names (the C: drive does). As it is otherwise."""
-    if os.name != "nt" or _in_code_page(path):
-        return path
-    import ctypes
-    buf = ctypes.create_unicode_buffer(32768)
-    n = ctypes.windll.kernel32.GetShortPathNameW(path, buf, len(buf))
-    return buf.value if 0 < n < len(buf) and _in_code_page(buf.value) else path
-
-
 def run_version(binary: str) -> JavaInfo | None:
     """What a Java is: its version and architecture, from running it with ``-version`` (nothing else runs).
     Raises :class:`NoAnswer` when it couldn't be run."""
@@ -152,7 +169,7 @@ def run_version(binary: str) -> JavaInfo | None:
     from .desktop import NO_WINDOW, child_env
     env = {k: v for k, v in child_env().items() if k.upper() not in _JAVA_ENV}
     try:
-        out = subprocess.run([launchable(binary), "-XshowSettings:properties", "-version"], capture_output=True, text=True,
+        out = subprocess.run([binary, "-XshowSettings:properties", "-version"], capture_output=True, text=True,
                              errors="replace", timeout=20, env=env, stdin=subprocess.DEVNULL, **NO_WINDOW)
     except (OSError, subprocess.SubprocessError, ValueError) as e:
         raise NoAnswer(f"{binary}: {e}") from e
@@ -362,9 +379,13 @@ def _alive(pid: int) -> bool:
 class Store:
     """The folder of downloaded runtimes every server on this computer shares."""
 
-    def __init__(self, root: Path, grace: float | None = None):
+    def __init__(self, root: Path, grace: float | None = None, guard: Callable[[], bool] | None = None):
         self.root = root
         self.grace = GRACE if grace is None else grace
+        self.guard = guard  # (a folder in a place every account can write to: whether it's still this account's)
+
+    def trusted(self) -> bool:
+        return self.guard is None or self.guard()
 
     # ------------------------------------------------------------ releases
     def _read(self, folder: Path) -> ManagedJava | None:
@@ -386,7 +407,7 @@ class Store:
     def releases(self) -> dict[int, list[ManagedJava]]:
         """Each Java version's releases here, newest first."""
         out: dict[int, list[ManagedJava]] = {}
-        if not self.root.is_dir():
+        if not self.root.is_dir() or not self.trusted():
             return out
         for major_dir in self.root.iterdir():
             if not major_dir.name.isdigit() or not major_dir.is_dir() or major_dir.is_symlink():
@@ -564,7 +585,12 @@ class JavaManager:
         self.config = config
         self.http = http or HttpClient()
         self.platform = platform_fn or host_platform
-        self.store = Store(store or default_store())
+        root = store or default_store()
+        if store is None and os.name == "nt" and root == _plain_store():
+            from . import private
+            self.store = Store(root, guard=lambda: private.own_folder(root))
+        else:
+            self.store = Store(root)
         self.scan = scan                        # look for Java installed on the computer
         self.folders = folders_fn or install_folders
         self.temporary = False                  # a throwaway copy (test boot, preview, rehearsal): not noted
@@ -615,11 +641,14 @@ class JavaManager:
             if have and have.release == release["release_name"]:
                 return have
             root.mkdir(parents=True, exist_ok=True)
-            if launchable(str(root)) == str(root) and not _in_code_page(str(root)):
+            if not self.store.trusted():
+                raise JavaError(f"{root} isn't this account's own folder any more, so Java isn't put in it: "
+                                f"delete it, or install Java {major} yourself (adoptium.net): Craft Conductor finds it")
+            if not _in_code_page(str(root)):
                 raise JavaError(
                     f"Java can't start from {root}: Windows' Java finds its own files only in folders whose names "
-                    "use your Windows language's letters, and this one has others (and its drive keeps no short "
-                    "names to use instead). Choose a folder for Craft Conductor with such a name (CRAFT_CONDUCTOR_HOME), "
+                    "use your Windows language's letters, and this one has others (and no other folder could be "
+                    "made for it). Choose a folder for Craft Conductor with such a name (CRAFT_CONDUCTOR_HOME), "
                     f"or install Java {major} yourself (adoptium.net): Craft Conductor finds it")
             target = root / str(major) / name
             if target.exists():
@@ -850,7 +879,7 @@ class JavaManager:
             raise JavaError(f"Minecraft needs Java {c.wanted}: {c.note}.{hint} Run `craft-conductor java install "
                             f"{c.wanted}`, or set it under [java.versions] in craft-conductor.toml")
         self._note(c)
-        return launchable(c.binary)
+        return c.binary
 
     def _newer_shared(self, wanted: int) -> list[Found]:
         return [Found(str(j.binary), "shared", JavaInfo(m)) for m, j in self.store.newest().items() if m > wanted]
