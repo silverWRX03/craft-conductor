@@ -121,6 +121,27 @@ class NoAnswer(Exception):
     scanning it say): unlike one that ran and isn't Java, it isn't remembered, so a look a minute later asks again."""
 
 
+def _in_code_page(path: str) -> bool:
+    try:
+        path.encode("mbcs")  # (Windows' own code page, nothing guessed: strict)
+        return True
+    except UnicodeEncodeError:
+        return False
+
+
+def launchable(path: str) -> str:
+    """``path`` as Java can be started from it. On Windows, Java finds its own files (java.dll) through
+    the computer's code page, so it can't start from a folder whose name has letters outside it (日本語 on
+    an English Windows: #139): such a path is given in its short form (``C:\\Users\\5E74~1\\...``), which
+    is plain letters, when the drive keeps short names (the C: drive does). As it is otherwise."""
+    if os.name != "nt" or _in_code_page(path):
+        return path
+    import ctypes
+    buf = ctypes.create_unicode_buffer(32768)
+    n = ctypes.windll.kernel32.GetShortPathNameW(path, buf, len(buf))
+    return buf.value if 0 < n < len(buf) and _in_code_page(buf.value) else path
+
+
 def run_version(binary: str) -> JavaInfo | None:
     """What a Java is: its version and architecture, from running it with ``-version`` (nothing else runs).
     Raises :class:`NoAnswer` when it couldn't be run."""
@@ -129,7 +150,7 @@ def run_version(binary: str) -> JavaInfo | None:
     from .desktop import NO_WINDOW, child_env
     env = {k: v for k, v in child_env().items() if k.upper() not in _JAVA_ENV}
     try:
-        out = subprocess.run([binary, "-XshowSettings:properties", "-version"], capture_output=True, text=True,
+        out = subprocess.run([launchable(binary), "-XshowSettings:properties", "-version"], capture_output=True, text=True,
                              errors="replace", timeout=20, env=env, stdin=subprocess.DEVNULL, **NO_WINDOW)
     except (OSError, subprocess.SubprocessError, ValueError) as e:
         raise NoAnswer(f"{binary}: {e}") from e
@@ -591,6 +612,13 @@ class JavaManager:
             name = _RELEASE_NAME.sub("_", str(release["release_name"]))[:80].strip(".") or "release"
             if have and have.release == release["release_name"]:
                 return have
+            root.mkdir(parents=True, exist_ok=True)
+            if launchable(str(root)) == str(root) and not _in_code_page(str(root)):
+                raise JavaError(
+                    f"Java can't start from {root}: Windows' Java finds its own files only in folders whose names "
+                    "use your Windows language's letters, and this one has others (and its drive keeps no short "
+                    "names to use instead). Choose a folder for Craft Conductor with such a name (CRAFT_CONDUCTOR_HOME), "
+                    f"or install Java {major} yourself (adoptium.net): Craft Conductor finds it")
             target = root / str(major) / name
             if target.exists():
                 j = self.store._read(target)
@@ -820,7 +848,7 @@ class JavaManager:
             raise JavaError(f"Minecraft needs Java {c.wanted}: {c.note}.{hint} Run `craft-conductor java install "
                             f"{c.wanted}`, or set it under [java.versions] in craft-conductor.toml")
         self._note(c)
-        return c.binary
+        return launchable(c.binary)
 
     def _newer_shared(self, wanted: int) -> list[Found]:
         return [Found(str(j.binary), "shared", JavaInfo(m)) for m, j in self.store.newest().items() if m > wanted]

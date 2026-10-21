@@ -702,7 +702,8 @@ main > * { animation: rise .25s ease-out; }
 .tester-step { display: grid; gap: 8px; margin: 10px 0 14px; }
 .bar.indeterminate .bar-fill { width: 30%; animation: bar-slide 1.4s ease-in-out infinite; }
 @keyframes bar-slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
-#tester-toast { display: grid; gap: 6px; max-width: 380px; }
+/* (the small "Testing mods" message only: "Mod test finished" is a message in the middle, over the whole page, #140) */
+.toast#tester-toast { display: grid; gap: 6px; max-width: 380px; }
 @media (prefers-reduced-motion: reduce) { .bar.indeterminate .bar-fill { animation: none; width: 100%; opacity: .5; } }
 #tester-toast .bar, .tester-step .bar { background: var(--border); }
 .early-opt { margin: 6px 0 2px; color: var(--muted); }

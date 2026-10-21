@@ -66,12 +66,14 @@ def needed(http: HttpClient, key: str, loader: str, minecraft: str, mods: list[t
     server mods, less ``pack_exclude``) and of ``mods`` (CurseForge project ids, with their own
     channel), for ``loader`` and ``minecraft``."""
     specs: dict[str, ModSpec] = {}
+    pack_ids: set[str] = set()
     if pack_version.startswith("curseforge:"):
         from . import curseforgepack
         info = curseforgepack.preview(http, key, pack_version)
         loader, minecraft = info["loader"], info["minecraft"]
         excluded = set(pack_exclude)
         for m in info["mods"]:
+            pack_ids.add(m["project_id"])
             if m["manual"] and m["included_on_server"] and m["path"] not in excluded:
                 specs[m["project_id"]] = ModSpec("curseforge", m["project_id"], channel=early(m.get("channel")))
     for pid, channel in mods:
@@ -84,11 +86,39 @@ def needed(http: HttpClient, key: str, loader: str, minecraft: str, mods: list[t
         found = _hand_file(provider, spec, minecraft, loader)
         if found:
             out.append(found)
+    picked = {pid for pid, _ in mods} - pack_ids  # (a pack's mods are as the pack says)
+    out = [x for x in out if x["project_id"] not in _players_only(http, provider, [x for x in out if x["project_id"] in picked])]
     with _lock:
         if len(_wanted) > 2000:
             _wanted.clear()
         _wanted.update({x["sha1"]: x for x in out if x["sha1"]})
     return out
+
+
+def _players_only(http: HttpClient, provider: CurseForgeProvider, files: list[dict]) -> set[str]:
+    """Of these mods picked by themselves, the ones Modrinth says only run on players' computers:
+    they'll be left off the server (sides.py), so they aren't asked for by hand (#146)."""
+    if not files:
+        return set()
+    from . import sides
+    from .mods.base import ModFile, Project
+    from .mods.modrinth import ModrinthProvider
+    items, projects = [], {}
+    now = time.monotonic()
+    for x in files:
+        k = f"curseforge:{x['project_id']}"
+        items.append(ModFile(key=k, source="curseforge", project_id=x["project_id"], name=x["name"], version_id="",
+                             version_number=x["version"], filename=x["filename"], url="", sha1=x["sha1"] or None))
+        with sides._known_lock:
+            hit = sides._known.get(x["sha1"]) if x["sha1"] else None
+        if hit and now - hit[0] < sides.CACHE_SECONDS:
+            continue  # (Modrinth's answer for this file is known: no need for its slug)
+        try:
+            projects[k] = provider.project(x["project_id"])  # (its slug: found on Modrinth by it, when not by its file)
+        except (ModError, HttpError):
+            projects[k] = Project("curseforge", x["project_id"], "", x["name"])
+    found = sides.on_modrinth(ModrinthProvider(http), items, projects)
+    return {k.split(":", 1)[1] for k, p in found.items() if p.server_side == "unsupported"}
 
 
 def _hand_file(provider: CurseForgeProvider, spec: ModSpec, minecraft: str, loader: str) -> dict | None:

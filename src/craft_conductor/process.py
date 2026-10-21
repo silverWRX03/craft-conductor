@@ -25,6 +25,8 @@ JOINED = re.compile(r"\]: (?:System chat: )?([A-Za-z0-9_]{1,16}) joined the game
 LEFT = re.compile(r"\]: (?:System chat: )?([A-Za-z0-9_]{1,16}) left the game$")
 MAX_COMMAND = 32767  # Minecraft's own limit for a command's text
 _CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")  # (tabs are fine; line breaks are refused first)
+# Terminal colour codes (ESC [ ... m, 38;2;r;g;b too) that Paper's plugins write even to a program (#132).
+_ESCAPES = re.compile(r"\x1b\[[0-9;:?]*[ -/]*[@-~]")
 # The console speaks UTF-8 both ways. Minecraft reads its console as UTF-8, but may write it in
 # Java's own encoding, which on Windows is the computer's code page (Java 17 and older; Paper's
 # console on any Java): these make that UTF-8 too. Checked with real servers on Windows: vanilla
@@ -107,7 +109,9 @@ class ServerProcess:
         for raw in self.proc.stdout:
             line = raw.rstrip("\r\n")
             if self.echo:
-                print(line, flush=True)
+                print(line, flush=True)  # (a terminal shows the colours)
+            if "\x1b" in line:
+                line = _ESCAPES.sub("", line)
             with self._line_cond:
                 self.lines.append(line)
                 self.line_count += 1

@@ -96,6 +96,14 @@ def failure_reason(error: Exception) -> str:
     return first[:300]
 
 
+def left_out(lock: Lock, plan: Plan) -> None:
+    """Put in ``lock`` what ``plan`` leaves off the server and why, and what players get instead."""
+    lock.skipped = {b.key: b.reason for b in plan.dropped}
+    lock.client_only = {b.key: b.name for b in plan.dropped if b.client_only}
+    lock.left_out_as = {b.key: b.config for b in plan.dropped if b.config and b.config != b.key}
+    lock.players = [copy.copy(m) for m in plan.players]
+
+
 def config_stamp(config) -> tuple | None:
     """What craft-conductor.toml looked like when it was last read (its time and size): a different one
     means it was changed since, by hand or by another program."""
@@ -276,7 +284,26 @@ class Manager:
         decision = self.planner().decide(target, retry_failed=retry_failed)
         self.trim(decision.plan)
         changes = decision.plan.changes(self.lock) if decision.plan else None
+        if changes is not None and changes.empty and self.lock.installed:
+            self._note_left_out(decision.plan)
         return decision, changes
+
+    def _note_left_out(self, plan: Plan) -> None:
+        """Nothing to install, but what's left off the server may have changed (a mod only players run,
+        added since): noted now, not at the next install, so Manage Mods says why and offers Move to
+        players' mods, and the friends' download has it (#134, #144)."""
+        new = copy.deepcopy(self.lock)
+        left_out(new, plan)
+        listed = {x.key: x.listed_as for x in plan.mods}
+        for x in new.mods:  # (installed under its slug before this was noted: one row in Manage Mods)
+            x.listed_as = listed.get(x.key) or x.listed_as
+        if new.to_dict() == self.lock.to_dict():
+            return
+        self.lock = new
+        try:
+            lockmod.save(self.config.root, self.lock, touch=False)
+        except OSError as e:
+            log.warning("couldn't note which mods are left off the server: %s", e)
 
     def trim(self, plan: Plan | None) -> None:
         """Leave off the server the mods only players run, that the mod sites didn't say (sides.py)."""
@@ -495,9 +522,7 @@ class Manager:
         new.loader_version = plan.loader_version
         new.java_major = staged.java_major
         new.mods = [copy.copy(m) for m in plan.mods]
-        new.skipped = {b.key: b.reason for b in plan.dropped}
-        new.client_only = {b.key: b.name for b in plan.dropped if b.client_only}
-        new.players = [copy.copy(m) for m in plan.players]
+        left_out(new, plan)
         return new
 
     # --------------------------------------------------------------- upgrade

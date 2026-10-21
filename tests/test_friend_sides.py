@@ -3,6 +3,11 @@ sides are also the server's own (with what they need), and a friend's own search
 that run on their computer alone."""
 
 import json
+import os
+import subprocess
+from pathlib import Path
+
+import pytest
 
 from craft_conductor import friendextras, join, joinui
 from craft_conductor.browse import Browser, side_facets
@@ -245,6 +250,28 @@ def test_removing_it_from_friends_and_the_server_names_the_mods_it_needed_that_f
     assert r["players_deps"] == []
 
 
+def test_removing_it_before_the_next_update_names_it_and_the_mods_that_came_with_it(hub_env, modrinth):
+    """Recipe Viewer went in friends' mods with Recipe Library; removed from the server before the next
+    update (nothing installed yet, so Manage Mods didn't know what it needs), the question named it by its
+    slug and left Recipe Library out (#142). Manage Mods names it, and removing it says what came with it."""
+    hub, c = hub_env
+    login(c)
+    publish(modrinth)
+    c.post("/api/servers/alpha/mods/add-many", {"mods": [{"source": "modrinth", "id": "recipes"}]})
+    assert players(hub) == ["recipes", "LIB"]
+    configured = {x["id"]: x for x in c.get("/api/servers/alpha/mods")[1]["configured"]}
+    assert configured["recipes"]["name"] == "Recipe Viewer" and configured["recipes"]["for_players"] == "recipes"
+    assert configured["recipes"]["deps"] == []  # (not installed: not known yet)
+    status, r, _ = c.post("/api/servers/alpha/mods/remove", {"source": "modrinth", "id": "recipes"})
+    assert status == 200 and r["players_deps"] == [{"key": "modrinth:LIB", "name": "Recipe Library", "for_players": "LIB"}], r
+    assert players(hub) == ["recipes", "LIB"]  # (friends' mods: the page asks first)
+    # An installed mod's: the page knows them already (configured deps), so nothing more is said.
+    c.post("/api/servers/alpha/mods/add-many", {"mods": [{"source": "modrinth", "id": "recipes"}]})
+    assert update(hub.get("alpha").m).ok
+    r = c.post("/api/servers/alpha/mods/remove", {"source": "modrinth", "id": "recipes"})[1]
+    assert r == {"ok": True}
+
+
 def test_a_mod_already_in_friends_mods_isnt_added_again(hub_env, modrinth):
     hub, c = hub_env
     login(c)
@@ -298,3 +325,16 @@ def test_a_name_from_modrinth_is_never_written_to_the_config_unchecked(hub_env, 
     status, r, _ = c.post(f"{base}/mods/add", {"id": "weirdmod"})
     assert status == 400 and "isn't safe to save" in r["error"]
     assert "w!rd" not in hub.get("alpha").m.config.path.read_text()
+
+
+@pytest.mark.skipif(not (os.environ.get("CRAFT_UI_NODE") and os.environ.get("CRAFT_UI_PLAYWRIGHT")),
+                    reason="optional browser verification")
+def test_removing_it_before_the_next_update_in_a_real_browser(hub_env, modrinth):
+    """#142 on the Mods page: the question names the mod and the library that came with it."""
+    hub, c = hub_env
+    login(c)
+    publish(modrinth)
+    c.post("/api/servers/alpha/mods/add-many", {"mods": [{"source": "modrinth", "id": "recipes"}]})
+    result = subprocess.run([os.environ["CRAFT_UI_NODE"], str(Path(__file__).with_name("ui_mods_remove_friends.cjs")), c.base],
+                            capture_output=True, text=True, timeout=180)
+    assert result.returncode == 0, result.stdout + result.stderr

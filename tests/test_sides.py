@@ -102,11 +102,29 @@ def test_a_curseforge_mod_modrinth_says_players_run_stays_off_the_server(make_co
     assert {b.name: (b.reason, b.client_only) for b in plan.dropped} == {
         "Sodium": ("Sodium only runs on players' computers (Modrinth says so)", True),
         "Iris": ("Iris only runs on players' computers (Modrinth says so)", True)}
-    assert [x.name for x in plan.players] == ["Iris"]  # (a mod on the server needs it: players get it)
+    # Players get them: Sodium, added by itself, too (#144), and Iris, which a mod on the server needs.
+    assert [x.name for x in plan.players] == ["Sodium", "Iris"]
 
     again = Plan("1.21.1", "fabric", "loader-1.21.1", mods=[cf("1", "Sodium", "5" * 40)])
     m.trim(again)
     assert again.mods == [] and len(asked) == 1  # (what Modrinth said is remembered for a while)
+
+
+def test_a_players_mod_left_off_the_server_is_in_the_friends_download_with_what_it_needs(make_config, http, modrinth):
+    """Iris & Oculus Search (CurseForge), which Modrinth says only players run, left off the server with
+    Iris: friends get both, and Iris says it's needed by Iris & Oculus Search, not by an id (#144)."""
+    m = manager(make_config(), http, ["1.21.1"])
+    assert update(m).ok
+
+    def cf(pid, name, dependency_of=None):
+        return ModFile(key=f"curseforge:{pid}", source="curseforge", project_id=pid, name=name, version_id="1",
+                       version_number="1", filename=f"{pid}.jar", url=f"https://edge.forgecdn.net/files/1/{pid}.jar",
+                       sha1=pid * 40, dependency_of=dependency_of)
+    m.lock.players = [cf("9", "Iris & Oculus Search"), cf("3", "Iris", "curseforge:9")]
+    pack = PackBuilder(m).build("mc.example.com")
+    by_name = {x["name"]: x for x in pack["mods"]}
+    assert by_name["Iris & Oculus Search"]["side"] == "client" and "needed_by" not in by_name["Iris & Oculus Search"]
+    assert by_name["Iris"]["needed_by"] == "Iris & Oculus Search"
 
 
 def test_a_mod_that_reaches_for_players_parts_of_minecraft_can_go_to_players_mods():
@@ -152,3 +170,72 @@ def test_players_only_mods_in_the_config_are_checked():
         configmod._client({"only": ["sodium"]})
     assert configmod._client({"only": ["modrinth:AANobbMI", "curseforge:394468", "modrinth:AANobbMI"]}).only == \
         ["modrinth:AANobbMI", "curseforge:394468"]
+
+
+def serve_curseforge(http, mods: dict):
+    """CurseForge mods for the tests, by slug: {slug: (id, name)}, each with a Fabric 1.21.1 file."""
+    import hashlib
+    from craft_conductor.mods.curseforge import API as CURSEFORGE
+    by_slug = {}
+    for slug, (pid, name) in mods.items():
+        body = {"id": pid, "slug": slug, "name": name, "classId": 6}
+        by_slug[slug] = body
+        http.json[f"{CURSEFORGE}/mods/{pid}"] = {"data": body}
+        jar = f"{slug} jar".encode()
+        url = f"https://edge.forgecdn.net/files/{pid}/{slug}.jar"
+        http.files[url] = jar
+        http.json[f"{CURSEFORGE}/mods/{pid}/files"] = {"data": [{
+            "id": pid * 10, "modId": pid, "displayName": f"{name} 1.0", "fileName": f"{slug}.jar", "releaseType": 1,
+            "downloadUrl": url, "gameVersions": ["1.21.1", "Fabric"], "fileDate": "2025-01-01T00:00:00Z",
+            "hashes": [{"value": hashlib.sha1(jar).hexdigest(), "algo": 1}], "dependencies": []}]}
+    http.json[f"{CURSEFORGE}/mods/search"] = lambda p: {"data": [by_slug[p["slug"]]] if p.get("slug") in by_slug else []}
+
+
+def test_a_players_only_mod_added_by_its_slug_is_noted_at_the_check(make_config, http, modrinth):
+    """Sodium from CurseForge, added by its slug to a server that's up to date: the check said
+    "Left out: Sodium only runs on players' computers", but nothing was installed, so nothing noted it:
+    Manage Mods kept "sodium · Added; installed with the next update" without the reason or Move to
+    players' mods, and friends didn't get it (#134, #144). The check notes it, under the name it's
+    listed by. A CurseForge mod installed under its slug is known by that name too (no second row)."""
+    from craft_conductor import lock as lockmod
+    serve_curseforge(http, {"sodium": (394468, "Sodium"), "appleskin": (248787, "AppleSkin")})
+    modrinth.project("SODM", "sodium", "Sodium", server_side="unsupported")
+    cfg = make_config([ModSpec("curseforge", "appleskin")])
+    cfg.curseforge_api_key = "test-key"
+    m = manager(cfg, http, ["1.21.1"])
+    assert update(m).ok
+    [skin] = m.lock.mods
+    assert skin.name == "AppleSkin" and skin.listed_as == "curseforge:appleskin"
+    skin.listed_as = None  # (as servers installed before this have it)
+    lockmod.save(cfg.root, m.lock, touch=False)
+    configmod.append_mod(cfg.path, ModSpec("curseforge", "sodium"))
+    m.reload_config()
+    m.config.curseforge_api_key = "test-key"
+    m.providers = providers_for(m.config, http)
+    decision, changes = m.check()
+    assert changes.empty
+    saved = lockmod.load(cfg.root)
+    assert saved.client_only == {"curseforge:394468": "Sodium"} and "Modrinth says so" in saved.skipped["curseforge:394468"]
+    assert saved.left_out_as == {"curseforge:394468": "curseforge:sodium"}
+    assert [x.name for x in saved.players] == ["Sodium"]  # (the friends' download has it now)
+    assert m.lock.left_out_as == saved.left_out_as
+    assert saved.mods[0].listed_as == "curseforge:appleskin"
+
+
+def test_manage_mods_shows_a_mod_left_off_by_its_slug_once(hub_env):
+    """What the check noted (above): Manage Mods' row for "curseforge:sodium" is Sodium's, with
+    its reason, not a second "sodium · Added; installed with the next update" row (#134)."""
+    from craft_conductor import lock as lockmod
+    hub, c = hub_env
+    login(c)
+    m = hub.get("alpha").m
+    configmod.append_mod(m.config.path, ModSpec("curseforge", "sodium"))
+    m.reload_config()
+    m.lock.skipped = {"curseforge:394468": "Sodium only runs on players' computers (Modrinth says so)"}
+    m.lock.client_only = {"curseforge:394468": "Sodium"}
+    m.lock.left_out_as = {"curseforge:394468": "curseforge:sodium"}
+    lockmod.save(m.config.root, m.lock, touch=False)
+    r = c.get("/api/servers/alpha/mods")[1]
+    [row] = [x for x in r["configured"] if x["source"] == "curseforge"]
+    assert (row["key"], row["name"], row["version"]) == ("curseforge:394468", "Sodium", "")
+    assert [x["key"] for x in r["skipped"]] == ["curseforge:394468"] and r["skipped"][0]["client_only"]

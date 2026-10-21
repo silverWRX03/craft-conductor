@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from . import folders
+from . import folders, private
 
 log = logging.getLogger(__name__)
 
@@ -390,9 +390,11 @@ def _sha256(path: Path) -> str:
 
 
 def _copy_checked(src: Path, dst: Path, done: Callable[[int], None]) -> None:
-    """Copy one file, then read the copy back: its SHA-256 must be the original's."""
+    """Copy one file, then read the copy back: its SHA-256 must be the original's. A file that was
+    this account's only (a secret in it) is so before anything goes in the copy."""
     h = hashlib.sha256()
     with open(src, "rb") as fin, open(dst, "xb") as fout:
+        private.keep_access(src, dst)
         while chunk := fin.read(1 << 20):
             h.update(chunk)
             fout.write(chunk)

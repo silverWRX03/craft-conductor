@@ -2870,10 +2870,11 @@ class HubApi:
         """The folder browser: the folders in a folder on this computer (never the files in it), or,
         without a ``path``, where to start (the home folder, Documents, Downloads, the drives)."""
         from . import folders
-        if not q.get("path"):
+        path = folders.nearest(q.get("path", "")) if q.get("nearest") == "1" else q.get("path")  # (opening: #145)
+        if not path:
             return {"path": None, "parent": None, "folders": folders.places(), "more": False}
         try:
-            return folders.listing(q["path"])
+            return folders.listing(path)
         except folders.FolderError as e:
             raise ApiError(400, str(e)) from None
 
@@ -3402,15 +3403,19 @@ class Api:
 
         out = []
         for spec in self.m.config.mods:
-            key = f"{spec.source}:{spec.id}"
+            key, name = f"{spec.source}:{spec.id}", spec.id
             if key not in installed:
-                match = next((x for x in lk.mods if (x.source == spec.source and x.project_id == spec.id)
+                match = next((x for x in [*lk.mods, *lk.players] if (x.source == spec.source and x.project_id == spec.id)
                               or x.listed_as == key), None)
+                left = next((k for k, listed in lk.left_out_as.items() if listed == key), None)
                 if match:
-                    key = match.key
+                    key, name = match.key, match.name
+                elif left:  # (left off the server, listed by its slug: one row, with why: #134)
+                    key, name = left, lk.client_only.get(left, name)
                 elif spec.source == "modrinth":
                     try:
-                        key = self._modrinth().project(spec.id).key  # a slug in craft-conductor.toml
+                        project = self._modrinth().project(spec.id)  # a slug in craft-conductor.toml
+                        key, name = project.key, project.name or spec.id  # (named, not installed yet: #142)
                     except Exception:
                         pass
             deps, todo, seen = [], [key], {key}
@@ -3429,7 +3434,7 @@ class Api:
             out.append({"source": spec.source, "id": spec.id, "required": spec.required, "key": key,
                         "channel": current.channel if current else (spec.channel or "release"),
                         "version": current.version_number if current else "",
-                        "name": current.name if current else spec.id, "deps": deps,
+                        "name": current.name if current else name, "deps": deps,
                         "for_players": for_players(spec.id, key.split(":", 1)[1]) if spec.source == "modrinth" else None})
         return out
 
@@ -3484,6 +3489,12 @@ class Api:
                 raise ApiError(400, f"couldn't check {project.name}'s required mods: {e}") from e
             if req is not None:
                 if not req["compatible"] and self.m.lock.minecraft:
+                    if early is None and (only := self._early_only(project)) is not None:  # (#133)
+                        channel, names = only
+                        names = names or [project.name]
+                        said = names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
+                        raise ApiError(409, f"{said} only {'has' if len(names) == 1 else 'have'} "
+                                            f"{channel} builds for Minecraft {self.m.lock.minecraft}", confirm=f"early:{channel}")
                     raise ApiError(400, f"can't add {project.name}: " + (req["reason"] or "no compatible build"))
                 deps = req["deps"]
         # The name written to craft-conductor.toml comes from the site's answer (Modrinth allows quote marks in a
@@ -3495,6 +3506,22 @@ class Api:
         self.m.reload_config()
         log.info("added %s%s", project.name, f" (with {', '.join(d['name'] for d in deps)})" if deps else "")
         return deps
+
+    def _early_only(self, project) -> tuple[str, list[str]] | None:
+        """A Modrinth mod that can't be added with release builds: the early channel (beta, else alpha)
+        it and what it needs can be, and the mods that only have such builds; None when none can."""
+        for channel in ("beta", "alpha"):
+            try:
+                req = mod_requirements(self._modrinth(), project.id, self.m.loader.mod_loaders, self.m.lock.minecraft,
+                                       channel=channel, curseforge=self.m.providers.get("curseforge"))
+            except (ModError, HttpError, Unavailable):
+                return None
+            if req is not None and req["compatible"]:
+                early = [d["name"] for d in req["deps"] if d.get("channel") not in (None, "release")]
+                if req.get("channel") not in (None, "release"):
+                    early.insert(0, project.name)
+                return channel, early
+        return None
 
     def _browser(self):
         from .browse import Browser
@@ -3536,7 +3563,8 @@ class Api:
                 r = self.add_mod(q, {"source": item.get("source", "modrinth"), "id": item.get("id"),
                                      "required": b.get("required", True) is not False, "channel": item.get("channel")})
             except (ApiError, ModError, ConfigError) as e:
-                skipped.append({"name": item.get("name") or item.get("id"), "reason": str(e)})
+                skipped.append({"name": item.get("name") or item.get("id"), "reason": str(e),
+                                **({"early": e.confirm[6:]} if getattr(e, "confirm", "").startswith("early:") else {})})
                 continue
             added.append(r["name"])
             if r.get("for_players"):
@@ -3658,11 +3686,40 @@ class Api:
                 if on else f"{name} goes back on the server at the next update check or start")
 
     def remove_mod(self, q, b) -> dict:
-        if not configmod.remove_mod(self.m.config.path, b.get("source", "modrinth"), str(b.get("id", ""))):
+        source, mod_id = b.get("source", "modrinth"), str(b.get("id", ""))
+        came_with = self._pending_players_deps(mod_id) if source == "modrinth" else []
+        if not configmod.remove_mod(self.m.config.path, source, mod_id):
             raise ApiError(404, "not listed in craft-conductor.toml")
         self.m.reload_config()
         log.info("removed %s from craft-conductor.toml", b.get("id"))
-        return {"ok": True}
+        return {"ok": True, "players_deps": came_with} if came_with else {"ok": True}
+
+    def _pending_players_deps(self, mod_id: str) -> list[dict]:
+        """For a mod not installed yet (so Manage Mods doesn't know what it needs): the mods it needs
+        that went in friends' mods with it, and that no other server mod needs, for the page to ask
+        about with it (#142). One look at Modrinth, only when it's removed."""
+        players = [] if self.web.hub.is_single else self.m.config.client.mods
+        if not players or not self.m.loader.mod_loaders:
+            return []
+        configured = self._configured_with_deps()
+        spec = next((s for s in configured if s["source"] == "modrinth" and s["id"] == mod_id), None)
+        if spec is None or spec["version"]:
+            return []  # (installed: the page has its dependencies)
+        try:
+            req = mod_requirements(self._modrinth(), mod_id, self.m.loader.mod_loaders, self.m.lock.minecraft,
+                                   channel=self.m.config.updates.mod_channel)
+        except (ModError, HttpError, Unavailable) as e:
+            log.info("couldn't look up what %s needs: %s", spec["name"], e)
+            return []
+        others = [s for s in configured if s is not spec]
+        needed = {s["key"] for s in others} | {d["key"] for s in others for d in s["deps"]}
+        out = []
+        for d in (req or {}).get("deps") or []:
+            entry = next((x for x in players if x and x in (d.get("id"), d.get("slug"))), None)
+            key = f"modrinth:{d.get('id')}"
+            if entry and d.get("source", "modrinth") == "modrinth" and key not in needed:
+                out.append({"key": key, "name": d.get("name") or entry, "for_players": entry})
+        return out
 
     def set_required(self, q, b) -> dict:
         source, mod_id = str(b.get("source", "modrinth")), str(b.get("id", ""))

@@ -73,3 +73,18 @@ def test_browser_regressions(hub_env, modrinth, monkeypatch):
     result = subprocess.run([os.environ["CRAFT_UI_NODE"], str(Path(__file__).with_name("ui_browser.cjs")), client.base],
                             capture_output=True, text=True, timeout=180)
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.skipif(not os.environ.get("CRAFT_UI_NODE"), reason="optional browser verification")
+def test_removing_a_mod_whose_dependency_is_unavailable_asks_about_friends_mods(hub_env, modrinth):
+    """New server → Manage Mods: Remove in a mod's Dependency unavailable box asks about the ones also
+    in friends' mods, as the row's own Remove does (#147)."""
+    hub, client = hub_env
+    modrinth.project("LIB", "recipe-lib", "Recipe Library")
+    modrinth.version("LIB", "1.0", ["1.21.1"])  # (none for 1.21.2)
+    modrinth.project("REC", "recipes", "Recipe Viewer", server_side="optional")  # (both sides)
+    modrinth.version("REC", "3.0", ["1.21.1", "1.21.2"], deps=["LIB"])
+    hub.get("alpha").m.mojang.set_releases(["1.21.1", "1.21.2"])
+    result = subprocess.run([os.environ["CRAFT_UI_NODE"], str(Path(__file__).with_name("ui_setup_remove.cjs")), client.base],
+                            capture_output=True, text=True, timeout=180)
+    assert result.returncode == 0, result.stdout + result.stderr

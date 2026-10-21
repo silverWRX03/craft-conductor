@@ -73,6 +73,64 @@ def protect_once(path: Path) -> None:
         protect(path)
 
 
+def keep_access(src: Path, dst: Path) -> bool:
+    """Give a copy (``dst``, made but still empty) the original's permissions when they're its own,
+    not its folder's: a file made this account's only stays so in its new place (on another drive
+    it would otherwise take that folder's, readable by every account). Other files keep the
+    permissions of the folder they're copied to. False (said once per folder in the log) where it
+    can't be done, as protect()."""
+    try:
+        if os.name == "nt":
+            _keep_access_windows(str(src), str(dst))
+        else:
+            os.chmod(dst, os.stat(src).st_mode & 0o7777)
+        return True
+    except OSError as e:
+        folder = str(Path(dst).parent)
+        if folder not in _warned:
+            _warned.add(folder)
+            log.warning("couldn't give %s the permissions of %s (%s)", dst, src, e)
+        return False
+
+
+def _keep_access_windows(src: str, dst: str) -> None:
+    import ctypes
+    from ctypes import wintypes
+    advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    advapi32.GetNamedSecurityInfoW.argtypes = [
+        wintypes.LPCWSTR, ctypes.c_int, wintypes.DWORD, ctypes.c_void_p, ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_void_p), ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p)]
+    advapi32.GetNamedSecurityInfoW.restype = wintypes.DWORD
+    advapi32.GetSecurityDescriptorControl.argtypes = [
+        ctypes.c_void_p, ctypes.POINTER(wintypes.WORD), ctypes.POINTER(wintypes.DWORD)]
+    advapi32.SetNamedSecurityInfoW.argtypes = [
+        wintypes.LPWSTR, ctypes.c_int, wintypes.DWORD, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
+    advapi32.SetNamedSecurityInfoW.restype = wintypes.DWORD
+    kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+    kernel32.LocalFree.restype = ctypes.c_void_p
+    SE_FILE_OBJECT, DACL_SECURITY_INFORMATION, PROTECTED_DACL_SECURITY_INFORMATION = 1, 0x4, 0x80000000
+    SE_DACL_PROTECTED = 0x1000
+    dacl, sd = ctypes.c_void_p(), ctypes.c_void_p()
+    err = advapi32.GetNamedSecurityInfoW(src, SE_FILE_OBJECT, DACL_SECURITY_INFORMATION, None, None,
+                                         ctypes.byref(dacl), None, ctypes.byref(sd))
+    if err:
+        raise ctypes.WinError(err)
+    try:
+        control, revision = wintypes.WORD(), wintypes.DWORD()
+        if not advapi32.GetSecurityDescriptorControl(sd, ctypes.byref(control), ctypes.byref(revision)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        if not control.value & SE_DACL_PROTECTED:
+            return  # (the folder's: the copy takes its new folder's)
+        err = advapi32.SetNamedSecurityInfoW(dst, SE_FILE_OBJECT,
+                                             DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+                                             None, None, dacl, None)
+        if err:
+            raise ctypes.WinError(err)
+    finally:
+        kernel32.LocalFree(sd)
+
+
 def _owner_only_windows(path: str) -> None:
     import ctypes
     from ctypes import wintypes

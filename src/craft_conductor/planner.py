@@ -357,6 +357,8 @@ class Planner:
                         resolved[mod.key].required = True
                     continue
                 projects[mod.key] = other
+            if config_id and config_id != mod.key and not mod.listed_as:
+                mod.listed_as = config_id  # (listed by its slug: Manage Mods shows it once, #134)
             resolved[mod.key] = mod
             if spec.pack:
                 pack_keys.add(mod.key)

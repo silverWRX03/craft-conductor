@@ -101,6 +101,22 @@ def test_an_export_leaves_out_the_discord_webhook_and_curseforge_key(hub_env, tm
         assert json.loads(z.read("craft-conductor-export.json"))["left_out"] == []
 
 
+def test_a_second_export_with_the_same_name_keeps_the_first(hub_env, tmp_path):
+    """Two exports in the same minute had the same name, and the second silently replaced the first
+    (#137): each one is kept, the second named "(2)"."""
+    hub, _ = hub_env
+    d = hub.get("alpha")
+    name = transfer.export_name("Test Purpur")
+    first = transfer.export(d.m, tmp_path / name, holds=["world"])
+    second = transfer.export(d.m, tmp_path / name, holds=["mods"])
+    third = transfer.export(d.m, tmp_path / name)
+    assert first.name == name and second.name == name.replace(".craft-conductor.zip", " (2).craft-conductor.zip")
+    assert third.name.endswith(" (3).craft-conductor.zip") and len(set((first, second, third))) == 3
+    with zipfile.ZipFile(first) as z:
+        assert json.loads(z.read("craft-conductor-export.json"))["holds"] == ["world"]  # (the first, as it was)
+    assert sorted(p.name for p in tmp_path.glob("*.craft-conductor.zip")) == sorted((first.name, second.name, third.name))
+
+
 def test_an_export_carries_what_was_chosen_and_locks_the_secrets_chosen(hub_env, tmp_path):
     """The export window: parts can stay behind, and the passwords, keys and IP bans picked to go
     along are locked with a password made for the export; the import asks for it."""

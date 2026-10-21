@@ -312,6 +312,9 @@ def restore(archive: Path, server_dir: Path) -> dict:
         info = _about_file(staging / ABOUT)
         if info is not None:
             result = _complete(staging, server_dir, info, skipped)
+        props = staging / "server" / "server.properties"
+        if props.is_file() and parts.properties_without_secrets(props.read_bytes().decode("latin-1"))[1]:
+            private.protect(props)  # (unpacked with the folder's permissions: its passwords are this account's only)
     except BaseException as e:
         _put_back_kept(staging, server_dir)
         shutil.rmtree(staging, ignore_errors=True)

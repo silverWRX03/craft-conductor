@@ -306,6 +306,74 @@ def test_a_java_other_users_can_change_is_never_run(tmp_path, http):
     assert jm.choose(21).source == "download"
 
 
+windows_only = pytest.mark.skipif(os.name != "nt", reason="Windows' code page")
+
+
+def in_code_page(path: str) -> bool:
+    try:
+        path.encode("mbcs")
+        return True
+    except UnicodeEncodeError:
+        return False
+
+
+def short_names_here(folder: Path) -> bool:
+    import ctypes
+    buf = ctypes.create_unicode_buffer(32768)
+    return 0 < ctypes.windll.kernel32.GetShortPathNameW(str(folder), buf, len(buf)) and in_code_page(buf.value)
+
+
+@windows_only
+def test_java_in_a_folder_with_letters_outside_the_code_page_is_started_by_its_short_name(tmp_path, http):
+    """Windows' Java can't find its own java.dll in a folder named with letters outside the computer's
+    code page ("could not find java.dll"): Craft Conductor's folder in a user folder named in Japanese on an
+    English Windows (#139). The Java it downloads there is started by the folder's short name."""
+    store = tmp_path / "日本語-ünïcødé" / "java"
+    store.mkdir(parents=True)
+    if not short_names_here(store):
+        pytest.skip("this drive keeps no short names")
+    publish(http, 21, "jdk-21.0.4+7")
+    jm = JavaManager(server(tmp_path, "S"), http, platform_fn=LINUX_X64, store=store)
+    binary = jm.select(21)
+    assert in_code_page(binary) and "日本語" not in binary, binary
+    assert os.path.samefile(binary, jm.installed()[21].binary)
+    assert jm.select(21) == binary  # (the shared one, the second time)
+
+
+@windows_only
+def test_the_probe_starts_java_by_its_short_name(tmp_path, monkeypatch):
+    from craft_conductor import java as javamod
+    folder = tmp_path / "日本語"
+    folder.mkdir()
+    if not short_names_here(folder):
+        pytest.skip("this drive keeps no short names")
+    binary = folder / "java.exe"
+    binary.write_bytes(b"")
+    seen = {}
+
+    def run(argv, **kw):
+        seen["argv"] = argv
+        return subprocess.CompletedProcess(argv, 0, "", 'openjdk version "21.0.4"\n    os.arch = amd64\n')
+    monkeypatch.setattr(javamod.shutil, "which", lambda b: str(binary))
+    monkeypatch.setattr(javamod.subprocess, "run", run)
+    assert javamod.run_version(str(binary)) == JavaInfo(21, "x64")
+    assert in_code_page(seen["argv"][0]) and os.path.samefile(seen["argv"][0], binary)
+    plain = tmp_path / "java.exe"  # (a path that's fine stays as it is)
+    assert javamod.run_version(str(plain)) and seen["argv"][0] == str(plain)
+
+
+def test_java_isnt_downloaded_where_it_couldnt_start(tmp_path, http, monkeypatch):
+    """Where there's no short name to use (a drive that keeps none), it says why before downloading."""
+    from craft_conductor import java as javamod
+    monkeypatch.setattr(javamod, "_in_code_page", lambda p: "日本語" not in p)
+    monkeypatch.setattr(javamod, "launchable", lambda p: p)  # (no short names)
+    link = publish(http, 21, "jdk-21.0.4+7")
+    jm = JavaManager(server(tmp_path, "S"), http, platform_fn=LINUX_X64, store=tmp_path / "日本語" / "java")
+    with pytest.raises(JavaError, match="Java can't start from .*install Java 21 yourself"):
+        jm.select(21)
+    assert downloads(http, link) == 0 and 21 not in jm.installed()
+
+
 def test_a_download_without_a_checksum_is_refused(tmp_path, http):
     from craft_conductor.java import ADOPTIUM as API
     publish(http, 21, "jdk-21.0.4+7")

@@ -29,6 +29,8 @@ class Lock:
     mods: list[ModFile] = field(default_factory=list)
     skipped: dict[str, str] = field(default_factory=dict)  # mod key -> reason it isn't installed
     client_only: dict[str, str] = field(default_factory=dict)  # of those, the ones only players run: key -> name
+    #: of those, the ones craft-conductor.toml lists by another name (a slug): key -> "source:id" as listed
+    left_out_as: dict[str, str] = field(default_factory=dict)
     #: mods only players need, that the server's mods ask for (sides.py): in the friends' download
     players: list[ModFile] = field(default_factory=list)
     failed_plans: dict[str, str] = field(default_factory=dict)  # plan fingerprint -> error
@@ -49,6 +51,7 @@ class Lock:
             "mods": [m.to_dict() for m in self.mods],
             "skipped": self.skipped,
             "client_only": self.client_only,
+            "left_out_as": self.left_out_as,
             "players": [m.to_dict() for m in self.players],
             "failed_plans": self.failed_plans,
             "updated_at": self.updated_at,
@@ -66,6 +69,7 @@ class Lock:
             mods=[ModFile.from_dict(m) for m in d.get("mods", [])],
             skipped=d.get("skipped", {}),
             client_only=d.get("client_only", {}),
+            left_out_as=d.get("left_out_as", {}),
             players=[ModFile.from_dict(m) for m in d.get("players", [])],
             failed_plans=d.get("failed_plans", {}),
             updated_at=d.get("updated_at"),

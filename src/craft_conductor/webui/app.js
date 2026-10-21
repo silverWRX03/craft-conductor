@@ -2964,7 +2964,7 @@ views.mods = () => {
     )) : [h("p", { class: "empty" }, "No server mods found" + (info.minecraft ? ` that work on Minecraft ${info.minecraft}.` : "."))]));
   };
   const add = async (id, required, source = "modrinth", channel = null) => {
-    const r = await act(() => api("/api/mods/add", { method: "POST", body: { source, id, required, channel: channel !== "release" ? channel : null } }));
+    const r = await act(() => addServerMod({ source, id, required, channel: channel !== "release" ? channel : null }));
     if (r) {
       toast(`Added ${r.name}` + (r.deps && r.deps.length ? `, with the mods it needs: ${r.deps.join(", ")}` : "") + ". Run an update check to install it.");
       load(); search();
@@ -3020,6 +3020,12 @@ views.mods = () => {
       return true;
     } } : null;
   const heldLabel = (key) => held(key) ? held(key).number || "a picked version" : null;
+  // Take one mod off the server. One not installed yet says which mods went in friends' mods with it
+  // (the page doesn't know what it needs until it's installed: #142), for friendsToo to ask about.
+  const removeOne = async (x) => {
+    const r = await api("/api/mods/remove", { method: "POST", body: { source: x.source, id: x.id } }).catch((e) => { toast(e.message, true); return null; });
+    if (r && r.players_deps) x.deps = [...(x.deps || []), ...r.players_deps];
+  };
   // After mods are taken off the server: the ones also in friends' mods (with the mods only they
   // needed) are asked about in one question; Cancel keeps them for friends.
   const friendsToo = async (specs) => {
@@ -3056,7 +3062,7 @@ views.mods = () => {
     const seen = new Set();
     const needersOf = (key) => configured.filter((c) => (c.deps || []).some((d) => d.key === key));
     const removeSpecs = async (specs, what) => {
-      for (const x of specs) await api("/api/mods/remove", { method: "POST", body: { source: x.source, id: x.id } }).catch((e) => toast(e.message, true));
+      for (const x of specs) await removeOne(x);
       toast(`Removed ${what}. ${specs.length === 1 ? "It's" : "They're"} uninstalled at the next update, with dependencies nothing else needs.`);
       await load();
       return true;
@@ -3073,7 +3079,8 @@ views.mods = () => {
         warning: skipped.get(spec.key) || "",
         versions: inst && inst.datapack ? null : versionsFor(spec.key, (inst || spec).source), held: heldLabel(spec.key),
         problems: problemsFor(modCheck && modCheck.result, spec.key, "server"),
-        detail: inst ? (inst.datapack ? `${inst.filename}, in the world's datapacks folder` : inst.filename) : "Added; installed with the next update.",
+        detail: inst ? (inst.datapack ? `${inst.filename}, in the world's datapacks folder` : inst.filename)
+          : skipped.has(spec.key) ? "Not installed." : "Added; installed with the next update.",
         controls: () => h("div", { class: "row wrap" },
           h("label", { class: "row small", title: "Required mods hold back Minecraft upgrades until they support the new version." },
             h("input", { type: "checkbox", checked: spec.required, onchange: async (e) => {
@@ -3203,7 +3210,7 @@ views.mods = () => {
       : null);
     // Each mod you added, with the mods installed because it needs them: they go together.
     const removeMods = async (specs, what) => {
-      for (const x of specs) await api("/api/mods/remove", { method: "POST", body: { source: x.source, id: x.id } }).catch((e) => toast(e.message, true));
+      for (const x of specs) await removeOne(x);
       toast(`Removed ${what}. ${specs.length === 1 ? "It's" : "They're"} uninstalled at the next update, with dependencies nothing else needs.`);
       await load();
       await friendsToo(specs);
@@ -4581,11 +4588,12 @@ function openFolderBrowser({ title, intro = "", start = "", actions, newFolder =
     try { list.replaceChildren(); showListing(await api("/api/hub/folders/new", { method: "POST", body: { parent: shown, name } })); }
     catch (e) { if (!(e instanceof Unauthorized)) note.textContent = e.message; show(shown); }
   } }, "New folder…") : null;
-  const show = async (path) => {
+  // (`nearest`: opening on a folder that isn't made yet shows the nearest one there, #145)
+  const show = async (path, nearest = false) => {
     note.textContent = "";
     let r;
     try {
-      r = await api(path ? `/api/hub/folders?path=${encodeURIComponent(path)}` : "/api/hub/folders");
+      r = await api(path ? `/api/hub/folders?path=${encodeURIComponent(path)}${nearest ? "&nearest=1" : ""}` : "/api/hub/folders");
     } catch (e) {
       if (!(e instanceof Unauthorized)) note.textContent = e.message;
       return false;
@@ -4626,7 +4634,7 @@ function openFolderBrowser({ title, intro = "", start = "", actions, newFolder =
       h("div", { class: "row mt" }, buttons, h("button", { type: "button", class: "btn ghost", onclick: close }, "Cancel"))));
   document.addEventListener("keydown", onKey, true);
   document.body.append(backdrop);
-  show(start).then(() => box.focus());
+  show(start, true).then(() => box.focus());
 }
 
 // ------------------------------------------------------------------ where files are kept
@@ -4743,9 +4751,19 @@ function locationsCard() {
   api("/api/hub/locations").then((r) => {
     places = r;
     render();
-    if (r.move && r.move.ok === false && r.move.message) toast(r.move.message, true, 15000);  // (a move cut off last time, put back)
+    // A move cut off last time and put back: said once in this browser, not at every visit (#141). (A move
+    // that failed from this page was said when it failed.)
+    if (r.move && r.move.recovered && r.move.message && !moveSaid(r.move)) toast(r.move.message, true, 15000);
   }).catch(() => {});
   return box;
+}
+const MOVE_SAID_KEY = "craft-conductor-move-said";
+function moveSaid(move) {
+  try {
+    if (localStorage.getItem(MOVE_SAID_KEY) === String(move.started)) return true;
+    localStorage.setItem(MOVE_SAID_KEY, String(move.started));
+  } catch (_) { /* private mode: said at each visit */ }
+  return false;
 }
 // Import a server…: the exports in the exports folder, each with Import; Another file… for one from elsewhere.
 async function openExportsList({ pick, take }) {
@@ -5919,8 +5937,9 @@ function browserPanel(params, host) {
       location.hash = "#new";
       return;
     }
-    const r = await act(() => api(`/api/servers/${encodeURIComponent(target)}/mods/add-many`, { method: "POST", body: { mods } }));
+    let r = await act(() => api(`/api/servers/${encodeURIComponent(target)}/mods/add-many`, { method: "POST", body: { mods } }));
     if (!r) return;
+    r = await addManyEarly(target, mods, r);
     toast(`Added ${r.added.length} mod(s)` + (r.skipped.length ? `; skipped ${r.skipped.map((x) => `${x.name} (${x.reason})`).join(", ")}` : ""), r.skipped.length > 0);
     announceForPlayers(r);
     const ticked = [...st.selected.entries()];
@@ -8597,6 +8616,31 @@ const setupLoaderLabel = () => LOADER_LABELS[setupState.loader] || setupState.lo
 const EARLY_WARNING = "Early builds (alpha and beta) are unfinished: they can crash the server, break other mods " +
   "or damage your world. Back up before you rely on them.";
 const channelTag = (c) => (c && c !== "release" ? h("span", { class: "tag warn", title: EARLY_WARNING }, `${c} only`) : null);
+// A server's mod whose required mods only have early builds for its Minecraft (#133): the server says
+// so (confirm "early:<channel>"), and it's asked as New server asks; added anyway, it takes that channel.
+async function addServerMod(body) {
+  try {
+    return await api("/api/mods/add", { method: "POST", body });
+  } catch (e) {
+    if (!(e.confirm || "").startsWith("early:")) throw e;
+    if (!(await ask(`${e.message}.\n\n${EARLY_WARNING}\n\nAdd it anyway?`, { id: "early-builds", ok: "Add anyway" }))) return null;
+    return api("/api/mods/add", { method: "POST", body: { ...body, channel: e.confirm.slice("early:".length) } });
+  }
+}
+// The mod browser's Add selected mods, for a server: the ones skipped because what they need only has
+// early builds are asked about once, then added with that channel (#133).
+async function addManyEarly(target, mods, r) {
+  const early = r.skipped.filter((x) => x.early);
+  if (!early.length || !(await ask(`${early.map((x) => x.reason).join(". ")}.\n\n${EARLY_WARNING}\n\n` +
+    `Add ${early.length === 1 ? "it" : "them"} anyway?`, { id: "early-builds", ok: "Add anyway" }))) return r;
+  const again = mods.map((m) => [m, early.find((x) => x.name === (m.name || m.id))]).filter(([, x]) => x)
+    .map(([m, x]) => ({ ...m, channel: x.early }));
+  const more = await api(`/api/servers/${encodeURIComponent(target)}/mods/add-many`, { method: "POST", body: { mods: again } })
+    .catch((e) => { toast(e.message, true); return null; });
+  if (!more) return r;
+  return { ...r, ...more, added: [...r.added, ...more.added], skipped: [...r.skipped.filter((x) => !x.early), ...more.skipped],
+    for_players: [...(r.for_players || []), ...(more.for_players || [])] };
+}
 async function confirmEarly(mods) {
   const early = mods.filter((m) => m.channel && m.channel !== "release");
   return !early.length || ask(`${early.map((m) => m.name).join(", ")} ${early.length === 1 ? "only has" : "only have"} ` +
@@ -9093,7 +9137,8 @@ function setupConflict(key, m) {
       own && c.datapack ? h("button", { type: "button", class: "btn small primary", onclick: useDatapack }, `Stay on ${c.loader}: use its datapack`) : null,
       versions.map((v) => h("button", { type: "button", class: "btn small", onclick: () => useVersion(v) }, `Use Minecraft ${v}`)),
       st.modpack ? null : h("button", { type: "button", class: "btn small", onclick: chooseVersion }, "Choose another Minecraft version"),
-      h("button", { type: "button", class: "btn small danger", onclick: () => setupRemoveMod(key) }, `Remove ${m.name}`)));
+      // (as the row's own Remove: asks about the ones also in friends' mods, #147)
+      h("button", { type: "button", class: "btn small danger", onclick: () => setupRemoveServerMod(key) }, `Remove ${m.name}`)));
 }
 // The Minecraft version or server type changed (`loaderChanged`: the server type): dependencies and
 // compatibility may differ. Once every mod is checked again, Manage Mods says what changed (the

@@ -161,8 +161,7 @@ def trim(m, plan) -> None:
         for key, p in on_modrinth(modrinth, curseforge, plan.projects).items():
             if p.server_side == "unsupported":
                 away[key] = f"{by_key[key].name} only runs on players' computers (Modrinth says so)"
-                if by_key[key].dependency_of is not None:
-                    for_players.add(key)  # (a mod on the server needs it: on players' computers, where it runs)
+                for_players.add(key)  # (on players' computers, where it runs: added by itself too, #144)
     files = _Files(m) if m.loader.name in modcheck.LOADERS else None
     own: list | None = None
     changed = True

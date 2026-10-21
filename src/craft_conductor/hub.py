@@ -1331,7 +1331,7 @@ class Hub:
         if message:
             log.warning(message)
             self._move = {"running": False, "ok": False, "message": message[:1].upper() + message[1:] + ".", "kind": "",
-                          "progress": 0.0, "left": [], "changes": [], "started": time.time()}
+                          "progress": 0.0, "left": [], "changes": [], "started": time.time(), "recovered": True}
         return message
 
     def import_server(self, stage_id: str, password: str | None = None, skip_locked: bool = False) -> dict:

@@ -207,8 +207,9 @@ def players_mods(m, server_mods: list, minecraft: str, loader_version: str | Non
             mods.append(_entry(x, "both", _here(m, x)))
 
     # Mods the server's mods need on players' computers only, that the mod files said (sides.py).
-    names = {x.key: x.name for x in server_mods}
-    for x in m.lock.players if players is None else players:
+    for_players = m.lock.players if players is None else players
+    names = {x.key: x.name for x in [*server_mods, *for_players]}  # (a players' mod can need another: #144)
+    for x in for_players:
         if x.key in included or not loaders:
             continue
         included.add(x.key)

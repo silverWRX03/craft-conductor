@@ -32,11 +32,11 @@ def _sha1(data: bytes) -> list[dict]:
 
 @pytest.fixture(autouse=True)
 def fresh_cache():
-    from craft_conductor import handdownload
-    for cache in (curseforgepack._previews, handdownload._resolved, handdownload._wanted):
+    from craft_conductor import handdownload, sides
+    for cache in (curseforgepack._previews, handdownload._resolved, handdownload._wanted, sides._known):
         cache.clear()
     yield
-    for cache in (curseforgepack._previews, handdownload._resolved, handdownload._wanted):
+    for cache in (curseforgepack._previews, handdownload._resolved, handdownload._wanted, sides._known):
         cache.clear()
 
 
@@ -109,6 +109,31 @@ def test_without_a_server_pack_modrinth_says_which_mods_are_for_players(http, mo
     assert (p["count"], p["client_only"], p["sides_from_modrinth"]) == (1, 1, 1)
 
 
+def test_a_mod_a_server_mod_requires_stays_on_the_server_whatever_modrinth_says(http, modrinth):
+    """All the Mods 11: Modrinth says Sky Aesthetics only runs on players' computers, but Stellaris (on
+    the server) requires it, so the server couldn't start without it and the pack's update was refused
+    (#135). A mod a server mod requires (CurseForge's required dependency) stays on the server."""
+    from craft_conductor import sides
+    sides._known.clear()
+    serve_pack(http, server_pack=False)
+    files = http.posts[f"{cf.API}/mods/files"]
+
+    def with_dependency(body):
+        data = files(body)
+        for f in data["data"]:
+            if f["id"] == 111:  # Core Mod requires Fancy Client (relationType 3: required; 2: optional)
+                f["dependencies"] = [{"modId": 22, "relationType": 3}, {"modId": 99, "relationType": 2}]
+        return data
+    http.posts[f"{cf.API}/mods/files"] = with_dependency
+    modrinth.project("FANCYMRX", "fancy-client", "Fancy Client", server_side="unsupported")
+    modrinth.project("COREMRXX", "core-mod", "Core Mod")
+    p = curseforgepack.preview(http, "key", "curseforge:9001")
+    by_name = {m["name"]: m for m in p["mods"]}
+    assert by_name["Fancy Client"]["included_on_server"] and not by_name["Fancy Client"]["for_friends"], by_name
+    assert "side_from" not in by_name["Fancy Client"]
+    assert (p["count"], p["client_only"], p["sides_from_modrinth"]) == (2, 0, 0)
+
+
 def test_a_curseforge_pack_is_applied(tmp_path, http):
     serve_pack(http, overrides="Overrides Here")
     root = tmp_path / "srv"
@@ -171,6 +196,21 @@ def test_mods_to_download_by_hand_are_found_before_the_server_is_made(http):
     # A mod picked by itself: found for its own channel (a release-only server wouldn't take it at all).
     assert handdownload.needed(http, "key", "forge", "1.20.1", [("22", None)]) == []
     assert [x["filename"] for x in handdownload.needed(http, "key", "forge", "1.20.1", [("22", "beta")])] == ["fancy-client-2.1.jar"]
+
+
+def test_a_mod_only_players_run_isnt_asked_for_by_hand(http, modrinth):
+    """Entity Culling, kept to CurseForge by its author, picked on New server: Create my server waited
+    for it to be downloaded by hand, then left it off the server because Modrinth says only players
+    run it (#146). It isn't asked for: it won't go on the server (friends get its link themselves)."""
+    from craft_conductor import handdownload, sides
+    sides._known.clear()
+    handdownload._resolved.clear()
+    serve_pack(http, server_pack=False)
+    serve_blocked_mod(http)
+    assert [x["filename"] for x in handdownload.needed(http, "key", "forge", "1.20.1", [("22", "beta")])] == ["fancy-client-2.1.jar"]
+    modrinth.project("FANCYMRX", "fancy-client", "Fancy Client", server_side="unsupported")
+    sides._known.clear()
+    assert handdownload.needed(http, "key", "forge", "1.20.1", [("22", "beta")]) == []
 
 
 def test_a_mod_downloaded_by_hand_is_loaded_before_the_server_is_made(hub_env, monkeypatch):
