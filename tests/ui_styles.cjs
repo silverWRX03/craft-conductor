@@ -263,6 +263,14 @@ const path = require('node:path');
     if (shots) await phone.screenshot({ path: path.join(shots, `${s}-phone-dashboard.png`) });
   }
 
+  // One main heading on each page, its title: the top bar's on Your servers, the page's own elsewhere.
+  for (const [view, name] of [['#servers', 'Your servers'], ['#s/alpha/dashboard', 'Dashboard'], ['#help', 'Help'], ['#manual', 'User manual'],
+    ['#craft-conductor', 'Craft Conductor settings'], ['#new', 'Create a new server']]) {
+    await page.goto(base + '/' + view);
+    await page.getByRole('heading', { level: 1, name }).waitFor();
+    assert.deepEqual(await page.getByRole('heading', { level: 1 }).allTextContents(), [name], `${view}: one main heading`);
+  }
+
   assert.deepEqual(outside, [], 'nothing was fetched from another site (no font service)');
   assert.deepEqual(errors, []);
   await browser.close();

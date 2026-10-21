@@ -9964,6 +9964,10 @@ function renderNav() {
   $(".actions").classList.toggle("hidden", !inServer);
   $("#page-title").classList.toggle("hidden", inServer);
   setText($("#page-title"), t({ servers: "Your servers", new: "New server", "craft-conductor": "Craft Conductor settings", help: "Help", manual: "User manual" }[currentName] || ""));
+  // Your servers has no title of its own in the page; elsewhere the page's own <h1> is the main heading, so a
+  // screen reader doesn't hear the title twice (the top bar looks the same either way).
+  if (currentName === "servers") $("#page-title").removeAttribute("role");
+  else $("#page-title").setAttribute("role", "none");
   // The browser tab (and what a screen reader says on arriving): the page, the server, Craft Conductor.
   const viewName = (SERVER_VIEWS.find(([v]) => v === currentName) || [])[1] || (currentName === "setup" ? "Setup" : "");
   const title = [inServer ? t(viewName) : $("#page-title").textContent, inServer ? (me ? me.name : server) : "", "Craft Conductor"].filter(Boolean).join(" · ");

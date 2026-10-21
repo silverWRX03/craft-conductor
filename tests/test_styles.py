@@ -242,6 +242,8 @@ def test_page_titles_are_the_one_h1():
     page = (WEBUI / "index.html").read_text(encoding="utf-8")
     assert '<h1 id="page-title" class="page-title hidden"></h1>' in page
     assert 'h("h2", { class: "view-title' not in app and app.count('h("h1", { class: "view-title') >= 14
+    # (and the top bar's copy of the title is a heading only on Your servers, which has no title of its own)
+    assert 'if (currentName === "servers") $("#page-title").removeAttribute("role");' in app
 
 
 def test_the_new_files_are_served(running):  # noqa: F811

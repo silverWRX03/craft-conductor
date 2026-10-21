@@ -8225,7 +8225,7 @@
   {
     "id": 938,
     "section": "Fix: Page titles are the main heading",
-    "step": "With a screen reader (NVDA: press H, or Insert+F7 for the headings list) on Your servers, a server's Dashboard and Settings, Help and Craft Conductor settings, in both looks: the page's title is the first heading and is a level 1 heading; cards' headings come after it. Classic and Modern look the same as before.",
+    "step": "With a screen reader (NVDA: press H, or Insert+F7 for the headings list) on Your servers, a server's Dashboard and Settings, Help and Craft Conductor settings, in both looks: the page's title is the first heading and the only level 1 heading (heard once, not again from the top bar); cards' headings come after it. Classic and Modern look the same as before.",
     "type": "Core",
     "tags": [],
     "source": "added-in-git"
