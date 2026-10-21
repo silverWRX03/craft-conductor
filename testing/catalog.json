@@ -8335,5 +8335,13 @@
       "minecraft"
     ],
     "source": "added-in-git"
+  },
+  {
+    "id": 952,
+    "section": "Fix: A mod you picked that another needs is listed once",
+    "step": "Fabric server: add Fabric API, then AppleSkin (which needs it), and update. Manage Mods lists Fabric API once, selected by you, with \"also needed by AppleSkin\" (no second dependency row; the count says 0 dependencies); Remove on AppleSkin doesn't say Fabric API goes too, and after the update Fabric API is still installed.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]

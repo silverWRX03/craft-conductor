@@ -3061,6 +3061,10 @@ views.mods = () => {
     const items = [];
     const seen = new Set();
     const needersOf = (key) => configured.filter((c) => (c.deps || []).some((d) => d.key === key));
+    // A mod you picked that another picked mod needs (Fabric API, needed by AppleSkin) is yours: one row,
+    // saying who else needs it, and it doesn't go with them.
+    const picked = new Set(configured.map((c) => c.key));
+    const depsOf = (spec) => (spec.deps || []).filter((d) => !picked.has(d.key));
     const removeSpecs = async (specs, what) => {
       for (const x of specs) await removeOne(x);
       toast(`Removed ${what}. ${specs.length === 1 ? "It's" : "They're"} uninstalled at the next update, with dependencies nothing else needs.`);
@@ -3069,12 +3073,14 @@ views.mods = () => {
     };
     for (const spec of configured) {
       const inst = installed.get(spec.key);
+      const others = needersOf(spec.key).filter((c) => c.key !== spec.key);
       seen.add(spec.key);
       items.push({
         key: spec.key, name: spec.name, source: spec.source, version: (inst || spec).version || "",
         channel: (inst || spec).channel || "release", minecraft: r.minecraft, loader: r.loader,
         origin: "selected by you",
         tags: [spec.required ? null : "optional", inst && inst.datapack ? "datapack" : null, playersTag(spec.key),
+          others.length ? `also needed by ${others.map((c) => c.name).join(", ")}` : null,
           inst && spec.source && inst.source !== spec.source ? `from ${inst.source === "curseforge" ? "CurseForge" : "Modrinth"}` : null].filter(Boolean),
         warning: skipped.get(spec.key) || "",
         versions: inst && inst.datapack ? null : versionsFor(spec.key, (inst || spec).source), held: heldLabel(spec.key),
@@ -3089,8 +3095,8 @@ views.mods = () => {
             } }), "required"),
           serverConfigButton(spec.key), playersButton(spec.key)),
         remove: async () => {
-          const shared = (spec.deps || []).map((d) => [d, needersOf(d.key).filter((c) => c.key !== spec.key)]).filter(([, others]) => others.length);
-          const going = (spec.deps || []).filter((d) => !shared.some(([x]) => x.key === d.key));
+          const shared = depsOf(spec).map((d) => [d, needersOf(d.key).filter((c) => c.key !== spec.key)]).filter(([, others]) => others.length);
+          const going = depsOf(spec).filter((d) => !shared.some(([x]) => x.key === d.key));
           if (!(await ask(`Remove ${spec.name}?` +
             (going.length ? ` The mods it needs (${going.map((d) => d.name).join(", ")}) go too.` : "") +
             (shared.length ? ` ${shared.map(([d]) => d.name).join(", ")} ${shared.length === 1 ? "stays" : "stay"}, because other mods need ${shared.length === 1 ? "it" : "them"}.` : "") +
@@ -3103,7 +3109,7 @@ views.mods = () => {
       });
     }
     const deps = new Map();
-    for (const spec of configured) for (const d of spec.deps || []) {
+    for (const spec of configured) for (const d of depsOf(spec)) {
       if (!deps.has(d.key)) deps.set(d.key, { ...d, needers: [] });
       deps.get(d.key).needers.push(spec);
     }
