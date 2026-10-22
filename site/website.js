@@ -9,6 +9,35 @@
   const website = $("website"), sidebar = $("site-nav"), menu = $("menu-toggle");
   const overlay = $("demo-overlay"), intro = $("demo-intro"), stage = $("demo-stage"), holder = $("frame-holder");
 
+  // Keep the approved desktop hero height independent of the larger carousel.
+  // The feature section is at least 1.5 times as tall and can grow to fit its screenshots.
+  // Stacked mobile content keeps its natural height.
+  const hero = $("home"), features = $("features");
+  const desktopHero = window.matchMedia("(min-width: 1101px)");
+  if ("ResizeObserver" in window) {
+    const sizeHero = () => {
+      if (desktopHero.matches && $("feature-carousel").classList.contains("ready")) {
+        const style = getComputedStyle(hero);
+        const contentHeight = Math.max(hero.querySelector(".hero-text").offsetHeight, hero.querySelector(".video-placeholder").offsetHeight);
+        const requiredHeight = contentHeight + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + 1;
+        features.style.setProperty("--features-min-height", `${Math.ceil(requiredHeight * 1.5)}px`);
+        hero.style.setProperty("--hero-min-height", `${requiredHeight}px`);
+      } else {
+        hero.style.removeProperty("--hero-min-height");
+        features.style.removeProperty("--features-min-height");
+      }
+    };
+    // Apply size changes in the next frame, outside ResizeObserver delivery (including WebKit).
+    let sizeFrame = 0;
+    const scheduleSize = () => {
+      if (!sizeFrame) sizeFrame = requestAnimationFrame(() => { sizeFrame = 0; sizeHero(); });
+    };
+    const sizes = new ResizeObserver(scheduleSize);
+    sizes.observe(hero.querySelector(".hero-text"));
+    sizes.observe(hero.querySelector(".video-placeholder"));
+    desktopHero.addEventListener("change", scheduleSize);
+  }
+
   // The section on screen is marked in the menu.
   const links = [...document.querySelectorAll(".nav-link[data-section]")];
   if ("IntersectionObserver" in window) {
@@ -18,7 +47,7 @@
         a.classList.toggle("active", on);
         if (on) a.setAttribute("aria-current", "true"); else a.removeAttribute("aria-current");
       }
-    }, { rootMargin: "-30% 0px -60% 0px" });
+    }, { rootMargin: "-10% 0px -80% 0px" });
     for (const s of document.querySelectorAll("main section[id]")) seen.observe(s);
   }
 

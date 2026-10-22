@@ -12,7 +12,7 @@
   const setTheme = (dark) => {
     root.dataset.theme = dark ? "night" : "day";
     toggle.setAttribute("aria-checked", String(dark));
-    document.querySelector('meta[name="theme-color"]').setAttribute("content", dark ? "#0A0A0A" : "#F4F4F4");
+    document.querySelector('meta[name="theme-color"]').setAttribute("content", dark ? "#0B0E11" : "#EDF2F5");
   };
   let saved = null;
   try { saved = localStorage.getItem(THEME_KEY); } catch (_) { /* private mode */ }

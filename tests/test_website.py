@@ -71,6 +71,28 @@ def test_pages_load_only_their_own_scripts_and_styles():
         assert "<style" not in text, page
 
 
+def test_the_website_has_its_own_font_and_license(built):
+    out, _ = built
+    source = ROOT / "src" / "craft_conductor" / "webui" / "fonts"
+    for name in ("roboto-latin.woff2", "roboto-symbols.woff2", "OFL.txt"):
+        assert (out / "fonts" / name).read_bytes() == (source / name).read_bytes()
+    for page in ("index.html", "testing/index.html"):
+        assert "fonts.googleapis.com" not in (out / page).read_text(encoding="utf-8")
+
+
+def test_the_homepage_video_placeholder_does_not_load_a_player():
+    text = (SITE / "index.html").read_text(encoding="utf-8")
+    home = text.split('id="home"', 1)[1].split("</section>", 1)[0]
+    parser = Tags()
+    parser.feed(home)
+    placeholders = [attrs for _, attrs in parser.tags if "video-placeholder" in attrs.get("class", "").split()]
+    assert len(placeholders) == 1
+    assert "coming soon" in placeholders[0].get("aria-label", "").lower()
+    assert not any(tag in {"iframe", "video", "button"} for tag, _ in parser.tags)
+    assert not any(attrs.get("href") in {"#demo", "#download"} for _, attrs in parser.tags)
+    assert not re.search(r"https?://(?:www\.)?(?:youtube(?:-nocookie)?\.com|youtu\.be)", text)
+
+
 def test_the_homepage_links():
     page = tags(SITE / "index.html")
     links = [a["href"] for t, a in page if t == "a" and "href" in a]

@@ -48,7 +48,7 @@ RULE_DEFAULTS = {"keepInventory": "false", "doDaylightCycle": "true", "doWeather
                  "mobGriefing": "true", "doFireTick": "true", "doInsomnia": "true", "naturalRegeneration": "true",
                  "playersSleepingPercentage": "100", "announceAdvancements": "true", "showDeathMessages": "true",
                  "spawnRadius": "10"}
-REQUIRED = ("index.html", "website.js", "nav.js", "css/website.css", "sitemap.xml", "join/index.html", "testing/index.html",
+REQUIRED = ("index.html", "website.js", "nav.js", "carousel.js", "css/website.css", "fonts/roboto-latin.woff2", "fonts/roboto-symbols.woff2", "fonts/OFL.txt", "sitemap.xml", "join/index.html", "testing/index.html",
             "testing/testing.css", "testing/data", "googlef2c4a8b5e575e76a.html", "icon.png", "demo/index.html", "demo/host.js", "demo/sw.js",
             "demo/manifest.webmanifest", "demo/phone-qr.svg", "demo/version.json", "demo/app/index.html",
             "demo/app/assets/app.js", "demo/app/sim/boot.js", "demo/app/sim/catalog-release.js", "demo/app/files/manual.md.js")
@@ -220,6 +220,10 @@ def build_site(output: Path, source: Path, version: str, channel: str, release_u
         shutil.rmtree(output)
     shutil.copytree(SITE, output, ignore=shutil.ignore_patterns("catalog-release.js", "__pycache__"))
     shutil.copy2(frontend / "icon.png", output / "icon.png")
+    # The website's typography follows this checkout, independently of the demo's release.
+    (output / "fonts").mkdir(exist_ok=True)
+    for name in ("roboto-latin.woff2", "roboto-symbols.woff2", "OFL.txt"):
+        shutil.copy2(ROOT / "src" / "craft_conductor" / "webui" / "fonts" / name, output / "fonts" / name)
     for name in ("icon-192.png", "icon-512.png"):
         shutil.copy2(frontend / name, output / "demo" / name)
     if testing:  # the real-world testing dashboard's public data (no notes, testers or evidence)

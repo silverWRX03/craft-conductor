@@ -8343,5 +8343,26 @@
     "type": "Core",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 953,
+    "section": "Feature: Website Modern appearance and screenshot carousel",
+    "step": "Open the built website on a computer and a real phone in light and dark themes. The sidebar has orange branding and a cyan current section, with Roboto throughout the homepage and testing dashboard. Download and Try the demo still jump to their sections; both demo choices, the QR code, download links and testing filters work. The homepage has no duplicate Download or Try the demo buttons and shows a clearly labelled 16:9 video placeholder with no player or external video requests. On desktop, Home keeps its approved height when the carousel changes, the video is 1.5 times its earlier width and height, and the What it does heading and introduction are centered. What it does slides large, uncropped screenshots in and out through its arrows and dots (including rapid presses and wrapping from last to first), with partial blurred neighbours and each title and description below the active picture. The phone layout has reachable controls and no sideways page scrolling.",
+    "type": "Core",
+    "tags": [
+      "website"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 954,
+    "section": "Feature: Website carousel keyboard and reduced motion",
+    "step": "Using only a keyboard and a screen reader, focus the What it does carousel. Previous and next wrap through all six features; Left/Right move one, Home/End reach first/last, and the dots choose directly. Focus stays usable, the selected feature is announced, and inactive or blurred neighbours are not read as extra slides. Leave the carousel untouched: it does not advance. Enable reduced motion: slide changes and section navigation have no animated movement. Disable JavaScript and reload: all six pictures, titles and descriptions are still readable. On a phone, open and close Menu and reach Download and Try the demo without losing keyboard focus.",
+    "type": "Extra",
+    "tags": [
+      "accessibility",
+      "website"
+    ],
+    "source": "added-in-git"
   }
 ]
