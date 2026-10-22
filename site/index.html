@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self' https://www.youtube-nocookie.com; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="description" content="Craft Conductor runs a Minecraft server on your own computer: mods, friends, backups and updates, from one control panel. Free and open source.">
   <meta name="theme-color" content="#0B0E11">
@@ -51,11 +51,14 @@
         <li>Free and open source</li><li>Runs on Windows, Mac and Linux</li><li>No command lines or config files</li>
       </ul>
     </div>
-    <!-- Reserved for an approved YouTube embed. No video ID or third-party request until then. -->
-    <div class="video-placeholder" role="img" aria-label="Product walkthrough. YouTube video coming soon.">
-      <svg class="video-mark" viewBox="0 0 80 56" aria-hidden="true"><rect x="1" y="1" width="78" height="54" rx="14"/><path d="M33 16 53 28 33 40Z"/></svg>
-      <span class="video-title">Product walkthrough</span>
-      <span class="video-note">Video coming soon</span>
+    <!-- The player connects to YouTube only after the visitor presses Watch. -->
+    <div class="video-walkthrough" id="walkthrough">
+      <button class="video-placeholder" id="watch-video" type="button" aria-label="Watch the Craft Conductor product walkthrough on YouTube">
+        <svg class="video-mark" viewBox="0 0 80 56" aria-hidden="true"><rect x="1" y="1" width="78" height="54" rx="14"/><path d="M33 16 53 28 33 40Z"/></svg>
+        <span class="video-title">Product walkthrough</span>
+        <span class="video-note">Watch video · Loads YouTube</span>
+      </button>
+      <noscript><a href="https://youtu.be/7facGOmax5M">Watch the product walkthrough on YouTube</a></noscript>
     </div>
   </section>
 
