@@ -6,12 +6,13 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="description" content="Craft Conductor runs a Minecraft server on your own computer: mods, friends, backups and updates, from one control panel. Free and open source.">
-  <meta name="theme-color" content="#0A0A0A">
+  <meta name="theme-color" content="#0B0E11">
   <meta name="color-scheme" content="dark light">
   <title>Craft Conductor: your own Minecraft server, made easy</title>
   <link rel="icon" type="image/png" href="icon.png">
   <link rel="stylesheet" href="css/website.css">
   <script src="nav.js" defer></script>
+  <script src="carousel.js" defer></script>
   <script src="demo/host.js" defer></script>
   <script src="website.js" defer></script>
 </head>
@@ -21,17 +22,17 @@
 <div class="site-scrim" id="site-scrim" hidden></div>
 
 <aside id="site-nav" class="sidebar" aria-label="Website">
-  <a class="brand" href="#home"><img src="icon.png" alt="" width="34" height="34"><span>Craft<br>Conductor</span></a>
+  <a class="brand" href="#home"><img src="icon.png" alt="" width="34" height="34"><span>Craft<br><span>Conductor</span></span></a>
   <nav aria-label="Sections">
-    <a href="#home" class="nav-link" data-section="home"><span class="nav-icon" aria-hidden="true">⌂</span>Home</a>
-    <a href="#features" class="nav-link" data-section="features"><span class="nav-icon" aria-hidden="true">▦</span>What it does</a>
-    <a href="#demo" class="nav-link" data-section="demo"><span class="nav-icon" aria-hidden="true">▷</span>Try the demo</a>
-    <a href="#download" class="nav-link" data-section="download"><span class="nav-icon" aria-hidden="true">↓</span>Download</a>
-    <a href="#start" class="nav-link" data-section="start"><span class="nav-icon" aria-hidden="true">①</span>Getting started</a>
-    <a href="#help" class="nav-link" data-section="help"><span class="nav-icon" aria-hidden="true">?</span>Help &amp; manual</a>
-    <a href="#safety" class="nav-link" data-section="safety"><span class="nav-icon" aria-hidden="true">◈</span>Safety &amp; releases</a>
-    <a href="testing/" class="nav-link"><span class="nav-icon" aria-hidden="true">✓</span>Real-world testing</a>
-    <a href="https://github.com/silverWRX03/craft-conductor" class="nav-link"><span class="nav-icon" aria-hidden="true">◇</span>GitHub</a>
+    <a href="#home" class="nav-link" data-section="home"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10 12 3 21 10v11h-6v-7H9v7H3Z"/></svg>Home</a>
+    <a href="#features" class="nav-link" data-section="features"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h7v7H3ZM14 3h7v7h-7ZM3 14h7v7H3ZM14 14h7v7h-7Z"/></svg>What it does</a>
+    <a href="#demo" class="nav-link" data-section="demo"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3 21 12 5 21Z"/></svg>Try the demo</a>
+    <a href="#download" class="nav-link" data-section="download"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M3 15v6h18v-6"/></svg>Download</a>
+    <a href="#start" class="nav-link" data-section="start"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5C8 2 4 3 2 4v16c4-2 7-1 10 1m0-16c4-3 8-2 10-1v16c-4-2-7-1-10 1Z"/></svg>Getting started</a>
+    <a href="#help" class="nav-link" data-section="help"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 8a3 3 0 0 1 6 0c0 3-3 2-3 5m0 3v.1M22 12A10 10 0 1 1 2 12a10 10 0 0 1 20 0"/></svg>Help &amp; manual</a>
+    <a href="#safety" class="nav-link" data-section="safety"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 21 6v6c0 5-5 8-9 10-4-2-9-5-9-10V6ZM12 7v6m0 3v.1"/></svg>Safety &amp; releases</a>
+    <a href="testing/" class="nav-link"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 15h4v6H3ZM10 9h4v12h-4ZM17 3h4v18h-4Z"/></svg>Real-world testing</a>
+    <a href="https://github.com/silverWRX03/craft-conductor" class="nav-link"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7v10M8 5a2 2 0 1 1-4 0 2 2 0 0 1 4 0M8 19a2 2 0 1 1-4 0 2 2 0 0 1 4 0M20 5a2 2 0 1 1-4 0 2 2 0 0 1 4 0M18 7v3c0 3-3 4-7 4H6"/></svg>GitHub</a>
   </nav>
   <div class="nav-bottom">
     <div class="theme-control"><span>Light</span><button type="button" id="theme-toggle" class="theme-switch" role="switch" aria-checked="true" aria-label="Dark theme"><span class="thumb" aria-hidden="true"></span></button><span>Dark</span></div>
@@ -46,25 +47,25 @@
       <p class="eyebrow"><span class="status-dot" aria-hidden="true"></span>Your server · your world · your computer</p>
       <h1 id="hero-title">Your own Minecraft server,<br><em>without the headache.</em></h1>
       <p class="lede">Craft Conductor turns a home computer into a Minecraft server for your family and friends. It sets up Minecraft, the mods and Java for you, gets your friends' games ready to join, makes backups, and keeps everything up to date. All from one control panel in your browser.</p>
-      <div class="hero-actions">
-        <a class="button primary" href="#download">Download Craft Conductor <span aria-hidden="true">↓</span></a>
-        <button type="button" class="button secondary launch-demo" data-scenario="choose">Try the demo in your browser <span aria-hidden="true">↗</span></button>
-      </div>
       <ul class="hero-facts">
         <li>Free and open source</li><li>Runs on Windows, Mac and Linux</li><li>No command lines or config files</li>
       </ul>
     </div>
-    <button type="button" class="hero-shot launch-demo" data-scenario="existing" aria-label="Open the interactive demo of a running server">
-      <img src="demo/app/assets/screenshots/dashboard.png" width="1440" height="1000" alt="Craft Conductor's Dashboard for a running server: memory, CPU, players online and the live console">
-      <span class="shot-badge">Real screenshot · click to try it</span>
-    </button>
+    <!-- Reserved for an approved YouTube embed. No video ID or third-party request until then. -->
+    <div class="video-placeholder" role="img" aria-label="Product walkthrough. YouTube video coming soon.">
+      <svg class="video-mark" viewBox="0 0 80 56" aria-hidden="true"><rect x="1" y="1" width="78" height="54" rx="14"/><path d="M33 16 53 28 33 40Z"/></svg>
+      <span class="video-title">Product walkthrough</span>
+      <span class="video-note">Video coming soon</span>
+    </div>
   </section>
 
   <section class="section" id="features" aria-labelledby="features-title">
     <p class="eyebrow">What it does</p>
     <h2 id="features-title">Simple the first time.<br><span class="muted">Still there when you want more.</span></h2>
     <p class="section-copy">You don't need to know what a mod loader, a port or a JAR file is. Craft Conductor asks in plain words and does the fiddly parts. When something goes wrong, it says what happened and offers a fix.</p>
-    <div class="feature-grid">
+    <div class="feature-carousel" id="feature-carousel" role="region" aria-roledescription="carousel" aria-label="What it does" tabindex="0">
+    <p class="sr-only" id="carousel-help">Use the previous and next buttons, or the Left and Right arrow keys. Home shows the first feature; End shows the last.</p>
+    <div class="feature-track">
       <article class="feature">
         <img src="demo/app/assets/screenshots/new-server.png" alt="The New server page, with ready-made quick starts" loading="lazy" width="1440" height="1000">
         <h3>A server in a few clicks</h3>
@@ -95,6 +96,20 @@
         <h3>From your phone, too</h3>
         <p>Install the control panel on your phone, get notifications when a friend asks to join or a server stops, and invite helpers with their own sign-in and only the permissions you choose.</p>
       </article>
+    </div>
+    <div class="carousel-controls" hidden>
+      <button type="button" class="carousel-arrow carousel-prev" data-carousel-prev aria-label="Previous feature"><span aria-hidden="true">‹</span></button>
+      <div class="carousel-dots" role="group" aria-label="Choose a feature">
+        <button type="button" data-carousel-dot aria-label="Show feature 1: A server in a few clicks"><span></span></button>
+        <button type="button" data-carousel-dot aria-label="Show feature 2: Mods without the chaos"><span></span></button>
+        <button type="button" data-carousel-dot aria-label="Show feature 3: Friends join with one link"><span></span></button>
+        <button type="button" data-carousel-dot aria-label="Show feature 4: Updates that don't break things"><span></span></button>
+        <button type="button" data-carousel-dot aria-label="Show feature 5: Backups you can trust"><span></span></button>
+        <button type="button" data-carousel-dot aria-label="Show feature 6: From your phone, too"><span></span></button>
+      </div>
+      <button type="button" class="carousel-arrow carousel-next" data-carousel-next aria-label="Next feature"><span aria-hidden="true">›</span></button>
+    </div>
+    <p class="sr-only" id="carousel-status" role="status" aria-live="polite" aria-atomic="true"></p>
     </div>
   </section>
 

@@ -19,6 +19,39 @@
 the links match): `site/nav.js` runs it on both, with the Light/Dark switch (remembered for the whole
 site) and the ☰ Menu on phones. A link added to one page's sidebar goes in the other's too.
 
+## Homepage appearance and controls
+
+The homepage and testing dashboard use the app's Modern colours: a dark slate background, cyan for
+the selected sidebar link, and orange branding. Roboto is served from the website itself, with no
+font-service requests. The Light/Dark switch still applies to both pages.
+
+**Download** and **Try the demo** in the sidebar jump to their sections. The homepage no longer
+duplicates these controls beside its introduction. The demo's two starting choices and phone QR
+code remain in **Try the demo**.
+
+On desktop, Home keeps its approved height and a video window 1.5 times its earlier width and
+height. What it does is at least 1.5 times as tall and grows to fit the full-size screenshots.
+Narrow screens stack naturally.
+
+The introduction's video area is a responsive 16:9 placeholder for a future YouTube video. It is
+clearly labelled as coming soon, has no video ID or playable control, and loads no player or external
+content. Adding a real video later requires the owner's video URL and a deliberate update to the
+site's content policy and network checks; do not substitute an unrelated video.
+
+**What it does** has a centered heading and introduction. It presents the six existing screenshots
+in a large carousel, with part of the previous and next pictures blurred beside the current one.
+Each title and description stays below its picture.
+Previous/next arrows wrap at the ends; dots select a picture directly. With focus inside the
+carousel, Left/Right move one picture and Home/End select the first/last. Changes are announced to
+screen readers, and inactive pictures are hidden from them. The carousel never advances by itself,
+slides pictures in and out when navigating, skips that motion when reduced motion is requested,
+and keeps every feature readable as a list when JavaScript is unavailable. Phone controls remain
+reachable without sideways page scrolling.
+
+When creating the next release's manual test run, include the website redesign acceptance cases
+with `--features 953,954`; automated browser checks and real-device/screen-reader results remain
+separate. Record manual results only after performing the cases.
+
 **Search engines:** `sitemap.xml` lists the pages worth finding (the homepage and the testing
 dashboard). The demo and the invite page are `noindex`: the invite page is only useful from an invite link. A site
 under `/craft-conductor/` can't have the `robots.txt` that would point to it (that would be

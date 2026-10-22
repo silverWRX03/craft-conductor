@@ -28,6 +28,8 @@ Help shows a picture of the screen with each topic, and in the User manual, **Se
 
 ## Getting started
 
+Before installing, explore the [project website](https://silverwrx03.github.io/craft-conductor/). Choose **Try the demo** or **Download** in its sidebar (under **Menu** on a phone). **What it does** shows six screenshots: use the arrows or the dots to browse, or Left/Right and Home/End while the carousel has keyboard focus. Each picture's title and description appear below it; the pictures only change when you choose. The video space on the homepage is a placeholder until a video is available.
+
 1. Download Craft Conductor for your computer from the [releases page](https://github.com/silverWRX03/craft-conductor/releases/latest): Windows, Mac (Apple silicon) or Linux.
 2. Open it. On Windows, if SmartScreen says it "protected your PC", choose **More info → Run anyway** (Craft Conductor isn't code-signed). On a Mac, the first time, see **On a Mac** just below.
 3. Craft Conductor opens in your browser. Until you've made a server, the downloaded program first offers to set up your Minecraft for a friend's server (**Join a friend's Minecraft server**): to run your own, press **Run my own server** under **Or run a Minecraft server of your own**, and the control panel opens in a new tab. Read and accept the notice (what Craft Conductor does and doesn't do).
