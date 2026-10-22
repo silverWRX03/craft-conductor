@@ -24,16 +24,16 @@ const base = process.argv[2];
       assert.ok(box.x === 0 && box.width > 180, 'the navigation is a left sidebar');
       for (const id of ['home', 'features', 'demo', 'download', 'start', 'help', 'safety']) assert.equal(await page.locator(`section#${id}`).count(), 1, id);
       assert.equal(await page.locator('#home .launch-demo, #home a[href="#download"]').count(), 0, 'the hero has no duplicate actions');
-      const video = await page.locator('#home .video-placeholder').boundingBox();
-      assert.ok(video && Math.abs(video.width / video.height - 16 / 9) < 0.02, 'the video placeholder keeps its 16:9 shape');
-      assert.equal(await page.locator('#home iframe, #home video').count(), 0, 'no invented video or external player is loaded');
+      const video = await page.locator('#home .video-walkthrough').boundingBox();
+      assert.ok(video && Math.abs(video.width / video.height - 16 / 9) < 0.02, 'the video area keeps its 16:9 shape');
+      assert.equal(await page.locator('#home iframe, #home video').count(), 0, 'the video player waits for a click');
       await page.evaluate(() => document.fonts.ready);
       await until(async () => page.evaluate(() => document.getElementById('home').style.getPropertyValue('--hero-min-height')), 'the desktop section proportions settle');
       const layout = await page.evaluate(() => {
         const hero = document.getElementById('home'), style = getComputedStyle(hero);
         const available = hero.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) - parseFloat(style.columnGap);
-        const video = hero.querySelector('.video-placeholder').getBoundingClientRect();
-        const contentHeight = Math.max(hero.querySelector('.hero-text').offsetHeight, hero.querySelector('.video-placeholder').offsetHeight);
+        const video = hero.querySelector('.video-walkthrough').getBoundingClientRect();
+        const contentHeight = Math.max(hero.querySelector('.hero-text').offsetHeight, hero.querySelector('.video-walkthrough').offsetHeight);
         return { videoWidth: video.width, originalVideoWidth: available / 2.15,
           heroHeight: hero.offsetHeight, expectedHeroHeight: contentHeight + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + 1,
           headingAlign: getComputedStyle(document.getElementById('features-title')).textAlign };
@@ -330,7 +330,7 @@ const base = process.argv[2];
           await p.keyboard.press('Escape');
           await until(async () => (await p.getAttribute('#menu-toggle', 'aria-expanded')) === 'false', 'the menu closes');
         }
-        const video = await p.locator('#home .video-placeholder').boundingBox();
+        const video = await p.locator('#home .video-walkthrough').boundingBox();
         assert.ok(video && Math.abs(video.width / video.height - 16 / 9) < 0.02, `${label}: the video stays 16:9`);
         await shot(p, `${name}-home-${label}`);
         await p.locator('#feature-carousel').scrollIntoViewIfNeeded();
@@ -365,6 +365,37 @@ const base = process.argv[2];
         await shot(p, `${name}-demo-${label}`);
         await small.close();
       }
+    });
+    await t.step(`${name}: walkthrough loads the approved embed only after activation`, async () => {
+      const videoPage = await ctx.newPage();
+      const external = [];
+      const errors = [];
+      videoPage.on('pageerror', (e) => errors.push(e.message));
+      await videoPage.route('**/*', async (route) => {
+        const url = new URL(route.request().url());
+        if (url.origin === new URL(base).origin) return route.continue();
+        external.push(url.href);
+        if (url.href === 'https://www.youtube-nocookie.com/embed/7facGOmax5M?autoplay=1&rel=0') {
+          return route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Player test fixture</title>' });
+        }
+        return route.abort();
+      });
+      await videoPage.goto(base);
+      await videoPage.waitForLoadState('networkidle');
+      assert.deepEqual(external, [], 'no YouTube connection before activation');
+      await videoPage.focus('#watch-video');
+      await videoPage.keyboard.press('Enter');
+      const player = videoPage.locator('#walkthrough iframe');
+      await player.waitFor();
+      await until(async () => external.length > 0, 'the embed request passes CSP');
+      assert.deepEqual(external, ['https://www.youtube-nocookie.com/embed/7facGOmax5M?autoplay=1&rel=0']);
+      assert.equal(await player.getAttribute('title'), 'Craft Conductor product walkthrough');
+      assert.equal(await player.getAttribute('referrerpolicy'), 'strict-origin-when-cross-origin');
+      assert.equal(await videoPage.locator('#watch-video').count(), 0);
+      const box = await player.boundingBox();
+      assert.ok(Math.abs(box.width / box.height - 16 / 9) < 0.02);
+      assert.deepEqual(errors, []);
+      await videoPage.close();
     });
     await browser.close();
   }
