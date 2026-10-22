@@ -33,10 +33,14 @@ On desktop, Home keeps its approved height and a video window 1.5 times its earl
 height. What it does is at least 1.5 times as tall and grows to fit the full-size screenshots.
 Narrow screens stack naturally.
 
-The introduction's video area is a responsive 16:9 placeholder for a future YouTube video. It is
-clearly labelled as coming soon, has no video ID or playable control, and loads no player or external
-content. Adding a real video later requires the owner's video URL and a deliberate update to the
-site's content policy and network checks; do not substitute an unrelated video.
+The introduction's responsive 16:9 **Product walkthrough** shows the owner's approved video:
+https://youtu.be/7facGOmax5M. Press **Watch video · Loads YouTube** to load and play it in place.
+Until that press, no player or YouTube requests are made. With JavaScript disabled, a link opens
+it on YouTube. The player uses youtube-nocookie.com and supports fullscreen; the homepage's CSP
+allows that exact frame origin while scripts, styles and connections remain local. To replace
+the video, update the video ID in site/website.js, the fallback link in site/index.html, and the
+matching website checks. Browser tests intercept the approved embed to verify activation and CSP
+without depending on YouTube availability; actual playback still needs a real-world check.
 
 **What it does** has a centered heading and introduction. It presents the six existing screenshots
 in a large carousel, with part of the previous and next pictures blurred beside the current one.
@@ -185,9 +189,11 @@ dashboard and the owner's other Pages sites. Decisions:
   An address with `#invite=` or `#pair=` is cleared before the panel starts.
 - **Files:** an uploaded `.jar` or `.zip` never leaves the browser and isn't read (only its name and
   size). Downloads are explained, not served.
-- **No analytics, no outside requests:** the homepage and the demo load only the site's own files
-  (no fonts, scripts or images from elsewhere); the homepage's CSP says so too. The tests fail on any
-  request that leaves the site, or any `/api/` request that reaches the network.
+- **No analytics:** the homepage and demo load only the site's own files until a visitor chooses
+  the YouTube walkthrough. That player can contact YouTube and its media services after activation.
+  The demo remains isolated with no outside requests. Tests fail on unexpected outside requests
+  or any `/api/` request that reaches the network; the video activation check permits only the
+  exact approved embed and intercepts it locally.
 - **Service worker:** only the phone demo registers one, `demo/sw.js`, with scope `demo/`: it can't
   see the homepage, the invite page or the testing dashboard (it also leaves `demo/app/` alone).
   Network first, so a new release shows as soon as it's online.
@@ -256,4 +262,4 @@ Run the tests locally (Node and Playwright, like the other UI tests):
 - The mod catalog is a fixed sample (real mod names, made-up numbers and builds), not Modrinth or
   CurseForge today; maps are made-up worlds, not Minecraft's generator.
 - One computer's demo isn't seen on another (no backend; by design).
-- Video is a future addition.
+- The walkthrough is a recorded video, separate from the interactive demo.
