@@ -200,6 +200,10 @@ dashboard and the owner's other Pages sites. Decisions:
 
 ## Publishing: the newest published release, checked first
 
+Before installing browser-test dependencies, the Ubuntu runner replaces its slow Azure HTTP
+package mirror with Ubuntu's official HTTPS archive when the mirror-list file exists. Package
+signature verification and every website/browser test still run; no validation is skipped.
+
 `pages.yml` runs after each release (release.yml calls it once the downloads exist; a release
 published by hand sends `release: published`), on main when the website or testing records change,
 and by hand. It calls `website-build.yml`, which:
