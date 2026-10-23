@@ -39,6 +39,13 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+      # The Azure HTTP mirror has stalled browser dependency downloads for nearly an hour.
+      # Keep Ubuntu's signed packages, using its official HTTPS archive instead.
+      - name: Use the official Ubuntu mirror for browser dependencies
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt
+          fi
       - name: Install the test tools (pytest, and Playwright's browsers; nothing the site needs)
         run: |
           pip install -e ".[dev]"
