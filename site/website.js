@@ -9,6 +9,18 @@
   const website = $("website"), sidebar = $("site-nav"), menu = $("menu-toggle");
   const overlay = $("demo-overlay"), intro = $("demo-intro"), stage = $("demo-stage"), holder = $("frame-holder");
 
+  // No third-party connection until the visitor chooses to load the walkthrough.
+  $("watch-video").addEventListener("click", () => {
+    const player = document.createElement("iframe");
+    player.src = "https://www.youtube-nocookie.com/embed/7facGOmax5M?autoplay=1&rel=0";
+    player.title = "Craft Conductor product walkthrough";
+    player.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+    player.allowFullscreen = true;
+    player.referrerPolicy = "strict-origin-when-cross-origin";
+    $("watch-video").replaceWith(player);
+    player.focus();
+  }, { once: true });
+
   // Keep the approved desktop hero height independent of the larger carousel.
   // The feature section is at least 1.5 times as tall and can grow to fit its screenshots.
   // Stacked mobile content keeps its natural height.
@@ -18,7 +30,7 @@
     const sizeHero = () => {
       if (desktopHero.matches && $("feature-carousel").classList.contains("ready")) {
         const style = getComputedStyle(hero);
-        const contentHeight = Math.max(hero.querySelector(".hero-text").offsetHeight, hero.querySelector(".video-placeholder").offsetHeight);
+        const contentHeight = Math.max(hero.querySelector(".hero-text").offsetHeight, hero.querySelector(".video-walkthrough").offsetHeight);
         const requiredHeight = contentHeight + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + 1;
         features.style.setProperty("--features-min-height", `${Math.ceil(requiredHeight * 1.5)}px`);
         hero.style.setProperty("--hero-min-height", `${requiredHeight}px`);
@@ -34,7 +46,7 @@
     };
     const sizes = new ResizeObserver(scheduleSize);
     sizes.observe(hero.querySelector(".hero-text"));
-    sizes.observe(hero.querySelector(".video-placeholder"));
+    sizes.observe(hero.querySelector(".video-walkthrough"));
     desktopHero.addEventListener("change", scheduleSize);
   }
 

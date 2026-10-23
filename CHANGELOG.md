@@ -7,7 +7,8 @@ its fix will say which version it's in.
 ## Next version (not released yet)
 
 **Changed**
-- The project website now matches the app's Modern look, with Roboto text, a cyan selection in the sidebar and orange branding. **What it does** has centered text and shows large, uncropped screenshots in a sliding carousel with arrows and keyboard controls, with each title and description below its picture. The taller homepage has a larger space for an upcoming video; **Download** and **Try the demo** remain in the sidebar.
+- The website’s **Product walkthrough** now plays the Craft Conductor YouTube video. The player loads only when you press **Watch video**.
+- The project website now matches the app's Modern look, with Roboto text, a cyan selection in the sidebar and orange branding. **What it does** has centered text and shows large, uncropped screenshots in a sliding carousel with arrows and keyboard controls, with each title and description below its picture. The taller homepage has a larger video area; **Download** and **Try the demo** remain in the sidebar.
 
 ## 0.30.1 (2026-10-21)
 

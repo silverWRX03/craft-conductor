@@ -80,24 +80,27 @@ def test_the_website_has_its_own_font_and_license(built):
         assert "fonts.googleapis.com" not in (out / page).read_text(encoding="utf-8")
 
 
-def test_the_homepage_video_placeholder_does_not_load_a_player():
+def test_the_homepage_walkthrough_loads_only_when_requested():
     text = (SITE / "index.html").read_text(encoding="utf-8")
     home = text.split('id="home"', 1)[1].split("</section>", 1)[0]
     parser = Tags()
     parser.feed(home)
     placeholders = [attrs for _, attrs in parser.tags if "video-placeholder" in attrs.get("class", "").split()]
     assert len(placeholders) == 1
-    assert "coming soon" in placeholders[0].get("aria-label", "").lower()
-    assert not any(tag in {"iframe", "video", "button"} for tag, _ in parser.tags)
+    assert "walkthrough" in placeholders[0].get("aria-label", "").lower()
+    assert placeholders[0]["id"] == "watch-video"
+    assert not any(tag in {"iframe", "video"} for tag, _ in parser.tags)
     assert not any(attrs.get("href") in {"#demo", "#download"} for _, attrs in parser.tags)
-    assert not re.search(r"https?://(?:www\.)?(?:youtube(?:-nocookie)?\.com|youtu\.be)", text)
+    csp = re.search(r'Content-Security-Policy" content="([^"]+)"', text).group(1)
+    assert "frame-src 'self' https://www.youtube-nocookie.com;" in csp
+    assert "Watch video · Loads YouTube" in home
 
 
 def test_the_homepage_links():
     page = tags(SITE / "index.html")
     links = [a["href"] for t, a in page if t == "a" and "href" in a]
     for href in links:
-        assert href.startswith(("#", "https://github.com/silverWRX03/craft-conductor", "testing/", "demo/")), href
+        assert href.startswith(("#", "https://github.com/silverWRX03/craft-conductor", "testing/", "demo/")) or href == "https://youtu.be/7facGOmax5M", href
     assert "testing/" in links, "the real-world testing dashboard is linked"
     downloads = [h for h in links if "/releases/latest/download/" in h]
     names = [h.rsplit("/", 1)[1] for h in downloads]

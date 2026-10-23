@@ -8364,5 +8364,15 @@
       "website"
     ],
     "source": "added-in-git"
+  },
+  {
+    "id": 955,
+    "section": "Feature: Website product walkthrough",
+    "step": "Open the website on a desktop and real phone. Product walkthrough keeps its 16:9 shape in both themes. No YouTube requests occur until Watch video is pressed. Activate it with a mouse or keyboard: the approved Craft Conductor video (7facGOmax5M) plays in place with working audio and fullscreen. The demo and sidebar still work. With JavaScript disabled, the walkthrough link opens the same video on YouTube.",
+    "type": "Core",
+    "tags": [
+      "website"
+    ],
+    "source": "added-in-git"
   }
 ]
