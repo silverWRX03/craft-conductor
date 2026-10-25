@@ -3,6 +3,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from craft_conductor import cli, lock as lockmod, setup as setupmod, webauth
 from craft_conductor.hub import Hub
 
@@ -231,6 +233,20 @@ def test_start_when_the_control_panels_port_is_taken(tmp_path, monkeypatch, caps
     err = capsys.readouterr().err
     assert f"port {port}" in err and "another program" in err and "--web-port" in err
     assert "stopped unexpectedly" not in err and "WinError" not in err
+
+
+def test_two_craft_conductors_cant_share_a_port():
+    """On Windows two listeners that both ask for SO_REUSEADDR may share a port: two Craft Conductors
+    on one computer then shared the friends' download port, and invites reached the wrong one. The
+    second must get "port in use" instead (as it does elsewhere)."""
+    from http.server import BaseHTTPRequestHandler
+    from craft_conductor.web import _Server
+    first = _Server(("127.0.0.1", 0), BaseHTTPRequestHandler)
+    try:
+        with pytest.raises(OSError):
+            _Server(("127.0.0.1", first.server_address[1]), BaseHTTPRequestHandler).server_close()
+    finally:
+        first.server_close()
 
 
 def test_a_taken_usual_port_moves_the_control_panel(tmp_path, monkeypatch, capsys, caplog):

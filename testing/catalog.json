@@ -8374,5 +8374,29 @@
       "website"
     ],
     "source": "added-in-git"
+  },
+  {
+    "id": 956,
+    "section": "Fix: Prism custom instances folder (#169)",
+    "step": "In Prism Launcher set Settings -> Launcher -> Folders -> Instances to another folder (e.g. on another drive) and restart Prism. Open a friend's invite, tick Prism Launcher and set it up: the server's instance appears in Prism (in that folder, nothing new in Prism's default instances folder) and Launch joins the server.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 957,
+    "section": "Fix: Minecraft Launcher profile from an invite (#170)",
+    "step": "On a computer whose Minecraft Launcher has never played the server's Minecraft version (no versions/<version>/<version>.jar), open a friend's invite for a Fabric server, tick the Minecraft Launcher and set it up. Press Play on the server's profile: the launcher downloads the game, Minecraft starts and joins the server.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 958,
+    "section": "Fix: two copies can't share a port on Windows (#171)",
+    "step": "On Windows, run two Craft Conductor installations (different folders and panel ports) and turn on the friends' download in both with the same share port (8766). The second can't use it and says the port is in use (netstat shows only one listener on 8766); invites from the first still work.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]

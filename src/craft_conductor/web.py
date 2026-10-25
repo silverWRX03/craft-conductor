@@ -577,6 +577,11 @@ class _Server(ThreadingHTTPServer):
     daemon_threads = True
     MAX_CONNECTIONS = 64
     request_queue_size = 64  # (connections waiting to be accepted: a page opening fires off many at once)
+    # On Windows, SO_REUSEADDR (http.server sets it) lets a second program listen on a port that's in
+    # use: two Craft Conductors then shared the friends' download port, and invites reached the wrong
+    # one. Without it the second gets "port in use", which the callers already handle. (Elsewhere it
+    # only lets a port be used again straight after a restart, so it stays.)
+    allow_reuse_address = os.name != "nt"
 
     def __init__(self, *args, **kwargs):
         self._slots = threading.BoundedSemaphore(self.MAX_CONNECTIONS)

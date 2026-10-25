@@ -235,8 +235,8 @@ def _launcher_saves() -> list[tuple[str, Path]]:
     from . import join, launchers
     out: list[tuple[str, Path]] = [("Minecraft Launcher", join.minecraft_dir() / "saves")]
     for d in launchers.prism_dirs():
-        if (d / "instances").is_dir():
-            for inst in sorted((d / "instances").iterdir()):
+        if launchers.prism_instances(d).is_dir():
+            for inst in sorted(launchers.prism_instances(d).iterdir()):
                 for game in ("minecraft", ".minecraft"):
                     out.append((f"Prism: {inst.name}", inst / game / "saves"))
     for d in launchers.modrinth_dirs():
