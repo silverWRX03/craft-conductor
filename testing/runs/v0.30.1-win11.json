@@ -26,6 +26,170 @@
     950
   ],
   "required_ids": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    12,
+    13,
+    17,
+    18,
+    23,
+    24,
+    25,
+    27,
+    50,
+    51,
+    52,
+    53,
+    54,
+    55,
+    61,
+    62,
+    63,
+    64,
+    65,
+    66,
+    67,
+    68,
+    69,
+    70,
+    71,
+    72,
+    73,
+    90,
+    91,
+    92,
+    93,
+    94,
+    95,
+    105,
+    106,
+    107,
+    108,
+    109,
+    110,
+    111,
+    112,
+    115,
+    116,
+    117,
+    118,
+    119,
+    254,
+    255,
+    256,
+    257,
+    258,
+    259,
+    260,
+    261,
+    262,
+    263,
+    264,
+    265,
+    266,
+    267,
+    403,
+    404,
+    405,
+    406,
+    407,
+    408,
+    409,
+    410,
+    427,
+    436,
+    437,
+    438,
+    439,
+    440,
+    441,
+    442,
+    443,
+    444,
+    454,
+    455,
+    456,
+    457,
+    458,
+    459,
+    460,
+    461,
+    462,
+    463,
+    464,
+    465,
+    478,
+    479,
+    480,
+    481,
+    482,
+    483,
+    484,
+    485,
+    486,
+    487,
+    488,
+    489,
+    499,
+    500,
+    501,
+    502,
+    503,
+    504,
+    505,
+    506,
+    507,
+    508,
+    509,
+    510,
+    511,
+    522,
+    556,
+    557,
+    586,
+    587,
+    588,
+    589,
+    590,
+    591,
+    592,
+    595,
+    679,
+    680,
+    684,
+    685,
+    686,
+    687,
+    688,
+    689,
+    690,
+    691,
+    692,
+    762,
+    763,
+    764,
+    765,
+    766,
+    767,
+    768,
+    769,
+    770,
+    771,
+    772,
+    773,
+    774,
+    775,
+    776,
+    777,
+    778,
+    779,
+    780,
     802,
     803,
     804,
@@ -46,10 +210,34 @@
     819,
     820,
     821,
+    824,
+    825,
+    835,
+    836,
+    837,
+    838,
+    843,
+    844,
+    845,
+    846,
+    848,
+    849,
+    850,
+    851,
+    852,
+    856,
     857,
+    860,
+    863,
+    864,
+    867,
+    868,
+    882,
     910,
     913,
     922,
+    924,
+    928,
     941,
     942,
     943,
@@ -203,6 +391,1406 @@
       "tester": "Claude",
       "notes": "Chrome on Windows 11, isolated install, Fabric 1.21.1 server with Fabric API (Modrinth) and AppleSkin (added from CurseForge, which needs Fabric API) installed, the server from test 946. Manage Mods lists Fabric API once: selected by you, \"also needed by AppleSkin\", no dependency row; the count says 3 total, 0 dependencies. Remove on AppleSkin asked only \"Remove AppleSkin? It's uninstalled at the next update.\"; Check now listed - AppleSkin only; after Apply update the server started with Fabric API still installed.",
       "evidence": "PR #157 CI test build (test.yml run 39667033920, commit c631c51)"
+    },
+    "802": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:27:49+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Chrome, new isolated home (not a clean VM). The exe started with no setup; sign-in said the first password is PASSWORD; after signing in the first-run notice (GPL-3.0-or-later) then Choose your own password, then Where should Craft Conductor keep your files (kept defaults), then the Guided setup offer. Guide me -> Show me opened New server; Smooth survival made a Fabric 26.3 server with Java 25 downloaded by itself; Start worked. Found: the Guided setup ticked Join it yourself and A friend joined without anyone joining (bug log B1).",
+      "evidence": ""
+    },
+    "803": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:27:49+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Smooth survival quick start: Fabric 0.19.5 on Minecraft 26.3, Java 25 (downloaded), port 25591, 2 GB. Created with its test start (Done in 2.3 s), then Start: running, Done; Restart and Stop worked; the activity listed each step.",
+      "evidence": ""
+    },
+    "804": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:27:49+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Same server's Modrinth mods: Fabric API 0.164.0, Lithium 0.26.2, FerriteCore 9.0.0, Krypton 0.3.2 listed as loaded (46 mods) in the server log, no errors, Done; their config files were written (lithium.properties, ferritecore.mixin.properties).",
+      "evidence": ""
+    },
+    "824": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:27:55+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Double-clicked Create my server: one server was made (hub lists one), the setup page opened, and no 'port already used' message appeared.",
+      "evidence": ""
+    },
+    "849": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:27:55+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Dashboard top bar: double-clicked Start, then Restart, then Stop. Each ran once: the bell lists one 'start: started' and one 'restart: started', no 'busy' message; Stop stopped it once. With nobody online, Stop asked nothing.",
+      "evidence": ""
+    },
+    "836": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:27:55+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Banned Notch with a Chinese reason and jeb_ with a Russian one (running), then while stopped banned Dinnerbone (reason with A-umlauts and accents), pardoned jeb_, opped Notch, whitelisted two names: all kept, reasons intact in banned-players.json and in /banlist after starting again. With banned-players.json made unreadable, Ban and Pardon were refused naming the file ('can't be read ... so it wasn't changed: fix it or move it away') and the file was left byte-for-byte as it was.",
+      "evidence": ""
+    },
+    "837": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:27:56+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Broadcast 'Café 大家好 Ángel' and console command 'say Console Café 大家好': the server log and the Console page show both intact.",
+      "evidence": ""
+    },
+    "810": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:30:16+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Fabric 26.3 server: setblock a diamond block at 0 100 0 (chunk force-loaded), Back up now while running (134 MB, '(checked)', 129 files / 4 regions); removed the block (execute if block: Test failed); stopped; Roll back to this: 'rolled back to ... Minecraft 26.3, 4 mod(s)'; started: execute if block: Test passed.",
+      "evidence": ""
+    },
+    "403": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:30:17+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Opened the stopped server's folder in File Explorer (a real Explorer window on it) and ran Roll back to this: it worked ('rolled back to ...'); Explorer's view doesn't hold files.",
+      "evidence": ""
+    },
+    "404": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:30:17+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Held server.properties open from another program (opened without delete sharing, like an editor that locks the file).",
+      "evidence": ""
+    },
+    "405": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:30:17+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Roll back to this with the file held open.",
+      "evidence": ""
+    },
+    "406": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:30:17+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Refused: \"the server folder couldn't be moved aside (Access is denied ...): is a program still using a file in it? The server was left as it was\", with the failure report's path.",
+      "evidence": ""
+    },
+    "407": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:30:17+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Every file in the server folder had the same names, sizes and times as before the attempt.",
+      "evidence": ""
+    },
+    "408": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:30:17+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Closed the program holding the file.",
+      "evidence": ""
+    },
+    "409": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:30:17+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Roll back to this again.",
+      "evidence": ""
+    },
+    "410": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:30:17+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. It worked: 'rolled back to ...'; the server started and the backed-up diamond block was there.",
+      "evidence": ""
+    },
+    "838": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:30:17+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Backups page → Backup settings: world, mods, mod settings, player lists and web map ticked; 'Passwords, keys and IP bans' and 'Logs and crash reports' unticked by default, both labelled 'locked to this computer and your account'. The backup row says 'Holds: world, mods, settings, player lists, web map'; the archive has no logs, banned-ips.json or secrets. Not checked: opening a backup with secrets from another Windows account.",
+      "evidence": ""
+    },
+    "454": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:32:23+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Fabric 26.3 server, Backups → Roll back to this (134 MB backup), stopped server. Started the roll back.",
+      "evidence": ""
+    },
+    "455": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:32:23+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Ended Craft Conductor's process tree (taskkill /F /T) 0.35 s into the roll back, while it was unpacking (server.restoring half written: 112 of 143 MB). An earlier try at 0.8 s was too late (it had finished).",
+      "evidence": ""
+    },
+    "456": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:32:23+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Started Craft Conductor again: the panel came up normally.",
+      "evidence": ""
+    },
+    "457": {
+      "status": "fail",
+      "tested_at": "2026-10-22T21:32:23+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Nothing noticed or said that the roll back was cut off (Activity, bell and last job empty), and the half-unpacked server.restoring folder (112 MB) was left next to the server (removed only by a later roll back). Bug log B2.",
+      "evidence": ""
+    },
+    "458": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:32:23+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. The server folder was the one from before the roll back (nothing had been swapped); it started normally on Minecraft 26.3 with its 4 mods.",
+      "evidence": ""
+    },
+    "459": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:32:23+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Started it: no 'No existing world data, creating new world' in the log, and the block placed earlier was there (execute if block: Test passed).",
+      "evidence": ""
+    },
+    "460": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:35:16+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Fabric 26.3 server (stopped), Settings → Replace the world… with an uploaded 602 MB world .zip. The job started with its 'before-new-world' backup.",
+      "evidence": ""
+    },
+    "461": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:35:16+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Ended Craft Conductor's process tree (taskkill /F /T) 0.5 s after the new world started unpacking: no world folder, only .world.replaced and a half-written .world.importing.",
+      "evidence": ""
+    },
+    "462": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:35:16+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Started Craft Conductor again; it came up normally.",
+      "evidence": ""
+    },
+    "463": {
+      "status": "fail",
+      "tested_at": "2026-10-22T21:35:16+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. On Start: 'Craft Conductor was stopped in the middle of something: the world was put back (replacing it had been interrupted).' and the server ran on the old world. But the half-unpacked .world.importing folder (575 MB) stayed in the server folder, and the next backup grew from 128 MB to 701 MB because it holds it. Bug log B4.",
+      "evidence": ""
+    },
+    "464": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:35:16+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. The world after recovery is the complete old one (its marker block passed 'execute if block'; no new world was generated); the new world's files are only in the separate .world.importing folder.",
+      "evidence": ""
+    },
+    "465": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:35:16+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. mods, config, the player lists and server.properties were untouched by the swap and the recovery (same files and times; only Minecraft's own startup rewrote ferritecore.mixin.properties).",
+      "evidence": ""
+    },
+    "436": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:47:23+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. CLI server (create --loader fabric --minecraft 1.21.1 --mod fabric-api --mod lithium --rcon), check offered 1.21.1 -> 26.3. Ran update -y.",
+      "evidence": ""
+    },
+    "437": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:47:23+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Ended Craft Conductor with taskkill /F (only its own process) 3 s in, while it downloaded mods; its worker process and the Minecraft it had started for the test boot were left (the onefile exe runs as two processes), then the worker was ended too: update-in-progress.json, the 'before-1.21.1-to-26.3' backup and the 26.3 mods in mods/ were left behind (half-updated server).",
+      "evidence": ""
+    },
+    "438": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:47:23+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Ran `run` again.",
+      "evidence": ""
+    },
+    "439": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:47:23+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. First run: 'the update (Minecraft 1.21.1 -> 26.3) was interrupted; putting the backup ... back', refused safely because the leftover Minecraft held logs/ ('couldn't restore ... Access is denied ... The server was left as it was', the documented safe outcome). After ending that java: 'Craft Conductor was stopped in the middle of something: the update ... was interrupted, so the backup ... was put back.'",
+      "evidence": ""
+    },
+    "440": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:47:23+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Server back on Minecraft 1.21.1 with Fabric API 0.116.17+1.21.1 and Lithium 0.15.4+mc1.21.1 in mods/; update-in-progress.json gone; status shows 1.21.1.",
+      "evidence": ""
+    },
+    "441": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:47:23+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. 'not retrying Minecraft 26.3 automatically: the same update failed before'. (It then staged Minecraft 26.2 instead and announced a restart in 10 minutes; stopped before that.)",
+      "evidence": ""
+    },
+    "442": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:47:23+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. The server started: Loading Minecraft 1.21.1 with Fabric Loader 0.19.5, Done (1.4 s), 'Server is up (Minecraft 1.21.1)'.",
+      "evidence": ""
+    },
+    "444": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:47:23+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. No new world was made (no 'creating new world' in the log); the same world loaded with its region files; stopped cleanly ('All dimensions are saved').",
+      "evidence": ""
+    },
+    "811": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:47:23+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. CLI server (create --loader fabric --minecraft 1.21.1 --mod fabric-api --mod lithium --rcon), check offered 1.21.1 -> 26.3. Killed Craft Conductor during the update's downloads; the next start put the pre-update backup back with a clear message, refused safely while a leftover Minecraft held a file, came up on 1.21.1 with the old mods and world, and didn't retry 26.3.",
+      "evidence": ""
+    },
+    "499": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:48:48+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. CRAFT_CONDUCTOR_HOME under C:\\cc\\<Cyrillic folders>, server folder named with Cyrillic letters and 'é'. create (Fabric 1.21.1, Fabric API, Lithium) then update -y: Minecraft 1.21.1 -> 26.3 with both mods updated; the pre-update backup was made in the server's backups folder; the test boot reached Done; status shows 26.3. Java 25 went to the ProgramData Java folder with the message that Java can't run from a folder with letters outside the code page (as designed since 0.30.1).",
+      "evidence": ""
+    },
+    "500": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:48:48+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. CRAFT_CONDUCTOR_HOME under C:\\cc\\<Cyrillic folders>, server folder named with Cyrillic letters and 'é'. No path errors in create, update, backup, the test boot or status. Note: when the CLI's output is redirected to a file or pipe, the Cyrillic letters print as '?' (the console's code page); the files and folders themselves have the right names.",
+      "evidence": ""
+    },
+    "427": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:48:49+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Real update Minecraft 1.21.1 -> 26.3 (Fabric, CLI update -y, Cyrillic path): the update's boot loaded Fabric API 0.164.0+26.3 and Lithium 0.26.2+mc26.3 and reached Done with no errors.",
+      "evidence": ""
+    },
+    "501": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:52:01+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Windows Defender on (real-time protection enabled) for the whole session; Get-MpThreatDetection and the Defender Operational log show no detection or quarantine since the session began. Release exe downloaded from the release (checksum matches SHA256SUMS.txt), first run, password, folders, guided setup and server creation without any warning.",
+      "evidence": ""
+    },
+    "502": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:52:01+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Windows Defender on (real-time protection enabled) for the whole session; Get-MpThreatDetection and the Defender Operational log show no detection or quarantine since the session began. Java 25 (Temurin) was downloaded into the home's Java folder and, for a Cyrillic home, into the ProgramData Java folder; Java 21 used from the system; a custom Defender scan of the exe and the downloaded Java found nothing.",
+      "evidence": ""
+    },
+    "503": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:52:01+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Windows Defender on (real-time protection enabled) for the whole session; Get-MpThreatDetection and the Defender Operational log show no detection or quarantine since the session began. Fabric, vanilla and Fabric 1.21.1 servers downloaded (Minecraft 26.3 and 1.21.1, Fabric loader 0.19.5) and booted.",
+      "evidence": ""
+    },
+    "504": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:52:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Windows Defender on (real-time protection enabled) for the whole session; Get-MpThreatDetection and the Defender Operational log show no detection or quarantine since the session began. Fabric API, Lithium, FerriteCore and Krypton downloaded from Modrinth and loaded.",
+      "evidence": ""
+    },
+    "505": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:52:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Windows Defender on (real-time protection enabled) for the whole session; Get-MpThreatDetection and the Defender Operational log show no detection or quarantine since the session began. Servers ran (Start, Restart, Stop, console commands, backups while running).",
+      "evidence": ""
+    },
+    "506": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:52:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Windows Defender on (real-time protection enabled) for the whole session; Get-MpThreatDetection and the Defender Operational log show no detection or quarantine since the session began. Updates → rehearsal of Minecraft 1.21.1 -> 26.3 on a Fabric server with Fabric API and Lithium: copied the server (0.14 GB), installed the update on the copy, it started in 16.4 s and ran 1 minute (TPS 20), verdict 'It worked'; its one log warning was listed.",
+      "evidence": ""
+    },
+    "507": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:52:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Windows Defender on (real-time protection enabled) for the whole session; Get-MpThreatDetection and the Defender Operational log show no detection or quarantine since the session began. update -y Minecraft 1.21.1 -> 26.3 with both mods updated, in a Cyrillic path.",
+      "evidence": ""
+    },
+    "508": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:52:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Windows Defender on (real-time protection enabled) for the whole session; Get-MpThreatDetection and the Defender Operational log show no detection or quarantine since the session began. Roll back to a backup (several times, including with Explorer open on the folder).",
+      "evidence": ""
+    },
+    "509": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:52:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Windows Defender on (real-time protection enabled) for the whole session; Get-MpThreatDetection and the Defender Operational log show no detection or quarantine since the session began. The exe, the downloaded Java, server jars, mod jars and backups were all still in place afterwards.",
+      "evidence": ""
+    },
+    "510": {
+      "status": "na",
+      "tested_at": "2026-10-22T21:52:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. No other antivirus on this PC (Defender only).",
+      "evidence": ""
+    },
+    "511": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:52:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Windows Defender on (real-time protection enabled) for the whole session; Get-MpThreatDetection and the Defender Operational log show no detection or quarantine since the session began. Nothing to record: no warning, block or quarantine happened.",
+      "evidence": ""
+    },
+    "815": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:52:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Windows Defender on (real-time protection enabled) for the whole session; Get-MpThreatDetection and the Defender Operational log show no detection or quarantine since the session began. Section 44 done with Defender: install, Java, Minecraft and mod downloads, running, update rehearsal, update and restore, with no detection; no third-party antivirus available (510 n/a).",
+      "evidence": ""
+    },
+    "864": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:53:00+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Craft Conductor settings → About & updates: Version 0.30.1, License GPL-3.0-or-later. The first-run notice (shown at first sign-in, and again on that page) says 'free, open-source software (GPL-3.0-or-later license)'; notice-accepted.json records notice version 2. Help itself doesn't mention the license.",
+      "evidence": ""
+    },
+    "924": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:53:00+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Folders (dry run, the same check as Change…): C:\\ and C:\\Windows refused ('one of the computer's own folders'), a mapped network drive Z: refused ('is on the network'), a backups folder inside the servers folder refused ('inside the servers folder ... needs a folder of its own'), a folder with a file in it refused ('has files in it already'); a OneDrive folder for servers was accepted with the OneDrive sync warning first, and for backups with no warning. No USB stick or memory card was available to try.",
+      "evidence": ""
+    },
+    "856": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:54:08+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. CLI server: typed password = \"<plain text>\" under [web] in craft-conductor.toml and ran `run --web`: it said 'the [web] password in ... craft-conductor.toml is now kept as a hash' and the line became pbkdf2-sha256$200000$...; signing in with the typed password worked, a wrong one got 401. A backup made then keeps password = \"\" in its notes; the typed text is nowhere in the server folder or its backups. (hub.json variant not tried.)",
+      "evidence": ""
+    },
+    "762": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:58:15+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Release 0.30.0 exe (checksum checked) in its own folder and home, panel on another port, a vanilla 26.3 server running; updated from the panel to 0.30.1. Installed 0.30.0, chose the password, made and started the server.",
+      "evidence": ""
+    },
+    "763": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:58:15+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Release 0.30.0 exe (checksum checked) in its own folder and home, panel on another port, a vanilla 26.3 server running; updated from the panel to 0.30.1. Right after signing in: 'Craft Conductor 0.30.1 is available (You have 0.30.0, What's new)' with Update now / Later.",
+      "evidence": ""
+    },
+    "764": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:58:16+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Release 0.30.0 exe (checksum checked) in its own folder and home, panel on another port, a vanilla 26.3 server running; updated from the panel to 0.30.1. Update now: Preparing, Downloading, Verifying, Installing, Checking the new version, Restarting Craft Conductor; it came back by itself.",
+      "evidence": ""
+    },
+    "765": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:58:16+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Release 0.30.0 exe (checksum checked) in its own folder and home, panel on another port, a vanilla 26.3 server running; updated from the panel to 0.30.1. The exe in place is now the release's 0.30.1 file (sha256 matches SHA256SUMS.txt); the panel reports 0.30.1 and update_result 'Craft Conductor was updated to 0.30.1'.",
+      "evidence": ""
+    },
+    "766": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:58:16+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Release 0.30.0 exe (checksum checked) in its own folder and home, panel on another port, a vanilla 26.3 server running; updated from the panel to 0.30.1. craft-conductor.toml, hub.json and web-auth.json have the same checksums as before; the same password still signs in.",
+      "evidence": ""
+    },
+    "767": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:58:16+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Release 0.30.0 exe (checksum checked) in its own folder and home, panel on another port, a vanilla 26.3 server running; updated from the panel to 0.30.1. The server is still listed and running on Minecraft 26.3 ('starting cc301-upd-vanilla again: it was running before Craft Conductor updated').",
+      "evidence": ""
+    },
+    "768": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:58:16+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Release 0.30.0 exe (checksum checked) in its own folder and home, panel on another port, a vanilla 26.3 server running; updated from the panel to 0.30.1. The updated 0.30.1 launched normally: sign-in page, API, the server's status.",
+      "evidence": ""
+    },
+    "769": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:58:16+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Release 0.30.0 exe (checksum checked) in its own folder and home, panel on another port, a vanilla 26.3 server running; updated from the panel to 0.30.1. On 0.30.1, Check for Craft Conductor updates on the stable and the beta channel: '0.30.1 is the latest version'; the older releases (0.30.0, 0.29.0, ...) are not offered.",
+      "evidence": ""
+    },
+    "770": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:58:16+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Release 0.30.0 exe (checksum checked) in its own folder and home, panel on another port, a vanilla 26.3 server running; updated from the panel to 0.30.1. On 0.30.1 the check says it's the latest and offers nothing; no second install happened.",
+      "evidence": ""
+    },
+    "843": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:58:16+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Release 0.30.0 exe (checksum checked) in its own folder and home, panel on another port, a vanilla 26.3 server running; updated from the panel to 0.30.1. The tab that pressed Update now showed the progress, then reloaded itself to the sign-in page; no new tab or window opened (the same tabs before and after).",
+      "evidence": ""
+    },
+    "844": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:58:16+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Release 0.30.0 exe (checksum checked) in its own folder and home, panel on another port, a vanilla 26.3 server running; updated from the panel to 0.30.1. A second tab on the same panel showed 'Craft Conductor has been updated to 0.30.1 — Launch the new version ...' and stayed until Launch the new version was pressed. It was a background tab, so the 'update under way' stage wasn't seen in it.",
+      "evidence": ""
+    },
+    "845": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:58:17+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Release 0.30.0 exe (checksum checked) in its own folder and home, panel on another port, a vanilla 26.3 server running; updated from the panel to 0.30.1. Later closed the offer; reloading the page didn't offer it again; red dots on Craft Conductor settings, About & updates and Check for Craft Conductor updates; Check for Craft Conductor updates offered it at once. Not checked: the offer coming back after a restart (the update was then installed).",
+      "evidence": ""
+    },
+    "846": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:58:17+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Release 0.30.0 exe (checksum checked) in its own folder and home, panel on another port, a vanilla 26.3 server running; updated from the panel to 0.30.1. Double-clicked Update now: one update ran (one 'updating Craft Conductor 0.30.0 -> 0.30.1' in the output).",
+      "evidence": ""
+    },
+    "848": {
+      "status": "pass",
+      "tested_at": "2026-10-22T21:58:17+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Release 0.30.0 exe (checksum checked) in its own folder and home, panel on another port, a vanilla 26.3 server running; updated from the panel to 0.30.1. The running server came back after the update on the new version ('starting ... again: it was running before Craft Conductor updated'). Nobody was online, so the in-game 'Server restarting in 1 minute' wasn't seen.",
+      "evidence": ""
+    },
+    "825": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:01:05+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. New server (Paper) named 'cc301 Paper Ángel 大家好' (accents + Chinese): created, ran, and reads the same afterwards in the server list, the top bar and server.properties (motd); Settings → Check every 12h → Save settings: 'Settings saved', saved in craft-conductor.toml, name unchanged. Not tried: Korean, Hindi, Arabic, Vietnamese or emoji names.",
+      "evidence": ""
+    },
+    "882": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:01:05+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. New server page: playit.gg (recommended) is chosen at first, 'About playit.gg' lists its downsides beside it, and the page says 'The whitelist will be on'. Made a Paper server with Your Minecraft name = jeb_: the whitelist was on and jeb_ on it (whitelist list after starting). A name that isn't a Minecraft account gave a clear 'couldn't put ... on the whitelist (there is no Minecraft account named ...): add yourself on the Players page'.",
+      "evidence": ""
+    },
+    "586": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:01:05+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Keyboard only (Chrome): New server — Tab reaches every control in page order (quick starts, server types, version, mods, world, settings, friends, EULA, Create my server) with a visible focus ring; Enter picks a quick start, typing picks the memory, Space ticks the EULA and Enter on Create my server made the server. Minor: after Enter on a quick start, focus goes back to the top of the page.",
+      "evidence": ""
+    },
+    "587": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:01:58+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Keyboard only (Chrome): the Dashboard page itself — console, command box, Send, Whitelist, Broadcast, Check my setup, folders, Play on this computer, Check now, Details, the guide, Skip to main content, the server menu, Start, the Light/Dark switch, Classic/Modern and Messages, all in order with a visible focus ring; no trap. (First result only covered the Servers list and top bar.)",
+      "evidence": "",
+      "supersedes": {
+        "status": "pass",
+        "tested_at": "2026-10-22T22:01:06+00:00",
+        "tester": "Claude Code",
+        "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Keyboard only: Servers list and the server's top bar — Start/Open/Delete/Folder per server, New server, Guided setup, sidebar links, Sign out, Quit, the Light/Dark switch, Classic/Modern and Messages are all reached by Tab with a visible focus ring; a Skip to main content link is first.",
+        "evidence": ""
+      }
+    },
+    "592": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:01:06+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Keyboard only: Enter on Messages opened its panel with focus inside; Enter on a server's Delete opened its dialog with focus on the safe 'Keep the files'.",
+      "evidence": ""
+    },
+    "595": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:01:06+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Escape closed the Messages panel (focus back on the bell) and the Delete dialog (focus back on Delete; nothing deleted).",
+      "evidence": ""
+    },
+    "588": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:01:54+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Keyboard only (Chrome), from the page's main area: Mods — Local files, Download mods, Modpacks, search, the alpha/beta box, Add from CurseForge, each mod's Config, Manage Mods, Test these mods, folders, Save the current mods, Load a list, in order with a focus ring. Three boxes are named only by their placeholder (bug log B5).",
+      "evidence": ""
+    },
+    "589": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:01:54+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Keyboard only (Chrome), from the page's main area: Updates — Check now, the beta version list, Make a test copy, then the guide and menus, with a focus ring.",
+      "evidence": ""
+    },
+    "590": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:01:54+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Keyboard only (Chrome), from the page's main area: Backups — Back up now, Backups folder, Check / Restore / Put back an area / Roll back to this per backup, every Backup settings box, Save backup settings, Export server…, with a focus ring.",
+      "evidence": ""
+    },
+    "591": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:01:54+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Keyboard only (Chrome), from the page's main area: Friends — the three ways friends join, Download and install playit.gg (not pressed), the playit.gg address and Save, the help links, Bedrock box and Let Bedrock players join, with a focus ring.",
+      "evidence": ""
+    },
+    "522": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:06:06+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. New server → Paper → World generation & map preview, seed 'cc301preview', 256 × 256: it started a private Paper server and drew the map ('Normal · no mods · 6 biome(s) in view') in about 30 s.",
+      "evidence": ""
+    },
+    "850": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:06:06+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Ticked Keep making the map as I move; it was still ticked after going to Servers and back, and after closing the tab and opening the panel in a new tab (map made again).",
+      "evidence": ""
+    },
+    "851": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:06:06+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Ticking Show Points of Interest asks first (the speedrun/'soft cheat' note) then shows them ('1 × Ruined portal, 2 × Trial chambers, 1 × Village' with markers); unticking hides them at once. Not tried: points of interest that can't be loaded (Try again).",
+      "evidence": ""
+    },
+    "863": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:06:06+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. While a map preview was generating (its private Paper server running as java), pressed Quit → Quit: 'Craft Conductor is shutting down'; 10 s later no java process and no Craft Conductor of that home were left. (Test these mods / Find which mods break it not tried.)",
+      "evidence": ""
+    },
+    "852": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:07:20+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Scrolled to the bottom of the World generation plugins list (Paper): it loaded more by itself, 19 -> 77 results, ending with \"That's everything\". New single-player game → its Modrinth mod list: 21 -> 421 entries as it was scrolled down (kept loading past 20). Scrolled with the list's own scroll position, not a dragged scroll bar.",
+      "evidence": ""
+    },
+    "928": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:09:07+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Chrome: an error message ('the server is not running', from a console command on a stopped server) stayed about 12 s and an ordinary one ('update check: up to date') went by itself; the bell kept both, newest first, each with its time and server name, with a red dot and 'Messages (3 unread)' until opened, which marked them read. Clear emptied it ('No messages yet ...'). Sign out then signing in again: empty. Not tried here: Undo, Mod test finished, the update notice, browser/phone notifications, and a second person signing in on the same browser.",
+      "evidence": ""
+    },
+    "868": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:09:49+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Check my setup → 'Old Windows Firewall rules': 'Craft Conductor made 1 Windows Firewall rule for ports nothing here uses any more (Craft Conductor: <server> (Minecraft) (TCP <port>)) ... leave those ports open' with a Remove old rules button. Remove not pressed: the rule was made before this session, possibly by another installation on this PC. (Note: an isolated home can't know that another installation still uses a rule.)",
+      "evidence": ""
+    },
+    "679": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:10:41+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Bug report from Check my setup on a windowless 0.30.1 (started by its self-update): README, checks.json, system.json, craft-conductor.toml, server.properties, craft-conductor.log and the server's latest.log. The log still shows the startup, the servers' start commands, 'Server is up', channel changes and stops; the password line says <removed>, no user name, panel password, hashes or addresses (only 127.0.0.1). Small loss: the Java build in paths (jdk-25.0.4.1+1) is masked as jdk-<ip>+1 (bug log B8). Note: started from a command line with its output redirected, the log goes to that output instead and the report's craft-conductor.log is empty.",
+      "evidence": ""
+    },
+    "680": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:11:10+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Fresh installation, nothing changed about remote access: the control panel listens only on 127.0.0.1 (netstat: 127.0.0.1:<port> LISTENING, no 0.0.0.0), and every server's [web] host is 127.0.0.1 with the per-server web UI off.",
+      "evidence": ""
+    },
+    "684": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:11:10+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Servers made in the control panel (Fabric, Paper, Fabric 1.21.1) have enable-rcon=false and nothing listens on the RCON port 25575, running or not. (A CLI server made with an explicit --rcon listens on all addresses, as asked for.)",
+      "evidence": ""
+    },
+    "816": {
+      "status": "fail",
+      "tested_at": "2026-10-22T22:18:44+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Modrinth mods (Fabric API, Lithium, FerriteCore, Krypton) and a CurseForge mod (AppleSkin by slug: added, Check now, Apply update, loaded on the test boot) worked. A Modrinth modpack (Actium, NeoForge 26.2, 38 mods) failed its first start because the pack puts the client-only Controlify on the server; the setup page then lost the modpack, the server name and the port, and offered no fix (bug log B9). It worked after picking the pack again and removing Controlify in Manage Mods. CurseForge modpacks not tried.",
+      "evidence": ""
+    },
+    "556": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:20:28+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. With a 2 GB server running, set another server's memory to 31G (this computer: 31.9 GB) and pressed Start: before starting, 'Start <server>? The servers would be given 33 GB of memory, and this computer has 31.9 GB. It may slow right down, or a server may crash. Give servers less memory (Settings → Memory), or stop one first.' with Start anyway / Cancel; Cancel left it stopped. (Saving 31G in Settings itself gave no warning; the Aikar's flags offer appeared.)",
+      "evidence": ""
+    },
+    "557": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:20:28+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. The warning names the server, the total memory the servers would get and the computer's memory, says what can happen ('slow right down, or a server may crash') and what to do (Settings → Memory, or stop one) in plain words.",
+      "evidence": ""
+    },
+    "691": {
+      "status": "na",
+      "tested_at": "2026-10-22T22:51:52+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. 0.30.1 has no 'modpack ZIP' import: modpacks come from the Modrinth/CurseForge browser (New server → A modpack), and Import a server… takes Craft Conductor exports. Owner chose n/a (2026-10-22).",
+      "evidence": ""
+    },
+    "692": {
+      "status": "na",
+      "tested_at": "2026-10-22T22:51:52+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. See 691: no modpack ZIP import exists in 0.30.1. Owner chose n/a.",
+      "evidence": ""
+    },
+    "685": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:55:30+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Access from other devices turned on for the test panel (Craft Conductor settings → Connections → Remote access & phones → Allow access ... → Apply remote access; no restart). The panel then listened on all addresses of this computer instead of 127.0.0.1 only.",
+      "evidence": ""
+    },
+    "686": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:55:30+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Access from other devices turned on for the test panel (Craft Conductor settings → Connections → Remote access & phones → Allow access ... → Apply remote access; no restart). Through this PC's home-network address (not another device): the API answers 401 'login required' until signed in, the 'reset the password' request is refused ('this only works in a browser on the server's own computer'), and signing in with the password works and counts as a remote visitor (local: false).",
+      "evidence": ""
+    },
+    "689": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:55:30+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Access from other devices turned on for the test panel (Craft Conductor settings → Connections → Remote access & phones → Allow access ... → Apply remote access; no restart). Invited a test person (People), who accepted the invite; Show a pairing QR code made a 5-minute code for them; cancelling unused pairing codes reported 1 cancelled.",
+      "evidence": ""
+    },
+    "690": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:55:30+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Access from other devices turned on for the test panel (Craft Conductor settings → Connections → Remote access & phones → Allow access ... → Apply remote access; no restart). Using the cancelled code was refused: 'that pairing code has expired or was already used; make a new one' (a freshly made code did pair, as a control; that device was removed afterwards).",
+      "evidence": ""
+    },
+    "254": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:58:58+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Fabric 26.3 test server, Friends → Only friends at home → Make a download for friends (home network only); the friend's side done with the release exe's `join` into a throwaway Minecraft folder (its own APPDATA, --minecraft-dir, --no-launcher), not a real launcher. Links work for → 1 day.",
+      "evidence": ""
+    },
+    "255": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:58:58+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Fabric 26.3 test server, Friends → Only friends at home → Make a download for friends (home network only); the friend's side done with the release exe's `join` into a throwaway Minecraft folder (its own APPDATA, --minecraft-dir, --no-launcher), not a real launcher. 'These links work until <tomorrow, same time>, then stop by themselves.'",
+      "evidence": ""
+    },
+    "256": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:58:58+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Fabric 26.3 test server, Friends → Only friends at home → Make a download for friends (home network only); the friend's side done with the release exe's `join` into a throwaway Minecraft folder (its own APPDATA, --minecraft-dir, --no-launcher), not a real launcher. Links work for → 7 days.",
+      "evidence": ""
+    },
+    "257": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:58:58+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Fabric 26.3 test server, Friends → Only friends at home → Make a download for friends (home network only); the friend's side done with the release exe's `join` into a throwaway Minecraft folder (its own APPDATA, --minecraft-dir, --no-launcher), not a real launcher. 'These links work until <a week from now>, then stop by themselves.'",
+      "evidence": ""
+    },
+    "258": {
+      "status": "na",
+      "tested_at": "2026-10-22T22:58:58+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. 0.30.1 offers 1 day, 3 days or 7 days ('A link works for a week at most'); there is no 30-day link any more.",
+      "evidence": ""
+    },
+    "259": {
+      "status": "na",
+      "tested_at": "2026-10-22T22:58:58+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. See 258: no 30-day link in 0.30.1.",
+      "evidence": ""
+    },
+    "260": {
+      "status": "na",
+      "tested_at": "2026-10-22T22:58:58+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. 0.30.1 has no link 'valid until regenerated': every link stops within a week.",
+      "evidence": ""
+    },
+    "261": {
+      "status": "na",
+      "tested_at": "2026-10-22T22:58:59+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. See 260.",
+      "evidence": ""
+    },
+    "262": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:58:59+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Fabric 26.3 test server, Friends → Only friends at home → Make a download for friends (home network only); the friend's side done with the release exe's `join` into a throwaway Minecraft folder (its own APPDATA, --minecraft-dir, --no-launcher), not a real launcher. Used the local invite link's code with `join`.",
+      "evidence": ""
+    },
+    "263": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:58:59+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Fabric 26.3 test server, Friends → Only friends at home → Make a download for friends (home network only); the friend's side done with the release exe's `join` into a throwaway Minecraft folder (its own APPDATA, --minecraft-dir, --no-launcher), not a real launcher. It reached the server over HTTPS, showed what it would set up, then made the launcher profile (Minecraft 26.3 + Fabric 0.19.5), downloaded the 7 mods (incl. the players-only Controlify and YACL) and put the server in its multiplayer list. Joining the game itself not tried.",
+      "evidence": ""
+    },
+    "264": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:58:59+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Fabric 26.3 test server, Friends → Only friends at home → Make a download for friends (home network only); the friend's side done with the release exe's `join` into a throwaway Minecraft folder (its own APPDATA, --minecraft-dir, --no-launcher), not a real launcher. Stop these links → asked 'Stop these links now? ...' → Stop the links: 'Links stopped', and the page says when they stopped and what that means.",
+      "evidence": ""
+    },
+    "265": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:58:59+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Fabric 26.3 test server, Friends → Only friends at home → Make a download for friends (home network only); the friend's side done with the release exe's `join` into a throwaway Minecraft folder (its own APPDATA, --minecraft-dir, --no-launcher), not a real launcher. The old link no longer worked: with no link left the download port 8766 was closed (connection refused), and after new links were made the old code got 'the server doesn't recognise this invite any more; ask for a new one'.",
+      "evidence": ""
+    },
+    "266": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:58:59+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Fabric 26.3 test server, Friends → Only friends at home → Make a download for friends (home network only); the friend's side done with the release exe's `join` into a throwaway Minecraft folder (its own APPDATA, --minecraft-dir, --no-launcher), not a real launcher. Make new links: a new link, working until a week from then.",
+      "evidence": ""
+    },
+    "267": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:58:59+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Fabric 26.3 test server, Friends → Only friends at home → Make a download for friends (home network only); the friend's side done with the release exe's `join` into a throwaway Minecraft folder (its own APPDATA, --minecraft-dir, --no-launcher), not a real launcher. The new link's `join` worked ('Done', server in the list; mods already there).",
+      "evidence": ""
+    },
+    "867": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:00:25+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Turning off 'Make a download for friends' (and, earlier, Stop these links) offered: 'Remove the Windows Firewall rule for friends' downloads? Craft Conductor made this rule to let friends reach port 8766, and nothing here uses that port any more: Craft Conductor: friends downloads (TCP 8766). Windows asks for permission once.' with Remove / Keep. Keep was pressed (the rule predates this session); the port then closed. Remove (administrator prompt) not tried.",
+      "evidence": "",
+      "supersedes": {
+        "status": "pass",
+        "tested_at": "2026-10-22T22:58:59+00:00",
+        "tester": "Claude Code",
+        "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. After Stop these links closed the friends' download, Craft Conductor offered: 'Remove the Windows Firewall rule for friends' downloads? ... Craft Conductor: friends downloads (TCP 8766). Windows asks for permission once.' with Remove / Keep; Keep was pressed (the rule predates this session). Remove (the administrator prompt) not tried.",
+        "evidence": ""
+      }
+    },
+    "860": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:59:23+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Added a players' jar with Friends → Local files (for players): it went to the server's client-mods folder; Backups → Export server: the .craft-conductor.zip holds client-mods/players-local-cc.jar.",
+      "evidence": ""
+    },
+    "687": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:59:58+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Remote access & phones → unticked Allow access ... from other devices → Apply remote access (no restart).",
+      "evidence": ""
+    },
+    "688": {
+      "status": "pass",
+      "tested_at": "2026-10-22T22:59:58+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. The panel went back to listening on 127.0.0.1 only; a request through this PC's home-network address was refused (connection refused), while localhost still worked.",
+      "evidence": ""
+    },
+    "1": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:03:58+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Recorded for this run: Craft Conductor 0.30.1, the release exe (sha256 21f2625…, tag v0.30.1).",
+      "evidence": ""
+    },
+    "2": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:03:58+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Recorded for this run: Windows 11 Pro 23H2 (10.0.22631), 64-bit.",
+      "evidence": ""
+    },
+    "3": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:03:59+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Recorded for this run: Intel Core i7-9700K (8 cores).",
+      "evidence": ""
+    },
+    "4": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:03:59+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Recorded for this run: 32 GB RAM (31.9 GB usable).",
+      "evidence": ""
+    },
+    "5": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:03:59+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Recorded for this run: Test drive E: 615 GB free at the start; C: 97 GB free.",
+      "evidence": ""
+    },
+    "6": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:03:59+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Recorded for this run: NVMe SSD (test servers and homes on an NVMe drive; C: is NVMe too).",
+      "evidence": ""
+    },
+    "7": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:03:59+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Recorded for this run: Local folders on a fixed drive (not OneDrive-synced).",
+      "evidence": ""
+    },
+    "8": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:03:59+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Recorded for this run: Windows Defender (real-time protection on); no other antivirus.",
+      "evidence": ""
+    },
+    "12": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:03:59+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Recorded for this run: Minecraft Java 26.3 (Fabric 0.19.5, Paper, vanilla), 26.2 (NeoForge 26.2.0.8-beta) and 1.21.1 (Fabric).",
+      "evidence": ""
+    },
+    "13": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:03:59+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Recorded for this run: Every failure has notes and a bug write-up in the session's bug log.",
+      "evidence": ""
+    },
+    "17": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:00+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Defender never deleted the release exe (present and same checksum all session; custom scan of it found nothing).",
+      "evidence": ""
+    },
+    "18": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:00+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Defender quarantined nothing (Get-MpThreatDetection empty for the session).",
+      "evidence": ""
+    },
+    "23": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:00+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. The control panel loaded in Chrome (fresh home).",
+      "evidence": ""
+    },
+    "24": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:00+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. First sign-in with PASSWORD worked, then the notice.",
+      "evidence": ""
+    },
+    "25": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:00+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Choose your own password: saved ('Your new password is saved'); signing in again later used it.",
+      "evidence": ""
+    },
+    "27": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:00+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Starting the exe again with the same home (several restarts and a Quit) opened the existing installation with its servers and password, no second setup.",
+      "evidence": ""
+    },
+    "50": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:00+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Vanilla 26.3 servers made with the CLI (create --loader vanilla) and in the panel (0.30.0 instance, then updated).",
+      "evidence": ""
+    },
+    "51": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:00+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. The vanilla server started ('Server is up (Minecraft 26.3)').",
+      "evidence": ""
+    },
+    "53": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:00+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Stop stopped it cleanly.",
+      "evidence": ""
+    },
+    "54": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:01+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Restart (Fabric server) restarted it once: 'restart: started'.",
+      "evidence": ""
+    },
+    "55": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:01+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. A block placed in the world (setblock diamond at 0 100 0) was still there after restarts and Craft Conductor restarts (execute if block: Test passed).",
+      "evidence": ""
+    },
+    "61": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:01+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Servers → Delete on a disposable server → Delete everything → typed its name → Delete everything: 'deleted, with its world, mods and backups'; its folder is gone.",
+      "evidence": ""
+    },
+    "62": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:01+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Only that server's folder and its entry in the shared-Java list were removed.",
+      "evidence": ""
+    },
+    "63": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:01+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. The other three servers kept the same files (file counts before/after) and the Fabric one started with its world (the marker block still there).",
+      "evidence": ""
+    },
+    "64": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:01+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Fabric 26.3 server made (Smooth survival).",
+      "evidence": ""
+    },
+    "65": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:01+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Java 25 downloaded by itself (Temurin) and used.",
+      "evidence": ""
+    },
+    "66": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:01+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Started: Done.",
+      "evidence": ""
+    },
+    "68": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:01+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Added server mods through Craft Conductor (AppleSkin from CurseForge, Controlify from Modrinth) and applied the update.",
+      "evidence": ""
+    },
+    "69": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:01+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Restarted (the update's boot, then Start).",
+      "evidence": ""
+    },
+    "70": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. The mods were listed as loaded (e.g. appleskin 3.0.10+mc26.3).",
+      "evidence": ""
+    },
+    "72": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Fabric 1.21.1 server: the update moved Fabric API and Lithium to their 26.3 builds with Minecraft (update -y).",
+      "evidence": ""
+    },
+    "73": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. After the mod updates the server started (Done) and loaded them.",
+      "evidence": ""
+    },
+    "90": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Paper 26.3 server made (keyboard only, name with Á and Chinese).",
+      "evidence": ""
+    },
+    "91": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Started and stopped.",
+      "evidence": ""
+    },
+    "93": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Added Chunky (Modrinth plugin) and applied the update: plugins/Chunky-Bukkit-1.5.3.jar.",
+      "evidence": ""
+    },
+    "94": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Started again.",
+      "evidence": ""
+    },
+    "95": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. 'plugins' lists Chunky; 'chunky' shows its commands.",
+      "evidence": ""
+    },
+    "105": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. This PC has Java 21 and 22 but not Java 25 (needed by Minecraft 26.3).",
+      "evidence": ""
+    },
+    "106": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Craft Conductor downloaded Java 25 (Temurin jdk-25.0.4.1+1) by itself.",
+      "evidence": ""
+    },
+    "107": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:03+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. The servers started with it.",
+      "evidence": ""
+    },
+    "108": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:03+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. More servers needing Java 25 (Paper, NeoForge pack, a CLI vanilla) were made.",
+      "evidence": ""
+    },
+    "109": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:03+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. No second copy: one shared Java 25, 'used by' all four; 'Shared instead of one copy per server: 563.5 MB saved'.",
+      "evidence": ""
+    },
+    "110": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:03+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. This PC has Java 21 (Oracle JDK 21.0.10) installed.",
+      "evidence": ""
+    },
+    "111": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:03+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Craft Conductor found it (Found on this computer).",
+      "evidence": ""
+    },
+    "112": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:03+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. The Fabric 1.21.1 servers ran on that installed Java 21.",
+      "evidence": ""
+    },
+    "115": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:03+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Java 22 (installed, on PATH) is older than the 25 that 26.3 needs.",
+      "evidence": ""
+    },
+    "116": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:03+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. It wasn't used for 26.3: Java 25 was downloaded instead.",
+      "evidence": ""
+    },
+    "117": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:03+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Minecraft 1.21.1 (Java 21) and 26.3 (Java 25).",
+      "evidence": ""
+    },
+    "118": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:03+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Each got its Java: 21 for 1.21.1, 25 for 26.3 (and after the 1.21.1 -> 26.3 update, Java 25).",
+      "evidence": ""
+    },
+    "119": {
+      "status": "pass",
+      "tested_at": "2026-10-22T23:04:04+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Java page: Needs Java 25 / Uses Shared Java 25 jdk-25.0.4.1+1 · also used by …; the shared Java table, and Java found on this computer with where each came from.",
+      "evidence": ""
+    },
+    "813": {
+      "status": "blocked",
+      "tested_at": "2026-10-22T23:04:12+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Blocked: the OneDrive sync client isn't installed on this PC (no OneDrive.exe, not running), so the OneDrive folder is an ordinary folder and syncing can't be tested. Owner OK'd using OneDrive; needs the client installed/started first.",
+      "evidence": ""
+    },
+    "478": {
+      "status": "blocked",
+      "tested_at": "2026-10-22T23:04:12+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Blocked: the OneDrive sync client isn't installed on this PC (no OneDrive.exe, not running), so the OneDrive folder is an ordinary folder and syncing can't be tested. Owner OK'd using OneDrive; needs the client installed/started first.",
+      "evidence": ""
+    },
+    "479": {
+      "status": "blocked",
+      "tested_at": "2026-10-22T23:04:12+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Blocked: the OneDrive sync client isn't installed on this PC (no OneDrive.exe, not running), so the OneDrive folder is an ordinary folder and syncing can't be tested. Owner OK'd using OneDrive; needs the client installed/started first.",
+      "evidence": ""
+    },
+    "480": {
+      "status": "blocked",
+      "tested_at": "2026-10-22T23:04:12+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Blocked: the OneDrive sync client isn't installed on this PC (no OneDrive.exe, not running), so the OneDrive folder is an ordinary folder and syncing can't be tested. Owner OK'd using OneDrive; needs the client installed/started first.",
+      "evidence": ""
+    },
+    "481": {
+      "status": "blocked",
+      "tested_at": "2026-10-22T23:04:12+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Blocked: the OneDrive sync client isn't installed on this PC (no OneDrive.exe, not running), so the OneDrive folder is an ordinary folder and syncing can't be tested. Owner OK'd using OneDrive; needs the client installed/started first.",
+      "evidence": ""
+    },
+    "482": {
+      "status": "blocked",
+      "tested_at": "2026-10-22T23:04:12+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Blocked: the OneDrive sync client isn't installed on this PC (no OneDrive.exe, not running), so the OneDrive folder is an ordinary folder and syncing can't be tested. Owner OK'd using OneDrive; needs the client installed/started first.",
+      "evidence": ""
+    },
+    "483": {
+      "status": "blocked",
+      "tested_at": "2026-10-22T23:04:12+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Blocked: the OneDrive sync client isn't installed on this PC (no OneDrive.exe, not running), so the OneDrive folder is an ordinary folder and syncing can't be tested. Owner OK'd using OneDrive; needs the client installed/started first.",
+      "evidence": ""
+    },
+    "484": {
+      "status": "blocked",
+      "tested_at": "2026-10-22T23:04:12+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Blocked: the OneDrive sync client isn't installed on this PC (no OneDrive.exe, not running), so the OneDrive folder is an ordinary folder and syncing can't be tested. Owner OK'd using OneDrive; needs the client installed/started first.",
+      "evidence": ""
+    },
+    "485": {
+      "status": "blocked",
+      "tested_at": "2026-10-22T23:04:12+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Blocked: the OneDrive sync client isn't installed on this PC (no OneDrive.exe, not running), so the OneDrive folder is an ordinary folder and syncing can't be tested. Owner OK'd using OneDrive; needs the client installed/started first.",
+      "evidence": ""
+    },
+    "486": {
+      "status": "blocked",
+      "tested_at": "2026-10-22T23:04:13+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Blocked: the OneDrive sync client isn't installed on this PC (no OneDrive.exe, not running), so the OneDrive folder is an ordinary folder and syncing can't be tested. Owner OK'd using OneDrive; needs the client installed/started first.",
+      "evidence": ""
+    },
+    "487": {
+      "status": "blocked",
+      "tested_at": "2026-10-22T23:04:13+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Blocked: the OneDrive sync client isn't installed on this PC (no OneDrive.exe, not running), so the OneDrive folder is an ordinary folder and syncing can't be tested. Owner OK'd using OneDrive; needs the client installed/started first.",
+      "evidence": ""
+    },
+    "488": {
+      "status": "blocked",
+      "tested_at": "2026-10-22T23:04:13+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Blocked: the OneDrive sync client isn't installed on this PC (no OneDrive.exe, not running), so the OneDrive folder is an ordinary folder and syncing can't be tested. Owner OK'd using OneDrive; needs the client installed/started first.",
+      "evidence": ""
+    },
+    "489": {
+      "status": "blocked",
+      "tested_at": "2026-10-22T23:04:13+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Blocked: the OneDrive sync client isn't installed on this PC (no OneDrive.exe, not running), so the OneDrive folder is an ordinary folder and syncing can't be tested. Owner OK'd using OneDrive; needs the client installed/started first.",
+      "evidence": ""
+    },
+    "771": {
+      "status": "pass",
+      "tested_at": "2026-10-25T04:20:20+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Fabric 26.3 server with Fabric API and Lithium, hourly scheduled backup and a 03:30 scheduled restart, started 2026-10-22 17:50 and sampled every 10 minutes for 26 h. Craft Conductor ran the whole time (2 processes throughout, no crash), and was still running 53 h later.",
+      "evidence": ""
+    },
+    "772": {
+      "status": "pass",
+      "tested_at": "2026-10-25T04:20:21+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Fabric 26.3 server with Fabric API and Lithium, hourly scheduled backup and a 03:30 scheduled restart, started 2026-10-22 17:50 and sampled every 10 minutes for 26 h. The server was running in all 156 samples; only planned restarts (03:30 scheduled restart with 10/5/1-minute warnings; one automatic mod update at 09:50 with a 1-minute warning), each back up within seconds. Still running at 53 h.",
+      "evidence": ""
+    },
+    "774": {
+      "status": "pass",
+      "tested_at": "2026-10-25T04:20:21+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Fabric 26.3 server with Fabric API and Lithium, hourly scheduled backup and a 03:30 scheduled restart, started 2026-10-22 17:50 and sampled every 10 minutes for 26 h. Hourly scheduled backups all ran (no errors in the activity feed); the kept count reached and stayed at 10 as configured.",
+      "evidence": ""
+    },
+    "775": {
+      "status": "pass",
+      "tested_at": "2026-10-25T04:20:21+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Fabric 26.3 server with Fabric API and Lithium, hourly scheduled backup and a 03:30 scheduled restart, started 2026-10-22 17:50 and sampled every 10 minutes for 26 h. The 03:30 scheduled restart ran on both nights with in-game warnings at 10, 5 and 1 minutes; scheduled backups ran hourly.",
+      "evidence": ""
+    },
+    "776": {
+      "status": "pass",
+      "tested_at": "2026-10-25T04:20:21+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Fabric 26.3 server with Fabric API and Lithium, hourly scheduled backup and a 03:30 scheduled restart, started 2026-10-22 17:50 and sampled every 10 minutes for 26 h. Craft Conductor working set 33-60 MB (first-quarter avg 42, last-quarter avg 47), handles steady at 384-395; Java working set bounded (peaks ~1.7 GB after restarts, trimmed by Windows when idle). No growth without bound.",
+      "evidence": ""
+    },
+    "778": {
+      "status": "pass",
+      "tested_at": "2026-10-25T04:20:21+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Fabric 26.3 server with Fabric API and Lithium, hourly scheduled backup and a 03:30 scheduled restart, started 2026-10-22 17:50 and sampled every 10 minutes for 26 h. State read running in every sample, matching the server log; uptime reset only at the two planned restarts; no stuck job or false problem shown.",
+      "evidence": ""
+    },
+    "779": {
+      "status": "pass",
+      "tested_at": "2026-10-25T04:20:21+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Judged from the panel's activity/event feed for the 53 h (the bell itself is kept by the browser, which wasn't open): 84 events, all expected: one line per hourly backup, start/stop for the planned restarts, and the update lines. Nothing repeated or alarming. Small observation: each automatic update appears twice (a short 'updated:' line and a detailed 'Updated:' line).",
+      "evidence": ""
+    },
+    "820": {
+      "status": "pass",
+      "tested_at": "2026-10-25T04:20:21+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Fabric 26.3 server with Fabric API and Lithium, hourly scheduled backup and a 03:30 scheduled restart, started 2026-10-22 17:50 and sampled every 10 minutes for 26 h. 24-hour continuous run passed: 771, 772, 774, 775, 776 and 778 pass; joins (773/780) and 72 h (777) recorded separately.",
+      "evidence": ""
+    },
+    "773": {
+      "status": "pass",
+      "tested_at": "2026-10-25T05:42:14+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Owner joined the long-run Fabric 26.3 server (online mode, whitelist on) from Prism Launcher via an invite link (local network), 2026-10-25 after ~55 h of uptime. 5 joins and 5 leaves (00:21-00:40), each 'joined the game' / 'left the game' in the log; no errors, server stayed up.",
+      "evidence": ""
+    },
+    "780": {
+      "status": "pass",
+      "tested_at": "2026-10-25T05:42:14+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Owner joined the long-run Fabric 26.3 server (online mode, whitelist on) from Prism Launcher via an invite link (local network), 2026-10-25 after ~55 h of uptime. Player activity: the owner's account, 5 visits, 1054 s total (log adds up to ~1056 s), last seen correct, not online after leaving; the weekly grid shows 'not enough history yet' as expected.",
+      "evidence": ""
+    },
+    "835": {
+      "status": "pass",
+      "tested_at": "2026-10-25T05:42:14+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Owner joined the long-run Fabric 26.3 server (online mode, whitelist on) from Prism Launcher via an invite link (local network), 2026-10-25 after ~55 h of uptime. 26.x join/leave lines are parsed: Player activity recorded all 5 visits with the right times; Connected players / Online now empty after leaving. (Online now was not watched while the player was on.)",
+      "evidence": ""
+    },
+    "777": {
+      "status": "na",
+      "tested_at": "2026-10-25T05:42:22+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Not extended to 72 h: the owner ended the long run at ~55 h (2026-10-25) after the join tests. Up to then only planned restarts (the 03:30 scheduled restart on both nights) and one automatic mod update; no crash.",
+      "evidence": "",
+      "supersedes": {
+        "status": "na",
+        "tested_at": "2026-10-25T05:42:15+00:00",
+        "tester": "Claude Code",
+        "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Not extended to 72 h: the owner ended the long run at ~55 h (2026-10-25) after the join tests. Up to then only planned restarts (03:30 x3) and one automatic mod update; no crash.",
+        "evidence": ""
+      }
+    },
+    "67": {
+      "status": "pass",
+      "tested_at": "2026-10-25T05:57:52+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Owner joined 'cc301 Fabric Smooth' (Fabric 26.3 with server mods incl. AppleSkin, Controlify, Lithium, FerriteCore, Krypton) from Prism Launcher via an invite link (local network), 2026-10-25. The invite set up the Prism instance with the 8 matching mods (after moving it into the custom Prism instance folder, bug B11); joined twice, 'joined the game' in the log, no mod mismatch or kick.",
+      "evidence": ""
+    },
+    "71": {
+      "status": "pass",
+      "tested_at": "2026-10-25T05:57:52+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Owner joined 'cc301 Fabric Smooth' (Fabric 26.3 with server mods incl. AppleSkin, Controlify, Lithium, FerriteCore, Krypton) from Prism Launcher via an invite link (local network), 2026-10-25. After the server-side mod install (68-70) the player still joins: two joins/leaves 00:53, no errors on the server.",
+      "evidence": ""
+    },
+    "92": {
+      "status": "pass",
+      "tested_at": "2026-10-25T06:00:56+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Owner joined the Paper 26.3 server (name with accents and Chinese characters) from Prism Launcher via an invite link (local network, plain Minecraft), 2026-10-25: two joins/leaves at 00:59-01:00, no errors (instance moved into the custom Prism folder first, bug B11).",
+      "evidence": ""
+    },
+    "52": {
+      "status": "pass",
+      "tested_at": "2026-10-25T06:05:17+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. Owner joined the plain Vanilla 26.3 server (made with the CLI, run with craft-conductor run, whitelist on) from Prism Launcher by Direct Connection to 127.0.0.1, 2026-10-25: joins/leaves at 01:03, no errors.",
+      "evidence": ""
+    },
+    "443": {
+      "status": "pass",
+      "tested_at": "2026-10-25T06:26:36+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. After the interrupted-update recovery (439-442) the restored Fabric 1.21.1 server (Fabric API, Lithium; whitelist on) accepted the owner from Prism Launcher 1.21.1 by Direct Connection, 2026-10-25: three joins/leaves 01:12-01:16, played normally (advancements), no errors.",
+      "evidence": ""
     }
   },
   "notes": "Started on the PR #157 CI test build (test.yml run 39615873563, commit e0122fb; reports 0.30.0 before the version bump). Fix retests only for now; the release-gate cases are left for later."
