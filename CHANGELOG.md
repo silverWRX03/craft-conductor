@@ -4,6 +4,13 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## Next version (not released yet)
+
+**Fixed**
+- When a new server's first start failed (a modpack with a mod that only runs on players' computers, such as Controlify in Actium), the setup page forgot the modpack, the server's name and its port: pressing **Create my server** again would have made a plain server. It keeps all your choices now, and when the mod to blame only runs on players' computers it offers **Move … to players' mods** or **Leave … out** (#174).
+- Closing Craft Conductor during **Settings → Replace the world…** put the old world back the next time, but left the half-unpacked new world next to it, so every backup grew by its size. It's removed now (#175).
+- Closing Craft Conductor during **Backups → Roll back to this** left the server as it was, but nothing said the roll back hadn't happened, and the half-unpacked backup stayed next to the server. Craft Conductor now says so when it opens and removes it (#176).
+
 ## 0.30.2 (2026-10-25)
 
 **Fixed**

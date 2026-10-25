@@ -201,8 +201,9 @@ class Manager:
         Run before starting the server or updating it. Returns what was done, if anything."""
         from . import world
         done = []
-        if backup.recover(self.server_dir):
-            done.append("the server folder was put back (a restore had been interrupted)")
+        restored = backup.recover(self.server_dir)
+        if restored:
+            done.append(restored)
         try:
             if world.recover(world.level_dir(self.server_dir)):
                 done.append("the world was put back (replacing it had been interrupted)")

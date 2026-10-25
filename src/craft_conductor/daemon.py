@@ -474,6 +474,10 @@ class Daemon:
                     threading.Timer(1.0, webbrowser.open, args=(ui.url,)).start()
             if not self.hub_managed:
                 self._settle_update()
+            try:  # (a restore, world swap or update Craft Conductor was closed in the middle of: said now, not at the next start)
+                self.m.recover()
+            except Exception as e:
+                log.warning("couldn't finish what was interrupted when Craft Conductor closed: %s", e)
             return self._loop()
         finally:
             if ui:
