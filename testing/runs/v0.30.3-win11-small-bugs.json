@@ -71,6 +71,13 @@
       "tester": "Claude Code",
       "notes": "A server log line with a Java path (jdk-25.0.4.1+1\\jdk-25.0.4.1+1-jre), a friend's address (/198.51.100.9:51234) and some-mod-1.2.3.4.jar, then Check my setup's bug report: the Java path and the mod version kept, the address replaced by <ip>. Also found: the log lines' times ([11:13:43]) became [<ip>]; fixed in the same PR (commit 7fec2a0, unit-tested).",
       "evidence": "PR #184 CI test build (test.yml run 40209146227, commit 28fe7a6)"
+    },
+    "962": {
+      "status": "pass",
+      "tested_at": "2026-10-25T19:50:57+00:00",
+      "tester": "Claude Code with the owner",
+      "notes": "Windows 11, disposable install, vanilla 26.3 server running with the guided setup on. Banned Notch and jeb_ and whitelisted the owner's account (all in usercache.json): Join it yourself and A friend joined stayed unticked. The owner joined from Minecraft 26.3: Join it yourself ticked, A friend joined stayed unticked (one player); after they left it stayed ticked (visit in activity.jsonl). The second-player half (A friend joined ticking) wasn't done for real: only one account; covered by tests/test_guide.py.",
+      "evidence": "0.30.3 code (PR #184 CI test build, test.yml run 40209146227)"
     }
   },
   "notes": "The six small bugs from the 0.30.1 run (#178-#183), retested on PR #184's build."
