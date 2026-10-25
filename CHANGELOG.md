@@ -4,7 +4,7 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
-## Next version (not released yet)
+## 0.30.2 (2026-10-25)
 
 **Fixed**
 - Joining a friend's server with **Prism Launcher** added nothing to Prism when Prism keeps its instances in another folder (Prism's **Settings → Launcher → Folders → Instances**, e.g. on another drive): the instance went to Prism's usual folder, where Prism doesn't look, and nothing launched. It now goes in the folder Prism uses. Single-player worlds are found there too (#169).
