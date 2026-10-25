@@ -6,6 +6,11 @@ its fix will say which version it's in.
 
 ## Next version (not released yet)
 
+**Fixed**
+- Joining a friend's server with **Prism Launcher** added nothing to Prism when Prism keeps its instances in another folder (Prism's **Settings → Launcher → Folders → Instances**, e.g. on another drive): the instance went to Prism's usual folder, where Prism doesn't look, and nothing launched. It now goes in the folder Prism uses. Single-player worlds are found there too (#169).
+- Joining a friend's server with the **Minecraft Launcher** made a profile that closed the game as soon as Play was pressed, unless you'd played that Minecraft version before: the launcher looked for that version's game file without downloading it. The launcher now downloads it (#170).
+- On Windows, two copies of Craft Conductor on one computer could both use the friends' download port (8766) without any message, so a friend's invite could reach the other copy and fail. The second one now gets "port in use", as on Mac and Linux (#171).
+
 **Changed**
 - Website publishing uses Ubuntu’s official HTTPS package mirror for browser-test dependencies, avoiding long stalls on the runner’s Azure mirror.
 - The website’s **Product walkthrough** now plays the Craft Conductor YouTube video. The player loads only when you press **Watch video**.

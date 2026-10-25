@@ -321,10 +321,12 @@ class Joiner:
                            store=self.mc / "craft-conductor" / ".craft-conductor" / "java").select(major)
 
     def write_version(self, pack: dict, base: str, slug: str) -> str:
-        """Our own launcher version: the loader's, plus joining the server on start (1.20+)."""
+        """Our own launcher version: the loader's, plus joining the server on start (1.20+).
+        No "jar": with one the launcher plays versions/<minecraft>/<minecraft>.jar without downloading it,
+        so the game closed at once for anyone who hadn't played that Minecraft before. Without it the
+        launcher fetches the game into this version's folder, as for the loaders' own versions."""
         vid = f"craft-conductor-{slug}"
-        data = {"id": vid, "inheritsFrom": base, "jar": pack["minecraft"], "type": "release",
-                "time": _now(), "releaseTime": _now()}
+        data = {"id": vid, "inheritsFrom": base, "type": "release", "time": _now(), "releaseTime": _now()}
         if pack["address"] and _supports_quick_play(pack["minecraft"]):
             data["arguments"] = {"game": ["--quickPlayMultiplayer", pack["address"]]}
         _write_json(self.mc / "versions" / vid / f"{vid}.json", data)

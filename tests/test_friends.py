@@ -175,7 +175,8 @@ def test_join_sets_up_the_launcher(launcher, http):
     assert result["downloaded"] == 1 and (game / "mods" / "a.jar").read_bytes() == jar
     assert (launcher / "versions" / "fabric-loader-0.16.5-1.21.1" / "fabric-loader-0.16.5-1.21.1.json").exists()
     ours = json.loads((launcher / "versions" / "craft-conductor-weekend-survival" / "craft-conductor-weekend-survival.json").read_text())
-    assert ours["inheritsFrom"] == "fabric-loader-0.16.5-1.21.1" and ours["jar"] == "1.21.1"
+    # (no "jar": with one, the launcher played versions/1.21.1/1.21.1.jar without downloading it first)
+    assert ours["inheritsFrom"] == "fabric-loader-0.16.5-1.21.1" and "jar" not in ours
     assert ours["arguments"]["game"] == ["--quickPlayMultiplayer", "mc.example.com"]  # joins by itself
     assert nbt.loads((game / "servers.dat").read_bytes())["servers"][0]["ip"] == "mc.example.com"
     profiles = json.loads((launcher / "launcher_profiles.json").read_text())

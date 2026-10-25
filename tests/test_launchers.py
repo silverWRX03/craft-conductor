@@ -52,6 +52,26 @@ def test_prism_instance(tmp_path, joiner):
     assert not (inst / ".minecraft" / "mods" / "a.jar").exists()
 
 
+def test_prism_instance_goes_to_prisms_own_instances_folder(tmp_path, joiner):
+    """Prism's Folders settings can move instances to another drive (InstanceDir in prismlauncher.cfg,
+    each backslash doubled): the instance goes there, or Prism never shows it."""
+    prism = tmp_path / "PrismLauncher"
+    prism.mkdir()
+    elsewhere = tmp_path / "Games" / "Prism instances"
+    (prism / "prismlauncher.cfg").write_text(
+        "[General]\nIconsDir=icons\nInstanceDir=" + str(elsewhere).replace("\\", "\\\\") + "\nLanguage=en_US\n", encoding="utf-8")
+    r = launchers.install_prism(joiner, pack(mods=mods()), "weekend-survival", prism)
+    inst = elsewhere / "craft-conductor-weekend-survival"
+    assert r["where"] == str(inst) and (inst / "instance.cfg").exists() and (inst / ".minecraft" / "mods" / "a.jar").exists()
+    assert not (prism / "instances").exists()
+    # A relative folder is inside Prism's own; none set (or no settings file) is Prism's default.
+    (prism / "prismlauncher.cfg").write_text("InstanceDir=my instances\n", encoding="utf-8")
+    assert launchers.prism_instances(prism) == prism / "my instances"
+    (prism / "prismlauncher.cfg").write_text("Language=en_US\n", encoding="utf-8")
+    assert launchers.prism_instances(prism) == prism / "instances"
+    assert launchers.prism_instances(tmp_path / "no-prism") == tmp_path / "no-prism" / "instances"
+
+
 def test_a_server_name_on_two_lines_stays_one_setting(tmp_path, joiner):
     """A two-line motd (or a name from a server you don't trust) reaches a friend's launchers as one
     line: in Prism's instance.cfg, a line break would start another setting of its own."""

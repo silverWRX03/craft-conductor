@@ -79,6 +79,22 @@ def prism_dirs() -> list[Path]:
                       [".local/share/PrismLauncher", ".var/app/org.prismlauncher.PrismLauncher/data/PrismLauncher"])
 
 
+def prism_instances(data_dir: Path) -> Path:
+    """Prism's instances folder: "Instances" in its Folders settings (InstanceDir in prismlauncher.cfg),
+    which people move to another drive; a relative one is inside Prism's own folder."""
+    try:
+        lines = (data_dir / "prismlauncher.cfg").read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        lines = []
+    for line in lines:
+        key, sep, value = line.partition("=")
+        if sep and key.strip() == "InstanceDir":
+            value = value.strip().strip('"').replace("\\\\", "\\")  # (Qt doubles each backslash)
+            if value:
+                return data_dir / Path(value)  # (an absolute one replaces data_dir)
+    return data_dir / "instances"
+
+
 def modrinth_dirs() -> list[Path]:
     return _home_dirs(["%APPDATA%/ModrinthApp", "%APPDATA%/com.modrinth.theseus"],
                       ["Library/Application Support/ModrinthApp", "Library/Application Support/com.modrinth.theseus"],
@@ -93,7 +109,7 @@ def curseforge_dirs() -> list[Path]:
 def detect(mc_dir: Path, prism_dir: Path | None = None) -> list[Found]:
     """Which launchers this computer seems to have (all can be picked either way)."""
     from .join import PROFILE_FILES
-    prism = [prism_dir] if prism_dir else [d for d in prism_dirs() if (d / "instances").is_dir() or (d / "prismlauncher.cfg").exists()]
+    prism = [prism_dir] if prism_dir else [d for d in prism_dirs() if prism_instances(d).is_dir() or (d / "prismlauncher.cfg").exists()]
     mr = [d for d in modrinth_dirs() if d.is_dir()]
     cf = [d for d in curseforge_dirs() if d.is_dir()]
     official = any((mc_dir / f).exists() for f in PROFILE_FILES)
@@ -161,7 +177,7 @@ PRISM_COMPONENTS = {
 
 def install_prism(joiner: "Joiner", pack: dict, slug: str, data_dir: Path) -> dict:
     """An instance in Prism's instances folder (re-running updates it in place)."""
-    inst = data_dir / "instances" / f"craft-conductor-{slug}"
+    inst = prism_instances(data_dir) / f"craft-conductor-{slug}"
     game = inst / ".minecraft"
     game.mkdir(parents=True, exist_ok=True)
     components = [{"uid": "net.minecraft", "version": pack["minecraft"], "important": True}]
