@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "id": "v0.30.2-win11",
+  "cc_version": "0.30.2",
+  "minecraft_version": "26.3",
+  "os": "Windows 11",
+  "kind": "patch",
+  "created_at": "2026-10-25T06:52:20+00:00",
+  "features": [],
+  "fixes": [
+    956,
+    957,
+    958
+  ],
+  "required_ids": [
+    802,
+    803,
+    804,
+    805,
+    806,
+    807,
+    808,
+    809,
+    810,
+    811,
+    812,
+    813,
+    814,
+    815,
+    816,
+    817,
+    818,
+    819,
+    820,
+    821,
+    956,
+    957,
+    958
+  ],
+  "results": {
+    "956": {
+      "status": "pass",
+      "tested_at": "2026-10-25T06:52:20+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Windows 11, Prism Launcher with its instances folder moved to another drive (Settings > Launcher > Folders). Invite for a Fabric 26.3 server (8 mods) set up with the test build: the instance was created in Prism's configured folder, nothing new in Prism's default instances folder; it showed in Prism and Launch joined the server.",
+      "evidence": "PR #172 CI test build (test.yml run 40169775236, commit b4a170f)"
+    },
+    "957": {
+      "status": "pass",
+      "tested_at": "2026-10-25T06:52:20+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Windows 11, Minecraft Launcher (Microsoft Store build) that had never downloaded the 26.3 game file. Invite for a Fabric 26.3 server set up with the test build: the version file has no \"jar\"; on Play the launcher downloaded the game into the profile's version folder (41 MB), Minecraft started and joined the server. With 0.30.1 the same setup closed the game at once.",
+      "evidence": "PR #172 CI test build (test.yml run 40169775236, commit b4a170f)"
+    },
+    "958": {
+      "status": "pass",
+      "tested_at": "2026-10-25T06:52:20+00:00",
+      "tester": "Claude Code",
+      "notes": "Windows 11: a 0.30.1 installation had its friends' download on 8766; a second installation (test build, own folder, panel 29870, vanilla server) turned its friends' download on with the same port: it reported 'port 8766 is busy ... pick another in Craft Conductor settings' and netstat showed only the first listener. The first one's invites kept working. (0.30.1 shared the port silently.)",
+      "evidence": "PR #172 CI test build (test.yml run 40169775236, commit b4a170f)"
+    }
+  },
+  "notes": "Fix release for #169, #170, #171 (invite joins in Prism and the Minecraft Launcher; port sharing on Windows)."
+}
