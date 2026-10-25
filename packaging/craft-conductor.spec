@@ -39,6 +39,11 @@ a = Analysis(
     excludes=["tkinter", "unittest", "pydoc_data", "test"],
     noarchive=False,
 )
+if sys.platform.startswith("linux"):
+    # The build machine's libgcc_s can need a newer glibc than the 2.17 the Linux build targets (the
+    # ARM runner's needs 2.35: "GLIBC_2.35 not found" on CentOS 7). Every glibc system has its own,
+    # which glibc itself relies on, so the executable uses that one.
+    a.binaries = [b for b in a.binaries if not os.path.basename(b[0]).startswith("libgcc_s.so")]
 pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
