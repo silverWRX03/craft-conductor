@@ -1,6 +1,7 @@
 """The guided setup: asked once, skippable, started again later; steps tick themselves."""
 
 import json
+import time
 
 from test_hub import login
 
@@ -22,12 +23,20 @@ def test_the_guided_setup(hub_env, monkeypatch):
     assert g["active"] and [s["id"] for s in g["steps"]] == ["make", "start", "join", "open", "invite", "friend"]
     done = {s["id"]: s["done"] for s in g["steps"]}
     assert done["make"] and not done["join"] and g["next"] == "start" and g["server"] == "alpha"
-    # Players who joined tick "join", then "friend".
-    sd = hub.get("alpha").m.server_dir
-    (sd / "usercache.json").write_text(json.dumps([{"name": "Me", "uuid": "1"}]))
+    # A name Minecraft looked up (a ban, the whitelist) isn't someone joining (it's in usercache.json all the same).
+    d = hub.get("alpha")
+    (d.m.server_dir / "usercache.json").write_text(json.dumps([{"name": "Notch", "uuid": "1"}, {"name": "jeb_", "uuid": "2"}]))
+    done = {s["id"]: s["done"] for s in c.get("/api/hub/guide")[1]["steps"]}
+    assert not done["join"] and not done["friend"]
+    # Players who joined tick "join", then "friend", and stay ticked after they leave.
+    d.activity.joined("Me")
     done = {s["id"]: s["done"] for s in c.get("/api/hub/guide")[1]["steps"]}
     assert done["join"] and not done["friend"]
-    (sd / "usercache.json").write_text(json.dumps([{"name": "Me", "uuid": "1"}, {"name": "Pal", "uuid": "2"}]))
+    d.activity.joined("Pal")
+    d.activity.all_left(time.time() + 60)
+    assert not d.activity.online
+    assert {s["id"]: s["done"] for s in c.get("/api/hub/guide")[1]["steps"]}["friend"]
+    d.activity.path.unlink()  # (visits older than 90 days are forgotten; the steps aren't)
     assert {s["id"]: s["done"] for s in c.get("/api/hub/guide")[1]["steps"]}["friend"]
     # Steps craft-conductor can't see can be ticked by hand; the others can't.
     g = c.post("/api/hub/guide", {"action": "tick", "step": "invite"})[1]

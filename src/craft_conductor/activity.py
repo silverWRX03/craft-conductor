@@ -32,6 +32,7 @@ class Activity:
         self.online: dict[str, float] = {}   # name -> when they joined
         self._pruned = 0.0
         self._cache: tuple | None = None     # (key, summary)
+        self._names: tuple | None = None     # (key, names)
 
     # ------------------------------------------------------------- recording
     def joined(self, name: str, now: float | None = None) -> None:
@@ -100,6 +101,18 @@ class Activity:
             rows = [r for r in self._read() if r["end"] >= since]
             rows += [{"name": n, "start": s, "end": now, "online": True} for n, s in self.online.items()]
         return sorted(rows, key=lambda r: r["start"])
+
+    def players(self) -> set[str]:
+        """Everyone who has joined (in the last ``KEEP_DAYS``) or is on now."""
+        try:
+            stat = self.path.stat() if self.path else None
+        except OSError:
+            stat = None
+        key = (stat.st_mtime_ns, stat.st_size) if stat else None
+        if not (self._names and self._names[0] == key):
+            self._names = (key, {r["name"] for r in self._read()} if stat else set())
+        with self.lock:
+            return self._names[1] | set(self.online)
 
     def summary(self, days: int = 30, now: float | None = None) -> dict:
         """Who played and for how long, how busy each hour of the week is, and the quietest hour."""

@@ -4,6 +4,16 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## Next version (not released yet)
+
+**Fixed**
+- The guided setup ticked **Join it yourself** and **A friend joined** when nobody had joined: banning a player by name, or adding one to the whitelist, counted as them joining. Only players who join the game count now (#178).
+- After Craft Conductor restarted, the guided setup's checklist stayed on top of the sign-in page. It's hidden until you sign in again (#179).
+- Some text boxes had only grey example text and no name for screen readers: on **Mods**, the Modrinth search, the CurseForge project id and the saved mod list's name; on **Backups**, the backup's label and **Also copy every backup to**. Each has its own name now (#180).
+- On **New server**, choosing a **Quick start** card with the keyboard sent focus back to the top of the page. It now stays on the server type the card picked, and the same goes for the other choices that redraw the form (#181).
+- The guided setup's checklist could cover buttons, such as **+ New single-player game** on the **Servers** page. The page now leaves room for it: beside the page on a wide screen, below it otherwise (#182).
+- The bug report from **Check my setup** hid Java's version as if it were an address (`jdk-<ip>+1`), and four-part mod versions too. Version numbers are kept now; players' addresses are still taken out (#183).
+
 ## 0.30.2 (2026-10-25)
 
 **Fixed**

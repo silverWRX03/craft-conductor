@@ -65,11 +65,14 @@ def test_secrets_are_taken_out():
         'invite craft-conductor-' + "Q" * 60,
         '[Server thread/INFO]: Steve[/203.0.113.44:51234] logged in; also [2001:db8::7]:25565',
         'listening on 127.0.0.1:8765',
+        r'friend at 198.51.100.9. Java C:\cc\java\25\jdk-25.0.4.1+1\jdk-25.0.4.1+1-jre\bin\java.exe, mods/some-mod-1.2.3.4.jar',
     ])
     out = doctor.redact(text)
-    for secret in ("abcdefghijklmnopqrstuv", "webhooks/123/abc", "Abcdefghijklmnop", "Q" * 60, "203.0.113.44", "2001:db8::7"):
+    for secret in ("abcdefghijklmnopqrstuv", "webhooks/123/abc", "Abcdefghijklmnop", "Q" * 60, "203.0.113.44", "2001:db8::7",
+                   "198.51.100.9"):
         assert secret not in out
     assert 'motd = "My server"' in out and "enabled = true" in out and "127.0.0.1:8765" in out
+    assert r"jdk-25.0.4.1+1\jdk-25.0.4.1+1-jre" in out and "some-mod-1.2.3.4.jar" in out  # (version numbers, not addresses)
 
 
 def test_fix_buttons(hub_env, monkeypatch):
