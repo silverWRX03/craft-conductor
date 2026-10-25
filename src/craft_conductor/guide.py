@@ -72,5 +72,6 @@ def steps(hub) -> dict:
     }
     focus = (running or installed or [None])[0]
     out = [{"id": sid, "title": title, "how": how, "done": done[sid], "manual": sid in MANUAL} for sid, title, how in STEPS]
+    g = {k: v for k, v in g.items() if k != "joined"}  # (kept for the steps, not part of the answer)
     return {**g, "steps": out, "server": focus.server_id if focus else None,
             "next": next((s["id"] for s in out if not s["done"]), None)}
