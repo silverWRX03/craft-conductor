@@ -173,6 +173,36 @@ def test_a_restore_cut_off_between_the_two_renames_is_put_right(tmp_path: Path) 
     assert (server / "sentinel.txt").read_text() == "old"
 
 
+def test_a_restore_cut_off_while_unpacking_is_said_and_tidied(tmp_path: Path) -> None:
+    """Closed while the backup unpacked: the server wasn't touched. That's said (not silence), and the
+    half-unpacked copy next to the server goes."""
+    server = tmp_path / "server"
+    server.mkdir()
+    (server / "sentinel.txt").write_text("live")
+    staging = tmp_path / "server.restoring"
+    (staging / "server" / "world").mkdir(parents=True)
+    (staging / "server" / "world" / "level.dat").write_bytes(b"half")
+
+    assert backup.recover(server) == backup.CUT_OFF
+    assert not staging.exists() and (server / "sentinel.txt").read_text() == "live"
+    assert backup.recover(server) is None, "nothing to do the second time"
+
+
+def test_a_cut_off_restore_holding_the_servers_own_files_puts_them_back_first(tmp_path: Path) -> None:
+    """With kept.json the staging folder holds files moved out of the server: they go back, and the
+    folder isn't simply deleted."""
+    server = tmp_path / "server"
+    server.mkdir()
+    staging = tmp_path / "server.restoring"
+    (staging / "server" / "world").mkdir(parents=True)
+    (staging / "server" / "world" / "level.dat").write_bytes(b"the server's own world")
+    (staging / backup.KEPT).parent.mkdir(parents=True, exist_ok=True)
+    (staging / backup.KEPT).write_text('["world/level.dat"]', encoding="utf-8")
+
+    assert backup.recover(server) == backup.PUT_BACK
+    assert (server / "world" / "level.dat").read_bytes() == b"the server's own world"
+
+
 def test_restore_after_an_interrupted_restore_keeps_the_only_good_copy(tmp_path: Path) -> None:
     """The old code deleted ``server.replaced`` first: after a cut-off swap that was the only
     copy of the server, and a damaged backup then lost everything."""

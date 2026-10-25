@@ -210,6 +210,24 @@ def test_an_interrupted_world_replace_puts_the_old_world_back(tmp_path: Path) ->
     assert not world.recover(dest), "nothing to do the second time"
 
 
+def test_an_interrupted_world_replace_removes_the_half_imported_world(tmp_path: Path) -> None:
+    """Closed while unpacking the new world: the old world goes back, and the half-unpacked copy goes,
+    or it sits next to the world and every backup carries it."""
+    dest = tmp_path / "server" / "world"
+    old, importing = dest.with_name(".world.replaced"), dest.with_name(".world.importing")
+    old.mkdir(parents=True)
+    (old / "level.dat").write_bytes(b"old world")
+    (importing / "region").mkdir(parents=True)
+    (importing / "region" / "r.0.0.mca").write_bytes(b"half")
+
+    assert world.recover(dest)
+    assert (dest / "level.dat").read_bytes() == b"old world"
+    assert not importing.exists() and not old.exists()
+    # (an import into a new server cut off the same way leaves no world to put back: nothing to remove it for)
+    (importing / "region").mkdir(parents=True)
+    assert not world.recover(dest) and not importing.exists()
+
+
 # ---------------------------------------------------------------- modpack
 def _modrinth_index(**extra) -> dict:
     return {"formatVersion": 1, "game": "minecraft", "versionId": "t", "name": "Test Pack",

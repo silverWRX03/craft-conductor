@@ -209,13 +209,19 @@ def replace(source: Path, dest: Path) -> dict:
 
 def recover(dest: Path) -> bool:
     """Put the old world back if Craft Conductor stopped half-way through replacing it (the
-    computer turned off): without it, Minecraft would make a brand-new world on the next start."""
+    computer turned off): without it, Minecraft would make a brand-new world on the next start.
+    The half-imported copy is removed too: left next to the world, it went into every backup."""
     old = dest.with_name(f".{dest.name}.replaced")
+    importing = dest.with_name(f".{dest.name}.importing")
+    put_back = False
     if old.is_dir() and not dest.exists():
         os.replace(old, dest)
         log.warning("putting the world %s back: replacing it was interrupted", dest.name)
-        return True
-    return False
+        put_back = True
+    if importing.is_dir() and dest.exists():
+        shutil.rmtree(importing, ignore_errors=True)
+        log.warning("removed the half-imported world %s left by an import that was interrupted", importing.name)
+    return put_back
 
 
 def level_dir(server_dir: Path) -> Path:

@@ -8400,6 +8400,30 @@
     "source": "added-in-git"
   },
   {
+    "id": 959,
+    "section": "Fix: setup keeps your choices after a failed first start (#174)",
+    "step": "New server -> A modpack -> Modrinth -> Actium 2602.1-neoforge (Controlify is marked for the server) with a name, a port other than 25565 and Only friends at home; Create my server. The first start fails on Controlify: the setup page still shows the modpack, name and port, and offers Move Controlify to players' mods / Leave Controlify out. Move it, press Create my server: the server is made with the modpack, name and port, and Controlify is in the friends' download, not on the server.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 960,
+    "section": "Fix: interrupted world replace leaves no half world (#175)",
+    "step": "On a stopped server, Settings -> Replace the world... with a large world .zip; end Craft Conductor (Task Manager -> End task) while it unpacks. Open Craft Conductor again: the old world is back, it says so, there is no .world.importing folder next to it, and the next backup is the old world's usual size.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 961,
+    "section": "Fix: interrupted roll back is said and tidied (#176)",
+    "step": "On a stopped server, Backups -> Roll back to this on a large backup; end Craft Conductor (Task Manager -> End task) while it unpacks. Open Craft Conductor again (without starting the server): the activity and bell say the roll back was stopped before it changed anything, the server is as it was, and there is no server.restoring folder next to it.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
     "id": 962,
     "section": "Fix: guided setup counts only real joins (#178)",
     "step": "Guided setup on, a server running that nobody has joined: Players -> Ban two names (or add them to the whitelist). Join it yourself and A friend joined stay unticked. Join with one account: Join it yourself ticks; a second player joining ticks A friend joined, and both stay ticked after they leave.",
