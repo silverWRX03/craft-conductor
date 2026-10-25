@@ -273,7 +273,7 @@ _SECRET_TEXT = [
     # players' and friends' addresses (logs show who connected from where); this computer's stay, and so do
     # four-part version numbers in names (Java's jdk-25.0.4.1+1, a mod's some-mod-1.2.3.4.jar)
     (re.compile(r"(?<![\w.+-])(?!127\.0\.0\.1\b)(?:\d{1,3}\.){3}\d{1,3}(?![\w+-]|\.\w)"), "<ip>"),
-    (re.compile(r"\[[0-9a-fA-F:]{6,}(?:%\w+)?\]"), "[<ip>]"),
+    (re.compile(r"\[(?!\d{1,2}:\d{2}:\d{2}\])[0-9a-fA-F:]{6,}(?:%\w+)?\]"), "[<ip>]"),  # (not a log line's [12:34:56])
 ]
 
 

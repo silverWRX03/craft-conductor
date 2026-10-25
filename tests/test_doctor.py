@@ -73,6 +73,7 @@ def test_secrets_are_taken_out():
         assert secret not in out
     assert 'motd = "My server"' in out and "enabled = true" in out and "127.0.0.1:8765" in out
     assert r"jdk-25.0.4.1+1\jdk-25.0.4.1+1-jre" in out and "some-mod-1.2.3.4.jar" in out  # (version numbers, not addresses)
+    assert doctor.redact("[11:13:43] [Server thread/INFO]: hi") == "[11:13:43] [Server thread/INFO]: hi"  # (a time)
 
 
 def test_fix_buttons(hub_env, monkeypatch):
