@@ -59,7 +59,7 @@ The first time you use Craft Conductor, before you have a server, a message asks
 
 1. **Make your server**, 2. **Start it**, 3. **Join it yourself**, 4. **Let friends reach it**, 5. **Invite a friend**, 6. **A friend joined**.
 
-Each step ticks itself as it happens (Craft Conductor sees the server running, who has joined, the router or tunnel set up, the friends' download switched on). **Show me** opens the page for the next step; **I've done this** ticks the two steps Craft Conductor can't always see. **–** hides it to a small button (press it to open it again), and **×** stops it. Start it again any time: **Help → Start the guided setup**, or **🧭 Guided setup** on the Servers page.
+Each step ticks itself as it happens (Craft Conductor sees the server running, who has joined the game (not names you only banned or added to the whitelist), the router or tunnel set up, the friends' download switched on). **Show me** opens the page for the next step; **I've done this** ticks the two steps Craft Conductor can't always see. **–** hides it to a small button (press it to open it again), and **×** stops it. The page leaves room for it, so it never covers a button. Start it again any time: **Help → Start the guided setup**, or **🧭 Guided setup** on the Servers page.
 
 ## Creating a server
 

@@ -8422,5 +8422,53 @@
     "type": "Core",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 962,
+    "section": "Fix: guided setup counts only real joins (#178)",
+    "step": "Guided setup on, a server running that nobody has joined: Players -> Ban two names (or add them to the whitelist). Join it yourself and A friend joined stay unticked. Join with one account: Join it yourself ticks; a second player joining ticks A friend joined, and both stay ticked after they leave.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 963,
+    "section": "Fix: guided setup hidden on the sign-in page (#179)",
+    "step": "With the guided setup checklist open, restart Craft Conductor (or Sign out). The sign-in page shows no checklist; after signing in it is back.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 964,
+    "section": "Fix: labels on Mods and Backups text boxes (#180)",
+    "step": "With a screen reader or the browser's accessibility tree: Mods' Modrinth search box, CurseForge project id box and saved mod list name, and Backups' label box and Also copy every backup to box, each have their own name (not just the placeholder).",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 965,
+    "section": "Fix: Quick start keeps keyboard focus (#181)",
+    "step": "New server, keyboard only: Tab to a Quick start card and press Enter. The form fills in and focus is on the chosen server type card (not the top of the page); Tab goes on to the rest of the form.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 966,
+    "section": "Fix: guided setup checklist leaves room on the page (#182)",
+    "step": "Guided setup checklist open, Servers page with several servers, in a wide window (about 1500x750) and a narrow one: every button (e.g. + New single-player game) can be seen and clicked without hiding the checklist (scroll if needed).",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 967,
+    "section": "Fix: bug report keeps version numbers (#183)",
+    "step": "Check my setup -> make a bug report. In its craft-conductor.log the Java path keeps its version (jdk-25.0.x.y+z, not jdk-<ip>), while players' addresses are still replaced by <ip>.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]

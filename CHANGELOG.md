@@ -4,12 +4,18 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
-## Next version (not released yet)
+## 0.30.3 (2026-10-25)
 
 **Fixed**
 - When a new server's first start failed (a modpack with a mod that only runs on players' computers, such as Controlify in Actium), the setup page forgot the modpack, the server's name and its port: pressing **Create my server** again would have made a plain server. It keeps all your choices now, and when the mod to blame only runs on players' computers it offers **Move … to players' mods** or **Leave … out** (#174).
 - Closing Craft Conductor during **Settings → Replace the world…** put the old world back the next time, but left the half-unpacked new world next to it, so every backup grew by its size. It's removed now (#175).
 - Closing Craft Conductor during **Backups → Roll back to this** left the server as it was, but nothing said the roll back hadn't happened, and the half-unpacked backup stayed next to the server. Craft Conductor now says so when it opens and removes it (#176).
+- The guided setup ticked **Join it yourself** and **A friend joined** when nobody had joined: banning a player by name, or adding one to the whitelist, counted as them joining. Only players who join the game count now (#178).
+- After Craft Conductor restarted, the guided setup's checklist stayed on top of the sign-in page. It's hidden until you sign in again (#179).
+- Some text boxes had only grey example text and no name for screen readers: on **Mods**, the Modrinth search, the CurseForge project id and the saved mod list's name; on **Backups**, the backup's label and **Also copy every backup to**. Each has its own name now (#180).
+- On **New server**, choosing a **Quick start** card with the keyboard sent focus back to the top of the page. It now stays on the server type the card picked, and the same goes for the other choices that redraw the form (#181).
+- The guided setup's checklist could cover buttons, such as **+ New single-player game** on the **Servers** page. The page now leaves room for it: beside the page on a wide screen, below it otherwise (#182).
+- The bug report from **Check my setup** hid Java's version as if it were an address (`jdk-<ip>+1`), and four-part mod versions too, and turned the time at the start of each line of the server's log into `[<ip>]`. Version numbers and times are kept now; players' addresses are still taken out (#183).
 
 ## 0.30.2 (2026-10-25)
 

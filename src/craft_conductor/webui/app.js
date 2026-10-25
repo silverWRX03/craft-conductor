@@ -754,6 +754,7 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) poll
 const PROMPT_KEY = "craft-conductor-password-prompt-dismissed";
 async function showLogin() {
   clearTimers();
+  hideGuide();
   bellSignedOut();
   styleSignedOut();
   $("#app").classList.add("hidden");
@@ -1392,13 +1393,35 @@ function offerGuide(hb) {
       h("button", { class: "btn small", onclick: () => answer("skip") }, "Skip")),
   ], { blocking: false });
 }
+// Signed out: the checklist (and the offer) go with the rest of the session; signing in brings them back.
+function hideGuide() {
+  const box = $("#guide");
+  if (box) box.remove();
+  roomForGuide(null);
+  closeToast("guide-offer");
+  clearInterval(guideTimer); guideTimer = null;
+  guideOffered = false;
+}
+// The page leaves room for the checklist so it never hides a button (beside the page on wide screens, below it
+// otherwise): style.css reads --guide-h, the checklist's height.
+function roomForGuide(box) {
+  const open = !!box && box.isConnected;
+  document.body.classList.toggle("guide-open", open);
+  document.body.classList.toggle("guide-small", open && box.classList.contains("min"));
+  if (open) document.body.style.setProperty("--guide-h", `${box.offsetHeight}px`);  // (CSSOM, allowed by the CSP)
+}
 async function startGuide() {
   const r = await api("/api/hub/guide", { method: "POST", body: { action: "start" } }).catch((e) => { toast(e.message, true); return null; });
   if (r) { try { sessionStorage.removeItem(GUIDE_MIN_KEY); } catch (_) {} showGuide(r); }
 }
 function showGuide(data) {
   let box = $("#guide");
-  if (!box) { box = h("aside", { id: "guide", class: "guide", "aria-label": t("Guided setup") }); document.body.append(box); }
+  if (!box) {
+    box = h("aside", { id: "guide", class: "guide", "aria-label": t("Guided setup") });
+    document.body.append(box);
+    const resized = new ResizeObserver(() => { roomForGuide(box); if (!box.isConnected) resized.disconnect(); });
+    resized.observe(box);
+  }
   const minimized = () => { try { return !!sessionStorage.getItem(GUIDE_MIN_KEY); } catch (_) { return false; } };
   const setMin = (v) => { try { v ? sessionStorage.setItem(GUIDE_MIN_KEY, "1") : sessionStorage.removeItem(GUIDE_MIN_KEY); } catch (_) {} render(last); };
   let last = data || null;
@@ -1414,17 +1437,18 @@ function showGuide(data) {
     if (!(await ask("Stop the guided setup? You can start it again any time from Help or the Servers page.", { ok: "Stop the guide" }))) return;
     await act2({ action: "stop" });
     clearInterval(guideTimer); guideTimer = null;
-    box.remove();
+    box.remove(); roomForGuide(null);
   };
   function render(g) {
     if (!g) return;
     last = g;
-    if (!g.active) { box.remove(); clearInterval(guideTimer); guideTimer = null; return; }
+    if (!g.active) { box.remove(); roomForGuide(null); clearInterval(guideTimer); guideTimer = null; return; }
     const n = g.steps.filter((x) => x.done).length;
     const all = n === g.steps.length;
     if (minimized()) {
       fill(box, h("button", { class: "guide-pill", onclick: () => setMin(false) }, `🧭 ${t("Guided setup")} · ${n}/${g.steps.length}`));
       box.classList.add("min");
+      roomForGuide(box);
       return;
     }
     box.classList.remove("min");
@@ -2934,7 +2958,8 @@ views.mods = () => {
   const results = h("div");
   const configured = h("div");
   const installed = h("div");
-  const q = h("input", { placeholder: plugins ? "Search Modrinth for plugins…" : "Search Modrinth for server mods…", type: "search" });
+  const q = h("input", { placeholder: plugins ? "Search Modrinth for plugins…" : "Search Modrinth for server mods…", type: "search",
+    "aria-label": t(plugins ? "Search Modrinth for plugins" : "Search Modrinth for server mods") });
   const sets = modSetsCard(() => load());
   let searchTimer;
 
@@ -2972,7 +2997,7 @@ views.mods = () => {
   };
   q.addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(search, 350); });
 
-  const cfId = h("input", { placeholder: "CurseForge project id or slug" });
+  const cfId = h("input", { placeholder: "CurseForge project id or slug", "aria-label": t("CurseForge project id or slug") });
   let info = {};
   let cfgInfo = null;
   const configsCard = h("div");
@@ -3311,7 +3336,7 @@ views.mods = () => {
 // by itself on every switch). Power users can download a list and load it on another server.
 function modSetsCard(after) {
   const list = h("div");
-  const name = h("input", { placeholder: "e.g. Survival with tech mods", maxlength: 60 });
+  const name = h("input", { placeholder: "e.g. Survival with tech mods", maxlength: 60, "aria-label": t("Name of the saved mod list") });
   const file = h("input", { type: "file", accept: ".json,application/json", class: "hidden" });
   const load = async () => {
     const r = await api("/api/modsets").catch(() => null);
@@ -3509,7 +3534,7 @@ const holdsLine = (b) => {
 
 views.backups = () => {
   const list = h("div");
-  const label = h("input", { placeholder: "label (optional)" });
+  const label = h("input", { placeholder: "label (optional)", "aria-label": t("Backup label (optional)") });
   const settingsBody = h("div");
   const load = async () => {
     const r = await api("/api/backups").catch(() => null);
@@ -3558,7 +3583,8 @@ views.backups = () => {
     const include = new Set(s.backup_include || []);
     const boxes = BACKUP_PARTS.map(([key, text]) => [key, h("input", { type: "checkbox", checked: include.has(key) }), text]);
     const keep = h("input", { type: "number", min: 1, value: s.backups_keep });
-    const copyTo = h("input", { value: s.backup_copy_to || "", placeholder: "e.g. E:\\craft-conductor-backups, or a OneDrive / Google Drive folder" });
+    const copyTo = h("input", { value: s.backup_copy_to || "", placeholder: "e.g. E:\\craft-conductor-backups, or a OneDrive / Google Drive folder",
+      "aria-label": t("Also copy every backup to") });
     const copyKeep = h("input", { type: "number", min: 1, value: s.backup_copy_keep });
     fill(settingsBody,
       h("p", { class: "muted small" }, "What the backups you make, and the scheduled ones, hold. Backups made before an update or a new world always hold everything a roll back needs. Restoring a backup that left something out keeps the server's own copy of it."),
@@ -9453,7 +9479,20 @@ views.setup = () => {
         h("button", { type: "button", class: "btn small", onclick: () => apply(false) }, `Leave ${c.name} out`)));
   };
 
+  // A choice redraws the form: keyboard focus stays where it was (the same field, or the server type that was
+  // picked, as after a Quick start card), not back at the top of the page.
   const renderForm = (error) => {
+    const was = document.activeElement;
+    const inside = !!was && was !== main && main.contains(was);
+    drawForm(error);
+    if (!inside || was.isConnected) return;
+    const label = was.getAttribute("aria-label");
+    const again = (was.id && document.getElementById(was.id))
+      || (label && [...main.querySelectorAll("[aria-label]")].find((e) => e.getAttribute("aria-label") === label))
+      || main.querySelector(".choice.selected");
+    if (again) again.focus();
+  };
+  const drawForm = (error) => {
     const loaderCards = h("div", { class: "choices" }, opts.loaders.map((l) => h("button", {
       type: "button", class: "choice" + (st.loader === l.name ? " selected" : ""),
       "aria-pressed": String(st.loader === l.name), "aria-label": `${t(l.label)}: ${t(l.description)}`,

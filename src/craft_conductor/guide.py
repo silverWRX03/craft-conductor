@@ -3,13 +3,10 @@ making the server to a friend joining it. Each step ticks itself as it happens (
 see, like sending the invite, can be ticked by hand). Offered once, the first time craft-conductor is used
 (skipping is fine), and started again any time from Help or the Servers page.
 
-Its state is kept in the hub's file under ``"guide"``: ``{"asked", "active", "ticked": [...]}``.
+Its state is kept in the hub's file under ``"guide"``: ``{"asked", "active", "ticked": [...], "started", "joined"}``.
 """
 
 from __future__ import annotations
-
-import json
-from pathlib import Path
 
 STEPS = [  # id, title, what to do
     ("make", "Make your server",
@@ -31,20 +28,18 @@ STEPS = [  # id, title, what to do
 MANUAL = {"open", "invite"}  # steps that can be ticked by hand
 
 
-def _players(server_dir: Path) -> set[str]:
-    """Everyone who has ever joined the server (Minecraft's usercache.json)."""
-    try:
-        data = json.loads((server_dir / "usercache.json").read_text())
-        return {str(x.get("name")) for x in data if isinstance(x, dict) and x.get("name")}
-    except (OSError, ValueError, TypeError):
-        return set()
+def _players(daemon) -> set[str]:
+    """Everyone who has joined the server: its player activity (the join lines in its log). Not Minecraft's
+    usercache.json, which also gets a name whenever one is looked up (a ban, the whitelist, an operator)."""
+    activity = getattr(daemon, "activity", None)
+    return activity.players() if activity is not None else set()
 
 
 def state(hub) -> dict:
     saved = hub._hub_file().get("guide") or {}
     return {"asked": bool(saved.get("asked")), "active": bool(saved.get("active")),
             "ticked": [x for x in saved.get("ticked", []) if x in MANUAL],
-            "started": bool(saved.get("started"))}
+            "started": bool(saved.get("started")), "joined": int(saved.get("joined") or 0)}
 
 
 def save(hub, **changes) -> dict:
@@ -62,17 +57,21 @@ def steps(hub) -> dict:
     running = [d for d in installed if d.state == "running"]
     if running and not g["started"]:
         g = save(hub, started=True)  # (remembered: stopping it again doesn't untick "Start it")
-    players = set().union(*(_players(d.m.server_dir) for d in installed)) if installed else set()
+    joined = len(set().union(*(_players(d) for d in installed))) if installed else 0
+    if joined > g["joined"]:
+        g = save(hub, joined=joined)  # (remembered: old visits are forgotten after 90 days)
+    joined = max(joined, g["joined"])
     upnp = hub.upnp_status() if hasattr(hub, "upnp_status") else {}
     done = {
         "make": bool(installed),
         "start": bool(running) or g["started"],
-        "join": len(players) >= 1,
+        "join": joined >= 1,
         "open": bool(upnp.get("mapped")) or any(d.m.config.tunnel_address for d in installed) or "open" in g["ticked"],
         "invite": any(d.m.config.client.enabled for d in installed) or "invite" in g["ticked"],
-        "friend": len(players) >= 2,
+        "friend": joined >= 2,
     }
     focus = (running or installed or [None])[0]
     out = [{"id": sid, "title": title, "how": how, "done": done[sid], "manual": sid in MANUAL} for sid, title, how in STEPS]
+    g = {k: v for k, v in g.items() if k != "joined"}  # (kept for the steps, not part of the answer)
     return {**g, "steps": out, "server": focus.server_id if focus else None,
             "next": next((s["id"] for s in out if not s["done"]), None)}

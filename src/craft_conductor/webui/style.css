@@ -878,6 +878,9 @@ html { zoom: var(--zoom); }
 .guide-steps li.done .guide-tick { background: var(--accent); border-color: var(--accent); color: #fff; }
 .guide-steps p { margin: 4px 0 6px; }
 @media (max-width: 600px) { .guide { right: 8px; bottom: 8px; } }
+/* The page leaves room for it, so it never hides a button: below the page, or beside it on a wide screen. */
+body.guide-open main { padding-bottom: calc(40px + var(--guide-h, 0px)); }
+@media (min-width: 1200px) { body.guide-open:not(.guide-small) main { padding-right: 380px; padding-bottom: 24px; } }
 
 /* Modded single-player games */
 .sp-picked { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
