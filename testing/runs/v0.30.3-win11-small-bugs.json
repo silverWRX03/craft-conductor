@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "id": "v0.30.3-win11-small-bugs",
+  "cc_version": "0.30.3",
+  "minecraft_version": "26.3",
+  "os": "Windows 11",
+  "kind": "patch",
+  "created_at": "2026-10-25T16:16:46+00:00",
+  "features": [],
+  "fixes": [
+    962,
+    963,
+    964,
+    965,
+    966,
+    967
+  ],
+  "required_ids": [
+    802,
+    803,
+    804,
+    805,
+    806,
+    807,
+    808,
+    809,
+    810,
+    811,
+    812,
+    813,
+    814,
+    815,
+    816,
+    817,
+    818,
+    819,
+    820,
+    821,
+    962,
+    963,
+    964,
+    965,
+    966,
+    967
+  ],
+  "results": {
+    "963": {
+      "status": "pass",
+      "tested_at": "2026-10-25T16:16:46+00:00",
+      "tester": "Claude Code",
+      "notes": "Windows 11, Chrome, disposable install. Guided setup open (3/6), then Sign out: the sign-in page showed no checklist and no guide offer (#guide absent, body not guide-open). Signed in again: the checklist came back with its ticks.",
+      "evidence": "PR #184 CI test build (test.yml run 40209146227, commit 28fe7a6)"
+    },
+    "964": {
+      "status": "pass",
+      "tested_at": "2026-10-25T16:16:46+00:00",
+      "tester": "Claude Code",
+      "notes": "Chrome accessibility tree: Mods page: 'Search Modrinth for server mods', 'CurseForge project id or slug', 'Name of the saved mod list'; Backups page: 'Backup label (optional)', 'Also copy every backup to' each have their own name.",
+      "evidence": "PR #184 CI test build (test.yml run 40209146227, commit 28fe7a6)"
+    },
+    "965": {
+      "status": "pass",
+      "tested_at": "2026-10-25T16:16:46+00:00",
+      "tester": "Claude Code",
+      "notes": "New server, keyboard: focus on the Vanilla Minecraft with friends Quick start card, Enter. The form filled in and focus was on the selected Vanilla server type card; Tab went on to the Version select.",
+      "evidence": "PR #184 CI test build (test.yml run 40209146227, commit 28fe7a6)"
+    },
+    "967": {
+      "status": "pass",
+      "tested_at": "2026-10-25T16:16:47+00:00",
+      "tester": "Claude Code",
+      "notes": "A server log line with a Java path (jdk-25.0.4.1+1\\jdk-25.0.4.1+1-jre), a friend's address (/198.51.100.9:51234) and some-mod-1.2.3.4.jar, then Check my setup's bug report: the Java path and the mod version kept, the address replaced by <ip>. Also found: the log lines' times ([11:13:43]) became [<ip>]; fixed in the same PR (commit 7fec2a0, unit-tested).",
+      "evidence": "PR #184 CI test build (test.yml run 40209146227, commit 28fe7a6)"
+    }
+  },
+  "notes": "The six small bugs from the 0.30.1 run (#178-#183), retested on PR #184's build."
+}
