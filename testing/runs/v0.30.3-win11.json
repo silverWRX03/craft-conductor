@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "id": "v0.30.3-win11",
+  "cc_version": "0.30.3",
+  "minecraft_version": "26.3",
+  "os": "Windows 11",
+  "kind": "patch",
+  "created_at": "2026-10-25T07:48:35+00:00",
+  "features": [],
+  "fixes": [
+    959,
+    960,
+    961
+  ],
+  "required_ids": [
+    802,
+    803,
+    804,
+    805,
+    806,
+    807,
+    808,
+    809,
+    810,
+    811,
+    812,
+    813,
+    814,
+    815,
+    816,
+    817,
+    818,
+    819,
+    820,
+    821,
+    959,
+    960,
+    961
+  ],
+  "results": {
+    "959": {
+      "status": "pass",
+      "tested_at": "2026-10-25T07:48:35+00:00",
+      "tester": "Claude Code",
+      "notes": "Windows 11, Chrome, disposable install. New server -> A modpack -> Modrinth -> Actium (26Q2.1-neoforge, Minecraft 26.2), name 'pr177 Actium pack', port 25638, 4 GB, Only friends at home, EULA; Create my server. The first start failed on Controlify (NoClassDefFoundError net/minecraft/client/...). The setup page kept the modpack, name and port and offered 'Move Controlify (Controller support) to players' mods' / 'Leave ... out'. Moved it and pressed Create my server: the server was made from the modpack with the same name and port, Controlify is not on the server and is in the friends' download (turned on).",
+      "evidence": "PR #177 CI test build (test.yml run 40171840370, commit 67b192f)"
+    },
+    "960": {
+      "status": "pass",
+      "tested_at": "2026-10-25T07:48:35+00:00",
+      "tester": "Claude Code",
+      "notes": "Windows 11, disposable install, stopped vanilla server. Replace the world with a 602 MB world .zip; ended Craft Conductor (taskkill /F /T) while it unpacked (.world.importing 374 MB + .world.replaced). Opened Craft Conductor again without starting the server: the old world was put back, .world.importing was removed, and the activity said 'the world was put back (replacing it had been interrupted)'. The next backup holds no half world.",
+      "evidence": "PR #177 CI test build (test.yml run 40171840370, commit 67b192f)"
+    },
+    "961": {
+      "status": "pass",
+      "tested_at": "2026-10-25T07:48:35+00:00",
+      "tester": "Claude Code",
+      "notes": "Windows 11, disposable install, stopped server. Back up now (719 MB), then Roll back to this; ended Craft Conductor (taskkill /F /T) while it unpacked (server.restoring 164 MB). Opened Craft Conductor again without starting the server: the world and server were as they were, server.restoring was gone, and the activity said 'a roll back was stopped before it changed anything (the server is as it was)'.",
+      "evidence": "PR #177 CI test build (test.yml run 40171840370, commit 67b192f)"
+    }
+  },
+  "notes": "Fix release for #174, #175, #176 (setup keeps choices after a failed first start; interrupted world replace and roll back tidied)."
+}

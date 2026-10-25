@@ -436,18 +436,30 @@ def _why(e: BaseException) -> str | None:
     return None
 
 
-def recover(server_dir: Path) -> bool:
+PUT_BACK = "the server folder was put back (a restore had been interrupted)"
+CUT_OFF = "a roll back was stopped before it changed anything (the server is as it was)"
+
+
+def recover(server_dir: Path) -> str | None:
     """Put the server folder back if Craft Conductor stopped in the middle of swapping a restored
     backup in (the computer turned off between the two renames): the old folder is still there,
-    complete, as ``<dir>.replaced``."""
+    complete, as ``<dir>.replaced``. A restore stopped while unpacking (``<dir>.restoring`` with
+    nothing of the server's in it) changed nothing: its half-unpacked copy is removed, and said.
+    Returns what was done (PUT_BACK or CUT_OFF), or None."""
     aside = server_dir.with_name(server_dir.name + ".replaced")
-    put_back = False
+    done = None
     if aside.is_dir() and not server_dir.exists():
         aside.rename(server_dir)
         log.warning("put the server folder %s back: a restore was interrupted", server_dir)
-        put_back = True
+        done = PUT_BACK
     staging = server_dir.with_name(server_dir.name + ".restoring")
-    if (staging / KEPT).is_file() and server_dir.is_dir():
-        _put_back_kept(staging, server_dir)
-        put_back = True
-    return put_back
+    if (staging / KEPT).is_file():
+        if server_dir.is_dir():
+            _put_back_kept(staging, server_dir)
+            done = PUT_BACK
+    elif staging.is_dir() and server_dir.is_dir():  # (only the backup's files: nothing of the server's to lose)
+        shutil.rmtree(staging, ignore_errors=True)
+        log.warning("a restore into %s was stopped while unpacking; the server is as it was, and the "
+                    "half-unpacked copy was removed", server_dir)
+        done = done or CUT_OFF
+    return done

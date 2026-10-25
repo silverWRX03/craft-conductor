@@ -8950,6 +8950,25 @@ async function setupLoadHand(files = null) {
   if (st.onHand) st.onHand();
 }
 // Choose another modpack (or none): the old one's mods for players leave the friends' download.
+// As CLIENT_ONLY in explain.py: a mod that reached for parts of Minecraft only players' computers have.
+const CLIENT_ONLY_CRASH = /invalid dist DEDICATED_SERVER|in environment type SERVER|(?:NoClassDefFoundError|ClassNotFoundException|Attempted to load class)[^\n]*net[/.]minecraft[/.]client[/.]|\bclient[- ]?(?:side[- ]?)?only mod\b|only (?:works|runs) on (?:the )?client/i;
+// Setup's test start failed on a mod that only runs on players' computers: the mod on this page it
+// names (one of the modpack's, or one you picked), so it can be moved to players' mods or left out.
+function setupPlayersOnlyMod(message) {
+  const st = setupState, text = String(message || "");
+  if (!CLIENT_ONLY_CRASH.test(text)) return null;
+  const named = (/this mod is the problem: ([^\n]+?) \(it /i.exec(text) || [])[1] || "";
+  const ids = [...text.matchAll(/ModID: ([\w.-]+)|\(([\w.-]+)\) has failed to load/gi)].map((m) => (m[1] || m[2]).toLowerCase());
+  const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const fits = (name, slug) => (!!slug && ids.includes(String(slug).toLowerCase()))
+    || (norm(name).length >= 3 && norm(named).startsWith(norm(name)));
+  if (st.modpack && Array.isArray(st.modpack.mods)) {
+    const m = st.modpack.mods.find((x) => x.included_on_server !== false && fits(x.name, x.slug));
+    if (m) return { name: m.name, pack: m, key: m.source === "curseforge" ? `curseforge:${m.project_id}` : (m.slug || m.project_id) };
+  }
+  for (const [key, m] of st.mods) if (m.explicit && fits(m.name, key.replace(/^(modrinth|curseforge):/, ""))) return { name: m.name || key, key };
+  return null;
+}
 function setupChoosePack(pack) {
   const st = setupState;
   for (const key of (st.modpack && st.modpack.friendKeys) || []) { st.clientMods.delete(key); st.clientMeta.delete(key); }
@@ -9407,6 +9426,33 @@ views.setup = () => {
 
   const field = (label, input, hint) => h("label", {}, label, input, hint ? h("span", { class: "muted small" }, hint) : null);
 
+  // The test start blamed a mod that only runs on players' computers: offer what the Dashboard does,
+  // here, where the choices can still change (the modpack's mod is left off the server).
+  const playersOnlyFix = (error) => {
+    if (st.playersOnlyDone) return h("div", { class: "small mt-s ok-text" }, `✓ ${st.playersOnlyDone} Press Create my server to try again.`);
+    const c = setupPlayersOnlyMod(error);
+    if (!c) return null;
+    const apply = (toPlayers) => {
+      if (c.pack) {
+        const removed = st.modpack.removed instanceof Set ? st.modpack.removed : new Set();
+        removed.add(c.pack.path);
+        st.modpack.removed = removed;
+      } else {
+        st.mods.delete(c.key);
+      }
+      if (toPlayers) { st.clientMods.set(c.key, c.name); st.friends = true; }
+      st.playersOnlyDone = toPlayers ? `${c.name} goes in players' mods instead of on the server.` : `${c.name} is left out.`;
+      setupChanged();
+      renderForm(error);
+    };
+    return h("div", { class: "mt-s" },
+      h("p", { class: "small" }, `${c.name} only runs on players' computers, so the server can't start with it. ` +
+        "Move it to players' mods (it goes in your friends' download instead), or leave it out, then try again."),
+      h("div", { class: "row" },
+        h("button", { type: "button", class: "btn small primary", onclick: () => apply(true) }, `Move ${c.name} to players' mods`),
+        h("button", { type: "button", class: "btn small", onclick: () => apply(false) }, `Leave ${c.name} out`)));
+  };
+
   const renderForm = (error) => {
     const loaderCards = h("div", { class: "choices" }, opts.loaders.map((l) => h("button", {
       type: "button", class: "choice" + (st.loader === l.name ? " selected" : ""),
@@ -9419,7 +9465,7 @@ views.setup = () => {
       h("p", { class: "muted" }, "Choose what kind of server you want. Craft Conductor downloads everything it needs (Minecraft, the mod loader, mods and Java) and keeps it up to date from then on. " +
         (opts.network_option ? "" : "It won't start until you press Start.")),
       error ? h("div", { class: "notice bad" }, h("strong", {}, "Setup didn't finish: "), failureText(error, server),
-        h("div", { class: "small mt-s" }, "Change your choices below and try again.")) : null,
+        playersOnlyFix(error) || h("div", { class: "small mt-s" }, "Change your choices below and try again.")) : null,
     ];
     // Or on another computer: a Linux PC without a screen, installed over SSH.
     const elsewhere = isNew && !opts.network_option ? h("div", { class: "mt" }, card("Or on another computer",
@@ -9710,10 +9756,11 @@ views.setup = () => {
         aikar_flags: !!st.aikar && st.memory_gb > AIKAR_ABOVE_GB,
         motd: st.motd, max_players: st.max_players, difficulty: st.difficulty, gamemode: st.gamemode, port: st.port,
         network_access: st.network_access, accept_eula: true, properties: changedProps(st.properties, propDefaults),
-        friends: !!st.friends, local_mods: st.localMods.map((m) => m.id), world: st.world ? st.world.world : "",
+        // (trying again after a failed first start: the uploaded mods and world are in the server already)
+        friends: !!st.friends, local_mods: st.filesSent ? [] : st.localMods.map((m) => m.id), world: st.world && !st.filesSent ? st.world.world : "",
         ...(isNew ? { reach: st.reach, ...(st.reach !== "home" && st.ownerName ? { owner_name: st.ownerName } : {}) } : {}),
-        client_mods: st.friends ? [...st.clientMods.keys()] : [], client_local: st.friends ? st.clientLocal.map((m) => m.id) : [],
-        manual_files: (st.hand || []).filter((m) => st.handGot.has(m.filename)).map((m) => st.handGot.get(m.filename)),
+        client_mods: st.friends ? [...st.clientMods.keys()] : [], client_local: st.friends && !st.filesSent ? st.clientLocal.map((m) => m.id) : [],
+        manual_files: st.filesSent ? [] : (st.hand || []).filter((m) => st.handGot.has(m.filename)).map((m) => st.handGot.get(m.filename)),
         mod_channels: Object.fromEntries([...st.mods].filter(([, m]) => m.explicit && m.channel).map(([k, m]) => [k, m.channel])), datapacks: setupDatapacks(),
         pins: setupPins() };
       if (isNew && st.reach !== "home") {  // (reachable from the internet: the whitelist is sent either way, and off only when still wanted)
@@ -9737,7 +9784,10 @@ views.setup = () => {
         if (r) {
           setupState.friendsFor = body.friends || body.client_mods.length || body.client_local.length ? r.id : null;
           saveSetupFollowup({ id: r.id, friends: !!setupState.friendsFor, remote: !!st.remoteAfterCreate, phase: "creating" });
-          resetSetup();
+          // The choices stay with the new server's setup page: if its first start fails, the form still
+          // has the modpack, name, port and the rest for trying again (it was rebuilt from
+          // craft-conductor.toml, which doesn't have them). The files sent are in the server already.
+          Object.assign(st, { target: r.id, prefilled: true, submitted: true, filesSent: true, playersOnlyDone: null });
           location.hash = `#s/${r.id}/setup`;
         }
         return;
@@ -9955,7 +10005,7 @@ views.setup = () => {
     if (st.network_access === null) st.network_access = opts.network_access;
     if (opts.versions_error) toast(opts.versions_error, true);
     const s = status || (server ? await api("/api/status").catch(() => ({})) : {});
-    if (s.job && s.job.name === "set up server") { st.submitted = true; renderProgress(); } else renderForm();
+    if (s.job && s.job.name === "set up server") { st.submitted = true; renderProgress(); } else { st.submitted = false; renderForm(); }
   })();
 
   $("#main").replaceChildren(main);
@@ -9966,7 +10016,7 @@ views.setup = () => {
       if (!last || last.name !== "set up server") return;
       if (modManagerOpen && modManagerOpen.owner === "manual-downloads") closeModManager(true);
       if (last.ok) setupFinished();
-      else { st.submitted = false; clearTimers(); every(2000, refreshStatus); renderForm(last.message); }
+      else { st.submitted = false; st.playersOnlyDone = null; clearTimers(); every(2000, refreshStatus); renderForm(last.message); }
     },
   };
 };
