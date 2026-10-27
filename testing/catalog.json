@@ -251,7 +251,8 @@
     "step": "Start with a completely fresh Craft Conductor configuration.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 32,
@@ -259,7 +260,8 @@
     "step": "Accept Guide me when first offered.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 33,
@@ -267,7 +269,8 @@
     "step": "Confirm the first instruction is understandable without reading the manual.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 34,
@@ -275,7 +278,8 @@
     "step": "Create a server using a Quick Start rather than advanced configuration.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 35,
@@ -285,7 +289,8 @@
     "tags": [
       "minecraft-version"
     ],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 36,
@@ -295,7 +300,8 @@
     "tags": [
       "minecraft-version"
     ],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 37,
@@ -303,7 +309,8 @@
     "step": "Confirm RAM selection/defaults are understandable.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 38,
@@ -311,7 +318,8 @@
     "step": "Confirm the Minecraft EULA step is clear.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 39,
@@ -319,7 +327,8 @@
     "step": "Start the server.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 40,
@@ -327,7 +336,8 @@
     "step": "Confirm the guide recognizes that the server started.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 41,
@@ -335,7 +345,8 @@
     "step": "Join the server locally from Minecraft.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 42,
@@ -343,7 +354,8 @@
     "step": "Confirm the guide recognizes the local join.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 43,
@@ -351,7 +363,8 @@
     "step": "Create/send a friend invite.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 44,
@@ -359,7 +372,8 @@
     "step": "Have a second person follow the invite without verbal coaching.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 45,
@@ -367,7 +381,8 @@
     "step": "Confirm the friend successfully joins.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 46,
@@ -375,7 +390,8 @@
     "step": "Confirm the guided checklist reaches its final completed state.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 47,
@@ -383,7 +399,8 @@
     "step": "Write down every place the tester asks “what does this mean?”",
     "type": "Extra",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 48,
@@ -391,7 +408,8 @@
     "step": "Write down every place the tester needs help from you.",
     "type": "Extra",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 49,
@@ -399,7 +417,8 @@
     "step": "Treat needing command-line help during the basic journey as a failed test.",
     "type": "Extra",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 50,
@@ -6831,7 +6850,8 @@
     "step": "Give the tester only the Craft Conductor download page.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 782,
@@ -6839,7 +6859,8 @@
     "step": "Do not explain Minecraft server administration.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 783,
@@ -6847,7 +6868,8 @@
     "step": "Have them download Craft Conductor.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 784,
@@ -6855,7 +6877,8 @@
     "step": "Have them launch it.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 785,
@@ -6863,7 +6886,8 @@
     "step": "Have them create a modded server.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 786,
@@ -6871,7 +6895,8 @@
     "step": "Have them start it.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 787,
@@ -6879,7 +6904,8 @@
     "step": "Have them join from the same house.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 788,
@@ -6887,7 +6913,8 @@
     "step": "Have them add a mod.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 789,
@@ -6895,7 +6922,8 @@
     "step": "Have them send an invite to another person.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 790,
@@ -6903,7 +6931,8 @@
     "step": "Have that person set up their Minecraft client without developer help.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 791,
@@ -6911,7 +6940,8 @@
     "step": "Have that person connect from outside the home.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 792,
@@ -6919,7 +6949,8 @@
     "step": "Restart the host PC.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 793,
@@ -6927,7 +6958,8 @@
     "step": "Have the tester bring the server back online without developer help.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 794,
@@ -6935,7 +6967,8 @@
     "step": "Perform a normal mod/update cycle.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 795,
@@ -6943,7 +6976,8 @@
     "step": "Have the tester make a backup.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 796,
@@ -6951,7 +6985,8 @@
     "step": "Have the tester restore it.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 797,
@@ -6959,7 +6994,8 @@
     "step": "Trigger one understandable recoverable failure.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 798,
@@ -6967,7 +7003,8 @@
     "step": "Confirm the tester understands what Craft Conductor says went wrong.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 799,
@@ -6975,7 +7012,8 @@
     "step": "Confirm the tester can recover using the UI rather than Terminal/PowerShell.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 800,
@@ -6983,7 +7021,8 @@
     "step": "Ask the tester: Would you feel comfortable running this for your kids without calling me?",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 801,
@@ -6991,7 +7030,8 @@
     "step": "Mark Dad Test PASS only if the answer is yes and the entire core journey completed without developer intervention.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 802,
@@ -7159,7 +7199,8 @@
     "step": "Final uncoached Dad Test passes.",
     "type": "Gate",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Dad Test: on hold until the product is stable (owner, 2026-10-27)"
   },
   {
     "id": 822,

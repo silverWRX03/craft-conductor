@@ -38,6 +38,16 @@ def catalog():
 def index():
     return {int(x['id']): x for x in catalog()}
 
+def on_hold():
+    """Tests put on hold (`hold`): kept in the catalog and in old runs, but left out of new runs, reports and
+    the public dashboard until `unhold`."""
+    return {int(x['id']) for x in catalog() if x.get('on_hold')}
+
+def version_key(version):
+    """Sorts runs by Craft Conductor version: '0.30.3' after '0.29.0' ('0.27.0 (legacy ...)' counts as 0.27.0)."""
+    m=re.match(r'\d+(?:\.\d+)*',str(version))
+    return tuple(int(n) for n in m.group().split('.')) if m else ()
+
 def load_run(value):
     p = Path(value)
     if not p.is_file(): p = RUNS / (value if str(value).endswith('.json') else value+'.json')
@@ -67,7 +77,9 @@ def scope(kind, feature, fixes, extra):
     selected |= feature | fixes | extra
     missing = selected - set(index())
     if missing:raise SystemExit(f'Test ID(s) not in catalog: {sorted(missing)}. Add cases first.')
-    return sorted(selected)
+    held = (feature | fixes | extra) & on_hold()
+    if held:raise SystemExit(f'Test ID(s) on hold: {sorted(held)}. Use unhold first.')
+    return sorted(selected - on_hold())
 
 def cmd_new(a):
     if not re.fullmatch(r'[A-Za-z0-9._-]+',a.run): raise SystemExit('Run slug must use letters, digits, . _ -')
@@ -86,6 +98,7 @@ def cmd_record(a):
     p, run=load_run(a.run)
     t=int(a.id)
     if t not in index():raise SystemExit(f'Unknown test ID {t}; use add-test first.')
+    if t in on_hold():raise SystemExit(f'Test {t} is on hold ({index()[t]["on_hold"]}); use unhold first.')
     if t not in run['required_ids']:
         if not a.allow_extra:raise SystemExit(f'Test {t} is outside the run scope. Use --allow-extra to record it intentionally.')
         run['required_ids']=sorted(set(run['required_ids'])|{t})
@@ -108,14 +121,27 @@ def cmd_add(a):
     write(CATALOG,rows)
     print(f'Added test {proposed}. Include it as --features or --fixes in the release run.')
 
+def cmd_hold(a, hold=True):
+    rows=catalog(); chosen=ids(a.ids)
+    missing=chosen-{int(x['id']) for x in rows}
+    if missing:raise SystemExit(f'Test ID(s) not in catalog: {sorted(missing)}')
+    for x in rows:
+        if x['id'] in chosen:
+            if hold:x['on_hold']=a.reason
+            else:x.pop('on_hold',None)
+    write(CATALOG,rows)
+    print(f"{len(chosen)} test(s) {'on hold' if hold else 'back in testing'}.")
+
 def cmd_report(a):
     p,run=load_run(a.run)
     results=run.get('results',{})
-    selected=run.get('required_ids',[])
+    held=on_hold()
+    selected=[t for t in run.get('required_ids',[]) if t not in held]
     counts=Counter(results.get(str(t),{}).get('status','not-tested') for t in selected)
     # not-tested isn't silently considered passed, even for older releases.
     print(f"Run: {run['id']} | Craft Conductor {run['cc_version']} | kind={run['kind']} | Minecraft={run.get('minecraft_version') or '?'} | OS={run.get('os') or '?'}")
-    print(f"Required: {len(selected)} | " + ' | '.join(f'{k}: {counts[k]}' for k in STATUSES))
+    print(f"Required: {len(selected)} | " + ' | '.join(f'{k}: {counts[k]}' for k in STATUSES)
+          + (f" | on hold (not counted): {len(set(run.get('required_ids',[]))&held)}" if set(run.get('required_ids',[]))&held else ''))
     ready=bool(selected) and counts['pass']+counts['na']==len(selected)
     print('Release gate:', 'READY FOR REVIEW' if ready else 'NOT READY')
     if a.missing:
@@ -126,7 +152,7 @@ def cmd_report(a):
     return 0 if ready or not a.fail_if_not_ready else 2
 
 def cmd_summary(a):
-    rows=catalog(); print(f'Catalog: {len(rows)} cases, {len({x["section"] for x in rows})} sections')
+    rows=catalog(); print(f'Catalog: {len(rows)} cases, {len({x["section"] for x in rows})} sections, {len(on_hold())} on hold')
     for p in sorted(RUNS.glob('*.json')):
         r=read(p); s=Counter(v.get('status') for v in r.get('results',{}).values())
         print(f"{r.get('id',p.stem):<28} {r.get('cc_version','?'):<12} " + ' '.join(f'{k}={s[k]}' for k in STATUSES))
@@ -139,6 +165,7 @@ def cmd_list(a):
     results=load_run(a.run)[1].get('results',{}) if a.run else None
     for x in cases:
         st=f" [{results.get(str(x['id']),{}).get('status','not-tested')}]" if results is not None else ''
+        if x.get('on_hold'):st+=' [on hold]'
         print(f"#{x['id']} ({x['type']}){st} {x['section']}: {x['step']}")
 
 def cmd_verify(a):
@@ -148,6 +175,8 @@ def cmd_verify(a):
         known.add(t['id'])
         for field in ('section','step','type'):
             if not str(t.get(field,'' )).strip():errs.append(f"Test {t.get('id')}: missing {field}")
+        if 'on_hold' in t and not (isinstance(t['on_hold'],str) and t['on_hold'].strip()):
+            errs.append(f"Test {t.get('id')}: on_hold needs a reason")
     for p in RUNS.glob('*.json'):
         r=read(p)
         for key in ('id','cc_version','kind','required_ids','results'):
@@ -162,17 +191,22 @@ def cmd_verify(a):
     return 1 if errs else 0
 
 def cmd_publish(a):
-    """Generate public data. Never expose notes/evidence, machine identifiers or tester details."""
+    """Generate public data. Never expose notes/evidence, machine identifiers or tester details.
+    Tests on hold are left out, with their results. Runs are oldest first (by version, then when made)."""
     target=Path(a.output);target.mkdir(parents=True,exist_ok=True)
-    c=catalog(); sanitized=[{'id':t['id'],'section':t['section'],'step':t['step'],'type':t['type'],'tags':t.get('tags',[])} for t in c]
+    held=on_hold()
+    c=[t for t in catalog() if t['id'] not in held]
+    sanitized=[{'id':t['id'],'section':t['section'],'step':t['step'],'type':t['type'],'tags':t.get('tags',[])} for t in c]
     write(target/'catalog.json',sanitized)
     runs=[]
     for p in sorted(RUNS.glob('*.json')):
         r=read(p)
         runs.append({'id':r['id'],'cc_version':r['cc_version'],'kind':r['kind'],
           'minecraft_version':r.get('minecraft_version',''),'os':r.get('os',''),
-          'required_ids':r.get('required_ids',[]),
-          'results':{k:v['status'] for k,v in r['results'].items() if v.get('status') in STATUSES}})
+          'created_at':str(r.get('created_at',''))[:10],
+          'required_ids':[t for t in r.get('required_ids',[]) if t not in held],
+          'results':{k:v['status'] for k,v in r['results'].items() if v.get('status') in STATUSES and int(k) not in held}})
+    runs.sort(key=lambda r:(version_key(r['cc_version']),r['created_at'],r['id']))
     write(target/'runs.json',runs)
     print(f'Public dashboard data: {len(sanitized)} tests, {len(runs)} runs, NO evidence/testers/notes.')
 
@@ -183,6 +217,8 @@ def main(argv=None):
     z=sub.add_parser('new-run');z.add_argument('--run',required=True);z.add_argument('--version',required=True);z.add_argument('--kind',choices=KINDS,required=True);z.add_argument('--minecraft');z.add_argument('--os');z.add_argument('--features',default='');z.add_argument('--fixes',default='');z.add_argument('--extra',default='');z.add_argument('--notes');z.add_argument('--confirm-no-changes',action='store_true');z.set_defaults(fn=cmd_new)
     z=sub.add_parser('record');z.add_argument('--run',required=True);z.add_argument('--id',type=int,required=True);z.add_argument('--status',choices=STATUSES,required=True);z.add_argument('--tester');z.add_argument('--notes');z.add_argument('--evidence');z.add_argument('--date');z.add_argument('--replace',action='store_true');z.add_argument('--allow-extra',action='store_true');z.set_defaults(fn=cmd_record)
     z=sub.add_parser('add-test');z.add_argument('--id',type=int);z.add_argument('--section',required=True);z.add_argument('--step',required=True);z.add_argument('--type',choices=['Core','Gate','Extra'],default='Core');z.add_argument('--tag',action='append');z.set_defaults(fn=cmd_add)
+    z=sub.add_parser('hold');z.add_argument('--ids',required=True);z.add_argument('--reason',required=True);z.set_defaults(fn=cmd_hold)
+    z=sub.add_parser('unhold');z.add_argument('--ids',required=True);z.set_defaults(fn=lambda a:cmd_hold(a,hold=False))
     z=sub.add_parser('report');z.add_argument('--run',required=True);z.add_argument('--missing',action='store_true');z.add_argument('--fail-if-not-ready',action='store_true');z.set_defaults(fn=cmd_report)
     z=sub.add_parser('verify');z.set_defaults(fn=cmd_verify)
     z=sub.add_parser('publish');z.add_argument('--output',required=True);z.set_defaults(fn=cmd_publish)
