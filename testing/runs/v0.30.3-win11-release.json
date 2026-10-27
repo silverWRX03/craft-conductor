@@ -22,8 +22,42 @@
     967
   ],
   "required_ids": [
+    187,
+    188,
+    189,
+    190,
+    191,
+    192,
+    193,
+    194,
+    195,
+    196,
+    197,
+    198,
+    199,
+    200,
+    201,
+    202,
+    203,
+    204,
+    205,
+    206,
+    223,
+    224,
+    225,
+    226,
+    227,
+    231,
+    232,
+    233,
+    244,
+    245,
+    249,
     457,
     463,
+    681,
+    682,
+    683,
     802,
     803,
     804,
@@ -231,6 +265,251 @@
       "tested_at": "2026-10-27T17:23:31+00:00",
       "tester": "Owner + Claude Code",
       "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. playit.gg path (no router change for it): Friends -> playit.gg found the playit agent already running; owner added a Minecraft Java tunnel to the server's port on their free playit.gg account and the address was pasted into step 4 (Save); the guided setup's Let friends reach it ticked. The friend on a phone hotspot joined with Direct Connection to the playit address: the server log shows the login arriving from the playit agent's local address.",
+      "evidence": ""
+    },
+    "959": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:47:29+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. New server -> A modpack -> Modrinth -> Actium 26Q2.1-neoforge (38 mods) with a name, port 25628, 4 GB and Only friends at home; Create my server. First start failed on Controlify (NoClassDefFoundError: client Screen class). The setup page still had the modpack, name, port and Only friends at home (reach home in its settings), and offered Move Controlify to players' mods / Leave Controlify out. Moved it (37 left), Create my server: ready on Minecraft 26.2 NeoForge with the modpack, name and port; Controlify is in the friends' download (Manage Friends Mods), not in the server's mods folder. Note: the failure toast shows the whole Java stack trace and covers half the page.",
+      "evidence": ""
+    },
+    "681": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:33+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. From a second PC on the home network, the browser opened http://<this PC's LAN address>:<panel port> of a running test panel: ERR_CONNECTION_TIMED_OUT (the site can't be reached).",
+      "evidence": ""
+    },
+    "682": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:33+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. The panel listens on 127.0.0.1 only (no remote access configured), as the settings say; the LAN attempt above couldn't reach it.",
+      "evidence": ""
+    },
+    "194": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:33+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Friend PC: Local invite link -> Download -> Prism Launcher: the existing cov-smooth Prism instance was updated (Fabric 26.3 and its mods) with the home-network address.",
+      "evidence": ""
+    },
+    "195": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:33+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. The Prism instance launched and went straight into the server (server log: login from the LAN address).",
+      "evidence": ""
+    },
+    "202": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:33+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Another PC on the same home network joined the Fabric 26.3 test server (Only friends at home).",
+      "evidence": ""
+    },
+    "203": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:33+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. The Friends page and the Local invite link give this PC's LAN address and the server's port; the friend's instance connected with it.",
+      "evidence": ""
+    },
+    "223": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:48+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Synology SRM router, earlier today (see 807). Craft Conductor settings -> Connections -> Router -> Open the ports on my router by itself (UPnP) turned on.",
+      "evidence": ""
+    },
+    "224": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:48+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Synology SRM router, earlier today (see 807). Turning it on first asked 'Open the ports on your router?' with the internet-exposure warning; after it, the page said 'Your server is open to the internet' with the same warning.",
+      "evidence": ""
+    },
+    "225": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:49+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Synology SRM router, earlier today (see 807). The router list showed the server's Minecraft port (the one Craft Conductor picked, not 25565) forwarded. (Other servers' ports too: #201.)",
+      "evidence": ""
+    },
+    "226": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:49+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Synology SRM router, earlier today (see 807). The friends' download port was forwarded while invite links worked.",
+      "evidence": ""
+    },
+    "227": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:49+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Synology SRM router, earlier today (see 807). The control panel's port was not in the router's list (checked through UPnP itself).",
+      "evidence": ""
+    },
+    "683": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:49+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Synology SRM router, earlier today (see 807). No management port was forwarded: the router's UPnP list had only the Minecraft ports and the friends' download port, never the control panel's port.",
+      "evidence": ""
+    },
+    "231": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:49+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Synology SRM router, earlier today (see 807). A friend on a phone hotspot joined through the forwarded port (806).",
+      "evidence": ""
+    },
+    "232": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:49+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Synology SRM router, earlier today (see 807). Router -> UPnP turned off in Craft Conductor.",
+      "evidence": ""
+    },
+    "233": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:49+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Synology SRM router, earlier today (see 807). Afterwards the router's UPnP list (read directly) had no Craft Conductor mappings left; other devices' mappings were untouched.",
+      "evidence": ""
+    },
+    "244": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:49+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. A real playit.gg Minecraft Java tunnel was added (owner's free account) to the test server's port (808).",
+      "evidence": ""
+    },
+    "245": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:49+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. The playit.gg address was pasted into Friends -> playit.gg step 4 and saved; the guided setup's Let friends reach it ticked.",
+      "evidence": ""
+    },
+    "249": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:50+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. A friend on a phone hotspot joined through the playit.gg address; the server saw the login from the playit agent's local address.",
+      "evidence": ""
+    },
+    "204": {
+      "status": "pass",
+      "tested_at": "2026-10-27T18:17:38+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. The friend on the home network played for over 15 minutes without a disconnect (checked every 30 s).",
+      "evidence": ""
+    },
+    "205": {
+      "status": "pass",
+      "tested_at": "2026-10-27T18:17:38+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Restart pressed with the friend connected: the server stopped (friend saw Server closed) and was back in about 40 s. No question or in-game warning first -> idea filed (#205 issue).",
+      "evidence": ""
+    },
+    "206": {
+      "status": "pass",
+      "tested_at": "2026-10-27T18:17:39+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. The friend reconnected from the multiplayer list as soon as it was back.",
+      "evidence": ""
+    },
+    "187": {
+      "status": "pass",
+      "tested_at": "2026-10-27T18:44:01+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. The friend's PC (home network, Prism) joined the Fabric 26.3 test server it was set up for.",
+      "evidence": ""
+    },
+    "188": {
+      "status": "pass",
+      "tested_at": "2026-10-27T18:44:01+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Mods -> Quick add -> Carry On (needed on both sides) added; it was installed at the next restart (the friends' download went from 4 to 5 mods). Note: nothing on the Mods page said the mod waits for a restart.",
+      "evidence": ""
+    },
+    "189": {
+      "status": "pass",
+      "tested_at": "2026-10-27T18:44:01+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Opening the friend's Craft Conductor again (no invite link) showed cov-smooth as changed and offered the update (owner's report). Before that, the friend could still join with the old setup: the server lets players without Carry On in.",
+      "evidence": ""
+    },
+    "190": {
+      "status": "pass",
+      "tested_at": "2026-10-27T18:44:01+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. The update put Carry On into the friend's Prism instance.",
+      "evidence": ""
+    },
+    "191": {
+      "status": "pass",
+      "tested_at": "2026-10-27T18:44:01+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. The friend reconnected and picked up a chest with Carry On (Shift + right-click) in game.",
+      "evidence": ""
+    },
+    "192": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:02:55+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Friend PC (home network): Local invite link -> Minecraft Launcher: a cov-smooth profile (Fabric 26.3) was made in the official Minecraft Launcher.",
+      "evidence": ""
+    },
+    "193": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:02:55+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Play on that profile started the game and joined the server.",
+      "evidence": ""
+    },
+    "198": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:09:18+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Friend PC: Local invite link -> CurseForge: a cov-smooth profile appeared in the CurseForge app (Minecraft).",
+      "evidence": ""
+    },
+    "199": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:09:18+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Play on the CurseForge profile opened the Minecraft Launcher with it selected (CurseForge's normal way), the game started and joined the server; Mod Menu and Carry On were in it.",
+      "evidence": ""
+    },
+    "196": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:11:36+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Friend PC: Modrinth App freshly installed; Local invite link -> Modrinth App: a cov-smooth instance appeared in it.",
+      "evidence": ""
+    },
+    "197": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:11:36+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Play on the Modrinth App instance started the game and joined the server; Mod Menu and Carry On were in it.",
+      "evidence": ""
+    },
+    "200": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:11:36+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. In all four launchers (Minecraft Launcher, Prism, Modrinth App, CurseForge) the game had the server's mods players need (Carry On added to the server worked in game: picking up chests; Fabric API).",
+      "evidence": ""
+    },
+    "201": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:11:36+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Mod Menu was added under Friends -> Mods for players only: it showed in game (Mods button) in all four launchers, and the server's mods folder never got it (only the server's 5 mods).",
       "evidence": ""
     }
   },
