@@ -61,7 +61,10 @@ Get the file for your computer. It's a single file: no installer, no Python, and
 | Linux on ARM (Raspberry Pi 4/5, 64-bit) | [`craft-conductor-linux-arm64`](https://github.com/silverWRX03/craft-conductor/releases/latest/download/craft-conductor-linux-arm64) |
 
 1. **Open it.** On Windows, if SmartScreen says it "protected your PC", choose **More info → Run
-   anyway** (Craft Conductor isn't code-signed yet). On a Mac, run it once from Terminal: see
+   anyway** (Craft Conductor isn't code-signed yet). If **Smart App Control** blocks it (newer
+   Windows 11 PCs), turn it off in Windows Security → App & browser control → Smart App Control
+   settings, open the file, then turn it back on: a temporary workaround until the downloads are
+   code-signed. On a Mac, run it once from Terminal: see
    [Getting started](https://github.com/silverWRX03/craft-conductor/wiki/Getting-started).
 2. **Your browser opens Craft Conductor.** Until you've made a server, it first asks whether you're
    joining a friend: press **Run my own server** (under "Or run a Minecraft server of your own").

@@ -13,7 +13,8 @@ const DOWNLOADS = {
 };
 const OPEN_TIP = {
   windows: ["Open the file you downloaded (it's in your Downloads folder).",
-    "If Windows says it \"protected your PC\", choose More info → Run anyway: Craft Conductor is free and isn't code-signed."],
+    "If Windows says it \"protected your PC\", choose More info → Run anyway: Craft Conductor is free and isn't code-signed.",
+    "Smart App Control blocked it, with no Run anyway? Until Craft Conductor is code-signed: open Windows Security → App & browser control → Smart App Control settings, turn it off, open the file, then turn it back on."],
   macos: ["Open your Downloads folder, right-click the file and choose Open (the first time only)."],
   linux: ["Make the file runnable (chmod +x) and run it."],
   "linux-arm64": ["Make the file runnable (chmod +x) and run it."],
