@@ -53,8 +53,16 @@
     244,
     245,
     249,
+    279,
     457,
     463,
+    568,
+    570,
+    571,
+    572,
+    573,
+    574,
+    575,
     681,
     682,
     683,
@@ -78,6 +86,7 @@
     819,
     820,
     821,
+    884,
     956,
     957,
     958,
@@ -510,6 +519,69 @@
       "tested_at": "2026-10-27T19:11:36+00:00",
       "tester": "Owner + Claude Code",
       "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Mod Menu was added under Friends -> Mods for players only: it showed in game (Mods button) in all four launchers, and the server's mods folder never got it (only the server's 5 mods).",
+      "evidence": ""
+    },
+    "279": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:16:30+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Two real players connected at once (owner on the host PC, a second account from another PC on the home network); the Connected Players checks were done with both on (see 817). The owner judged two players enough: the list and its rows work the same for each player.",
+      "evidence": ""
+    },
+    "884": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:20:40+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Friends -> Open a port on my router asked about the risks first (Pick a port / Cancel), then picked 39831 (in 30000-39999, not 25565); Router (UPnP) forwarded that port, the server's Java had its Windows Firewall allow rule, and a friend on a phone hotspot joined through it (806/807). Note: the server had to be stopped first ('stop the server first: it gets a new port'), said only after the risk question.",
+      "evidence": ""
+    },
+    "568": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:41:06+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Owner's Discord server with their bot, connected to the test install (owner pasted the token). Craft Conductor settings -> Connections -> Discord -> Whitelist through Discord: Ask me first, Turn on; the API reports connected in 2 Discord servers. (The card showed 'Connecting to Discord...' until the page was reloaded later.)",
+      "evidence": ""
+    },
+    "570": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:41:06+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Owner's Discord server with their bot, connected to the test install (owner pasted the token). In Discord the friend used /whitelist with their Minecraft name; only they saw the answer: 'Asked. The owner of cov-smooth will let <name> in (Craft Conductor tells them).'",
+      "evidence": ""
+    },
+    "571": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:41:06+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Owner's Discord server with their bot, connected to the test install (owner pasted the token). The request showed on the server's Players page under Asking to join (Allow / Ignore). Note: that section says 'These friends used your invite and asked', also for a Discord request.",
+      "evidence": ""
+    },
+    "572": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:41:07+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Owner's Discord server with their bot, connected to the test install (owner pasted the token). Allow pressed: the request left the list.",
+      "evidence": ""
+    },
+    "573": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:41:07+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Owner's Discord server with their bot, connected to the test install (owner pasted the token). The player was on the whitelist right after Allow (Players page and whitelist.json). Before it, joining was refused: not whitelisted.",
+      "evidence": ""
+    },
+    "574": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:41:07+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Owner's Discord server with their bot, connected to the test install (owner pasted the token). The approved player joined from another PC on the home network.",
+      "evidence": ""
+    },
+    "575": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:51:03+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. With Whitelist through Discord on (Ask me first), a second account that never asked or was approved tried to join from a laptop on the home network (plain Minecraft, Direct Connection): refused, not whitelisted, while the approved player was online.",
       "evidence": ""
     }
   },
