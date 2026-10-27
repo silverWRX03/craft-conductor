@@ -719,6 +719,20 @@
       "tester": "Claude Code",
       "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Not applicable to this version: the playit.gg tunnel for friends' downloads was removed (see 930); Craft Conductor settings -> Connections -> Sharing with friends has no such option.",
       "evidence": ""
+    },
+    "820": {
+      "status": "pass",
+      "tested_at": "2026-10-27T22:33:35+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Fabric 26.3 server (cov-24h) running 24 h (2026-10-26 17:31 to 2026-10-27 17:33), sampled every 10 minutes (144 samples, no gap over 10 min): running in every sample, 0 warnings and 0 errors in its activity, Craft Conductor's memory steady (39-82 MB, no growth), hourly scheduled backups kept at the 10 the settings allow, and the daily scheduled restart (03:30, with the in-game countdown) came back by itself. At the end it answered console commands normally. Other tests ran on the same PC meanwhile.",
+      "evidence": ""
+    },
+    "815": {
+      "status": "pass",
+      "tested_at": "2026-10-27T22:33:52+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Microsoft Defender on (real-time protection, signatures updated that day) across two days of testing: no detections at all (Get-MpThreatDetection), none ever for Craft Conductor's files, and a custom scan of the release downloads folder found nothing. (Separate: Smart App Control on a fresh laptop blocks the unsigned exe, #206.)",
+      "evidence": ""
     }
   },
   "notes": "Release exe v0.30.3 (SHA256SUMS checked), fresh isolated home. Release gates, the 0.30.2/0.30.3 fix retests on the release build, and the three 0.30.1 failures."
