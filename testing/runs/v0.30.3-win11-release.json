@@ -52,10 +52,20 @@
     233,
     244,
     245,
+    246,
     249,
     279,
+    343,
+    344,
+    345,
+    346,
+    347,
+    348,
+    349,
+    350,
     457,
     463,
+    542,
     568,
     570,
     571,
@@ -63,6 +73,9 @@
     573,
     574,
     575,
+    581,
+    582,
+    583,
     681,
     682,
     683,
@@ -86,7 +99,11 @@
     819,
     820,
     821,
+    832,
+    833,
     884,
+    885,
+    929,
     956,
     957,
     958,
@@ -582,6 +599,125 @@
       "tested_at": "2026-10-27T19:51:03+00:00",
       "tester": "Owner + Claude Code",
       "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. With Whitelist through Discord on (Ask me first), a second account that never asked or was approved tried to join from a laptop on the home network (plain Minecraft, Direct Connection): refused, not whitelisted, while the approved player was online.",
+      "evidence": ""
+    },
+    "929": {
+      "status": "pass",
+      "tested_at": "2026-10-27T20:05:48+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Remote access on (strong password, home network only). A laptop on the Wi-Fi typed wrong passwords until 'too many attempts; wait a few minutes'. Meanwhile this computer and another PC on the Wi-Fi signed in with the right password; after the wait the laptop could sign in again. Not tried: the part about a visitor through a tunnel pointed at the control panel (playit.gg / ssh -R).",
+      "evidence": ""
+    },
+    "343": {
+      "status": "pass",
+      "tested_at": "2026-10-27T20:16:40+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Remote access on (home network, strong password). People -> Invite someone; the invited person opened the one-time link on a laptop (private window) and chose their own sign-in. Roles are now Viewer / Moderator / Operator / Manager; 'Helper' in the plan = Moderator. Invited 'Test Viewer' with Viewer on one server only (the plan says phone; a laptop browser was used).",
+      "evidence": ""
+    },
+    "344": {
+      "status": "pass",
+      "tested_at": "2026-10-27T20:16:40+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Remote access on (home network, strong password). People -> Invite someone; the invited person opened the one-time link on a laptop (private window) and chose their own sign-in. Roles are now Viewer / Moderator / Operator / Manager; 'Helper' in the plan = Moderator. The Viewer saw that server's status and who was online, and no other servers.",
+      "evidence": ""
+    },
+    "345": {
+      "status": "pass",
+      "tested_at": "2026-10-27T20:16:40+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Remote access on (home network, strong password). People -> Invite someone; the invited person opened the one-time link on a laptop (private window) and chose their own sign-in. Roles are now Viewer / Moderator / Operator / Manager; 'Helper' in the plan = Moderator. The Viewer could not kick a player.",
+      "evidence": ""
+    },
+    "346": {
+      "status": "pass",
+      "tested_at": "2026-10-27T20:16:40+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Remote access on (home network, strong password). People -> Invite someone; the invited person opened the one-time link on a laptop (private window) and chose their own sign-in. Roles are now Viewer / Moderator / Operator / Manager; 'Helper' in the plan = Moderator. The Viewer could not change the whitelist.",
+      "evidence": ""
+    },
+    "347": {
+      "status": "pass",
+      "tested_at": "2026-10-27T20:16:40+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Remote access on (home network, strong password). People -> Invite someone; the invited person opened the one-time link on a laptop (private window) and chose their own sign-in. Roles are now Viewer / Moderator / Operator / Manager; 'Helper' in the plan = Moderator. The Viewer could not broadcast.",
+      "evidence": ""
+    },
+    "348": {
+      "status": "pass",
+      "tested_at": "2026-10-27T20:16:41+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Remote access on (home network, strong password). People -> Invite someone; the invited person opened the one-time link on a laptop (private window) and chose their own sign-in. Roles are now Viewer / Moderator / Operator / Manager; 'Helper' in the plan = Moderator. Invited 'Test Moderator' with Moderator on the same server, signed in from the laptop.",
+      "evidence": ""
+    },
+    "349": {
+      "status": "pass",
+      "tested_at": "2026-10-27T20:16:41+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Remote access on (home network, strong password). People -> Invite someone; the invited person opened the one-time link on a laptop (private window) and chose their own sign-in. Roles are now Viewer / Moderator / Operator / Manager; 'Helper' in the plan = Moderator. The Moderator kicked an online player, managed the whitelist and sent a broadcast.",
+      "evidence": ""
+    },
+    "350": {
+      "status": "pass",
+      "tested_at": "2026-10-27T20:16:41+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Remote access on (home network, strong password). People -> Invite someone; the invited person opened the one-time link on a laptop (private window) and chose their own sign-in. Roles are now Viewer / Moderator / Operator / Manager; 'Helper' in the plan = Moderator. The server's activity listed the Moderator's actions under their name ('Test Moderator: broadcast'), but a kick shows as 'Test Moderator: players/action' -> issue filed. Note: in a full-screen window on a 17-inch laptop the invite page cut off its create button and couldn't scroll -> issue filed.",
+      "evidence": ""
+    },
+    "833": {
+      "status": "pass",
+      "tested_at": "2026-10-27T20:21:40+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Server with no server-icon.png; the friend opened its Local invite link on another PC: their Craft Conductor setup page showed the Craft Conductor logo beside the server's name, not a blank box.",
+      "evidence": ""
+    },
+    "832": {
+      "status": "pass",
+      "tested_at": "2026-10-27T20:27:51+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. A players' local mod missing its library (Zoomify without YACL): the Friends page said 'The invite links are paused' with the reason, hid the links and Post to Discord, and making new links was refused. A friend opening an earlier link (from Discord) with Craft Conductor freshly started was told the owner is fixing the mods, try again later. Problems: an open Friends page only showed the pause after a full reload; and a friend whose Craft Conductor was still running from before got the old setup page with the old mods -> #210.",
+      "evidence": ""
+    },
+    "542": {
+      "status": "pass",
+      "tested_at": "2026-10-27T20:35:44+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. BlueMap added from the Mods page; Settings -> Web map -> OK, download them; the map answered on port 8100. On a laptop on the home network the shared address (this PC's LAN address, port 8100) opened BlueMap's 3D map showing the explored area of the world.",
+      "evidence": ""
+    },
+    "581": {
+      "status": "pass",
+      "tested_at": "2026-10-27T21:24:38+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Friends -> Let Bedrock players join added Geyser 2.12.1 + Floodgate. A real Bedrock client (Minecraft for Windows, current) on a laptop on the home network joined and played. Not out of the box: Geyser 2.12 defaults to transport nethernet and the first joins never reached it; after setting transport both + webrtc-port 19133 in Geyser's config it worked -> #211. The whitelist refused the Bedrock name on the Players page; fwhitelist add in the console worked -> #212. Bedrock's new Play screen has no Servers tab; minecraft://?addExternalServer=... added the server.",
+      "evidence": ""
+    },
+    "583": {
+      "status": "pass",
+      "tested_at": "2026-10-27T21:24:39+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. The Friends page's Bedrock section gives the address, port 19132, the UDP forwarding note and fwhitelist; Post to Discord offers 'Bedrock internet link' and 'Bedrock local link' with the address and Geyser port. (The port and forwarding advice need updating for NetherNet: #211.)",
+      "evidence": ""
+    },
+    "885": {
+      "status": "pass",
+      "tested_at": "2026-10-27T22:17:37+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Geyser server, Friends -> Open a port on my router: a UDP port was picked for Bedrock (not 19132), written to Geyser's config and forwarded by Router (UPnP) ('UDP <port> cov-smooth Bedrock'). A Bedrock player on a laptop on a phone hotspot joined through the home's internet address and that port (classic RakNet; Geyser had been set to transport both, see #211). The Friends page's Bedrock section still said port 19132. The joined Bedrock player wasn't shown as online (#212).",
+      "evidence": ""
+    },
+    "582": {
+      "status": "pass",
+      "tested_at": "2026-10-27T22:17:37+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. A real Bedrock client (Minecraft for Windows) on a phone hotspot, outside the home network, joined through the router-forwarded Bedrock port (see 885).",
+      "evidence": ""
+    },
+    "246": {
+      "status": "na",
+      "tested_at": "2026-10-27T22:17:50+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Not applicable to this version: the playit.gg tunnel for friends' downloads was removed (see 930); Craft Conductor settings -> Connections -> Sharing with friends has no such option.",
       "evidence": ""
     }
   },
