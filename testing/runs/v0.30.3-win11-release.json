@@ -865,6 +865,13 @@
       "tester": "owner + Claude",
       "notes": "Windows 11, OneDrive personal running and signed in (folder on D:), fresh test install, Servers folder in a OneDrive-synced folder, vanilla 26.3. After the restart, panel started again and the server started: 'Server is up (Minecraft 26.3)', list works, world loaded. Small (#216): on panel start it said the half-unpacked restore copy 'was removed', but server.restoring and server.replaced are still in the folder.",
       "evidence": ""
+    },
+    "966": {
+      "status": "pass",
+      "tested_at": "2026-10-28T23:49:59+00:00",
+      "tester": "owner + Claude",
+      "notes": "Release exe v0.30.3, Chrome on Windows 11, Modern look. Servers page with 3 servers, guided setup checklist open (3/6, step 4 expanded). Window 1500x750 (page 1978x798 CSS px) and narrow 1000x750 (1312x798): the page leaves a column for the checklist, cards wrap (3 then 2 per row); every page button (26) scrolled into view is unobstructed (elementFromPoint), none under the checklist; + New single-player game clicked and opened its form. Small: on that form's right-hand intro text the checklist covers part of the text (no buttons).",
+      "evidence": ""
     }
   },
   "notes": "Release exe v0.30.3 (SHA256SUMS checked), fresh isolated home. Release gates, the 0.30.2/0.30.3 fix retests on the release build, and the three 0.30.1 failures."
