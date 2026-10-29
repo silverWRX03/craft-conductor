@@ -302,6 +302,12 @@ class HttpClient:
                 raise HttpError(url, None, "that server doesn't give parts of a file")
             return resp.read(length), int(total.group(1))
 
+    def final_url(self, url: str, headers: dict[str, str] | None = None) -> str:
+        """Where ``url`` ends up after its redirects (asked with HEAD: nothing is downloaded)."""
+        req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": USER_AGENT, **(headers or {})})
+        with self._open(req) as resp:
+            return resp.geturl() or url
+
     def download(self, url: str, dest: Path, sha1: str | None = None, sha512: str | None = None,
                  headers: dict[str, str] | None = None, sha256: str | None = None,
                  max_bytes: int | None = None, progress=None) -> Path:

@@ -68,6 +68,23 @@ def test_the_dashboard_explains_a_failed_start_and_fixes_it(hub_env):
         assert not any(access.allows(p, "POST", "/api/problem/fix", {"kind": kind}) for p in access.PRESETS.values()), kind
 
 
+def test_a_start_that_updates_first_clears_the_old_failed_start(hub_env, monkeypatch):
+    """Start installs a mod change first ("updated and started"): the earlier failed start's
+    explanation goes, as after a plain start (#188)."""
+    import dataclasses
+    hub, c = hub_env
+    d = hub.get("alpha")
+    d.problem = {"kind": "start", "cause": "mod", "time": 0, "actions": []}
+    cfg = d.m.config
+    monkeypatch.setattr(d.m, "config", dataclasses.replace(cfg, updates=dataclasses.replace(cfg.updates, auto_upgrade=True)))
+    monkeypatch.setattr(d, "autostart", False)
+
+    monkeypatch.setattr(d, "check_for_updates", lambda **kw: d.m.start_server())  # (the update leaves it running)
+    try:
+        assert d.start_server() == "updated and started"
+        assert d.problem is None
+    finally:
+        d.stop_server()
 def test_a_file_of_your_own_that_only_runs_on_players_computers(tmp_path):
     """A mod file of your own (not one Craft Conductor manages) reaching for the parts of Minecraft
     only players have: said so, no "check for an update", and offered to players' mods (#189)."""

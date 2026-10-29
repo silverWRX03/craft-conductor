@@ -153,7 +153,9 @@ def test_each_way_of_becoming_reachable_turns_the_whitelist_on(hub_env, how, mon
     hub, c = hub_env
     login(c)
     d = hub.get("alpha")
-    if how == "router":
+    if how == "router":  # (Router (UPnP) forwards a server set to Open a port on my router)
+        configmod.set_value(d.m.config.path, "reach", "way", json.dumps("forward"))
+        d.m.reload_config()
         upnp_on(hub)
         monkeypatch.setattr(hub, "upnp_sync", lambda enabled=None: {"enabled": True, "ports": []})
         assert c.post("/api/hub/upnp", {"enabled": True, "accept": True})[0] == 200
@@ -165,9 +167,25 @@ def test_each_way_of_becoming_reachable_turns_the_whitelist_on(hub_env, how, mon
         assert c.post("/api/servers/alpha/doctor/internet")[0] == 200
         assert reach.read_state(d.m.config.state_dir)["port_test"]["ok"] is True
     else:  # (switched on by hand in hub.json, say: checked again before the server starts)
+        configmod.set_value(d.m.config.path, "reach", "way", json.dumps("forward"))
+        d.m.reload_config()
         upnp_on(hub)
         hub.before_start(d)
     assert props(d)["white-list"] == "true"
+
+
+@pytest.mark.parametrize("way", ["home", ""])
+def test_router_upnp_doesnt_make_a_home_only_server_reachable(hub_env, way):
+    """Router (UPnP) forwards only servers set to Open a port on my router (#201)."""
+    hub, c = hub_env
+    d = hub.get("alpha")
+    if way:
+        configmod.set_value(d.m.config.path, "reach", "way", json.dumps(way))
+        d.m.reload_config()
+    upnp_on(hub)
+    assert hub.why_reachable(d) == []
+    hub.before_start(d)
+    assert props(d)["white-list"] == "false"
 
 
 def test_servers_from_before_this_are_left_as_they_are(hub_env):
@@ -501,3 +519,57 @@ def test_banning_this_computers_address_is_refused(hub_env, tmp_path):
     assert c.post("/api/servers/alpha/reach", {"way": "playit"})[0] == 200
     status, r, _ = c.post("/api/servers/alpha/players/action", {"action": "ban-ip", "name": "Griefer"})
     assert status == 400 and "Ban the name instead" in r["error"]
+
+
+GEYSER_212 = ("bedrock:\n  address: 0.0.0.0\n  port: 19132\n  transport: nethernet\n  webrtc-port: 0\n"
+              "  signaling:\n    mode: builtin\n    port: 5\nremote:\n  port: 25565\n")
+
+
+def test_geyser_takes_both_bedrock_connection_methods(tmp_path):
+    """Geyser 2.12's default (NetherNet only) can't be joined by address: it's set to both, with
+    NetherNet's own UDP port; RakNet, an older Geyser, and a port chosen by hand stay (#211)."""
+    cfg = tmp_path / "config" / "Geyser-Fabric" / "config.yml"
+    cfg.parent.mkdir(parents=True)
+    assert reach.geyser_ports(tmp_path) == [] and not reach.set_geyser_both(tmp_path, 19133)
+    cfg.write_bytes(GEYSER_212.replace("\n", "\r\n").encode())
+    assert reach.geyser_transport(tmp_path) == "nethernet" and reach.geyser_ports(tmp_path) == [(19132, "UDP"), (19132, "TCP")]
+    assert reach.set_geyser_both(tmp_path, 19133)
+    text = cfg.read_bytes().decode()
+    assert "  transport: both\r\n  webrtc-port: 19133\r\n" in text and "    port: 5\r\n" in text  # (signaling's own left)
+    assert reach.geyser_ports(tmp_path) == [(19132, "UDP"), (19132, "TCP"), (19133, "UDP")]
+    assert not reach.set_geyser_both(tmp_path, 19140)  # (already both, with its port)
+    assert reach.set_geyser_both(tmp_path, 19140, replace=True) and reach.geyser_webrtc_port(tmp_path) == 19140
+    cfg.write_text("bedrock:\n  port: 19132\n  transport: nethernet\nremote:\n  port: 1\n")
+    assert reach.set_geyser_both(tmp_path, 30001)
+    assert cfg.read_text() == "bedrock:\n  port: 19132\n  transport: both\n  webrtc-port: 30001\nremote:\n  port: 1\n"
+    for kept in ("bedrock:\n  port: 19132\n  transport: raknet\n", "bedrock:\n  port: 19132\n"):
+        cfg.write_text(kept)
+        assert not reach.set_geyser_both(tmp_path, 30001) and cfg.read_text() == kept
+        assert reach.geyser_ports(tmp_path) == [(19132, "UDP")]
+
+
+def test_a_server_with_geyser_212_is_set_up_for_bedrock_by_address(hub_env):
+    hub, c = hub_env
+    d = hub.get("alpha")
+    cfg = d.m.server_dir / "config" / "Geyser-Fabric" / "config.yml"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text(GEYSER_212)
+    sent = []
+    d.m.notifier.send = lambda text, *a, **k: sent.append(text)
+    hub.after_ready(d)  # (Geyser wrote its config on the first start)
+    webrtc = reach.geyser_webrtc_port(d.m.server_dir)
+    assert reach.geyser_transport(d.m.server_dir) == "both" and webrtc not in (None, 19132)
+    assert sent and "Restart the server" in sent[-1]
+    assert {19132, webrtc} <= hub.taken_ports()
+    cfg.write_text(GEYSER_212)  # (set back by hand afterwards: left so)
+    hub.before_start(d)
+    assert reach.geyser_transport(d.m.server_dir) == "nethernet"
+    # Port forwarding: the router gets all three, and the new port is in the range opened on routers
+    configmod.set_value(d.m.config.path, "reach", "way", json.dumps("forward"))
+    d.m.reload_config()
+    reach.write_state(d.m.config.state_dir, bedrock_both=False)
+    hub.before_start(d)
+    webrtc = reach.geyser_webrtc_port(d.m.server_dir)
+    assert reach.in_open_range(webrtc)
+    wanted = {(p, pr) for p, pr, _ in hub.upnp_wanted()}
+    assert {(19132, "UDP"), (19132, "TCP"), (webrtc, "UDP")} <= wanted

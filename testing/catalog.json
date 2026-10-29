@@ -8513,6 +8513,54 @@
     "source": "added-in-git"
   },
   {
+    "id": 968,
+    "section": "Fix: Router (UPnP) skips Only friends at home servers (#201)",
+    "step": "Two servers: one on Open a port on my router, one on Only friends at home. Craft Conductor settings -> Router -> switch on UPnP. The router's list has the first server's port only (and friends' downloads), never the home-only one's. Switch the first server to Only friends at home: its forward goes too.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 969,
+    "section": "Fix: Dashboard clears a failed start after an updating start (#188)",
+    "step": "Server whose start fails (a client-only mod): Dashboard says it didn't start. Remove that mod, add any other mod, press Start (it installs, then starts). Once Running, the old 'didn't start' message is gone without Dismiss.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 970,
+    "section": "Fix: Bedrock names on the Players page (#212)",
+    "step": "Server with Geyser + Floodgate, whitelist on. Players -> Add or manage a player: .<gamertag> -> Whitelist (server running, then again stopped after Un-whitelist). The Bedrock friend joins, shows in Connected Players while online, and is listed in the whitelist.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 971,
+    "section": "Fix: Bedrock players join Geyser 2.12 by address (#211)",
+    "step": "New Fabric server, Friends -> Let Bedrock players join, start it: the bell asks for one restart. Restart. Geyser's config.yml has transport: both and its own webrtc-port. A current Bedrock for Windows client adds the server by address (or Add to Minecraft on the Bedrock invite link) and joins. Friends page lists UDP and TCP on the Bedrock port and the second UDP port.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 972,
+    "section": "Fix: CurseForge server pack read again (#191)",
+    "step": "New server -> A modpack -> CurseForge -> All the Mods 11 (0.12.0-beta or newer) -> Use this modpack. Activity doesn't say 'couldn't read ... server pack'; mods the server pack leaves out go to the friends' download (not a Modrinth guess).",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 973,
+    "section": "Fix: modpack update with a bundled old MixinExtras (#192)",
+    "step": "Modrinth Vanilla Perfected 1.0.3+26.2 server -> Updates -> Modpack -> 1.0.0+26.3: the update goes through (no 'MixinExtras 0.3.5 is the one there'), the server starts on 26.3 and a player joins.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
     "id": 974,
     "section": "Fix: map preview and mod test get their own ports (#163)",
     "step": "Start a terrain map preview, and while it prepares start Mods -> Test these mods on another server. Both finish; the test's log doesn't show FAILED TO BIND TO PORT, and its result matches the mods tested alone.",

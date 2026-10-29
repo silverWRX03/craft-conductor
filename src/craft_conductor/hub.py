@@ -770,7 +770,7 @@ class Hub:
         RCON's and the query port when they're on, Bedrock's (Geyser), the control panel's, the
         friends' download's."""
         from .properties import read_properties
-        from .reach import geyser_config, geyser_port
+        from .reach import geyser_ports
         out = set(self.reserved_ports())
         for sid, d in list(self.daemons.items()):
             if sid == exclude:
@@ -782,8 +782,7 @@ class Hub:
                     out.add(int(props.get("rcon.port", "25575") or 25575))
                 if props.get("enable-query") == "true":
                     out.add(int(props.get("query.port", "25565") or 25565))
-                if geyser_config(d.m.server_dir) is not None:  # (Bedrock players, on UDP)
-                    out.add(geyser_port(d.m.server_dir))
+                out.update(port for port, _ in geyser_ports(d.m.server_dir))  # (Bedrock players)
             except (OSError, ValueError):
                 continue
         return out
@@ -802,7 +801,7 @@ class Hub:
         except ValueError:
             port = 25565
         c = daemon.m.config
-        return reach.why_reachable(c.reach_way, c.tunnel_address, self.upnp_settings()["enabled"],
+        return reach.why_reachable(c.reach_way, c.tunnel_address, self.upnp_settings()["enabled"] and c.reach_way == "forward",
                                    "" if self.is_single else self.share_settings()["address"],
                                    reach.read_state(c.state_dir).get("port_test"), port)
 
@@ -817,7 +816,51 @@ class Hub:
                 reach.set_geyser_port(daemon.m.server_dir, wanted)
             except (OSError, ValueError) as e:
                 log.warning("couldn't set the Bedrock port in Geyser's config: %s", e)
+        self.bedrock_both_ways(daemon)
         self.whitelist_when_reachable()
+
+    def bedrock_both_ways(self, daemon: Daemon) -> bool:
+        """Geyser 2.12 and later take only Bedrock's new connection method at first, which a Bedrock
+        player who adds the server by address can't join with (#211): set it to take both, with a UDP
+        port of its own for the new one (picked like the Bedrock port, and kept). Done once a server;
+        a change made by hand afterwards stays. True when Geyser's config was changed (it takes it
+        at its next start)."""
+        from . import reach
+        server_dir, state_dir = daemon.m.server_dir, daemon.m.config.state_dir
+        if reach.geyser_transport(server_dir) not in ("nethernet", "both"):
+            return False
+        state = reach.read_state(state_dir)
+        forward = daemon.m.config.reach_way == "forward"
+        current = reach.geyser_webrtc_port(server_dir)
+        if state.get("bedrock_both") and not (forward and current is not None and not reach.in_open_range(current)):
+            return False
+        bedrock, taken = reach.geyser_port(server_dir), self.taken_ports(exclude=daemon.server_id)
+        port = current if current is not None and current != bedrock and current not in taken else state.get("webrtc_port")
+        if forward and not (isinstance(port, int) and reach.in_open_range(port)):
+            port = None  # (one in the range opened on routers)
+        if not (isinstance(port, int) and port != bedrock and port not in taken):
+            port = bedrock + 1 if not forward and bedrock < 65535 and bedrock + 1 not in taken and reach.udp_free(bedrock + 1) else None
+        while port is None or port == bedrock:
+            port = self.pick_open_port(exclude=daemon.server_id, udp=True)
+        try:
+            changed = reach.set_geyser_both(server_dir, port, replace=port != current)
+        except (OSError, ValueError) as e:
+            log.warning("couldn't set Geyser to take both of Bedrock's connection methods: %s", e)
+            return False
+        reach.write_state(state_dir, bedrock_both=True, webrtc_port=port)
+        if changed and forward and self.upnp_settings()["enabled"]:
+            threading.Thread(target=self.upnp_sync, daemon=True, name="upnp").start()
+        return changed
+
+    def after_ready(self, daemon: Daemon) -> None:
+        """A server finished starting. Geyser writes its config on its first start, with only the
+        new Bedrock connection method: it's set to both now, for the next start, and the owner told."""
+        try:
+            if self.bedrock_both_ways(daemon):
+                daemon.m.notifier.send("Bedrock players: Geyser was set up so they can join by address. "
+                                       "Restart the server once for it to take effect.")
+        except Exception:
+            log.exception("couldn't check Geyser's connection methods")
 
     def whitelist_when_reachable(self, why: str = "") -> list[str]:
         """Turn the whitelist on for each server made with this rule (reach.py) that can now be
@@ -1535,8 +1578,9 @@ class Hub:
                                                               if isinstance(x, list) and len(x) == 2]}
 
     def upnp_wanted(self) -> list[tuple[int, str, str]]:
-        """(port, protocol, label) craft-conductor forwards: each server's Minecraft port (and Bedrock's, on
-        UDP, with Geyser) and friends' downloads (only while a link works: the share server runs).
+        """(port, protocol, label) craft-conductor forwards: the Minecraft port (and Bedrock's, on UDP, with
+        Geyser) of each server set to "Open a port on my router" (reach.way "forward": never one set to only
+        friends at home, or to playit.gg) and friends' downloads (only while a link works: the share server runs).
         Never the control panel's port or a server's RCON port, even if one of those is the same number."""
         from .properties import read_properties
         out, private = [], {self.web.port}
@@ -1550,10 +1594,12 @@ class Hub:
                     private.add(int(props.get("rcon.port", "25575") or 25575))
             except (OSError, ValueError):
                 continue
+            if d.m.config.reach_way != "forward":
+                continue
             out.append((port, "TCP", f"Craft Conductor {sid}"[:60]))
-            from .reach import geyser_config, geyser_port
-            if geyser_config(d.m.server_dir) is not None:  # Bedrock players (Geyser), on UDP
-                out.append((geyser_port(d.m.server_dir), "UDP", f"Craft Conductor {sid} Bedrock"[:60]))
+            from .reach import geyser_ports
+            for bedrock, proto in geyser_ports(d.m.server_dir):  # Bedrock players (Geyser)
+                out.append((bedrock, proto, f"Craft Conductor {sid} Bedrock"[:60]))
         if self.share:
             out.append((self.share_settings()["port"], "TCP", "Craft Conductor friends' downloads"))
         seen, unique = set(), []

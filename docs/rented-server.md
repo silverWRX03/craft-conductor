@@ -52,7 +52,8 @@ firewall, and in the provider's firewall if it has one ("security group", "firew
 sudo ufw allow OpenSSH
 sudo ufw allow 25565/tcp     # Minecraft (each server's port)
 sudo ufw allow 8766/tcp      # friends' downloads (invites)
-sudo ufw allow 19132/udp     # only for Bedrock players (Geyser)
+sudo ufw allow 19132         # only for Bedrock players (Geyser: UDP, and TCP for Bedrock's new connection method)
+sudo ufw allow 19133/udp     # Geyser's webrtc-port, when it takes both connection methods (see Geyser's config.yml)
 sudo ufw enable
 ```
 
