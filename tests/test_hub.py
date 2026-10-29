@@ -318,3 +318,14 @@ def test_start_opens_the_server_list(tmp_path, monkeypatch, fake_template, capsy
     assert cli.main(["-C", str(other), "start", "--no-browser"]) == 0
     assert set(ran[-1].discover()) == {"main", "other-server"}
     assert setupmod.is_pending(home)
+
+
+def test_throwaway_servers_dont_get_the_same_port(tmp_path):
+    """A map preview and a mod test picked at once both got 25590 before either Java bound it (#163)."""
+    from craft_conductor.hub import Hub
+    hub = Hub(tmp_path / "home")
+    first = hub.free_port(25590, hold=True)
+    second = hub.free_port(25590, hold=True)
+    assert first != second and hub.free_port(25590) not in (first, second)
+    hub.release_port(first)
+    assert hub.free_port(25590) == first

@@ -8616,7 +8616,7 @@ views["craft-conductor"] = () => {
 // server's id), and it starts fresh when that changes, so a new server never inherits the
 // choices of the last one set up.
 const freshSetup = () => ({ target: null, friends: false, reach: "playit", loader: null, minecraft: "latest", mods: new Map(), motd: "A Minecraft server",
-  properties: null, advancedOpen: false, max_players: 20, difficulty: "normal", gamemode: "survival", port: 25565, memory_gb: null,
+  properties: null, advancedOpen: false, max_players: 20, difficulty: "normal", gamemode: "survival", port: 25565, portChosen: false, memory_gb: null,
   network_access: null, accept_eula: false, submitted: false, prefilled: false, modpack: null, localMods: [], world: null, showBetas: false,
   aikar: false, clientMods: new Map(), clientMeta: new Map(), clientLocal: [], companionsSeen: new Set(),  // friends' download: slug -> name; staged files
   hand: [], handKey: "", handError: "", handCheck: null, handGot: new Map(),  // mods to download by hand: the files; filename -> staging id
@@ -9706,7 +9706,7 @@ views.setup = () => {
         else if (r.busy) { note.className = "small warn-text"; note.textContent = `Another program on this computer is using port ${port}; the server won't start until it's free. Try ${r.suggestion}.`; }
         else { note.className = "small ok-text"; note.textContent = `Port ${port} is free.` + (port === 25565 ? "" : " Friends connect with your address followed by :" + port + "."); }
       };
-      input.addEventListener("input", () => { st.port = Number(input.value); clearTimeout(timer); timer = setTimeout(check, 300); });
+      input.addEventListener("input", () => { st.port = Number(input.value); st.portChosen = true; clearTimeout(timer); timer = setTimeout(check, 300); });
       check();
       return field("Port (players connect to this)", input, note);
     };
@@ -9878,8 +9878,8 @@ views.setup = () => {
           st.properties["white-list"] = closed ? "true" : propDefaults["white-list"];
           st.properties["enforce-whitelist"] = closed ? "true" : propDefaults["enforce-whitelist"];
         }
-        if (w === "forward" && opts.open_port) st.port = opts.open_port;  // (one Craft Conductor picked: not 25565)
-        else if (st.reach === "forward" && st.port === opts.open_port) st.port = opts.port;
+        if (w === "forward" && opts.open_port) { st.port = opts.open_port; st.portChosen = true; }  // (one Craft Conductor picked: not 25565)
+        else if (st.reach === "forward" && st.port === opts.open_port) { st.port = opts.port; st.portChosen = false; }
         st.reach = w;
         renderForm();
       };
@@ -10040,7 +10040,7 @@ views.setup = () => {
     propDefaults = Object.fromEntries(opts.properties_schema.map((p) => [p.key, p.default]));
     if (!st.properties) st.properties = { ...propDefaults };
     if (st.memory_gb === null) st.memory_gb = opts.memory_gb;
-    if (isNew && opts.port) st.port = opts.port;  // a port no other server here uses
+    if (isNew && opts.port && !st.portChosen) st.port = opts.port;  // a port no other server here uses (one typed in stays, #195)
     if (st.network_access === null) st.network_access = opts.network_access;
     if (opts.versions_error) toast(opts.versions_error, true);
     const s = status || (server ? await api("/api/status").catch(() => ({})) : {});
