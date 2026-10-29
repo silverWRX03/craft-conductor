@@ -8711,5 +8711,21 @@
     "type": "Core",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 993,
+    "section": "Fix: no 'null' on a friend's setup page (#164)",
+    "step": "Server with the whitelist off and friends' setup on: open its invite on a friend's computer. Nothing reads 'null' between Make it yours and the launcher choice.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 994,
+    "section": "Fix: screen reader basics (#217)",
+    "step": "Windows Narrator in Chrome: Your servers card buttons say 'Start <server>', 'Open <server>', 'Delete <server>', '<server>'s folder'; a running server's 'running' isn't repeated every few seconds; Players name/reason boxes and the Java version box are named; Console starts with a 'Console' heading.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]

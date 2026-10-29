@@ -20,7 +20,7 @@ const assert = require('node:assert/strict');
   await page.goto(base + '/#servers');
   const card = page.locator('.server-card', { hasText: 'Alpha' });
   await card.waitFor();
-  await card.getByRole('link', { name: 'Open', exact: true }).focus();
+  await card.getByRole('link', { name: 'Open Alpha', exact: true }).focus();
   const before = await focused();
   assert.match(before, /Open\|#s\/alpha\/dashboard/);
   await page.waitForTimeout(7000);
@@ -30,12 +30,12 @@ const assert = require('node:assert/strict');
   assert.doesNotMatch(await focused(), /^Start/, 'Tab goes on from where it was, not from the first card');
 
   // when what a card shows does change (Start becomes Stop), the focus goes to the same place, not to the page
-  await card.getByRole('button', { name: 'Start', exact: true }).focus();
+  await card.getByRole('button', { name: 'Start Alpha', exact: true }).focus();
   assert.equal((await page.request.post(base + '/api/servers/alpha/server/start', { headers: H })).status(), 200);
-  await card.getByRole('button', { name: 'Stop', exact: true }).waitFor({ timeout: 40000 });
+  await card.getByRole('button', { name: 'Stop Alpha', exact: true }).waitFor({ timeout: 40000 });
   assert.match(await focused(), /^Stop\|/, 'the focus followed the button that replaced Start');
   assert.equal((await page.request.post(base + '/api/servers/alpha/server/stop', { headers: H })).status(), 200);
-  await card.getByRole('button', { name: 'Start', exact: true }).waitFor({ timeout: 40000 });
+  await card.getByRole('button', { name: 'Start Alpha', exact: true }).waitFor({ timeout: 40000 });
   assert.match(await focused(), /^Start\|/);
 
   // the sidebar on a server's page
