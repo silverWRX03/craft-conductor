@@ -5994,7 +5994,10 @@ function browserPanel(params, host) {
       const cur = await api(`/api/servers/${encodeURIComponent(target)}/client`).catch(() => null);
       if (!cur) return;
       const r = await act(() => api(`/api/servers/${encodeURIComponent(target)}/client`, { method: "POST",
-        body: { mods: [...new Set([...cur.mods, ...mods.map((m) => m.slug || m.id)])] } }), `Added ${mods.map((m) => m.name).join(", ")} for players`);
+        body: { mods: [...new Set([...cur.mods, ...mods.map((m) => m.slug || m.id)])],
+          // (early builds agreed to here hold for the friends' download and the server's copy too, #165)
+          channels: Object.fromEntries(mods.filter((m) => m.channel && m.channel !== "release").map((m) => [m.slug || m.id, m.channel])) } }),
+        `Added ${mods.map((m) => m.name).join(", ")} for players`);
       if (r) announceAlsoOnServer(r);
       if (r && host) host.changed();
       return;

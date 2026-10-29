@@ -37,6 +37,7 @@ its fix will say which version it's in.
 - After **Use Tailscale** in **Remote access & phones**, the phone pairing list didn't offer the secure Tailscale address until the dialog was opened again. It does straight away now (#213).
 - Starting a server didn't ask when other programs already use most of the memory: only when the servers together were given more than the computer has. It also asks now when the server is given more than is free right now (#187).
 - A friend's setup page showed the word "null" above the launcher choice when the server's whitelist is off. It's gone (#164).
+- A mod with only beta builds (Simple Voice Chat), added in **Add Friends Mods** with **Show beta builds**, wasn't added to the server ("only has beta builds") and was left out of the friends' download. The beta you agreed to now holds for both (#165).
 - With a screen reader: the **Your servers** cards' buttons now say which server they're for ("Start Alpha"), "running" is no longer said again every few seconds, the **Players** page's name and reason boxes and the **Java** page's version box have names, and the **Console** page has a page heading like the others (#217).
 
 ## 0.30.3 (2026-10-25)

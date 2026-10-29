@@ -28,6 +28,7 @@ from .config import DEFAULT_LINK_DAYS, LINK_DAYS, ConfigError, ModSpec
 from .http import HttpError, sha1_file
 from .mods.base import ModError, ModFile, Project, Unavailable, same_project
 from .mods.modrinth import ModrinthProvider
+from .planner import lowest
 
 log = logging.getLogger(__name__)
 
@@ -226,11 +227,11 @@ def players_mods(m, server_mods: list, minecraft: str, loader_version: str | Non
     todo = [ModSpec("modrinth", dep, dependency_of=names.get(x.key, x.name))
             for x in server_mods if x.source == "modrinth"
             for dep in x.dependencies if f"modrinth:{dep}" not in included]
-    todo += [ModSpec("modrinth", slug) for slug in client_mods if not slug.startswith("curseforge:")]
+    todo += [ModSpec("modrinth", slug, channel=cfg.client.channels.get(slug)) for slug in client_mods if not slug.startswith("curseforge:")]
     while todo and loaders:
         spec = todo.pop(0)
         try:
-            f = modrinth.resolve(spec, minecraft, loaders, cfg.updates.mod_channel, side="client")
+            f = modrinth.resolve(spec, minecraft, loaders, lowest(cfg.updates.mod_channel, spec.channel), side="client")
         except (Unavailable, ModError) as e:
             if spec.dependency_of is None:
                 skipped.append({"name": spec.id, "reason": str(e)})

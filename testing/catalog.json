@@ -8727,5 +8727,13 @@
     "type": "Core",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 995,
+    "section": "Fix: beta friends' mod also a beta on the server (#165)",
+    "step": "Friends -> Add Friends Mods: Simple Voice Chat (beta only for this Minecraft) with Show beta builds -> Add anyway. It's added for players and to the server's Manage Mods (no 'only has beta builds'), and the friends' download includes it.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]
