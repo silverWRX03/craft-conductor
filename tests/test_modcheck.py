@@ -277,3 +277,17 @@ def test_what_the_loader_also_takes_for_a_minecraft_version_passes():
     tight = forge_jar("tight", "1.0", dep("tight", "forge", "[47.1.79,47.1.80)", True))
     assert forge_check(tight, minecraft="1.20.1", loader_version="47.4.28") == []
     assert [p.kind for p in forge_check(old, loader="neoforge", minecraft="1.21.1")] == ["missing"]  # (Forge's own ids aren't NeoForge's)
+
+
+def test_a_mods_old_copy_of_mixinextras_isnt_the_only_one(tmp_path):
+    """Axiom bundles MixinExtras 0.3.5, and Fabric Loader 0.19.5 brings 0.5.5: Fabric uses the newest,
+    so Lithium's need for 0.5.5 is met and the update isn't refused (#192)."""
+    axiom = jar({"fabric.mod.json": {"schemaVersion": 1, "id": "axiom", "version": "5.2", "name": "Axiom",
+                                     "jars": [{"file": "META-INF/jars/mixinextras-fabric-0.3.5.jar"}]},
+                 "META-INF/jars/mixinextras-fabric-0.3.5.jar": fabric("mixinextras", "0.3.5", name="MixinExtras")})
+    lithium = fabric("lithium", "0.26.2+mc26.3", {"mixinextras": ">=0.5.5"}, "Lithium")
+    assert fabric_check(axiom, lithium) == []
+    assert fabric_check(lithium) == []
+    # (a mod that isn't one the loader brings is still checked by the copies there)
+    old = fabric("lib", "1.0", name="Lib")
+    assert [p.kind for p in fabric_check(old, fabric("user", "1", {"lib": ">=2"}))] == ["version"]
