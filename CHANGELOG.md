@@ -4,6 +4,11 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.30.4 (not released yet)
+
+**Changed**
+- The website's **Real-world testing** page has **All Tests Completed** in its **Test run** list: every test's latest result from all test runs, with the newest version it passed in, so what's still never been tried is easy to see. The Dad Test is on hold for now and no longer shown.
+
 ## 0.30.3 (2026-10-25)
 
 **Fixed**

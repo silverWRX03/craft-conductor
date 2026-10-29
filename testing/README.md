@@ -44,6 +44,15 @@ python tools/real_world_tests.py add-test --section "Feature: Bedrock" --step "O
 python tools/real_world_tests.py new-run --run v0.29.0-win11 --version 0.29.0 --kind feature --os "Windows 11" --features 882 --fixes 877
 ```
 
+## Tests on hold
+
+A test can be put **on hold** without deleting it: it stays in `catalog.json` (with an `on_hold` reason) and in the runs that already have its result, but new runs leave it out, `report` doesn't count it, `record` refuses it, and the public dashboard doesn't show it or its results. The Dad Test (31–49, 781–801 and gate 821) is on hold until the product is stable.
+
+```powershell
+python tools/real_world_tests.py hold --ids 31-49,781-801,821 --reason "Dad Test: on hold until the product is stable"
+python tools/real_world_tests.py unhold --ids 31-49,781-801,821
+```
+
 A `--kind minecraft` run includes the 20 existing release-gate tests plus tests tagged `minecraft-version`. A `--kind high-risk` run additionally includes `security`-tagged cases. A `--kind full` run selects all tests. The default `patch`/`feature` run selects the 20 existing release-gate cases plus `--features`, `--fixes` and `--extra` cases. Select other tests by risk, not only by category. No test automatically passes based on a prior version.
 
 ## Release safety
@@ -56,7 +65,7 @@ To produce the **public** Pages data (without any notes, tester names, hardware,
 python tools/real_world_tests.py publish --output site/testing/data
 ```
 
-The Pages workflow builds that data directly into the deployment artifact. The dashboard is read-only; Claude Code records and commits test results through the CLI. A native GitHub Project board is optional and is not required to use the tracker.
+The Pages workflow builds that data directly into the deployment artifact. Besides one run at a time, the dashboard's **Test run** list has **All Tests Completed**: every test with its latest result from any run (a run that lists a test without trying it doesn't hide an older result) and a **Latest validated in** column with the newest version it passed in, so what's never been tried stands out. The dashboard is read-only; Claude Code records and commits test results through the CLI. A native GitHub Project board is optional and is not required to use the tracker.
 
 ## Safe workflows
 
