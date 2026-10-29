@@ -1571,7 +1571,7 @@ async function refreshStatus() {
   $("#job").classList.toggle("hidden", !busy);
   $("#job-name").textContent = busy ? s.job.name + "…" : "";
   $("#btn-start").disabled = busy || s.state !== "stopped" || s.setup_pending;
-  $("#btn-stop").disabled = busy || s.state === "stopped";
+  $("#btn-stop").disabled = (busy && !s.job.can_stop) || s.state === "stopped";  // (a restart giving players their minute can be stopped, #205)
   $("#btn-restart").disabled = busy || s.state !== "running";
   const dot = $("#nav-update-dot");
   if (dot) dot.classList.toggle("hidden", !(s.update && !s.update.up_to_date && s.update.target));

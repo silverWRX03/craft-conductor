@@ -8751,5 +8751,13 @@
     "type": "Core",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 998,
+    "section": "Feature: Restart asks to warn players first (#205)",
+    "step": "With a friend connected, press Restart and answer Yes. During the minute, Stop is still pressable: press it. The server stops (it doesn't start again) and the top bar shows it stopped.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]
