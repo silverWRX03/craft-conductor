@@ -903,6 +903,11 @@ class Hub:
         plan = limits.memory_fits([gb(d) for d in running.values()], gb(extra) if extra else 0.0, total)
         plan["running"] = [{"id": sid, "gb": round(gb(d), 1)} for sid, d in running.items()]
         plan["adding_gb"] = round(gb(extra), 1) if extra else 0.0
+        # What's free now: other programs (a browser, a game) use memory the total doesn't say about (#187).
+        from .health import memory_available_gb
+        free = memory_available_gb()
+        plan["available_gb"] = round(free, 1) if free is not None else None
+        plan["fits_free"] = free is None or not extra or plan["adding_gb"] <= free - limits.FREE_MARGIN_GB
         return plan
 
     def check_memory(self, daemon: Daemon) -> None:
@@ -915,6 +920,9 @@ class Hub:
         if not plan["fits"]:
             log.warning("the running servers are given %.1f GB of memory with this one, and this computer has %.1f GB: "
                         "it may slow down or a server may crash; give them less memory, or stop one", plan["after_gb"], plan["total_gb"])
+        elif not plan["fits_free"]:
+            log.warning("this server is given %.1f GB of memory, and only %.1f GB is free on this computer now (other programs "
+                        "use the rest): it may slow down, or Windows may fill the disk making room", plan["adding_gb"], plan["available_gb"])
 
     @property
     def staging_dir(self) -> Path:
@@ -1206,7 +1214,8 @@ class Hub:
         warnings: list[str] = []
         for kind in locmod.KINDS:
             if kind in wanted and new[kind] is not None:
-                new[kind], w = locmod.check_place(kind, str(new[kind]), new, self.state_dir)
+                staying = current[kind] is not None and locmod._norm(new[kind]) == locmod._norm(current[kind])
+                new[kind], w = locmod.check_place(kind, str(new[kind]), new, self.state_dir, staying=staying)
                 warnings += w
 
         def same(a, b) -> bool:

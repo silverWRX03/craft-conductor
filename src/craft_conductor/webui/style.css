@@ -85,7 +85,8 @@ code { font-family: var(--mono); background: var(--panel-2); padding: 1px 5px; b
 .brand.big .logo { width: 56px; height: 56px; }
 
 /* login */
-.login { display: grid; place-items: center; height: 100%; padding: 16px; }
+/* (at least the window's height, and taller when the form is: the page scrolls to its button then, #208) */
+.login { display: grid; place-items: center; min-height: 100%; box-sizing: border-box; padding: 16px; }
 .login-card { width: 100%; max-width: 360px; background: var(--panel); border: 1px solid var(--border);
   border-radius: 12px; padding: 28px; display: grid; gap: 14px; text-align: center; }
 .login-card label { text-align: start; }
@@ -461,6 +462,9 @@ body.browse-mode main { padding: 0; overflow: hidden; }
 .mod-manager-list { display: grid; gap: 8px; }
 .mod-manager-row { display: flex; align-items: flex-start; gap: 12px; padding: 12px; border: 1px solid var(--border);
   border-radius: 9px; background: var(--panel-2); }
+/* (its own controls keep their width beside a long notice: "required" and "Remove" never break mid-word, #190) */
+.mod-manager-row > :not(.grow) { flex: none; white-space: nowrap; }
+.mod-manager-row > .grow { min-width: 0; overflow-wrap: anywhere; }
 .mod-manager-row.removed { opacity: .72; }
 .mod-manager-row.has-problem { border-color: #d64545; box-shadow: inset 3px 0 0 #d64545; }
 .version-picker { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }

@@ -1593,6 +1593,12 @@ async function refreshStatus() {
 // (limits.py) Asks when it doesn't; the server still starts if the person says so.
 async function memoryOkToStart(sid, name) {
   const plan = await api(`/api/hub/memory?adding=${encodeURIComponent(sid)}`).catch(() => null);
+  if (plan && plan.fits && plan.fits_free === false) {  // (other programs use much of it now, #187)
+    return ask(t("Start {name}? It would be given {gb} GB of memory, and only {free} GB is free on this computer now: other programs use the rest.")
+      .replace("{name}", name).replace("{gb}", plan.adding_gb).replace("{free}", plan.available_gb)
+      + "\n\n" + t("It may slow right down, or Windows may fill the disk making room. Close other programs, or give the server less memory (Settings → Memory)."),
+    { ok: "Start anyway", id: "memory-start" });
+  }
   if (!plan || plan.fits || !plan.total_gb) return true;
   return ask(t("Start {name}? The servers would be given {after} GB of memory, and this computer has {total} GB.")
     .replace("{name}", name).replace("{after}", plan.after_gb).replace("{total}", plan.total_gb)
@@ -6457,7 +6463,7 @@ function openRemoteAccess({ setup = currentName === "new" || currentName === "se
         : ["Apply this change without closing Craft Conductor. Your servers and work stay open. ",
           h("button", { class: "btn small", onclick: async () => { await act(() => api("/api/hub/network/apply", { method: "POST" })); load(); } }, "Apply remote access")]) : null;
     // 3. away from home: Tailscale, or Cloudflare's quick tunnel for a few hours
-    const away = [outsideChooser(r.strong)];
+    const away = [outsideChooser(r.strong, load)];  // (Use Tailscale changes the pairing addresses below too, #213)
     // HTTPS (optional)
     const cert = h("input", { value: r.tls_cert || "", placeholder: "Certificate file (.crt / .pem)", "aria-label": "Certificate file" });
     const key = h("input", { value: r.tls_key || "", placeholder: "Key file (.key / .pem)", "aria-label": "Key file" });
@@ -8157,7 +8163,8 @@ const OUTSIDE_TEXT = {
   cloudflare: "Anyone on the internet who has the address can reach the sign-in page, for a few hours. Free, and no account needed.",
   never: "Don't forward the control panel's port on your router, and never point a playit.gg tunnel at it: those put it on the internet with nothing to tell the visitors apart.",
 };
-function outsideChooser(strong) {
+// `changed`: after Use Tailscale or Stop, the dialog around it reloads (its pairing addresses change too).
+function outsideChooser(strong, changed = null) {
   const box = h("div", { class: "outside" });
   let ts = null, cf = null, funnelAllowed = false, pick = null, polls = 0, pollTimer = null;
   const out = h("div", { class: "mt-s" });
@@ -8183,9 +8190,9 @@ function outsideChooser(strong) {
       return;
     }
     toast(funnel ? "The control panel is on the internet at " + r.url : "Ready: your devices can open " + r.url);
-    load();
+    (changed || load)();
   };
-  const tailscaleStop = async () => { await act(() => api("/api/hub/phone/tailscale", { method: "POST", body: { on: false } }), "Stopped"); load(); };
+  const tailscaleStop = async () => { await act(() => api("/api/hub/phone/tailscale", { method: "POST", body: { on: false } }), "Stopped"); (changed || load)(); };
   const tailscalePart = () => {
     const recheck = h("button", { class: "link-btn", onclick: load }, "check again");
     if (!ts) return h("p", { class: "small muted" }, "Couldn't ask Tailscale.");

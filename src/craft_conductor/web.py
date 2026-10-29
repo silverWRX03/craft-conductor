@@ -121,6 +121,24 @@ RESET_FILE = "craft-conductor-reset-code.txt"
 SERVER_PATH = re.compile(r"^/api/servers/([a-z0-9][a-z0-9-]{0,63})(/.*)$")
 
 
+#: What an invited person's player action did, in the activity (#209); {name} is who it was done to.
+DID = {"kick": "kicked {name}", "ban": "banned {name}", "pardon": "unbanned {name}", "ban-ip": "banned the IP address of {name}",
+       "pardon-ip": "unbanned the IP address {name}", "op": "made {name} an operator", "deop": "took {name}'s operator role away",
+       "whitelist-add": "added {name} to the whitelist", "whitelist-remove": "removed {name} from the whitelist",
+       "whitelist-on": "turned the whitelist on", "whitelist-off": "turned the whitelist off"}
+
+
+def did(path: str, body: dict) -> str:
+    """An invited person's request in the activity's plain words: "kicked Steve", not "players/action"."""
+    def clean(value, n=60):  # (text they typed: one line, short)
+        return re.sub(r"[\x00-\x1f\x7f]", " ", str(value or "")).strip()[:n]
+    if path == "/api/players/action" and str(body.get("action")) in DID:
+        return DID[str(body.get("action"))].format(name=clean(body.get("name"), 40) or "a player")
+    if path == "/api/broadcast":
+        return f'broadcast "{clean(body.get("message"), 100)}"'
+    return path.removeprefix("/api/")
+
+
 @functools.lru_cache(maxsize=None)
 def static_file(name: str) -> tuple[bytes, str]:
     """The page's own files: read once (they're part of craft-conductor), with an ETag so browsers can
@@ -998,12 +1016,12 @@ class RequestHandler(BaseHTTPRequestHandler):
                 raise ApiError(403, "that only works in a browser on the server's own computer")
             api = self.web.api_for(sid)
             set_current_server(api.d.server_id)  # so this server's activity feed shows what happens
-            if not subject.is_owner and method == "POST":
-                log.info("%s%s: %s", subject.name, f" (phone {subject.device_name})" if subject.device else "",
-                         path.removeprefix("/api/"))
             handler = api.routes.get((method, path))
             if handler is None:
                 raise ApiError(404, "not found")
+            who = "" if subject.is_owner or method != "POST" else                 subject.name + (f" (phone {subject.device_name})" if subject.device else "")
+            if who and (path == "/api/manual/upload" or path in RAW_UPLOADS):
+                log.info("%s: %s", who, path.removeprefix("/api/"))
             if path == "/api/manual/upload":
                 return self._json(200, api.upload(self, q))
             if path in RAW_UPLOADS:
@@ -1038,6 +1056,8 @@ class RequestHandler(BaseHTTPRequestHandler):
                 body = {**body, "__local": local and subject.is_owner}  # (from this request, not the page's say-so)
             if path == "/api/reach" and method == "POST":
                 body = {**body, "__any_port": self.web.risk("any-port")}
+            if who:
+                log.info("%s: %s", who, did(path, body))
             return self._json(200, access.server_answer(subject, sid, path, handler(q, body)))
         except ApiError as e:
             self._fail(e.status, str(e), e.confirm)

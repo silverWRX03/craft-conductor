@@ -113,6 +113,10 @@ def test_places_that_are_refused(hub_env, tmp_path, monkeypatch):
     assert "isn't a full path" in refused(servers="relative/folder")
     monkeypatch.setattr(locmod, "is_removable", lambda p: True)
     assert "removable drive" in refused(backups=str(tmp_path / "usb"))
+    # Where the folders already are (Craft Conductor's home on a USB stick): kept, with a warning (#214)
+    here = hub.locations()
+    status, r, _ = c.post("/api/hub/locations", {"servers": str(here["servers"]), "exports": str(here["exports"])})
+    assert status == 200 and any("removable drive" in w for w in r["warnings"]), r
     monkeypatch.setattr(locmod, "is_removable", lambda p: False)
     network = folders.is_network
     monkeypatch.setattr(folders, "is_network", lambda p: True)

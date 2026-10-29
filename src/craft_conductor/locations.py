@@ -194,9 +194,10 @@ def own_folders(state_dir: Path) -> tuple[list[Path], list[Path]]:
     return inside_too, itself
 
 
-def check_place(kind: str, text: str, places: dict, state_dir: Path) -> tuple[Path, list[str]]:
+def check_place(kind: str, text: str, places: dict, state_dir: Path, staying: bool = False) -> tuple[Path, list[str]]:
     """A place typed or picked for ``kind``: the real folder it is (it may not be there yet: then
-    its parent must be), and warnings to show. Refused with LocationError, saying why."""
+    its parent must be), and warnings to show. Refused with LocationError, saying why. ``staying``:
+    it's where that folder already is (nothing moves), so a removable drive is only warned about."""
     text = str(text or "").strip()
     if not text or len(text) > 1000 or "\0" in text:
         raise LocationError("type the full path of a folder")
@@ -215,7 +216,8 @@ def check_place(kind: str, text: str, places: dict, state_dir: Path) -> tuple[Pa
         raise LocationError(f"{path} is a file, not a folder")
     if is_system(path):
         raise LocationError(f"{path} is one of the computer's own folders: pick a folder of yours, or make one")
-    if is_removable(path):
+    removable = is_removable(path)
+    if removable and not staying:
         raise LocationError(f"{path} is on a removable drive (a USB stick or a memory card): the files would go "
                             "missing whenever it's unplugged")
     if not os.access(base, os.W_OK | os.X_OK):
@@ -236,6 +238,9 @@ def check_place(kind: str, text: str, places: dict, state_dir: Path) -> tuple[Pa
             raise LocationError(f"{path} {'is inside' if inside(path, where) else 'holds'} the {other} folder ({where}): "
                                 "each one needs a folder of its own")
     warnings = []
+    if removable:  # (where it already is, #214)
+        warnings.append(f"{path} is on a removable drive (a USB stick or a memory card): keep it plugged in while "
+                        "Craft Conductor runs, or the files go missing until it's back")
     synced = is_synced(path)
     if synced and kind == "servers":
         warnings.append(f"{path} is synced by {synced}: a running world would upload all day, and {synced} can lock "

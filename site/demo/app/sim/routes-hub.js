@@ -65,7 +65,8 @@
     const used = running.reduce((n, s) => n + s.memory_gb, 0);
     const after = used + (extra ? extra.memory_gb : 0);
     return { fits: after <= totalGb - 3, running_gb: used, total_gb: totalGb, after_gb: after, free_gb: sim.round(totalGb - 1.5 - used),
-      running: running.map((s) => ({ id: s.id, gb: s.memory_gb })), adding_gb: extra ? extra.memory_gb : 0 };
+      running: running.map((s) => ({ id: s.id, gb: s.memory_gb })), adding_gb: extra ? extra.memory_gb : 0,
+      available_gb: sim.round(totalGb - 4 - used), fits_free: !extra || extra.memory_gb <= totalGb - 5 - used };
   };
   const freePort = (from = 25565) => { const used = new Set(st().servers.map((s) => Number(s.port))); let p = from; while (used.has(p)) p++; return p; };
   const slugify = (name) => (String(name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32) || "server");

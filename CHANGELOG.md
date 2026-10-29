@@ -29,6 +29,13 @@ its fix will say which version it's in.
 - With the server folder in OneDrive, **Roll back to this** failed with "Access is denied" and left copies of the server behind (`server.replaced`, `server.restoring`): OneDrive marks the folders it syncs read-only. Craft Conductor deletes read-only folders now, everywhere it deletes folders, and an old copy it still can't delete no longer stops a restore (#216).
 - A Java download cut off by closing Craft Conductor stayed in the shared Java folder for good (`.download-…`). It's removed the next time the shared Java is tidied (#199).
 - When Craft Conductor put right something it was stopped in the middle of (a roll back, an update, **Replace the world**), it only said so in the server's **Activity**. The page now says so once, and it's in the bell (#200).
+- With only MBs of disk space left, the warning said "Only 0.0 GB of disk space left". It says "Only 30 MB" now, in **Check my setup** too (#215).
+- What an invited person did showed in the activity as "players/action". It says what they did now: "kicked Steve", "added Sam to the whitelist", "broadcast "…"" (#209).
+- The invite page (and the sign-in page) couldn't be scrolled in a full-screen window, so the button that creates the sign-in could be cut off. They scroll when they're taller than the window now (#208).
+- In **Manage Mods**, a mod row with a long notice squeezed its own buttons so that "required" and "Remove" broke in the middle of the word. They keep their width now (#190).
+- With Craft Conductor's home on a USB stick, **Use these folders** on the first visit refused the folders the servers were already in ("on a removable drive"). Keeping folders where they are is always allowed now, with a warning to keep the drive plugged in (#214).
+- After **Use Tailscale** in **Remote access & phones**, the phone pairing list didn't offer the secure Tailscale address until the dialog was opened again. It does straight away now (#213).
+- Starting a server didn't ask when other programs already use most of the memory: only when the servers together were given more than the computer has. It also asks now when the server is given more than is free right now (#187).
 
 ## 0.30.3 (2026-10-25)
 

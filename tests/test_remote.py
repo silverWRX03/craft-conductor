@@ -329,6 +329,12 @@ def test_kick_whitelist_and_broadcast_follow_what_people_may_do(hub_env):
     assert moderator.post(base + "/players/action", {"action": "op", "name": "Steve"})[0] == 403   # (OP is apart)
     lines = c.get(base + "/console?since=0")[1]["lines"]
     assert any(x["text"] == "> say hello everyone" for x in lines) and not any("say a" in x["text"] for x in lines)
+    # The activity says what they did, in the owner's words, not the request's name (#209).
+    said = [e["message"] for e in c.get(base + "/events?since=0")[1]["events"]]
+    assert any(m.startswith("Morgan") and m.endswith(": kicked Steve") for m in said), said
+    assert any(m.endswith(": added Sam to the whitelist") for m in said)
+    assert any(m.endswith(': broadcast "hello everyone"') for m in said)
+    assert not any(m.startswith("Morgan") and "players/action" in m for m in said)
 
     # What the Dashboard reads works for both; the console only with "Read the console".
     for phone in (moderator, viewer):

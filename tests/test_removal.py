@@ -56,3 +56,23 @@ def test_what_was_put_right_is_on_the_page_once(hub_env):
     [r] = c.get("/api/hub")[1]["recovered"]
     assert r["sid"] == "alpha" and "stopped in the middle of something" in r["message"] and r["time"]
     assert not staging.exists()
+
+
+def test_little_disk_space_is_said_in_mb():
+    """30 MB free said "Only 0.0 GB of disk space left" (#215)."""
+    from craft_conductor.doctor import _gb
+    assert _gb(30 / 1024) == "30 MB" and _gb(0) == "0 MB" and _gb(1.5) == "1.5 GB" and _gb(16) == "16 GB"
+
+
+def test_starting_asks_when_little_memory_is_free_now(hub_env, monkeypatch):
+    """Other programs using most of the memory: a server given more than is free now gets asked about,
+    not only one past the computer's total (#187)."""
+    from craft_conductor import health
+    hub, c = hub_env
+    monkeypatch.setattr(health, "memory_available_gb", lambda: 0.5)
+    plan = hub.memory_plan("alpha")
+    assert plan["available_gb"] == 0.5 and plan["fits_free"] is False
+    monkeypatch.setattr(health, "memory_available_gb", lambda: 64.0)
+    assert hub.memory_plan("alpha")["fits_free"] is True
+    monkeypatch.setattr(health, "memory_available_gb", lambda: None)  # (can't tell: no question)
+    assert hub.memory_plan("alpha")["fits_free"] is True

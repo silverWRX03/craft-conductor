@@ -8655,5 +8655,61 @@
     "type": "Core",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 986,
+    "section": "Fix: low disk space said in MB (#215)",
+    "step": "Fill the drive with a server until under 1 GB is free: the warning at the top and Check my setup say e.g. 'Only 30 MB', never '0.0 GB'.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 987,
+    "section": "Fix: invited person's actions in plain words (#209)",
+    "step": "An invited Moderator kicks a player, whitelists one and sends a broadcast. The owner's Activity says '<name>: kicked <player>', '<name>: added <player> to the whitelist', '<name>: broadcast \"...\"', never 'players/action'.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 988,
+    "section": "Fix: invite and sign-in pages scroll (#208)",
+    "step": "Chrome full screen (F11) on a small laptop screen: open an invite link, then the sign-in page. Both scroll, and the create / sign-in button can be reached.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 989,
+    "section": "Fix: Manage Mods row buttons keep their width (#190)",
+    "step": "New server: Fabric + Terralith, then switch to Forge 26.3, open Manage Mods: Terralith's row with its 'No Forge build' notice shows 'required', 'Change version' and 'Remove' whole (no word split).",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 990,
+    "section": "Fix: folders on a USB stick can be kept (#214)",
+    "step": "Start Craft Conductor with CRAFT_CONDUCTOR_HOME on a USB stick. First visit: Where should Craft Conductor keep your files? -> Use these folders works (warning about the removable drive), and the dialog closes.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 991,
+    "section": "Fix: Tailscale address offered for pairing at once (#213)",
+    "step": "Remote access & phones -> Use Tailscale. Without closing the dialog, 4. People, and their phones offers 'Tailscale, secure (....ts.net)' first, picked, and the 'opens in the phone's browser' note is gone.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 992,
+    "section": "Fix: start asks when little memory is free (#187)",
+    "step": "With other programs using most of the memory, start a server given more than is free now (but less than the total): Craft Conductor asks first ('only N GB is free on this computer now'); Start anyway starts it.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]

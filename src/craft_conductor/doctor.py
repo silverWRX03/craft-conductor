@@ -41,6 +41,9 @@ class Check:
 
 
 def _gb(n: float) -> str:
+    """An amount in GB, as people read it: under 1 GB in MB ("30 MB", not "0.0 GB", #215)."""
+    if n < 1:
+        return f"{max(0, round(n * 1024))} MB"
     return f"{n:.0f} GB" if n >= 10 else f"{n:.1f} GB"
 
 
