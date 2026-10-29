@@ -28,7 +28,12 @@ const base = process.argv[2];
       assert.ok(video && Math.abs(video.width / video.height - 16 / 9) < 0.02, 'the video area keeps its 16:9 shape');
       assert.equal(await page.locator('#home iframe, #home video').count(), 0, 'the video player waits for a click');
       await page.evaluate(() => document.fonts.ready);
-      await until(async () => page.evaluate(() => document.getElementById('home').style.getPropertyValue('--hero-min-height')), 'the desktop section proportions settle');
+      // The height is set a frame after the hero resizes (for example when the web font arrives), so wait for it to match.
+      await until(async () => page.evaluate(() => {
+        const hero = document.getElementById('home'), style = getComputedStyle(hero);
+        const contentHeight = Math.max(hero.querySelector('.hero-text').offsetHeight, hero.querySelector('.video-walkthrough').offsetHeight);
+        return hero.style.getPropertyValue('--hero-min-height') && Math.abs(hero.offsetHeight - contentHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) - 1) <= 1;
+      }), 'the desktop section proportions settle');
       const layout = await page.evaluate(() => {
         const hero = document.getElementById('home'), style = getComputedStyle(hero);
         const available = hero.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) - parseFloat(style.columnGap);

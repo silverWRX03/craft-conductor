@@ -8,6 +8,7 @@ its fix will say which version it's in.
 
 **Changed**
 - The website's **Real-world testing** page has **All Tests Completed** in its **Test run** list: every test's latest result from all test runs, with the newest version it passed in, so what's still never been tried is easy to see. The Dad Test is on hold for now and no longer shown.
+- The website's **Product walkthrough** shows the video's thumbnail until you press it to play.
 
 ## 0.30.3 (2026-10-25)
 
