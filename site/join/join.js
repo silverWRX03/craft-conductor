@@ -89,7 +89,9 @@ function bedrockCard(invite) {
   return h("div", { class: "card" },
     h("h1", {}, invite.name ? t("You're invited to play on {name}", { name: invite.name }) : "You're invited to a Minecraft server"),
     h("h2", {}, "Join with Minecraft Bedrock Edition"),
-    h("p", {}, "Open Minecraft, then Play → Servers → Add Server. Enter these details and save the server:"),
+    /Windows/i.test(navigator.userAgent) ? h("p", {}, h("a", { class: "btn", href: "minecraft://?addExternalServer=" +
+      `${(invite.name || "Minecraft server").replace(/[^A-Za-z0-9_-]+/g, "-")}|${invite.host}:${invite.port}` }, "Add to Minecraft")) : null,
+    h("p", {}, "Or open Minecraft, go to the list of servers and add a server. Enter these details and save the server:"),
     h("p", {}, "Server name: ", h("strong", {}, invite.name || "Minecraft server")),
     h("p", {}, "Server address: ", h("code", {}, invite.host)),
     h("p", {}, "Port: ", h("code", {}, String(invite.port))),

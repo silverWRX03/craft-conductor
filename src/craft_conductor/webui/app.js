@@ -1757,11 +1757,18 @@ function reachChoices(way, pick) {
       "aria-pressed": String(way === w), "data-reach": w, onclick: () => pick(w) },
     h("strong", {}, label), h("span", { class: "small muted" }, desc))));
 }
+// Bedrock's ports, as one phrase: "UDP and TCP port 19132, and UDP port 19133" (Geyser's two connection methods, #211).
+function bedrockPortsText(ports, port) {
+  const list = ports && ports.length ? ports : [{ port, protocol: "UDP" }];
+  const byPort = new Map();
+  list.forEach((p) => byPort.set(p.port, [...(byPort.get(p.port) || []), p.protocol]));
+  return [...byPort].map(([p, protos]) => `${protos.join(" and ")} port ${p}`).join(", and ");
+}
 // The ports to forward and why opening one is risky, next to the port-forwarding choice.
-function forwardDetails(port, bedrock, lanIp) {
+function forwardDetails(port, bedrock, lanIp, bedrockPorts) {
   return [h("div", { class: "notice warn small mt-s", role: "note" }, h("strong", {}, "Before you open a port: "), REACH_TEXT.router),
     h("p", { class: "small mt-s" }, "Forward ", h("strong", {}, `TCP port ${port}`),
-      bedrock ? [" (and ", h("strong", {}, `UDP port ${bedrock}`), " for Bedrock players)"] : null,
+      bedrock ? [" (and ", h("strong", {}, bedrockPortsText(bedrockPorts, bedrock)), " for Bedrock players)"] : null,
       ` on your router to this computer${lanIp ? ` (${lanIp})` : ""}. Craft Conductor picked ${bedrock ? "these ports" : "this port"}: not Minecraft's usual 25565, ` +
       "which bots try first, and not one another server or Craft Conductor uses."),
     h("p", { class: "muted small" }, "Craft Conductor can ask your router to do it (Craft Conductor settings → Router), and let it through Windows Firewall (Check my setup). " +
@@ -1851,7 +1858,7 @@ function reachCard(sid, { compact = false } = {}) {
       !r.way ? h("p", { class: "muted small mt-s" }, "Not chosen yet: friends outside join the way you set up before.") : null,
       r.way === "playit" ? [h("div", { class: "notice warn small mt-s", role: "note" }, h("strong", {}, "About playit.gg: "), REACH_TEXT.playit),
         compact ? null : playitSetup(r.port, bedrock, r.tunnel_address, saveAddress)] : null,
-      r.way === "forward" ? forwardDetails(r.port, bedrock, r.lan_ip) : null,
+      r.way === "forward" ? forwardDetails(r.port, bedrock, r.lan_ip, r.bedrock && r.bedrock.ports) : null,
       r.way === "forward" && r.any_port && !compact ? ownPort(r, async (port) => {
         const res = await act(() => api(path, { method: "POST", body: { way: "forward", port } }));
         if (res) { toast(res.message); render(res); }
@@ -4060,8 +4067,9 @@ function bedrockCard() {
       on ? [
         h("div", { class: `notice ${r.installed ? "ok" : "warn"} mt-s` }, r.installed ? "Bedrock players can join." : "Added: installed with the next update (Updates page)."),
         h("ul", { class: "small mt-s" },
-          h("li", {}, "In Bedrock: Play → Servers → Add Server, with the same address as your Java friends use, and port ", h("strong", {}, String(r.port)), "."),
-          h("li", {}, "Friends outside your home: also forward ", h("strong", {}, `UDP port ${r.port}`), " on your router (Bedrock uses UDP, not TCP; see Help → Router setup)."),
+          h("li", {}, "In Bedrock: add a server with the same address as your Java friends use, and port ", h("strong", {}, String(r.port)),
+            ". On Windows, Win+R and ", h("code", {}, `minecraft://?addExternalServer=Server|<address>:${r.port}`), " adds it straight away (the Bedrock invite link shows how too)."),
+          h("li", {}, "Friends outside your home: also forward ", h("strong", {}, bedrockPortsText(r.ports, r.port)), " on your router (see Help → Router setup)."),
           h("li", {}, "Xbox, PlayStation and Switch can't add servers by themselves; GeyserMC's guide shows the workarounds."),
           h("li", {}, "With the whitelist on, add a Bedrock player on the Players page: a dot (.) and their Xbox gamertag, not their Java name (that's their name in game)."))]
         : h("div", { class: "row mt-s" }, turnOn, h("span", { class: "muted small" }, "Adds the Geyser and Floodgate mods from Modrinth; remove them on the Mods page any time."))));
@@ -6943,7 +6951,7 @@ function openDiscord(links) {
         bedrockEnabled ? [
           h("label", { class: "row check-row mt-s" }, useBedrockInternet, h("span", {}, "Bedrock internet link", links.bedrock_internet ? "" : " (use your public IP on the Friends page first)")),
           h("label", { class: "row check-row mt-s" }, useBedrockLocal, h("span", {}, "Bedrock local link (only works on this computer's network)")),
-          h("p", { class: "muted small" }, "Bedrock links show the address and Geyser port. Install Geyser before players join; internet players need that UDP port forwarded on your router.")
+          h("p", { class: "muted small" }, "Bedrock links show the address and Geyser port. Install Geyser before players join; internet players need the Bedrock ports forwarded on your router (the Friends page lists them).")
         ] : null),
       h("div", { class: "row mt" }, post, h("span", { class: "muted small grow" }, `Posting as ${info.bot.name}.`)),
       addBot);

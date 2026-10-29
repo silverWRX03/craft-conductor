@@ -243,6 +243,9 @@ class Daemon:
             self.activity.left(m.group(1))
         elif READY.search(line):
             self.started_at = time.time()
+            hub = getattr(self, "hub", None)
+            if hub is not None:
+                threading.Thread(target=hub.after_ready, args=(self,), daemon=True, name="after-ready").start()
 
     def send_command(self, command: str) -> None:
         if not self.proc or not self.proc.running:
