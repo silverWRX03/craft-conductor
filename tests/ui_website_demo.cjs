@@ -27,7 +27,12 @@ async function settle(f) {
 // The existing server's friends join, leave and ask to join at random moments (to look alive for a
 // visitor). The steps below check exact players and requests, so they'd pass or fail with the timing:
 // those visits are turned off for the test (a time far away, not Infinity: the demo saves its state as JSON).
-const quiet = (f) => f.evaluate(() => { const n = window.CCSim.state.next; n.join = 1e15; n.request = null; });
+// Fixed for good: starting a server brings the next visit forward again (sim.state.next.join = Math.min(…)).
+const quiet = (f) => f.evaluate(() => {
+  const n = window.CCSim.state.next;
+  Object.defineProperty(n, 'join', { get: () => 1e15, set: () => {}, enumerable: true, configurable: true });
+  Object.defineProperty(n, 'request', { get: () => null, set: () => {}, enumerable: true, configurable: true });
+});
 // Stop: the panel asks only when players are connected.
 async function stopServer(f) {
   await f.locator('#btn-stop').click();
