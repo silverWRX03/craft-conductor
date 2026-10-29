@@ -785,7 +785,7 @@ class Hub:
         except ValueError:
             port = 25565
         c = daemon.m.config
-        return reach.why_reachable(c.reach_way, c.tunnel_address, self.upnp_settings()["enabled"],
+        return reach.why_reachable(c.reach_way, c.tunnel_address, self.upnp_settings()["enabled"] and c.reach_way == "forward",
                                    "" if self.is_single else self.share_settings()["address"],
                                    reach.read_state(c.state_dir).get("port_test"), port)
 
@@ -1518,8 +1518,9 @@ class Hub:
                                                               if isinstance(x, list) and len(x) == 2]}
 
     def upnp_wanted(self) -> list[tuple[int, str, str]]:
-        """(port, protocol, label) craft-conductor forwards: each server's Minecraft port (and Bedrock's, on
-        UDP, with Geyser) and friends' downloads (only while a link works: the share server runs).
+        """(port, protocol, label) craft-conductor forwards: the Minecraft port (and Bedrock's, on UDP, with
+        Geyser) of each server set to "Open a port on my router" (reach.way "forward": never one set to only
+        friends at home, or to playit.gg) and friends' downloads (only while a link works: the share server runs).
         Never the control panel's port or a server's RCON port, even if one of those is the same number."""
         from .properties import read_properties
         out, private = [], {self.web.port}
@@ -1532,6 +1533,8 @@ class Hub:
                 if props.get("enable-rcon") == "true":
                     private.add(int(props.get("rcon.port", "25575") or 25575))
             except (OSError, ValueError):
+                continue
+            if d.m.config.reach_way != "forward":
                 continue
             out.append((port, "TCP", f"Craft Conductor {sid}"[:60]))
             from .reach import geyser_config, geyser_port

@@ -4199,8 +4199,8 @@ class Api:
         configmod.set_value(self.m.config.path, "reach", "way", json.dumps(way))
         self.m.reload_config()
         hub.whitelist_when_reachable()
-        if way == "forward" and hub.upnp_settings()["enabled"]:
-            threading.Thread(target=hub.upnp_sync, daemon=True, name="upnp").start()  # (the router gets the new port)
+        if hub.upnp_settings()["enabled"]:  # (the router gets the new port, or takes back one no longer wanted)
+            threading.Thread(target=hub.upnp_sync, daemon=True, name="upnp").start()
         log.info("%s", message)
         return {**self.reach({}, {}), "ok": True, "message": message}
 
@@ -4245,8 +4245,9 @@ class Api:
                 "whitelist_on": props.get("white-list", "false") == "true"}
 
     def answer_join_request(self, q, b) -> dict:
+        from .players import REQUEST_NAME_RE
         name = str(b.get("name", "")).strip()
-        if not re.fullmatch(r"[A-Za-z0-9_]{3,16}", name):
+        if not REQUEST_NAME_RE.fullmatch(name):
             raise ApiError(400, "that isn't a Minecraft name")
         message = f"ignored {name}"
         if b.get("allow") is True:
@@ -4414,7 +4415,9 @@ class Api:
         share = None if hub.is_single else hub.share_status()
         return doctor.run(self.m, self.d.state, share=share,
                           self_update={"available": True, **info} if info else None,
-                          upnp=None if hub.is_single else hub.upnp_status(), firewall=self._firewall(share))
+                          # (the router check is for a server set to Open a port on my router: UPnP forwards only those)
+                          upnp=hub.upnp_status() if not hub.is_single and self.m.config.reach_way == "forward" else None,
+                          firewall=self._firewall(share))
 
     def _firewall_ports(self, share: dict | None) -> list[dict]:
         """What should get through Windows Firewall: the Minecraft port (Java listens on it) and

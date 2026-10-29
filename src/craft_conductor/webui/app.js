@@ -2842,7 +2842,8 @@ views.players = () => {
               h("span", { class: "muted small" }, r.whitelist_enabled ? ": only listed players can join" : ": anyone can join")),
             h("button", { class: "btn small", "data-act": "whitelist", "data-fkey": "wl-toggle" }, r.whitelist_enabled ? "Turn off" : "Turn on")),
           r.whitelist.length ? h("ul", { class: "list" }, r.whitelist.map((w) => h("li", {}, h("div", { class: "grow" }, w.name), btn("Remove", "whitelist-remove", w.name, "", "wl"))))
-            : h("p", { class: "empty" }, "Nobody whitelisted")),
+            : h("p", { class: "empty" }, "Nobody whitelisted"),
+          r.bedrock_prefix ? h("p", { class: "muted small mt-s" }, `Bedrock players: type ${r.bedrock_prefix} and their Xbox gamertag (not a Java name) in Add or manage a player, then press Whitelist.`) : null),
         card("Banned",
           r.bans.length || r.ip_bans.length ? h("ul", { class: "list" },
             r.bans.map((b) => h("li", {}, h("div", { class: "grow" }, h("strong", {}, b.name),
@@ -4062,7 +4063,7 @@ function bedrockCard() {
           h("li", {}, "In Bedrock: Play → Servers → Add Server, with the same address as your Java friends use, and port ", h("strong", {}, String(r.port)), "."),
           h("li", {}, "Friends outside your home: also forward ", h("strong", {}, `UDP port ${r.port}`), " on your router (Bedrock uses UDP, not TCP; see Help → Router setup)."),
           h("li", {}, "Xbox, PlayStation and Switch can't add servers by themselves; GeyserMC's guide shows the workarounds."),
-          h("li", {}, "With the whitelist on, add Bedrock players with the console command ", h("code", {}, "fwhitelist add <name>"), "; their names start with a dot (.) in game."))]
+          h("li", {}, "With the whitelist on, add a Bedrock player on the Players page: a dot (.) and their Xbox gamertag, not their Java name (that's their name in game)."))]
         : h("div", { class: "row mt-s" }, turnOn, h("span", { class: "muted small" }, "Adds the Geyser and Floodgate mods from Modrinth; remove them on the Mods page any time."))));
   };
   load();
@@ -7856,7 +7857,7 @@ function routerBox() {
       h("span", { class: "muted" }, ` · ${p.label}`), p.ok ? null : h("span", { class: "bad-text" }, ` · ${p.error}`)));
     fill(box, h("h3", {}, "Router"),
       h("label", { class: "row check-row" }, on, h("span", {}, "Open the ports on my router by itself (UPnP)")),
-      h("p", { class: "muted small" }, "Craft Conductor asks your router to forward each server's Minecraft port and the friends' download port to this computer, " +
+      h("p", { class: "muted small" }, "Craft Conductor asks your router to forward the Minecraft port of each server set to Open a port on my router, and the friends' download port to this computer, " +
         "and takes them back when you switch this off or quit Craft Conductor. Only Craft Conductor's own ports are opened. Many routers have UPnP switched off: " +
         "then forward the ports by hand (Help → Router setup), or use playit.gg."),
       busy ? h("p", { class: "small" }, busy) : null,

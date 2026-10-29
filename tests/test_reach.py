@@ -153,7 +153,9 @@ def test_each_way_of_becoming_reachable_turns_the_whitelist_on(hub_env, how, mon
     hub, c = hub_env
     login(c)
     d = hub.get("alpha")
-    if how == "router":
+    if how == "router":  # (Router (UPnP) forwards a server set to Open a port on my router)
+        configmod.set_value(d.m.config.path, "reach", "way", json.dumps("forward"))
+        d.m.reload_config()
         upnp_on(hub)
         monkeypatch.setattr(hub, "upnp_sync", lambda enabled=None: {"enabled": True, "ports": []})
         assert c.post("/api/hub/upnp", {"enabled": True, "accept": True})[0] == 200
@@ -165,9 +167,25 @@ def test_each_way_of_becoming_reachable_turns_the_whitelist_on(hub_env, how, mon
         assert c.post("/api/servers/alpha/doctor/internet")[0] == 200
         assert reach.read_state(d.m.config.state_dir)["port_test"]["ok"] is True
     else:  # (switched on by hand in hub.json, say: checked again before the server starts)
+        configmod.set_value(d.m.config.path, "reach", "way", json.dumps("forward"))
+        d.m.reload_config()
         upnp_on(hub)
         hub.before_start(d)
     assert props(d)["white-list"] == "true"
+
+
+@pytest.mark.parametrize("way", ["home", ""])
+def test_router_upnp_doesnt_make_a_home_only_server_reachable(hub_env, way):
+    """Router (UPnP) forwards only servers set to Open a port on my router (#201)."""
+    hub, c = hub_env
+    d = hub.get("alpha")
+    if way:
+        configmod.set_value(d.m.config.path, "reach", "way", json.dumps(way))
+        d.m.reload_config()
+    upnp_on(hub)
+    assert hub.why_reachable(d) == []
+    hub.before_start(d)
+    assert props(d)["white-list"] == "false"
 
 
 def test_servers_from_before_this_are_left_as_they_are(hub_env):
