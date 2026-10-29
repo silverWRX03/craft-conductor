@@ -872,6 +872,13 @@
       "tester": "owner + Claude",
       "notes": "Release exe v0.30.3, Chrome on Windows 11, Modern look. Servers page with 3 servers, guided setup checklist open (3/6, step 4 expanded). Window 1500x750 (page 1978x798 CSS px) and narrow 1000x750 (1312x798): the page leaves a column for the checklist, cards wrap (3 then 2 per row); every page button (26) scrolled into view is unobstructed (elementFromPoint), none under the checklist; + New single-player game clicked and opened its form. Small: on that form's right-hand intro text the checklist covers part of the text (no buttons).",
       "evidence": ""
+    },
+    "818": {
+      "status": "fail",
+      "tested_at": "2026-10-29T00:05:17+00:00",
+      "tester": "owner + Claude",
+      "notes": "Release exe v0.30.3, Windows 11 Narrator in Chrome, Modern look, 3 servers; owner listened, Claude checked every page's accessibility tree. Works: page titles, one page heading per page, named buttons/boxes almost everywhere, clear keyboard outline, 'starting server' announced. Fails: on Your servers the card buttons are just Start/Open/Delete/Folder with no server name (can't tell servers apart); 'running' is announced again on every status refresh; Players' Player name/Reason boxes are placeholder-only, Java's version box has no name, Console has no page heading. #217",
+      "evidence": ""
     }
   },
   "notes": "Release exe v0.30.3 (SHA256SUMS checked), fresh isolated home. Release gates, the 0.30.2/0.30.3 fix retests on the release build, and the three 0.30.1 failures."
