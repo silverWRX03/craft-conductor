@@ -27,7 +27,9 @@ const assert = require('node:assert/strict');
   await until('running');
   await enabled('#btn-restart');
   await page.locator('#btn-restart').dblclick();
+  // nobody is connected, so Restart doesn't ask to warn them first (#205)
   await page.waitForTimeout(1500);
+  assert.equal(await page.getByRole('alertdialog').count(), 0);
   await until('running');
   await enabled('#btn-stop');
   await page.locator('#btn-stop').dblclick();

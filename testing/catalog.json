@@ -8735,5 +8735,21 @@
     "type": "Core",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 996,
+    "section": "Feature: Restart asks to warn players first (#205)",
+    "step": "With a friend connected, press Restart at the top of the server page. A pop-up asks 'Players online. Do you want to give them a minute warning and restart?' with Yes and No. No: nothing happens, the friend stays on. Yes: the friend sees 'Server restarting in 60 seconds' in chat, about a minute later 'Restarting now!', then the server restarts and they can rejoin.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 997,
+    "section": "Feature: Restart asks to warn players first (#205)",
+    "step": "With nobody connected, press Restart: it restarts straight away with no question.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]

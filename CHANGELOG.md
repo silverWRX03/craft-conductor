@@ -7,6 +7,7 @@ its fix will say which version it's in.
 ## 0.30.4 (not released yet)
 
 **Changed**
+- **Restart** with players on the server asks first: "Players online. Do you want to give them a minute warning and restart?" **Yes** tells them "Server restarting in 60 seconds" in game and restarts a minute later; **No** leaves the server running. With nobody on, it restarts straight away as before (#205).
 - The website's **Real-world testing** page has **All Tests Completed** in its **Test run** list: every test's latest result from all test runs, with the newest version it passed in, so what's still never been tried is easy to see. The Dad Test is on hold for now and no longer shown.
 - The website's **Product walkthrough** shows the video's thumbnail until you press it to play.
 

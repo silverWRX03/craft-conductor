@@ -1632,7 +1632,15 @@ $("#btn-stop").addEventListener("click", pressOnce(async () => {
   const here = ((hubInfo && hubInfo.servers) || []).find((s) => s.id === server);
   if (await confirmStop(here ? here.players : undefined)) await act(() => api("/api/server/stop", { method: "POST" }));
 }));
-$("#btn-restart").addEventListener("click", pressOnce(() => act(() => api("/api/server/restart", { method: "POST" }))));
+// With players on, it asks first: Yes warns them in game and restarts a minute later, No leaves the server
+// running (#205). Nobody on: straight away. (When the number isn't known yet, it asks.)
+$("#btn-restart").addEventListener("click", pressOnce(async () => {
+  const here = ((hubInfo && hubInfo.servers) || []).find((s) => s.id === server);
+  if (here && here.players === 0) return act(() => api("/api/server/restart", { method: "POST" }));
+  if (!(await ask("Players online. Do you want to give them a minute warning and restart?", { ok: "Yes", cancel: "No" }))) return;
+  await act(() => api("/api/server/restart", { method: "POST", body: { warn: true } }),
+    "The players were told \"Server restarting in 60 seconds\"");
+}));
 
 // -------------------------------------------------------------------- views
 const views = {};

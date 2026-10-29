@@ -33,6 +33,7 @@ EMPTY_RETRY = 300       # seconds between "is anyone online?" checks when waitin
 SELF_CHECK_INTERVAL = 24 * 3600
 MANUAL_WAIT = 12 * 3600  # how long setup waits for mods to be downloaded by hand
 MANUAL_POLL = 10         # seconds between looks in the manual-downloads folder while it waits
+RESTART_WARNING = 60     # seconds players are given when Restart is pressed with them on (and the owner agrees)
 
 
 # Which server the current thread is working for, so that with several servers in one
@@ -352,7 +353,13 @@ class Daemon:
         log.info("server stopped")
         return "stopped"
 
-    def restart_server(self) -> str:
+    def restart_server(self, warn: bool = False) -> str:
+        """``warn``: with players on, they're told in game and given a minute first (#205)."""
+        if warn and self.proc and self.proc.running and self.players:
+            self.proc.say(f"Server restarting in {RESTART_WARNING} seconds")
+            self.stop_requested.wait(RESTART_WARNING)  # (Craft Conductor closing stops it anyway)
+            if self.proc and self.proc.running:
+                self.proc.say("Restarting now!")
         self.stop_server()
         return self.start_server()
 

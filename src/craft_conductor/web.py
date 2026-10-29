@@ -3057,7 +3057,7 @@ class Api:
         post("/api/command", self.command)
         post("/api/server/start", lambda q, b: self._job("start", self.d.start_server))
         post("/api/server/stop", lambda q, b: self._job("stop", self.d.stop_server))
-        post("/api/server/restart", lambda q, b: self._job("restart", self.d.restart_server))
+        post("/api/server/restart", lambda q, b: self._job("restart", self.d.restart_server, bool((b or {}).get("warn"))))
         get("/api/updates", lambda q, b: {"check": self.d.last_check})
         get("/api/updates/readiness", self.readiness)
         get("/api/beta", self.betas)
