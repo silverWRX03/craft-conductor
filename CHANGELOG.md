@@ -10,6 +10,13 @@ its fix will say which version it's in.
 - The website's **Real-world testing** page has **All Tests Completed** in its **Test run** list: every test's latest result from all test runs, with the newest version it passed in, so what's still never been tried is easy to see. The Dad Test is on hold for now and no longer shown.
 - The website's **Product walkthrough** shows the video's thumbnail until you press it to play.
 
+**Fixed**
+- A map preview and a **Test these mods** run started at about the same time could pick the same temporary port; the test then failed with no reason given, as if the mods didn't work together. Each gets its own port now (#163).
+- On **New server**, a port you typed went back to the suggested one when you went to another page and came back, while the name and other choices were kept. It's kept now (#195).
+- A friend whose Craft Conductor was still open got the old mod list when they opened the same invite link again, and wasn't told when the owner had paused the links to fix the mods. Opening the link again asks the server again (#210).
+- After an update that failed and put the previous version back, `craft-conductor-windows-x64.failed.exe` stayed in Craft Conductor's folder for good. It's removed when Craft Conductor next starts (#193).
+- A mod file of your own that only runs on players' computers was said to have "crashed while loading, check for an update". The Dashboard now says it only runs on players' computers and offers **Move … to players' mods** (your own files in the friends' download) or **Switch … off** (#189).
+
 ## 0.30.3 (2026-10-25)
 
 **Fixed**

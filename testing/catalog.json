@@ -8511,5 +8511,45 @@
     "type": "Core",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 968,
+    "section": "Fix: map preview and mod test get their own ports (#163)",
+    "step": "Start a terrain map preview, and while it prepares start Mods -> Test these mods on another server. Both finish; the test's log doesn't show FAILED TO BIND TO PORT, and its result matches the mods tested alone.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 969,
+    "section": "Fix: New server keeps a typed port (#195)",
+    "step": "New server: type a name and port 25615, go to the Servers page, then back to New server. Port still says 25615 (and the name is kept).",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 970,
+    "section": "Fix: friend reopening the same invite sees changes (#210)",
+    "step": "Friend opens an invite and leaves the page open (or closes the tab, under 3 minutes). Owner breaks a players' mod so links pause. Friend opens the same link again: the page says to try again later. Owner fixes it: opening the link again shows the new mod list.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 971,
+    "section": "Fix: no .failed.exe left after a failed update (#193)",
+    "step": "Windows: make an update fail during install (old version put back), then update again so it works. Craft Conductor's folder has no craft-conductor-windows-x64.failed.exe (nor .old.exe) after it starts.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 972,
+    "section": "Fix: own client-only mod file explained (#189)",
+    "step": "Mods -> Add a mod file: a client-only mod jar Modrinth doesn't recognise. Start: Dashboard says it only runs on players' computers (no 'check for an update'), with Move ... to players' mods and Switch ... off. Move: it's in Friends -> players' mods (own files) and the server starts.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]

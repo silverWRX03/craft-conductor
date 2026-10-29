@@ -358,13 +358,21 @@ def old_binary(exe: Path) -> Path:
     return exe.with_name(exe.stem + ".old" + exe.suffix)
 
 
+def failed_binary(exe: Path) -> Path:
+    """Where putting the previous version back (rollback.restore) moves the version that failed."""
+    return exe.with_name(exe.stem + ".failed" + exe.suffix)
+
+
 def cleanup_after_update() -> None:
-    """Delete the previous executable that a Windows self-update left behind."""
+    """Delete the executables a Windows self-update left behind: the previous one after an update,
+    and the one that failed after the previous one was put back (#193)."""
     if frozen():
-        try:
-            old_binary(Path(sys.executable)).unlink(missing_ok=True)
-        except OSError:
-            pass
+        exe = Path(sys.executable)
+        for leftover in (old_binary(exe), failed_binary(exe)):
+            try:
+                leftover.unlink(missing_ok=True)
+            except OSError:  # (still running for a moment, or in use: next time)
+                pass
 
 
 def restart_argv() -> list[str]:
