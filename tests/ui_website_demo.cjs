@@ -76,8 +76,12 @@ async function open(browser, scenario, problems, label, viewport = { width: 1440
       assert.deepEqual(await f.evaluate(() => [...setupState.mods.keys()]), ['lithium']);
       await f.getByRole('checkbox', { name: /EULA/ }).check();
       await shot(page, `${name}-new-server-form`);
+      // (WebKit on CI now and then loses this click, with the form filled in and no message: pressed again then)
+      const made = async () => /#s\/family-survival\/(setup|dashboard|friends)/.test(await f.evaluate(() => location.hash));
       await f.getByRole('button', { name: 'Create my server', exact: true }).click();
-      await until(async () => /#s\/family-survival\/(setup|dashboard|friends)/.test(await f.evaluate(() => location.hash)), 'the new server');
+      if (!(await until(made, 'the new server', 5000).catch(() => false)) && /^#new$/.test(await f.evaluate(() => location.hash)))
+        await f.getByRole('button', { name: 'Create my server', exact: true }).click();
+      await until(made, 'the new server');
       await until(async () => !(await statusOf(f, 'family-survival')).setup_pending, 'the server is set up', 20000);
       await go(f, '#s/family-survival/dashboard');
       await shot(page, `${name}-new-server-made`);
