@@ -93,6 +93,24 @@ def test_the_restarted_download_unpacks_itself_again(monkeypatch):
     assert started[0][0][1:] == ["start"] and started[0][1]["PYINSTALLER_RESET_ENVIRONMENT"] == "1" and ended == [0]
 
 
+def test_the_guard_is_told_which_process_the_restart_started(tmp_path, monkeypatch):
+    """#194: so a new copy that dies before it's up is noticed at once."""
+    from types import SimpleNamespace
+    from craft_conductor import rollback
+    state = tmp_path / "state"
+    rollback.write_pending(state, "0.24.0", "9.9.9", ["x"], pid=1)
+    monkeypatch.setattr(selfupdate, "_GUARDED_STATE", state)
+    monkeypatch.setattr(selfupdate, "WINDOWS", True)
+    monkeypatch.setattr(selfupdate.subprocess, "Popen", lambda argv, env: SimpleNamespace(pid=4242))
+    monkeypatch.setattr(selfupdate.os, "_exit", lambda code: None)
+    selfupdate.restart()
+    assert rollback._new_copy(state) == 4242 and rollback.pending(state)["restart_at"]
+    monkeypatch.setattr(selfupdate, "WINDOWS", False)
+    monkeypatch.setattr(selfupdate.os, "execve", lambda *a: None)
+    selfupdate.restart()
+    assert rollback._new_copy(state) == os.getpid()  # (exec keeps the process's number)
+
+
 def test_no_arguments_means_start(monkeypatch):
     called = []
     monkeypatch.setattr(cli, "cmd_start", lambda args: called.append(args.command) or 0)
