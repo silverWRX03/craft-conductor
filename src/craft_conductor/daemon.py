@@ -33,6 +33,7 @@ EMPTY_RETRY = 300       # seconds between "is anyone online?" checks when waitin
 SELF_CHECK_INTERVAL = 24 * 3600
 MANUAL_WAIT = 12 * 3600  # how long setup waits for mods to be downloaded by hand
 MANUAL_POLL = 10         # seconds between looks in the manual-downloads folder while it waits
+RESTART_WARNING = 60     # seconds players are given when Restart is pressed with them on (and the owner agrees)
 
 
 # Which server the current thread is working for, so that with several servers in one
@@ -179,6 +180,8 @@ class Daemon:
         self.hub_managed = hub_managed
         self.proc: ServerProcess | None = None
         self.stop_requested = threading.Event()
+        #: set while a restart gives players their minute (#205): Stop sets it, and the server stops instead
+        self.restart_warning: threading.Event | None = None
         self.exit_code = 0
         self.crashes: deque[float] = deque()
         self.next_check = 0.0
@@ -352,9 +355,38 @@ class Daemon:
         log.info("server stopped")
         return "stopped"
 
-    def restart_server(self) -> str:
+    def restart_server(self, warn: bool = False) -> str:
+        """``warn``: with players on, they're told in game and given a minute first (#205). Stop pressed
+        meanwhile stops the server instead; Craft Conductor closing meanwhile stops it as it closes."""
+        if warn and self.proc and self.proc.running and self.players:
+            self.proc.say(f"Server restarting in {RESTART_WARNING} seconds")
+            self.restart_warning = called_off = threading.Event()
+            if self.job:
+                self.job["can_stop"] = True  # (the page keeps Stop pressable)
+            try:
+                end = time.monotonic() + RESTART_WARNING
+                while not (called_off.is_set() or self.stop_requested.is_set()) and time.monotonic() < end:
+                    called_off.wait(min(1.0, end - time.monotonic()))
+            finally:
+                self.restart_warning = None
+                if self.job:
+                    self.job.pop("can_stop", None)
+            if self.stop_requested.is_set():
+                return "not restarted: Craft Conductor is closing"
+            if called_off.is_set():
+                return self.stop_server()
+            if self.proc and self.proc.running:
+                self.proc.say("Restarting now!")
         self.stop_server()
         return self.start_server()
+
+    def call_off_restart(self) -> bool:
+        """Stop pressed while a restart warns players: it stops instead of restarting (True)."""
+        waiting = self.restart_warning
+        if waiting is None:
+            return False
+        waiting.set()
+        return True
 
     def backup_now(self, label: str = "manual") -> str:
         """A backup of the server folder, taken safely while it runs (saving paused), then pruned
