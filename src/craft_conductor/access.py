@@ -382,7 +382,7 @@ PROPERTY_NEEDS: dict[str, tuple[str, ...]] = {
 }
 PROBLEM_NEEDS: dict[str, str] = {
     "dismiss": "server.power", "memory-up": "runtime.configure", "java-auto": "runtime.configure",
-    "add-mod": "mods.manage", "remove-mod": "mods.manage", "disable-jar": "mods.manage", "players-only": "mods.manage",
+    "add-mod": "mods.manage", "remove-mod": "mods.manage", "disable-jar": "mods.manage", "players-only": "mods.manage", "jar-to-players": "mods.manage",
 }
 
 

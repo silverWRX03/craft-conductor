@@ -101,7 +101,8 @@ def restore(backup: Path) -> str:
             shutil.copy2(prev / exe.name, tmp)
             tmp.chmod(0o755)
             if os.name == "nt":  # (a running program can be renamed out of the way, not overwritten)
-                failed = exe.with_name(exe.stem + ".failed" + exe.suffix)
+                from .selfupdate import failed_binary
+                failed = failed_binary(exe)  # (removed when Craft Conductor next starts: cleanup_after_update)
                 failed.unlink(missing_ok=True)
                 if exe.exists():
                     exe.rename(failed)

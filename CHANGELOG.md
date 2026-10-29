@@ -17,6 +17,11 @@ its fix will say which version it's in.
 - Making a server from a big CurseForge modpack (All the Mods 11) ignored the pack's server pack again ("couldn't read … server pack"), so which mods are only for players was guessed from Modrinth. CurseForge's download site changed how it answers; the server pack's list is read again (#191).
 - Updating a modpack could be refused with "MixinExtras 0.3.5 is the one there" when one mod carries an old copy of MixinExtras, though Fabric Loader brings a newer one and uses it. The newer copy counts now (#192).
 - After a failed start, the Dashboard kept saying "The server didn't start" once the server had started, if that start installed a mod change first. The message goes as soon as the server is up (#188).
+- A map preview and a **Test these mods** run started at about the same time could pick the same temporary port; the test then failed with no reason given, as if the mods didn't work together. Each gets its own port now (#163).
+- On **New server**, a port you typed went back to the suggested one when you went to another page and came back, while the name and other choices were kept. It's kept now (#195).
+- A friend whose Craft Conductor was still open got the old mod list when they opened the same invite link again, and wasn't told when the owner had paused the links to fix the mods. Opening the link again asks the server again (#210).
+- After an update that failed and put the previous version back, `craft-conductor-windows-x64.failed.exe` stayed in Craft Conductor's folder for good. It's removed when Craft Conductor next starts (#193).
+- A mod file of your own that only runs on players' computers was said to have "crashed while loading, check for an update". The Dashboard now says it only runs on players' computers and offers **Move … to players' mods** (your own files in the friends' download) or **Switch … off** (#189).
 
 ## 0.30.3 (2026-10-25)
 

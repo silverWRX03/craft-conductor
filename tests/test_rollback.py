@@ -321,3 +321,19 @@ def test_the_saved_reason_of_a_failed_start_says_why():
         "server did not finish starting. Sodium is client-only: last line"
     assert failure_reason(UpgradeError("Update failed: no space")) == "Update failed: no space"
     assert failure_reason(RuntimeError("")) == "RuntimeError('')"
+
+
+def test_the_copy_that_failed_is_removed_at_the_next_start(tmp_path, monkeypatch):
+    """On Windows, putting the previous version back moves the one that failed aside as
+    ….failed.exe; like ….old.exe after an update that worked, it goes when Craft Conductor next
+    starts (#193)."""
+    exe = tmp_path / "craft-conductor-windows-x64.exe"
+    exe.write_bytes(b"the version put back")
+    failed, old = selfupdate.failed_binary(exe), selfupdate.old_binary(exe)
+    failed.write_bytes(b"the version that failed")
+    old.write_bytes(b"the one before")
+    assert failed.name == "craft-conductor-windows-x64.failed.exe"
+    monkeypatch.setattr(selfupdate, "frozen", lambda: True)
+    monkeypatch.setattr(sys, "executable", str(exe))
+    selfupdate.cleanup_after_update()
+    assert exe.exists() and not failed.exists() and not old.exists()

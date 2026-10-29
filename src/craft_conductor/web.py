@@ -4628,6 +4628,16 @@ class Api:
                 message = self.m.set_jar(action["filename"], "disable")
             except UpgradeError as e:
                 raise ApiError(400, str(e)) from None
+        elif kind == "jar-to-players":  # (a file of your own: it goes to the friends' own files)
+            from .clientpack import JAR_NAME, client_dir
+            name = action["filename"]
+            if not JAR_NAME.fullmatch(name) or name not in self.m.unmanaged_jars():
+                raise ApiError(409, f"there's no {name} of your own in the mods folder any more")
+            folder = client_dir(self.m.config)
+            folder.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(self.m.mods_dir / name), str(folder / name))
+            log.info("moved %s from the server's mods to players' mods", name)
+            message = f"{action['name']} is off the server and in your friends' download (Friends → players' mods)"
         else:  # backups: the page opens them
             return {"ok": True, "message": ""}
         self.d.problem = {**problem, "fixed": message}

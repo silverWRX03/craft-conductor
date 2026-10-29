@@ -147,6 +147,10 @@ class Hub:
         self.gallery = None  # the last seed gallery (preview.Gallery)
         self.map_session = None  # the last previewed world, to explore (preview.MapSession)
         self._upnp_lock = threading.Lock()
+        #: ports lent to throwaway servers (a mod test, a map preview) until they're released, or for
+        #: HOLD_PORT seconds: picked long before Java binds them, two at once could get the same (#163)
+        self._held_ports: dict[int, float] = {}
+        self._held_lock = threading.Lock()
         self._upnp_status: dict | None = None
         self._gateway, self._gateway_at = None, 0.0
         self.join_requests: dict[str, list[dict]] = {}  # friends asking to be let in, by server
@@ -702,12 +706,25 @@ class Hub:
                     pass
         return out
 
-    def free_port(self, start: int = 25565) -> int:
-        taken = self.ports()
-        port = start
-        while port in taken or port in self.reserved_ports() or not port_free(port):
-            port += 1
+    HOLD_PORT = 30 * 60
+
+    def free_port(self, start: int = 25565, hold: bool = False) -> int:
+        """The first port from ``start`` nobody uses. With ``hold``, it's lent (to a throwaway server)
+        and not given out again until :meth:`release_port`, or HOLD_PORT seconds."""
+        taken, reserved = self.ports(), self.reserved_ports()
+        with self._held_lock:
+            now = time.monotonic()
+            self._held_ports = {p: until for p, until in self._held_ports.items() if until > now}
+            port = start
+            while port in taken or port in reserved or port in self._held_ports or not port_free(port):
+                port += 1
+            if hold:
+                self._held_ports[port] = now + self.HOLD_PORT
         return port
+
+    def release_port(self, port: int) -> None:
+        with self._held_lock:
+            self._held_ports.pop(port, None)
 
     def reserved_ports(self) -> set[int]:
         """Ports craft-conductor itself listens on (the control panel, the tunnels' ways in to it, and

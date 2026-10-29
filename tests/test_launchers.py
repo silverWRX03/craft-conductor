@@ -237,3 +237,20 @@ def test_servers_joined_before_say_when_they_changed(tmp_path, http):
     assert s["changed"] is True and s["minecraft"] == "1.21.1"
     del http.json[url]  # away
     assert ui.check_remembered()[0]["error"]
+
+
+def test_the_same_invite_opened_again_asks_for_the_mods_again(tmp_path, http):
+    """The friend's Craft Conductor is still open and the same link is opened again: the server is
+    asked again, so the owner's changes (or "try again later" while they fix the mods) show (#210)."""
+    invite = join.Invite("mc.example.com", 8766, "A" * 24, "F" * 43)
+    url = "https://mc.example.com:8766/join/" + "A" * 24 + "/pack.json"
+    http.json[url] = pack(mods=mods())
+    ui = joinui.JoinUI(invite, mc_dir=tmp_path / ".minecraft", http=http)
+    ui.open_browser = lambda link: None
+    ui.load_pack()
+    assert [m["name"] for m in ui.pack["mods"]] == ["A", "C"]
+    from craft_conductor.http import HttpError
+    http.json[url] = HttpError(url, 423, "HTTP 423")  # (the owner broke the friends' mods: links paused)
+    ui.reopen(invite.code)
+    ui.load_pack()
+    assert ui.pack is None and "Try again later" in ui.pack_error

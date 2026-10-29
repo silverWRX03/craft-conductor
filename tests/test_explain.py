@@ -85,3 +85,34 @@ def test_a_start_that_updates_first_clears_the_old_failed_start(hub_env, monkeyp
         assert d.problem is None
     finally:
         d.stop_server()
+def test_a_file_of_your_own_that_only_runs_on_players_computers(tmp_path):
+    """A mod file of your own (not one Craft Conductor manages) reaching for the parts of Minecraft
+    only players have: said so, no "check for an update", and offered to players' mods (#189)."""
+    mods = tmp_path / "mods"
+    mods.mkdir()
+    (mods / "controlify-3.5.3.jar").write_bytes(b"PK")
+    lines = ["java.lang.NoClassDefFoundError: net/minecraft/client/gui/screens/Screen",
+             "\tat dev.isxander.controlify.Controlify.init(Controlify.java:3) [controlify-3.5.3.jar:?]"]
+    e = explain.explain(lines, tmp_path, [])
+    assert e["cause"] == "players-only" and "only runs on players' computers" in e["title"], e
+    assert "update" in e["words"] and "won't change" in e["words"]
+    assert [a["kind"] for a in e["actions"]] == ["jar-to-players", "disable-jar"]
+    assert e["actions"][0]["filename"] == "controlify-3.5.3.jar"
+
+
+def test_moving_a_file_of_your_own_to_players_mods(hub_env):
+    hub, c = hub_env
+    login(c)
+    d = hub.get("alpha")
+    mods = d.m.server_dir / "mods"
+    mods.mkdir(exist_ok=True)
+    (mods / "controlify-3.5.3.jar").write_bytes(b"PK")
+    d.problem = {"kind": "start", "cause": "players-only", "time": 0,
+                 "actions": [{"kind": "jar-to-players", "filename": "controlify-3.5.3.jar", "name": "controlify",
+                              "label": "Move controlify to players' mods"}]}
+    status, r, _ = c.post("/api/servers/alpha/problem/fix", {"kind": "jar-to-players", "filename": "controlify-3.5.3.jar"})
+    assert status == 200 and "friends' download" in r["message"], r
+    from craft_conductor.clientpack import local_jars
+    assert not (mods / "controlify-3.5.3.jar").exists()
+    assert [p.name for p in local_jars(d.m.config)] == ["controlify-3.5.3.jar"]
+    assert c.post("/api/servers/alpha/problem/fix", {"kind": "jar-to-players", "filename": "controlify-3.5.3.jar"})[0] == 409
