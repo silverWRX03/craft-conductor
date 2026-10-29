@@ -4,7 +4,7 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
-## 0.30.4 (not released yet)
+## 0.30.4 (2026-10-29)
 
 **Changed**
 - **Restart** with players on the server asks first: "Players online. Do you want to give them a minute warning and restart?" **Yes** tells them "Server restarting in 60 seconds" in game and restarts a minute later (**Stop** during that minute stops the server instead); **No** leaves the server running. With nobody on, it restarts straight away as before (#205).
