@@ -24,6 +24,10 @@ async function dismissOffers(f) {  // (the guided setup's offer and the like, wh
 async function settle(f) {
   for (let i = 0; i < 4 && await f.locator('.modal-backdrop').count(); i++) await f.locator('.modal-backdrop').last().press('Escape').catch(() => null);
 }
+// The existing server's friends join, leave and ask to join at random moments (to look alive for a
+// visitor). The steps below check exact players and requests, so they'd pass or fail with the timing:
+// those visits are turned off for the test (a time far away, not Infinity: the demo saves its state as JSON).
+const quiet = (f) => f.evaluate(() => { const n = window.CCSim.state.next; n.join = 1e15; n.request = null; });
 // Stop: the panel asks only when players are connected.
 async function stopServer(f) {
   await f.locator('#btn-stop').click();
@@ -113,6 +117,7 @@ async function open(browser, scenario, problems, label, viewport = { width: 1440
     const { page } = existing;
     t.page = page;
     let f = existing.f;
+    await quiet(f);
     const S = 'family-survival';
     const players = () => f.evaluate(async () => (await fetch('/api/servers/family-survival/players')).json());
     const api = (path, body) => f.evaluate(async ([path, body]) => {
@@ -372,6 +377,7 @@ async function open(browser, scenario, problems, label, viewport = { width: 1440
       await page.waitForTimeout(1200);  // (the demo is saved by the page a moment after a change)
       await page.reload();
       f = await demoFrame(page);
+      await quiet(f);
       assert.equal((await api('/api/servers/family-survival/settings')).body.check_interval, '12h', 'still 12h after a reload');
       assert.equal(await f.evaluate(() => document.documentElement.dataset.theme), theme, "the panel's own choice is kept too");
       const stored = await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('craft-conductor-demo:')));
