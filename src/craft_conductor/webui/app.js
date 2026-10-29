@@ -323,13 +323,33 @@ function askText(message, { ok = "OK", cancel = "Cancel", maxLength = 256 } = {}
 
 // Everyday messages ("Saved", errors): at the top of the screen, where they're noticed, without
 // getting in the way. Click one to dismiss it; errors stay longer.
-function toast(message, bad = false, ms = 0) {
+// A pop-up stays short: no Java stack trace ("at net.neoforged…" lines), a few lines at most; the whole
+// message is kept in the bell (#204).
+const TOAST_LINES = 3, TOAST_CHARS = 300;
+function toastText(message) {
+  const lines = String(message ?? "").split(/\r?\n/).map((l) => l.trimEnd())
+    .filter((l) => l.trim() && !/^\s*(at |\.\.\. \d+ more|Caused by: |Suppressed: )/.test(l));
+  let text = lines.slice(0, TOAST_LINES).join("\n");
+  if (text.length > TOAST_CHARS) text = text.slice(0, TOAST_CHARS - 1).trimEnd() + "…";
+  return text || String(message ?? "");
+}
+function toast(message, bad = false, ms = 0, note = {}) {
+  const full = String(message ?? ""), short = toastText(full);
   const el = h("div", { class: "toast" + (bad ? " bad" : ""), role: bad ? "alert" : "status", title: "Click to dismiss",
-    onclick: () => el.remove() }, h("span", { class: "toast-icon", "aria-hidden": "true" }, bad ? "⚠" : "✓"), h("span", {}, t(message)));
+    onclick: () => el.remove() }, h("span", { class: "toast-icon", "aria-hidden": "true" }, bad ? "⚠" : "✓"), h("span", {}, t(short)));
   $("#toasts").append(el);
   setTimeout(() => el.remove(), ms || (bad ? 12000 : 5000));
   if (bad) playSound("problem");
-  bellNote(message, { bad });
+  bellNote(short, { bad, more: short !== full ? full : "", ...note });
+}
+// What Craft Conductor put right when it was stopped half-way (a roll back, an update, Replace the world):
+// said once, so it's in the bell, not only in the server's Activity (#200).
+function noteRecovered(list) {
+  for (const r of list || []) {
+    const key = `recovered:${r.sid}:${r.time}`;
+    if (bell.items.some((x) => x.key === key) || bellPending.some((x) => x.key === key)) continue;
+    toast(r.message, true, 0, { key, sid: r.sid });
+  }
 }
 
 // ------------------------------------------------------------------ the bell
@@ -1511,6 +1531,7 @@ async function refreshStatus() {
   }
   const hb = hubInfo;
   bellSignedIn(hb);
+  noteRecovered(hb.recovered);
   styleSignedIn(hb);
   chimeFor(hb.servers);
   $("#version").textContent = "v" + hb.version + " beta";
@@ -1572,6 +1593,12 @@ async function refreshStatus() {
 // (limits.py) Asks when it doesn't; the server still starts if the person says so.
 async function memoryOkToStart(sid, name) {
   const plan = await api(`/api/hub/memory?adding=${encodeURIComponent(sid)}`).catch(() => null);
+  if (plan && plan.fits && plan.fits_free === false) {  // (other programs use much of it now, #187)
+    return ask(t("Start {name}? It would be given {gb} GB of memory, and only {free} GB is free on this computer now: other programs use the rest.")
+      .replace("{name}", name).replace("{gb}", plan.adding_gb).replace("{free}", plan.available_gb)
+      + "\n\n" + t("It may slow right down, or Windows may fill the disk making room. Close other programs, or give the server less memory (Settings → Memory)."),
+    { ok: "Start anyway", id: "memory-start" });
+  }
   if (!plan || plan.fits || !plan.total_gb) return true;
   return ask(t("Start {name}? The servers would be given {after} GB of memory, and this computer has {total} GB.")
     .replace("{name}", name).replace("{after}", plan.after_gb).replace("{total}", plan.total_gb)
@@ -6089,7 +6116,7 @@ function routerHelp(opts = {}) {
       "The menus and names above are typical, not exact. If you can't find the setting, check your router's manual or its maker's support site ",
       "(search for your router's model and “port forwarding”), or ask your internet provider. Some providers share one public address between ",
       "customers (called CGNAT); port forwarding can't work then, and they may give you your own address if you ask."),
-    h("p", { class: "muted small" }, "Only forward the ports above. Never forward the control panel's port (8765): to manage Craft Conductor from elsewhere, use ",
+    h("p", { class: "muted small" }, `Only forward the ports above. Never forward the control panel's port (${location.port || (location.protocol === "https:" ? 443 : 80)}): to manage Craft Conductor from elsewhere, use `,
       h("button", { type: "button", class: "link-btn", onclick: openRemoteAccess }, "Remote access & phones"), " instead."));
 }
 
@@ -6436,7 +6463,7 @@ function openRemoteAccess({ setup = currentName === "new" || currentName === "se
         : ["Apply this change without closing Craft Conductor. Your servers and work stay open. ",
           h("button", { class: "btn small", onclick: async () => { await act(() => api("/api/hub/network/apply", { method: "POST" })); load(); } }, "Apply remote access")]) : null;
     // 3. away from home: Tailscale, or Cloudflare's quick tunnel for a few hours
-    const away = [outsideChooser(r.strong)];
+    const away = [outsideChooser(r.strong, load)];  // (Use Tailscale changes the pairing addresses below too, #213)
     // HTTPS (optional)
     const cert = h("input", { value: r.tls_cert || "", placeholder: "Certificate file (.crt / .pem)", "aria-label": "Certificate file" });
     const key = h("input", { value: r.tls_key || "", placeholder: "Key file (.key / .pem)", "aria-label": "Key file" });
@@ -8136,7 +8163,8 @@ const OUTSIDE_TEXT = {
   cloudflare: "Anyone on the internet who has the address can reach the sign-in page, for a few hours. Free, and no account needed.",
   never: "Don't forward the control panel's port on your router, and never point a playit.gg tunnel at it: those put it on the internet with nothing to tell the visitors apart.",
 };
-function outsideChooser(strong) {
+// `changed`: after Use Tailscale or Stop, the dialog around it reloads (its pairing addresses change too).
+function outsideChooser(strong, changed = null) {
   const box = h("div", { class: "outside" });
   let ts = null, cf = null, funnelAllowed = false, pick = null, polls = 0, pollTimer = null;
   const out = h("div", { class: "mt-s" });
@@ -8162,9 +8190,9 @@ function outsideChooser(strong) {
       return;
     }
     toast(funnel ? "The control panel is on the internet at " + r.url : "Ready: your devices can open " + r.url);
-    load();
+    (changed || load)();
   };
-  const tailscaleStop = async () => { await act(() => api("/api/hub/phone/tailscale", { method: "POST", body: { on: false } }), "Stopped"); load(); };
+  const tailscaleStop = async () => { await act(() => api("/api/hub/phone/tailscale", { method: "POST", body: { on: false } }), "Stopped"); (changed || load)(); };
   const tailscalePart = () => {
     const recheck = h("button", { class: "link-btn", onclick: load }, "check again");
     if (!ts) return h("p", { class: "small muted" }, "Couldn't ask Tailscale.");
@@ -10010,9 +10038,13 @@ views.setup = () => {
         h("div", { class: "small muted mt-s" }, "You can close this page: Craft Conductor keeps going. Open Craft Conductor again and choose See progress on the server.")),
       manualBox,
       card("What's happening", events),
-      // While it installs: what friends outside your home will need (the lower part of the screen).
-      h("details", { class: "card mt router-help", open: true }, h("summary", {}, h("strong", {}, "While you wait: letting friends outside your home join")),
-        routerHelp({ port: (status && status.port) || st.port })));
+      // While it installs: what friends outside your home will need (the lower part of the screen), for the
+      // way chosen: the router's port forwarding, playit.gg's steps on the Friends page, or nothing (#196).
+      st.reach === "forward" ? h("details", { class: "card mt router-help", open: true }, h("summary", {}, h("strong", {}, "While you wait: letting friends outside your home join")),
+        routerHelp({ port: (status && status.port) || st.port }))
+        : st.reach === "playit" ? h("div", { class: "card mt" }, h("strong", {}, "While you wait: letting friends outside your home join"),
+          h("p", { class: "small" }, "You chose playit.gg: once the server is made, its Friends page walks you through it (get playit.gg's program, connect it, add a tunnel). No router settings needed."))
+        : null);
     fill(main, panel);
     let startedAt = null;  // only this setup's events, not an earlier attempt's
     every(1500, async () => {

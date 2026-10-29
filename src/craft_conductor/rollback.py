@@ -30,6 +30,8 @@ import time
 from importlib import metadata
 from pathlib import Path
 
+from .removal import rmtree
+
 log = logging.getLogger(__name__)
 
 PENDING = "self-update.json"        # an update whose new copy hasn't proven itself yet
@@ -68,7 +70,7 @@ def backup_dir(state_dir: Path) -> Path:
 def keep_previous(backup: Path, frozen: bool, exe: Path, version: str,
                   package: Path | None = None, dist_info: Path | None = None) -> None:
     """Copy what's running aside, before anything is replaced."""
-    shutil.rmtree(backup, ignore_errors=True)
+    rmtree(backup, ignore_errors=True)
     prev = backup / "previous"
     prev.mkdir(parents=True)
     plan: dict = {"kind": "binary" if frozen else "wheel", "version": version}
@@ -112,10 +114,10 @@ def restore(backup: Path) -> str:
             if package.name != "craft_conductor" or package.parent != site or not (prev / package.name / "__init__.py").is_file() \
                     or not re.fullmatch(r"craft_conductor-[0-9A-Za-z.+!]+\.dist-info", str(plan["dist_info"])):
                 raise RollbackError("the kept plan doesn't name the Craft Conductor package")
-            shutil.rmtree(package, ignore_errors=True)
+            rmtree(package, ignore_errors=True)
             shutil.copytree(prev / package.name, package)
             for stale in site.glob("craft_conductor-*.dist-info"):
-                shutil.rmtree(stale, ignore_errors=True)
+                rmtree(stale, ignore_errors=True)
             shutil.copytree(prev / plan["dist_info"], site / plan["dist_info"])
     except (OSError, KeyError) as e:
         raise RollbackError(f"couldn't put Craft Conductor {plan.get('version', '')} back ({e}); "
@@ -124,7 +126,7 @@ def restore(backup: Path) -> str:
 
 
 def forget(backup: Path) -> None:
-    shutil.rmtree(backup, ignore_errors=True)
+    rmtree(backup, ignore_errors=True)
 
 
 # ------------------------------------------------------------------ before restarting

@@ -23,6 +23,7 @@ from pathlib import Path
 
 from . import nbt, safearchive
 from .properties import read_properties
+from .removal import rmtree
 
 log = logging.getLogger(__name__)
 
@@ -153,7 +154,7 @@ def install(source: Path, dest: Path) -> dict:
     if dest.exists():
         raise WorldError(f"{dest} already exists")
     tmp = dest.with_name(f".{dest.name}.importing")
-    shutil.rmtree(tmp, ignore_errors=True)
+    rmtree(tmp, ignore_errors=True)
     try:
         if source.is_dir():
             if not (source / "level.dat").is_file() or (source / "level.dat").is_symlink():
@@ -184,7 +185,7 @@ def install(source: Path, dest: Path) -> dict:
                   " (the disk is full; nothing was changed)" if getattr(e, "errno", None) == errno.ENOSPC else "")
         raise
     finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+        rmtree(tmp, ignore_errors=True)
     log.info("imported the world %s%s", info.get("name") or dest.name,
              f" (last played on Minecraft {info['version']})" if info.get("version") else "")
     return info
@@ -194,7 +195,7 @@ def replace(source: Path, dest: Path) -> dict:
     """Swap the world at ``dest`` for another (the caller makes a backup first)."""
     old = dest.with_name(f".{dest.name}.replaced")
     recover(dest)
-    shutil.rmtree(old, ignore_errors=True)
+    rmtree(old, ignore_errors=True)
     if dest.exists():
         os.replace(dest, old)
     try:
@@ -203,7 +204,7 @@ def replace(source: Path, dest: Path) -> dict:
         if old.exists() and not dest.exists():
             os.replace(old, dest)  # put the old world back
         raise
-    shutil.rmtree(old, ignore_errors=True)
+    rmtree(old, ignore_errors=True)
     return info
 
 
@@ -219,7 +220,7 @@ def recover(dest: Path) -> bool:
         log.warning("putting the world %s back: replacing it was interrupted", dest.name)
         put_back = True
     if importing.is_dir() and dest.exists():
-        shutil.rmtree(importing, ignore_errors=True)
+        rmtree(importing, ignore_errors=True)
         log.warning("removed the half-imported world %s left by an import that was interrupted", importing.name)
     return put_back
 

@@ -41,5 +41,5 @@
   <text x="237" y="231" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">Save</text>
   <text x="192" y="264" font-size="12" fill="#5a6776">Use this computer's own address and the ports craft-conductor shows you.</text>
   <text x="192" y="281" font-size="12" fill="#5a6776">The second rule is only for friends' downloads over the internet.</text>
-  <text x="192" y="298" font-size="12" fill="#5a6776">Never forward the control panel's port (8765).</text>
+  <text x="192" y="298" font-size="12" fill="#5a6776">Never forward the control panel's port.</text>
 </svg>

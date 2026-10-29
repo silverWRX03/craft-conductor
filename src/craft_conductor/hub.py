@@ -30,6 +30,7 @@ from .http import HttpClient
 from .clientpack import client_dir
 from .loaders import mods_folder
 from .manager import Manager
+from .removal import rmtree
 
 log = logging.getLogger(__name__)
 
@@ -68,20 +69,6 @@ def running_hub(home: Path) -> int | None:
     except (FileNotFoundError, ValueError):
         return None
     return pid if pid != os.getpid() and pid_alive(pid) else None
-
-
-def _rmtree(path: Path) -> None:
-    """Delete a folder, including read-only files (Windows marks some that way)."""
-    import shutil
-    import stat
-
-    def retry(func, p, _exc):
-        os.chmod(p, stat.S_IWRITE)
-        func(p)
-    if sys.version_info >= (3, 12):
-        shutil.rmtree(path, onexc=retry)
-    else:
-        shutil.rmtree(path, onerror=retry)
 
 
 def receive(handler, dest: Path, max_bytes: int) -> Path:
@@ -916,6 +903,11 @@ class Hub:
         plan = limits.memory_fits([gb(d) for d in running.values()], gb(extra) if extra else 0.0, total)
         plan["running"] = [{"id": sid, "gb": round(gb(d), 1)} for sid, d in running.items()]
         plan["adding_gb"] = round(gb(extra), 1) if extra else 0.0
+        # What's free now: other programs (a browser, a game) use memory the total doesn't say about (#187).
+        from .health import memory_available_gb
+        free = memory_available_gb()
+        plan["available_gb"] = round(free, 1) if free is not None else None
+        plan["fits_free"] = free is None or not extra or plan["adding_gb"] <= free - limits.FREE_MARGIN_GB
         return plan
 
     def check_memory(self, daemon: Daemon) -> None:
@@ -928,6 +920,9 @@ class Hub:
         if not plan["fits"]:
             log.warning("the running servers are given %.1f GB of memory with this one, and this computer has %.1f GB: "
                         "it may slow down or a server may crash; give them less memory, or stop one", plan["after_gb"], plan["total_gb"])
+        elif not plan["fits_free"]:
+            log.warning("this server is given %.1f GB of memory, and only %.1f GB is free on this computer now (other programs "
+                        "use the rest): it may slow down, or Windows may fill the disk making room", plan["adding_gb"], plan["available_gb"])
 
     @property
     def staging_dir(self) -> Path:
@@ -948,7 +943,7 @@ class Hub:
         if self.staging_dir.is_dir():
             for old in self.staging_dir.iterdir():
                 if old.stat().st_mtime < cutoff:
-                    shutil.rmtree(old, ignore_errors=True)
+                    rmtree(old, ignore_errors=True)
         sid = secrets.token_hex(8)
         dest = self.staging_dir / sid / filename
         receive(handler, dest, max_bytes)
@@ -1016,7 +1011,7 @@ class Hub:
                 mods_dir.mkdir(parents=True, exist_ok=True)
                 shutil.move(str(f), mods_dir / f.name)
                 moved += 1
-            shutil.rmtree(folder, ignore_errors=True)
+            rmtree(folder, ignore_errors=True)
         return moved
 
     def create(self, spec: setupmod.SetupSpec) -> str:
@@ -1219,7 +1214,8 @@ class Hub:
         warnings: list[str] = []
         for kind in locmod.KINDS:
             if kind in wanted and new[kind] is not None:
-                new[kind], w = locmod.check_place(kind, str(new[kind]), new, self.state_dir)
+                staying = current[kind] is not None and locmod._norm(new[kind]) == locmod._norm(current[kind])
+                new[kind], w = locmod.check_place(kind, str(new[kind]), new, self.state_dir, staying=staying)
                 warnings += w
 
         def same(a, b) -> bool:
@@ -1411,7 +1407,7 @@ class Hub:
             sid, manifest = self.import_archive(found[0], password=password, skip_locked=skip_locked)
         except transfer.NeedsPassword as e:
             return {"needs_password": True, "locked": e.locked}
-        shutil.rmtree(self.staging_dir / stage_id, ignore_errors=True)
+        rmtree(self.staging_dir / stage_id, ignore_errors=True)
         left_out = manifest.get("left_out")
         return {"id": sid, "left_out": [str(x) for x in left_out] if isinstance(left_out, list) else [],
                 "opened": list(manifest.get("opened") or [])}
@@ -1543,9 +1539,9 @@ class Hub:
             from . import locations as locmod
             loc = self.backups_location
             if loc is not None and locmod.inside(cfg.backups.dir, loc / sid) and cfg.backups.dir.is_dir():
-                _rmtree(cfg.backups.dir)  # (its backups, in the folder chosen for backups)
+                rmtree(cfg.backups.dir)  # (its backups, in the folder chosen for backups)
             if root.parent == self.servers_dir:
-                _rmtree(root)  # craft-conductor's own folder for this server
+                rmtree(root)  # craft-conductor's own folder for this server
             else:
                 # A folder craft-conductor doesn't own (the home folder, or one you pointed it at): delete
                 # only what belongs to the server, and leave anything else there alone.
@@ -1559,7 +1555,7 @@ class Hub:
                     if p == store or p in store.parents:
                         continue  # nor the shared Java folder
                     if p.is_dir():
-                        _rmtree(p)
+                        rmtree(p)
                     else:
                         p.unlink()
                 if root == self.home:

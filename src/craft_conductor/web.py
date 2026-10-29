@@ -54,6 +54,7 @@ from .mods.modrinth import ModrinthProvider, keep_buildable
 from .planner import DATAPACK_LOADERS, lowest
 from .players import PlayerError, Players, broadcast_text
 from .properties import read_properties, server_name, write_properties
+from .removal import rmtree
 from .skins import SkinError, Skins
 
 log = logging.getLogger(__name__)
@@ -118,6 +119,24 @@ PROXY_HEADERS = ("X-Forwarded-For", "Forwarded", "X-Real-IP", "X-Forwarded-Host"
 # The forgotten-password reset's code (in Craft Conductor's own folder: WebUI.new_reset_code).
 RESET_FILE = "craft-conductor-reset-code.txt"
 SERVER_PATH = re.compile(r"^/api/servers/([a-z0-9][a-z0-9-]{0,63})(/.*)$")
+
+
+#: What an invited person's player action did, in the activity (#209); {name} is who it was done to.
+DID = {"kick": "kicked {name}", "ban": "banned {name}", "pardon": "unbanned {name}", "ban-ip": "banned the IP address of {name}",
+       "pardon-ip": "unbanned the IP address {name}", "op": "made {name} an operator", "deop": "took {name}'s operator role away",
+       "whitelist-add": "added {name} to the whitelist", "whitelist-remove": "removed {name} from the whitelist",
+       "whitelist-on": "turned the whitelist on", "whitelist-off": "turned the whitelist off"}
+
+
+def did(path: str, body: dict) -> str:
+    """An invited person's request in the activity's plain words: "kicked Steve", not "players/action"."""
+    def clean(value, n=60):  # (text they typed: one line, short)
+        return re.sub(r"[\x00-\x1f\x7f]", " ", str(value or "")).strip()[:n]
+    if path == "/api/players/action" and str(body.get("action")) in DID:
+        return DID[str(body.get("action"))].format(name=clean(body.get("name"), 40) or "a player")
+    if path == "/api/broadcast":
+        return f'broadcast "{clean(body.get("message"), 100)}"'
+    return path.removeprefix("/api/")
 
 
 @functools.lru_cache(maxsize=None)
@@ -997,12 +1016,12 @@ class RequestHandler(BaseHTTPRequestHandler):
                 raise ApiError(403, "that only works in a browser on the server's own computer")
             api = self.web.api_for(sid)
             set_current_server(api.d.server_id)  # so this server's activity feed shows what happens
-            if not subject.is_owner and method == "POST":
-                log.info("%s%s: %s", subject.name, f" (phone {subject.device_name})" if subject.device else "",
-                         path.removeprefix("/api/"))
             handler = api.routes.get((method, path))
             if handler is None:
                 raise ApiError(404, "not found")
+            who = "" if subject.is_owner or method != "POST" else                 subject.name + (f" (phone {subject.device_name})" if subject.device else "")
+            if who and (path == "/api/manual/upload" or path in RAW_UPLOADS):
+                log.info("%s: %s", who, path.removeprefix("/api/"))
             if path == "/api/manual/upload":
                 return self._json(200, api.upload(self, q))
             if path in RAW_UPLOADS:
@@ -1037,6 +1056,8 @@ class RequestHandler(BaseHTTPRequestHandler):
                 body = {**body, "__local": local and subject.is_owner}  # (from this request, not the page's say-so)
             if path == "/api/reach" and method == "POST":
                 body = {**body, "__any_port": self.web.risk("any-port")}
+            if who:
+                log.info("%s: %s", who, did(path, body))
             return self._json(200, access.server_answer(subject, sid, path, handler(q, body)))
         except ApiError as e:
             self._fail(e.status, str(e), e.confirm)
@@ -1654,6 +1675,10 @@ class HubApi:
                          {"chosen": hub.locations()["chosen"], "choosable": locations_choosable()},
             "network_access": hub.web.host in ("0.0.0.0", "::"),
             "servers": hub.summary(),
+            # (what was put right after Craft Conductor was stopped half-way: the page says it once, #200)
+            "recovered": [{"sid": sid, "message": d.m.recovered["message"], "time": d.m.recovered["time"]}
+                          for sid, d in sorted(hub.daemons.items())
+                          if getattr(d.m, "recovered", None) and time.time() - d.m.recovered["time"] < 86400],
             "share": hub.share_status() if not hub.is_single else None,
             "guide": None if hub.is_single else self._guide_state(),
             "health": [*(hub._health.warnings if getattr(hub, "_health", None) else []),  # (checked every minute: health.py)
@@ -2806,7 +2831,7 @@ class HubApi:
         folder = self.hub.staging_dir / staged["id"]
         found = handdownload.match(folder / "upload.jar")
         if found is None or not safe_file_name(found["filename"]):
-            shutil.rmtree(folder, ignore_errors=True)
+            rmtree(folder, ignore_errors=True)
             raise ApiError(400, f"{name} isn't one of the mods to download by hand (or it's another version of it): "
                                 "download it again from its link")
         (folder / "upload.jar").rename(folder / found["filename"])
@@ -5069,7 +5094,7 @@ class Api:
             try:
                 sid, _ = hub.import_archive(archive, f"{name} (beta {version})", prepare)
             finally:
-                shutil.rmtree(tmp, ignore_errors=True)
+                rmtree(tmp, ignore_errors=True)
             copy = hub.get(sid)
             if copy is None or not copy.submit("install beta", copy.check_for_updates, True, version):
                 raise RuntimeError("the copy was made but couldn't start installing; open it and press Update")
@@ -5135,7 +5160,7 @@ class Api:
                 log.info("backed up the old world to %s", path.name)
             info = world.replace(source, dest)
             if source.parent.parent == self.web.hub.staging_dir:
-                shutil.rmtree(source.parent, ignore_errors=True)
+                rmtree(source.parent, ignore_errors=True)
             return f"the world is now {info.get('name') or dest.name}; press Start to play it"
         return self._job("replace world", run)
 

@@ -40,6 +40,7 @@ from .mods import ModFile, ModProvider, hold, providers_for
 from .notify import Notifier
 from .planner import Changes, Decision, Plan, Planner
 from .process import CONSOLE_UTF8, ServerProcess
+from .removal import rmtree
 
 log = logging.getLogger(__name__)
 
@@ -132,6 +133,8 @@ class Manager:
         self.mod_files = None
         self.java = JavaManager(config, self.http, java_probe)
         self.notifier = notifier or Notifier(self.http, config.discord_webhook)
+        #: what recover() last put right ({"time", "message"}): the page shows it once, so it's in the bell too (#200)
+        self.recovered: dict | None = None
         self.echo = echo
         self.sleep = sleep
         self.lock = lockmod.load(config.root)
@@ -213,7 +216,9 @@ class Manager:
             done.append(self._recover_update())
         message = "; ".join(done) or None
         if message:
-            self.notifier.send(f"Craft Conductor was stopped in the middle of something: {message}.")
+            text = f"Craft Conductor was stopped in the middle of something: {message}."
+            self.notifier.send(text)
+            self.recovered = {"time": time.time(), "message": text}
         return message
 
     def _recover_update(self) -> str:
@@ -227,7 +232,7 @@ class Manager:
             log.warning("the note about an interrupted update is damaged; removing it")
             self._journal_end()
             return "a damaged note about an interrupted update was removed"
-        shutil.rmtree(self.staging_dir, ignore_errors=True)  # (its downloads, no longer needed either way)
+        rmtree(self.staging_dir, ignore_errors=True)  # (its downloads, no longer needed either way)
         if journal.get("lock") != self._lock_stamp():
             # The new craft-conductor.lock.json was saved: the update had finished, only the note was left.
             self._journal_end()
@@ -456,7 +461,7 @@ class Manager:
         info = self.mojang.info(plan.minecraft)
         java = self.java.select(info.java_major)
         if self.staging_dir.exists():
-            shutil.rmtree(self.staging_dir)
+            rmtree(self.staging_dir)
         mods_out = self.staging_dir / "mods"
         mods_out.mkdir(parents=True)
 
@@ -568,7 +573,7 @@ class Manager:
             return Result(False, f"could not prepare update ({title}): {e}", server)
         problems = self.mod_problems(staged, plan)
         if problems:  # (the loader would refuse to start: nothing is changed, the server keeps running)
-            shutil.rmtree(self.staging_dir, ignore_errors=True)
+            rmtree(self.staging_dir, ignore_errors=True)
             more = f" (and {len(problems) - 3} more)" if len(problems) > 3 else ""
             return Result(False, f"could not prepare update ({title}): the mods wouldn't start together. "
                           + " ".join(p.text for p in problems[:3]) + more
@@ -597,7 +602,7 @@ class Manager:
                 self._journal_begin(title, archive, plan)
         except Exception as e:
             # Nothing in the server folder has changed: start the old version again.
-            shutil.rmtree(self.staging_dir, ignore_errors=True)
+            rmtree(self.staging_dir, ignore_errors=True)
             full = isinstance(e, OSError) and e.errno == errno.ENOSPC
             message = (f"Update not done ({title}): the backup before it couldn't be made"
                        + (" because the disk is full; free some space, or keep fewer backups" if full else f": {e}")
@@ -632,7 +637,7 @@ class Manager:
                 proc.stop(self.config.server.stop_timeout)
             return self._rollback(plan, title, e, archive, (restart or was_running) and make_backup)
         finally:
-            shutil.rmtree(self.staging_dir, ignore_errors=True)
+            rmtree(self.staging_dir, ignore_errors=True)
         self._journal_end()  # (the new lock file is saved: the update is done)
 
         if archive is not None and not worth_keeping:
@@ -714,6 +719,6 @@ class Manager:
 
 def _remove(path: Path) -> None:
     if path.is_dir() and not path.is_symlink():
-        shutil.rmtree(path)
+        rmtree(path)
     elif path.exists() or path.is_symlink():
         path.unlink()

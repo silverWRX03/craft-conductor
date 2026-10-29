@@ -28,6 +28,7 @@ from typing import Callable
 from . import __version__, config as configmod, lock as lockmod, parts, private, safearchive, secretzip
 from .properties import SECRET_KEYS
 from .config import ConfigError
+from .removal import rmtree
 
 log = logging.getLogger(__name__)
 
@@ -308,7 +309,7 @@ def import_into(archive: Path, root: Path, say: Callable[[str], None] = log.info
         configmod.load(root)  # it must still make sense
         _fix_launch(root)
     except (ConfigError, OSError, zipfile.BadZipFile, ValueError) as e:
-        shutil.rmtree(root, ignore_errors=True)
+        rmtree(root, ignore_errors=True)
         raise TransferError(f"couldn't import it: {e}") from e
     say(f"imported {manifest.get('name')} ({count} files)")
     left_out = [x for x in manifest.get("left_out") or [] if x in parts.SENSITIVE]

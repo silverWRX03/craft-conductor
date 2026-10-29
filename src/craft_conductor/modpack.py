@@ -57,6 +57,16 @@ def _safe_target(base: Path, relative: str) -> Path:
     return target
 
 
+def pack_name(title: str, number: str, version_title: str = "") -> str:
+    """A modpack version as people recognise it: "Vanilla Perfected 1.0.3+26.2 (Chaos Cubed Hotfix 3.0)",
+    the pack's name and version number first, the version's own title after it when it says more."""
+    title, number, version_title = (str(x or "").strip() for x in (title, number, version_title))
+    out = " ".join(x for x in (title, number) if x)
+    if version_title and version_title != number and version_title != title and version_title not in out:
+        out = f"{out} ({version_title})" if out else version_title
+    return out or "Modpack"
+
+
 def version_info(http: HttpClient, version_id: str) -> dict:
     if not re.fullmatch(r"[A-Za-z0-9]{8}", version_id or ""):
         raise ModpackError("that isn't a Modrinth modpack version")
@@ -65,7 +75,12 @@ def version_info(http: HttpClient, version_id: str) -> dict:
     if not files:
         raise ModpackError(f"{v.get('name', 'that version')} has no .mrpack file")
     f = next((x for x in files if x.get("primary")), files[0])
-    return {"id": v["id"], "project_id": v["project_id"], "name": v.get("name") or v.get("version_number", ""),
+    try:  # (the pack's own name: a version's title alone, "Chaos Cubed Hotfix 3.0", doesn't say which pack, #197)
+        title = str((http.get_json(f"{MODRINTH}/project/{v['project_id']}") or {}).get("title") or "")
+    except HttpError:
+        title = ""
+    return {"id": v["id"], "project_id": v["project_id"],
+            "name": pack_name(title, v.get("version_number", ""), v.get("name", "")),
             "url": f["url"], "sha1": f.get("hashes", {}).get("sha1"), "sha512": f.get("hashes", {}).get("sha512"),
             "minecraft": v.get("game_versions", []), "loaders": v.get("loaders", [])}
 

@@ -19,6 +19,7 @@ from typing import Iterable
 
 from . import lockbox, parts, private, safearchive
 from .properties import read_properties, write_properties
+from .removal import rmtree
 
 log = logging.getLogger(__name__)
 
@@ -293,7 +294,7 @@ def restore(archive: Path, server_dir: Path) -> dict:
     aside = server_dir.with_name(server_dir.name + ".replaced")
     recover(server_dir)
     if staging.exists():
-        shutil.rmtree(staging)
+        rmtree(staging)
     try:
         size = archive.stat().st_size
     except OSError as e:
@@ -317,7 +318,7 @@ def restore(archive: Path, server_dir: Path) -> dict:
             private.protect(props)  # (unpacked with the folder's permissions: its passwords are this account's only)
     except BaseException as e:
         _put_back_kept(staging, server_dir)
-        shutil.rmtree(staging, ignore_errors=True)
+        rmtree(staging, ignore_errors=True)
         reason = _why(e)
         if reason is None:
             raise
@@ -325,13 +326,23 @@ def restore(archive: Path, server_dir: Path) -> dict:
         raise RestoreError(f"the backup {archive.name} can't be restored: {reason}. "
                            "The server was left as it was") from e
     if aside.exists():  # (left over from a restore that finished, but was stopped before tidying up)
-        shutil.rmtree(aside)
+        rmtree(aside, ignore_errors=True)
+        if aside.exists():  # (it can't be deleted: out of the way under another name, said in the log, #216)
+            stray = aside.with_name(f"{aside.name}-{time.strftime('%Y%m%d-%H%M%S')}")
+            try:
+                aside.rename(stray)
+                log.warning("couldn't delete %s (an earlier server folder): moved it to %s, to delete by hand", aside, stray)
+            except OSError as e:
+                _put_back_kept(staging, server_dir)
+                rmtree(staging, ignore_errors=True)
+                raise RestoreError(f"an earlier copy of the server folder ({aside.name}) is in the way and couldn't be "
+                                   f"removed ({e}). The server was left as it was") from e
     if server_dir.exists():
         try:
             server_dir.rename(aside)
         except OSError as e:
             _put_back_kept(staging, server_dir)
-            shutil.rmtree(staging, ignore_errors=True)
+            rmtree(staging, ignore_errors=True)
             raise RestoreError(f"the server folder couldn't be moved aside ({e}): is a program still using a "
                                "file in it? The server was left as it was") from e
     try:
@@ -340,10 +351,12 @@ def restore(archive: Path, server_dir: Path) -> dict:
         if aside.exists() and not server_dir.exists():
             aside.rename(server_dir)  # put it back
         _put_back_kept(staging, server_dir)
-        shutil.rmtree(staging, ignore_errors=True)
+        rmtree(staging, ignore_errors=True)
         raise
-    shutil.rmtree(staging, ignore_errors=True)
-    shutil.rmtree(aside, ignore_errors=True)
+    rmtree(staging, ignore_errors=True)
+    rmtree(aside, ignore_errors=True)
+    if aside.exists():
+        log.warning("the backup is in place, but the server folder it replaced couldn't be deleted: it's in %s", aside)
     return result
 
 
@@ -458,7 +471,7 @@ def recover(server_dir: Path) -> str | None:
             _put_back_kept(staging, server_dir)
             done = PUT_BACK
     elif staging.is_dir() and server_dir.is_dir():  # (only the backup's files: nothing of the server's to lose)
-        shutil.rmtree(staging, ignore_errors=True)
+        rmtree(staging, ignore_errors=True)
         log.warning("a restore into %s was stopped while unpacking; the server is as it was, and the "
                     "half-unpacked copy was removed", server_dir)
         done = done or CUT_OFF

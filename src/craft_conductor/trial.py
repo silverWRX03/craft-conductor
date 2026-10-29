@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import logging
 import secrets
-import shutil
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -27,6 +26,7 @@ from .diagnose import headline
 from .http import HttpError
 from .mods.base import ModError
 from .mods.modrinth import ModrinthProvider
+from .removal import rmtree
 
 log = logging.getLogger(__name__)
 
@@ -289,4 +289,4 @@ class Trial:
                 self.m = None
             if getattr(self, "port", None):
                 self.hub.release_port(self.port)
-            shutil.rmtree(self.root, ignore_errors=True)
+            rmtree(self.root, ignore_errors=True)

@@ -65,7 +65,9 @@
     const used = running.reduce((n, s) => n + s.memory_gb, 0);
     const after = used + (extra ? extra.memory_gb : 0);
     return { fits: after <= totalGb - 3, running_gb: used, total_gb: totalGb, after_gb: after, free_gb: sim.round(totalGb - 1.5 - used),
-      running: running.map((s) => ({ id: s.id, gb: s.memory_gb })), adding_gb: extra ? extra.memory_gb : 0 };
+      running: running.map((s) => ({ id: s.id, gb: s.memory_gb })), adding_gb: extra ? extra.memory_gb : 0,
+      // (no other programs in the demo: what's free is what the servers leave)
+      available_gb: sim.round(totalGb - 1.5 - used), fits_free: !extra || extra.memory_gb <= totalGb - 2.5 - used };
   };
   const freePort = (from = 25565) => { const used = new Set(st().servers.map((s) => Number(s.port))); let p = from; while (used.has(p)) p++; return p; };
   const slugify = (name) => (String(name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32) || "server");
@@ -380,7 +382,7 @@
     "GET /api/licenses": () => rel().licenses || { project: {}, runtime: [], bundled: [], development: [] },
 
     "GET /api/hub": () => ({
-      version: version(), single: false, notice_accepted: true, self_update: hub().self_update, update_result: null,
+      version: version(), single: false, notice_accepted: true, self_update: hub().self_update, update_result: null, recovered: [],
       update_channel: hub().update_channel, auth: auth(), home: HOME, locations: { chosen: true, choosable: true }, network_access: hub().network_access,
       servers: st().servers.map(sim.serverSummary), share: shareStatus(), guide: { asked: hub().guide.asked || st().servers.length > 0, active: hub().guide.active },
       health: hub().risks.map((name) => { const r = (rel().risks || []).find((x) => x.name === name) || { text: name };
