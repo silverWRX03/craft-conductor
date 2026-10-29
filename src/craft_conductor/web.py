@@ -4782,7 +4782,7 @@ class Api:
         listed = {s.id for s in self.m.config.mods if s.source == "modrinth"}
         return [x for x in slugs if x in listed]
 
-    def _also_on_server(self, slugs: list[str]) -> tuple[list[dict], list[dict]]:
+    def _also_on_server(self, slugs: list[str], channels: dict[str, str] | None = None) -> tuple[list[dict], list[dict]]:
         """Mods picked for players that run on both sides (Modrinth's environment tags) are also
         added to the server's own mods, with what they need, the way any server mod is. Returns
         what was added (with its dependencies) and what couldn't be (with why). Mods that only
@@ -4801,8 +4801,9 @@ class Api:
                 continue
             if any(s.source == "modrinth" and s.id in (slug, project.id, project.slug) for s in self.m.config.mods):
                 continue
-            try:
-                deps = self._list_server_mod("modrinth", project, required=project.server_side == "required")
+            try:  # (with the early builds agreed to for players, #165)
+                deps = self._list_server_mod("modrinth", project, required=project.server_side == "required",
+                                             early=(channels or {}).get(slug))
             except ApiError as e:
                 skipped.append({"name": project.name, "reason": str(e)})
                 continue
@@ -4833,9 +4834,16 @@ class Api:
                 raise ApiError(400, "mods must be a list of Modrinth project names (or curseforge:<project id>)")
             before = list(c.mods)
             mods = list(dict.fromkeys(mods))
+            asked = b.get("channels") or {}  # (mods added with Show beta/alpha builds: their early builds are agreed to)
+            if not isinstance(asked, dict) or not all(isinstance(k, str) and configmod.CLIENT_MOD.fullmatch(k) and v in ("beta", "alpha")
+                                                      for k, v in asked.items()):
+                raise ApiError(400, "channels must be mod names with beta or alpha")
+            channels = {k: v for k, v in {**c.channels, **asked}.items() if k in mods}
             configmod.set_value(path, "client", "mods", json.dumps(mods))
+            if channels != c.channels:
+                configmod.set_value(path, "client", "channels", configmod.channels_table(channels))
             self.m.reload_config()
-            also, skipped = self._also_on_server([x for x in mods if x not in before and not x.startswith("curseforge:")])
+            also, skipped = self._also_on_server([x for x in mods if x not in before and not x.startswith("curseforge:")], channels)
             drop = b.get("remove_from_server")
             if drop is not None:  # "remove it from the server too": a mod that's no longer on the players' list
                 if not isinstance(drop, list) or not all(isinstance(x, str) and re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", x)

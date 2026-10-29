@@ -16,7 +16,7 @@ const assert = require('node:assert/strict');
   await page.goto(base + '/#servers');
   const card = page.locator('.server-card', { hasText: 'Alpha' });
   await card.waitFor();
-  await card.getByRole('button', { name: 'Delete', exact: true }).click();
+  await card.getByRole('button', { name: 'Delete Alpha', exact: true }).click();
   await page.getByRole('button', { name: 'Remove from the list' }).click();
   const question = page.getByRole('alertdialog').filter({ hasText: "Windows Firewall rule" });
   await question.waitFor({ timeout: 20000 });

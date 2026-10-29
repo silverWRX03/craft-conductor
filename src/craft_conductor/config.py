@@ -265,6 +265,8 @@ class ClientConfig:
     #: mods only players get, never the server ("source:project id"), even when a server mod lists
     #: one as required: moved there after it stopped the server, or in Manage Mods
     only: list[str] = field(default_factory=list)
+    #: extra mods allowed early builds (picked with Show beta/alpha builds): mod -> beta | alpha (#165)
+    channels: dict[str, str] = field(default_factory=dict)
 
     def link_works(self, now: float) -> bool:
         return bool(self.enabled and self.token) and (not self.expires or now < self.expires)
@@ -432,8 +434,17 @@ def _client(c: dict) -> ClientConfig:
     only = c.get("only", [])
     if not isinstance(only, list) or not all(isinstance(k, str) and PIN_KEY.fullmatch(k) for k in only):
         raise ConfigError('client.only must be a list of mods like "modrinth:<project id>" or "curseforge:<project id>"')
+    channels = c.get("channels", {})
+    if not isinstance(channels, dict) or not all(isinstance(k, str) and CLIENT_MOD.fullmatch(k) and v in ("beta", "alpha")
+                                                 for k, v in channels.items()):
+        raise ConfigError('client.channels must be a table like {"simple-voice-chat" = "beta"}')
     return ClientConfig(enabled=bool(c.get("enabled", False)), token=token, mods=list(mods), memory_gb=memory,
-                        expires=expires, link_days=days, only=list(dict.fromkeys(only)))
+                        expires=expires, link_days=days, only=list(dict.fromkeys(only)), channels=dict(channels))
+
+
+def channels_table(channels: dict[str, str]) -> str:
+    """``client.channels`` as a TOML inline table."""
+    return "{" + ", ".join(f"{toml_string(k)} = {toml_string(v)}" for k, v in sorted(channels.items())) + "}"
 
 
 @dataclass(frozen=True)

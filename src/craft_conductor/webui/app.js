@@ -1563,7 +1563,7 @@ async function refreshStatus() {
   if (want !== server) return;  // switched servers meanwhile
   status = s;
   const pill = $("#state-pill");
-  pill.textContent = t(s.state);
+  if (pill.textContent !== t(s.state)) pill.textContent = t(s.state);  // (a status region: said again on every change, #217)
   pill.className = "pill " + s.state;
   $("#server-title").textContent = (s.motd || s.id) + (s.minecraft
     ? ` · Minecraft ${s.minecraft} · ${s.loader}` : " · not installed yet");
@@ -2501,7 +2501,7 @@ views.dashboard = () => {
 views.console = () => {
   const con = consolePanel();
   const folders = hubInfo && hubInfo.local ? h("div", { class: "row mb" }, folderBtn("logs", "Logs folder"), folderBtn("crash", "Crash reports")) : null;
-  fill($("#main"), folders, con.el);
+  fill($("#main"), h("h1", { class: "view-title" }, "Console"), folders, con.el);  // (a page heading, like the other pages, #217)
   con.input.focus();
   every(1000, con.poll);
   return {};
@@ -2814,8 +2814,8 @@ views.updates = () => {
 
 views.players = () => {
   const body = h("div");
-  const name = h("input", { placeholder: "Player name", autocomplete: "off", maxlength: 16 });
-  const reason = h("input", { placeholder: "Reason (optional, shown when kicked/banned)", maxlength: 200 });
+  const name = h("input", { placeholder: "Player name", autocomplete: "off", maxlength: 16, "aria-label": "Player name" });
+  const reason = h("input", { placeholder: "Reason (optional, shown when kicked/banned)", maxlength: 200, "aria-label": "Reason (optional, shown when kicked/banned)" });
   let data = null;
 
   const CONFIRM = {
@@ -3669,7 +3669,7 @@ views.java = () => {
     const pick = h("select", {}, h("option", { value: "auto" }, "auto (what Minecraft needs)"),
       [8, 11, 16, 17, 21, 25].map((v) => h("option", { value: String(v) }, `Java ${v}`)));
     pick.value = r.forced ? String(r.forced) : "auto";
-    const major = h("input", { type: "number", min: 8, max: 99, value: r.required || 21, class: "narrow" });
+    const major = h("input", { type: "number", min: 8, max: 99, value: r.required || 21, class: "narrow", "aria-label": "Java version to install" });
     const others = c && c.also && c.also.length ? h("span", { class: "muted" }, " · also used by ", names(c.also)) : null;
     const using = !c ? "—"
       : c.source === "shared" ? h("span", {}, h("strong", {}, `Shared Java ${c.major}`), " ", h("span", { class: "tag" }, c.release), others || h("span", { class: "muted" }, " · only this server uses it"))
@@ -5994,7 +5994,10 @@ function browserPanel(params, host) {
       const cur = await api(`/api/servers/${encodeURIComponent(target)}/client`).catch(() => null);
       if (!cur) return;
       const r = await act(() => api(`/api/servers/${encodeURIComponent(target)}/client`, { method: "POST",
-        body: { mods: [...new Set([...cur.mods, ...mods.map((m) => m.slug || m.id)])] } }), `Added ${mods.map((m) => m.name).join(", ")} for players`);
+        body: { mods: [...new Set([...cur.mods, ...mods.map((m) => m.slug || m.id)])],
+          // (early builds agreed to here hold for the friends' download and the server's copy too, #165)
+          channels: Object.fromEntries(mods.filter((m) => m.channel && m.channel !== "release").map((m) => [m.slug || m.id, m.channel])) } }),
+        `Added ${mods.map((m) => m.name).join(", ")} for players`);
       if (r) announceAlsoOnServer(r);
       if (r && host) host.changed();
       return;
@@ -7469,12 +7472,13 @@ views.servers = () => {
           s.setup_pending ? (can("runtime.configure", s.id) ? h("a", { class: "btn primary", href: `#s/${s.id}/setup`, "data-fkey": `${s.id}:power` }, s.job ? "See progress" : "Finish setup") : null)
             : !can("server.power", s.id) ? null
             : s.state === "stopped"
-              ? h("button", { class: "btn primary", disabled: !!s.job || busy.has(s.id), "data-act": "start", "data-sid": s.id, "data-fkey": `${s.id}:power` }, "Start")
-              : h("button", { class: "btn danger", disabled: busy.has(s.id), "data-act": "stop", "data-sid": s.id, "data-fkey": `${s.id}:power` }, "Stop"),
-          s.setup_pending ? null : h("a", { class: "btn", href: `#s/${s.id}/dashboard`, "data-fkey": `${s.id}:open` }, "Open"),
-          !hb.single && !s.job && can("server.delete", s.id) ? h("button", { class: "btn ghost", "data-act": "delete", "data-sid": s.id, "data-fkey": `${s.id}:delete` }, "Delete") : null),
+              // (each button names its server for a screen reader: "Start Alpha", not "Start" again and again, #217)
+              ? h("button", { class: "btn primary", disabled: !!s.job || busy.has(s.id), "data-act": "start", "data-sid": s.id, "data-fkey": `${s.id}:power`, "aria-label": `Start ${s.name}` }, "Start")
+              : h("button", { class: "btn danger", disabled: busy.has(s.id), "data-act": "stop", "data-sid": s.id, "data-fkey": `${s.id}:power`, "aria-label": `Stop ${s.name}` }, "Stop"),
+          s.setup_pending ? null : h("a", { class: "btn", href: `#s/${s.id}/dashboard`, "data-fkey": `${s.id}:open`, "aria-label": `Open ${s.name}` }, "Open"),
+          !hb.single && !s.job && can("server.delete", s.id) ? h("button", { class: "btn ghost", "data-act": "delete", "data-sid": s.id, "data-fkey": `${s.id}:delete`, "aria-label": `Delete ${s.name}` }, "Delete") : null),
         !isOwner() ? null : h("div", { class: "row" }, h("div", { class: "muted small folder grow" }, s.folder),
-          ((b) => { if (b) b.setAttribute("data-fkey", `${s.id}:folder`); return b; })(folderBtn("server", "Folder", s.id))))),
+          ((b) => { if (b) { b.setAttribute("data-fkey", `${s.id}:folder`); b.setAttribute("aria-label", `${s.name}'s folder`); } return b; })(folderBtn("server", "Folder", s.id))))),
       hb.single || !isOwner() ? null : h("a", { class: "card server-card new", href: "#new", "data-fkey": "new" },
         h("strong", {}, "+ New server"), h("span", { class: "muted small" }, "Pick a server type, Minecraft version and mods")));
   };

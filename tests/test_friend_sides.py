@@ -338,3 +338,27 @@ def test_removing_it_before_the_next_update_in_a_real_browser(hub_env, modrinth)
     result = subprocess.run([os.environ["CRAFT_UI_NODE"], str(Path(__file__).with_name("ui_mods_remove_friends.cjs")), c.base],
                             capture_output=True, text=True, timeout=180)
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_a_beta_picked_for_players_is_a_beta_on_the_server_too(hub_env, modrinth):
+    """Simple Voice Chat (beta only for this Minecraft), added for players with Show beta builds: its
+    early builds hold for the server's copy and the friends' download too (#165)."""
+    hub, c = hub_env
+    login(c)
+    publish(modrinth)
+    modrinth.project("SVC", "voicechat", "Simple Voice Chat", client_side="required", server_side="required")
+    modrinth.version("SVC", "2.6.0-beta", ["1.21.1"], version_type="beta")
+    r = c.post("/api/servers/alpha/client", {"mods": ["voicechat"], "channels": {"voicechat": "beta"}})[1]
+    assert r["also_on_server"] == [{"name": "Simple Voice Chat", "deps": []}] and r["server_skipped"] == [], r
+    m = hub.get("alpha").m
+    m.reload_config()
+    assert m.config.client.channels == {"voicechat": "beta"}
+    assert next(s for s in m.config.mods if s.id == "voicechat").channel == "beta"
+    from craft_conductor.clientpack import PackBuilder
+    pack = PackBuilder(m).build("mc.example.com")
+    assert not any(x["name"] == "voicechat" for x in pack["skipped"]), pack["skipped"]
+    assert c.post("/api/servers/alpha/client", {"mods": [], "channels": {"voicechat": "nightly"}})[0] == 400
+    # Taken off the players' list: its channel goes too.
+    c.post("/api/servers/alpha/client", {"mods": []})
+    m.reload_config()
+    assert m.config.client.channels == {}
