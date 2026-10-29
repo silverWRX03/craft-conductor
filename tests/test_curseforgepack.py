@@ -341,3 +341,24 @@ def test_a_server_pack_is_downloaded_when_the_server_gives_no_parts_of_it(http):
     http.get_range = no_ranges
     p = curseforgepack.preview(http, "key", "curseforge:9001")
     assert p["server_pack"] and SERVER_URL in http.downloads
+
+
+def test_a_server_pack_behind_a_redirect_is_read_where_it_really_is(http, monkeypatch):
+    """edge.forgecdn.net answers a range request with 404 but redirects a plain one to
+    mediafilez.forgecdn.net, which gives parts: the list is read there (#191)."""
+    from craft_conductor.http import HttpError
+    serve_pack(http)
+    real = SERVER_URL.replace("edge.forgecdn.net", "mediafilez.forgecdn.net")
+    http.files[real] = _zip({"Big Pack Server/mods/core-1.0.jar": b"core", "Big Pack Server/world.bin": b"x" * 300_000})
+    http.redirects = {SERVER_URL: real}
+    ranges = http.get_range
+
+    def edge(url, start, length, headers=None):
+        if url == SERVER_URL:
+            raise HttpError(url, 404, "HTTP 404")
+        return ranges(url, start, length, headers)
+    http.get_range = edge
+    monkeypatch.setattr(curseforgepack, "MAX_PACK", 100_000)  # (too big to download, like ATM11's)
+    p = curseforgepack.preview(http, "key", "curseforge:9001")
+    assert p["server_pack"] and (p["count"], p["client_only"]) == (1, 1)
+    assert SERVER_URL not in http.downloads and real not in http.downloads

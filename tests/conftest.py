@@ -81,6 +81,9 @@ class FakeHttp:
             raise HttpError(url, 404, "HTTP 404")
         return handler(body) if callable(handler) else handler
 
+    def final_url(self, url, headers=None):
+        return getattr(self, "redirects", {}).get(url, url)
+
     def get_range(self, url, start, length, headers=None):
         if url not in self.files:
             raise HttpError(url, 404, "HTTP 404")
