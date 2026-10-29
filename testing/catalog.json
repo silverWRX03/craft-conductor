@@ -8599,5 +8599,61 @@
     "type": "Core",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 979,
+    "section": "Fix: short pop-ups (#204)",
+    "step": "New server from a modpack whose first start fails (a client-only mod, e.g. Actium with Controlify): the pop-up is at most a few lines (no 'at net.neoforged...' lines) and doesn't cover the setup page's buttons; the bell has the whole message.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 980,
+    "section": "Fix: setup progress page matches Friends outside your home (#196)",
+    "step": "New server with Only friends at home: the Creating your server page shows no router guide. With playit.gg: a short note pointing to the Friends page. With Open a port on my router: the router guide, open.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 981,
+    "section": "Fix: router guide names the panel's real port (#203)",
+    "step": "Control panel on a port other than 8765 (e.g. start --web-port 29920): Help -> Router setup says never to forward port 29920, and the picture names no port.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 982,
+    "section": "Fix: Modrinth modpack named by the pack (#197)",
+    "step": "New server -> A modpack -> Modrinth -> Vanilla Perfected 1.0.3+26.2. Updates -> Modpack says it was made from 'Vanilla Perfected 1.0.3+26.2 (Chaos Cubed Hotfix 3.0)'; Look for a new version lists version numbers (e.g. 1.0.0+26.3 (Wilderness Bound Update 26.3)).",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 983,
+    "section": "Fix: roll back in a OneDrive folder (#216)",
+    "step": "Servers folder in OneDrive (Use it anyway). Make a server, back it up, Backups -> Roll back to this, twice. Both work; no server.replaced or server.restoring is left next to the server, and no 'stopped in the middle of something' at the next start.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 984,
+    "section": "Fix: cut-off Java download tidied (#199)",
+    "step": "End Craft Conductor while it says 'downloading Java 25'. More than an hour later, install Java again (or Java -> Update shared Java): no .download-... or .extract-... folder is left in .craft-conductor\\java.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 985,
+    "section": "Fix: recovery shown on the page and in the bell (#200)",
+    "step": "Stopped server: Backups -> Roll back to this, End task Craft Conductor while it unpacks. Open Craft Conductor again and start the server (or open its Dashboard): a pop-up says it was stopped in the middle of something, and the bell has it. Reloading doesn't show it again.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]

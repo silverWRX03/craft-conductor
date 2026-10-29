@@ -39,6 +39,7 @@ from typing import Callable
 
 from .config import Config
 from .http import HttpClient
+from .removal import rmtree
 
 log = logging.getLogger(__name__)
 
@@ -321,6 +322,22 @@ def folder_size(folder: Path) -> int:
     return total
 
 
+#: A download or unpacking folder nothing has written to for this long was cut off (Store.tidy).
+STALE_WORK = 60 * 60
+
+
+def _last_written(folder: Path) -> float:
+    """When anything in a folder (or the folder) last changed (links not followed)."""
+    newest = 0.0
+    for dirpath, _, files in os.walk(folder):
+        for p in (dirpath, *(os.path.join(dirpath, n) for n in files)):
+            try:
+                newest = max(newest, os.lstat(p).st_mtime)
+            except OSError:
+                continue
+    return newest
+
+
 def _others_can_change(path: str) -> bool:
     """A file (or its folder) that another user could replace: never run, even with -version."""
     if os.name == "nt":
@@ -520,7 +537,7 @@ class Store:
             folder.rename(trash)  # (Windows refuses while a program has a file in it open)
         except OSError:
             return False
-        shutil.rmtree(trash, ignore_errors=True)
+        rmtree(trash, ignore_errors=True)
         return True
 
     def tidy(self) -> list[str]:
@@ -539,7 +556,13 @@ class Store:
         if self.root.is_dir():
             for trash in self.root.glob(".trash-*"):  # (what an earlier removal couldn't finish)
                 if trash.is_dir() and not trash.is_symlink():
-                    shutil.rmtree(trash, ignore_errors=True)
+                    rmtree(trash, ignore_errors=True)
+            for work in (*self.root.glob(".download-*"), *self.root.glob(".extract-*")):
+                # (a download or unpacking cut off: Craft Conductor closed, the computer turned off, #199;
+                # one still going, maybe by another Craft Conductor, keeps writing to its files)
+                if work.is_dir() and not work.is_symlink() and now - _last_written(work) > STALE_WORK:
+                    rmtree(work, ignore_errors=True)
+                    log.info("removed %s: a Java download that was cut off", work.name)
         return removed
 
     def remove(self, major: int, ignore: Path | None = None) -> bool:
@@ -691,8 +714,8 @@ class JavaManager:
                     if self.store._read(target) is None:  # (else another Craft Conductor put it there first)
                         raise
             finally:
-                shutil.rmtree(extract, ignore_errors=True)
-                shutil.rmtree(download, ignore_errors=True)
+                rmtree(extract, ignore_errors=True)
+                rmtree(download, ignore_errors=True)
         self.store.tidy()
         j = self.store._read(target)
         if j is None:

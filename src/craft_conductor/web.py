@@ -54,6 +54,7 @@ from .mods.modrinth import ModrinthProvider, keep_buildable
 from .planner import DATAPACK_LOADERS, lowest
 from .players import PlayerError, Players, broadcast_text
 from .properties import read_properties, server_name, write_properties
+from .removal import rmtree
 from .skins import SkinError, Skins
 
 log = logging.getLogger(__name__)
@@ -1654,6 +1655,10 @@ class HubApi:
                          {"chosen": hub.locations()["chosen"], "choosable": locations_choosable()},
             "network_access": hub.web.host in ("0.0.0.0", "::"),
             "servers": hub.summary(),
+            # (what was put right after Craft Conductor was stopped half-way: the page says it once, #200)
+            "recovered": [{"sid": sid, "message": d.m.recovered["message"], "time": d.m.recovered["time"]}
+                          for sid, d in sorted(hub.daemons.items())
+                          if getattr(d.m, "recovered", None) and time.time() - d.m.recovered["time"] < 86400],
             "share": hub.share_status() if not hub.is_single else None,
             "guide": None if hub.is_single else self._guide_state(),
             "health": [*(hub._health.warnings if getattr(hub, "_health", None) else []),  # (checked every minute: health.py)
@@ -2806,7 +2811,7 @@ class HubApi:
         folder = self.hub.staging_dir / staged["id"]
         found = handdownload.match(folder / "upload.jar")
         if found is None or not safe_file_name(found["filename"]):
-            shutil.rmtree(folder, ignore_errors=True)
+            rmtree(folder, ignore_errors=True)
             raise ApiError(400, f"{name} isn't one of the mods to download by hand (or it's another version of it): "
                                 "download it again from its link")
         (folder / "upload.jar").rename(folder / found["filename"])
@@ -5069,7 +5074,7 @@ class Api:
             try:
                 sid, _ = hub.import_archive(archive, f"{name} (beta {version})", prepare)
             finally:
-                shutil.rmtree(tmp, ignore_errors=True)
+                rmtree(tmp, ignore_errors=True)
             copy = hub.get(sid)
             if copy is None or not copy.submit("install beta", copy.check_for_updates, True, version):
                 raise RuntimeError("the copy was made but couldn't start installing; open it and press Update")
@@ -5135,7 +5140,7 @@ class Api:
                 log.info("backed up the old world to %s", path.name)
             info = world.replace(source, dest)
             if source.parent.parent == self.web.hub.staging_dir:
-                shutil.rmtree(source.parent, ignore_errors=True)
+                rmtree(source.parent, ignore_errors=True)
             return f"the world is now {info.get('name') or dest.name}; press Start to play it"
         return self._job("replace world", run)
 

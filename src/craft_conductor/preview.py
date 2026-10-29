@@ -28,6 +28,7 @@ from pathlib import Path
 
 from . import config as configmod, setup as setupmod
 from .config import ModSpec
+from .removal import rmtree
 
 log = logging.getLogger(__name__)
 
@@ -831,9 +832,9 @@ class Preview:
             world = m.server_dir / "world"  # (a new world for the new seed; datapack builds stay in it)
             for item in world.iterdir() if world.is_dir() else []:
                 if item.name != "datapacks":
-                    shutil.rmtree(item, ignore_errors=True) if item.is_dir() else item.unlink(missing_ok=True)
+                    rmtree(item, ignore_errors=True) if item.is_dir() else item.unlink(missing_ok=True)
         else:
-            shutil.rmtree(base, ignore_errors=True)
+            rmtree(base, ignore_errors=True)
             spec = setupmod.SetupSpec.from_dict({
                 "loader": self.loader, "minecraft": self.minecraft, "motd": "Craft Conductor map preview", "accept_eula": True,
                 "memory_gb": 2, "port": self.hub.free_port(25590, hold=True)})
@@ -912,7 +913,7 @@ class Preview:
             self.error = headline(str(e)) or repr(e)
             self.step, self.state = "Failed", "failed"
             self._keep_log()
-            shutil.rmtree(self.folder(self.hub) / "server", ignore_errors=True)  # start clean next time
+            rmtree(self.folder(self.hub) / "server", ignore_errors=True)  # start clean next time
 
     @staticmethod
     def _points_of_interest(surfaces: Surfaces, meta: dict) -> list[dict] | None:
@@ -957,7 +958,7 @@ def image(hub, preview_id: str) -> bytes:
 
 def clean(hub) -> None:
     """At start: nothing from last time is needed (maps and the throwaway server)."""
-    shutil.rmtree(Preview.folder(hub), ignore_errors=True)
+    rmtree(Preview.folder(hub), ignore_errors=True)
 
 
 

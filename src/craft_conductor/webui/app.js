@@ -333,14 +333,23 @@ function toastText(message) {
   if (text.length > TOAST_CHARS) text = text.slice(0, TOAST_CHARS - 1).trimEnd() + "…";
   return text || String(message ?? "");
 }
-function toast(message, bad = false, ms = 0) {
+function toast(message, bad = false, ms = 0, note = {}) {
   const full = String(message ?? ""), short = toastText(full);
   const el = h("div", { class: "toast" + (bad ? " bad" : ""), role: bad ? "alert" : "status", title: "Click to dismiss",
     onclick: () => el.remove() }, h("span", { class: "toast-icon", "aria-hidden": "true" }, bad ? "⚠" : "✓"), h("span", {}, t(short)));
   $("#toasts").append(el);
   setTimeout(() => el.remove(), ms || (bad ? 12000 : 5000));
   if (bad) playSound("problem");
-  bellNote(short, { bad, more: short !== full ? full : "" });
+  bellNote(short, { bad, more: short !== full ? full : "", ...note });
+}
+// What Craft Conductor put right when it was stopped half-way (a roll back, an update, Replace the world):
+// said once, so it's in the bell, not only in the server's Activity (#200).
+function noteRecovered(list) {
+  for (const r of list || []) {
+    const key = `recovered:${r.sid}:${r.time}`;
+    if (bell.items.some((x) => x.key === key) || bellPending.some((x) => x.key === key)) continue;
+    toast(r.message, true, 0, { key, sid: r.sid });
+  }
 }
 
 // ------------------------------------------------------------------ the bell
@@ -1522,6 +1531,7 @@ async function refreshStatus() {
   }
   const hb = hubInfo;
   bellSignedIn(hb);
+  noteRecovered(hb.recovered);
   styleSignedIn(hb);
   chimeFor(hb.servers);
   $("#version").textContent = "v" + hb.version + " beta";

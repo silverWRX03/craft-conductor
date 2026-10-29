@@ -22,6 +22,13 @@ its fix will say which version it's in.
 - A friend whose Craft Conductor was still open got the old mod list when they opened the same invite link again, and wasn't told when the owner had paused the links to fix the mods. Opening the link again asks the server again (#210).
 - After an update that failed and put the previous version back, `craft-conductor-windows-x64.failed.exe` stayed in Craft Conductor's folder for good. It's removed when Craft Conductor next starts (#193).
 - A mod file of your own that only runs on players' computers was said to have "crashed while loading, check for an update". The Dashboard now says it only runs on players' computers and offers **Move … to players' mods** (your own files in the friends' download) or **Switch … off** (#189).
+- When a new server's first start failed, the pop-up at the top held the whole Java error (dozens of "at …" lines) and covered the setup page's buttons. Pop-ups stay short now; the whole message is in the bell (#204).
+- With **Only friends at home** chosen, the "Creating your server…" page still showed how to forward ports on your router. It's only shown for **Open a port on my router** now; with playit.gg it says the Friends page walks you through it (#196).
+- The router guide said never to forward the control panel's port "8765", even when the control panel uses another port. It names the port it really uses (#203).
+- A Modrinth modpack server was described by the version's title only ("Chaos Cubed Hotfix 3.0"), not the pack. It's "Vanilla Perfected 1.0.3+26.2 (Chaos Cubed Hotfix 3.0)" now, and the pack's newer versions show their version numbers (#197).
+- With the server folder in OneDrive, **Roll back to this** failed with "Access is denied" and left copies of the server behind (`server.replaced`, `server.restoring`): OneDrive marks the folders it syncs read-only. Craft Conductor deletes read-only folders now, everywhere it deletes folders, and an old copy it still can't delete no longer stops a restore (#216).
+- A Java download cut off by closing Craft Conductor stayed in the shared Java folder for good (`.download-…`). It's removed the next time the shared Java is tidied (#199).
+- When Craft Conductor put right something it was stopped in the middle of (a roll back, an update, **Replace the world**), it only said so in the server's **Activity**. The page now says so once, and it's in the bell (#200).
 
 ## 0.30.3 (2026-10-25)
 

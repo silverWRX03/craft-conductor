@@ -380,7 +380,7 @@
     "GET /api/licenses": () => rel().licenses || { project: {}, runtime: [], bundled: [], development: [] },
 
     "GET /api/hub": () => ({
-      version: version(), single: false, notice_accepted: true, self_update: hub().self_update, update_result: null,
+      version: version(), single: false, notice_accepted: true, self_update: hub().self_update, update_result: null, recovered: [],
       update_channel: hub().update_channel, auth: auth(), home: HOME, locations: { chosen: true, choosable: true }, network_access: hub().network_access,
       servers: st().servers.map(sim.serverSummary), share: shareStatus(), guide: { asked: hub().guide.asked || st().servers.length > 0, active: hub().guide.active },
       health: hub().risks.map((name) => { const r = (rel().risks || []).find((x) => x.name === name) || { text: name };
