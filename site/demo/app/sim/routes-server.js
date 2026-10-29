@@ -408,7 +408,7 @@
     return why;
   };
   sim.reach = (s) => ({
-    way: s.reach || "", port: Number(s.port), bedrock: { on: sim.hasMod(s, "geyser"), port: 19132, wanted: null }, reachable: sim.whyReachable(s),
+    way: s.reach || "", port: Number(s.port), bedrock: { on: sim.hasMod(s, "geyser"), port: 19132, ports: [{ port: 19132, protocol: "UDP" }], wanted: null }, reachable: sim.whyReachable(s),
     whitelist_on: s.players.whitelist_enabled, running: running(s), lan_ip: "192.168.1.50", upnp: sim.state.hub.upnp,
     tunnel_address: s.settings.tunnel_address || "", range: [30000, 39999],
     playit: { platform: "windows", agent: false, install: { state: "idle" }, apt: (rel().playit || {}).apt || [], download_page: "https://playit.gg/download", guide: "https://playit.gg/support/", signer: "Developed Methods LLC" },
@@ -523,7 +523,8 @@
       return { running: running(r.s), online: running(r.s) ? p.online.slice() : [], ops: p.ops.map((o) => ({ name: o.name, uuid: uuid(o.name), level: o.level })),
         whitelist_enabled: p.whitelist_enabled, whitelist: p.whitelist.map((name) => ({ name, uuid: uuid(name) })),
         bans: p.bans.map((b) => ({ name: b.name, uuid: uuid(b.name), reason: b.reason, created: b.created, source: b.source })), ip_bans: p.ip_bans.slice(),
-        known: p.known.map((k) => ({ name: k.name, uuid: k.uuid })), online_mode: r.s.properties["online-mode"] !== "false" };
+        known: p.known.map((k) => ({ name: k.name, uuid: k.uuid })), online_mode: r.s.properties["online-mode"] !== "false",
+        bedrock_prefix: sim.hasMod(r.s, "floodgate") ? "." : "" };
     },
     "GET /api/players/online": (r) => {
       const s = r.s, p = s.players;
@@ -692,7 +693,8 @@
     "POST /api/webmap/accept": (r) => { r.s.webmapAccepted = true; return { ok: true }; },
     "POST /api/webmap/port": (r) => { const port = Number(r.b.port); if (!(port >= 1024 && port <= 65535)) throw new ApiError(400, "pick a port between 1024 and 65535"); return { ok: true, message: `BlueMap uses port ${port} from the next start` }; },
     "GET /api/bedrock": (r) => ({ supported: ["fabric", "neoforge", "paper", "purpur"].includes(r.s.loader), geyser: sim.hasMod(r.s, "geyser"), floodgate: sim.hasMod(r.s, "floodgate"),
-      installed: sim.hasMod(r.s, "geyser") && r.s.mods.find((m) => m.slug === "geyser").installed !== false, port: 19132, minecraft: r.s.minecraft }),
+      installed: sim.hasMod(r.s, "geyser") && r.s.mods.find((m) => m.slug === "geyser").installed !== false, port: 19132,
+      ports: [{ port: 19132, protocol: "UDP" }], minecraft: r.s.minecraft }),
     "GET /api/bedrock/check": (r) => {
       const mods = ["geyser", "floodgate"].map((slug) => { const b = cat().build(slug, r.s.minecraft, r.s.loader); const m = cat().mod(slug); return { source: "modrinth", id: slug, name: m.name, ok: !!b, reason: b ? "" : `no build for Minecraft ${r.s.minecraft}` }; });
       return { mods, minecraft: r.s.minecraft };

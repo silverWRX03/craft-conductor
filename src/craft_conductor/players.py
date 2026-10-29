@@ -25,6 +25,16 @@ from .properties import read_properties, write_properties
 
 MOJANG_PROFILE = "https://api.mojang.com/users/profiles/minecraft"
 NAME_RE = re.compile(r"^[A-Za-z0-9_]{1,16}$")
+#: Bedrock players (through Geyser) on a server with Floodgate: their name is the prefix Floodgate puts
+#: before it ("." unless its config.yml says otherwise) and their Xbox gamertag, spaces made _ (#212).
+FLOODGATE_PREFIX = "."
+FLOODGATE_CONFIGS = ("config/floodgate/config.yml", "plugins/floodgate/config.yml")
+GAMERTAG_RE = re.compile(r"^[A-Za-z0-9_]{1,16}$")
+#: Floodgate's own lookup of an Xbox gamertag (its UUIDs are made from the account's XUID)
+GEYSER_XUID = "https://api.geysermc.org/v2/xbox/xuid"
+#: A name on a join request or Discord's /whitelist, before it's checked against one server (Players.act):
+#: a Java name, or a Bedrock one with Floodgate's usual "." in front.
+REQUEST_NAME_RE = re.compile(r"^\.?[A-Za-z0-9_]{3,16}$")
 FILES = {"ops": "ops.json", "bans": "banned-players.json", "ip_bans": "banned-ips.json",
          "whitelist": "whitelist.json", "usercache": "usercache.json"}
 
@@ -117,6 +127,32 @@ def offline_uuid(name: str) -> str:
     return str(uuid.UUID(bytes=bytes(digest)))
 
 
+def floodgate_prefix(server_dir: Path) -> str | None:
+    """The prefix Floodgate puts before Bedrock players' names on this server ("" when it was set to
+    none), or None when the server has no Floodgate. Its config.yml is written at its first start;
+    until then, the usual one."""
+    for rel in FLOODGATE_CONFIGS:
+        try:
+            text = (server_dir / rel).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        m = re.search(r"""^username-prefix:[ \t]*["']?([^"'\s#]{0,16})""", text, re.M)
+        return m.group(1) if m else FLOODGATE_PREFIX
+    for folder in ("mods", "plugins"):
+        try:
+            if any(f.name.lower().startswith("floodgate") and f.name.lower().endswith(".jar")
+                   for f in (server_dir / folder).iterdir()):
+                return FLOODGATE_PREFIX
+        except OSError:
+            pass
+    return None
+
+
+def floodgate_uuid(xuid: int) -> str:
+    """The UUID Floodgate gives a Bedrock player: the Xbox account's XUID, in the low 64 bits."""
+    return str(uuid.UUID(int=xuid))
+
+
 def clean_reason(reason: str | None) -> str:
     # Commands are sent line by line, so a newline would start a second command.
     text = " ".join((reason or "").split())
@@ -154,6 +190,25 @@ class Players:
         #: ``ask(command, parse, timeout)``: sends one and returns what the server answered (``parse`` gets
         #: the lines it printed); None when the server isn't running or can't say
         self.ask = ask
+        self._prefix: str | None | bool = False  # (floodgate_prefix, read when first needed)
+
+    # ------------------------------------------------------------ Bedrock
+    @property
+    def bedrock_prefix(self) -> str | None:
+        if self._prefix is False:
+            self._prefix = floodgate_prefix(self.server_dir)
+        return self._prefix
+
+    def gamertag(self, name: str) -> str | None:
+        """The Xbox gamertag in a Bedrock player's name (Floodgate's prefix and the gamertag), or None
+        when it isn't one: no Floodgate on this server, or a Java name."""
+        prefix = self.bedrock_prefix
+        if prefix and name.startswith(prefix) and GAMERTAG_RE.fullmatch(name[len(prefix):]):
+            return name[len(prefix):]
+        return None
+
+    def valid_name(self, name: str) -> bool:
+        return bool(NAME_RE.fullmatch(name)) or self.gamertag(name) is not None
 
     # ---------------------------------------------------------------- files
     def _read(self, key: str, strict: bool = False) -> list:
@@ -209,6 +264,7 @@ class Players:
                         for e in self._entries("ip_bans")],
             "known": [{"name": e.get("name"), "uuid": e.get("uuid")} for e in cache[:100]],
             "online_mode": props.get("online-mode", "true") != "false",
+            "bedrock_prefix": self.bedrock_prefix or "",  # (Floodgate: Bedrock players' names start with it)
         }
 
     def roster(self, online: set[str] | list[str], pings: dict[str, int] | None = None,
@@ -246,19 +302,47 @@ class Players:
         for entry in self._entries("usercache"):
             if _named(entry, name) and isinstance(entry.get("uuid"), str):
                 return entry["uuid"], entry["name"]
+        gamertag = self.gamertag(name)
+        if gamertag is not None:
+            return self._bedrock_lookup(gamertag)
         if self.properties.get("online-mode", "true") == "false":
             return offline_uuid(name), name
+        missing = f"there is no Minecraft account named {name!r}" + self._bedrock_hint()
         try:
             profile = self.http.get_json(f"{MOJANG_PROFILE}/{name}")
         except HttpError as e:
             if e.status in (204, 404):
-                raise PlayerError(f"there is no Minecraft account named {name!r}") from e
+                raise PlayerError(missing) from e
             raise PlayerError(f"couldn't look up {name!r} with Mojang: {e}") from e
         except ValueError:  # an empty 204 response
-            raise PlayerError(f"there is no Minecraft account named {name!r}") from None
+            raise PlayerError(missing) from None
         if not profile or "id" not in profile:
-            raise PlayerError(f"there is no Minecraft account named {name!r}")
+            raise PlayerError(missing)
         return str(uuid.UUID(profile["id"])), profile.get("name", name)
+
+    def _bedrock_lookup(self, gamertag: str) -> tuple[str, str]:
+        """(Floodgate's uuid, its name for the player) for an Xbox gamertag, from Geyser's lookup."""
+        name = f"{self.bedrock_prefix}{gamertag}"
+        missing = f"there is no Xbox account with the gamertag {gamertag!r}"
+        try:
+            found = self.http.get_json(f"{GEYSER_XUID}/{gamertag}")
+        except HttpError as e:
+            if e.status in (400, 404):
+                raise PlayerError(missing) from e
+            raise PlayerError(f"couldn't look up the Xbox gamertag {gamertag!r}: {e}") from e
+        except ValueError:
+            raise PlayerError(f"couldn't look up the Xbox gamertag {gamertag!r}") from None
+        try:
+            xuid = int(found.get("xuid") if isinstance(found, dict) else None)
+        except (TypeError, ValueError):
+            raise PlayerError(missing) from None
+        if not 0 < xuid < 1 << 64:
+            raise PlayerError(missing)
+        return floodgate_uuid(xuid), name
+
+    def _bedrock_hint(self) -> str:
+        prefix = self.bedrock_prefix
+        return f" (for a Bedrock player, put {prefix} before their Xbox gamertag)" if prefix else ""
 
     # -------------------------------------------------------------- actions
     def act(self, action: str, name: str = "", reason: str | None = None) -> str:
@@ -268,7 +352,7 @@ class Players:
         name = name.strip()
         if action in IP_ACTIONS:
             # ban-ip also accepts the name of an online player.
-            if not (_is_ip(name) or (action == "ban-ip" and NAME_RE.fullmatch(name))):
+            if not (_is_ip(name) or (action == "ban-ip" and self.valid_name(name))):
                 raise PlayerError(f"{name!r} is not a valid IP address or player name")
             if action == "ban-ip" and not _is_ip(name) and self.send is None:
                 raise PlayerError("banning a player's IP by name needs the server running; enter the IP instead")
@@ -276,21 +360,27 @@ class Players:
                 # (players who come through a tunnel on this computer, playit.gg's, all have this address)
                 raise PlayerError(f"{name} is this computer's own address: banning it would shut out everyone who joins "
                                   "through playit.gg, and you too. Ban the player's name instead")
-        elif action not in NO_TARGET and not NAME_RE.fullmatch(name):
-            raise PlayerError(f"{name!r} is not a valid player name")
+        elif action not in NO_TARGET and not self.valid_name(name):
+            raise PlayerError(f"{name!r} is not a valid player name" + self._bedrock_hint())
         if needs_running and self.send is None:
             raise PlayerError(f"{action} only works while the server is running")
 
         if self.send is not None:
             reason_text = clean_reason(reason)
             command = template.format(name=name, reason=f" {reason_text}" if reason_text else "")
+            said_name = name
+            gamertag = self.gamertag(name) if action in ("whitelist-add", "whitelist-remove") else None
+            if gamertag is not None:
+                # (Minecraft's own whitelist looks names up with Mojang; Floodgate's finds the Xbox account)
+                command = f"fwhitelist {'add' if action == 'whitelist-add' else 'remove'} {gamertag}"
+                said_name = gamertag
             if self.ask is not None and action in ANSWERED:
-                said = self.ask(command, lambda lines: _answer(lines, name), 3)
+                said = self.ask(command, lambda lines: _answer(lines, said_name), 3)
                 if said is not None:
                     kind, text = said
                     if kind == "missing":
-                        raise PlayerError(f"there is no Minecraft account named {name!r}" if action != "kick"
-                                          else f"{name} isn't online")
+                        raise PlayerError(f"there is no Minecraft account named {name!r}" + self._bedrock_hint()
+                                          if action != "kick" else f"{name} isn't online")
                     return text
                 return f"sent: {command}"
             self.send(command)

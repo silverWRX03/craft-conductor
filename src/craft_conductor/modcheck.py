@@ -42,6 +42,10 @@ BUILTIN = {
     "forge": ("minecraft", "forge", "fml", "javafml", "lowcodefml", "mcp"),
     "neoforge": ("minecraft", "neoforge", "fml", "javafml", "lowcodefml", "mixinextras"),
 }
+#: Of those, libraries the loader brings that mods bundle too: the loader uses the newest copy of all, its
+#: own included, so a mod's older copy isn't the only one there (Axiom's MixinExtras 0.3.5, with Fabric
+#: Loader 0.19.5's 0.5.5, #192). The loader's own version isn't known here: it doesn't fail the check.
+LIBRARIES = {"mixinextras"}
 #: Versions the loader takes as well, on one Minecraft version: a mod made for Minecraft 1.21 loads on NeoForge
 #: 1.21.1 (every JEI for 1.21.1 says [1.21, 1.21.1), #158). From each loader line's VersionSupportMatrix.
 ALSO = {
@@ -537,7 +541,7 @@ def check(mods: list[ModInfo], *, loader: str, minecraft: str | None, loader_ver
         for mid in (m.id, *m.provides):
             have.setdefault(mid, []).append((m.version, m.name))
     for mid in BUILTIN[loader]:
-        if mid not in have:
+        if mid not in have or mid in LIBRARIES:
             known = {"minecraft": minecraft, "java": str(java_major) if java_major else None}.get(mid)
             if mid in ("fabricloader", "forge", "neoforge"):
                 known = loader_version

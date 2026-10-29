@@ -11,6 +11,14 @@ from craft_conductor import upnp
 
 from test_hub import login
 
+
+def set_way(d, way):
+    """Friends outside your home, for one server: playit | forward | home."""
+    import json
+    from craft_conductor import config as configmod
+    configmod.set_value(d.m.config.path, "reach", "way", json.dumps(way))
+    d.m.reload_config()
+
 SERVICE = "urn:schemas-upnp-org:service:WANIPConnection:1"
 DESCRIPTION = f"""<?xml version="1.0"?>
 <root xmlns="urn:schemas-upnp-org:device-1-0"><device><friendlyName>Test Router</friendlyName>
@@ -176,6 +184,7 @@ def test_the_search_goes_out_the_adapter_the_internet_uses(monkeypatch):
 def test_switching_it_on_and_off_from_the_page(hub_env, router):
     hub, c = hub_env
     login(c)
+    set_way(hub.daemons["alpha"], "forward")
     assert c.get("/api/hub/upnp")[1]["enabled"] is False
     # Switching it on is agreed to first, knowing it opens the server to the internet.
     status, r, _ = c.post("/api/hub/upnp", {"enabled": True})
@@ -202,6 +211,7 @@ def test_switching_it_on_and_off_from_the_page(hub_env, router):
 def test_a_router_without_upnp_says_so(hub_env, monkeypatch):
     hub, c = hub_env
     login(c)
+    set_way(hub.daemons["alpha"], "forward")
     monkeypatch.setattr(upnp, "discover", lambda timeout=3.0: [])
     r = c.post("/api/hub/upnp", {"enabled": True, "accept": True})[1]
     assert r["enabled"] and "switched off" in r["error"]
@@ -214,6 +224,7 @@ def test_upnp_is_off_by_default_and_never_opens_the_panel(hub_env):
     assert hub.upnp_settings()["enabled"] is False and hub.upnp_status()["exposure"] == ""
     # Even a server whose game port is the control panel's (or its RCON port) isn't forwarded.
     alpha = hub.daemons["alpha"]
+    set_way(alpha, "forward")
     props = alpha.m.server_dir / "server.properties"
     from craft_conductor.properties import write_properties
     panel = hub.ui.httpd.server_address[1]
@@ -223,6 +234,21 @@ def test_upnp_is_off_by_default_and_never_opens_the_panel(hub_env):
     assert all(port != 25600 for port, _, _ in hub.upnp_wanted())
     write_properties(props, {"enable-rcon": "false"})
     assert any(port == 25600 for port, _, _ in hub.upnp_wanted())
+
+
+def test_upnp_forwards_only_the_servers_set_to_open_a_port(hub_env):
+    """A server set to Only friends at home (or playit.gg, or not chosen yet) is never forwarded (#201)."""
+    hub, c = hub_env
+    alpha = hub.daemons["alpha"]
+    from craft_conductor.properties import write_properties
+    write_properties(alpha.m.server_dir / "server.properties", {"server-port": "25610"})
+    for way in ("home", "playit", ""):
+        if way:
+            set_way(alpha, way)
+        assert all(port != 25610 for port, _, _ in hub.upnp_wanted()), way
+    hub.upnp_settings()  # (Router (UPnP) on doesn't make a home-only server reachable)
+    set_way(alpha, "forward")
+    assert (25610, "TCP") in {(p, pr) for p, pr, _ in hub.upnp_wanted()}
 
 
 def test_a_setting_saved_while_the_router_is_slow_stays_saved(tmp_path, monkeypatch):

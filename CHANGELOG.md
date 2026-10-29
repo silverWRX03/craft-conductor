@@ -10,6 +10,14 @@ its fix will say which version it's in.
 - The website's **Real-world testing** page has **All Tests Completed** in its **Test run** list: every test's latest result from all test runs, with the newest version it passed in, so what's still never been tried is easy to see. The Dad Test is on hold for now and no longer shown.
 - The website's **Product walkthrough** shows the video's thumbnail until you press it to play.
 
+**Fixed**
+- **Router (UPnP)** opened the port of every server on the router, also those set to **Only friends at home**, so a server meant for your home (often without its whitelist on) could be reached from the whole internet. Only servers set to **Open a port on my router** are forwarded now, and switching one back takes its forward away (#201).
+- Bedrock players couldn't join a server with Geyser 2.12: it takes only Bedrock's new connection method at first, and a player who adds the server by address got straight back to **Back**. Craft Conductor now sets Geyser to take both (after its first start, the bell asks you to restart the server once), with a UDP port of its own for the new one, and the Friends page, Router (UPnP) and Windows Firewall cover all of Bedrock's ports. On Windows, the Bedrock invite link has **Add to Minecraft** (#211).
+- A Bedrock player's name (a dot and their Xbox gamertag, like `.Steve`) was refused on the **Players** page ("not a valid player name"), so they could only be whitelisted with a console command, and they never showed as online. The Players page, join requests and Discord's `/whitelist` take it now, and Bedrock players show in **Connected Players** (#212).
+- Making a server from a big CurseForge modpack (All the Mods 11) ignored the pack's server pack again ("couldn't read … server pack"), so which mods are only for players was guessed from Modrinth. CurseForge's download site changed how it answers; the server pack's list is read again (#191).
+- Updating a modpack could be refused with "MixinExtras 0.3.5 is the one there" when one mod carries an old copy of MixinExtras, though Fabric Loader brings a newer one and uses it. The newer copy counts now (#192).
+- After a failed start, the Dashboard kept saying "The server didn't start" once the server had started, if that start installed a mod change first. The message goes as soon as the server is up (#188).
+
 ## 0.30.3 (2026-10-25)
 
 **Fixed**

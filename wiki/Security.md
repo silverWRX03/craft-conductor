@@ -133,8 +133,9 @@ reachable through it.
 
 **Open the ports on my router by itself** is off until you switch it on, and asks first: it makes
 your server reachable from the whole internet, and the page says so for as long as it's on. Only
-each server's Minecraft port (and its Bedrock port, with Geyser) and the friends' port while a link
-works are forwarded, never the control panel's port or a server's RCON port, and they're taken back
+the Minecraft port (and the Bedrock port, with Geyser) of each server set to **Open a port on my
+router**, and the friends' port while a link works, are forwarded (never a server set to **Only
+friends at home** or playit.gg), never the control panel's port or a server's RCON port, and they're taken back
 when you switch it off or quit.
 
 ## Secrets on your computer

@@ -243,6 +243,9 @@ class Daemon:
             self.activity.left(m.group(1))
         elif READY.search(line):
             self.started_at = time.time()
+            hub = getattr(self, "hub", None)
+            if hub is not None:
+                threading.Thread(target=hub.after_ready, args=(self,), daemon=True, name="after-ready").start()
 
     def send_command(self, command: str) -> None:
         if not self.proc or not self.proc.running:
@@ -305,6 +308,7 @@ class Daemon:
             if not self.m.lock.installed:
                 raise RuntimeError("no server could be installed yet; see the Updates page")
             if self.proc and self.proc.running:  # the install left it running
+                self._started()
                 return "installed and started"
         elif not self.autostart and self.m.config.updates.auto_upgrade:
             # Started by hand after sitting stopped: bring it up to date on the way up.
@@ -314,16 +318,22 @@ class Daemon:
                 log.warning("update before starting failed (%s); starting the current version", e)
                 self.m.recover()  # (if its backup couldn't be put back, don't start half-updated files)
             if self.proc and self.proc.running:
+                self._started()
                 return "updated and started"
         try:
             self.m.start_server()
         except Exception:
             self._explain(getattr(self.m, "last_start_lines", None) or [], "start")
             raise
-        if self.problem and self.problem.get("kind") == "start":  # (a crash's explanation stays until dismissed)
-            self.problem = None
+        self._started()
         self.m.notifier.send(f"Server is up (Minecraft {self.m.lock.minecraft})")
         return "started"
+
+    def _started(self) -> None:
+        """The server is up, however it got there (a plain start, or after an install or update):
+        an earlier failed start's explanation goes from the Dashboard (#188)."""
+        if self.problem and self.problem.get("kind") == "start":  # (a crash's explanation stays until dismissed)
+            self.problem = None
 
     def _explain(self, lines: list[str], kind: str) -> None:
         """Keep what went wrong, in plain words with fix buttons, for the Dashboard."""

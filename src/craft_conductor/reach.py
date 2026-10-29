@@ -162,6 +162,130 @@ def geyser_port(server_dir: Path) -> int:
     return 19132
 
 
+# Geyser 2.12 and later default to Bedrock's new connection method (NetherNet: "transport: nethernet"),
+# which doesn't answer the classic one (RakNet) that a server added by address is reached with. With
+# "both", Geyser takes both: TCP on its port (NetherNet's signaling), UDP on it (RakNet), and UDP on
+# "webrtc-port" (NetherNet's game traffic; 0 means its port, which RakNet then has) (#211).
+_KEY_LINE = re.compile(r"([ \t]+)([A-Za-z-]+):[ \t]*([^#\r\n]*?)[ \t]*(?:#.*)?$")
+
+
+def _bedrock_keys(text: str) -> dict[str, tuple[int, int, int]]:
+    """The ``bedrock:`` section's own settings (not those of a section inside it, like signaling's):
+    key -> (the line, and where its value starts and ends in it)."""
+    out: dict[str, tuple[int, int, int]] = {}
+    inside, indent = False, None
+    for i, line in enumerate(text.splitlines()):
+        if not inside:
+            inside = line.rstrip(" \t") == "bedrock:"
+            continue
+        if not line.strip() or line.strip().startswith("#"):
+            continue
+        if line[:1] not in (" ", "\t"):
+            break  # (the next section)
+        m = _KEY_LINE.match(line)
+        if not m:
+            continue
+        if indent is None:
+            indent = m.group(1)
+        if m.group(1) == indent:
+            out.setdefault(m.group(2), (i, m.start(3), m.end(3)))
+    return out
+
+
+def _value(text: str, key: str) -> str | None:
+    found = _bedrock_keys(text).get(key)
+    if found is None:
+        return None
+    i, start, end = found
+    return text.splitlines()[i][start:end].strip("\"'")
+
+
+def geyser_transport(server_dir: Path) -> str:
+    """How Bedrock players reach Geyser: raknet (Geyser before 2.12, which has no such setting),
+    nethernet or both."""
+    path = geyser_config(server_dir)
+    if path is None:
+        return "raknet"
+    return (_value(path.read_text(encoding="utf-8", errors="replace"), "transport") or "raknet").lower()
+
+
+def geyser_webrtc_port(server_dir: Path) -> int | None:
+    """The UDP port of Bedrock's new connection method when it's apart from Geyser's port (with
+    "both"), or None."""
+    path = geyser_config(server_dir)
+    if path is None:
+        return None
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if (_value(text, "transport") or "").lower() != "both":
+        return None
+    try:
+        port = int(_value(text, "webrtc-port") or 0)
+    except ValueError:
+        return None
+    return port if 1 <= port <= 65535 else None
+
+
+def geyser_ports(server_dir: Path) -> list[tuple[int, str]]:
+    """(port, protocol) Bedrock players come in on, through Geyser (none without its config)."""
+    if geyser_config(server_dir) is None:
+        return []
+    port, transport = geyser_port(server_dir), geyser_transport(server_dir)
+    out = [(port, "UDP")]
+    if transport in ("nethernet", "both"):
+        out.append((port, "TCP"))  # (NetherNet's signaling)
+    webrtc = geyser_webrtc_port(server_dir)
+    if webrtc is not None and webrtc != port:
+        out.append((webrtc, "UDP"))
+    return out
+
+
+def set_geyser_both(server_dir: Path, webrtc_port: int, replace: bool = False) -> bool:
+    """Let current and older Bedrock players join by address: Geyser's ``transport: nethernet`` (its
+    default from 2.12) becomes ``both``, with NetherNet's UDP traffic on ``webrtc_port``. A setup
+    already on both keeps its webrtc-port unless it's 0 (or ``replace``); raknet (or an older Geyser)
+    is left alone.
+    True when the file was changed."""
+    if not 1 <= int(webrtc_port) <= 65535:
+        raise ValueError("that isn't a port")
+    path = geyser_config(server_dir)
+    if path is None:
+        return False
+    with path.open(encoding="utf-8", errors="replace", newline="") as f:  # (its own line endings, kept)
+        text = f.read()
+    keys = _bedrock_keys(text)
+    transport = (_value(text, "transport") or "").lower()
+    if transport not in ("nethernet", "both") or "transport" not in keys:
+        return False
+    lines = text.splitlines(keepends=True)
+    i, start, end = keys["transport"]
+    if transport == "nethernet":
+        lines[i] = lines[i][:start] + "both" + lines[i][end:]
+    if "webrtc-port" in keys:
+        j, start, end = keys["webrtc-port"]
+        try:
+            current = int(lines[j][start:end].strip("\"'") or 0)
+        except ValueError:
+            current = 0
+        if transport == "nethernet" or replace or not 1 <= current <= 65535:
+            lines[j] = lines[j][:start] + str(int(webrtc_port)) + lines[j][end:]
+    else:  # (after the transport line, indented the same)
+        line = lines[i]
+        indent = line[:len(line) - len(line.lstrip(" \t"))]
+        ending = "\r\n" if line.endswith("\r\n") else "\n"
+        if not line.endswith(("\n", "\r")):
+            lines[i] = line + ending
+        lines.insert(i + 1, f"{indent}webrtc-port: {int(webrtc_port)}{ending}")
+    new = "".join(lines)
+    if new == text:
+        return False
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(new, encoding="utf-8", newline="")
+    tmp.replace(path)
+    log.info("Bedrock players can join by address with both connection methods (UDP port %s for the new one; %s)",
+             webrtc_port, path.name)
+    return True
+
+
 def set_geyser_port(server_dir: Path, port: int) -> bool:
     """Write the Bedrock port into Geyser's config.yml (only its ``bedrock: port:``). False when
     Geyser hasn't written its config yet (it does on the server's first start)."""

@@ -2327,7 +2327,7 @@ class HubApi:
         sid = str(q.get("id", ""))
         if not firewall.available() or sid not in self.hub.daemons:
             return {"rules": []}
-        from .reach import geyser_config, geyser_port
+        from .reach import geyser_ports
         server_dir = self.hub.daemons[sid].m.server_dir
         try:
             port = int(read_properties(server_dir / "server.properties").get("server-port", "25565"))
@@ -2335,7 +2335,7 @@ class HubApi:
             return {"rules": []}
         others = self.hub.taken_ports(exclude=sid)  # (a port another server here uses keeps its rule)
         state = firewall.read(fresh=True)
-        mine = [port] + ([geyser_port(server_dir)] if geyser_config(server_dir) is not None else [])
+        mine = [port] + [p for p, _ in geyser_ports(server_dir)]
         return {"rules": [r for p in dict.fromkeys(mine) if p not in others
                           for r in firewall.own_rules(state, p)]}
 
@@ -4133,7 +4133,7 @@ class Api:
         state = reach.read_state(self.m.config.state_dir)
         return {"way": self.m.config.reach_way, "port": int(props.get("server-port", "25565") or 25565),
                 "bedrock": {"on": bool(bedrock["supported"] and bedrock["geyser"]), "port": bedrock["port"],
-                            "wanted": state.get("bedrock_port")},
+                            "ports": bedrock["ports"], "wanted": state.get("bedrock_port")},
                 "reachable": hub.why_reachable(self.d), "whitelist_on": props.get("white-list", "false") == "true",
                 "running": self.d.state == "running", "lan_ip": lan_ip(), "upnp": hub.upnp_settings()["enabled"],
                 "tunnel_address": self.m.config.tunnel_address, "range": list(reach.OPEN_RANGE),
@@ -4199,8 +4199,8 @@ class Api:
         configmod.set_value(self.m.config.path, "reach", "way", json.dumps(way))
         self.m.reload_config()
         hub.whitelist_when_reachable()
-        if way == "forward" and hub.upnp_settings()["enabled"]:
-            threading.Thread(target=hub.upnp_sync, daemon=True, name="upnp").start()  # (the router gets the new port)
+        if hub.upnp_settings()["enabled"]:  # (the router gets the new port, or takes back one no longer wanted)
+            threading.Thread(target=hub.upnp_sync, daemon=True, name="upnp").start()
         log.info("%s", message)
         return {**self.reach({}, {}), "ok": True, "message": message}
 
@@ -4210,13 +4210,15 @@ class Api:
     def bedrock(self, q, b) -> dict:
         """Whether Bedrock players (phones, tablets, consoles, Windows) can join through Geyser, and
         the port they use (UDP; Geyser's config says, 19132 until it's written)."""
-        from .reach import geyser_port
+        from .reach import geyser_port, geyser_ports
         loader = self.m.lock.loader or self.m.config.server.loader
         ids = {s.id.lower() for s in self.m.config.mods}
         port = geyser_port(self.m.server_dir)
+        # (every port to forward: with Bedrock's new connection method, TCP and a second UDP one too, #211)
+        ports = [{"port": p, "protocol": proto} for p, proto in geyser_ports(self.m.server_dir) or [(port, "UDP")]]
         return {"supported": loader in self.BEDROCK_LOADERS, "geyser": "geyser" in ids, "floodgate": "floodgate" in ids,
                 "installed": any(x.name.lower().startswith("geyser") for x in self.m.lock.mods), "port": port,
-                "minecraft": self.m.lock.minecraft}
+                "ports": ports, "minecraft": self.m.lock.minecraft}
 
     def bedrock_check(self, q, b) -> dict:
         """Preflight both bridge mods, including explicitly offered early builds."""
@@ -4245,8 +4247,9 @@ class Api:
                 "whitelist_on": props.get("white-list", "false") == "true"}
 
     def answer_join_request(self, q, b) -> dict:
+        from .players import REQUEST_NAME_RE
         name = str(b.get("name", "")).strip()
-        if not re.fullmatch(r"[A-Za-z0-9_]{3,16}", name):
+        if not REQUEST_NAME_RE.fullmatch(name):
             raise ApiError(400, "that isn't a Minecraft name")
         message = f"ignored {name}"
         if b.get("allow") is True:
@@ -4414,7 +4417,9 @@ class Api:
         share = None if hub.is_single else hub.share_status()
         return doctor.run(self.m, self.d.state, share=share,
                           self_update={"available": True, **info} if info else None,
-                          upnp=None if hub.is_single else hub.upnp_status(), firewall=self._firewall(share))
+                          # (the router check is for a server set to Open a port on my router: UPnP forwards only those)
+                          upnp=hub.upnp_status() if not hub.is_single and self.m.config.reach_way == "forward" else None,
+                          firewall=self._firewall(share))
 
     def _firewall_ports(self, share: dict | None) -> list[dict]:
         """What should get through Windows Firewall: the Minecraft port (Java listens on it) and
@@ -4429,9 +4434,12 @@ class Api:
             java = None
         ports = [{"port": port, "label": f"{props.get('motd') or self.d.server_id or 'server'} (Minecraft)", "program": java}]
         bedrock = self.bedrock({}, {})
-        if bedrock["supported"] and bedrock["geyser"]:  # (Bedrock players come in on UDP, through Geyser in the same Java)
-            ports.append({"port": bedrock["port"], "label": f"{props.get('motd') or self.d.server_id or 'server'} (Bedrock)",
-                          "program": java, "protocol": "UDP"})
+        if bedrock["supported"] and bedrock["geyser"]:  # (Bedrock players come in through Geyser, in the same Java)
+            from .reach import geyser_ports
+            label = f"{props.get('motd') or self.d.server_id or 'server'} (Bedrock)"
+            for p, proto in geyser_ports(self.m.server_dir) or [(bedrock["port"], "UDP")]:
+                if (p, proto) != (port, "TCP"):
+                    ports.append({"port": p, "label": label, "program": java, "protocol": proto})
         if self.m.config.client.enabled and share and share.get("running") and share.get("port"):
             ports.append({"port": int(share["port"]), "label": "friends' downloads", "program": sys.executable})
         return ports
