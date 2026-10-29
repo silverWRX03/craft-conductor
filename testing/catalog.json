@@ -8759,5 +8759,13 @@
     "type": "Core",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 999,
+    "section": "Fix: previous version back at once when the update dies at start (#194)",
+    "step": "On an older release exe, press Update now. Right after the restart, end the new Craft Conductor process in Task Manager. Within about 10 seconds the previous version is back and the page says the update didn't work because the new version stopped right after starting (not after 3 minutes).",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]

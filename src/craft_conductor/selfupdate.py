@@ -419,9 +419,13 @@ def restart() -> None:
     if WINDOWS:
         # (Windows has no real exec: os.execv starts another process without quoting paths
         # with spaces. Start it properly, sharing this console, and end this one.)
-        subprocess.Popen(argv, env=env)
+        new = subprocess.Popen(argv, env=env)
+        if _GUARDED_STATE is not None:  # (the guard watches that process: gone before it's up = put back, #194)
+            rollback.note_new_copy(_GUARDED_STATE, getattr(new, "pid", None))
         os._exit(0)
         return  # (only reached in tests)
+    if _GUARDED_STATE is not None:  # (exec keeps this process's number for the new copy)
+        rollback.note_new_copy(_GUARDED_STATE, os.getpid())
     os.execve(argv[0], argv, env)
 
 
