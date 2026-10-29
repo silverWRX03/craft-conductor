@@ -323,13 +323,24 @@ function askText(message, { ok = "OK", cancel = "Cancel", maxLength = 256 } = {}
 
 // Everyday messages ("Saved", errors): at the top of the screen, where they're noticed, without
 // getting in the way. Click one to dismiss it; errors stay longer.
+// A pop-up stays short: no Java stack trace ("at net.neoforged…" lines), a few lines at most; the whole
+// message is kept in the bell (#204).
+const TOAST_LINES = 3, TOAST_CHARS = 300;
+function toastText(message) {
+  const lines = String(message ?? "").split(/\r?\n/).map((l) => l.trimEnd())
+    .filter((l) => l.trim() && !/^\s*(at |\.\.\. \d+ more|Caused by: |Suppressed: )/.test(l));
+  let text = lines.slice(0, TOAST_LINES).join("\n");
+  if (text.length > TOAST_CHARS) text = text.slice(0, TOAST_CHARS - 1).trimEnd() + "…";
+  return text || String(message ?? "");
+}
 function toast(message, bad = false, ms = 0) {
+  const full = String(message ?? ""), short = toastText(full);
   const el = h("div", { class: "toast" + (bad ? " bad" : ""), role: bad ? "alert" : "status", title: "Click to dismiss",
-    onclick: () => el.remove() }, h("span", { class: "toast-icon", "aria-hidden": "true" }, bad ? "⚠" : "✓"), h("span", {}, t(message)));
+    onclick: () => el.remove() }, h("span", { class: "toast-icon", "aria-hidden": "true" }, bad ? "⚠" : "✓"), h("span", {}, t(short)));
   $("#toasts").append(el);
   setTimeout(() => el.remove(), ms || (bad ? 12000 : 5000));
   if (bad) playSound("problem");
-  bellNote(message, { bad });
+  bellNote(short, { bad, more: short !== full ? full : "" });
 }
 
 // ------------------------------------------------------------------ the bell
@@ -6089,7 +6100,7 @@ function routerHelp(opts = {}) {
       "The menus and names above are typical, not exact. If you can't find the setting, check your router's manual or its maker's support site ",
       "(search for your router's model and “port forwarding”), or ask your internet provider. Some providers share one public address between ",
       "customers (called CGNAT); port forwarding can't work then, and they may give you your own address if you ask."),
-    h("p", { class: "muted small" }, "Only forward the ports above. Never forward the control panel's port (8765): to manage Craft Conductor from elsewhere, use ",
+    h("p", { class: "muted small" }, `Only forward the ports above. Never forward the control panel's port (${location.port || (location.protocol === "https:" ? 443 : 80)}): to manage Craft Conductor from elsewhere, use `,
       h("button", { type: "button", class: "link-btn", onclick: openRemoteAccess }, "Remote access & phones"), " instead."));
 }
 
@@ -10010,9 +10021,13 @@ views.setup = () => {
         h("div", { class: "small muted mt-s" }, "You can close this page: Craft Conductor keeps going. Open Craft Conductor again and choose See progress on the server.")),
       manualBox,
       card("What's happening", events),
-      // While it installs: what friends outside your home will need (the lower part of the screen).
-      h("details", { class: "card mt router-help", open: true }, h("summary", {}, h("strong", {}, "While you wait: letting friends outside your home join")),
-        routerHelp({ port: (status && status.port) || st.port })));
+      // While it installs: what friends outside your home will need (the lower part of the screen), for the
+      // way chosen: the router's port forwarding, playit.gg's steps on the Friends page, or nothing (#196).
+      st.reach === "forward" ? h("details", { class: "card mt router-help", open: true }, h("summary", {}, h("strong", {}, "While you wait: letting friends outside your home join")),
+        routerHelp({ port: (status && status.port) || st.port }))
+        : st.reach === "playit" ? h("div", { class: "card mt" }, h("strong", {}, "While you wait: letting friends outside your home join"),
+          h("p", { class: "small" }, "You chose playit.gg: once the server is made, its Friends page walks you through it (get playit.gg's program, connect it, add a tunnel). No router settings needed."))
+        : null);
     fill(main, panel);
     let startedAt = null;  // only this setup's events, not an earlier attempt's
     every(1500, async () => {
