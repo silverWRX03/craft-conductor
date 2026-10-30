@@ -291,6 +291,392 @@
     998,
     999
   ],
-  "results": {},
+  "results": {
+    "975": {
+      "status": "pass",
+      "tested_at": "2026-10-29T17:39:36+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Chrome (Modern): New server, Fabric, typed name rt-port-keep and port 25615, went to Servers and back to New server: both still there.",
+      "evidence": ""
+    },
+    "981": {
+      "status": "pass",
+      "tested_at": "2026-10-29T17:40:21+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Panel on port 29940. Help -> Router setup: \"Never forward the control panel's port (29940)\"; no 8765 anywhere on the page; the two pictures (help-network.svg, help-router.svg) name only 25565, no panel port.",
+      "evidence": ""
+    },
+    "997": {
+      "status": "pass",
+      "tested_at": "2026-10-29T17:43:10+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Vanilla 26.3 server rt-vanilla, nobody connected. Restart in the top bar: no question was shown, the page sent /server/restart with no warning asked for, the job ran and the server was running again (started).",
+      "evidence": ""
+    },
+    "993": {
+      "status": "pass",
+      "tested_at": "2026-10-29T17:46:34+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Vanilla 26.3 server, whitelist turned off on Players, Only friends at home, Make a download for friends on. The friends program (join exe, isolated home with an empty Minecraft Launcher folder) opened its page: rt-vanilla, Make it yours (Resource packs, Nothing added), then Which launchers should have this server? No null or undefined anywhere on the page.",
+      "evidence": ""
+    },
+    "989": {
+      "status": "pass",
+      "tested_at": "2026-10-29T17:48:13+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Chrome, Modern, 1920 wide. New server: Fabric, Terralith from Download mods, then Forge and Minecraft 26.3, Manage Mods: Terralith row with the No Forge build for Minecraft 26.3 notice; required, Change version and Remove each whole on one line (no word split).",
+      "evidence": ""
+    },
+    "995": {
+      "status": "pass",
+      "tested_at": "2026-10-29T17:52:01+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Fabric 26.3 server rt-fabric, Make a download for friends on. Friends -> Add Friends Mods, search Simple Voice Chat (beta only for 26.3 on Modrinth), Show them, select, Add selected mods -> only has alpha or beta builds -> Add anyway. Friends page: 1 Friends Mods added, 1 Beta. The server config has it with channel beta (client.channels); Start installed voicechat-fabric-2.6.27+26.3 (beta), nothing skipped (no only has beta builds), server running; the friends download pack lists the same file.",
+      "evidence": ""
+    },
+    "976": {
+      "status": "pass",
+      "tested_at": "2026-10-29T17:54:11+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Fabric 26.3 rt-fabric with Simple Voice Chat for players. Friends program (join exe, isolated home) opened the invite page: 1 mod you need too; page left open. Owner added a players mod file that needs a missing mod (pack problems: RT Needs Missing needs rt_not_a_real_mod). Friend opened the same invite again: page reloaded to Couldn't reach the server / the server's owner is fixing its mods so that Minecraft starts with them. Try again later (the same invite works). Owner removed that file and added Mod Menu; same invite again: 4 mods you need too (Simple Voice Chat, Mod Menu, Fabric API, Text Placeholder API). Small: on the paused page the heading says Couldn't reach the server and the language box stretches full width, unstyled.",
+      "evidence": ""
+    },
+    "978": {
+      "status": "fail",
+      "tested_at": "2026-10-29T18:34:21+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Fabric 26.3 rt-fabric: Mods -> Add a mod file: rt-hud-tweaks-1.0.0.jar, unknown to Modrinth, a client-only mod for this test (main entrypoint in net.minecraft.client.gui). Start: server did not finish starting (pop-up 3 lines). Log: Could not execute entrypoint stage main due to errors, provided by rt_hud_tweaks / ClassNotFoundException net.minecraft.client.gui.RtHudTweaks. The Dashboard explained nothing (status problem null): diagnose has no pattern for Fabric provided by <mod> -> issue #231. NeoForge retest (rt-neo, Controlify 3.5.3 with an extra file, see 912): only runs on players' computers, no check for an update, Move/Switch off offered; Move put it in client-mods and the server started. Passes on NeoForge, fails on Fabric.",
+      "evidence": "",
+      "supersedes": {
+        "status": "fail",
+        "tested_at": "2026-10-29T18:34:14+00:00",
+        "tester": "Claude Code",
+        "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Fabric: no explanation (#231), see the first note. NeoForge retest the same day (rt-neo, Controlify with an extra file, see 912): Dashboard said controlify only runs on players' computers, no check for an update, Move/Switch off offered; Move put it in client-mods (Friends -> players' mods, own files) and the server started. So the #189 case passes on NeoForge; the test stays failed for Fabric (#231).",
+        "evidence": "",
+        "supersedes": {
+          "status": "fail",
+          "tested_at": "2026-10-29T17:56:15+00:00",
+          "tester": "Claude Code",
+          "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Fabric 26.3 rt-fabric. Mods -> Add a mod file (API upload, same as the page): rt-hud-tweaks-1.0.0.jar, unknown to Modrinth, a client-only mod for this test (main entrypoint in net.minecraft.client.gui). Start: server did not finish starting; pop-up short (3 lines). The log: Could not execute entrypoint stage main due to errors, provided by rt_hud_tweaks / ClassNotFoundException net.minecraft.client.gui.RtHudTweaks. The Dashboard explained nothing (status problem null): diagnose has no pattern for Fabric provided by <mod>, so no suspect -> issue #231. The NeoForge case of #189 not retested here.",
+          "evidence": ""
+        }
+      }
+    },
+    "969": {
+      "status": "pass",
+      "tested_at": "2026-10-29T17:57:53+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Fabric 26.3 rt-fabric. A start that failed on a mod (a file of my own needing a missing mod; the client-only case isn't explained on Fabric, see #231): Dashboard said The server didn't start: rt_server_needs stopped the server. Removed that file, added Lithium (not installed yet), pressed Start: updated and started; once Running the didn't start message was gone without pressing Dismiss (status problem null).",
+      "evidence": ""
+    },
+    "980": {
+      "status": "pass",
+      "tested_at": "2026-10-29T17:58:55+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Creating your server page, three new servers: Only friends at home (rt-fabric): no router guide, no friends note. playit.gg (rt-vanilla): only a short While you wait note pointing to the Friends page, no router settings needed. Open a port on my router (rt-forward): the router guide (UPnP first, then by hand, the warning about opening a port) shown open.",
+      "evidence": ""
+    },
+    "961": {
+      "status": "pass",
+      "tested_at": "2026-10-29T18:01:22+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Stopped vanilla server rt-vanilla, 440 MB backup (rt-big). Roll back to this (/backups/restore), Craft Conductor ended with taskkill /T /F (like End task) while server.restoring was being unpacked. Opened again without starting the server: Activity and the bell say Craft Conductor was stopped in the middle of something: a roll back was stopped before it changed anything (the server is as it was). No server.restoring (or server.replaced) folder next to server; world as before.",
+      "evidence": ""
+    },
+    "985": {
+      "status": "pass",
+      "tested_at": "2026-10-29T18:01:22+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Same interrupted roll back as 961. After opening Craft Conductor again and signing in, the rt-vanilla Dashboard showed a pop-up: Craft Conductor was stopped in the middle of something: a roll back was stopped before it changed anything; the bell lists it (New, rt-vanilla). Reloading the page: no pop-up again.",
+      "evidence": ""
+    },
+    "992": {
+      "status": "pass",
+      "tested_at": "2026-10-29T18:04:36+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. 32 GB PC with other programs using about 15 GB (17 GB free). rt-vanilla given 20 GB (less than the total, more than free). Start on the Dashboard asked: Start rt-vanilla? It would be given 20 GB of memory, and only 17 GB is free on this computer now: other programs use the rest. Start anyway started it (Running); stopped again and set back to 3 GB.",
+      "evidence": ""
+    },
+    "974": {
+      "status": "pass",
+      "tested_at": "2026-10-29T18:08:05+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. A terrain map preview (Fabric, latest, seed rt974, radius 512) and rt-fabric Mods -> Test these mods (Lithium + Simple Voice Chat) started at the same moment and ran together for about a minute. Both finished: the preview drew its 1024 map (state done, no error); the test: Test 1: all 2 mod(s) together, started fine (Minecraft 26.3), ok, same as the earlier start of these mods alone. No FAILED TO BIND TO PORT anywhere in the panel output or Craft Conductor logs. (A first try from the page had the preview finish before the test began, so both were started through the same calls the page uses.)",
+      "evidence": ""
+    },
+    "982": {
+      "status": "pass",
+      "tested_at": "2026-10-29T18:12:38+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. New server -> Mods -> Modpacks -> Modrinth -> Vanilla Perfected, version 1.0.3+26.2, Use this modpack (81 mods), Create (server rt-vp, Fabric 26.2). Updates -> Modpack: This server was made from Vanilla Perfected 1.0.3+26.2 (Chaos Cubed Hotfix 3.0). Look for a new version of the pack lists 1.0.0+26.3 (Wilderness Bound Update 26.3) (Minecraft 26.3) with See what changes. Aside: the first Create my server press only ran Checking that the mods start together and came back to the form with nothing made and no message; the second press made it.",
+      "evidence": ""
+    },
+    "872": {
+      "status": "pass",
+      "tested_at": "2026-10-29T18:19:00+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. New server, Fabric chosen, Mods -> Modpacks: the list only offers Fabric packs (search All the Mods gives Fabric packs, no NeoForge ATM) and the browser header shows a fabric tag next to Modpacks, so it says which loader it filters by (small: just the word, no explanation). Switching the source to CurseForge keeps it while browsing (CurseForge results). Closing (Back to setup) and opening Modpacks again starts on Modrinth again.",
+      "evidence": ""
+    },
+    "878": {
+      "status": "fail",
+      "tested_at": "2026-10-29T18:20:53+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. New server, Fabric, Minecraft 26.2, World -> Import a world -> Worlds on this computer: a world last played on 26.3 -> Use. The card only said last played on Minecraft 26.3 plus the general note about older worlds; no warning that it is newer than the server. Create my server imported it and the setup check start ran 26.2 on it and saved all dimensions; setup said ready (Minecraft 26.2). -> issue #233.",
+      "evidence": ""
+    },
+    "879": {
+      "status": "fail",
+      "tested_at": "2026-10-29T18:23:05+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Modded world (rt-vp: Vanilla Perfected 1.0.0+26.3, level.dat enables easyshulkerboxes data packs, data/ has collective, fabric) imported into a new Vanilla 26.3 server (rt-modworld) via Import a world -> Worlds on this computer. The card only had the general note; Create went through; nothing listed the missing mod data packs or game rules (form, Activity). The first start log says Missing data pack axiom, collective, easyshulkerboxes, elytratrims, ... Craft Conductor has no such check -> enhancement issue.",
+      "evidence": ""
+    },
+    "876": {
+      "status": "fail",
+      "tested_at": "2026-10-29T18:25:30+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. New server rt-failsetup: Fabric 26.3, a local jar that needs a missing mod, Import a world (26.3). Setup failed (plain words). Retry from the setup page: Manage Mods -> Remove the jar (page: Nothing yet), Use a new world instead, Create my server: failed again the same way, because the jar from the first try is still in server/mods; the imported world is still server/world (level.dat identical). -> issue #235.",
+      "evidence": ""
+    },
+    "881": {
+      "status": "pass",
+      "tested_at": "2026-10-29T18:25:30+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Failing setup (rt-failsetup, a mod that needs a missing mod): the pop-up and the setup page say Setup didn't finish: could not prepare update (...): the mods wouldn't start together. RT Server Needs 1.0.0 needs rt_not_a_real_mod (any version), which is missing. Change the version of a mod, or remove it, in Manage Mods. Plain words plus where the details are; no Java stack trace. (This one failed in the mod check before Java started.)",
+      "evidence": ""
+    },
+    "912": {
+      "status": "fail",
+      "tested_at": "2026-10-29T18:34:14+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. NeoForge 26.3 rt-neo with YACL; Mods -> Add a mod file: Controlify 3.5.3+mc26.3 with one extra file (unknown to Modrinth). Start: The server didn't start: controlify only runs on players' computers (An update of it won't change that...), with Move controlify to players' mods and Switch controlify off. Move: toast controlify is off the server and in your friends' download; file now in client-mods; Start: running. Friends download (turned on) lists controlify-rt-local.jar (local). But no Put back on the server: not in Manage Mods, and Manage Friends Mods offers only Remove -> issue #236.",
+      "evidence": ""
+    },
+    "984": {
+      "status": "pass",
+      "tested_at": "2026-10-29T19:01:43+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Craft Conductor ended (taskkill /T /F, like End task) at 12:59 while it was downloading Java 21 (jdk-21.0.13+9): .download-6473131da56e left in .craft-conductor\\java. Opened again; at 14:01 (over an hour later) Java -> install Java 21 again: installed jdk-21.0.13+9, and the java folder now has only 21, 25, checked.json, servers: the stale .download- folder is gone, no .extract- folder.",
+      "evidence": ""
+    },
+    "987": {
+      "status": "pass",
+      "tested_at": "2026-10-29T22:13:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Riley Test (invited Moderator on rt-vp only, signed in from the LAN address) whitelisted the owner's account on Players, sent a Broadcast from the Dashboard and kicked the owner's account (in game from a second PC). Owner Activity: 'Riley Test: added the owner's account to the whitelist', 'Riley Test: broadcast \"...\"', 'Riley Test: kicked the owner's account'; no 'players/action' anywhere.",
+      "evidence": ""
+    },
+    "973": {
+      "status": "pass",
+      "tested_at": "2026-10-29T22:13:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Vanilla Perfected 1.0.3+26.2 updated to 1.0.0+26.3 through Updates -> Modpack with no MixinExtras refusal; the server started on 26.3 (Fabric 0.19.5) and a player joined from a second PC on the LAN via the friends' download (28 mods).",
+      "evidence": ""
+    },
+    "585": {
+      "status": "pass",
+      "tested_at": "2026-10-30T00:12:07+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Owner, keyboard only: Tab reached the server list and Enter opened a server and the sidebar pages.",
+      "evidence": ""
+    },
+    "586": {
+      "status": "pass",
+      "tested_at": "2026-10-30T00:12:07+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Owner, keyboard only: went through New server (Vanilla, name kb-test) and created it; every choice reachable and changeable.",
+      "evidence": ""
+    },
+    "593": {
+      "status": "pass",
+      "tested_at": "2026-10-30T00:12:08+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Owner: focus outline visible throughout the Servers page, sidebar and New server. (No skip-to-content link: noted separately.)",
+      "evidence": ""
+    },
+    "587": {
+      "status": "pass",
+      "tested_at": "2026-10-30T00:28:15+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Owner, keyboard only on rt-vanilla. Dashboard: cards, Connected Players, Whitelist/Broadcast and Activity all reachable; no focus trap.",
+      "evidence": ""
+    },
+    "588": {
+      "status": "pass",
+      "tested_at": "2026-10-30T00:28:15+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Owner, keyboard only on rt-vanilla. Mods: search, tick a result with Space, open its details with Enter, reach Add selected mods, collapse arrow; no focus trap.",
+      "evidence": ""
+    },
+    "589": {
+      "status": "pass",
+      "tested_at": "2026-10-30T00:28:16+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Owner, keyboard only on rt-vanilla. Updates: every section and its buttons reachable (nothing applied); no focus trap.",
+      "evidence": ""
+    },
+    "590": {
+      "status": "pass",
+      "tested_at": "2026-10-30T00:30:50+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Owner, keyboard only on rt-vanilla. Backups: Back up now pressed by keyboard and finished; Restore/Delete reachable and open a confirmation.",
+      "evidence": ""
+    },
+    "591": {
+      "status": "pass",
+      "tested_at": "2026-10-30T00:30:50+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Owner, keyboard only on rt-vanilla. Friends: settings and buttons reachable; its dialogs open and close by keyboard.",
+      "evidence": ""
+    },
+    "592": {
+      "status": "pass",
+      "tested_at": "2026-10-30T00:30:50+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Owner, keyboard only on rt-vanilla. Backups confirmation, Friends dialogs and Help open with Enter and close with Escape or Cancel/Close; focus moves into the box and back to the button.",
+      "evidence": ""
+    },
+    "594": {
+      "status": "pass",
+      "tested_at": "2026-10-30T00:30:50+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Owner, keyboard only on rt-vanilla. Servers, New server, Dashboard, Mods, Updates, Backups, Friends: Tab never got stuck; dialogs hold focus only while open.",
+      "evidence": ""
+    },
+    "595": {
+      "status": "pass",
+      "tested_at": "2026-10-30T00:30:50+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Owner, keyboard only on rt-vanilla. Escape closed the Backups confirmation, Friends dialogs and Help without acting.",
+      "evidence": ""
+    },
+    "596": {
+      "status": "pass",
+      "tested_at": "2026-10-30T00:30:50+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Owner, keyboard only on rt-vanilla. Tabbing across Start, Restart, Stop and Remove/Delete did nothing; dangerous actions needed Enter plus a confirmation.",
+      "evidence": ""
+    },
+    "584": {
+      "status": "pass",
+      "tested_at": "2026-10-30T00:30:50+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Owner, keyboard only on rt-vanilla. Whole main UI navigated without the mouse across rounds 585-596; focus always visible. Finding: no skip-to-content link.",
+      "evidence": ""
+    },
+    "994": {
+      "status": "pass",
+      "tested_at": "2026-10-30T15:50:19+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Owner with Windows Narrator in Chrome. Your servers card: \"Stop rt-neo\", \"Open rt-neo\", \"Delete rt-neo\", folder button \"rt-neo('s) folder, Open in your file manager\"; a running server's \"running\" not repeated over ~20 s; Players boxes read \"Player name, edit\" and \"Reason (optional, shown when kicked/banned), edit\"; Java version select reads \"Run the server on, combo box\"; Console starts with heading level 1 \"Console\".",
+      "evidence": ""
+    },
+    "598": {
+      "status": "pass",
+      "tested_at": "2026-10-30T15:50:19+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Owner with Windows Narrator in Chrome. Sidebar items on rt-neo read as clear names (Dashboard, Console, Players...).",
+      "evidence": ""
+    },
+    "599": {
+      "status": "pass",
+      "tested_at": "2026-10-30T15:50:19+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Owner with Windows Narrator in Chrome. Server card buttons announced as buttons with the server name (Stop/Delete rt-neo).",
+      "evidence": ""
+    },
+    "601": {
+      "status": "pass",
+      "tested_at": "2026-10-30T15:50:19+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Owner with Windows Narrator in Chrome. Players name/reason boxes and the Java select announce their labels.",
+      "evidence": ""
+    },
+    "600": {
+      "status": "pass",
+      "tested_at": "2026-10-30T16:12:12+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Owner with Windows Narrator in Chrome, rt-vanilla. Starting and running are announced, and stopping too. (But the whole console is read aloud as well: #238.)",
+      "evidence": ""
+    },
+    "602": {
+      "status": "fail",
+      "tested_at": "2026-10-30T16:12:13+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Owner with Windows Narrator in Chrome, rt-vanilla. \"bad name!\" -> Whitelist: the error toast starts (\"bad name...\") and is cut off by the live console being read; an empty name gives no message at all. #238.",
+      "evidence": ""
+    },
+    "604": {
+      "status": "pass",
+      "tested_at": "2026-10-30T16:12:13+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Owner with Windows Narrator in Chrome, rt-vanilla. About 30 s on the running server's Dashboard: the player list (\"Nobody online\", 0/20) is not re-read.",
+      "evidence": ""
+    },
+    "603": {
+      "status": "pass",
+      "tested_at": "2026-10-30T19:18:11+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Owner with Windows Narrator in Chrome on rt-vanilla's Dashboard; the owner's account joined from a second PC and left: Narrator announced the join and the leave.",
+      "evidence": ""
+    },
+    "996": {
+      "status": "pass",
+      "tested_at": "2026-10-30T19:27:01+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Owner on rt-vanilla with the owner's account in game from a second PC. Restart asked \"Players online. Do you want to give them a minute warning and restart?\" with Yes/No; No did nothing; Yes showed \"Server restarting in 60 seconds\" in chat, then the server restarted and they rejoined.",
+      "evidence": ""
+    },
+    "998": {
+      "status": "pass",
+      "tested_at": "2026-10-30T19:27:01+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Owner on rt-vanilla with the owner's account in game from a second PC. Restart -> Yes, then Stop during the minute: the server stopped and stayed stopped (log: stopped, no restart; status stopped, no job).",
+      "evidence": ""
+    },
+    "273": {
+      "status": "pass",
+      "tested_at": "2026-10-30T19:39:19+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. rt-vanilla (whitelist on), the owner's account not listed, friends' program on a second PC with the invite. \"Ask to be let in\" sent the request (panel: \"the owner's account asks to join rt-vanilla\").",
+      "evidence": ""
+    },
+    "274": {
+      "status": "pass",
+      "tested_at": "2026-10-30T19:39:19+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. rt-vanilla (whitelist on), the owner's account not listed, friends' program on a second PC with the invite. The request showed at the top of the Players page. No dot on the Players menu item and no other alert unless browser notifications are on: enhancement filed.",
+      "evidence": ""
+    },
+    "275": {
+      "status": "pass",
+      "tested_at": "2026-10-30T19:39:19+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. rt-vanilla (whitelist on), the owner's account not listed, friends' program on a second PC with the invite. Allow: \"let the owner's account in (whitelist)\", whitelist.json gained the owner's account.",
+      "evidence": ""
+    },
+    "276": {
+      "status": "pass",
+      "tested_at": "2026-10-30T19:39:20+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. rt-vanilla (whitelist on), the owner's account not listed, friends' program on a second PC with the invite. After Allow, the owner's account joined from the second PC (server log: logged in, joined the game).",
+      "evidence": ""
+    },
+    "277": {
+      "status": "pass",
+      "tested_at": "2026-10-30T19:39:20+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. rt-vanilla (whitelist on), the owner's account not listed, friends' program on a second PC with the invite. A first request was answered with Ignore: the request left the list, no \"let in\" line, whitelist.json stayed empty.",
+      "evidence": ""
+    },
+    "278": {
+      "status": "pass",
+      "tested_at": "2026-10-30T19:39:20+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. rt-vanilla (whitelist on), the owner's account not listed, friends' program on a second PC with the invite. After Ignore the name was not on the whitelist (whitelist.json [] and the server answered \"Player is not whitelisted\").",
+      "evidence": ""
+    }
+  },
   "notes": "Release exe v0.30.4. The fixes since 0.30.3 (968-999), every Windows test never tested, and retests of every blocked or failed result; keyboard tests 584-596 again (the 0.27.0 spreadsheet marks had no tester or notes). Mac, Linux, Docker and VoiceOver left out."
 }
