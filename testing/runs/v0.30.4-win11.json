@@ -676,6 +676,195 @@
       "tester": "Owner",
       "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. rt-vanilla (whitelist on), the owner's account not listed, friends' program on a second PC with the invite. After Ignore the name was not on the whitelist (whitelist.json [] and the server answered \"Player is not whitelisted\").",
       "evidence": ""
+    },
+    "891": {
+      "status": "pass",
+      "tested_at": "2026-10-31T18:56:45+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Only playitd-tray.exe running (playitd service stopped). rt-vanilla with a placeholder playit.gg address: /api/hub/playit agent=false; Dashboard (Chrome) playit.gg tunnel card says \"The playit program isn't running on this computer: start it, and the tunnel comes back.\" Nowhere says playit.gg is running. Address cleared afterwards.",
+      "evidence": ""
+    },
+    "555": {
+      "status": "pass",
+      "tested_at": "2026-10-31T18:57:52+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. 32 GB PC with about 19 GB free (other programs). rt-vanilla given 24 GB (fits the total, not what is free). Dashboard Start (Chrome) asked first: \"Start rt-vanilla? It would be given 24 GB of memory, and only 18.8 GB is free on this computer now: other programs use the rest.\" with Start anyway / Cancel; Cancel left it stopped (#187 fixed). Still: Check my setup -> Memory says ok (\"uses 24 GB of this computer's 32 GB\"), it compares with the total, not what is free. Memory put back to 3 GB.",
+      "evidence": ""
+    },
+    "887": {
+      "status": "fail",
+      "tested_at": "2026-10-31T19:00:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Trigger: a public address set in Craft Conductor settings -> Sharing with friends (placeholder host name). Within seconds the 5 guarded servers made by 0.30.4 with the whitelist off (way home) got white-list=true, each with the activity line \"The whitelist of <server> is now on, because it can be reached from the internet (a public address is set in Sharing with friends). Add your friends on the Players page.\" Earlier in this run the playit.gg trigger did the same. Fails: nothing in the bell (Messages showed only older USB notices): the notice goes only to Discord/phone pushes, so with no notifications on, the bell never has it. Not tried: Router (UPnP) trigger, a server made by an older version left alone. Address cleared afterwards; the whitelists stay on.",
+      "evidence": ""
+    },
+    "972": {
+      "status": "pass",
+      "tested_at": "2026-10-31T19:32:55+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. New server -> A modpack -> CurseForge -> All the Mods 11 0.13.0-beta -> Use this modpack: applied (Minecraft 26.1.2, NeoForge, 282 mods, 7 for players). No \"couldn't read ... server pack\" (nor \"doesn't match\") in the activity; the 7 left off the server (Sodium, Euphoria Patches, Just Zoom, Simple Backups, Iris Shaders, Drippy Loading Screen, Sodium Extra) have no Modrinth side guess and show in Manage Friends Mods as 'All the Mods 11 modpack, players only'. The server itself could not be created (see 908).",
+      "evidence": ""
+    },
+    "908": {
+      "status": "blocked",
+      "tested_at": "2026-10-31T19:32:55+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. All the Mods 11 0.13.0-beta (CurseForge): Create my server is refused: \"Players' Minecraft wouldn't start with these mods: Hephaestus Tools 1.0.11 needs player_animation_library (1.2.0 or later), which is missing\", although Player Animation Library 1.2.8 was downloaded by hand and loaded (found in Downloads by SHA-1), also when added as a players' local file, and with the friends' download unticked. New bug, not filed yet.",
+      "evidence": ""
+    },
+    "914": {
+      "status": "blocked",
+      "tested_at": "2026-10-31T19:32:56+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. All the Mods 11 0.13.0-beta can't be created (see 908: players' check says player_animation_library is missing though it was downloaded by hand and loaded). Not tried: Modrinth pack half.",
+      "evidence": ""
+    },
+    "305": {
+      "status": "pass",
+      "tested_at": "2026-10-31T19:36:45+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. rt-bots: vanilla 26.1, offline mode, local only, joined by mineflayer test players on this PC (not real game clients). Chrome, Modern look, Dashboard -> Connected Players. Opened Bot06's player panel (Message / Make op / Ban / More...) with 12 online, then 12 more joined one every 2.5 s.",
+      "evidence": ""
+    },
+    "306": {
+      "status": "pass",
+      "tested_at": "2026-10-31T19:36:45+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. rt-bots: vanilla 26.1, offline mode, local only, joined by mineflayer test players on this PC (not real game clients). Chrome, Modern look, Dashboard -> Connected Players. The open Bot06 panel was still open after all 12 joins (24 online).",
+      "evidence": ""
+    },
+    "307": {
+      "status": "pass",
+      "tested_at": "2026-10-31T19:36:45+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. rt-bots: vanilla 26.1, offline mode, local only, joined by mineflayer test players on this PC (not real game clients). Chrome, Modern look, Dashboard -> Connected Players. List scrolled to 143 px before the joins; still 143 px after 12 joins (same element, scrollHeight 704 -> 1288).",
+      "evidence": ""
+    },
+    "308": {
+      "status": "pass",
+      "tested_at": "2026-10-31T19:36:46+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. rt-bots: vanilla 26.1, offline mode, local only, joined by mineflayer test players on this PC (not real game clients). Chrome, Modern look, Dashboard -> Connected Players. 24 players online at once; count 24 / 30 in the card and Players tile.",
+      "evidence": ""
+    },
+    "309": {
+      "status": "pass",
+      "tested_at": "2026-10-31T19:36:46+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. rt-bots: vanilla 26.1, offline mode, local only, joined by mineflayer test players on this PC (not real game clients). Chrome, Modern look, Dashboard -> Connected Players. 24 players (20+) online; panel, scroll and counts stayed right.",
+      "evidence": ""
+    },
+    "310": {
+      "status": "pass",
+      "tested_at": "2026-10-31T19:36:46+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. rt-bots: vanilla 26.1, offline mode, local only, joined by mineflayer test players on this PC (not real game clients). Chrome, Modern look, Dashboard -> Connected Players. The list scrolls inside the card: 280 px high with 24 rows (scrollHeight 1288); the card did not grow.",
+      "evidence": ""
+    },
+    "428": {
+      "status": "pass",
+      "tested_at": "2026-10-31T19:48:32+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. rt-bots (vanilla, offline mode, local only) with 24 mineflayer test players online (not real game clients). Updates -> apply 26.1 -> 26.1.2: in game \"Server restarting in 10 minutes / 5 minutes / 1 minute: Minecraft 26.1 -> 26.1.2\", \"Restarting now!\", safety backup made, update ok (\"updated: Minecraft 26.1 -> 26.1.2\"), server up on 26.1.2. Players reconnected at once (5 rejoined within 6 s of the restart).",
+      "evidence": ""
+    },
+    "977": {
+      "status": "pass",
+      "tested_at": "2026-10-31T19:53:43+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exes 0.30.3 (sha256 6a291a2…) -> 0.30.4 (sha256 0f9d717…), fresh isolated install in its own folder. Update now on 0.30.3; the new copy was ended the moment the update restarted it: after 177 s (0.30.3's guard) 0.30.3 was back (\"The update to 0.30.4 didn't work (the new version didn't start in time); Craft Conductor 0.30.3 is back\") and craft-conductor-windows-x64.failed.exe was in the folder. Update again (worked: \"Craft Conductor was updated to 0.30.4\"): the folder then has only craft-conductor-windows-x64.exe (no .failed.exe, no .old.exe). Small: right after the revert, Update now said \"no craft-conductor update is available\" until Check for updates was pressed.",
+      "evidence": ""
+    },
+    "988": {
+      "status": "pass",
+      "tested_at": "2026-10-31T19:54:55+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Chrome (Modern). No small laptop here: the window (2560x1249 CSS px, maximized) was made too small for the page with page zoom instead of F11. Invite link (People, one-time): at 2.2x the page is 2246 px in a 1249 px window; it scrolls (the page itself) and Create my sign-in comes fully into view at the bottom. Sign-in page (no session) at 4.5x: 2692 px in 1873 px, scrolls; Sign in, Invited? and Reset links reachable. The test invite was removed afterwards.",
+      "evidence": ""
+    },
+    "983": {
+      "status": "pass",
+      "tested_at": "2026-10-31T20:08:20+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Fresh isolated install, OneDrive (personal) running and syncing (folder on D:; the server folder is a ReparsePoint and its parent ReadOnly, as OneDrive marks them). Craft Conductor settings -> Folders: servers moved into a OneDrive-synced folder (warning shown: \"is synced by OneDrive ... servers are better kept in a folder that isn't synced\"; went ahead). Vanilla 26.3 server made there. Backups -> made a backup, then Roll back to this twice: both ok (\"rolled back to ... Minecraft 26.3, 0 mod(s)\"); the server folder holds only .craft-conductor, backups, craft-conductor.lock.json, craft-conductor.toml, server: no server.replaced / server.restoring. Started and stopped fine afterwards.",
+      "evidence": ""
+    },
+    "484": {
+      "status": "pass",
+      "tested_at": "2026-10-31T20:08:21+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Fresh isolated install, OneDrive (personal) running and syncing (folder on D:; the server folder is a ReparsePoint and its parent ReadOnly, as OneDrive marks them). Craft Conductor settings -> Folders: servers moved into a OneDrive-synced folder (warning shown: \"is synced by OneDrive ... servers are better kept in a folder that isn't synced\"; went ahead). Vanilla 26.3 server made there. Restore (Roll back to this) of a backup worked twice in the OneDrive folder (#216 fixed); the server started afterwards.",
+      "evidence": ""
+    },
+    "489": {
+      "status": "pass",
+      "tested_at": "2026-10-31T20:08:21+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Fresh isolated install, OneDrive (personal) running and syncing (folder on D:; the server folder is a ReparsePoint and its parent ReadOnly, as OneDrive marks them). Craft Conductor settings -> Folders: servers moved into a OneDrive-synced folder (warning shown: \"is synced by OneDrive ... servers are better kept in a folder that isn't synced\"; went ahead). Vanilla 26.3 server made there. No file-locking, share-violation or Access is denied errors in the activity log through create, backup, two roll-backs, start and stop.",
+      "evidence": ""
+    },
+    "377": {
+      "status": "pass",
+      "tested_at": "2026-10-31T20:09:17+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Fresh isolated install, vanilla 26.3 server; Settings -> Backups -> Backup copies to a OneDrive-synced folder (OneDrive personal running), keep 2. Setting saved; backup_copy_ok true.",
+      "evidence": ""
+    },
+    "378": {
+      "status": "pass",
+      "tested_at": "2026-10-31T20:09:17+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Fresh isolated install, vanilla 26.3 server; Settings -> Backups -> Backup copies to a OneDrive-synced folder (OneDrive personal running), keep 2. Made 3 backups in a row (Backups -> Back up now).",
+      "evidence": ""
+    },
+    "379": {
+      "status": "pass",
+      "tested_at": "2026-10-31T20:09:17+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Fresh isolated install, vanilla 26.3 server; Settings -> Backups -> Backup copies to a OneDrive-synced folder (OneDrive personal running), keep 2. Each one: \"copied the backup to <OneDrive folder>\\<server>\\<name>.tar.gz\"; the files are there (about 125 MB each).",
+      "evidence": ""
+    },
+    "380": {
+      "status": "pass",
+      "tested_at": "2026-10-31T20:09:17+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Fresh isolated install, vanilla 26.3 server; Settings -> Backups -> Backup copies to a OneDrive-synced folder (OneDrive personal running), keep 2. With keep 2, after the third backup only the two newest copies are in the OneDrive folder; the oldest copy was removed, nothing else.",
+      "evidence": ""
+    },
+    "381": {
+      "status": "pass",
+      "tested_at": "2026-10-31T20:09:17+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Fresh isolated install, vanilla 26.3 server; Settings -> Backups -> Backup copies to a OneDrive-synced folder (OneDrive personal running), keep 2. All 4 primary backups (and their .json) are still in the server's backups folder; the oldest opens as a tar.gz (204 entries).",
+      "evidence": ""
+    },
+    "834": {
+      "status": "pass",
+      "tested_at": "2026-10-31T20:10:35+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. Check my setup (rt-fabric with a broken jar): \"Mods work together\" fails with the plain reason; before an update: the setup apply was refused (\"the mods wouldn't start together\") (both earlier in this run). Single-player: game rt-sp-834 (Fabric 26.3, Sodium held at its 1.21.4 build) -> Install...: \"Minecraft wouldn't start with these mods: Sodium 0.6.13+mc1.21.4 is made for Minecraft exactly 1.21.4, not 26.3. Press Edit and fix them in Manage Mods...\" and no Put it in my launcher button: nothing went to a launcher. Game deleted afterwards.",
+      "evidence": ""
+    },
+    "979": {
+      "status": "fail",
+      "tested_at": "2026-10-31T20:16:05+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. New server from Modrinth pack Actium 26Q2.1-neoforge (Minecraft 26.2; it brings Controlify, which Modrinth calls optional on servers): first start failed (Controlify crashed while loading), rolled back, the setup page offers Move Controlify to players' mods / Leave it out. Pop-up (Chrome, caught on a retry): one line, 300 characters, no \"at net.neoforged\" lines, 196 px high at the top, covering none of the setup page's buttons (ok). Fails on: the bell keeps only the first 500 of the message's 2175 characters (it stops inside the Java error; the end, with where the details file is, is lost), so the bell does not have the whole message. Minor.",
+      "evidence": ""
+    },
+    "970": {
+      "status": "pass",
+      "tested_at": "2026-10-31T20:44:21+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. rt-bedrock: new Fabric 26.3 server (Open a port on my router chosen; nothing changed on the router), whitelist on. Friends -> Let Bedrock players join: Geyser 2.12.1-b1279 (beta, the only 26.3 build; asked first) + Floodgate 2.2.7. Players -> Add or manage a player: .<owner's gamertag> -> Whitelist with the server running: accepted (sent fwhitelist add; Floodgate: added to the whitelist), listed in the Whitelist card. The owner joined from Minecraft for Windows (Bedrock) and showed in Connected Players (1 / 20) while online. Stopped: Un-whitelist -> Nobody whitelisted; Whitelist again while stopped -> whitelist.json has the dot name with the Floodgate UUID (case corrected from Xbox).",
+      "evidence": ""
+    },
+    "971": {
+      "status": "fail",
+      "tested_at": "2026-10-31T20:44:22+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…), isolated home. rt-bedrock: new Fabric 26.3 server (Open a port on my router chosen; nothing changed on the router), whitelist on. Friends -> Let Bedrock players join: Geyser 2.12.1-b1279 (beta, the only 26.3 build; asked first) + Floodgate 2.2.7. First start: Geyser's config.yml then had transport: both and webrtc-port 31401; Friends page lists \"UDP and TCP port 19132, and UDP port 31401\"; Check my setup: Windows Firewall lets them through. The owner added the server by address (LAN address, port 19132) in Minecraft for Windows: the first try got the Back button with nothing reaching the server; the next try joined (Geyser: connected through NetherNet built-in signaling). Fails on: the \"Restart the server once for it to take effect\" message went only to the activity log, not the bell (same as 887: those messages only go to Discord/phone pushes). Add to Minecraft on the invite link not tried.",
+      "evidence": ""
     }
   },
   "notes": "Release exe v0.30.4. The fixes since 0.30.3 (968-999), every Windows test never tested, and retests of every blocked or failed result; keyboard tests 584-596 again (the 0.27.0 spreadsheet marks had no tester or notes). Mac, Linux, Docker and VoiceOver left out."
