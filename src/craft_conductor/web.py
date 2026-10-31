@@ -2858,6 +2858,9 @@ class HubApi:
         out = self.hub.look_for_hand_downloads(files, chosen_folder(b.get("folder")), into)
         for x in out["found"]:
             x["id"] = ids[x["filename"]]
+        # (names Craft Conductor wasn't told about: it was restarted since the page asked. The page asks again, #243)
+        known = {x["filename"] for x in files}
+        out["unknown"] = [n for n in dict.fromkeys(str(x) for x in names) if n not in known]
         return out
 
     def hand_folders_info(self, q=None, b=None) -> dict:

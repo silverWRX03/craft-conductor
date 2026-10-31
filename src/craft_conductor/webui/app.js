@@ -1679,7 +1679,7 @@ const views = {};
 
 // A live server console: output plus a command box. Used on the Console page and the dashboard.
 function consolePanel({ compact = false } = {}) {
-  const out = h("div", { class: "console cc-terminal-box" + (compact ? " compact" : ""), role: "log", "aria-label": "Server console", "aria-live": "polite" });
+  const out = h("div", { class: "console cc-terminal-box" + (compact ? " compact" : ""), role: "log", "aria-label": "Server console", "aria-live": "off", tabindex: "0" });  // (read on purpose, not aloud by itself: #238)
   const input = h("input", { placeholder: "Type a server command, e.g. say hello  (↑/↓ for history)", autocomplete: "off",
     "aria-label": "Server command" });
   const history = []; let hi = 0; let seq = 0;
@@ -2929,15 +2929,21 @@ views.players = () => {
     );
   };
 
-  // Built once, outside the refreshed area, so typing isn't interrupted.
+  // Built once, outside the refreshed area, so typing isn't interrupted. An empty name says so (#238).
+  const act = (action) => {
+    const who = name.value.trim();
+    if (who) return run(action, who);
+    toast(action === "ban-ip" ? "Type an IP address or a player name first." : "Type a player name first.", true);
+    name.focus();
+  };
   const manage = card("Add or manage a player",
         h("div", { class: "row" }, name, reason),
         h("div", { class: "row mt-s" },
           ...[["Op", "op"], ["De-op", "deop"], ["Whitelist", "whitelist-add"], ["Un-whitelist", "whitelist-remove"], ["Kick", "kick"], ["Pardon", "pardon"]]
-            .map(([label, action]) => h("button", { class: "btn", onclick: () => name.value.trim() && run(action, name.value.trim()) }, label)),
-          h("button", { class: "btn danger", onclick: () => name.value.trim() && run("ban", name.value.trim()) }, "Ban"),
+            .map(([label, action]) => h("button", { class: "btn", onclick: () => act(action) }, label)),
+          h("button", { class: "btn danger", onclick: () => act("ban") }, "Ban"),
           h("button", { class: "btn danger", title: "Enter an IP address, or the name of an online player",
-                        onclick: () => name.value.trim() && run("ban-ip", name.value.trim()) }, "Ban IP")));
+                        onclick: () => act("ban-ip") }, "Ban IP")));
   const requests = joinRequestsCard(() => load());
   const activity = activityCard();
   fill($("#main"), h("h1", { class: "view-title" }, "Players"), requests.el, manage, h("div", { class: "mt" }, body), h("div", { class: "mt" }, activity.el));
@@ -8974,7 +8980,7 @@ function setupHandQuery() {
     modpack_version: packHas ? pack.version_id : "", modpack_exclude: packHas ? [...removed] : [] };
 }
 const setupHandMissing = () => (setupState.hand || []).filter((m) => !setupState.handGot.has(m.filename));
-function setupHandCheck() {
+function setupHandCheck(again = false) {
   const st = setupState;
   const body = setupHandQuery();
   const key = body ? JSON.stringify(body) : "";
@@ -8987,7 +8993,7 @@ function setupHandCheck() {
     if (st.handKey !== key) return;
     st.hand = r.mods || [];
     const left = setupHandMissing().length;
-    if (left) toast(`${left} mod(s) must be downloaded from CurseForge by hand: see Manage Mods`);
+    if (left && !again) toast(`${left} mod(s) must be downloaded from CurseForge by hand: see Manage Mods`);
     if (left) setupHandLook();  // (maybe they're in Downloads already)
   }).catch((e) => {
     if (st.handKey !== key || e instanceof Unauthorized) return;
@@ -9005,6 +9011,8 @@ function setupHandLook(chosen = false) {
   if (!missing.length || st.submitted || !isOwner()) return Promise.resolve(null);
   st.handBusy = api("/api/hub/manual/look", { method: "POST", body: { filenames: missing, ...(st.handOnce ? { folder: st.handOnce } : {}) } }).then((r) => {
     for (const x of r.found) { st.handGot.set(x.filename, x.id); st.handWrong.delete(x.filename); }
+    // Craft Conductor was restarted since it said which files to download (#243): it's asked again, once.
+    if ((r.unknown || []).length && st.handAgain !== st.handKey) { st.handAgain = st.handKey; st.handKey = null; setupHandCheck(true); }
     for (const w of r.wrong) st.handWrong.set(w.filename, w.where);
     handWrongToasts(r.wrong, st.handTold);
     handFoundToast(r.found, setupHandMissing().length);

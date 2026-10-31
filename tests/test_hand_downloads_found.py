@@ -218,6 +218,7 @@ def test_the_setup_page_finds_a_mod_in_downloads(hub_env, downloads, tmp_path, m
     (downloads / "fancy-client-2.1 (1).jar").write_bytes(JAR)
     r = c.post("/api/hub/manual/look", {"filenames": ["fancy-client-2.1.jar", "not-asked-for.jar"]})[1]
     assert [(x["filename"], x["where"]) for x in r["found"]] == [("fancy-client-2.1.jar", "Downloads")] and r["wrong"] == []
+    assert r["unknown"] == ["not-asked-for.jar"]  # (the page asks for the list again: Craft Conductor was restarted, #243)
     staged = r["found"][0]["id"]
     assert (hub.staging_dir / staged / "fancy-client-2.1.jar").read_bytes() == JAR
     status, body, _ = c.post("/api/hub/create", {"loader": "fabric", "minecraft": "1.21.1", "motd": "Found",
