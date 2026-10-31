@@ -360,7 +360,15 @@ function noteRecovered(list) {
 // in here never sees them), and Sign out clears it. Text only, never HTML: messages carry what players, mods
 // and servers wrote. Questions waiting for an answer, and the export password, never go in.
 const BELL_KEY = "craft-conductor-bell", BELL_MAX = 100;
-let bell = { who: null, items: [], seen: 0, access: "" };  // who: "owner" or "user:<id>" (access.Subject.key)
+// A whole message is kept (#244), up to BELL_MORE characters: a longer one keeps its start and its end
+// (where it says where the details file is), so 100 of them still fit in the browser's storage.
+const BELL_MORE = 8000;
+function bellClip(text) {
+  text = String(text || "");
+  return text.length <= BELL_MORE ? text : text.slice(0, BELL_MORE - 2000) + "\n…\n" + text.slice(-(2000 - 3));
+}
+// noticed: the newest of the servers' messages (from /api/hub) taken in, so one cleared away doesn't come back
+let bell = { who: null, items: [], seen: 0, access: "", noticed: 0 };  // who: "owner" or "user:<id>" (access.Subject.key)
 let bellPending = [];   // (messages shown before it's known who's signed in)
 let bellSeenBefore = 0; // (what was read when the list was opened: newer ones are marked New)
 function bellSave() {
@@ -371,13 +379,36 @@ function bellNote(text, { bad = false, more = "", sid = server, from = "page", k
   if (!text) return;
   if (!bell.who) sid = null;  // (signed out: the server last open, and hubInfo, were the last person's)
   const known = hubInfo && sid ? (hubInfo.servers || []).find((s) => s.id === sid) : null;
-  const item = { time, text: String(text).slice(0, 500), more: String(more || "").slice(0, 500), bad: !!bad,
+  const item = { time, text: String(text).slice(0, 500), more: bellClip(more), bad: !!bad,
     sid: sid || null, name: known ? String(known.name || sid) : sid || null, from, key: String(key || "") };
   if (!bell.who) {
     if (!item.key || !bellPending.some((x) => x.key === item.key)) bellPending = [item, ...bellPending].slice(0, BELL_MAX);
     return;
   }
   bellAdd([item]);
+}
+// The same message already here, about the same server and from about the same time (a pop-up on this page,
+// or a phone notification on this device, that was also one of the servers' messages).
+function bellHas(text, sid, time) {
+  text = String(text || "");
+  return bell.items.some((x) => (x.sid || null) === (sid || null) && Math.abs(x.time - time) < 120
+    && (x.text === text || x.more === text || text.startsWith(x.text.replace(/…$/, ""))));
+}
+// The servers' messages that went to Discord and phones (#241): in the bell too, each new one once.
+function noteNotices(list) {
+  if (!bell.who || !Array.isArray(list)) return;
+  const fresh = list.filter((n) => n && n.message && +n.time > bell.noticed);
+  if (!fresh.length) return;
+  bell.noticed = Math.max(bell.noticed, ...fresh.map((n) => +n.time));
+  const items = [];
+  for (const n of fresh) {
+    if (bellHas(n.message, n.sid, +n.time)) continue;
+    const message = String(n.message), short = toastText(message);
+    const known = hubInfo && n.sid ? (hubInfo.servers || []).find((x) => x.id === n.sid) : null;
+    items.push({ time: +n.time, text: short.slice(0, 500), more: short !== message ? bellClip(message) : "", bad: false,
+      sid: n.sid || null, name: known ? String(known.name || n.sid) : n.sid || null, from: "server", key: `notice:${n.sid}:${n.time}` });
+  }
+  if (items.length) bellAdd(items); else bellSave();
 }
 function bellAdd(items) {
   const fresh = items.filter((i) => !i.key || !bell.items.some((x) => x.key === i.key));
@@ -395,8 +426,8 @@ function bellSignedIn(hb) {
     let saved = null;
     try { saved = JSON.parse(localStorage.getItem(BELL_KEY) || "null"); } catch (_) { /* private mode */ }
     bell = saved && saved.who === who && Array.isArray(saved.items)
-      ? { who, items: saved.items.slice(0, BELL_MAX), seen: +saved.seen || 0, access: String(saved.access || "") }
-      : { who, items: [], seen: 0, access: "" };  // (someone else's, or none: theirs is gone from this browser)
+      ? { who, items: saved.items.slice(0, BELL_MAX), seen: +saved.seen || 0, access: String(saved.access || ""), noticed: +saved.noticed || 0 }
+      : { who, items: [], seen: 0, access: "", noticed: 0 };  // (someone else's, or none: theirs is gone from this browser)
     bellSave();
     const pending = bellPending;
     bellPending = [];
@@ -457,7 +488,7 @@ async function bellTakePushes() {
     const pushes = await bellPushes().catch(() => []);
     if (bell.who !== who) return;  // (signed out meanwhile: these were for nobody here)
     // (another person's device: not theirs to see. A push's title is its server's name, or "Craft Conductor".)
-    bellAdd(pushes.filter((p) => p && p.who === who && p.body).map((p) => ({ time: +p.time || Date.now() / 1000,
+    bellAdd(pushes.filter((p) => p && p.who === who && p.body && !bellHas(p.body, typeof p.sid === "string" ? p.sid : null, +p.time || 0)).map((p) => ({ time: +p.time || Date.now() / 1000,
       text: String(p.body).slice(0, 500), more: "", bad: false, sid: typeof p.sid === "string" ? p.sid : null,
       name: p.title && p.title !== "Craft Conductor" ? String(p.title).slice(0, 80) : null, from: "phone", key: "" })));
   } finally { bellTaking = false; }
@@ -467,7 +498,7 @@ window.addEventListener("storage", (e) => {
   if (e.key !== BELL_KEY || !bell.who) return;
   let saved = null;
   try { saved = JSON.parse(e.newValue || "null"); } catch (_) { /* half written */ }
-  if (saved && saved.who === bell.who && Array.isArray(saved.items)) bell = { ...bell, items: saved.items.slice(0, BELL_MAX), seen: +saved.seen || 0 };
+  if (saved && saved.who === bell.who && Array.isArray(saved.items)) bell = { ...bell, items: saved.items.slice(0, BELL_MAX), seen: +saved.seen || 0, noticed: Math.max(bell.noticed, +saved.noticed || 0) };
   else if (!saved) bell = { ...bell, items: [], seen: 0 };  // (signed out in the other tab)
   else return;
   renderBell();
@@ -1532,6 +1563,7 @@ async function refreshStatus() {
   const hb = hubInfo;
   bellSignedIn(hb);
   noteRecovered(hb.recovered);
+  noteNotices(hb.notices);
   styleSignedIn(hb);
   chimeFor(hb.servers);
   $("#version").textContent = "v" + hb.version + " beta";
@@ -8665,7 +8697,7 @@ views["craft-conductor"] = () => {
 // server's id), and it starts fresh when that changes, so a new server never inherits the
 // choices of the last one set up.
 const freshSetup = () => ({ target: null, friends: false, reach: "playit", loader: null, minecraft: "latest", mods: new Map(), motd: "A Minecraft server",
-  properties: null, advancedOpen: false, max_players: 20, difficulty: "normal", gamemode: "survival", port: 25565, portChosen: false, memory_gb: null,
+  properties: null, advancedOpen: false, max_players: 20, difficulty: "normal", gamemode: "survival", port: 25565, portChosen: false, portTyped: false, memory_gb: null,
   network_access: null, accept_eula: false, submitted: false, prefilled: false, modpack: null, localMods: [], world: null, showBetas: false,
   aikar: false, clientMods: new Map(), clientMeta: new Map(), clientLocal: [], companionsSeen: new Set(),  // friends' download: slug -> name; staged files
   hand: [], handKey: "", handError: "", handCheck: null, handGot: new Map(),  // mods to download by hand: the files; filename -> staging id
@@ -9755,7 +9787,7 @@ views.setup = () => {
         else if (r.busy) { note.className = "small warn-text"; note.textContent = `Another program on this computer is using port ${port}; the server won't start until it's free. Try ${r.suggestion}.`; }
         else { note.className = "small ok-text"; note.textContent = `Port ${port} is free.` + (port === 25565 ? "" : " Friends connect with your address followed by :" + port + "."); }
       };
-      input.addEventListener("input", () => { st.port = Number(input.value); st.portChosen = true; clearTimeout(timer); timer = setTimeout(check, 300); });
+      input.addEventListener("input", () => { st.port = Number(input.value); st.portChosen = st.portTyped = true; clearTimeout(timer); timer = setTimeout(check, 300); });
       check();
       return field("Port (players connect to this)", input, note);
     };
@@ -9927,8 +9959,11 @@ views.setup = () => {
           st.properties["white-list"] = closed ? "true" : propDefaults["white-list"];
           st.properties["enforce-whitelist"] = closed ? "true" : propDefaults["enforce-whitelist"];
         }
-        if (w === "forward" && opts.open_port) { st.port = opts.open_port; st.portChosen = true; }  // (one Craft Conductor picked: not 25565)
-        else if (st.reach === "forward" && st.port === opts.open_port) { st.port = opts.port; st.portChosen = false; }
+        // A port to open on the router: one Craft Conductor picks (not 25565), unless one was typed in
+        // that isn't 25565 (it stays, #232).
+        const typed = st.portTyped && st.port !== 25565;
+        if (w === "forward" && opts.open_port && !typed) { st.port = opts.open_port; st.portChosen = true; }
+        else if (w !== "forward" && st.reach === "forward" && !st.portTyped && st.port === opts.open_port) { st.port = opts.port; st.portChosen = false; }
         st.reach = w;
         renderForm();
       };

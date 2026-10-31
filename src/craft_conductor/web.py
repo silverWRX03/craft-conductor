@@ -1679,6 +1679,8 @@ class HubApi:
             "recovered": [{"sid": sid, "message": d.m.recovered["message"], "time": d.m.recovered["time"]}
                           for sid, d in sorted(hub.daemons.items())
                           if getattr(d.m, "recovered", None) and time.time() - d.m.recovered["time"] < 86400],
+            # (the servers' messages that went to Discord and phones, for the bell: the page takes new ones, #241)
+            "notices": [n for n in list(hub.notices) if time.time() - n["time"] < 86400],
             "share": hub.share_status() if not hub.is_single else None,
             "guide": None if hub.is_single else self._guide_state(),
             "health": [*(hub._health.warnings if getattr(hub, "_health", None) else []),  # (checked every minute: health.py)

@@ -4,7 +4,8 @@ Mod loaders and Minecraft's crash reports usually say who's at fault, in their o
 words. This reads the server's output (and the newest crash report) for the common
 patterns and maps what it finds (mod ids, jar names) to the installed mods:
 
-* Fabric/Quilt: "Incompatible mods found!", "Mod 'X' (x) ... requires ...", "breaks" lines
+* Fabric/Quilt: "Incompatible mods found!", "Mod 'X' (x) ... requires ...", "breaks" lines,
+  "Could not execute entrypoint stage 'main' due to errors, provided by 'x'"
 * NeoForge/Forge: "Missing or unsupported mandatory dependencies", "Mod ID: 'x'",
   "Failed to create mod instance. ModID: x", "... has failed to load correctly"
 * Mixins: "Mixin [x.mixins.json:...] from mod x" / "Mixin apply for mod x failed"
@@ -28,6 +29,7 @@ RULES: list[tuple[re.Pattern, str, str]] = [
     (re.compile(r"Remove mod '([^']+)' \(([\w.-]+)\)"), "id2", "the loader says to remove it"),
     (re.compile(r"Install ([\w .'-]+?), version .*?, (?:or later|or earlier)"), "name", "a mod needs it installed"),
     (re.compile(r"Failed to create mod instance\. ModID: ([\w.-]+)"), "id", "it crashed while loading"),
+    (re.compile(r"entrypoint[^\n]*? provided by '([\w.-]+)'"), "id", "it crashed while loading"),  # (Fabric, Quilt: #231)
     (re.compile(r"Mod ID: '([\w.-]+)', Requested by: '([\w.-]+)'"), "id2rev", "it's missing a mod it needs"),
     (re.compile(r"(?:mod|Mod) ([\w.-]+) (?:\([^)]*\) )?has failed to load correctly"), "id", "it failed to load"),
     (re.compile(r"Mixin \[[^\]]*\] from mod ([\w.-]+)"), "id", "one of its mixins (code changes) failed"),
@@ -107,10 +109,12 @@ def diagnose(lines: list[str], server_dir: Path | None = None, mods=(), since: f
     by_file = {m.filename: m for m in mods}
     ids: dict[str, str] = {}   # mod id -> jar file name
     names: dict[str, str] = {}  # lower-case name -> jar file name
+    shown: dict[str, str] = {}  # mod id -> the name its jar gives it
     for jar in jars(server_dir) if server_dir is not None else []:
         for mod_id, display in jar_mods(jar):
             ids.setdefault(mod_id.lower(), jar.name)
             names.setdefault(display.lower(), jar.name)
+            shown.setdefault(mod_id.lower(), display)
     for m in mods:
         names.setdefault(m.name.lower(), m.filename)
 
@@ -128,7 +132,7 @@ def diagnose(lines: list[str], server_dir: Path | None = None, mods=(), since: f
         if not jar and key_l.endswith(".jar"):
             jar = key
         mod = by_file.get(jar)
-        name = mod.name if mod else (key if not key_l.endswith(".jar") else key.rsplit(".", 1)[0])
+        name = mod.name if mod else shown.get(key_l) or (key if not key_l.endswith(".jar") else key.rsplit(".", 1)[0])
         in_mods = bool(jar) and server_dir is not None and _installed(server_dir, jar)
         if not (mod or in_mods or key_l in ids or key_l in names):
             return  # not one of this server's mods (a library, or Minecraft itself)

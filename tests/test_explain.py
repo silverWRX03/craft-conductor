@@ -100,6 +100,25 @@ def test_a_file_of_your_own_that_only_runs_on_players_computers(tmp_path):
     assert e["actions"][0]["filename"] == "controlify-3.5.3.jar"
 
 
+def test_a_fabric_mod_that_only_runs_on_players_computers(tmp_path):
+    """Fabric names the mod in its entrypoint error ("provided by 'x'"), not in the stack trace (#231)."""
+    import json
+    import zipfile
+    mods = tmp_path / "mods"
+    mods.mkdir()
+    with zipfile.ZipFile(mods / "rt-hud-tweaks-1.0.jar", "w") as z:
+        z.writestr("fabric.mod.json", json.dumps({"id": "rt_hud_tweaks", "name": "RT HUD Tweaks", "environment": "*"}))
+    lines = ["java.lang.RuntimeException: Could not execute entrypoint stage 'main' due to errors, provided by "
+             "'rt_hud_tweaks' at 'net.minecraft.client.gui.RtHudTweaks'!",
+             "Caused by: net.fabricmc.loader.api.EntrypointException: Exception while loading entries for entrypoint "
+             "'main' provided by 'rt_hud_tweaks'",
+             "Caused by: java.lang.ClassNotFoundException: net.minecraft.client.gui.RtHudTweaks"]
+    e = explain.explain(lines, tmp_path, [])
+    assert e["cause"] == "players-only" and e["title"] == "RT HUD Tweaks only runs on players' computers", e
+    assert [a["kind"] for a in e["actions"]] == ["jar-to-players", "disable-jar"]
+    assert e["actions"][0]["filename"] == "rt-hud-tweaks-1.0.jar"
+
+
 def test_moving_a_file_of_your_own_to_players_mods(hub_env):
     hub, c = hub_env
     login(c)

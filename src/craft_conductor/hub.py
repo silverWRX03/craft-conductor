@@ -9,6 +9,7 @@ the old way (and starts it); the web UI treats that as a hub with one server.
 
 from __future__ import annotations
 
+import collections
 import json
 import logging
 import os
@@ -39,6 +40,7 @@ HUB_FILE = "hub.json"
 HOME_ID = "main"           # the server kept directly in the home folder (craft-conductor 0.1-0.3)
 START_AFTER_UPDATE = "start_after_update"  # hub.json: the servers to start again after Craft Conductor updates
 SCAN_EVERY = 5.0
+NOTICES_KEPT, NOTICE_CHARS = 50, 8000  # the servers' messages kept for the bell (the page keeps its own copy)
 
 
 def hub_pid_path(home: Path) -> Path:
@@ -154,6 +156,8 @@ class Hub:
         self.daemons: dict[str, Daemon] = {}
         self._threads: dict[str, threading.Thread] = {}
         self.problems: dict[str, dict] = {}      # servers that can't be run here, and why
+        #: the servers' messages (what goes to Discord and phones), newest last, for the owner's bell (#241)
+        self.notices: collections.deque[dict] = collections.deque(maxlen=NOTICES_KEPT)
         self.stop_requested = threading.Event()
         self.restart_requested = False
         self.updater = selfupdate.Updater()  # where this copy stands with its own update (one source for everything)
@@ -624,7 +628,7 @@ class Hub:
         self._end_long_link(sid, m)
         d = Daemon(m, tick=self.tick, autostart=False, server_id=sid, hub_managed=True)
         d.hub = self
-        m.notifier.listeners.append(lambda message, sid=sid: self.phone_notify(sid, message))
+        m.notifier.listeners.append(lambda message, sid=sid: self.notice(sid, message))
         d.web_enabled = True  # problems are shown in the web UI instead of stopping craft-conductor
         self.daemons[sid] = d
         t = threading.Thread(target=d.run, daemon=True, name=f"server:{sid}")
@@ -664,6 +668,14 @@ class Hub:
             from .push import Push
             self._push = Push(self.state_dir)
         return self._push
+
+    def notice(self, sid: str, message: str) -> None:
+        """A server's message (what goes to Discord): kept for the bell, and sent to phones."""
+        now = time.time()
+        if self.notices and self.notices[-1]["time"] >= now:
+            now = self.notices[-1]["time"] + 0.001  # (each one's time tells it apart)
+        self.notices.append({"sid": sid, "message": str(message)[:NOTICE_CHARS], "time": now})
+        self.phone_notify(sid, message)
 
     def phone_notify(self, sid: str, message: str) -> None:
         """A server's message (what goes to Discord), to the phones that turned notifications on."""
@@ -1037,9 +1049,9 @@ class Hub:
                                       "downloads); pick another")
                 spec.port = self.free_port(spec.port)
             from . import reach
-            if spec.reach == "forward" and not (reach.in_open_range(spec.port) and spec.port not in self.taken_ports()
-                                                and port_free(spec.port)):
-                spec.port = self.pick_open_port()  # (the router gets a port that isn't Minecraft's usual one)
+            if spec.reach == "forward" and not ((reach.in_open_range(spec.port) or spec.port_chosen and spec.port != reach.USUAL_PORT)
+                                                and spec.port not in self.taken_ports() and port_free(spec.port)):
+                spec.port = self.pick_open_port()  # (the router gets a port that isn't Minecraft's usual one; one typed in stays, #232)
             spec.reachable = (spec.reach in ("playit", "forward") or self.upnp_settings()["enabled"]
                               or bool(self.share_settings()["address"]))
             setupmod.whitelist_defaults(spec)  # (refused before any file is written: whitelist off unconfirmed)
@@ -1830,7 +1842,11 @@ class Hub:
 
     def start_self_update(self, version: str) -> bool:
         """Accept the update and install it in the background. False when one is already under way:
-        a second click (or a second browser) starts nothing."""
+        a second click (or a second browser) starts nothing. When this copy doesn't know that version
+        yet (it was just started again: after a failed update put it back, #245), it looks first."""
+        u = self.updater
+        if not u.in_progress and version and (u.release or {}).get("version") != version:
+            self.check_self_update()
         if not self.updater.begin(version):
             return False
         self.run_job(f"update Craft Conductor to {version}", self.apply_self_update)
