@@ -8959,5 +8959,13 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1024,
+    "section": "Fix: an export with damaged details still imports",
+    "step": "Export a server, open the .zip, change \"name\" in craft-conductor-export.json to a number (5) and \"locked\" to 5, save it back into the .zip, then use Import a server… with it: the server is imported (named imported), with its world.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]
