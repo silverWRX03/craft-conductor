@@ -2931,7 +2931,7 @@ views.players = () => {
   };
 
   // Built once, outside the refreshed area, so typing isn't interrupted. An empty name says so (#238).
-  const act = (action) => {
+  const byName = (action) => {
     const who = name.value.trim();
     if (who) return run(action, who);
     toast(action === "ban-ip" ? "Type an IP address or a player name first." : "Type a player name first.", true);
@@ -2941,10 +2941,10 @@ views.players = () => {
         h("div", { class: "row" }, name, reason),
         h("div", { class: "row mt-s" },
           ...[["Op", "op"], ["De-op", "deop"], ["Whitelist", "whitelist-add"], ["Un-whitelist", "whitelist-remove"], ["Kick", "kick"], ["Pardon", "pardon"]]
-            .map(([label, action]) => h("button", { class: "btn", onclick: () => act(action) }, label)),
-          h("button", { class: "btn danger", onclick: () => act("ban") }, "Ban"),
+            .map(([label, action]) => h("button", { class: "btn", onclick: () => byName(action) }, label)),
+          h("button", { class: "btn danger", onclick: () => byName("ban") }, "Ban"),
           h("button", { class: "btn danger", title: "Enter an IP address, or the name of an online player",
-                        onclick: () => act("ban-ip") }, "Ban IP")));
+                        onclick: () => byName("ban-ip") }, "Ban IP")));
   const requests = joinRequestsCard(() => load());
   const activity = activityCard();
   fill($("#main"), h("h1", { class: "view-title" }, "Players"), requests.el, manage, h("div", { class: "mt" }, body), h("div", { class: "mt" }, activity.el));
