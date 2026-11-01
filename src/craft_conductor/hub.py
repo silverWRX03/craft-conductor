@@ -1022,17 +1022,24 @@ class Hub:
             rmtree(folder, ignore_errors=True)
         return moved
 
+    def _new_id(self, base: str) -> str:
+        """An id (and folder name) for a new server: no other server's, and no folder that's in use, its
+        own or the backups of one taken off the list but kept (``<backups folder>/<id>``): sharing that,
+        keeping the newest few of one would remove the other's."""
+        loc = self.backups_location
+        taken = set(self.discover()) | {HOME_ID}
+        sid, n = base, 2
+        while sid in taken or (self.servers_dir / sid).exists() or (loc is not None and (loc / sid).exists()):
+            sid, n = f"{base}-{n}", n + 1
+        return sid
+
     def create(self, spec: setupmod.SetupSpec) -> str:
         """Make a new server folder from the setup page and start installing it (not running it)."""
         if self.is_single:
             raise RuntimeError("this Craft Conductor runs a single server (`craft-conductor run`); use `craft-conductor start` for several")
         self._not_while_moving()
         with self._lock:
-            base = slugify(spec.motd)
-            sid, n = base, 2
-            taken = set(self.discover()) | {HOME_ID}
-            while sid in taken or (self.servers_dir / sid).exists():
-                sid, n = f"{base}-{n}", n + 1
+            sid = self._new_id(slugify(spec.motd))
             root = self.servers_dir / sid
             if spec.port in self.ports():
                 if spec.port_chosen:
@@ -1473,11 +1480,7 @@ class Hub:
         self._not_while_moving()
         manifest = transfer.read_manifest(archive)
         with self._lock:
-            base = slugify(name or manifest.get("name") or manifest.get("folder") or "imported")
-            sid, n = base, 2
-            taken = set(self.discover()) | {HOME_ID}
-            while sid in taken or (self.servers_dir / sid).exists():
-                sid, n = f"{base}-{n}", n + 1
+            sid = self._new_id(slugify(name or manifest.get("name") or manifest.get("folder") or "imported"))
             root = self.servers_dir / sid
             manifest = transfer.import_into(archive, root, password=password, skip_locked=skip_locked)
             self._imported_backups(root, sid)

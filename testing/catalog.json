@@ -8935,5 +8935,13 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1021,
+    "section": "Fix: a new server never shares a kept server's backups",
+    "step": "With a folder chosen for backups, add an existing server folder named Survival, make a backup, then remove it from the list keeping its files. Create a new server named Survival and make more backups than Backups to keep: the first server's backups are still in the backups folder, and the new server's are in a folder of its own (survival-2).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]
