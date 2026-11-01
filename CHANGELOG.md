@@ -8,6 +8,7 @@ its fix will say which version it's in.
 
 **Fixed**
 - A single server run with `craft-conductor run --web` answered "internal error" to a mod check run in the background, to a friend asking to join (and to **Allow** or **Ignore**), and to the **Use a free port** fix.
+- Changes to a server's craft-conductor.toml made at the same moment (two settings saved close together, or a setting changed while mods were being updated) could lose all but one, and a page or the server could read the file half-written and report "[server] loader is required". Changes take turns now, and the file is replaced whole, so a crash or power cut mid-save can't leave it cut short either.
 - Saving two mod lists at the same moment (two clicks, or two browsers) could fail on Windows with "The process cannot access the file because it is being used by another process", or keep only one of them. Two changes to a server's settings at once could also lose one. They take turns now.
 - The **World** page could take half a minute to open when the server was too busy to answer (while still starting, or generating chunks): it asked about each game rule in turn, waiting 2 seconds for each. It stops at the first one that gets no answer now.
 - Messages that went only to Discord and phones ("The whitelist of … is now on", "Bedrock players: Geyser was set up…") were only in the server's **Activity** when neither was set up. They're in the bell too now (#241).

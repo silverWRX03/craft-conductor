@@ -8879,5 +8879,13 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1014,
+    "section": "Fix: settings saved close together are all kept",
+    "step": "On a server's Settings page, change several settings quickly one after another (memory, view distance, the server's name), from two browser tabs if you can. Refresh: every change is there, and craft-conductor.toml opens in a text editor with its comments intact. While a mod update runs, change a setting: no '[server] loader is required' error, and both the update and the setting are kept.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]
