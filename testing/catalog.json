@@ -8991,5 +8991,13 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1028,
+    "section": "Fix: a server rehearsing an update isn't deleted or moved",
+    "step": "Start Rehearse the update on a server's Updates page. While it runs, try to delete the server, and to move the servers to another folder in Craft Conductor settings → Folders: both say to stop the rehearsal first, and nothing is deleted or moved.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]

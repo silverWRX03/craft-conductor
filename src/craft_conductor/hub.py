@@ -111,6 +111,12 @@ def slugify(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:40] or "server"
 
 
+def rehearsing(d: Daemon) -> bool:
+    """An update being tried on a copy of the server (rehearsal.py): not one of its jobs, but its copy
+    runs from inside the server's folder."""
+    return d.rehearsal is not None and d.rehearsal.state == "running"
+
+
 def put_tomls(tomls: dict) -> None:
     """Put back what servers' craft-conductor.toml said for [backups] dir (a move undone)."""
     for path, literal in tomls.items():
@@ -1168,6 +1174,8 @@ class Hub:
                 out.append(f"{name} is running")
             elif d.job:
                 out.append(f"{name} is busy ({d.job['name']})")
+            elif rehearsing(d):
+                out.append(f"{name} is trying an update on a copy of itself (stop it on its Updates page)")
             elif d.m.journal_path.exists():
                 out.append(f"{name} has an interrupted update to put right first (start it once)")
         return out
@@ -1526,6 +1534,8 @@ class Hub:
                 raise RuntimeError("there's no server with that id")
             if (d.proc and d.proc.running) or d.job:
                 raise RuntimeError("stop the server (and wait for anything it's doing to finish) first")
+            if rehearsing(d):  # (its copy runs from inside the server's folder, and would be left running)
+                raise RuntimeError("an update is being tried on a copy of this server: stop it on its Updates page first")
             cfg = d.m.config
             root = cfg.root
             d.stop_requested.set()
