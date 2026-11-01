@@ -241,6 +241,13 @@ def read_manifest(archive: Path) -> dict:
         raise TransferError("the export's details are damaged") from e
     if not isinstance(data, dict) or data.get("format") != FORMAT:
         raise TransferError("that export was made by a newer Craft Conductor; update Craft Conductor first")
+    # (an export can come from anyone: what's read from it is the kind it should be, or left out)
+    for key in ("name", "folder"):
+        if not isinstance(data.get(key), str):
+            data.pop(key, None)
+    for key in ("locked", "left_out"):
+        value = data.get(key)
+        data[key] = [x for x in value if isinstance(x, str)] if isinstance(value, list) else []
     return data
 
 

@@ -176,6 +176,21 @@ def make_pack(files, overrides=None, deps=None) -> bytes:
     return buf.getvalue()
 
 
+
+def test_a_modpack_with_details_of_the_wrong_kind_changes_nothing(tmp_path, http):
+    """A pack can come from anyone: "env" that's text or "downloads" that's a number stopped the install
+    halfway, with the server's loader and Minecraft already changed."""
+    root = tmp_path / "srv"
+    setupmod.configure(root, setupmod.SetupSpec.from_dict({"loader": "vanilla", "accept_eula": True}))
+    good = {"path": "mods/good.jar", "downloads": ["https://cdn.modrinth.com/data/AAAAAAAA/versions/V1111111/good.jar"],
+            "hashes": {"sha1": "0" * 40}}
+    pack = tmp_path / "odd.mrpack"
+    pack.write_bytes(make_pack([{**good, "env": "server"}, {**good, "path": 5, "downloads": 5}, {**good, "hashes": []}],
+                               deps={"minecraft": "1.21.1", "fabric-loader": 16}))
+    assert modpack.preview_file(pack, http)["loader"] == "fabric"  # (a loader build that isn't text: the newest)
+    r = modpack.apply_file(root, pack, http)
+    assert r["minecraft"] == "1.21.1" and r["loader"] == "fabric"
+
 def test_modpack_is_applied_safely(tmp_path, http):
     root = tmp_path / "srv"
     setupmod.configure(root, setupmod.SetupSpec.from_dict({"loader": "vanilla", "accept_eula": True}))

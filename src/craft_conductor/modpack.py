@@ -109,6 +109,14 @@ def read_index(pack: Path) -> tuple[dict, zipfile.ZipFile]:
     if index.get("game") != "minecraft":
         z.close()
         raise ModpackError("that modpack isn't for Minecraft: Java Edition")
+    # A pack can come from anyone: each detail read later is the kind it should be (one that isn't
+    # stopped the install halfway, after the server's loader and Minecraft had changed).
+    for f in files:
+        f["path"] = f["path"] if isinstance(f.get("path"), str) else ""
+        for key, kind in (("env", dict), ("hashes", dict), ("downloads", list)):
+            if not isinstance(f.get(key), kind):
+                f[key] = kind()
+    index["dependencies"] = {k: v if isinstance(v, str) else "" for k, v in deps.items()}  # ("": the newest build)
     return index, z
 
 

@@ -3978,12 +3978,12 @@ class Api:
                        self.d.ask_command if running else None)
 
     def players(self, q, b) -> dict:
-        return self._players().summary(self.d.players)
+        return self._players().summary(set(self.d.players))  # (a copy: players join meanwhile)
 
     def players_online(self, q, b) -> dict:
         """The Dashboard's Connected Players card (polled): who is online with their role and ping, the
         player limit, whether the whitelist is on (and its names with ?whitelist=1). Reads files only."""
-        return self._players().roster(self.d.players, whitelist=q.get("whitelist") == "1")
+        return self._players().roster(set(self.d.players), whitelist=q.get("whitelist") == "1")
 
     def broadcast(self, q, b) -> dict:
         """A message to everyone online, through the server's ``say``."""

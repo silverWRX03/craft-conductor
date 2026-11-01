@@ -361,3 +361,21 @@ def test_a_server_whose_settings_are_the_wrong_kind_is_listed_with_its_problem(h
     hub.scan()  # (raised)
     servers = {s["id"]: s for s in c.get("/api/hub")[1]["servers"]}
     assert "warn_minutes" in servers["broken"]["problem"] and servers["alpha"]["state"]
+
+
+def test_a_server_trying_an_update_on_a_copy_isnt_deleted_or_moved(hub_env, tmp_path):
+    """The rehearsal's copy runs from inside the server's folder, but isn't one of its jobs: Delete went
+    ahead (on Windows, stopped halfway by the copy's open files; its Java left running), and so did
+    moving the servers to another folder."""
+    from types import SimpleNamespace
+    hub, c = hub_env
+    login(c)
+    d = hub.get("alpha")
+    d.rehearsal = SimpleNamespace(state="running")
+    status, body, _ = c.post("/api/hub/delete", {"id": "alpha", "delete_files": True})
+    assert status == 400 and "copy" in body["error"], body
+    assert hub.get("alpha") is d and (d.m.config.root / "craft-conductor.toml").exists()
+    plan = c.post("/api/hub/locations", {"servers": str(tmp_path / "Elsewhere")})[1]
+    assert any("copy of itself" in b for b in plan["busy"]), plan
+    d.rehearsal = SimpleNamespace(state="done")
+    assert c.post("/api/hub/delete", {"id": "alpha"})[0] == 200  # (once it's over)

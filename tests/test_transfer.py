@@ -240,3 +240,17 @@ def test_forge_launch_file_follows_the_os(tmp_path, monkeypatch):
     monkeypatch.setattr(base, "args_file_name", lambda: "unix_args.txt")
     transfer._fix_launch(root)
     assert lockmod.load(root).launch[0].endswith("/unix_args.txt")
+
+
+def test_an_export_with_details_of_the_wrong_kind_is_still_read(hub_env, tmp_path):
+    """An export can come from anyone: a name that's a number, or "locked" that isn't a list, answered
+    "internal error" instead of importing (or saying what's wrong)."""
+    hub, _ = hub_env
+    odd = tmp_path / "odd.craft-conductor.zip"
+    odd.write_bytes(zip_with({"craft-conductor-export.json": json.dumps({"format": 1, "name": 5, "folder": [], "locked": 5,
+                                                                          "left_out": [{"a": 1}, "secrets"]}),
+                              "craft-conductor.toml": '[server]\nloader = "vanilla"\n', "server/world/level.dat": "ok"}))
+    manifest = transfer.read_manifest(odd)
+    assert "name" not in manifest and manifest["locked"] == [] and manifest["left_out"] == ["secrets"]
+    sid, _ = hub.import_archive(odd)
+    assert sid == "imported" and (hub.servers_dir / sid / "server" / "world" / "level.dat").read_text() == "ok"

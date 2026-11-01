@@ -8959,5 +8959,45 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1024,
+    "section": "Fix: an export with damaged details still imports",
+    "step": "Export a server, open the .zip, change \"name\" in craft-conductor-export.json to a number (5) and \"locked\" to 5, save it back into the .zip, then use Import a server… with it: the server is imported (named imported), with its world.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1025,
+    "section": "Fix: a damaged modpack file changes nothing",
+    "step": "Take a .mrpack, change one file's \"env\" in modrinth.index.json to a word (\"server\"), and make a new server from it: the server is made from the pack with that detail ignored (no internal error, and no server left half on the pack's loader).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1026,
+    "section": "Fix: a damaged invite link is a plain message",
+    "step": "On a friend's computer, run craft-conductor join with an invite link whose port is changed to 99999: it says the link isn't an invite (its address or port is damaged), with no Python error.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1027,
+    "section": "Fix: a failed Discord post doesn't show the webhook",
+    "step": "Set a server's Discord webhook to one that's been deleted in Discord, then start the server: the Dashboard's activity says the Discord notification failed (not found), without the webhook's address.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1028,
+    "section": "Fix: a server rehearsing an update isn't deleted or moved",
+    "step": "Start Rehearse the update on a server's Updates page. While it runs, try to delete the server, and to move the servers to another folder in Craft Conductor settings → Folders: both say to stop the rehearsal first, and nothing is deleted or moved.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]
