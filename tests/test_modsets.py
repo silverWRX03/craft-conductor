@@ -77,3 +77,12 @@ def test_lists_saved_at_the_same_time_are_all_kept(tmp_path, make_config):
     assert errors == []
     assert {x["name"] for x in modsets.load(cfg)} == {f"List {i}-{j}" for i in range(6) for j in range(5)}
     assert set(read_properties(props)) == {f"key-{i}-{j}" for i in range(6) for j in range(5)}
+
+
+def test_a_shared_list_whose_mods_arent_a_list_is_refused_plainly():
+    """A mod list from a file someone shared, "mods": 5: a TypeError ("internal error")."""
+    import pytest
+    from craft_conductor import modsets
+    for entry in ({"name": "Mine", "mods": 5}, {"name": "Mine", "mods": [], "client_mods": True}):
+        with pytest.raises(modsets.ModSetError):
+            modsets.check(entry)

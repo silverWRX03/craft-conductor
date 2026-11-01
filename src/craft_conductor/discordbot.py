@@ -222,6 +222,9 @@ class WhitelistBot:
                     self.state = "stopped"
                     return
                 log.info("Discord connection lost (%s); trying again", e)
+            except Exception as e:  # (something Discord sent that wasn't as expected: connect again, not stop for good)
+                self.error = str(e)
+                log.exception("Whitelist through Discord went wrong; trying again")
             if self.stop.is_set():
                 break
             self.state = "retrying"

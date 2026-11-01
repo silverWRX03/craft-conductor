@@ -2084,7 +2084,8 @@ class HubApi:
         loader = str(b.get("loader", ""))
         if loader not in LOADERS or not LOADERS[loader].mod_loaders:
             raise ApiError(400, "that server type doesn't run mods")
-        mods = [str(x) for x in (b.get("mods") or []) if re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", str(x))]
+        mods = b.get("mods") if isinstance(b.get("mods"), list) else []  # (anything else sent: none)
+        mods = [str(x) for x in mods if re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", str(x))]
         minecraft = str(b.get("minecraft") or "") or None
         provider = ModrinthProvider(self.hub.http)
         channels = {m: early_channel(b, m) for m in mods if early_channel(b, m)}

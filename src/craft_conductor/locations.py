@@ -569,6 +569,9 @@ def recover(state_dir: Path, put_back: Callable[[dict], None]) -> str | None:
     except (OSError, ValueError):
         path.unlink(missing_ok=True)
         return "a damaged note about moving files was removed"
+    if not isinstance(data, dict):  # (as damaged: read at every start, it stopped Craft Conductor starting)
+        path.unlink(missing_ok=True)
+        return "a damaged note about moving files was removed"
     kind, old = str(data.get("kind") or "files"), data.get("old") or "where they were"
     items = [(Path(x["src"]), Path(x["dst"]), str(x.get("how") or ""), bool(x.get("done")))
              for x in data.get("items", []) if isinstance(x, dict) and x.get("src") and x.get("dst")]

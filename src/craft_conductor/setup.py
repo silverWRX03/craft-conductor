@@ -146,6 +146,10 @@ class SetupSpec:
                     out.append(item)
             return out
 
+        def texts(key: str) -> list[str]:  # (a list of names; anything else sent: none)
+            value = d.get(key)
+            return [x for x in value if isinstance(x, str)] if isinstance(value, list) else []
+
         def pack_paths(key: str) -> list[str]:
             items = d.get(key) or []
             if not isinstance(items, list) or len(items) > 5000:
@@ -193,10 +197,10 @@ class SetupSpec:
             owner_name=str(d.get("owner_name") or "").strip(),
             modpack_version=str(d.get("modpack_version") or ""),
             modpack_exclude=pack_paths("modpack_exclude"),
-            local_mods=[str(x) for x in (d.get("local_mods") or []) if isinstance(x, str)],
-            client_mods=[str(x) for x in (d.get("client_mods") or []) if isinstance(x, str)],
-            client_local=[str(x) for x in (d.get("client_local") or []) if isinstance(x, str)],
-            manual_files=[str(x) for x in (d.get("manual_files") or []) if isinstance(x, str)],
+            local_mods=texts("local_mods"),
+            client_mods=texts("client_mods"),
+            client_local=texts("client_local"),
+            manual_files=texts("manual_files"),
             world=str(d.get("world") or ""),
             mod_channels={str(k): v for k, v in (d.get("mod_channels") or {}).items()
                           if v in ("beta", "alpha")} if isinstance(d.get("mod_channels"), dict) else {},

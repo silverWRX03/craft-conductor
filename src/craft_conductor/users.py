@@ -78,8 +78,8 @@ class Users:
             stamp = (st.st_mtime_ns, st.st_size, st.st_ino)
             if self._cache is None or self._cache[0] != stamp:
                 data = json.loads(self.path.read_text())
-                users = [u for u in data.get("users", []) if isinstance(u, dict) and u.get("id")] \
-                    if isinstance(data, dict) else []
+                found = data.get("users") if isinstance(data, dict) else None  # (a list, unless damaged)
+                users = [u for u in found if isinstance(u, dict) and u.get("id")] if isinstance(found, list) else []
                 self._cache = (stamp, users)
             return self._cache[1]
         except (OSError, ValueError):

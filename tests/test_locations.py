@@ -352,3 +352,11 @@ def test_only_the_owner_chooses_where_files_are_kept(hub_env, tmp_path):
         assert status == 403, path
     assert "locations" not in person.get("/api/hub")[1]
     assert not (tmp_path / "E").exists() and not (tmp_path / "x").exists()
+
+
+def test_a_damaged_move_note_that_isnt_one_is_removed(tmp_path):
+    """The note of a move under way, holding JSON that isn't one (a list): read at every start, it
+    stopped Craft Conductor starting."""
+    (tmp_path / locmod.JOURNAL).write_text("[1, 2]", encoding="utf-8")
+    assert "damaged" in locmod.recover(tmp_path, lambda extra: None)
+    assert not (tmp_path / locmod.JOURNAL).exists()

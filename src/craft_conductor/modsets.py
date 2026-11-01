@@ -63,6 +63,8 @@ def check(entry: dict) -> dict:
     name = str(entry.get("name", "")).strip()
     if not NAME.fullmatch(name):
         raise ModSetError("give the list a name (up to 60 characters)")
+    if not isinstance(entry.get("mods", []), list) or not isinstance(entry.get("client_mods", []), list):
+        raise ModSetError("the list's mods aren't written right")
     mods = []
     for m in entry.get("mods", []):
         if not isinstance(m, dict) or m.get("source", "modrinth") not in configmod.MOD_SOURCES or not MOD_ID.fullmatch(str(m.get("id", ""))):

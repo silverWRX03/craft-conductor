@@ -39,6 +39,9 @@ SERVERS_DIR = "servers"
 HUB_FILE = "hub.json"
 HOME_ID = "main"           # the server kept directly in the home folder (craft-conductor 0.1-0.3)
 START_AFTER_UPDATE = "start_after_update"  # hub.json: the servers to start again after Craft Conductor updates
+# What each part of hub.json is (Hub._hub_file).
+HUB_FILE_KINDS = {"extra": list, "hidden": list, "hand_folders": list, "share": dict, "upnp": dict, "discord": dict,
+                  "web": dict, "self_update": dict, "locations": dict, "guide": dict, START_AFTER_UPDATE: dict}
 SCAN_EVERY = 5.0
 NOTICES_KEPT, NOTICE_CHARS = 50, 8000  # the servers' messages kept for the bell (the page keeps its own copy)
 
@@ -217,11 +220,18 @@ class Hub:
         return self._single.m.config.web if self._single else self._web
 
     def _hub_file(self) -> dict:
+        """hub.json, with any part of the wrong kind left out (as if it weren't there): one damaged or
+        edited by hand stopped Craft Conductor (``"extra": 5``) or every page (``"share": null``)."""
         try:
             data = json.loads((self.state_dir / HUB_FILE).read_text())
-            return data if isinstance(data, dict) else {}
         except (OSError, ValueError):
             return {}
+        if not isinstance(data, dict):
+            return {}
+        for key, kind in HUB_FILE_KINDS.items():
+            if key in data and not isinstance(data[key], kind):
+                del data[key]
+        return data
 
     def _update_hub_file(self, change: Callable[[dict], object]) -> object:
         """Change hub.json: read it, let ``change`` edit what's in it, write it back, all as one step,
@@ -330,7 +340,8 @@ class Hub:
 
     def discord_settings(self) -> dict:
         d = self._hub_file().get("discord", {})
-        return {"set": bool(d.get("token")), "bot": d.get("bot"), "guild": d.get("guild", ""), "channel": d.get("channel", ""),
+        bot = d.get("bot") if isinstance(d.get("bot"), dict) and isinstance(d["bot"].get("id"), str) else None
+        return {"set": bool(d.get("token")), "bot": bot, "guild": d.get("guild", ""), "channel": d.get("channel", ""),
                 "status_channel": d.get("status_channel", "")}
 
     def set_discord_status(self, channel: str) -> None:
@@ -399,7 +410,8 @@ class Hub:
 
     # ------------------------------------------- Whitelist through Discord
     def discord_whitelist(self) -> dict:
-        w = self._hub_file().get("discord", {}).get("whitelist", {})
+        w = self._hub_file().get("discord", {}).get("whitelist")
+        w = w if isinstance(w, dict) else {}
         bot = self.discord_bot
         return {"enabled": bool(w.get("enabled")), "mode": w.get("mode", "ask"), "role": w.get("role", ""),
                 "status": bot.status() if bot else None}
@@ -492,7 +504,10 @@ class Hub:
         address they opened the invite with)."""
         from .share import DEFAULT_PORT
         s = self._hub_file().get("share", {}) if not self.is_single else {}
-        return {"port": int(s.get("port", DEFAULT_PORT)), "address": str(s.get("address", ""))}
+        port = s.get("port")  # (one that isn't a port, in a hub.json edited by hand: the usual one)
+        port = port if isinstance(port, int) and not isinstance(port, bool) and 0 < port < 65536 else DEFAULT_PORT
+        address = s.get("address")
+        return {"port": port, "address": address if isinstance(address, str) else ""}
 
     def save_share(self, port: int, address: str) -> None:
         # (a playit.gg tunnel for the downloads, kept here before, needs a paid plan: no longer offered)
@@ -612,7 +627,8 @@ class Hub:
             m = self.make_manager(configmod.load(root))
             m.mod_files = self.mod_files  # (files the setup page or a check already downloaded)
         except (ConfigError, OSError, ValueError) as e:
-            self.problems[sid] = {"root": str(root), "problem": f"its craft-conductor.toml has a problem: {e}"}
+            problem = f"its craft-conductor.toml has a problem: {e}" if isinstance(e, ConfigError) else str(e)
+            self.problems[sid] = {"root": str(root), "problem": problem}
             self.daemons.pop(sid, None)
             return
         if pid := running_pid(m):
@@ -1592,8 +1608,8 @@ class Hub:
 
     def upnp_settings(self) -> dict:
         u = self._hub_file().get("upnp", {}) if not self.is_single else {}
-        return {"enabled": bool(u.get("enabled")), "mapped": [tuple(x) for x in u.get("mapped", [])
-                                                              if isinstance(x, list) and len(x) == 2]}
+        mapped = u.get("mapped") if isinstance(u.get("mapped"), list) else []
+        return {"enabled": bool(u.get("enabled")), "mapped": [tuple(x) for x in mapped if isinstance(x, list) and len(x) == 2]}
 
     def upnp_wanted(self) -> list[tuple[int, str, str]]:
         """(port, protocol, label) craft-conductor forwards: the Minecraft port (and Bedrock's, on UDP, with
@@ -2015,30 +2031,33 @@ class Hub:
                     hub_stop_path(self.home).unlink(missing_ok=True)
                     log.info("stop requested")
                     break
-                now = time.monotonic()
-                if now >= next_scan:
-                    next_scan = now + SCAN_EVERY
-                    self.scan()
-                    self.update_share()
-                    if after_update:
-                        after_update = self.start_after_update()
-                if now >= next_self_check:
-                    next_self_check = now + SELF_CHECK_INTERVAL
-                    self.run_job("craft-conductor update check", self.check_self_update)
-                if now >= next_tunnels:
-                    next_tunnels = now + 300
-                    threading.Thread(target=self.check_tunnels, daemon=True, name="tunnels").start()
-                if now >= next_upnp:
-                    next_upnp = now + self.UPNP_EVERY
-                    if self.upnp_settings()["enabled"]:
-                        threading.Thread(target=self.upnp_sync, daemon=True, name="upnp").start()
-                if now >= next_health:
-                    next_health = now + 60
-                    threading.Thread(target=self._check_health, daemon=True, name="health").start()
-                if now >= next_status:
-                    next_status = now + 30
-                    threading.Thread(target=self.discord_status, daemon=True, name="discord-status").start()
-                    threading.Thread(target=self.sync_discord_bot, daemon=True, name="discord-whitelist-sync").start()
+                try:  # (one step going wrong is logged, and the next go round tries again: never Craft Conductor stopping)
+                    now = time.monotonic()
+                    if now >= next_scan:
+                        next_scan = now + SCAN_EVERY
+                        self.scan()
+                        self.update_share()
+                        if after_update:
+                            after_update = self.start_after_update()
+                    if now >= next_self_check:
+                        next_self_check = now + SELF_CHECK_INTERVAL
+                        self.run_job("craft-conductor update check", self.check_self_update)
+                    if now >= next_tunnels:
+                        next_tunnels = now + 300
+                        threading.Thread(target=self.check_tunnels, daemon=True, name="tunnels").start()
+                    if now >= next_upnp:
+                        next_upnp = now + self.UPNP_EVERY
+                        if self.upnp_settings()["enabled"]:
+                            threading.Thread(target=self.upnp_sync, daemon=True, name="upnp").start()
+                    if now >= next_health:
+                        next_health = now + 60
+                        threading.Thread(target=self._check_health, daemon=True, name="health").start()
+                    if now >= next_status:
+                        next_status = now + 30
+                        threading.Thread(target=self.discord_status, daemon=True, name="discord-status").start()
+                        threading.Thread(target=self.sync_discord_bot, daemon=True, name="discord-whitelist-sync").start()
+                except Exception:
+                    log.exception("something went wrong in Craft Conductor's own loop; carrying on")
                 self.stop_requested.wait(self.tick)
             return 0
         finally:
