@@ -454,3 +454,18 @@ def test_a_damaged_list_of_paired_phones_is_read_as_none(hub_env):
     hub, c = hub_env
     (hub.state_dir / webauth.DEVICES_FILE).write_text(json.dumps({"devices": 5}))
     assert hub.ui.devices.find("x" * 40, 0) is None
+
+
+def test_a_damaged_lock_file_lists_the_server_with_its_problem(hub_env):
+    """craft-conductor.lock.json of the wrong shape raised a TypeError when the server was picked up: it
+    vanished from the list (an error logged every few seconds) instead of being listed with what's wrong."""
+    from craft_conductor import lock as lockmod
+    hub, c = hub_env
+    login(c)
+    root = hub.servers_dir / "damaged"
+    root.mkdir()
+    (root / "craft-conductor.toml").write_text(hub.get("alpha").m.config.path.read_text(encoding="utf-8"), encoding="utf-8")
+    (root / lockmod.LOCK_NAME).write_text(json.dumps({"mods": 5}))
+    hub.scan()
+    servers = {s["id"]: s for s in c.get("/api/hub")[1]["servers"]}
+    assert lockmod.LOCK_NAME in servers["damaged"]["problem"] and "toml" not in servers["damaged"]["problem"]

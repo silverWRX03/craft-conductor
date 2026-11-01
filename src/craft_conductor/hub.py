@@ -627,7 +627,8 @@ class Hub:
             m = self.make_manager(configmod.load(root))
             m.mod_files = self.mod_files  # (files the setup page or a check already downloaded)
         except (ConfigError, OSError, ValueError) as e:
-            self.problems[sid] = {"root": str(root), "problem": f"its craft-conductor.toml has a problem: {e}"}
+            problem = f"its craft-conductor.toml has a problem: {e}" if isinstance(e, ConfigError) else str(e)
+            self.problems[sid] = {"root": str(root), "problem": problem}
             self.daemons.pop(sid, None)
             return
         if pid := running_pid(m):

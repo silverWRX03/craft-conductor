@@ -80,7 +80,13 @@ def load(root: Path) -> Lock:
     path = root / LOCK_NAME
     if not path.exists():
         return Lock()
-    return Lock.from_dict(json.loads(path.read_text()))
+    try:
+        data = json.loads(path.read_text())
+        if not isinstance(data, dict):
+            raise TypeError("not an object")
+        return Lock.from_dict(data)
+    except (ValueError, TypeError, AttributeError, KeyError) as e:  # (damaged: said, not a crash where it's read)
+        raise ValueError(f"its {LOCK_NAME} (the list of what's installed) is damaged ({e})") from e
 
 
 def save(root: Path, lock: Lock, touch: bool = True) -> None:
