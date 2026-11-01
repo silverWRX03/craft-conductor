@@ -56,3 +56,13 @@ def test_the_setting_is_off_until_switched_on(hub_env, monkeypatch):
     assert c.get("/api/hub/conflicts")[1] == {"enabled": False, "available": True, "relay": "https://relay.test"}
     assert c.post("/api/hub/conflicts", {"enabled": True})[1]["enabled"] is True and hub.share_conflicts()
     assert "known_conflicts" in c.get("/api/servers/alpha/mods")[1]
+
+
+def test_a_damaged_shared_list_is_read_as_empty(tmp_path, monkeypatch):
+    """The saved shared list, damaged ("conflicts": 5), or entries written wrong ("with": 5, a mod that's
+    not an id): checking mods raised TypeError instead of finding nothing."""
+    monkeypatch.delenv("CRAFT_CONDUCTOR_CONFLICTS_URL", raising=False)
+    for saved in ({"conflicts": 5}, {"conflicts": [{"loader": "fabric", "minecraft": "1.21.1", "mod": "a", "with": 5},
+                                                   {"loader": "fabric", "minecraft": "1.21.1", "mod": {"x": 1}, "with": []}]}):
+        (tmp_path / conflicts.FILE).write_text(json.dumps(saved))
+        assert conflicts.Known(tmp_path, None).matching("fabric", "1.21.1", ["a", "b"]) == []
