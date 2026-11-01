@@ -155,3 +155,25 @@ def test_a_retry_takes_out_what_was_taken_off_the_form(pending_daemon):
     assert not (mods / "rt-server-needs-1.0.0.jar").exists() and (mods / "kept-1.0.jar").exists()
     assert (cfg.root / "craft-conductor.toml").exists()
     assert not (server / "world" / "level.dat").exists() or (server / "world" / "level.dat").read_bytes() != b"imported"
+
+
+def test_a_second_setup_while_one_runs_changes_nothing(pending_daemon):
+    """A second click (or browser) while the setup runs is refused as busy before it removes the world
+    or files the running one is using."""
+    import threading
+    d, c, cfg = pending_daemon
+    login(c)
+    server, mods = cfg.server.dir, cfg.server.dir / "mods"
+    mods.mkdir(parents=True, exist_ok=True)
+    (mods / "mine-1.0.jar").write_bytes(b"PK")
+    (server / "world").mkdir(exist_ok=True)
+    (server / "world" / "level.dat").write_bytes(b"being imported")
+    gate = threading.Event()
+    assert d.submit("set up server", lambda: gate.wait(20) and "done")  # (the first setup, still running)
+    try:
+        body = {"loader": "fabric", "mods": [], "accept_eula": True, "remove_local": ["mine-1.0.jar"], "replace_world": True}
+        status, r, _ = c.post("/api/setup", body)
+        assert status == 409 and "busy" in r["error"], r
+        assert (server / "world" / "level.dat").read_bytes() == b"being imported" and (mods / "mine-1.0.jar").exists()
+    finally:
+        gate.set()

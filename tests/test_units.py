@@ -128,6 +128,41 @@ def test_config_set_value_keeps_comments(tmp_path):
     assert "# download Eclipse Temurin" in path.read_text()
 
 
+def test_config_changes_at_the_same_time_are_all_kept(tmp_path):
+    """Settings saved at once each read, changed and wrote the whole file: most were lost, and a reader
+    could find it half-written ("[server] loader is required"). They take turns, and each is put in
+    place whole."""
+    import threading
+    path = tmp_path / "craft-conductor.toml"
+    path.write_text(configmod.render_template("fabric", "1.21.1"))
+    errors, stop = [], threading.Event()
+
+    def change(i):
+        try:
+            for j in range(10):
+                configmod.set_value(path, "client", f"k{i}_{j}", "1")
+        except Exception as e:  # (any: the point is that none happens)
+            errors.append(e)
+
+    def read():
+        while not stop.is_set():
+            try:
+                configmod.load(tmp_path)
+            except Exception as e:
+                errors.append(e)
+    reader = threading.Thread(target=read)
+    reader.start()
+    writers = [threading.Thread(target=change, args=(i,)) for i in range(6)]
+    [t.start() for t in writers]
+    [t.join(60) for t in writers]
+    stop.set()
+    reader.join(10)
+    assert errors == []
+    text = configmod.read_text(path)
+    assert all(f"k{i}_{j} = 1" in text for i in range(6) for j in range(10))
+    assert not list(tmp_path.glob("*.tmp"))  # (no copies left behind)
+
+
 def test_server_properties_editing(tmp_path):
     from craft_conductor.properties import read_properties, write_properties
     path = tmp_path / "server.properties"

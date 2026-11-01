@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import re
+import threading
 from pathlib import Path
 
 from . import private
@@ -31,6 +32,11 @@ def server_name(props: dict[str, str], default: str = "") -> str:
     one, colour codes (``§a``) are left out, and no other control character gets through;
     ``default`` when there's nothing left."""
     return " ".join(_CONTROL.sub(" ", _FORMATTING.sub("", props.get("motd", ""))).split()) or default
+
+
+#: one write at a time (two settings saved at once: one was lost), and no read while one is put
+#: in place (Windows can't replace a file that's open)
+_lock = threading.Lock()
 
 
 def _read_lines(path: Path) -> tuple[list[str], str, str]:
@@ -101,7 +107,8 @@ def read_properties(path: Path) -> dict[str, str]:
     cached = _cache.get(str(path))
     if cached and cached[0] == stamp:
         return dict(cached[1])
-    lines, _, _ = _read_lines(path)
+    with _lock:
+        lines, _, _ = _read_lines(path)
     props = {}
     for line in lines:
         if line and not line.startswith("#") and "=" in line:
@@ -115,19 +122,20 @@ def read_properties(path: Path) -> dict[str, str]:
 
 def write_properties(path: Path, updates: dict[str, str]) -> None:
     """Set keys in ``server.properties``. Minecraft fills in every other default on first start."""
-    lines, encoding, newline = _read_lines(path) if path.exists() else ([], "utf-8", os.linesep)
-    remaining = {k: _escape(str(v)) for k, v in updates.items()}
-    for i, line in enumerate(lines):
-        if line and not line.startswith("#") and "=" in line:
-            key = line.partition("=")[0].strip()
-            if key in remaining:
-                lines[i] = f"{key}={remaining.pop(key)}"
-    lines += [f"{k}={v}" for k, v in remaining.items()]
-    path.parent.mkdir(parents=True, exist_ok=True)
-    # Replace the file in one step, so nothing ever reads it half-written.
-    tmp = path.with_name(f".{path.name}.tmp")
-    if any(k.strip() in SECRET_KEYS and v.strip() for k, _, v in (x.partition("=") for x in lines if not x.startswith("#"))):
-        os.close(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600))
-        private.protect(tmp)  # (this account's only, before the secret goes in)
-    tmp.write_text(newline.join(lines) + newline, encoding=encoding, newline="")  # (the file's own line endings)
-    os.replace(tmp, path)
+    with _lock:
+        lines, encoding, newline = _read_lines(path) if path.exists() else ([], "utf-8", os.linesep)
+        remaining = {k: _escape(str(v)) for k, v in updates.items()}
+        for i, line in enumerate(lines):
+            if line and not line.startswith("#") and "=" in line:
+                key = line.partition("=")[0].strip()
+                if key in remaining:
+                    lines[i] = f"{key}={remaining.pop(key)}"
+        lines += [f"{k}={v}" for k, v in remaining.items()]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        # Replace the file in one step, so nothing ever reads it half-written.
+        tmp = path.with_name(f".{path.name}.tmp")
+        if any(k.strip() in SECRET_KEYS and v.strip() for k, _, v in (x.partition("=") for x in lines if not x.startswith("#"))):
+            os.close(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600))
+            private.protect(tmp)  # (this account's only, before the secret goes in)
+        tmp.write_text(newline.join(lines) + newline, encoding=encoding, newline="")  # (the file's own line endings)
+        os.replace(tmp, path)

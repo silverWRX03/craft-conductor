@@ -15,6 +15,7 @@ import json
 import os
 import re
 import tempfile
+import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -72,6 +73,11 @@ def _answer(lines: list[str], name: str) -> tuple[str, str] | None:
         if _SAID.search(text) and (name.lower() in text.lower() or re.search("whitelisted|Nothing changed", text, re.I)):
             return "said", text
     return None
+
+
+#: one change to the server's player lists at a time while it's stopped: each reads the list, changes
+#: it and writes it back, so two at once (two Allow clicks, the Discord whitelist sync) kept only one
+_lists_lock = threading.Lock()
 
 
 class PlayerError(Exception):
@@ -394,37 +400,41 @@ class Players:
             return f"whitelist {'enabled' if action == 'whitelist-on' else 'disabled'}"
 
         if action in IP_ACTIONS:
-            entries = [e for e in self._read("ip_bans", strict=True) if not (isinstance(e, dict) and e.get("ip") == name)]
-            if action == "ban-ip":
-                entries.append({"ip": name, "created": _now(), "source": "craft-conductor", "expires": "forever",
-                                "reason": reason or "Banned by an operator."})
-            self._write("ip_bans", entries)
+            with _lists_lock:
+                entries = [e for e in self._read("ip_bans", strict=True) if not (isinstance(e, dict) and e.get("ip") == name)]
+                if action == "ban-ip":
+                    entries.append({"ip": name, "created": _now(), "source": "craft-conductor", "expires": "forever",
+                                    "reason": reason or "Banned by an operator."})
+                self._write("ip_bans", entries)
             return f"{'banned' if action == 'ban-ip' else 'unbanned'} IP {name}"
 
         key = {"ban": "bans", "pardon": "bans", "op": "ops", "deop": "ops",
                "whitelist-add": "whitelist", "whitelist-remove": "whitelist"}[action]
-        entries = self._read(key, strict=True)
         removing = action in ("pardon", "deop", "whitelist-remove")
         if removing:
-            kept = [e for e in entries if not _named(e, name)]
-            if len(kept) == len(entries):
-                raise PlayerError(f"{name} is not {'banned' if key == 'bans' else 'an operator' if key == 'ops' else 'whitelisted'}")
-            self._write(key, kept)
+            with _lists_lock:
+                entries = self._read(key, strict=True)
+                kept = [e for e in entries if not _named(e, name)]
+                if len(kept) == len(entries):
+                    raise PlayerError(f"{name} is not {'banned' if key == 'bans' else 'an operator' if key == 'ops' else 'whitelisted'}")
+                self._write(key, kept)
             return {"pardon": f"unbanned {name}", "deop": f"{name} is no longer an operator",
                     "whitelist-remove": f"removed {name} from the whitelist"}[action]
 
-        player_uuid, proper = self.lookup(name)
-        entries = [e for e in entries if not (isinstance(e, dict) and e.get("uuid") == player_uuid)]
-        if action == "op":
-            level = int(self.properties.get("op-permission-level", "4") or 4)
-            entries.append({"uuid": player_uuid, "name": proper, "level": level, "bypassesPlayerLimit": False})
-            message = f"made {proper} an operator (level {level})"
-        elif action == "ban":
-            entries.append({"uuid": player_uuid, "name": proper, "created": _now(), "source": "craft-conductor",
-                            "expires": "forever", "reason": reason or "Banned by an operator."})
-            message = f"banned {proper}"
-        else:
-            entries.append({"uuid": player_uuid, "name": proper})
-            message = f"added {proper} to the whitelist"
-        self._write(key, entries)
+        self._read(key, strict=True)  # (a list that can't be read isn't changed: said before asking Mojang)
+        player_uuid, proper = self.lookup(name)  # (asks Mojang: done before the list is read to change it)
+        with _lists_lock:
+            entries = [e for e in self._read(key, strict=True) if not (isinstance(e, dict) and e.get("uuid") == player_uuid)]
+            if action == "op":
+                level = int(self.properties.get("op-permission-level", "4") or 4)
+                entries.append({"uuid": player_uuid, "name": proper, "level": level, "bypassesPlayerLimit": False})
+                message = f"made {proper} an operator (level {level})"
+            elif action == "ban":
+                entries.append({"uuid": player_uuid, "name": proper, "created": _now(), "source": "craft-conductor",
+                                "expires": "forever", "reason": reason or "Banned by an operator."})
+                message = f"banned {proper}"
+            else:
+                entries.append({"uuid": player_uuid, "name": proper})
+                message = f"added {proper} to the whitelist"
+            self._write(key, entries)
         return message + " (applies when the server starts)"

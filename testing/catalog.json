@@ -8871,5 +8871,37 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1013,
+    "section": "Fix: two mod lists saved at once are both kept",
+    "step": "On a server's Mods page, open the saved mod lists in two browser tabs. Type a different name in each and press Save in both as close together as you can: no 'being used by another process' error, and both lists are shown after a refresh. Change two settings in Settings from two tabs at once: both changes are in server.properties.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1014,
+    "section": "Fix: settings saved close together are all kept",
+    "step": "On a server's Settings page, change several settings quickly one after another (memory, view distance, the server's name), from two browser tabs if you can. Refresh: every change is there, and craft-conductor.toml opens in a text editor with its comments intact. While a mod update runs, change a setting: no '[server] loader is required' error, and both the update and the setting are kept.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1015,
+    "section": "Fix: players added together while the server is stopped are all kept",
+    "step": "Stop a server. Have two friends ask to join from the invite page, then press Allow on both requests quickly, one right after the other. Start the server: both friends are on the whitelist and can join.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1016,
+    "section": "Fix: a second setup while one runs changes nothing",
+    "step": "Make a new server that imports a world from your saves. While its setup is still running, open the same setup page in a second browser tab and submit it again: it says the server is busy, and once the first setup finishes, the imported world is there and complete.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]

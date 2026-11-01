@@ -182,6 +182,7 @@ class Hub:
         self.problems: dict[str, dict] = {}      # servers that can't be run here, and why
         #: the servers' messages (what goes to Discord and phones), newest last, for the owner's bell (#241)
         self.notices: collections.deque[dict] = collections.deque(maxlen=NOTICES_KEPT)
+        self._notice_lock = threading.Lock()  # (its own: _lock is held through a whole server create)
         self.stop_requested = threading.Event()
         self.restart_requested = False
         self.updater = selfupdate.Updater()  # where this copy stands with its own update (one source for everything)
@@ -666,10 +667,11 @@ class Hub:
 
     def keep_notice(self, sid: str, message: str) -> None:
         """Kept for the owner's bell (/api/hub's notices)."""
-        now = time.time()
-        if self.notices and self.notices[-1]["time"] >= now:
-            now = self.notices[-1]["time"] + 0.001  # (each one's time tells it apart)
-        self.notices.append({"sid": sid, "message": str(message)[:NOTICE_CHARS], "time": now})
+        with self._notice_lock:  # (times only go up: the page asks for the ones after the last it has)
+            now = time.time()
+            if self.notices and self.notices[-1]["time"] >= now:
+                now = self.notices[-1]["time"] + 0.001  # (each one's time tells it apart)
+            self.notices.append({"sid": sid, "message": str(message)[:NOTICE_CHARS], "time": now})
 
     def phone_notify(self, sid: str, message: str) -> None:
         """A server's message (what goes to Discord), to the phones that turned notifications on."""
