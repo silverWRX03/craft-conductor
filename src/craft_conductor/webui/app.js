@@ -9887,15 +9887,19 @@ views.setup = () => {
         "a required mod that can't be used stops the server from being made (you're told why), and an optional one is left out.\n\nCreate the server anyway?", { ok: "Create anyway" }))) return;
       const mods = [...st.mods].filter(([, m]) => m.explicit && m.required).map(([slug]) => slug);
       const optional = [...st.mods].filter(([, m]) => m.explicit && !m.required).map(([slug]) => slug);
+      const sent = st.sent || { ids: new Set(), local: [], client: [], world: "" };  // (what a first try put in the server)
       const body = { loader: st.loader, minecraft: st.minecraft, mods, optional_mods: optional, memory_gb: st.memory_gb,
         aikar_flags: !!st.aikar && st.memory_gb > AIKAR_ABOVE_GB,
         motd: st.motd, max_players: st.max_players, difficulty: st.difficulty, gamemode: st.gamemode, port: st.port,
         network_access: st.network_access, accept_eula: true, properties: changedProps(st.properties, propDefaults),
-        // (trying again after a failed first start: the uploaded mods and world are in the server already)
-        friends: !!st.friends, local_mods: st.filesSent ? [] : st.localMods.map((m) => m.id), world: st.world && !st.filesSent ? st.world.world : "",
+        // (trying again after a failed first start: the files sent then are in the server already. Only what was
+        // added since is sent, and what was taken off the form since is taken out of the server: #235)
+        friends: !!st.friends, local_mods: st.localMods.filter((m) => !sent.ids.has(m.id)).map((m) => m.id),
+        world: st.world && (!st.filesSent || st.world.world !== sent.world) ? st.world.world : "",
         ...(isNew ? { reach: st.reach, ...(st.reach !== "home" && st.ownerName ? { owner_name: st.ownerName } : {}) } : {}),
-        client_mods: st.friends ? [...st.clientMods.keys()] : [], client_local: st.friends && !st.filesSent ? st.clientLocal.map((m) => m.id) : [],
-        manual_files: st.filesSent ? [] : (st.hand || []).filter((m) => st.handGot.has(m.filename)).map((m) => st.handGot.get(m.filename)),
+        client_mods: st.friends ? [...st.clientMods.keys()] : [],
+        client_local: st.friends ? st.clientLocal.filter((m) => !sent.ids.has(m.id)).map((m) => m.id) : [],
+        manual_files: (st.hand || []).filter((m) => st.handGot.has(m.filename)).map((m) => st.handGot.get(m.filename)).filter((id) => !sent.ids.has(id)),
         mod_channels: Object.fromEntries([...st.mods].filter(([, m]) => m.explicit && m.channel).map(([k, m]) => [k, m.channel])), datapacks: setupDatapacks(),
         pins: setupPins() };
       if (isNew && st.reach !== "home") {  // (reachable from the internet: the whitelist is sent either way, and off only when still wanted)
@@ -9914,6 +9918,16 @@ views.setup = () => {
         body.modpack_version = st.modpack.version_id;
         body.modpack_exclude = [...(st.modpack.removed instanceof Set ? st.modpack.removed : [])];
       }
+      if (st.filesSent) {
+        const localNow = new Set(st.localMods.map((m) => m.name)), clientNow = new Set(st.friends ? st.clientLocal.map((m) => m.name) : []);
+        body.remove_local = sent.local.filter((n) => !localNow.has(n));
+        body.remove_client_local = sent.client.filter((n) => !clientNow.has(n));
+        body.replace_world = !!sent.world && (!st.world || st.world.world !== sent.world);
+      }
+      // What's in the server after this try: a retry takes off what's no longer on the form.
+      const nowSent = { ids: new Set([...sent.ids, ...body.local_mods, ...body.client_local, ...body.manual_files]),
+        local: st.localMods.map((m) => m.name), client: st.friends ? st.clientLocal.map((m) => m.name) : [],
+        world: st.world ? st.world.world : "" };
       if (isNew) {
         const r = await act(() => api("/api/hub/create", { method: "POST", body }));
         if (r) {
@@ -9922,7 +9936,7 @@ views.setup = () => {
           // The choices stay with the new server's setup page: if its first start fails, the form still
           // has the modpack, name, port and the rest for trying again (it was rebuilt from
           // craft-conductor.toml, which doesn't have them). The files sent are in the server already.
-          Object.assign(st, { target: r.id, prefilled: true, submitted: true, filesSent: true, playersOnlyDone: null });
+          Object.assign(st, { target: r.id, prefilled: true, submitted: true, filesSent: true, sent: nowSent, playersOnlyDone: null });
           location.hash = `#s/${r.id}/setup`;
         }
         return;
@@ -9931,6 +9945,7 @@ views.setup = () => {
       if (r) {
         saveSetupFollowup({ id: server, friends: !!body.friends, remote: !!st.remoteAfterCreate, phase: "creating" });
         st.submitted = true;
+        st.sent = nowSent;
         renderProgress();
       }
     };

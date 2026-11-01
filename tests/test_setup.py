@@ -132,3 +132,26 @@ def test_failed_setup_can_be_retried(pending_daemon):
 
     assert c.post("/api/setup", {"loader": "fabric", "mods": ["goodmod"], "accept_eula": True})[0] == 200
     wait_for(lambda: d.state == "running" and not d.setup_pending, timeout=30)
+
+
+def test_a_retry_takes_out_what_was_taken_off_the_form(pending_daemon):
+    """#235: the first try put a file of your own and an imported world in the server. Removed on the
+    setup page since (or a new world chosen), the retry takes them out, so it doesn't fail the same way."""
+    d, c, cfg = pending_daemon
+    login(c)
+    assert c.post("/api/setup", {"loader": "fabric", "mods": ["no-such-mod"], "accept_eula": True})[0] == 200
+    wait_for(lambda: d.last_job and d.last_job["name"] == "set up server")
+    assert d.setup_pending
+    mods, server = cfg.server.dir / "mods", cfg.server.dir
+    mods.mkdir(parents=True, exist_ok=True)
+    (mods / "rt-server-needs-1.0.0.jar").write_bytes(b"PK")   # (as the first try left them)
+    (mods / "kept-1.0.jar").write_bytes(b"PK")
+    (server / "world").mkdir(exist_ok=True)
+    (server / "world" / "level.dat").write_bytes(b"imported")
+    body = {"loader": "fabric", "mods": ["goodmod"], "accept_eula": True,
+            "remove_local": ["rt-server-needs-1.0.0.jar", "../craft-conductor.toml"], "replace_world": True}
+    assert c.post("/api/setup", body)[0] == 200
+    wait_for(lambda: d.state == "running" and not d.setup_pending, timeout=30)
+    assert not (mods / "rt-server-needs-1.0.0.jar").exists() and (mods / "kept-1.0.jar").exists()
+    assert (cfg.root / "craft-conductor.toml").exists()
+    assert not (server / "world" / "level.dat").exists() or (server / "world" / "level.dat").read_bytes() != b"imported"

@@ -108,6 +108,7 @@ SECURITY_HEADERS = {
 
 # Reachable before the first-run notice has been accepted.
 # A sign-in with craft-conductor's one-time password (headless first run) can only replace it.
+STAGED_NAME = re.compile(r"[A-Za-z0-9 ()\[\]+_.,'-]{1,120}\.(jar|zip)")  # a file added on the setup page
 FIRST_SIGN_IN_OK = {"/api/auth/change", "/api/logout", "/api/hub", "/api/notice", "/api/notice/accept", "/api/licenses"}
 NOTICE_EXEMPT = {"/api/notice", "/api/notice/accept", "/api/status", "/api/licenses", "/api/auth/change", "/api/hub"}
 # Routes whose request body is a file, streamed to disk rather than parsed as JSON.
@@ -2794,7 +2795,7 @@ class HubApi:
         if handler.headers.get("X-CRAFT-CONDUCTOR") != "1":
             raise ApiError(403, "missing X-CRAFT-CONDUCTOR header")
         name = q.get("filename", "")
-        if not re.fullmatch(r"[A-Za-z0-9 ()\[\]+_.,'-]{1,120}\.(jar|zip)", name):
+        if not STAGED_NAME.fullmatch(name):
             raise ApiError(400, "only .jar and .zip files can be added here")
         return self.hub.stage_upload(handler, name, MAX_ARCHIVE if name.endswith(".zip") else MAX_UPLOAD)
 
@@ -3375,6 +3376,7 @@ class Api:
             raise ApiError(409, "this server is already set up")
         spec = setupmod.SetupSpec.from_dict(b)
         spec.world_source = self.web.hub.world_source(spec.world)
+        self._retry_matches_the_form(b)
         if spec.local_mods:
             self.web.hub.take_staged(spec.local_mods, self.m.mods_dir)
         if spec.client_local:
@@ -3383,6 +3385,34 @@ class Api:
         if spec.manual_files and self.m.config.manual_dir:
             self.web.hub.take_staged(spec.manual_files, self.m.config.manual_dir)  # mods downloaded by hand
         return self._job("set up server", self.d.run_setup, spec)
+
+    def _retry_matches_the_form(self, b: dict) -> None:
+        """Trying a failed setup again (#235): the server folder already has what the first try put in it.
+        Files of your own taken off the form since (``remove_local``, ``remove_client_local``: their names)
+        are taken out, and with ``replace_world`` the world the first try brought in goes (a new world is
+        made, or the one now chosen is brought in)."""
+        from .clientpack import client_dir
+        from . import world
+
+        def names(key: str) -> list[str]:
+            given = b.get(key)
+            return [x for x in given if isinstance(x, str) and STAGED_NAME.fullmatch(x)][:500] if isinstance(given, list) else []
+        mine = set(self.m.unmanaged_jars())
+        for name in names("remove_local"):
+            if name in mine:
+                (self.m.mods_dir / name).unlink(missing_ok=True)
+                log.info("took %s out of the server's mods: it was removed from the setup page", name)
+        for name in names("remove_client_local"):
+            (client_dir(self.m.config) / name).unlink(missing_ok=True)
+        if b.get("replace_world") is True:
+            try:
+                level = world.level_dir(self.m.server_dir)
+            except world.WorldError as e:
+                raise ApiError(400, str(e)) from None
+            for folder in (level, level.with_name(level.name + "_nether"), level.with_name(level.name + "_the_end")):
+                if folder.is_dir() and not folder.is_symlink():
+                    rmtree(folder)
+                    log.info("removed the world %s from the first try: another was chosen on the setup page", folder.name)
 
     # ---------------------------------------------------------------- mods
     def mods(self, q, b) -> dict:
