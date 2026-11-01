@@ -3171,6 +3171,7 @@ class Api:
         post("/api/client/discord", self.post_to_discord)
         post("/api/client/local", self.upload_client_jar)
         post("/api/client/local/remove", self.remove_client_jar)
+        post("/api/client/local/to-server", self.client_jar_to_server)
         get("/api/client/search", self.client_search)
         self.routes = r
         self.sampler = stats.Sampler()
@@ -4357,6 +4358,23 @@ class Api:
         jar.unlink()
         log.info("removed %s for players", jar.name)
         return {"ok": True}
+
+    def client_jar_to_server(self, q, b) -> dict:
+        """Put back on the server: a file of your own moved to players' mods goes back to the server's
+        mods folder (#236), as a mod site's mod does with Put back on the server."""
+        from .clientpack import local_jars
+        jar = next((p for p in local_jars(self.m.config) if p.name == str(b.get("name", ""))), None)
+        if jar is None:
+            raise ApiError(404, "no such file")
+        if self.m.loader.mods_folder != "mods":
+            raise ApiError(400, "this server doesn't run mods")
+        dest = self.m.mods_dir / jar.name
+        if dest.exists() or dest.with_name(dest.name + ".disabled").exists():
+            raise ApiError(409, f"the server's mods folder already has {jar.name}")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(jar), str(dest))
+        log.info("moved %s from players' mods back to the server's mods", jar.name)
+        return {"ok": True, "message": f"{jar.name} is back on the server (from its next start), and out of your friends' download"}
 
     def post_to_discord(self, q, b) -> dict:
         """Post this server's invite to a Discord channel (the links come from here, not the page)."""

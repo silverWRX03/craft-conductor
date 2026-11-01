@@ -4268,6 +4268,11 @@ views.friends = () => {
       if (x.slug) byProject.set(x.source === "curseforge" ? x.slug : `modrinth:${x.slug}`, x);
     }
     const items = [];
+    // A file of your own (moved here from the server, perhaps by mistake) can go back on the server (#236).
+    const toServer = (name) => () => h("button", { class: "btn small", onclick: async () => {
+      const res = await act(() => api("/api/client/local/to-server", { method: "POST", body: { name } }));
+      if (res) { toast(res.message); await reload(); }
+    } }, "Put back on the server");
     const add = (m, manual = false) => {
       const explicit = byProject.get(m.project) || null;
       const local = !!m.local || (d.local_mods || []).includes(m.filename);
@@ -4289,6 +4294,7 @@ views.friends = () => {
             if (!res) return false;
             await reload(); return true;
           } : null,
+        controls: local && !explicit ? toServer(m.filename || m.name) : null,
       });
     };
     for (const m of pack.mods || []) add(m);
@@ -4306,6 +4312,7 @@ views.friends = () => {
           if (!res) return false;
           await reload(); return true;
         },
+        controls: toServer(name),
       });
     }
     return items;

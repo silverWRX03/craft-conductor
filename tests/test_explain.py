@@ -135,3 +135,9 @@ def test_moving_a_file_of_your_own_to_players_mods(hub_env):
     assert not (mods / "controlify-3.5.3.jar").exists()
     assert [p.name for p in local_jars(d.m.config)] == ["controlify-3.5.3.jar"]
     assert c.post("/api/servers/alpha/problem/fix", {"kind": "jar-to-players", "filename": "controlify-3.5.3.jar"})[0] == 409
+    # Moved by mistake: Manage Friends Mods → Put back on the server (#236)
+    status, r, _ = c.post("/api/servers/alpha/client/local/to-server", {"name": "controlify-3.5.3.jar"})
+    assert status == 200 and "back on the server" in r["message"], r
+    assert (mods / "controlify-3.5.3.jar").read_bytes() == b"PK" and local_jars(d.m.config) == []
+    assert c.post("/api/servers/alpha/client/local/to-server", {"name": "controlify-3.5.3.jar"})[0] == 404
+    assert c.post("/api/servers/alpha/client/local/to-server", {"name": "../hub.json"})[0] == 404
