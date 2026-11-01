@@ -180,6 +180,8 @@ class Hub:
         hub.updater = daemon.updater
         hub.daemons = {HOME_ID: daemon}
         hub.problems = {}
+        hub.notices = collections.deque(maxlen=NOTICES_KEPT)  # (its messages for the bell too, #241)
+        daemon.m.notifier.listeners.append(lambda message: hub.keep_notice(HOME_ID, message))
         hub.join_requests = {}  # summary() also runs for classic single-server dashboards
         hub.stop_requested = daemon.stop_requested
         hub._lock = threading.RLock()
@@ -671,11 +673,15 @@ class Hub:
 
     def notice(self, sid: str, message: str) -> None:
         """A server's message (what goes to Discord): kept for the bell, and sent to phones."""
+        self.keep_notice(sid, message)
+        self.phone_notify(sid, message)
+
+    def keep_notice(self, sid: str, message: str) -> None:
+        """Kept for the owner's bell (/api/hub's notices)."""
         now = time.time()
         if self.notices and self.notices[-1]["time"] >= now:
             now = self.notices[-1]["time"] + 0.001  # (each one's time tells it apart)
         self.notices.append({"sid": sid, "message": str(message)[:NOTICE_CHARS], "time": now})
-        self.phone_notify(sid, message)
 
     def phone_notify(self, sid: str, message: str) -> None:
         """A server's message (what goes to Discord), to the phones that turned notifications on."""
