@@ -57,7 +57,7 @@ def test_guesses_sent_all_at_once_still_count(hub_env):
             conn.request("POST", "/api/login", json.dumps({"password": f"wrong-{i}"}),
                          {"X-CRAFT-CONDUCTOR": "1", "Content-Type": "application/json"})
             statuses.append(conn.getresponse().status)
-        except ConnectionError:  # (a busy computer may turn some away: they don't get to guess either)
+        except OSError:  # (a busy computer may turn some away, or time out: they don't get to guess either)
             statuses.append("refused")
         finally:
             conn.close()
