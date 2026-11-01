@@ -8855,5 +8855,21 @@
     "type": "Core",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1011,
+    "section": "Fix: single-server mode (craft-conductor run --web) answers every action",
+    "step": "Run a server with 'craft-conductor run --web' and open its page. On Mods, run Check mods: it finishes, with no 'internal error'. Have a friend ask to join from the invite page: the request shows on Players, and Allow and Ignore both work. Stop the server, start another program on its port, start it again, and press Use a free port on the Dashboard: the server gets a new port, with no 'internal error'.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1012,
+    "section": "Fix: the World page opens quickly while the server is busy",
+    "step": "Start a large modpack server, or one pre-generating chunks with Chunky, and open World while it's still starting or busy: the page opens within a few seconds (game rules may be missing until the server answers), not after half a minute. Once it's idle, open World again: every game rule is listed.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]
