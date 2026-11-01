@@ -427,3 +427,12 @@ def test_new_servers_start_without_a_whitelist(tmp_path):
     spec = setupmod.SetupSpec.from_dict({"loader": "vanilla", "accept_eula": True, "properties": {"white-list": True}})
     setupmod.whitelist_as_chosen(cfg.server.dir, spec)
     assert read_properties(cfg.server.dir / "server.properties")["white-list"] == "true"
+
+
+
+def test_a_pack_whose_lists_arent_lists_is_refused_plainly():
+    """A server (an odd one, or a damaged answer) sending "mods": 5 answered "internal error" on the friend's page."""
+    base = {"format": join.FORMAT, "name": "S", "minecraft": "1.21.1", "loader": "vanilla", "address": "mc.example.com"}
+    for extra in ({"mods": 5}, {"manual": 5}, {"mods": None}):
+        with pytest.raises(join.JoinError, match="doesn't understand"):
+            join.validate_pack({**base, **extra}, "https://mc.example.com:8766/join/" + "A" * 24)

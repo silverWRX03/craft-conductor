@@ -215,6 +215,10 @@ def validate_pack(pack: object, base: str | None = None) -> dict:
         pass  # a single-player game (singleplayer.py): no server to join
     elif not isinstance(pack.get("address"), str) or not re.fullmatch(r"[A-Za-z0-9.:\[\]-]{1,260}", pack["address"]):
         raise JoinError("the server's address is missing")
+    for key in ("mods", "manual"):  # (lists, from whichever server sent them)
+        if not isinstance(pack.get(key, []), list):
+            raise JoinError("the server sent something this version of Craft Conductor doesn't understand; "
+                            "download the invite again")
     # Mods to download by hand: shown as links on the friend's page, so https ones only.
     pack["manual"] = [m for m in pack.get("manual", []) if isinstance(m, dict) and isinstance(m.get("url"), str)
                       and m["url"].startswith("https://") and isinstance(m.get("name"), str)]
