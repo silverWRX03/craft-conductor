@@ -7128,9 +7128,12 @@ function openTester(opts) {
     try { r = await api("/api/hub/trial", { method: "POST", body: { ...opts.trial, bisect } }); }
     catch (e) { idle(); fill(body, h("div", { class: "notice bad" }, e.message)); finished(e.message); return; }
     running = r.id;
-    let seen = 0;
+    let seen = 0, asking = false;
     poll = setInterval(async () => {
+      if (asking) return;   // (a slow answer: one question at a time, or its lines and the result came twice)
+      asking = true;
       const t = await api(`/api/hub/trial?id=${running}&since=${seen}`).catch(() => null);
+      asking = false;
       if (!t) return;
       seen = t.next;
       log.textContent += t.log.map((x) => x + "\n").join("");

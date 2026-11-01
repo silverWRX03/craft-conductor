@@ -8919,5 +8919,13 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1019,
+    "section": "Fix: a slow test boot's log shows each line once",
+    "step": "On a slow or busy computer, open a server's Mods page, choose Test these mods, then Start a test boot: each line of the test's log appears once, and when it ends, the result and the Mod test finished message appear once.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]
