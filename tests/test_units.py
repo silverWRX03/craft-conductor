@@ -90,6 +90,23 @@ def test_invalid_config(tmp_path):
         configmod.load(tmp_path)
 
 
+
+def test_a_setting_of_the_wrong_kind_is_a_plain_error(tmp_path):
+    """Valid TOML with a value of another kind (a number where a folder or a list goes) raised a
+    TypeError, which stopped Craft Conductor (and the server list with it) instead of listing
+    the server with its problem."""
+    template = configmod.render_template("fabric", "1.21.1")
+    for old, new, words in (("warn_minutes = [10, 5, 1]", "warn_minutes = 5", "warn_minutes must be a list"),
+                            ('dir = "backups"', "dir = 7", "dir must be text"),
+                            ("remind_days = 30", "remind_days = []", "remind_days must be a whole number")):
+        assert old in template
+        (tmp_path / "craft-conductor.toml").write_text(template.replace(old, new, 1), encoding="utf-8")
+        with pytest.raises(ConfigError, match=words):
+            configmod.load(tmp_path)
+    # Flags written as one string: each one goes to Java, not each letter.
+    (tmp_path / "craft-conductor.toml").write_text(template.replace("jvm_args = []", 'jvm_args = "-XX:+UseZGC -Xss2m"'), encoding="utf-8")
+    assert configmod.load(tmp_path).server.jvm_args == ["-XX:+UseZGC", "-Xss2m"]
+
 def test_java_version_parsing():
     assert parse_major('openjdk version "21.0.4" 2024-07-16') == 21
     assert parse_major('java version "1.8.0_392"') == 8

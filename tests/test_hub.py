@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from craft_conductor import cli, lock as lockmod, setup as setupmod, webauth
+from craft_conductor import cli, config as configmod, lock as lockmod, setup as setupmod, webauth
 from craft_conductor.hub import Hub
 
 from test_web import Client, wait_for
@@ -344,3 +344,20 @@ def test_a_typo_in_server_properties_doesnt_break_the_page(hub_env):
     assert next(s for s in body["servers"] if s["id"] == "alpha")["max_players"] == 20  # (Minecraft's default, as it uses)
     for path in ("/api/servers/alpha/status", "/api/servers/alpha/settings", "/api/servers/alpha/reach", "/api/servers/alpha/doctor"):
         assert c.call("GET", path)[0] == 200, path
+
+
+
+def test_a_server_whose_settings_are_the_wrong_kind_is_listed_with_its_problem(hub_env):
+    """``warn_minutes = 5`` (not a list) typed into a server's craft-conductor.toml: the hub's scan
+    raised a TypeError, and Craft Conductor stopped (every server's page with it)."""
+    hub, c = hub_env
+    login(c)
+    root = hub.servers_dir / "broken"
+    root.mkdir()
+    import re
+    text, n = re.subn(r"warn_minutes = \[[^\]]*\]", "warn_minutes = 5", configmod.render_template("vanilla", "1.21.1"))
+    assert n == 1
+    (root / "craft-conductor.toml").write_text(text, encoding="utf-8")
+    hub.scan()  # (raised)
+    servers = {s["id"]: s for s in c.get("/api/hub")[1]["servers"]}
+    assert "warn_minutes" in servers["broken"]["problem"] and servers["alpha"]["state"]

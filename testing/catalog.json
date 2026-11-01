@@ -8951,5 +8951,13 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1023,
+    "section": "Fix: a setting of the wrong kind doesn't stop Craft Conductor",
+    "step": "With Craft Conductor open, edit one server's craft-conductor.toml by hand and set warn_minutes = 5 (no brackets). Within a minute the server shows on the Servers page with the problem named; the other servers keep working. Then set jvm_args = \"-Xss2m\" (one string) and fix warn_minutes: the server starts.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]
