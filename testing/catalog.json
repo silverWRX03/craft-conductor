@@ -8911,5 +8911,13 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1018,
+    "section": "Fix: non-English text in reports isn't garbled",
+    "step": "On Windows, give a server a description with an accented letter or an emoji (for example Café ☕), then download the report from Check my setup: the craft-conductor.toml in it shows the description exactly as typed. A crash whose report holds an accented folder name is explained with that name intact.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]

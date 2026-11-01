@@ -77,6 +77,13 @@ def test_the_busiest_places(tmp_path):
     assert r["findings"][0]["places"][0].startswith("around x 1208, z -392 in the Overworld: 410 in all (380 cow")
 
 
+
+def test_a_profile_keeps_non_english_text(tmp_path):
+    """Minecraft writes its profile in UTF-8; read in Windows' own code page, a name came out garbled."""
+    (tmp_path / "debug").mkdir()
+    (tmp_path / "debug" / "profile-results.txt").write_text("[00] Zoë's base ☕(600/1) - 100.00%/100.00%", encoding="utf-8")
+    assert "Zoë's base ☕" in lagfinder.read_profile(tmp_path, 0)
+
 class FakeProc:
     """Answers /debug stop by writing a profile, like Minecraft does."""
 

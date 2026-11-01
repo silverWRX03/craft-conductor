@@ -322,7 +322,7 @@ def report_zip(m, checks: list[Check], log_file) -> bytes:
             "java_major": m.lock.java_major, "mods": [f"{x.name} {x.version_number}" for x in m.lock.mods]}, indent=2))
         for name, path in ((CONFIG_NAME, m.config.root / CONFIG_NAME), ("server.properties", m.server_dir / "server.properties")):
             if path.exists():
-                z.writestr(name, redact(path.read_text(errors="replace")))
+                z.writestr(name, redact(path.read_text(encoding="utf-8", errors="replace")))
         if log_file:
             z.writestr("craft-conductor.log", redact(_tail(log_file)))
         z.writestr("latest.log", redact(_tail(m.server_dir / "logs" / "latest.log")))
