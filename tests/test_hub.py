@@ -431,3 +431,18 @@ def test_one_step_going_wrong_doesnt_leave_a_server_without_its_manager(hub_env,
     wait_for(lambda: len(tries) >= 3, timeout=10)
     time.sleep(0.3)
     assert hub._threads["alpha"].is_alive() and hub.get("alpha") is d
+
+
+def test_damaged_sign_in_files_dont_lock_the_owner_out(hub_env):
+    """web-auth.json holding "null" (damaged): every page, and signing in, answered "internal error". It's
+    treated like one that can't be read: the default password (from this computer), and the prompt to
+    choose one. users.json whose list of people isn't one broke the People page."""
+    from craft_conductor import webauth
+    from test_web import Client
+    hub, c = hub_env
+    (hub.state_dir / webauth.FILE).write_text("null")
+    fresh = Client(c.base)
+    assert fresh.get("/api/auth")[0] == 200
+    assert fresh.post("/api/login", {"password": webauth.DEFAULT_PASSWORD})[0] == 200
+    (hub.state_dir / "users.json").write_text(json.dumps({"format": 1, "users": 5}))
+    assert fresh.get("/api/hub/users")[0] == 200

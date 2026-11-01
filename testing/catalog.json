@@ -9007,5 +9007,13 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1030,
+    "section": "Fix: a damaged sign-in file doesn't lock the owner out",
+    "step": "Quit Craft Conductor, replace the contents of web-auth.json (in its own folder) with null, and start it: on this computer, the control panel opens and accepts the default password, then asks you to choose your own.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]

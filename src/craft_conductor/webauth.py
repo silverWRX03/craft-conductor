@@ -158,7 +158,7 @@ class AuthStore:
                     return Auth(mode=d["mode"], salt=d.get("salt", ""), hash=d.get("hash", ""),
                                 iterations=int(d.get("iterations", ITERATIONS)), default=bool(d.get("default")),
                                 strong=bool(d.get("strong")), temporary=bool(d.get("temporary")))
-            except (ValueError, TypeError):
+            except (ValueError, TypeError, AttributeError):  # (damaged: as if it weren't there; "null" made every page fail)
                 pass
         # craft-conductor 0.1 generated a random password into a plain-text file; nobody chose it, so
         # start over with the default (and the prompt to pick your own).
