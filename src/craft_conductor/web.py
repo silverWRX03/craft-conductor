@@ -3376,6 +3376,10 @@ class Api:
             raise ApiError(409, "this server is already set up")
         spec = setupmod.SetupSpec.from_dict(b)
         spec.world_source = self.web.hub.world_source(spec.world)
+        try:
+            setupmod.world_not_newer(spec)
+        except ConfigError as e:
+            raise ApiError(400, str(e)) from None
         self._retry_matches_the_form(b)
         if spec.local_mods:
             self.web.hub.take_staged(spec.local_mods, self.m.mods_dir)

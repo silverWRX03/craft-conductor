@@ -8732,6 +8732,17 @@ function setupChanged() { if (setupState.onChange) setupState.onChange(); setupS
 const earlyChannels = () => Object.fromEntries([...setupState.mods].filter(([, m]) => m.channel).map(([k, m]) => [k, m.channel]));
 // The mods picked to use as their datapack build (in the world, not the mods folder).
 const setupDatapacks = () => [...setupState.mods].filter(([, m]) => m.explicit && m.datapack).map(([k]) => k);
+// A world from a newer Minecraft than the server's (#233): its version, or null. Releases only (26.2, 1.21.1).
+function setupWorldNewer() {
+  const st = setupState, world = st.world && st.world.version, server = setupModVersion();
+  const key = (v) => /^\d{1,3}(\.\d{1,3}){1,2}$/.test(v || "") ? v.split(".").map(Number) : null;
+  const a = key(world), b = key(server);
+  if (!a || !b) return null;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0) ? world : null;
+  }
+  return null;
+}
 function setupModVersion() {
   const st = setupState;
   return st.minecraft === "latest" ? (st.newest || "") : st.minecraft;
@@ -9825,6 +9836,19 @@ views.setup = () => {
         st.world.version ? h("span", { class: "muted" }, ` · last played on Minecraft ${st.world.version}`) : null,
         h("div", { class: "small muted" }, "Minecraft upgrades an older world when the server first starts; a world can't go back to an older version, " +
           "and blocks from mods the server doesn't have are lost."),
+        (() => {  // (a newer world than the server: asked before it's brought in, #233)
+          const newer = setupWorldNewer();
+          if (!newer) return null;
+          const canUse = (opts.versions || []).includes(newer);
+          return h("div", { class: "notice warn mt-s", role: "note" },
+            h("strong", {}, `This world was last played on Minecraft ${newer}, newer than this server's ${setupModVersion()}. `),
+            `Opening it in an older version can lose what ${newer} added (blocks, items, whole chunks).`,
+            st.world.olderOk ? h("div", { class: "small mt-s" }, "✓ You chose to import it anyway.") :
+              h("div", { class: "row mt-s wrap" },
+                canUse ? h("button", { type: "button", class: "btn small", onclick: () => { st.minecraft = newer; setupRecheckMods(); renderForm(); } }, `Use Minecraft ${newer}`) : null,
+                h("button", { type: "button", class: "btn small", onclick: () => pickWorld((w) => { st.world = w; renderForm(); }) }, "Choose another world"),
+                h("button", { type: "button", class: "btn small danger", onclick: () => { st.world.olderOk = true; renderForm(); } }, "Import anyway")));
+        })(),
         h("div", { class: "row mt-s" }, h("button", { type: "button", class: "btn small", onclick: () => pickWorld((w) => { st.world = w; renderForm(); }) }, "Choose another"),
           h("button", { type: "button", class: "btn small ghost", onclick: () => { st.world = null; renderForm(); } }, "Use a new world instead")))
       : h("div", { class: "mt-s" },
@@ -9885,6 +9909,10 @@ views.setup = () => {
       const bad = [...st.mods.values()].filter((m) => m.bad);
       if (bad.length && !(await ask(`${bad.map((m) => `${m.name}: ${m.bad}`).join("\n")}\n\nCraft Conductor won't change your Minecraft version to make ${bad.length === 1 ? "it" : "them"} work: ` +
         "a required mod that can't be used stops the server from being made (you're told why), and an optional one is left out.\n\nCreate the server anyway?", { ok: "Create anyway" }))) return;
+      if (setupWorldNewer() && !st.world.olderOk) {
+        toast(`The world is from Minecraft ${setupWorldNewer()}, newer than this server: choose what to do on the World card first.`, true);
+        return;
+      }
       const mods = [...st.mods].filter(([, m]) => m.explicit && m.required).map(([slug]) => slug);
       const optional = [...st.mods].filter(([, m]) => m.explicit && !m.required).map(([slug]) => slug);
       const sent = st.sent || { ids: new Set(), local: [], client: [], world: "" };  // (what a first try put in the server)
@@ -9896,6 +9924,7 @@ views.setup = () => {
         // added since is sent, and what was taken off the form since is taken out of the server: #235)
         friends: !!st.friends, local_mods: st.localMods.filter((m) => !sent.ids.has(m.id)).map((m) => m.id),
         world: st.world && (!st.filesSent || st.world.world !== sent.world) ? st.world.world : "",
+        world_older_ok: !!(st.world && st.world.olderOk),
         ...(isNew ? { reach: st.reach, ...(st.reach !== "home" && st.ownerName ? { owner_name: st.ownerName } : {}) } : {}),
         client_mods: st.friends ? [...st.clientMods.keys()] : [],
         client_local: st.friends ? st.clientLocal.filter((m) => !sent.ids.has(m.id)).map((m) => m.id) : [],

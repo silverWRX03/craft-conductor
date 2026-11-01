@@ -1057,6 +1057,7 @@ class Hub:
             setupmod.whitelist_defaults(spec)  # (refused before any file is written: whitelist off unconfirmed)
             spec.network_access = False  # the hub's own setting decides who can open the panel
             spec.world_source = self.world_source(spec.world)  # before any files are written
+            setupmod.world_not_newer(spec)
             setupmod.configure(root, spec)
             setupmod.mark_pending(root)
             if self.backups_location is not None:  # (its backups in the folder chosen for backups)

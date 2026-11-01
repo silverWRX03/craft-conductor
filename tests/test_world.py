@@ -173,3 +173,22 @@ def test_a_world_open_in_minecraft_is_not_copied(hub_env, tmp_path, monkeypatch)
     assert not world.in_use(save)  # closed in Minecraft: it copies
     world.install(save, tmp_path / "copy")
     assert (tmp_path / "copy" / "region" / "r.0.0.mca").read_bytes() == b"old region"
+
+
+def test_a_world_from_a_newer_minecraft_is_asked_about_first(hub_env):
+    """#233: a world last played on 26.3, brought into a 26.2 server, was opened (and saved) by the
+    setup's first start without a word. It's refused until the person says to import it anyway."""
+    hub, c = hub_env
+    login(c)
+    staged = c.call("POST", "/api/hub/stage?filename=newer.zip", raw=zip_bytes({"W/level.dat": level_dat(version="26.3")}))[1]
+    body = {"loader": "vanilla", "minecraft": "26.2", "motd": "Newer", "world": staged["id"], "accept_eula": True}
+    status, r, _ = c.post("/api/hub/create", body)
+    assert status == 400 and "last played on Minecraft 26.3, newer than this server's 26.2" in r["error"], r
+    assert not (hub.servers_dir / "newer").exists()  # (nothing written)
+    from craft_conductor import setup as setupmod
+    for minecraft in ("26.3", "26.10", "latest"):  # (the same, newer, or the newest: no question)
+        spec = setupmod.SetupSpec.from_dict({"loader": "vanilla", "minecraft": minecraft, "accept_eula": True})
+        spec.world_source = hub.world_source(staged["id"])
+        setupmod.world_not_newer(spec)  # (raises when it's refused)
+    status, r, _ = c.post("/api/hub/create", {**body, "world_older_ok": True})
+    assert status == 200, r
