@@ -192,3 +192,25 @@ def test_files_that_hold_a_secret_are_made_this_accounts_only(tmp_path):
     write_properties(props, {"motd": "A server"})
     write_properties(props, {"enable-rcon": "true", "rcon.password": "fake-rcon-password-for-tests"})
     assert only_mine(props), access(props)
+
+def test_a_failed_discord_post_doesnt_show_the_webhook(hub_env, monkeypatch):
+    """The webhook's address is its password (only the owner sees it in the settings), but a failed post
+    logged it whole, into the server's activity, which everyone who may view the server sees."""
+    from craft_conductor import daemon as daemonmod
+    from craft_conductor.http import HttpError
+    from test_hub import login
+    hub, c = hub_env
+    login(c)
+    d = hub.get("alpha")
+    d.m.notifier.discord_webhook = "https://discord.com/api/webhooks/123456/fake-hook-token"
+
+    def refused(url, *a, **k):
+        raise HttpError(url, 404, "HTTP 404")
+    monkeypatch.setattr(d.m.notifier.http, "post_json", refused)
+    daemonmod.set_current_server("alpha")  # (as on the server's own thread, where its messages are sent)
+    try:
+        d.m.notifier.send("the server started")
+    finally:
+        daemonmod.set_current_server(None)
+    events = str(c.get("/api/servers/alpha/events?since=0")[1])
+    assert "discord notification failed" in events and "fake-hook-token" not in events

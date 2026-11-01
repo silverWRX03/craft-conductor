@@ -8983,5 +8983,13 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1027,
+    "section": "Fix: a failed Discord post doesn't show the webhook",
+    "step": "Set a server's Discord webhook to one that's been deleted in Discord, then start the server: the Dashboard's activity says the Discord notification failed (not found), without the webhook's address.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]
