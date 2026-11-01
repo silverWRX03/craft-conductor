@@ -3391,15 +3391,26 @@ class Api:
             setupmod.world_not_newer(spec)
         except ConfigError as e:
             raise ApiError(400, str(e)) from None
-        self._retry_matches_the_form(b)
-        if spec.local_mods:
-            self.web.hub.take_staged(spec.local_mods, self.m.mods_dir)
-        if spec.client_local:
-            from .clientpack import client_dir
-            self.web.hub.take_staged(spec.client_local, client_dir(self.m.config))  # friends' own files
-        if spec.manual_files and self.m.config.manual_dir:
-            self.web.hub.take_staged(spec.manual_files, self.m.config.manual_dir)  # mods downloaded by hand
-        return self._job("set up server", self.d.run_setup, spec)
+        if b.get("replace_world") is True:
+            from . import world
+            try:
+                world.level_dir(self.m.server_dir)  # (a name it can't use is said now, not as a failed setup)
+            except world.WorldError as e:
+                raise ApiError(400, str(e)) from None
+
+        def set_up() -> str:
+            # In the job: a second click, or a second browser, while a setup runs is refused (busy) before
+            # it removes or moves anything the running one uses.
+            self._retry_matches_the_form(b)
+            if spec.local_mods:
+                self.web.hub.take_staged(spec.local_mods, self.m.mods_dir)
+            if spec.client_local:
+                from .clientpack import client_dir
+                self.web.hub.take_staged(spec.client_local, client_dir(self.m.config))  # friends' own files
+            if spec.manual_files and self.m.config.manual_dir:
+                self.web.hub.take_staged(spec.manual_files, self.m.config.manual_dir)  # mods downloaded by hand
+            return self.d.run_setup(spec)
+        return self._job("set up server", set_up)
 
     def _retry_matches_the_form(self, b: dict) -> None:
         """Trying a failed setup again (#235): the server folder already has what the first try put in it.
@@ -3422,10 +3433,7 @@ class Api:
             if name in theirs:
                 theirs[name].unlink(missing_ok=True)
         if b.get("replace_world") is True:
-            try:
-                level = world.level_dir(self.m.server_dir)
-            except world.WorldError as e:
-                raise ApiError(400, str(e)) from None
+            level = world.level_dir(self.m.server_dir)  # (checked by setup_apply)
             for folder in (level, level.with_name(level.name + "_nether"), level.with_name(level.name + "_the_end")):
                 if folder.is_dir() and not folder.is_symlink():
                     rmtree(folder)

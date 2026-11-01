@@ -8895,5 +8895,13 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1016,
+    "section": "Fix: a second setup while one runs changes nothing",
+    "step": "Make a new server that imports a world from your saves. While its setup is still running, open the same setup page in a second browser tab and submit it again: it says the server is busy, and once the first setup finishes, the imported world is there and complete.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]
