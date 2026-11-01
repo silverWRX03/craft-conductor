@@ -4,6 +4,21 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.30.5 (not released yet)
+
+**Fixed**
+- Messages that went only to Discord and phones ("The whitelist of … is now on", "Bedrock players: Geyser was set up…") were only in the server's **Activity** when neither was set up. They're in the bell too now (#241).
+- The bell kept only the first 500 characters of a message, so a failed setup's message stopped in the middle of the Java error, before where the details file is. It keeps the whole message now, and a long one scrolls (#244).
+- Right after a failed update put the previous version back, **Update now** said "no craft-conductor update is available" until **Check for updates** was pressed. It looks for the update itself now (#245).
+- On a Fabric (or Quilt) server, a mod that stopped the start with "… provided by '<mod>'" got no explanation on the Dashboard. It's named now, and one that only runs on players' computers gets **Move … to players' mods** and **Switch … off**, as on NeoForge (#231).
+- All the Mods 11 couldn't be created: the players' check said Player Animation Library was missing, though it was downloaded by hand. A mod to download by hand counts for players too now (#242).
+- After Craft Conductor restarted, an open setup page never found the mods downloaded by hand in Downloads. It asks again which files to look for (#243).
+- On **New server**, choosing **Open a port on my router** replaced a port you had typed with one Craft Conductor picked. A port you type stays (only 25565 is swapped) (#232).
+- Retrying a failed setup kept a mod file you had removed on the setup page, and the world imported on the first try though you had chosen a new world, so it failed the same way. The retry now does what the form says (#235).
+- A mod file of your own moved to players' mods couldn't be put back on the server. **Manage Friends Mods** has **Put back on the server** for your own files now (#236).
+- Importing a world last played on a newer Minecraft than the server's gave no warning, and the setup's first start saved it in the older version (which can lose what the newer one added). The **World** card now says so, with **Use Minecraft …**, **Choose another world** and **Import anyway**; the server isn't made until you choose (#233).
+- Screen readers read every console line aloud, drowning out errors. The console isn't announced by itself any more (it can still be read on purpose). On **Players**, pressing **Whitelist** (or another button) with no name says "Type a player name first." (#238).
+
 ## 0.30.4 (2026-10-29)
 
 **Changed**
