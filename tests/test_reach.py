@@ -595,3 +595,21 @@ def test_the_whitelist_message_reaches_the_owners_bell(hub_env):
     newest = notices[-1]["time"]
     assert c.get(f"/api/hub?notices_since={newest}")[1]["notices"] == []  # (only newer ones: asked every 2 s)
     assert c.get("/api/hub?notices_since=nan")[1]["notices"] == notices
+
+
+def test_reach_changes_at_the_same_time_are_all_kept(tmp_path):
+    """Each change read the state, changed it and wrote it back through one .tmp file: two at once
+    failed on Windows or lost one."""
+    import threading
+    errors = []
+
+    def change(i):
+        try:
+            for j in range(10):
+                reach.write_state(tmp_path, **{f"k{i}_{j}": True})
+        except Exception as e:  # (any: the point is that none happens)
+            errors.append(e)
+    threads = [threading.Thread(target=change, args=(i,)) for i in range(5)]
+    [t.start() for t in threads]
+    [t.join(30) for t in threads]
+    assert errors == [] and len(reach.read_state(tmp_path)) == 50

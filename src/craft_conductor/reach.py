@@ -23,6 +23,7 @@ import logging
 import random
 import re
 import socket
+import threading
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -52,22 +53,29 @@ def _state_path(state_dir: Path) -> Path:
     return state_dir / STATE
 
 
+#: one change to a server's reach state at a time (each reads, changes and writes it back), and no read
+#: while one is put in place (Windows can't replace a file that's open)
+_state_lock = threading.RLock()
+
+
 def read_state(state_dir: Path) -> dict:
     """{"guarded", "opted_out", "port_test": {"port", "ok", "at"}} (missing keys: false/none)."""
     try:
-        data = json.loads(_state_path(state_dir).read_text(encoding="utf-8"))
+        with _state_lock:
+            data = json.loads(_state_path(state_dir).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
     return data if isinstance(data, dict) else {}
 
 
 def write_state(state_dir: Path, **changes) -> dict:
-    data = {**read_state(state_dir), **changes}
-    state_dir.mkdir(parents=True, exist_ok=True)
-    path = _state_path(state_dir)
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(data, indent=1), encoding="utf-8")
-    tmp.replace(path)
+    with _state_lock:
+        data = {**read_state(state_dir), **changes}
+        state_dir.mkdir(parents=True, exist_ok=True)
+        path = _state_path(state_dir)
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_text(json.dumps(data, indent=1), encoding="utf-8")
+        tmp.replace(path)
     return data
 
 
