@@ -1852,7 +1852,7 @@ class Hub:
         a second click (or a second browser) starts nothing. When this copy doesn't know that version
         yet (it was just started again: after a failed update put it back, #245), it looks first."""
         u = self.updater
-        if not u.in_progress and version and (u.release or {}).get("version") != version:
+        if not u.in_progress and version and u.release is None:
             self.check_self_update()
         if not self.updater.begin(version):
             return False

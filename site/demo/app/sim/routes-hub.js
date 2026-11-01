@@ -387,7 +387,7 @@
       servers: st().servers.map(sim.serverSummary), share: shareStatus(), guide: { asked: hub().guide.asked || st().servers.length > 0, active: hub().guide.active },
       health: hub().risks.map((name) => { const r = (rel().risks || []).find((x) => x.name === name) || { text: name };
         return { id: `risk-${name}`, level: "warn", title: "A safety rule is switched off:", risk: r.text, detail: `${r.text}. Craft Conductor settings → Advanced` }; }),
-      risks: hub().risks.slice(), local: true, device: null, role: "owner",
+      risks: hub().risks.slice(), local: true, device: null, role: "owner", notices: [],
     }),
     "GET /api/hub/guide": () => guideSteps(),
     "POST /api/hub/guide": (r) => {
