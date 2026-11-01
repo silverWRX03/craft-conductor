@@ -54,14 +54,28 @@ def test_config_checks_schedules_and_the_copy_folder(tmp_path):
 def test_backup_copies(tmp_path):
     archive = tmp_path / "20260928-040000-scheduled.tar.gz"
     archive.write_bytes(b"backup")
-    assert backup.copy_out(archive, tmp_path / "unplugged", "Survival") is None  # the drive isn't there: logged, no error
+    survival = tmp_path / "Survival"
+    assert backup.copy_out(archive, tmp_path / "unplugged", survival) is None  # the drive isn't there: logged, no error
     usb = tmp_path / "usb"
     usb.mkdir()
     for i in range(4):
         a = tmp_path / f"2026092{i}-040000-scheduled.tar.gz"
         a.write_bytes(b"x")
-        backup.copy_out(a, usb, "Survival", keep=2)
-    assert sorted(p.name for p in (usb / "Survival").iterdir()) == ["20260922-040000-scheduled.tar.gz", "20260923-040000-scheduled.tar.gz"]
+        backup.copy_out(a, usb, survival, keep=2)
+    assert sorted(p.name for p in (usb / "Survival").glob("*.tar.gz")) == ["20260922-040000-scheduled.tar.gz", "20260923-040000-scheduled.tar.gz"]
+
+
+def test_two_servers_of_the_same_name_keep_their_own_copies(tmp_path):
+    """Two servers in folders of the same name (added from different places) copied their backups into
+    one folder, so keeping the newest few of one removed the other's."""
+    usb, home, other = tmp_path / "usb", tmp_path / "home" / "Survival", tmp_path / "games" / "Survival"
+    usb.mkdir()
+    for i, root in enumerate((home, other, home, other, home)):
+        a = tmp_path / f"2026092{i}-040000-scheduled.tar.gz"
+        a.write_bytes(b"x")
+        backup.copy_out(a, usb, root, keep=2)
+    assert sorted(p.name for p in (usb / "Survival").glob("*.tar.gz")) == ["20260922-040000-scheduled.tar.gz", "20260924-040000-scheduled.tar.gz"]
+    assert sorted(p.name for p in (usb / "Survival-2").glob("*.tar.gz")) == ["20260921-040000-scheduled.tar.gz", "20260923-040000-scheduled.tar.gz"]
 
 
 def _scheduled_daemon(tmp_path, monkeypatch, restart="", backup="", when_empty=False):

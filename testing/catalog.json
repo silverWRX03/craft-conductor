@@ -8927,5 +8927,13 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1020,
+    "section": "Fix: two servers of the same name keep their own backup copies",
+    "step": "Add two existing servers whose folders have the same name (from different places), set Also copy every backup to the same USB or cloud folder for both, with Backups to keep at 2, and make three backups of each: the copy folder has Survival and Survival-2, each with its own two newest backups.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]

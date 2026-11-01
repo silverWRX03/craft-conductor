@@ -216,18 +216,41 @@ def prune(backups_dir: Path, keep: int) -> list[Path]:
     return removed
 
 
-def copy_out(archive: Path, folder: Path | None, name: str, keep: int = 10) -> Path | None:
+COPY_OWNER = ".craft-conductor-server"  # in each copy folder: the server whose backups these are
+
+
+def _copy_dir(folder: Path, root: Path) -> Path:
+    """The server's own folder in ``folder``: named after the server's folder, or "<name>-2" and so on
+    when another server of that name (somewhere else on this computer) has it. Two servers in one
+    folder pruned each other's copies."""
+    safe = re.sub(r"[^A-Za-z0-9._ -]+", "_", root.name).strip() or "server"
+    me = os.path.normcase(str(root.resolve()))
+    for n in range(1, 100):
+        dest = folder / (safe if n == 1 else f"{safe}-{n}")
+        mark = dest / COPY_OWNER
+        dest.mkdir(exist_ok=True)
+        try:
+            with open(mark, "x", encoding="utf-8") as f:  # (a folder an earlier version made: claimed)
+                f.write(me)
+            return dest
+        except FileExistsError:
+            if os.path.normcase(mark.read_text(encoding="utf-8").strip()) == me:
+                return dest
+    raise OSError(f"too many servers named {safe} copy their backups to {folder}")
+
+
+def copy_out(archive: Path, folder: Path | None, root: Path, keep: int = 10) -> Path | None:
     """Copy a backup to another place too (a USB drive, a OneDrive/Dropbox/Google Drive folder),
-    in a folder named after the server, keeping the newest ``keep`` there. A copy that can't
-    be made (the drive is unplugged) is logged, never an error: the backup itself is made."""
+    in a folder of the server's own (``root``: the server's folder), keeping the newest ``keep``
+    there. A copy that can't be made (the drive is unplugged) is logged, never an error: the
+    backup itself is made."""
     if folder is None:
         return None
-    safe = re.sub(r"[^A-Za-z0-9._ -]+", "_", name).strip() or "server"
-    dest_dir = folder / safe
+    dest_dir = folder / root.name
     try:
         if not folder.exists():
             raise OSError(f"{folder} isn't there (is the drive plugged in?)")
-        dest_dir.mkdir(exist_ok=True)
+        dest_dir = _copy_dir(folder, root)
         tmp = dest_dir / (archive.name + ".part")
         shutil.copyfile(archive, tmp)
         dest = dest_dir / archive.name
