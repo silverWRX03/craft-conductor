@@ -129,6 +129,31 @@ class Hub:
         self.home = home.resolve()
         self.http = http or HttpClient()
         self.make_manager = make_manager or (lambda cfg: Manager(cfg, http=self.http, echo=False))
+        self.tick = tick
+        self._start_state()
+        self._web = self._load_web()
+        self._apply_curseforge_key()
+
+    @classmethod
+    def single(cls, daemon: Daemon) -> Hub:
+        """`craft-conductor run --web`: a hub view of one server run the classic way."""
+        hub = cls.__new__(cls)
+        hub.home = daemon.m.config.root
+        hub.http = daemon.m.http
+        hub.make_manager = lambda cfg: Manager(cfg, http=hub.http, echo=False)
+        hub.tick = daemon.tick
+        hub._start_state()  # (everything a hub keeps: the same as __init__'s, so no route meets a missing one)
+        hub._single = daemon
+        hub.updater = daemon.updater
+        hub.daemons = {HOME_ID: daemon}
+        daemon.m.notifier.listeners.append(lambda message: hub.keep_notice(HOME_ID, message))  # (its messages for the bell too, #241)
+        hub.stop_requested = daemon.stop_requested
+        hub.web_port_chosen = True  # (`craft-conductor run`: its craft-conductor.toml says the port)
+        return hub
+
+    def _start_state(self) -> None:
+        """What every hub keeps while it runs: set by __init__ and by single() alike (a field only one of
+        them set made the other's routes fail)."""
         self.trials: dict = {}  # test boots (trial.Trial) by id
         self.setup_checks: dict = {}  # the setup page's file checks (filecheck.for_setup) by what was checked
         self.previews: dict = {}  # map previews (preview.Preview) by id
@@ -151,7 +176,6 @@ class Hub:
         self._request_times: dict[str, float] = {}
         self._requests_lock = threading.Lock()
         self.checks: dict = {}  # quick mod checks running in the background (trial.CheckJob) by id
-        self.tick = tick
         self._single: Daemon | None = None
         self.daemons: dict[str, Daemon] = {}
         self._threads: dict[str, threading.Thread] = {}
@@ -167,42 +191,6 @@ class Hub:
         self.share_error: str | None = None
         self._lock = threading.RLock()
         self._hub_lock = threading.RLock()  # hub.json: one change at a time (see _update_hub_file)
-        self._web = self._load_web()
-        self._apply_curseforge_key()
-
-    @classmethod
-    def single(cls, daemon: Daemon) -> Hub:
-        """`craft-conductor run --web`: a hub view of one server run the classic way."""
-        hub = cls.__new__(cls)
-        hub.home = daemon.m.config.root
-        hub.http = daemon.m.http
-        hub._single = daemon
-        hub.updater = daemon.updater
-        hub.daemons = {HOME_ID: daemon}
-        hub.problems = {}
-        hub.notices = collections.deque(maxlen=NOTICES_KEPT)  # (its messages for the bell too, #241)
-        daemon.m.notifier.listeners.append(lambda message: hub.keep_notice(HOME_ID, message))
-        hub.join_requests = {}  # summary() also runs for classic single-server dashboards
-        hub.stop_requested = daemon.stop_requested
-        hub._lock = threading.RLock()
-        hub._hub_lock = threading.RLock()
-        hub.web_port_chosen = True  # (`craft-conductor run`: its craft-conductor.toml says the port)
-        hub.ui = None
-        hub.share = None
-        hub.share_error = None
-        hub.trials = {}
-        hub.setup_checks = {}
-        hub.previews = {}
-        hub._push = None
-        hub.discord_bot = None
-        hub._health, hub._health_lock = None, threading.Lock()
-        hub.gallery = None
-        hub.map_session = None
-        hub._upnp_lock = threading.Lock()
-        hub._upnp_status = None
-        hub._gateway, hub._gateway_at = None, 0.0
-        hub.make_manager = lambda cfg: Manager(cfg, http=hub.http, echo=False)
-        return hub
 
     # --------------------------------------------------------- settings
     @property
