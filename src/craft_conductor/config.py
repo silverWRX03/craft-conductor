@@ -354,10 +354,39 @@ def parse_duration(value: str | int) -> int:
     return n * {"s": 1, "m": 60, "h": 3600, "d": 86400}[unit]
 
 
+def _jvm_args(value: list | str) -> list[str]:
+    """[server] jvm_args: a list of flags; written as one string ("-XX:+UseZGC -Xss2m"), split at the
+    spaces (else each letter went to Java as a flag of its own)."""
+    return value.split() if isinstance(value, str) else [str(x) for x in value]
+
+
 def _choice(value: str, choices: tuple[str, ...], name: str) -> str:
     if value not in choices:
         raise ConfigError(f"{name} must be one of {', '.join(choices)} (got {value!r})")
     return value
+
+
+# The kind of value a setting must have (its name, as written in the file). A hand-edited file with
+# another kind (``warn_minutes = 5``, ``dir = 7``) is a plain error here, not a crash where it's used.
+_KINDS = {
+    ("server", "dir"): (str,), ("server", "jvm_args"): (list, str), ("server", "startup_timeout"): (str, int),
+    ("server", "stop_timeout"): (str, int), ("updates", "check_interval"): (str, int), ("updates", "warn_minutes"): (list,),
+    ("updates", "remind_days"): (int,), ("backups", "dir"): (str,), ("backups", "keep"): (int,),
+    ("backups", "exclude"): (list,), ("backups", "include"): (list,), ("backups", "copy_keep"): (int,),
+    ("downloads", "manual_dir"): (str,), ("web", "port"): (int,),
+}
+_KIND_WORDS = {str: "text in quotes", int: "a whole number", list: "a list in [ ]"}
+
+
+def _check_kinds(data: dict) -> None:
+    for table in {t for t, _ in _KINDS} | {"java", "craft-conductor", "client", "modpack"}:
+        if table in data and not isinstance(data[table], dict):
+            raise ConfigError(f"[{table}] must be a section (a line [{table}] with settings under it)")
+    for (table, key), kinds in _KINDS.items():
+        value = data.get(table, {}).get(key)
+        if value is not None and not isinstance(value, kinds):
+            raise ConfigError(f"[{table}] {key} must be " + " or ".join(_KIND_WORDS[k] for k in kinds)
+                              + f" (got {value!r})")
 
 
 def load(root: Path) -> Config:
@@ -370,7 +399,11 @@ def load(root: Path) -> Config:
         raise ConfigError(f"{path}: {e}") from e
     if _holds_secret(data):
         private.protect_once(path)
-    cfg = parse(root, data)
+    try:
+        _check_kinds(data)
+        cfg = parse(root, data)
+    except (TypeError, AttributeError) as e:  # (a value of a kind not checked above: still an error, not a crash)
+        raise ConfigError(f"{path}: a setting has the wrong kind of value ({e})") from e
     if cfg.web.password:
         cfg.web.password = _hashed_web_password(path, cfg.web.password)
     from . import snapshots
@@ -516,7 +549,7 @@ def parse(root: Path, data: dict) -> Config:
         loader=_choice(s["loader"], LOADERS, "server.loader"),
         minecraft=str(s.get("minecraft", "latest")),
         memory=_memory(s.get("memory", "4G")),
-        jvm_args=list(s.get("jvm_args", [])),
+        jvm_args=_jvm_args(s.get("jvm_args", [])),
         aikar_flags=bool(s.get("aikar_flags", False)),
         find_lag=bool(s.get("find_lag", True)),
         cpu_cores=_limits(s)[0], priority=_limits(s)[1],

@@ -6,7 +6,7 @@ import socket
 import struct
 from pathlib import Path
 
-from .properties import read_properties
+from .properties import number, read_properties
 
 LOGIN, COMMAND, RESPONSE = 3, 2, 0
 
@@ -36,7 +36,7 @@ class Rcon:
         props = read_properties(server_dir / "server.properties")
         if props.get("enable-rcon") != "true" or not props.get("rcon.password"):
             raise RconError("RCON is disabled: set enable-rcon=true and rcon.password in server.properties")
-        return cls("127.0.0.1", int(props.get("rcon.port", "25575")), props["rcon.password"])
+        return cls("127.0.0.1", number(props, "rcon.port", 25575), props["rcon.password"])
 
     def __enter__(self) -> Rcon:
         self.sock = socket.create_connection((self.host, self.port), timeout=self.timeout)

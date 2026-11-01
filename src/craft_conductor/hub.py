@@ -1022,17 +1022,24 @@ class Hub:
             rmtree(folder, ignore_errors=True)
         return moved
 
+    def _new_id(self, base: str) -> str:
+        """An id (and folder name) for a new server: no other server's, and no folder that's in use, its
+        own or the backups of one taken off the list but kept (``<backups folder>/<id>``): sharing that,
+        keeping the newest few of one would remove the other's."""
+        loc = self.backups_location
+        taken = set(self.discover()) | {HOME_ID}
+        sid, n = base, 2
+        while sid in taken or (self.servers_dir / sid).exists() or (loc is not None and (loc / sid).exists()):
+            sid, n = f"{base}-{n}", n + 1
+        return sid
+
     def create(self, spec: setupmod.SetupSpec) -> str:
         """Make a new server folder from the setup page and start installing it (not running it)."""
         if self.is_single:
             raise RuntimeError("this Craft Conductor runs a single server (`craft-conductor run`); use `craft-conductor start` for several")
         self._not_while_moving()
         with self._lock:
-            base = slugify(spec.motd)
-            sid, n = base, 2
-            taken = set(self.discover()) | {HOME_ID}
-            while sid in taken or (self.servers_dir / sid).exists():
-                sid, n = f"{base}-{n}", n + 1
+            sid = self._new_id(slugify(spec.motd))
             root = self.servers_dir / sid
             if spec.port in self.ports():
                 if spec.port_chosen:
@@ -1473,15 +1480,11 @@ class Hub:
         self._not_while_moving()
         manifest = transfer.read_manifest(archive)
         with self._lock:
-            base = slugify(name or manifest.get("name") or manifest.get("folder") or "imported")
-            sid, n = base, 2
-            taken = set(self.discover()) | {HOME_ID}
-            while sid in taken or (self.servers_dir / sid).exists():
-                sid, n = f"{base}-{n}", n + 1
+            sid = self._new_id(slugify(name or manifest.get("name") or manifest.get("folder") or "imported"))
             root = self.servers_dir / sid
             manifest = transfer.import_into(archive, root, password=password, skip_locked=skip_locked)
             self._imported_backups(root, sid)
-            from .properties import read_properties, server_name, write_properties
+            from .properties import number, read_properties, server_name, write_properties
             props_path = configmod.load(root).server.dir / "server.properties"
             if name:
                 write_properties(props_path, {"motd": name[:59]})
@@ -1492,7 +1495,7 @@ class Hub:
                     n_copy += 1
                 write_properties(props_path, {"motd": f"{shown[:50]} ({n_copy})"})
                 log.info("the imported server has the name of one already here (%s); it is now %s (%d)", shown, shown, n_copy)
-            port = int(read_properties(props_path).get("server-port", "25565") or 25565)
+            port = number(read_properties(props_path), "server-port", 25565)
             if port in self.ports():  # another server here already uses it
                 new = self.free_port(port)
                 write_properties(props_path, {"server-port": str(new)})
@@ -1771,14 +1774,14 @@ class Hub:
     def summary(self) -> list[dict]:
         out = []
         for sid, d in list(self.daemons.items()):
-            from .properties import read_properties, server_name
+            from .properties import number, read_properties, server_name
             props = read_properties(d.m.server_dir / "server.properties")
             lk = d.m.lock
             out.append({
                 "id": sid, "name": server_name(props, sid), "state": d.state,
                 "setup_pending": d.setup_pending, "job": d.job, "minecraft": lk.minecraft,
                 "loader": lk.loader or d.m.config.server.loader, "players": len(d.players),
-                "max_players": int(props.get("max-players", "20") or 20),
+                "max_players": number(props, "max-players", 20),
                 "port": props.get("server-port", "25565"), "folder": str(d.m.config.root),
                 "update": bool(d.last_check and not d.last_check.get("up_to_date") and d.last_check.get("target")),
                 "crashed_at": d.crashed_at, "last_job": d.last_job,

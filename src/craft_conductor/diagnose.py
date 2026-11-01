@@ -94,7 +94,7 @@ def _crash_report(server_dir: Path, since: float) -> str:
         return ""
     newest = max(reports, key=lambda p: p.stat().st_mtime)
     try:
-        return newest.read_text(errors="replace")[:200_000]
+        return newest.read_text(encoding="utf-8", errors="replace")[:200_000]  # (UTF-8, as Minecraft writes it)
     except OSError:
         return ""
 

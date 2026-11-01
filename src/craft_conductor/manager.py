@@ -596,7 +596,7 @@ class Manager:
                 from . import snapshots
                 snapshots.record(archive, self)
                 if worth_keeping:
-                    backup.copy_out(archive, self.config.backups.copy_to, self.config.root.name,
+                    backup.copy_out(archive, self.config.backups.copy_to, self.config.root,
                                     self.config.backups.copy_keep)
             if make_backup:
                 self._journal_begin(title, archive, plan)

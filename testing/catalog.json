@@ -8903,5 +8903,61 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1017,
+    "section": "Fix: a friend's extras added at once are all kept",
+    "step": "On a friend's computer, open the invite's page and, under the server's extras, add two shaders or resource packs in quick succession (or add one while Set up is still checking): both stay in the list after reloading the page, and both are installed by the next Set up.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1018,
+    "section": "Fix: non-English text in reports isn't garbled",
+    "step": "On Windows, give a server a description with an accented letter or an emoji (for example Café ☕), then download the report from Check my setup: the craft-conductor.toml in it shows the description exactly as typed. A crash whose report holds an accented folder name is explained with that name intact.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1019,
+    "section": "Fix: slow answers show console and log lines once",
+    "step": "From a phone on a slow mobile connection (or with the server's computer very busy), open a server's Console and send a command: each line of output appears once. Then on its Mods page choose Test these mods and Start a test boot: each line of the test's log appears once, and when it ends, the result and the Mod test finished message appear once.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1020,
+    "section": "Fix: two servers of the same name keep their own backup copies",
+    "step": "Add two existing servers whose folders have the same name (from different places), set Also copy every backup to the same USB or cloud folder for both, with Backups to keep at 2, and make three backups of each: the copy folder has Survival and Survival-2, each with its own two newest backups.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1021,
+    "section": "Fix: a new server never shares a kept server's backups",
+    "step": "With a folder chosen for backups, add an existing server folder named Survival, make a backup, then remove it from the list keeping its files. Create a new server named Survival and make more backups than Backups to keep: the first server's backups are still in the backups folder, and the new server's are in a folder of its own (survival-2).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1022,
+    "section": "Fix: a typo in server.properties doesn't break the control panel",
+    "step": "With a server stopped, edit its server.properties by hand and set max-players=twenty, then open the control panel: the Servers page and the server's Dashboard show as usual (20 players), and the server starts.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1023,
+    "section": "Fix: a setting of the wrong kind doesn't stop Craft Conductor",
+    "step": "With Craft Conductor open, edit one server's craft-conductor.toml by hand and set warn_minutes = 5 (no brackets). Within a minute the server shows on the Servers page with the problem named; the other servers keep working. Then set jvm_args = \"-Xss2m\" (one string) and fix warn_minutes: the server starts.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]

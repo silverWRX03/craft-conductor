@@ -21,7 +21,7 @@ import zipfile
 from dataclasses import asdict, dataclass
 
 from . import __version__
-from .properties import read_properties
+from .properties import number, read_properties
 
 OK, WARN, BAD, INFO = "ok", "warn", "bad", "info"
 KEEP_WHEN_FULL = 3  # backups kept by "Delete old backups"
@@ -170,7 +170,7 @@ def run(m, state: str, *, total_gb: float | None = None, share: dict | None = No
         pass
 
     # The port
-    port = int(props.get("server-port", "25565") or 25565)
+    port = number(props, "server-port", 25565)
     listening = port_in_use(port)
     if state == "running":
         checks.append(Check("port", f"Port {port}", OK if listening else BAD,
@@ -322,7 +322,7 @@ def report_zip(m, checks: list[Check], log_file) -> bytes:
             "java_major": m.lock.java_major, "mods": [f"{x.name} {x.version_number}" for x in m.lock.mods]}, indent=2))
         for name, path in ((CONFIG_NAME, m.config.root / CONFIG_NAME), ("server.properties", m.server_dir / "server.properties")):
             if path.exists():
-                z.writestr(name, redact(path.read_text(errors="replace")))
+                z.writestr(name, redact(path.read_text(encoding="utf-8", errors="replace")))
         if log_file:
             z.writestr("craft-conductor.log", redact(_tail(log_file)))
         z.writestr("latest.log", redact(_tail(m.server_dir / "logs" / "latest.log")))

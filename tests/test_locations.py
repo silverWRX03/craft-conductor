@@ -84,6 +84,22 @@ def test_servers_backups_and_exports_go_where_chosen(hub_env, tmp_path):
     assert list((real_s / "alpha" / "backups").glob("*.tar.gz"))
 
 
+
+def test_a_new_server_never_shares_kept_backups(hub_env, tmp_path, monkeypatch):
+    """A server taken off the list keeps its files, its backups in <backups folder>/<id> too. A new
+    server of the same name got that id, so the same backups folder, and keeping the newest few of
+    the new one removed the older server's backups."""
+    hub, c = hub_env
+    login(c)
+    B = tmp_path / "My backups"
+    (B / "survival").mkdir(parents=True)
+    (B / "survival" / "20260101-040000-scheduled.tar.gz").write_bytes(b"the kept server's")
+    monkeypatch.setattr(type(hub), "backups_location", property(lambda self: B))
+    sid = c.post("/api/hub/create", {"loader": "vanilla", "motd": "Survival", "accept_eula": True})[1]["id"]
+    assert sid == "survival-2"
+    assert hub.get(sid).m.config.backups.dir == B / "survival-2"
+    assert (B / "survival" / "20260101-040000-scheduled.tar.gz").read_bytes() == b"the kept server's"
+
 def test_a_move_is_refused_while_a_server_runs(hub_env, tmp_path):
     hub, c = hub_env
     login(c)

@@ -26,6 +26,16 @@ _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 _FORMATTING = re.compile(r"§.?", re.DOTALL)  # Minecraft's colour and style codes (§a, §l, ...)
 
 
+def number(props: dict[str, str], key: str, default: int) -> int:
+    """A whole number from server.properties, ``default`` when it's missing or isn't one. Minecraft
+    does the same, so a typo there (``max-players=twenty``) doesn't stop the server, and mustn't stop
+    the control panel either."""
+    try:
+        return int(props.get(key, "").strip())
+    except ValueError:
+        return default
+
+
 def server_name(props: dict[str, str], default: str = "") -> str:
     """A server's name as Craft Conductor shows and sends it (the server list, invites, friends'
     launchers): its motd as one line of plain text. A two-line motd (``\\n`` in the file) shows as

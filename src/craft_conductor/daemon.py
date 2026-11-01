@@ -413,7 +413,7 @@ class Daemon:
         if not checked["ok"]:
             log.error("the new backup %s doesn't look right: %s", path.name, checked["detail"])
             self.m.notifier.send(f"The backup {path.name} doesn't look right: {checked['detail']}")
-        copied = backup.copy_out(path, cfg.backups.copy_to, cfg.root.name, cfg.backups.copy_keep)
+        copied = backup.copy_out(path, cfg.backups.copy_to, cfg.root, cfg.backups.copy_keep)
         return f"created {path.name}" + (" (checked)" if checked["ok"] else " (but it doesn't look right: " + checked["detail"] + ")") + \
             (f" (copied to {copied.parent})" if copied else "")
 

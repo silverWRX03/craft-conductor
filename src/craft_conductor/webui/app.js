@@ -794,8 +794,24 @@ document.addEventListener("click", (e) => {
 
 // Polling pauses while the page can't be seen (another tab, a phone's screen off) and
 // catches up at once when it's back: no work for the server, battery or data meanwhile.
-let polls = [];
-function every(ms, fn) { fn(); polls.push(fn); timers.push(setInterval(() => { if (!document.hidden) fn(); }, ms)); }
+// One call at a time: while an answer is slow (a busy server, a phone's slow connection), the next
+// turn is skipped instead of asking again for what's on its way, which showed console lines, events
+// and a test boot's log twice. After 30 s it asks anyway, in case that answer was lost.
+function oneAtATime(fn) {
+  let since = 0, turn = 0;
+  return async (...args) => {
+    if (since && Date.now() - since < 30000) return;
+    const mine = ++turn;
+    since = Date.now();
+    try { return await fn(...args); } finally { if (turn === mine) since = 0; }
+  };
+}
+let polls = [];  // (each with .fn, what was asked for: see polling)
+function every(ms, fn) {
+  const once = Object.assign(oneAtATime(fn), { fn });
+  once(); polls.push(once); timers.push(setInterval(() => { if (!document.hidden) once(); }, ms));
+}
+const polling = (fn) => polls.some((p) => p.fn === fn);
 let leaving = [];  // what a page undoes when another one opens (see onLeave)
 function onLeave(fn) { leaving.push(fn); }
 function clearTimers() { timers.forEach(clearInterval); timers = []; polls = []; leaving.forEach((fn) => fn()); leaving = []; }
@@ -1686,7 +1702,7 @@ function consolePanel({ compact = false } = {}) {
   const history = []; let hi = 0; let seq = 0;
 
   const cls = (line) => line.user ? "l-user" : /\/(ERROR|FATAL)\]|Exception/.test(line.text) ? "l-error cc-log-error" : /\/WARN\]/.test(line.text) ? "l-warn cc-log-warning" : /Done \(|joined the game|Server ready/i.test(line.text) ? "cc-log-success" : "";
-  const poll = async () => {
+  const poll = oneAtATime(async () => {  // (also right after a command is sent)
     if (!can("logs.view")) return;  // (reading the console is a permission of its own)
     const r = await api(`/api/console?since=${seq}`).catch(() => null);
     if (!r || !r.lines.length) return;
@@ -1702,7 +1718,7 @@ function consolePanel({ compact = false } = {}) {
     out.append(frag);
     while (out.childElementCount > (compact ? 500 : 3000)) out.firstChild.remove();
     if (stick) out.scrollTop = out.scrollHeight;
-  };
+  });
   const send = async () => {
     const command = input.value.trim();
     if (!command) return;
@@ -5068,7 +5084,7 @@ function openManualDownloads({ items, intro, onArrived = null, onStop = null }) 
   if (backdrop) for (const type of ["dragover", "drop"]) backdrop.addEventListener(type, (e) => e.preventDefault());
   if (look) {
     manualPanelLook = lookNow;
-    if (polls.includes(manualPanelPoll)) lookNow(); else every(5000, manualPanelPoll);
+    if (polling(manualPanelPoll)) lookNow(); else every(5000, manualPanelPoll);
   }
 }
 
@@ -7129,7 +7145,7 @@ function openTester(opts) {
     catch (e) { idle(); fill(body, h("div", { class: "notice bad" }, e.message)); finished(e.message); return; }
     running = r.id;
     let seen = 0;
-    poll = setInterval(async () => {
+    poll = setInterval(oneAtATime(async () => {
       const t = await api(`/api/hub/trial?id=${running}&since=${seen}`).catch(() => null);
       if (!t) return;
       seen = t.next;
@@ -7146,7 +7162,7 @@ function openTester(opts) {
       const res = t.result || {};
       finished(t.state === "cancelled" ? "The test was stopped." : res.ok ? "✓ The server started with these mods."
         : res.bisected ? `${(res.outliers || []).length} mod(s) don't work.` : "✗ The server didn't start.");
-    }, 1500);
+    }), 1500);
   };
 
   const report = (t, logText) => {
@@ -9722,7 +9738,7 @@ views.setup = () => {
     };
     const renderSelected = () => {
       setupHandCheck();
-      if (isOwner() && !polls.includes(setupHandLook)) every(5000, setupHandLook);  // (nothing to do until some are missing)
+      if (isOwner() && !polling(setupHandLook)) every(5000, setupHandLook);  // (nothing to do until some are missing)
       const items = setupServerModItems();
       fill(selected, items.length || st.modpack
         ? modSummary(items, { noun: runsPlugins(st.loader) ? "plugins" : "mods",

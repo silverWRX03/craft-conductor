@@ -54,7 +54,7 @@ from .mods.curseforge import CurseForgeProvider
 from .mods.modrinth import ModrinthProvider, keep_buildable
 from .planner import DATAPACK_LOADERS, lowest
 from .players import PlayerError, Players, broadcast_text
-from .properties import read_properties, server_name, write_properties
+from .properties import number, read_properties, server_name, write_properties
 from .removal import rmtree
 from .skins import SkinError, Skins
 
@@ -3222,7 +3222,7 @@ class Api:
             "java_forced": m.config.java_version,
             "mods": len(lk.mods),
             "players": sorted(d.players),
-            "max_players": int(props.get("max-players", "20") or 20),
+            "max_players": number(props, "max-players", 20),
             "motd": server_name(props),
             "port": props.get("server-port", "25565"),
             "server_dir": str(m.server_dir),
@@ -4192,7 +4192,7 @@ class Api:
         except (TypeError, ValueError):
             raise ApiError(400, "the port must be a number") from None
         props = read_properties(self.m.server_dir / "server.properties")
-        taken = set(self.web.hub.ports().keys()) | {int(props.get("server-port", "25565") or 25565)} | self.web.hub.reserved_ports()
+        taken = set(self.web.hub.ports().keys()) | {number(props, "server-port", 25565)} | self.web.hub.reserved_ports()
         try:
             message = webmap.set_port(self.m.server_dir, kind, self.m.lock.loader or self.m.config.server.loader, new, taken)
         except webmap.WebMapError as e:
@@ -4218,7 +4218,7 @@ class Api:
         props = read_properties(self.m.server_dir / "server.properties")
         bedrock = self.bedrock({}, {})
         state = reach.read_state(self.m.config.state_dir)
-        return {"way": self.m.config.reach_way, "port": int(props.get("server-port", "25565") or 25565),
+        return {"way": self.m.config.reach_way, "port": number(props, "server-port", 25565),
                 "bedrock": {"on": bool(bedrock["supported"] and bedrock["geyser"]), "port": bedrock["port"],
                             "ports": bedrock["ports"], "wanted": state.get("bedrock_port")},
                 "reachable": hub.why_reachable(self.d), "whitelist_on": props.get("white-list", "false") == "true",
@@ -4240,7 +4240,7 @@ class Api:
             raise ApiError(400, "choose playit.gg, port forwarding, or only friends at home")
         hub = self.web.hub
         props_path = self.m.server_dir / "server.properties"
-        port = int(read_properties(props_path).get("server-port", "25565") or 25565)
+        port = number(read_properties(props_path), "server-port", 25565)
         bedrock = self.bedrock({}, {})
         message = {"playit": "Friends outside join through playit.gg", "home": "Only friends on your network can join",
                    "forward": "Friends outside join through the port on your router"}[way]
@@ -4531,7 +4531,7 @@ class Api:
         import sys
         from .java import JavaError
         props = read_properties(self.m.server_dir / "server.properties")
-        port = int(props.get("server-port", "25565") or 25565)
+        port = number(props, "server-port", 25565)
         try:
             java = self.m.java.choose(self.m.lock.java_major or 8).binary if self.m.lock.installed else None
         except (JavaError, OSError):
@@ -4579,7 +4579,7 @@ class Api:
         from dataclasses import asdict
         from . import doctor
         from . import reach
-        port = int(read_properties(self.m.server_dir / "server.properties").get("server-port", "25565") or 25565)
+        port = number(read_properties(self.m.server_dir / "server.properties"), "server-port", 25565)
         check = doctor.internet_check(self.m.http, port, self.d.state == "running")
         if check.status == doctor.OK:  # (remembered: it can be reached from the internet, so its whitelist goes on)
             reach.write_state(self.m.config.state_dir, port_test={"port": port, "ok": True, "at": int(time.time())})
@@ -4619,7 +4619,7 @@ class Api:
         elif action == "port":
             if self.d.state == "running":
                 raise ApiError(409, "stop the server first")
-            port = hub.free_port(int(read_properties(props).get("server-port", "25565") or 25565) + 1)
+            port = hub.free_port(number(read_properties(props), "server-port", 25565) + 1)
             write_properties(props, {"server-port": str(port)})
             message = f"The server now uses port {port}" + ("" if port == 25565 else f": friends connect with your address followed by :{port}")
         elif action == "online-mode":
@@ -4764,7 +4764,7 @@ class Api:
         total = total_ram_gb()
         return {"installed": self.m.lock.installed, "system_gb": round(total, 1) if total else None,
                 "cpus": os.cpu_count() or 1, "server_gb": round(server_gb, 1), "game_gb": cfg.client.memory_gb,
-                "mods": len(self.m.lock.mods), "max_players": int(props.get("max-players", "20") or 20)}
+                "mods": len(self.m.lock.mods), "max_players": number(props, "max-players", 20)}
 
     def play_here(self, q, b) -> dict:
         """Set up this computer's Minecraft for this server (the friends' page, pointed at
@@ -5476,7 +5476,7 @@ class Api:
             "discord_webhook": c.discord_webhook,
             **self._schedule_info(),
             "tunnel_address": c.tunnel_address,
-            "port": int(read_properties(self.m.server_dir / "server.properties").get("server-port", "25565") or 25565),
+            "port": number(read_properties(self.m.server_dir / "server.properties"), "server-port", 25565),
             "properties": serverprops.current(read_properties(self.m.server_dir / "server.properties")),
             "properties_schema": serverprops.schema(),
             "choices": {"strategy": configmod.STRATEGIES, "mod_channel": configmod.CHANNELS},

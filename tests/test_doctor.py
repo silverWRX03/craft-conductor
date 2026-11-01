@@ -15,6 +15,8 @@ def test_checks_and_report(hub_env):
     login(c)
     d = hub.get("alpha")
     d.m.config.client.token = "fake-" + "x" * 20  # (the invite secret lives in the config)
+    with d.m.config.path.open("a", encoding="utf-8") as f:
+        f.write("# Zoë's server ☕\n")  # (UTF-8, as Craft Conductor writes it)
     checks = {x["id"]: x for x in c.get("/api/servers/alpha/doctor")[1]["checks"]}
     assert checks["installed"]["status"] == "ok" and checks["disk"]["status"] in ("ok", "warn", "bad")
     assert "port" in checks and checks["memory"]["status"] in ("ok", "warn", "bad")
@@ -26,8 +28,18 @@ def test_checks_and_report(hub_env):
     everything = b"".join(z.read(n) for n in z.namelist())
     assert b"fake-xxxxxxxx" not in everything
     assert "craft-conductor.toml" in z.namelist()  # the config, secrets taken out (see test_secrets_are_taken_out)
+    assert "Zoë's server ☕" in z.read("craft-conductor.toml").decode("utf-8")  # (not garbled on Windows)
     from craft_conductor import access
     assert access.server_route_need("GET", "/api/doctor/report") == access.OWNER  # (only the owner's)
+
+
+def test_a_crash_report_keeps_non_english_text(tmp_path):
+    """Minecraft writes crash reports in UTF-8; read in Windows' own code page, a path such as
+    C:\\Users\\Zoë came out garbled in the explanation."""
+    from craft_conductor import diagnose
+    (tmp_path / "crash-reports").mkdir()
+    (tmp_path / "crash-reports" / "crash-2026-11-01.txt").write_text("C:\\Users\\Zoë ☕", encoding="utf-8")
+    assert "Zoë ☕" in diagnose._crash_report(tmp_path, 0)
 
 
 def test_a_busy_port_is_found(hub_env):
