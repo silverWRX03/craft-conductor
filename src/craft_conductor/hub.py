@@ -41,7 +41,7 @@ HOME_ID = "main"           # the server kept directly in the home folder (craft-
 START_AFTER_UPDATE = "start_after_update"  # hub.json: the servers to start again after Craft Conductor updates
 # What each part of hub.json is (Hub._hub_file).
 HUB_FILE_KINDS = {"extra": list, "hidden": list, "hand_folders": list, "share": dict, "upnp": dict, "discord": dict,
-                  "web": dict, "self_update": dict, "locations": dict, START_AFTER_UPDATE: dict}
+                  "web": dict, "self_update": dict, "locations": dict, "guide": dict, START_AFTER_UPDATE: dict}
 SCAN_EVERY = 5.0
 NOTICES_KEPT, NOTICE_CHARS = 50, 8000  # the servers' messages kept for the bell (the page keeps its own copy)
 
