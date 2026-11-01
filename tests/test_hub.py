@@ -379,3 +379,18 @@ def test_a_server_trying_an_update_on_a_copy_isnt_deleted_or_moved(hub_env, tmp_
     assert any("copy of itself" in b for b in plan["busy"]), plan
     d.rehearsal = SimpleNamespace(state="done")
     assert c.post("/api/hub/delete", {"id": "alpha"})[0] == 200  # (once it's over)
+
+
+def test_a_damaged_hub_json_doesnt_stop_craft_conductor(hub_env):
+    """hub.json with parts of the wrong kind (damaged, or edited by hand): "extra": 5 made the scan raise,
+    which stopped Craft Conductor; a share port that isn't one made every page answer "internal error"."""
+    from craft_conductor import hub as hubmod
+    hub, c = hub_env
+    login(c)
+    path = hub.state_dir / hubmod.HUB_FILE
+    data = json.loads(path.read_text())
+    path.write_text(json.dumps({**data, "extra": 5, "hidden": None, "share": {"port": None, "address": 7},
+                                "upnp": {"enabled": True, "mapped": 5}, "discord": {"token": "x", "bot": True, "whitelist": 5}}))
+    hub.scan()
+    assert c.get("/api/hub")[0] == 200 and c.get("/api/hub/discord")[0] == 200
+    assert hub.share_settings()["address"] == "" and hub.upnp_settings()["mapped"] == []

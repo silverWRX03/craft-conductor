@@ -8999,5 +8999,13 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1029,
+    "section": "Fix: a damaged hub.json doesn't stop Craft Conductor",
+    "step": "Quit Craft Conductor, edit its hub.json (in its own folder) and set \"extra\": 5 and \"share\": {\"port\": null}, then start it: it starts, the Servers page works, and Sharing with friends shows the usual port.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]
