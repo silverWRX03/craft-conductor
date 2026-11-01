@@ -41,6 +41,8 @@ def test_rules_in_either_spelling():
     assert "gamerule players_sleeping_percentage" in new.sent and "gamerule playersSleepingPercentage" not in new.sent  # the style is learnt
     silent = FakeServer(answers=False)
     assert worldtools.read_rules(silent) == [] and len(silent.sent) == 1  # not answering: asked once
+    known = FakeServer(answers=False)  # (with its version known too: it was asked about all 12 rules, 2 s each)
+    assert worldtools.read_rules(known, "1.21.1") == [] and len(known.sent) == 1
 
 
 def test_setting_things_is_checked():
