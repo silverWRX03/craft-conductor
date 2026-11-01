@@ -64,7 +64,9 @@ def test_invites():
             join.parse_invite(old)
     assert join.invite_from_name(f"Join X (craft-conductor-{old_code}).exe") is None
     for bad in ("hello", "https://x/other/abc", "https://x:8766/join/short#" + FP, "ftp://x/join/" + "A" * 24,
-                "https://x:8766/join/" + "A" * 24 + "#tooshort"):
+                "https://x:8766/join/" + "A" * 24 + "#tooshort",
+                # (a damaged port or address: a plain "isn't an invite", not a ValueError's traceback)
+                f"https://x:99999/join/{'A' * 24}#{FP}", f"https://x:abc/join/{'A' * 24}#{FP}", f"https://[::1/join/{'A' * 24}#{FP}"):
         with pytest.raises(join.JoinError):
             join.parse_invite(bad)
 

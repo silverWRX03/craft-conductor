@@ -8975,5 +8975,13 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1026,
+    "section": "Fix: a damaged invite link is a plain message",
+    "step": "On a friend's computer, run craft-conductor join with an invite link whose port is changed to 99999: it says the link isn't an invite (its address or port is damaged), with no Python error.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]
