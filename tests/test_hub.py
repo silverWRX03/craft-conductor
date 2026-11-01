@@ -394,3 +394,40 @@ def test_a_damaged_hub_json_doesnt_stop_craft_conductor(hub_env):
     hub.scan()
     assert c.get("/api/hub")[0] == 200 and c.get("/api/hub/discord")[0] == 200
     assert hub.share_settings()["address"] == "" and hub.upnp_settings()["mapped"] == []
+
+
+def test_one_step_going_wrong_doesnt_stop_craft_conductor(hub_env, monkeypatch):
+    """An unexpected error in one step of the hub's own loop (the scan, the router, the friends'
+    downloads) left the loop, and Craft Conductor stopped: every server's page with it. It's logged now,
+    and the loop goes on."""
+    from craft_conductor import hub as hubmod
+    from test_web import wait_for
+    hub, c = hub_env
+    login(c)
+    tries = []
+
+    def broken():
+        tries.append(1)
+        raise RuntimeError("a bug")
+    monkeypatch.setattr(hubmod, "SCAN_EVERY", 0.05)
+    monkeypatch.setattr(hub, "scan", broken)
+    wait_for(lambda: len(tries) >= 3, timeout=10)
+    assert c.get("/api/hub")[0] == 200 and not hub.stop_requested.is_set()
+
+
+def test_one_step_going_wrong_doesnt_leave_a_server_without_its_manager(hub_env, monkeypatch):
+    """The same for each server's own loop: its thread ended, and the hub made a new manager that
+    didn't know about the Minecraft still running (Stop no longer reached it)."""
+    import time
+    from test_web import wait_for
+    hub, c = hub_env
+    d = hub.get("alpha")
+    tries = []
+
+    def broken(*a, **k):
+        tries.append(1)
+        raise RuntimeError("a bug")
+    monkeypatch.setattr(d, "_run_schedules", broken)
+    wait_for(lambda: len(tries) >= 3, timeout=10)
+    time.sleep(0.3)
+    assert hub._threads["alpha"].is_alive() and hub.get("alpha") is d

@@ -2030,30 +2030,33 @@ class Hub:
                     hub_stop_path(self.home).unlink(missing_ok=True)
                     log.info("stop requested")
                     break
-                now = time.monotonic()
-                if now >= next_scan:
-                    next_scan = now + SCAN_EVERY
-                    self.scan()
-                    self.update_share()
-                    if after_update:
-                        after_update = self.start_after_update()
-                if now >= next_self_check:
-                    next_self_check = now + SELF_CHECK_INTERVAL
-                    self.run_job("craft-conductor update check", self.check_self_update)
-                if now >= next_tunnels:
-                    next_tunnels = now + 300
-                    threading.Thread(target=self.check_tunnels, daemon=True, name="tunnels").start()
-                if now >= next_upnp:
-                    next_upnp = now + self.UPNP_EVERY
-                    if self.upnp_settings()["enabled"]:
-                        threading.Thread(target=self.upnp_sync, daemon=True, name="upnp").start()
-                if now >= next_health:
-                    next_health = now + 60
-                    threading.Thread(target=self._check_health, daemon=True, name="health").start()
-                if now >= next_status:
-                    next_status = now + 30
-                    threading.Thread(target=self.discord_status, daemon=True, name="discord-status").start()
-                    threading.Thread(target=self.sync_discord_bot, daemon=True, name="discord-whitelist-sync").start()
+                try:  # (one step going wrong is logged, and the next go round tries again: never Craft Conductor stopping)
+                    now = time.monotonic()
+                    if now >= next_scan:
+                        next_scan = now + SCAN_EVERY
+                        self.scan()
+                        self.update_share()
+                        if after_update:
+                            after_update = self.start_after_update()
+                    if now >= next_self_check:
+                        next_self_check = now + SELF_CHECK_INTERVAL
+                        self.run_job("craft-conductor update check", self.check_self_update)
+                    if now >= next_tunnels:
+                        next_tunnels = now + 300
+                        threading.Thread(target=self.check_tunnels, daemon=True, name="tunnels").start()
+                    if now >= next_upnp:
+                        next_upnp = now + self.UPNP_EVERY
+                        if self.upnp_settings()["enabled"]:
+                            threading.Thread(target=self.upnp_sync, daemon=True, name="upnp").start()
+                    if now >= next_health:
+                        next_health = now + 60
+                        threading.Thread(target=self._check_health, daemon=True, name="health").start()
+                    if now >= next_status:
+                        next_status = now + 30
+                        threading.Thread(target=self.discord_status, daemon=True, name="discord-status").start()
+                        threading.Thread(target=self.sync_discord_bot, daemon=True, name="discord-whitelist-sync").start()
+                except Exception:
+                    log.exception("something went wrong in Craft Conductor's own loop; carrying on")
                 self.stop_requested.wait(self.tick)
             return 0
         finally:

@@ -568,43 +568,49 @@ class Daemon:
         import datetime as _dt
         self._sched_last = _dt.datetime.now()  # schedules count from now, not from a missed past
 
+        last_error = None
         while not self.stop_requested.is_set():
-            if stop_request_path(self.m).exists():
-                stop_request_path(self.m).unlink(missing_ok=True)
-                log.info("stop requested")
-                self.stop_requested.set()
-                break
-            idle = not self.ops.locked()
-            if (idle and self.want_running and self.proc is not None and not self.proc.running
-                    and not self.proc.stopping):
-                self._handle_crash()
-            req = request_path(self.m)
-            requested = req.exists()
-            if self.setup_pending:  # nothing to check or restart until the server exists
-                self.stop_requested.wait(self.tick)
-                continue
-            if idle and (requested or time.monotonic() >= self.next_check):
-                target = (req.read_text().strip() or None) if requested else None
-                req.unlink(missing_ok=True)
-                self.submit("update check", self.check_for_updates, requested, target)
-            if idle:
-                self._watch_config()
-            self._run_schedules(idle)  # (busy too: a time that comes meanwhile waits, it isn't skipped)
-            if idle:
-                self._watch_lag()
-            sreq = self_update_request_path(self.m)
-            if self.hub_managed:  # the hub checks for and installs craft-conductor updates
-                self.stop_requested.wait(self.tick)
-                continue
-            if idle and sreq.exists():
-                sreq.unlink(missing_ok=True)
-                self.check_self_update()
-                info = self.updater.release
-                if info and info.get("can_install") and self.updater.begin(info["version"]):
-                    self.submit(f"update Craft Conductor to {info['version']}", self.apply_self_update)
-            if self.m.config.self_update_check and time.monotonic() >= self.next_self_check:
-                self.next_self_check = time.monotonic() + SELF_CHECK_INTERVAL
-                threading.Thread(target=self.check_self_update, daemon=True, name="self-update-check").start()
+            try:  # (one step going wrong is logged, and the next tick tries again: never the server left without a manager)
+                if stop_request_path(self.m).exists():
+                    stop_request_path(self.m).unlink(missing_ok=True)
+                    log.info("stop requested")
+                    self.stop_requested.set()
+                    break
+                idle = not self.ops.locked()
+                if (idle and self.want_running and self.proc is not None and not self.proc.running
+                        and not self.proc.stopping):
+                    self._handle_crash()
+                req = request_path(self.m)
+                requested = req.exists()
+                if self.setup_pending:  # nothing to check or restart until the server exists
+                    self.stop_requested.wait(self.tick)
+                    continue
+                if idle and (requested or time.monotonic() >= self.next_check):
+                    target = (req.read_text().strip() or None) if requested else None
+                    req.unlink(missing_ok=True)
+                    self.submit("update check", self.check_for_updates, requested, target)
+                if idle:
+                    self._watch_config()
+                self._run_schedules(idle)  # (busy too: a time that comes meanwhile waits, it isn't skipped)
+                if idle:
+                    self._watch_lag()
+                sreq = self_update_request_path(self.m)
+                if self.hub_managed:  # the hub checks for and installs craft-conductor updates
+                    self.stop_requested.wait(self.tick)
+                    continue
+                if idle and sreq.exists():
+                    sreq.unlink(missing_ok=True)
+                    self.check_self_update()
+                    info = self.updater.release
+                    if info and info.get("can_install") and self.updater.begin(info["version"]):
+                        self.submit(f"update Craft Conductor to {info['version']}", self.apply_self_update)
+                if self.m.config.self_update_check and time.monotonic() >= self.next_self_check:
+                    self.next_self_check = time.monotonic() + SELF_CHECK_INTERVAL
+                    threading.Thread(target=self.check_self_update, daemon=True, name="self-update-check").start()
+            except Exception as e:
+                if str(e) != last_error:  # (once, not every tick)
+                    log.exception("something went wrong looking after the server; carrying on")
+                last_error = str(e)
             self.stop_requested.wait(self.tick)
         return self.exit_code
 
