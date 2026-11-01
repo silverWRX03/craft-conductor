@@ -329,3 +329,18 @@ def test_throwaway_servers_dont_get_the_same_port(tmp_path):
     assert first != second and hub.free_port(25590) not in (first, second)
     hub.release_port(first)
     assert hub.free_port(25590) == first
+
+
+def test_a_typo_in_server_properties_doesnt_break_the_page(hub_env):
+    """``max-players=twenty`` typed into a stopped server's server.properties: Minecraft uses its
+    default, but the server list and the status every page asks for answered "invalid literal for
+    int()" (400), and the whole control panel said it was reconnecting."""
+    from craft_conductor.properties import write_properties
+    hub, c = hub_env
+    login(c)
+    write_properties(hub.get("alpha").m.server_dir / "server.properties", {"max-players": "twenty", "server-port": "25565x"})
+    status, body, _ = c.call("GET", "/api/hub")
+    assert status == 200, body
+    assert next(s for s in body["servers"] if s["id"] == "alpha")["max_players"] == 20  # (Minecraft's default, as it uses)
+    for path in ("/api/servers/alpha/status", "/api/servers/alpha/settings", "/api/servers/alpha/reach", "/api/servers/alpha/doctor"):
+        assert c.call("GET", path)[0] == 200, path

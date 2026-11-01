@@ -21,7 +21,7 @@ import zipfile
 from dataclasses import asdict, dataclass
 
 from . import __version__
-from .properties import read_properties
+from .properties import number, read_properties
 
 OK, WARN, BAD, INFO = "ok", "warn", "bad", "info"
 KEEP_WHEN_FULL = 3  # backups kept by "Delete old backups"
@@ -170,7 +170,7 @@ def run(m, state: str, *, total_gb: float | None = None, share: dict | None = No
         pass
 
     # The port
-    port = int(props.get("server-port", "25565") or 25565)
+    port = number(props, "server-port", 25565)
     listening = port_in_use(port)
     if state == "running":
         checks.append(Check("port", f"Port {port}", OK if listening else BAD,

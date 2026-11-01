@@ -8943,5 +8943,13 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1022,
+    "section": "Fix: a typo in server.properties doesn't break the control panel",
+    "step": "With a server stopped, edit its server.properties by hand and set max-players=twenty, then open the control panel: the Servers page and the server's Dashboard show as usual (20 players), and the server starts.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]
