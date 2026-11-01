@@ -250,7 +250,7 @@ class JoinUI:
         entries, problems = self._resolve(data)
         adds = [{"name": e["name"], "needed_by": e.get("needed_by")} for e in entries if e.get("needed_by")]
         if data.get("deps") != adds:  # remembered, so the list can show what each extra brings along
-            store.save({**store.load(), "deps": adds})
+            store.change(lambda d: d.update(deps=adds))
         return {"adds": adds,
                 "changes": changes_for(data, self.pack, problems), "previous": data.get("minecraft"),
                 "minecraft": self.pack["minecraft"]}
@@ -275,9 +275,9 @@ class JoinUI:
             if problems and not accept_changes:
                 raise ExtrasChanges(changes_for(data, self.pack, problems))
             if problems:
-                data, notes = apply_changes(store, data, self.pack, problems)
+                data, notes = apply_changes(store, self.pack, problems)
                 entries, _ = self._resolve(data)
-            store.save({**data, "minecraft": self.pack["minecraft"]})
+            store.change(lambda d: d.update(minecraft=self.pack["minecraft"]))  # (and keeps one added meanwhile)
             install_pack = {**self.pack, "mods": self.pack.get("mods", []) + entries}
         else:
             install_pack = self.pack

@@ -8903,5 +8903,13 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1017,
+    "section": "Fix: a friend's extras added at once are all kept",
+    "step": "On a friend's computer, open the invite's page and, under the server's extras, add two shaders or resource packs in quick succession (or add one while Set up is still checking): both stay in the list after reloading the page, and both are installed by the next Set up.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]

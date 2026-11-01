@@ -51,6 +51,25 @@ def test_extras_resolve_with_what_they_need(tmp_path, http, modrinth):
     assert "file/Faithful.zip" not in (game / "options.txt").read_text()
 
 
+
+def test_extras_added_at_the_same_time_are_all_kept(tmp_path):
+    """Each click on the friend's page makes its own Store: two at once (or one while setup checks
+    Modrinth) must not undo each other."""
+    import threading
+    ids = [f"P{n:02d}" for n in range(12)]
+    go = threading.Barrier(len(ids))
+
+    def add(pid):
+        go.wait()
+        friendextras.Store(tmp_path, "Weekend Server").add("resourcepack", pid, pid.lower(), pid)
+    threads = [threading.Thread(target=add, args=(pid,)) for pid in ids]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(20)
+    assert sorted(i["id"] for i in friendextras.Store(tmp_path, "Weekend Server").load()["items"]) == ids
+
+
 def test_the_server_moves_to_a_new_minecraft(tmp_path, http, modrinth):
     publish(modrinth)
     store = friendextras.Store(tmp_path, "Weekend Server")
@@ -63,7 +82,7 @@ def test_the_server_moves_to_a_new_minecraft(tmp_path, http, modrinth):
     entries, problems = friendextras.resolve(http, store.load(), new, set())
     changes = friendextras.changes_for(store.load(), new, problems)
     assert {(c["name"], c["action"]) for c in changes} == {("Faithful", "switched off"), ("Mini Map", "removed")}
-    data, notes = friendextras.apply_changes(store, store.load(), new, problems)
+    data, notes = friendextras.apply_changes(store, new, problems)
     assert [i["name"] for i in data["items"]] == ["Faithful"] and data["items"][0]["enabled"] is False
     assert any("switched off" in n for n in notes) and any("removed" in n for n in notes)
     entries, _ = friendextras.resolve(http, data, new, set())
