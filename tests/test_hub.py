@@ -446,3 +446,11 @@ def test_damaged_sign_in_files_dont_lock_the_owner_out(hub_env):
     assert fresh.post("/api/login", {"password": webauth.DEFAULT_PASSWORD})[0] == 200
     (hub.state_dir / "users.json").write_text(json.dumps({"format": 1, "users": 5}))
     assert fresh.get("/api/hub/users")[0] == 200
+
+
+def test_a_damaged_list_of_paired_phones_is_read_as_none(hub_env):
+    """devices.json whose list isn't one raised on every paired phone's request."""
+    from craft_conductor import webauth
+    hub, c = hub_env
+    (hub.state_dir / webauth.DEVICES_FILE).write_text(json.dumps({"devices": 5}))
+    assert hub.ui.devices.find("x" * 40, 0) is None

@@ -107,9 +107,16 @@ class Push:
     def _load(self) -> dict:
         try:
             data = json.loads(self.path.read_text())
-            return data if isinstance(data, dict) else {}
         except (OSError, ValueError):
             return {}
+        if not isinstance(data, dict):
+            return {}
+        subs = data.get("subscriptions")  # (a list of devices, unless damaged)
+        if "subscriptions" in data:
+            subs = subs if isinstance(subs, list) else []
+            data["subscriptions"] = [x for x in subs if isinstance(x, dict)
+                                     and all(isinstance(x.get(k), str) for k in ("id", "endpoint", "name"))]
+        return data
 
     def _save(self, data: dict) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)

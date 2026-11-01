@@ -162,3 +162,12 @@ def test_a_push_says_whose_device_and_which_server_for_the_bell(tmp_path, monkey
     posted.clear()
     p.send_now({"title": "Craft Conductor", "body": "Little disk space left", "url": "/", "tag": "disk", "kind": "computer"})
     assert posted == [("owner", {"title": "Craft Conductor", "body": "Little disk space left", "url": "/", "tag": "disk", "who": "owner"})]
+
+
+def test_a_damaged_list_of_phones_is_read_as_none(tmp_path):
+    """push.json whose list of phones isn't one (or holds entries missing their address) raised
+    wherever it was read: sending, and the notifications page."""
+    p = push.Push(tmp_path)
+    for subs in (5, None, [{"id": "a"}, 7, {"id": 3, "endpoint": "https://fcm.googleapis.com/x", "name": "Phone"}]):
+        p.path.write_text(json.dumps({"subscriptions": subs}))
+        assert p.send_now({"title": "t", "body": "b"}) == []  # (nobody to send to, and nothing raised)
