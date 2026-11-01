@@ -8,6 +8,7 @@ its fix will say which version it's in.
 
 **Fixed**
 - A single server run with `craft-conductor run --web` answered "internal error" to a mod check run in the background, to a friend asking to join (and to **Allow** or **Ignore**), and to the **Use a free port** fix.
+- Saving two mod lists at the same moment (two clicks, or two browsers) could fail on Windows with "The process cannot access the file because it is being used by another process", or keep only one of them. Two changes to a server's settings at once could also lose one. They take turns now.
 - The **World** page could take half a minute to open when the server was too busy to answer (while still starting, or generating chunks): it asked about each game rule in turn, waiting 2 seconds for each. It stops at the first one that gets no answer now.
 - Messages that went only to Discord and phones ("The whitelist of … is now on", "Bedrock players: Geyser was set up…") were only in the server's **Activity** when neither was set up. They're in the bell too now (#241).
 - The bell kept only the first 500 characters of a message, so a failed setup's message stopped in the middle of the Java error, before where the details file is. It keeps the whole message now, and a long one scrolls (#244).

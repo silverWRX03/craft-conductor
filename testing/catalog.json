@@ -8871,5 +8871,13 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1013,
+    "section": "Fix: two mod lists saved at once are both kept",
+    "step": "On a server's Mods page, open the saved mod lists in two browser tabs. Type a different name in each and press Save in both as close together as you can: no 'being used by another process' error, and both lists are shown after a refresh. Change two settings in Settings from two tabs at once: both changes are in server.properties.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]
