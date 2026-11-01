@@ -8887,5 +8887,13 @@
     "type": "Core",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1015,
+    "section": "Fix: players added together while the server is stopped are all kept",
+    "step": "Stop a server. Have two friends ask to join from the invite page, then press Allow on both requests quickly, one right after the other. Start the server: both friends are on the whitelist and can join.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]

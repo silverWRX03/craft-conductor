@@ -57,6 +57,20 @@ def test_offline_edits_when_server_stopped(server, http):
     assert s["bans"] == [] and s["ops"] == [] and s["ip_bans"] == [] and not s["whitelist_enabled"]
 
 
+
+def test_two_players_added_at_once_are_both_kept(server, http, monkeypatch):
+    """With the server stopped, adding a player read the whitelist, asked Mojang, then wrote what it
+    had read: two at once (two Allow clicks, the Discord whitelist sync) kept only the last."""
+    import threading
+    import time
+    from craft_conductor import players as pm
+    monkeypatch.setattr(pm.Players, "lookup", lambda self, name: (time.sleep(0.2), (pm.offline_uuid(name), name))[1])
+    names = [f"Player{i}" for i in range(5)]
+    threads = [threading.Thread(target=Players(server, http).act, args=("whitelist-add", n)) for n in names]
+    [t.start() for t in threads]
+    [t.join(30) for t in threads]
+    assert sorted(e["name"] for e in read(server, "whitelist.json")) == names
+
 def test_offline_mode_uses_offline_uuids(server, http):
     (server / "server.properties").write_text("online-mode=false\n")
     Players(server, http).act("op", "Notch")
