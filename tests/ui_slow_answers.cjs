@@ -1,5 +1,6 @@
-// A test boot's log when the server answers slower than the page asks (every 1.5 s): each line
-// once, and the result once, not again for each question still waiting. See test_ui_styles.py.
+// When the server answers slower than the page asks (the console every second, a test boot's log
+// every 1.5 s): each line once, and a test's result once, not again for each question still
+// waiting. See test_ui_styles.py.
 const { chromium } = require(process.env.CRAFT_UI_PLAYWRIGHT);
 const assert = require('node:assert/strict');
 (async () => {
@@ -13,6 +14,23 @@ const assert = require('node:assert/strict');
   assert.equal((await page.request.post(base + '/api/login', { data: { password: 'PASSWORD' }, headers: H })).status(), 200);
   // The quick check and the test boot, answered here: the boot's log slowly.
   const json = (route, body) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+  const slowly = () => new Promise((ok) => setTimeout(ok, 4000));
+
+  // The console: its lines, slowly; and a command sent meanwhile.
+  await page.route('**/api/servers/alpha/console?*', async (route) => {
+    const since = Number(new URL(route.request().url()).searchParams.get('since'));
+    await slowly();
+    json(route, since === 0 ? { lines: [{ text: '[12:00:00] [Server thread/INFO]: Done (3.2s)!' }], last: 1 } : { lines: [], last: 1 });
+  });
+  await page.route('**/api/servers/alpha/command', (route) => json(route, { ok: true }));
+  await page.goto(base + '/#s/alpha/console');
+  await page.locator('.cc-log-line').first().waitFor({ timeout: 30000 });
+  await page.fill('input[aria-label="Server command"]', 'list');
+  await page.press('input[aria-label="Server command"]', 'Enter');
+  await page.waitForTimeout(9000);  // (the questions still on their way arrive)
+  assert.equal(await page.locator('.cc-log-line', { hasText: 'Done (3.2s)!' }).count(), 1, 'each console line once');
+
+  // A test boot.
   await page.route('**/api/test-check', (route) => json(route, { id: 'c' }));
   await page.route('**/api/hub/mods/check?*', (route) => json(route, { state: 'done', elapsed: 1,
     result: { conflicts: [], problems: [], mods: [], minecraft: '1.21.1' } }));
@@ -21,7 +39,7 @@ const assert = require('node:assert/strict');
     if (route.request().method() === 'POST') return json(route, { id: 't' });
     asked += 1;
     const since = Number(new URL(route.request().url()).searchParams.get('since'));
-    await new Promise((ok) => setTimeout(ok, 4000));
+    await slowly();
     json(route, since === 0
       ? { state: 'running', log: ['Test 1: all the mods'], next: 1, elapsed: 4, tests: 1 }
       : { state: 'done', log: ['It started.'], next: 2, elapsed: 8, tests: 1, result: { ok: true, working: [], minecraft: '1.21.1' } });

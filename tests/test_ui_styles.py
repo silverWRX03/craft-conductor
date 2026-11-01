@@ -34,9 +34,10 @@ def test_mod_test_finished_covers_the_whole_page(hub_env):
 
 
 
-def test_a_slow_test_boot_log_shows_each_line_once(hub_env):
-    """When the server answers slower than the page asks, the test boot's log and result came twice."""
+def test_slow_answers_show_each_line_once(hub_env):
+    """When the server answers slower than the page asks, console lines, and a test boot's log and
+    result, came twice."""
     _, client = hub_env
-    result = subprocess.run([os.environ["CRAFT_UI_NODE"], str(Path(__file__).with_name("ui_tester_slow.cjs")), client.base],
+    result = subprocess.run([os.environ["CRAFT_UI_NODE"], str(Path(__file__).with_name("ui_slow_answers.cjs")), client.base],
                             capture_output=True, text=True, timeout=180)
     assert result.returncode == 0, result.stdout + result.stderr
