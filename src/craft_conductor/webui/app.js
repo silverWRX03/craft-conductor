@@ -360,7 +360,15 @@ function noteRecovered(list) {
 // in here never sees them), and Sign out clears it. Text only, never HTML: messages carry what players, mods
 // and servers wrote. Questions waiting for an answer, and the export password, never go in.
 const BELL_KEY = "craft-conductor-bell", BELL_MAX = 100;
-let bell = { who: null, items: [], seen: 0, access: "" };  // who: "owner" or "user:<id>" (access.Subject.key)
+// A whole message is kept (#244), up to BELL_MORE characters: a longer one keeps its start and its end
+// (where it says where the details file is), so 100 of them still fit in the browser's storage.
+const BELL_MORE = 8000;
+function bellClip(text) {
+  text = String(text || "");
+  return text.length <= BELL_MORE ? text : text.slice(0, BELL_MORE - 2000) + "\n…\n" + text.slice(-(2000 - 3));
+}
+// noticed: the newest of the servers' messages (from /api/hub) taken in, so one cleared away doesn't come back
+let bell = { who: null, items: [], seen: 0, access: "", noticed: 0 };  // who: "owner" or "user:<id>" (access.Subject.key)
 let bellPending = [];   // (messages shown before it's known who's signed in)
 let bellSeenBefore = 0; // (what was read when the list was opened: newer ones are marked New)
 function bellSave() {
@@ -371,13 +379,36 @@ function bellNote(text, { bad = false, more = "", sid = server, from = "page", k
   if (!text) return;
   if (!bell.who) sid = null;  // (signed out: the server last open, and hubInfo, were the last person's)
   const known = hubInfo && sid ? (hubInfo.servers || []).find((s) => s.id === sid) : null;
-  const item = { time, text: String(text).slice(0, 500), more: String(more || "").slice(0, 500), bad: !!bad,
+  const item = { time, text: String(text).slice(0, 500), more: bellClip(more), bad: !!bad,
     sid: sid || null, name: known ? String(known.name || sid) : sid || null, from, key: String(key || "") };
   if (!bell.who) {
     if (!item.key || !bellPending.some((x) => x.key === item.key)) bellPending = [item, ...bellPending].slice(0, BELL_MAX);
     return;
   }
   bellAdd([item]);
+}
+// The same message already here, about the same server and from about the same time (a pop-up on this page,
+// or a phone notification on this device, that was also one of the servers' messages).
+function bellHas(text, sid, time) {
+  text = String(text || "");
+  return bell.items.some((x) => (x.sid || null) === (sid || null) && Math.abs(x.time - time) < 120
+    && (x.text === text || x.more === text || text.startsWith(x.text.replace(/…$/, ""))));
+}
+// The servers' messages that went to Discord and phones (#241): in the bell too, each new one once.
+function noteNotices(list) {
+  if (!bell.who || !Array.isArray(list)) return;
+  const fresh = list.filter((n) => n && n.message && +n.time > bell.noticed);
+  if (!fresh.length) return;
+  bell.noticed = Math.max(bell.noticed, ...fresh.map((n) => +n.time));
+  const items = [];
+  for (const n of fresh) {
+    if (bellHas(n.message, n.sid, +n.time)) continue;
+    const message = String(n.message), short = toastText(message);
+    const known = hubInfo && n.sid ? (hubInfo.servers || []).find((x) => x.id === n.sid) : null;
+    items.push({ time: +n.time, text: short.slice(0, 500), more: short !== message ? bellClip(message) : "", bad: false,
+      sid: n.sid || null, name: known ? String(known.name || n.sid) : n.sid || null, from: "server", key: `notice:${n.sid}:${n.time}` });
+  }
+  if (items.length) bellAdd(items); else bellSave();
 }
 function bellAdd(items) {
   const fresh = items.filter((i) => !i.key || !bell.items.some((x) => x.key === i.key));
@@ -395,8 +426,8 @@ function bellSignedIn(hb) {
     let saved = null;
     try { saved = JSON.parse(localStorage.getItem(BELL_KEY) || "null"); } catch (_) { /* private mode */ }
     bell = saved && saved.who === who && Array.isArray(saved.items)
-      ? { who, items: saved.items.slice(0, BELL_MAX), seen: +saved.seen || 0, access: String(saved.access || "") }
-      : { who, items: [], seen: 0, access: "" };  // (someone else's, or none: theirs is gone from this browser)
+      ? { who, items: saved.items.slice(0, BELL_MAX), seen: +saved.seen || 0, access: String(saved.access || ""), noticed: +saved.noticed || 0 }
+      : { who, items: [], seen: 0, access: "", noticed: 0 };  // (someone else's, or none: theirs is gone from this browser)
     bellSave();
     const pending = bellPending;
     bellPending = [];
@@ -457,7 +488,7 @@ async function bellTakePushes() {
     const pushes = await bellPushes().catch(() => []);
     if (bell.who !== who) return;  // (signed out meanwhile: these were for nobody here)
     // (another person's device: not theirs to see. A push's title is its server's name, or "Craft Conductor".)
-    bellAdd(pushes.filter((p) => p && p.who === who && p.body).map((p) => ({ time: +p.time || Date.now() / 1000,
+    bellAdd(pushes.filter((p) => p && p.who === who && p.body && !bellHas(p.body, typeof p.sid === "string" ? p.sid : null, +p.time || 0)).map((p) => ({ time: +p.time || Date.now() / 1000,
       text: String(p.body).slice(0, 500), more: "", bad: false, sid: typeof p.sid === "string" ? p.sid : null,
       name: p.title && p.title !== "Craft Conductor" ? String(p.title).slice(0, 80) : null, from: "phone", key: "" })));
   } finally { bellTaking = false; }
@@ -467,7 +498,7 @@ window.addEventListener("storage", (e) => {
   if (e.key !== BELL_KEY || !bell.who) return;
   let saved = null;
   try { saved = JSON.parse(e.newValue || "null"); } catch (_) { /* half written */ }
-  if (saved && saved.who === bell.who && Array.isArray(saved.items)) bell = { ...bell, items: saved.items.slice(0, BELL_MAX), seen: +saved.seen || 0 };
+  if (saved && saved.who === bell.who && Array.isArray(saved.items)) bell = { ...bell, items: saved.items.slice(0, BELL_MAX), seen: +saved.seen || 0, noticed: Math.max(bell.noticed, +saved.noticed || 0) };
   else if (!saved) bell = { ...bell, items: [], seen: 0 };  // (signed out in the other tab)
   else return;
   renderBell();
@@ -1525,13 +1556,15 @@ function settleUpdateMark(hb) {
 
 // ------------------------------------------------------------------- status
 async function refreshStatus() {
-  try { hubInfo = await api("/api/hub"); } catch (e) {
+  // (only the servers' messages newer than the bell has: #241)
+  try { hubInfo = await api(bell.noticed ? `/api/hub?notices_since=${bell.noticed}` : "/api/hub"); } catch (e) {
     if (!(e instanceof Unauthorized)) { $("#state-pill").textContent = t("reconnecting"); $("#state-pill").className = "pill"; }
     return;
   }
   const hb = hubInfo;
   bellSignedIn(hb);
   noteRecovered(hb.recovered);
+  noteNotices(hb.notices);
   styleSignedIn(hb);
   chimeFor(hb.servers);
   $("#version").textContent = "v" + hb.version + " beta";
@@ -1647,7 +1680,7 @@ const views = {};
 
 // A live server console: output plus a command box. Used on the Console page and the dashboard.
 function consolePanel({ compact = false } = {}) {
-  const out = h("div", { class: "console cc-terminal-box" + (compact ? " compact" : ""), role: "log", "aria-label": "Server console", "aria-live": "polite" });
+  const out = h("div", { class: "console cc-terminal-box" + (compact ? " compact" : ""), role: "log", "aria-label": "Server console", "aria-live": "off", tabindex: "0" });  // (read on purpose, not aloud by itself: #238)
   const input = h("input", { placeholder: "Type a server command, e.g. say hello  (↑/↓ for history)", autocomplete: "off",
     "aria-label": "Server command" });
   const history = []; let hi = 0; let seq = 0;
@@ -2897,15 +2930,21 @@ views.players = () => {
     );
   };
 
-  // Built once, outside the refreshed area, so typing isn't interrupted.
+  // Built once, outside the refreshed area, so typing isn't interrupted. An empty name says so (#238).
+  const byName = (action) => {
+    const who = name.value.trim();
+    if (who) return run(action, who);
+    toast(action === "ban-ip" ? "Type an IP address or a player name first." : "Type a player name first.", true);
+    name.focus();
+  };
   const manage = card("Add or manage a player",
         h("div", { class: "row" }, name, reason),
         h("div", { class: "row mt-s" },
           ...[["Op", "op"], ["De-op", "deop"], ["Whitelist", "whitelist-add"], ["Un-whitelist", "whitelist-remove"], ["Kick", "kick"], ["Pardon", "pardon"]]
-            .map(([label, action]) => h("button", { class: "btn", onclick: () => name.value.trim() && run(action, name.value.trim()) }, label)),
-          h("button", { class: "btn danger", onclick: () => name.value.trim() && run("ban", name.value.trim()) }, "Ban"),
+            .map(([label, action]) => h("button", { class: "btn", onclick: () => byName(action) }, label)),
+          h("button", { class: "btn danger", onclick: () => byName("ban") }, "Ban"),
           h("button", { class: "btn danger", title: "Enter an IP address, or the name of an online player",
-                        onclick: () => name.value.trim() && run("ban-ip", name.value.trim()) }, "Ban IP")));
+                        onclick: () => byName("ban-ip") }, "Ban IP")));
   const requests = joinRequestsCard(() => load());
   const activity = activityCard();
   fill($("#main"), h("h1", { class: "view-title" }, "Players"), requests.el, manage, h("div", { class: "mt" }, body), h("div", { class: "mt" }, activity.el));
@@ -4230,6 +4269,11 @@ views.friends = () => {
       if (x.slug) byProject.set(x.source === "curseforge" ? x.slug : `modrinth:${x.slug}`, x);
     }
     const items = [];
+    // A file of your own (moved here from the server, perhaps by mistake) can go back on the server (#236).
+    const toServer = (name) => () => h("button", { class: "btn small", onclick: async () => {
+      const res = await act(() => api("/api/client/local/to-server", { method: "POST", body: { name } }));
+      if (res) { toast(res.message); await reload(); }
+    } }, "Put back on the server");
     const add = (m, manual = false) => {
       const explicit = byProject.get(m.project) || null;
       const local = !!m.local || (d.local_mods || []).includes(m.filename);
@@ -4251,6 +4295,7 @@ views.friends = () => {
             if (!res) return false;
             await reload(); return true;
           } : null,
+        controls: local && !explicit ? toServer(m.filename || m.name) : null,
       });
     };
     for (const m of pack.mods || []) add(m);
@@ -4268,6 +4313,7 @@ views.friends = () => {
           if (!res) return false;
           await reload(); return true;
         },
+        controls: toServer(name),
       });
     }
     return items;
@@ -8665,7 +8711,7 @@ views["craft-conductor"] = () => {
 // server's id), and it starts fresh when that changes, so a new server never inherits the
 // choices of the last one set up.
 const freshSetup = () => ({ target: null, friends: false, reach: "playit", loader: null, minecraft: "latest", mods: new Map(), motd: "A Minecraft server",
-  properties: null, advancedOpen: false, max_players: 20, difficulty: "normal", gamemode: "survival", port: 25565, portChosen: false, memory_gb: null,
+  properties: null, advancedOpen: false, max_players: 20, difficulty: "normal", gamemode: "survival", port: 25565, portChosen: false, portTyped: false, memory_gb: null,
   network_access: null, accept_eula: false, submitted: false, prefilled: false, modpack: null, localMods: [], world: null, showBetas: false,
   aikar: false, clientMods: new Map(), clientMeta: new Map(), clientLocal: [], companionsSeen: new Set(),  // friends' download: slug -> name; staged files
   hand: [], handKey: "", handError: "", handCheck: null, handGot: new Map(),  // mods to download by hand: the files; filename -> staging id
@@ -8687,6 +8733,17 @@ function setupChanged() { if (setupState.onChange) setupState.onChange(); setupS
 const earlyChannels = () => Object.fromEntries([...setupState.mods].filter(([, m]) => m.channel).map(([k, m]) => [k, m.channel]));
 // The mods picked to use as their datapack build (in the world, not the mods folder).
 const setupDatapacks = () => [...setupState.mods].filter(([, m]) => m.explicit && m.datapack).map(([k]) => k);
+// A world from a newer Minecraft than the server's (#233): its version, or null. Releases only (26.2, 1.21.1).
+function setupWorldNewer() {
+  const st = setupState, world = st.world && st.world.version, server = setupModVersion();
+  const key = (v) => /^\d{1,3}(\.\d{1,3}){1,2}$/.test(v || "") ? v.split(".").map(Number) : null;
+  const a = key(world), b = key(server);
+  if (!a || !b) return null;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0) ? world : null;
+  }
+  return null;
+}
 function setupModVersion() {
   const st = setupState;
   return st.minecraft === "latest" ? (st.newest || "") : st.minecraft;
@@ -8942,7 +8999,7 @@ function setupHandQuery() {
     modpack_version: packHas ? pack.version_id : "", modpack_exclude: packHas ? [...removed] : [] };
 }
 const setupHandMissing = () => (setupState.hand || []).filter((m) => !setupState.handGot.has(m.filename));
-function setupHandCheck() {
+function setupHandCheck(again = false) {
   const st = setupState;
   const body = setupHandQuery();
   const key = body ? JSON.stringify(body) : "";
@@ -8955,7 +9012,7 @@ function setupHandCheck() {
     if (st.handKey !== key) return;
     st.hand = r.mods || [];
     const left = setupHandMissing().length;
-    if (left) toast(`${left} mod(s) must be downloaded from CurseForge by hand: see Manage Mods`);
+    if (left && !again) toast(`${left} mod(s) must be downloaded from CurseForge by hand: see Manage Mods`);
     if (left) setupHandLook();  // (maybe they're in Downloads already)
   }).catch((e) => {
     if (st.handKey !== key || e instanceof Unauthorized) return;
@@ -8973,6 +9030,8 @@ function setupHandLook(chosen = false) {
   if (!missing.length || st.submitted || !isOwner()) return Promise.resolve(null);
   st.handBusy = api("/api/hub/manual/look", { method: "POST", body: { filenames: missing, ...(st.handOnce ? { folder: st.handOnce } : {}) } }).then((r) => {
     for (const x of r.found) { st.handGot.set(x.filename, x.id); st.handWrong.delete(x.filename); }
+    // Craft Conductor was restarted since it said which files to download (#243): it's asked again, once.
+    if ((r.unknown || []).length && st.handAgain !== st.handKey) { st.handAgain = st.handKey; st.handKey = null; setupHandCheck(true); }
     for (const w of r.wrong) st.handWrong.set(w.filename, w.where);
     handWrongToasts(r.wrong, st.handTold);
     handFoundToast(r.found, setupHandMissing().length);
@@ -9755,7 +9814,7 @@ views.setup = () => {
         else if (r.busy) { note.className = "small warn-text"; note.textContent = `Another program on this computer is using port ${port}; the server won't start until it's free. Try ${r.suggestion}.`; }
         else { note.className = "small ok-text"; note.textContent = `Port ${port} is free.` + (port === 25565 ? "" : " Friends connect with your address followed by :" + port + "."); }
       };
-      input.addEventListener("input", () => { st.port = Number(input.value); st.portChosen = true; clearTimeout(timer); timer = setTimeout(check, 300); });
+      input.addEventListener("input", () => { st.port = Number(input.value); st.portChosen = st.portTyped = true; clearTimeout(timer); timer = setTimeout(check, 300); });
       check();
       return field("Port (players connect to this)", input, note);
     };
@@ -9778,6 +9837,19 @@ views.setup = () => {
         st.world.version ? h("span", { class: "muted" }, ` · last played on Minecraft ${st.world.version}`) : null,
         h("div", { class: "small muted" }, "Minecraft upgrades an older world when the server first starts; a world can't go back to an older version, " +
           "and blocks from mods the server doesn't have are lost."),
+        (() => {  // (a newer world than the server: asked before it's brought in, #233)
+          const newer = setupWorldNewer();
+          if (!newer) return null;
+          const canUse = (opts.versions || []).includes(newer);
+          return h("div", { class: "notice warn mt-s", role: "note" },
+            h("strong", {}, `This world was last played on Minecraft ${newer}, newer than this server's ${setupModVersion()}. `),
+            `Opening it in an older version can lose what ${newer} added (blocks, items, whole chunks).`,
+            st.world.olderOk ? h("div", { class: "small mt-s" }, "✓ You chose to import it anyway.") :
+              h("div", { class: "row mt-s wrap" },
+                canUse ? h("button", { type: "button", class: "btn small", onclick: () => { st.minecraft = newer; setupRecheckMods(); renderForm(); } }, `Use Minecraft ${newer}`) : null,
+                h("button", { type: "button", class: "btn small", onclick: () => pickWorld((w) => { st.world = w; renderForm(); }) }, "Choose another world"),
+                h("button", { type: "button", class: "btn small danger", onclick: () => { st.world.olderOk = true; renderForm(); } }, "Import anyway")));
+        })(),
         h("div", { class: "row mt-s" }, h("button", { type: "button", class: "btn small", onclick: () => pickWorld((w) => { st.world = w; renderForm(); }) }, "Choose another"),
           h("button", { type: "button", class: "btn small ghost", onclick: () => { st.world = null; renderForm(); } }, "Use a new world instead")))
       : h("div", { class: "mt-s" },
@@ -9838,17 +9910,26 @@ views.setup = () => {
       const bad = [...st.mods.values()].filter((m) => m.bad);
       if (bad.length && !(await ask(`${bad.map((m) => `${m.name}: ${m.bad}`).join("\n")}\n\nCraft Conductor won't change your Minecraft version to make ${bad.length === 1 ? "it" : "them"} work: ` +
         "a required mod that can't be used stops the server from being made (you're told why), and an optional one is left out.\n\nCreate the server anyway?", { ok: "Create anyway" }))) return;
+      if (setupWorldNewer() && !st.world.olderOk) {
+        toast(`The world is from Minecraft ${setupWorldNewer()}, newer than this server: choose what to do on the World card first.`, true);
+        return;
+      }
       const mods = [...st.mods].filter(([, m]) => m.explicit && m.required).map(([slug]) => slug);
       const optional = [...st.mods].filter(([, m]) => m.explicit && !m.required).map(([slug]) => slug);
+      const sent = st.sent || { ids: new Set(), local: [], client: [], world: "" };  // (what a first try put in the server)
       const body = { loader: st.loader, minecraft: st.minecraft, mods, optional_mods: optional, memory_gb: st.memory_gb,
         aikar_flags: !!st.aikar && st.memory_gb > AIKAR_ABOVE_GB,
         motd: st.motd, max_players: st.max_players, difficulty: st.difficulty, gamemode: st.gamemode, port: st.port,
         network_access: st.network_access, accept_eula: true, properties: changedProps(st.properties, propDefaults),
-        // (trying again after a failed first start: the uploaded mods and world are in the server already)
-        friends: !!st.friends, local_mods: st.filesSent ? [] : st.localMods.map((m) => m.id), world: st.world && !st.filesSent ? st.world.world : "",
+        // (trying again after a failed first start: the files sent then are in the server already. Only what was
+        // added since is sent, and what was taken off the form since is taken out of the server: #235)
+        friends: !!st.friends, local_mods: st.localMods.filter((m) => !sent.ids.has(m.id)).map((m) => m.id),
+        world: st.world && (!st.filesSent || st.world.world !== sent.world) ? st.world.world : "",
+        world_older_ok: !!(st.world && st.world.olderOk),
         ...(isNew ? { reach: st.reach, ...(st.reach !== "home" && st.ownerName ? { owner_name: st.ownerName } : {}) } : {}),
-        client_mods: st.friends ? [...st.clientMods.keys()] : [], client_local: st.friends && !st.filesSent ? st.clientLocal.map((m) => m.id) : [],
-        manual_files: st.filesSent ? [] : (st.hand || []).filter((m) => st.handGot.has(m.filename)).map((m) => st.handGot.get(m.filename)),
+        client_mods: st.friends ? [...st.clientMods.keys()] : [],
+        client_local: st.friends ? st.clientLocal.filter((m) => !sent.ids.has(m.id)).map((m) => m.id) : [],
+        manual_files: (st.hand || []).filter((m) => st.handGot.has(m.filename)).map((m) => st.handGot.get(m.filename)).filter((id) => !sent.ids.has(id)),
         mod_channels: Object.fromEntries([...st.mods].filter(([, m]) => m.explicit && m.channel).map(([k, m]) => [k, m.channel])), datapacks: setupDatapacks(),
         pins: setupPins() };
       if (isNew && st.reach !== "home") {  // (reachable from the internet: the whitelist is sent either way, and off only when still wanted)
@@ -9867,6 +9948,16 @@ views.setup = () => {
         body.modpack_version = st.modpack.version_id;
         body.modpack_exclude = [...(st.modpack.removed instanceof Set ? st.modpack.removed : [])];
       }
+      if (st.filesSent) {
+        const localNow = new Set(st.localMods.map((m) => m.name)), clientNow = new Set(st.friends ? st.clientLocal.map((m) => m.name) : []);
+        body.remove_local = sent.local.filter((n) => !localNow.has(n));
+        body.remove_client_local = sent.client.filter((n) => !clientNow.has(n));
+        body.replace_world = !!sent.world && (!st.world || st.world.world !== sent.world);
+      }
+      // What's in the server after this try: a retry takes off what's no longer on the form.
+      const nowSent = { ids: new Set([...sent.ids, ...body.local_mods, ...body.client_local, ...body.manual_files]),
+        local: st.localMods.map((m) => m.name), client: st.friends ? st.clientLocal.map((m) => m.name) : [],
+        world: st.world ? st.world.world : "" };
       if (isNew) {
         const r = await act(() => api("/api/hub/create", { method: "POST", body }));
         if (r) {
@@ -9875,7 +9966,7 @@ views.setup = () => {
           // The choices stay with the new server's setup page: if its first start fails, the form still
           // has the modpack, name, port and the rest for trying again (it was rebuilt from
           // craft-conductor.toml, which doesn't have them). The files sent are in the server already.
-          Object.assign(st, { target: r.id, prefilled: true, submitted: true, filesSent: true, playersOnlyDone: null });
+          Object.assign(st, { target: r.id, prefilled: true, submitted: true, filesSent: true, sent: nowSent, playersOnlyDone: null });
           location.hash = `#s/${r.id}/setup`;
         }
         return;
@@ -9884,6 +9975,7 @@ views.setup = () => {
       if (r) {
         saveSetupFollowup({ id: server, friends: !!body.friends, remote: !!st.remoteAfterCreate, phase: "creating" });
         st.submitted = true;
+        st.sent = nowSent;
         renderProgress();
       }
     };
@@ -9927,8 +10019,11 @@ views.setup = () => {
           st.properties["white-list"] = closed ? "true" : propDefaults["white-list"];
           st.properties["enforce-whitelist"] = closed ? "true" : propDefaults["enforce-whitelist"];
         }
-        if (w === "forward" && opts.open_port) { st.port = opts.open_port; st.portChosen = true; }  // (one Craft Conductor picked: not 25565)
-        else if (st.reach === "forward" && st.port === opts.open_port) { st.port = opts.port; st.portChosen = false; }
+        // A port to open on the router: one Craft Conductor picks (not 25565), unless one was typed in
+        // that isn't 25565 (it stays, #232).
+        const typed = st.portTyped && st.port !== 25565;
+        if (w === "forward" && opts.open_port && !typed) { st.port = opts.open_port; st.portChosen = true; }
+        else if (w !== "forward" && st.reach === "forward" && !st.portTyped && st.port === opts.open_port) { st.port = opts.port; st.portChosen = false; }
         st.reach = w;
         renderForm();
       };

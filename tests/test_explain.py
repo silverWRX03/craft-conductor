@@ -100,6 +100,25 @@ def test_a_file_of_your_own_that_only_runs_on_players_computers(tmp_path):
     assert e["actions"][0]["filename"] == "controlify-3.5.3.jar"
 
 
+def test_a_fabric_mod_that_only_runs_on_players_computers(tmp_path):
+    """Fabric names the mod in its entrypoint error ("provided by 'x'"), not in the stack trace (#231)."""
+    import json
+    import zipfile
+    mods = tmp_path / "mods"
+    mods.mkdir()
+    with zipfile.ZipFile(mods / "rt-hud-tweaks-1.0.jar", "w") as z:
+        z.writestr("fabric.mod.json", json.dumps({"id": "rt_hud_tweaks", "name": "RT HUD Tweaks", "environment": "*"}))
+    lines = ["java.lang.RuntimeException: Could not execute entrypoint stage 'main' due to errors, provided by "
+             "'rt_hud_tweaks' at 'net.minecraft.client.gui.RtHudTweaks'!",
+             "Caused by: net.fabricmc.loader.api.EntrypointException: Exception while loading entries for entrypoint "
+             "'main' provided by 'rt_hud_tweaks'",
+             "Caused by: java.lang.ClassNotFoundException: net.minecraft.client.gui.RtHudTweaks"]
+    e = explain.explain(lines, tmp_path, [])
+    assert e["cause"] == "players-only" and e["title"] == "RT HUD Tweaks only runs on players' computers", e
+    assert [a["kind"] for a in e["actions"]] == ["jar-to-players", "disable-jar"]
+    assert e["actions"][0]["filename"] == "rt-hud-tweaks-1.0.jar"
+
+
 def test_moving_a_file_of_your_own_to_players_mods(hub_env):
     hub, c = hub_env
     login(c)
@@ -116,3 +135,9 @@ def test_moving_a_file_of_your_own_to_players_mods(hub_env):
     assert not (mods / "controlify-3.5.3.jar").exists()
     assert [p.name for p in local_jars(d.m.config)] == ["controlify-3.5.3.jar"]
     assert c.post("/api/servers/alpha/problem/fix", {"kind": "jar-to-players", "filename": "controlify-3.5.3.jar"})[0] == 409
+    # Moved by mistake: Manage Friends Mods → Put back on the server (#236)
+    status, r, _ = c.post("/api/servers/alpha/client/local/to-server", {"name": "controlify-3.5.3.jar"})
+    assert status == 200 and "back on the server" in r["message"], r
+    assert (mods / "controlify-3.5.3.jar").read_bytes() == b"PK" and local_jars(d.m.config) == []
+    assert c.post("/api/servers/alpha/client/local/to-server", {"name": "controlify-3.5.3.jar"})[0] == 404
+    assert c.post("/api/servers/alpha/client/local/to-server", {"name": "../hub.json"})[0] == 404

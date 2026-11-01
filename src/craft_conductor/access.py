@@ -271,6 +271,7 @@ SERVER_ROUTES: dict[tuple[str, str], str | tuple[str, ...]] = {
     ("POST", "/api/client"): "mods.manage",
     ("POST", "/api/client/local"): "mods.manage",
     ("POST", "/api/client/local/remove"): "mods.manage",
+    ("POST", "/api/client/local/to-server"): "mods.manage",
     ("POST", "/api/client/new-link"): "friends.share",
     ("POST", "/api/client/stop-link"): "friends.share",
     ("POST", "/api/client/discord"): "friends.share",

@@ -8767,5 +8767,93 @@
     "type": "Core",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1000,
+    "section": "Fix: the bell has the servers' messages (#241)",
+    "step": "Without Discord or phone notifications, make a server with Only friends at home (whitelist off), then set a public address under Craft Conductor settings -> Sharing with friends. Open the bell: 'The whitelist of <server> is now on, because it can be reached from the internet' is there, with the server's name. Clear the bell and reload: it doesn't come back.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1001,
+    "section": "Fix: the bell keeps whole messages (#244)",
+    "step": "New server from a modpack whose first start fails with a long Java error (Actium with Controlify). Open the bell: the message is whole (it scrolls), down to where it says the details file is.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1002,
+    "section": "Fix: Update now after a failed update (#245)",
+    "step": "On a release that has this fix, update to a newer one that fails to start, so the previous version is put back. Press Update now straight away (without Check for updates): the update starts again, no 'no craft-conductor update is available'.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1003,
+    "section": "Fix: Fabric 'provided by' start errors explained (#231)",
+    "step": "Fabric server, Mods -> Add a mod file: a client-only mod jar Modrinth doesn't recognise whose main entrypoint reaches for net.minecraft.client. Start: the Dashboard says '<its name> only runs on players' computers' with Move ... to players' mods and Switch ... off.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1004,
+    "section": "Fix: a typed port stays with Open a port on my router (#232)",
+    "step": "New server: type port 25622, then choose Friends outside your home -> Open a port on my router. The port stays 25622 (also after choosing another option and back), and the server is made on 25622. With the port left at 25565, a port between 30000 and 39999 is picked instead.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1005,
+    "section": "Fix: a setup retry follows the form (#235)",
+    "step": "New server -> Fabric, Local files: a jar that needs a missing mod; World -> Import a world. Create: the setup fails. On the setup page: Manage Mods -> Remove the jar, Use a new world instead, Create my server. It works: the jar is gone from server/mods and the world is a new one (not the imported level.dat).",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1006,
+    "section": "Fix: put your own file back on the server (#236)",
+    "step": "After Dashboard -> Move <own client-only file> to players' mods: Friends -> Manage Friends Mods lists the file with Put back on the server. Press it: the file is back in the server's mods folder, out of client-mods, and the friends' download no longer lists it.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1007,
+    "section": "Fix: a world from a newer Minecraft is asked about (#233)",
+    "step": "New server -> Fabric -> Minecraft 26.2 -> Import a world last played on 26.3. The World card warns it's newer, with Use Minecraft 26.3, Choose another world and Import anyway. Create my server is refused until one is chosen; Use Minecraft 26.3 switches the version and the warning goes.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1008,
+    "section": "Fix: hand downloads found after a restart (#243)",
+    "step": "CurseForge modpack with mods to download by hand: the setup page lists them. Quit Craft Conductor, start it again, go back to the setup page (it keeps your choices). Download the files into Downloads: each shows loaded within about 5 seconds.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1009,
+    "section": "Fix: hand-downloaded mods count for players (#242)",
+    "step": "New server -> CurseForge -> All the Mods 11 -> Use this modpack. Download the 3 hand-download mods: all show loaded. The players' check doesn't say Player Animation Library is missing, and Create my server makes the server.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1010,
+    "section": "Fix: the console isn't read aloud; an empty player name says so (#238)",
+    "step": "With Narrator (or NVDA) on, start a server: the console lines aren't read out by themselves, but 'running' is. On Players, type 'bad name!' and press Whitelist: the whole error is heard. Clear the box and press Whitelist: 'Type a player name first.' is shown and heard, and the focus is in the Player name box.",
+    "type": "Core",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]

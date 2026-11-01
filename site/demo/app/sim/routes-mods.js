@@ -555,6 +555,17 @@
       return { ok: true, name };
     },
     "POST /api/client/local/remove": (r) => { r.s.client.local = r.s.client.local.filter((x) => x !== r.b.name); return { ok: true }; },
+    "POST /api/client/local/to-server": (r) => {
+      const name = String(r.b.name || "");
+      if (!r.s.client.local.includes(name)) throw new ApiError(404, "that file isn't in your friends' download");
+      r.s.client.local = r.s.client.local.filter((x) => x !== name);
+      if (!r.s.mods.some((m) => m.filename === name)) {
+        r.s.mods.push({ key: `local:${name}`, source: "local", slug: name, name: name.replace(/\.jar$/i, ""), version: "local file", channel: "release", filename: name,
+          dependency_of: null, manual: true, datapack: false, required: true, environment: "both", installed: true });
+      }
+      if (running(r.s)) r.s.restartNeeded = true;
+      return { ok: true, message: `${name} is back on the server (from its next start), and out of your friends' download` };
+    },
     "GET /api/client/search": (r) => {
       const s = r.s;
       if (!cat().runsMods(s.loader) || cat().plugins(s.loader)) return { results: [] };

@@ -19,6 +19,7 @@ import ipaddress
 import json
 import os
 import logging
+import math
 import re
 import secrets
 import shutil
@@ -108,6 +109,7 @@ SECURITY_HEADERS = {
 
 # Reachable before the first-run notice has been accepted.
 # A sign-in with craft-conductor's one-time password (headless first run) can only replace it.
+STAGED_NAME = re.compile(r"[A-Za-z0-9 ()\[\]+_.,'-]{1,120}\.(jar|zip)")  # a file added on the setup page
 FIRST_SIGN_IN_OK = {"/api/auth/change", "/api/logout", "/api/hub", "/api/notice", "/api/notice/accept", "/api/licenses"}
 NOTICE_EXEMPT = {"/api/notice", "/api/notice/accept", "/api/status", "/api/licenses", "/api/auth/change", "/api/hub"}
 # Routes whose request body is a file, streamed to disk rather than parsed as JSON.
@@ -1172,6 +1174,15 @@ def tailscale_ip() -> str | None:
         return None
 
 
+def _number(value) -> float:
+    """A number from a query (0 when it isn't one)."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return number if math.isfinite(number) else 0.0
+
+
 def early_channel(b: dict, mod: str) -> str | None:
     """The early channel a mod was picked with (``"channels": {mod: "beta"}``), if any."""
     channels = b.get("channels")
@@ -1679,6 +1690,9 @@ class HubApi:
             "recovered": [{"sid": sid, "message": d.m.recovered["message"], "time": d.m.recovered["time"]}
                           for sid, d in sorted(hub.daemons.items())
                           if getattr(d.m, "recovered", None) and time.time() - d.m.recovered["time"] < 86400],
+            # (the servers' messages that went to Discord and phones, for the bell: the page takes new ones, #241)
+            # (only those newer than the page has: notices_since, asked every 2 s)
+            "notices": [n for n in list(hub.notices) if n["time"] > max(_number(q.get("notices_since")), time.time() - 86400)],
             "share": hub.share_status() if not hub.is_single else None,
             "guide": None if hub.is_single else self._guide_state(),
             "health": [*(hub._health.warnings if getattr(hub, "_health", None) else []),  # (checked every minute: health.py)
@@ -2792,7 +2806,7 @@ class HubApi:
         if handler.headers.get("X-CRAFT-CONDUCTOR") != "1":
             raise ApiError(403, "missing X-CRAFT-CONDUCTOR header")
         name = q.get("filename", "")
-        if not re.fullmatch(r"[A-Za-z0-9 ()\[\]+_.,'-]{1,120}\.(jar|zip)", name):
+        if not STAGED_NAME.fullmatch(name):
             raise ApiError(400, "only .jar and .zip files can be added here")
         return self.hub.stage_upload(handler, name, MAX_ARCHIVE if name.endswith(".zip") else MAX_UPLOAD)
 
@@ -2856,6 +2870,9 @@ class HubApi:
         out = self.hub.look_for_hand_downloads(files, chosen_folder(b.get("folder")), into)
         for x in out["found"]:
             x["id"] = ids[x["filename"]]
+        # (names Craft Conductor wasn't told about: it was restarted since the page asked. The page asks again, #243)
+        known = {x["filename"] for x in files}
+        out["unknown"] = [n for n in dict.fromkeys(str(x) for x in names) if n not in known]
         return out
 
     def hand_folders_info(self, q=None, b=None) -> dict:
@@ -3166,6 +3183,7 @@ class Api:
         post("/api/client/discord", self.post_to_discord)
         post("/api/client/local", self.upload_client_jar)
         post("/api/client/local/remove", self.remove_client_jar)
+        post("/api/client/local/to-server", self.client_jar_to_server)
         get("/api/client/search", self.client_search)
         self.routes = r
         self.sampler = stats.Sampler()
@@ -3369,6 +3387,11 @@ class Api:
             raise ApiError(409, "this server is already set up")
         spec = setupmod.SetupSpec.from_dict(b)
         spec.world_source = self.web.hub.world_source(spec.world)
+        try:
+            setupmod.world_not_newer(spec)
+        except ConfigError as e:
+            raise ApiError(400, str(e)) from None
+        self._retry_matches_the_form(b)
         if spec.local_mods:
             self.web.hub.take_staged(spec.local_mods, self.m.mods_dir)
         if spec.client_local:
@@ -3377,6 +3400,36 @@ class Api:
         if spec.manual_files and self.m.config.manual_dir:
             self.web.hub.take_staged(spec.manual_files, self.m.config.manual_dir)  # mods downloaded by hand
         return self._job("set up server", self.d.run_setup, spec)
+
+    def _retry_matches_the_form(self, b: dict) -> None:
+        """Trying a failed setup again (#235): the server folder already has what the first try put in it.
+        Files of your own taken off the form since (``remove_local``, ``remove_client_local``: their names)
+        are taken out, and with ``replace_world`` the world the first try brought in goes (a new world is
+        made, or the one now chosen is brought in)."""
+        from .clientpack import local_jars
+        from . import world
+
+        def names(key: str) -> list[str]:
+            given = b.get(key)
+            return [x for x in given if isinstance(x, str) and STAGED_NAME.fullmatch(x)][:500] if isinstance(given, list) else []
+        mine = set(self.m.unmanaged_jars())
+        for name in names("remove_local"):
+            if name in mine:
+                (self.m.mods_dir / name).unlink(missing_ok=True)
+                log.info("took %s out of the server's mods: it was removed from the setup page", name)
+        theirs = {p.name: p for p in local_jars(self.m.config)}
+        for name in names("remove_client_local"):
+            if name in theirs:
+                theirs[name].unlink(missing_ok=True)
+        if b.get("replace_world") is True:
+            try:
+                level = world.level_dir(self.m.server_dir)
+            except world.WorldError as e:
+                raise ApiError(400, str(e)) from None
+            for folder in (level, level.with_name(level.name + "_nether"), level.with_name(level.name + "_the_end")):
+                if folder.is_dir() and not folder.is_symlink():
+                    rmtree(folder)
+                    log.info("removed the world %s from the first try: another was chosen on the setup page", folder.name)
 
     # ---------------------------------------------------------------- mods
     def mods(self, q, b) -> dict:
@@ -4352,6 +4405,23 @@ class Api:
         jar.unlink()
         log.info("removed %s for players", jar.name)
         return {"ok": True}
+
+    def client_jar_to_server(self, q, b) -> dict:
+        """Put back on the server: a file of your own moved to players' mods goes back to the server's
+        mods folder (#236), as a mod site's mod does with Put back on the server."""
+        from .clientpack import local_jars
+        jar = next((p for p in local_jars(self.m.config) if p.name == str(b.get("name", ""))), None)
+        if jar is None:
+            raise ApiError(404, "no such file")
+        if self.m.loader.mods_folder != "mods":
+            raise ApiError(400, "this server doesn't run mods")
+        dest = self.m.mods_dir / jar.name
+        if dest.exists() or dest.with_name(dest.name + ".disabled").exists():
+            raise ApiError(409, f"the server's mods folder already has {jar.name}")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(jar), str(dest))
+        log.info("moved %s from players' mods back to the server's mods", jar.name)
+        return {"ok": True, "message": f"{jar.name} is back on the server (from its next start), and out of your friends' download"}
 
     def post_to_discord(self, q, b) -> dict:
         """Post this server's invite to a Discord channel (the links come from here, not the page)."""

@@ -77,6 +77,14 @@ def level_info(level_dat: bytes) -> dict:
             "hardcore": bool(getattr(data.get("hardcore"), "value", 0))}
 
 
+def version_of(source: Path) -> str | None:
+    """The Minecraft version a world to import (a world folder, or a .zip) was last played on."""
+    if source.is_dir():
+        level = source / "level.dat"
+        return level_info(level.read_bytes()).get("version") if level.is_file() and level.stat().st_size <= 16 << 20 else None
+    return inspect_zip(source).get("version")
+
+
 def _world_prefix(names: list[str]) -> str:
     """The folder in a zip that holds level.dat (the shallowest one)."""
     found = sorted((n for n in names if n.replace("\\", "/").split("/")[-1] == "level.dat"),

@@ -83,6 +83,15 @@ def test_a_new_server_reachable_from_the_internet_has_its_whitelist_on(hub_env, 
         assert not reach.in_open_range(port)
 
 
+def test_a_port_typed_in_stays_when_its_opened_on_the_router(hub_env):
+    hub, c = hub_env  # (#232: a port picked for the router replaces only 25565, or none typed in)
+    login(c)
+    status, r, _ = c.post("/api/hub/create", {"loader": "vanilla", "motd": "Typed", "accept_eula": True,
+                                              "reach": "forward", "port": 25622})
+    assert status == 200, r
+    assert props(hub.get(r["id"]))["server-port"] == "25622"
+
+
 def test_router_on_or_a_public_address_makes_new_servers_closed_too(hub_env):
     hub, c = hub_env
     login(c)
@@ -573,3 +582,16 @@ def test_a_server_with_geyser_212_is_set_up_for_bedrock_by_address(hub_env):
     assert reach.in_open_range(webrtc)
     wanted = {(p, pr) for p, pr, _ in hub.upnp_wanted()}
     assert {(19132, "UDP"), (19132, "TCP"), (webrtc, "UDP")} <= wanted
+
+
+def test_the_whitelist_message_reaches_the_owners_bell(hub_env):
+    hub, c = hub_env  # (#241: without Discord or phones it was only in the server's Activity)
+    login(c)
+    assert c.post("/api/servers/alpha/reach", {"way": "playit"})[0] == 200
+    notices = c.get("/api/hub")[1]["notices"]
+    [n] = [n for n in notices if "whitelist" in n["message"]]
+    assert n["sid"] == "alpha" and n["message"].startswith("The whitelist of ")
+    assert [x["time"] for x in notices] == sorted({x["time"] for x in notices})  # (each one told apart by its time)
+    newest = notices[-1]["time"]
+    assert c.get(f"/api/hub?notices_since={newest}")[1]["notices"] == []  # (only newer ones: asked every 2 s)
+    assert c.get("/api/hub?notices_since=nan")[1]["notices"] == notices

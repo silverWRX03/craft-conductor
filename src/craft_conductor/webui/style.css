@@ -1019,6 +1019,7 @@ ul.people li { align-items: flex-start; gap: 10px; }
 .bell-body { min-width: 0; flex: 1; }
 .bell-body p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .bell-body p + p { margin-top: 4px; }
+.bell-body .bell-more { max-height: 16em; overflow-y: auto; }  /* (a whole Java error, #244: it scrolls) */
 .bell-empty { padding: 16px; }
 @media (max-width: 1023px) {
   .topbar .bell { position: absolute; top: 16px; inset-inline-end: 16px; }
