@@ -1556,7 +1556,8 @@ function settleUpdateMark(hb) {
 
 // ------------------------------------------------------------------- status
 async function refreshStatus() {
-  try { hubInfo = await api("/api/hub"); } catch (e) {
+  // (only the servers' messages newer than the bell has: #241)
+  try { hubInfo = await api(bell.noticed ? `/api/hub?notices_since=${bell.noticed}` : "/api/hub"); } catch (e) {
     if (!(e instanceof Unauthorized)) { $("#state-pill").textContent = t("reconnecting"); $("#state-pill").className = "pill"; }
     return;
   }

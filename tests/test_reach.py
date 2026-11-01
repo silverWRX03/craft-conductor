@@ -592,3 +592,6 @@ def test_the_whitelist_message_reaches_the_owners_bell(hub_env):
     [n] = [n for n in notices if "whitelist" in n["message"]]
     assert n["sid"] == "alpha" and n["message"].startswith("The whitelist of ")
     assert [x["time"] for x in notices] == sorted({x["time"] for x in notices})  # (each one told apart by its time)
+    newest = notices[-1]["time"]
+    assert c.get(f"/api/hub?notices_since={newest}")[1]["notices"] == []  # (only newer ones: asked every 2 s)
+    assert c.get("/api/hub?notices_since=nan")[1]["notices"] == notices

@@ -19,6 +19,7 @@ import ipaddress
 import json
 import os
 import logging
+import math
 import re
 import secrets
 import shutil
@@ -1173,6 +1174,15 @@ def tailscale_ip() -> str | None:
         return None
 
 
+def _number(value) -> float:
+    """A number from a query (0 when it isn't one)."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return number if math.isfinite(number) else 0.0
+
+
 def early_channel(b: dict, mod: str) -> str | None:
     """The early channel a mod was picked with (``"channels": {mod: "beta"}``), if any."""
     channels = b.get("channels")
@@ -1681,7 +1691,8 @@ class HubApi:
                           for sid, d in sorted(hub.daemons.items())
                           if getattr(d.m, "recovered", None) and time.time() - d.m.recovered["time"] < 86400],
             # (the servers' messages that went to Discord and phones, for the bell: the page takes new ones, #241)
-            "notices": [n for n in list(hub.notices) if time.time() - n["time"] < 86400],
+            # (only those newer than the page has: notices_since, asked every 2 s)
+            "notices": [n for n in list(hub.notices) if n["time"] > max(_number(q.get("notices_since")), time.time() - 86400)],
             "share": hub.share_status() if not hub.is_single else None,
             "guide": None if hub.is_single else self._guide_state(),
             "health": [*(hub._health.warnings if getattr(hub, "_health", None) else []),  # (checked every minute: health.py)
@@ -3395,7 +3406,7 @@ class Api:
         Files of your own taken off the form since (``remove_local``, ``remove_client_local``: their names)
         are taken out, and with ``replace_world`` the world the first try brought in goes (a new world is
         made, or the one now chosen is brought in)."""
-        from .clientpack import client_dir
+        from .clientpack import local_jars
         from . import world
 
         def names(key: str) -> list[str]:
@@ -3406,8 +3417,10 @@ class Api:
             if name in mine:
                 (self.m.mods_dir / name).unlink(missing_ok=True)
                 log.info("took %s out of the server's mods: it was removed from the setup page", name)
+        theirs = {p.name: p for p in local_jars(self.m.config)}
         for name in names("remove_client_local"):
-            (client_dir(self.m.config) / name).unlink(missing_ok=True)
+            if name in theirs:
+                theirs[name].unlink(missing_ok=True)
         if b.get("replace_world") is True:
             try:
                 level = world.level_dir(self.m.server_dir)
