@@ -8967,5 +8967,13 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1025,
+    "section": "Fix: a damaged modpack file changes nothing",
+    "step": "Take a .mrpack, change one file's \"env\" in modrinth.index.json to a word (\"server\"), and make a new server from it: the server is made from the pack with that detail ignored (no internal error, and no server left half on the pack's loader).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]

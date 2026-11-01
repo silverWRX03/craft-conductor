@@ -362,3 +362,9 @@ def test_a_server_pack_behind_a_redirect_is_read_where_it_really_is(http, monkey
     p = curseforgepack.preview(http, "key", "curseforge:9001")
     assert p["server_pack"] and (p["count"], p["client_only"]) == (1, 1)
     assert SERVER_URL not in http.downloads and real not in http.downloads
+
+
+def test_a_mod_loader_list_that_isnt_one_is_a_plain_error():
+    """A pack can come from anyone: "modLoaders": 5 answered "internal error"."""
+    with pytest.raises(ModpackError, match="mod loader"):
+        curseforgepack._platform({"minecraft": {"version": "1.21.1", "modLoaders": 5}})
