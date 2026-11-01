@@ -693,7 +693,7 @@ class Hub:
         """Minecraft port -> server id, for every server here."""
         from .properties import read_properties
         out = {}
-        for sid, d in self.daemons.items():
+        for sid, d in list(self.daemons.items()):
             if sid != exclude:
                 try:
                     out[int(read_properties(d.m.server_dir / "server.properties").get("server-port", "25565"))] = sid
@@ -751,7 +751,7 @@ class Hub:
         """Refuse to start a server whose port another running server here already uses."""
         from .properties import read_properties, server_name
         port = read_properties(daemon.m.server_dir / "server.properties").get("server-port", "25565")
-        for sid, other in self.daemons.items():
+        for sid, other in list(self.daemons.items()):
             if other is daemon or not (other.proc and other.proc.running):
                 continue
             if read_properties(other.m.server_dir / "server.properties").get("server-port", "25565") == port:
@@ -921,7 +921,7 @@ class Hub:
     def check_memory(self, daemon: Daemon) -> None:
         """Say (in the activity) when starting this server gives the servers more memory than the
         computer has; the page asks before starting it (see memory_plan)."""
-        sid = next((k for k, v in self.daemons.items() if v is daemon), None)
+        sid = next((k for k, v in list(self.daemons.items()) if v is daemon), None)
         if sid is None:
             return
         plan = self.memory_plan(sid)
@@ -1180,7 +1180,7 @@ class Hub:
         if old.is_dir():
             items = [locmod.Item(d, new / d.name) for d in sorted(old.iterdir())
                      if d.is_dir() and (d / configmod.CONFIG_NAME).exists()]
-        ds = {sid: d for sid, d in self.daemons.items() if d.m.config.root.parent == old}
+        ds = {sid: d for sid, d in list(self.daemons.items()) if d.m.config.root.parent == old}
         return locmod.Plan("servers", old, new, items), ds
 
     def _backups_plan(self, old: Path | None, new: Path | None):
@@ -1206,7 +1206,7 @@ class Hub:
         if old.is_dir():
             items = [locmod.Item(x, new / x.name) for x in sorted(old.iterdir())
                      if (x.is_dir() and any(x.glob("*.craft-conductor.zip"))) or x.name.endswith(".craft-conductor.zip")]
-        ds = {sid: d for sid, d in self.daemons.items() if d.job and d.job.get("name") == "export"}
+        ds = {sid: d for sid, d in list(self.daemons.items()) if d.job and d.job.get("name") == "export"}
         return locmod.Plan("exports", old, new, items), ds
 
     def plan_locations(self, wanted: dict) -> dict:
@@ -1510,7 +1510,7 @@ class Hub:
         """The names of the servers here as the server list shows them (lower case)."""
         from .properties import read_properties, server_name
         out = set()
-        for sid, d in self.daemons.items():
+        for sid, d in list(self.daemons.items()):
             try:
                 out.add(server_name(read_properties(d.m.server_dir / "server.properties"), sid).casefold())
             except OSError:
@@ -1787,7 +1787,7 @@ class Hub:
                 "crashed_at": d.crashed_at, "last_job": d.last_job,
                 "join_requests": len(self.join_requests.get(sid, [])),
             })
-        for sid, p in self.problems.items():
+        for sid, p in list(self.problems.items()):
             out.append({"id": sid, "name": p.get("name") or sid, "state": "unavailable", "problem": p["problem"],
                         "folder": p["root"]})
         return out
@@ -1866,7 +1866,7 @@ class Hub:
         except Exception as e:
             self.update_failed(old, new, str(e), bool(u.failure and u.failure.get("reverted")))
             raise
-        running = {sid: d for sid, d in self.daemons.items() if d.proc and d.proc.running}
+        running = {sid: d for sid, d in list(self.daemons.items()) if d.proc and d.proc.running}
         # They're stopped for the update and started again on the new version (start_after_update).
         if running:
             self._update_hub_file(lambda data: data.__setitem__(START_AFTER_UPDATE, {"servers": sorted(running), "at": time.time()}))
