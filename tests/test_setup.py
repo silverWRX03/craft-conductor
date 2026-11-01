@@ -177,3 +177,15 @@ def test_a_second_setup_while_one_runs_changes_nothing(pending_daemon):
         assert (server / "world" / "level.dat").read_bytes() == b"being imported" and (mods / "mine-1.0.jar").exists()
     finally:
         gate.set()
+
+
+def test_lists_of_the_wrong_kind_are_a_plain_answer(hub_env):
+    """A list on the setup page (or the mod check) sent as something else, e.g. "local_mods": 5 from a
+    script or an old page: "internal error" instead of being read as none."""
+    from test_hub import login as hub_login
+    hub, c = hub_env
+    hub_login(c)
+    base = {"loader": "fabric", "minecraft": "1.21.1", "accept_eula": True, "motd": "Lists"}
+    for key in ("local_mods", "client_mods", "client_local", "manual_files"):
+        assert c.post("/api/servers/main/setup", {**base, key: 5})[0] < 500, key
+    assert c.post("/api/hub/mods/check", {"loader": "fabric", "minecraft": "1.21.1", "mods": 5})[0] == 200

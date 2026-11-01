@@ -448,7 +448,8 @@ class JoinUI:
                         self._json(200, {"ok": True})
                     elif rest == "api/setup":
                         mem = body.get("memory_gb")
-                        ui.setup([str(x) for x in body.get("launchers", [])],
+                        launchers = body.get("launchers")
+                        ui.setup([str(x) for x in launchers] if isinstance(launchers, list) else [],
                                  int(mem) if isinstance(mem, (int, float)) else None, body.get("accept_changes") is True)
                         self._json(200, {"ok": True})
                     elif rest == "api/extras/add":
