@@ -8,6 +8,11 @@ comes first; it says which.
 
 Before continuing or starting a feature, check this list: some features wait on one of these.
 
+- [ ] **Real-world run for 0.30.5** (`v0.30.5-win11`, 56 tests): the bug-hunt fixes (1000–1030, each
+      named in its issue #231–#245, #255–#277) and the v0.30.4 failures they fix (887, 971, 979,
+      908, 914; 999 by updating from 0.30.4). Several need a file edited by hand or damaged on
+      purpose: quit Craft Conductor first and keep a copy. `/real-world-test v0.30.5-win11`.
+
 - [x] **Refresh wiki screenshots for the naming cleanup:** every page is retaken by
       `tests/test_screenshots.py` with example servers, the friend's setup page included.
 
@@ -272,6 +277,13 @@ Added 2026-10-16 (briefs in "Additional requests (2026-10-16)" below; numbering 
 53. [ ] **Make a modpack from a server's mods:** Modrinth (.mrpack) or CurseForge format.
 54. [ ] **No load check for a modpack's own mods** during setup (mods added on top still checked).
 55. [ ] **Report a bug and GitHub links** at the bottom of the left panel.
+
+Added 2026-11-01 (from the bug hunt released as 0.30.5):
+
+56. [ ] **Friend's PC: one game folder per server, not per name (#254):** two servers with the same
+        name (Minecraft's default "A Minecraft Server" included) share a friend's game folder,
+        launcher profile and Prism instance. Needs a stable per-server id in the pack; the design
+        and acceptance are in the issue.
 
 ## Plans for the items left (details to start from)
 
