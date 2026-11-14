@@ -489,6 +489,13 @@
       "tester": "Claude Code (owner's decision)",
       "notes": "Not rerun for 0.30.5 (a patch release): it passed in run v0.30.3-win11-release, and the owner decided on 2026-11-13 that general checks that passed in 0.30.3 aren't rerun; only failed ones are. This is not a 0.30.5 pass; see that run for the result.",
       "evidence": ""
+    },
+    "818": {
+      "status": "pass",
+      "tested_at": "2026-11-14T00:59:16+00:00",
+      "tester": "Claude Code + owner",
+      "notes": "Release exe v0.30.5, Chrome. Rechecked what failed in v0.30.3 (#217). With Windows Narrator on (owner listened, same session as 1010): starting a server, 'running' was announced once and not repeated, console lines weren't read, the Players errors were heard in full, and the Player name / Reason boxes have names. Accessibility tree: Your servers' card buttons name their server ('Start Café ☕ test', 'Open Friends test', 'Delete …'; 58 buttons), Java's version box is named 'Java version to install', Console has its page heading (h1 Console; title 'Console · Home only · Craft Conductor').",
+      "evidence": ""
     }
   },
   "notes": "Bug-hunt release: 1000-1030 are the fixes from PRs #246-#253 (issues #231-#245, #255-#277). 887/971 (#241), 979 (#244), 908/914 (#242) failed in v0.30.4-win11 and are fixed. 999 can only be tested by updating from 0.30.4 to 0.30.5."
