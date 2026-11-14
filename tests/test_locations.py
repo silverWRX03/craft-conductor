@@ -312,8 +312,10 @@ def test_browse_opens_this_computers_own_folder_picker(hub_env, tmp_path, monkey
     """Browse… (#229): the picker opens on the screen of the computer Craft Conductor runs on, so only a
     browser there may ask; its answer goes back to the page, which opens it like a typed path."""
     import subprocess
-    from craft_conductor import folderpicker
+    from craft_conductor import folderpicker, peer
     hub, c = hub_env
+    # (a browser on this computer: macOS runners can't tell whose program the connection is, peer.py)
+    monkeypatch.setattr(peer, "a_person_here", lambda *a, **k: True)
     login(c)
     seen = []
 
