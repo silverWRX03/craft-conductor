@@ -398,6 +398,97 @@
       "tester": "Claude Code + owner",
       "notes": "Release exe v0.30.5, Windows Narrator on, Chrome. Started a vanilla server from its Dashboard: Narrator said 'start' (more than once while starting) and then 'running'; none of the ~34 console lines that came in were read out (the console is role=log, aria-live=off; the state pill is role=status). Players: typed 'bad name!' and pressed Whitelist: the whole error \"'bad name!' is not a valid player name\" was heard (toast role=alert). Cleared the box and pressed Whitelist: 'Type a player name first.' was shown (role=alert) and heard, and the focus was in the Player name box.",
       "evidence": ""
+    },
+    "802": {
+      "status": "na",
+      "tested_at": "2026-11-14T00:55:31+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Not rerun for 0.30.5 (a patch release): it passed in run v0.30.3-win11-release, and the owner decided on 2026-11-13 that general checks that passed in 0.30.3 aren't rerun; only failed ones are. This is not a 0.30.5 pass; see that run for the result.",
+      "evidence": ""
+    },
+    "803": {
+      "status": "na",
+      "tested_at": "2026-11-14T00:55:31+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Not rerun for 0.30.5 (a patch release): it passed in run v0.30.3-win11-release, and the owner decided on 2026-11-13 that general checks that passed in 0.30.3 aren't rerun; only failed ones are. This is not a 0.30.5 pass; see that run for the result.",
+      "evidence": ""
+    },
+    "804": {
+      "status": "na",
+      "tested_at": "2026-11-14T00:55:32+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Not rerun for 0.30.5 (a patch release): it passed in run v0.30.3-win11-release, and the owner decided on 2026-11-13 that general checks that passed in 0.30.3 aren't rerun; only failed ones are. This is not a 0.30.5 pass; see that run for the result.",
+      "evidence": ""
+    },
+    "805": {
+      "status": "na",
+      "tested_at": "2026-11-14T00:55:32+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Not rerun for 0.30.5 (a patch release): it passed in run v0.30.3-win11-release, and the owner decided on 2026-11-13 that general checks that passed in 0.30.3 aren't rerun; only failed ones are. This is not a 0.30.5 pass; see that run for the result.",
+      "evidence": ""
+    },
+    "806": {
+      "status": "na",
+      "tested_at": "2026-11-14T00:55:32+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Not rerun for 0.30.5 (a patch release): it passed in run v0.30.3-win11-release, and the owner decided on 2026-11-13 that general checks that passed in 0.30.3 aren't rerun; only failed ones are. This is not a 0.30.5 pass; see that run for the result.",
+      "evidence": ""
+    },
+    "808": {
+      "status": "na",
+      "tested_at": "2026-11-14T00:55:32+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Not rerun for 0.30.5 (a patch release): it passed in run v0.30.3-win11-release, and the owner decided on 2026-11-13 that general checks that passed in 0.30.3 aren't rerun; only failed ones are. This is not a 0.30.5 pass; see that run for the result.",
+      "evidence": ""
+    },
+    "809": {
+      "status": "na",
+      "tested_at": "2026-11-14T00:55:32+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Not rerun for 0.30.5 (a patch release): it passed in run v0.30.3-win11-release, and the owner decided on 2026-11-13 that general checks that passed in 0.30.3 aren't rerun; only failed ones are. This is not a 0.30.5 pass; see that run for the result.",
+      "evidence": ""
+    },
+    "811": {
+      "status": "na",
+      "tested_at": "2026-11-14T00:55:33+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Not rerun for 0.30.5 (a patch release): it passed in run v0.30.3-win11-release, and the owner decided on 2026-11-13 that general checks that passed in 0.30.3 aren't rerun; only failed ones are. This is not a 0.30.5 pass; see that run for the result.",
+      "evidence": ""
+    },
+    "812": {
+      "status": "na",
+      "tested_at": "2026-11-14T00:55:33+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Not rerun for 0.30.5 (a patch release): it passed in run v0.30.3-win11-release, and the owner decided on 2026-11-13 that general checks that passed in 0.30.3 aren't rerun; only failed ones are. This is not a 0.30.5 pass; see that run for the result.",
+      "evidence": ""
+    },
+    "815": {
+      "status": "na",
+      "tested_at": "2026-11-14T00:55:33+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Not rerun for 0.30.5 (a patch release): it passed in run v0.30.3-win11-release, and the owner decided on 2026-11-13 that general checks that passed in 0.30.3 aren't rerun; only failed ones are. This is not a 0.30.5 pass; see that run for the result.",
+      "evidence": ""
+    },
+    "817": {
+      "status": "na",
+      "tested_at": "2026-11-14T00:55:33+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Not rerun for 0.30.5 (a patch release): it passed in run v0.30.3-win11-release, and the owner decided on 2026-11-13 that general checks that passed in 0.30.3 aren't rerun; only failed ones are. This is not a 0.30.5 pass; see that run for the result.",
+      "evidence": ""
+    },
+    "819": {
+      "status": "na",
+      "tested_at": "2026-11-14T00:55:34+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Not rerun for 0.30.5 (a patch release): it passed in run v0.30.3-win11-release, and the owner decided on 2026-11-13 that general checks that passed in 0.30.3 aren't rerun; only failed ones are. This is not a 0.30.5 pass; see that run for the result.",
+      "evidence": ""
+    },
+    "820": {
+      "status": "na",
+      "tested_at": "2026-11-14T00:55:34+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Not rerun for 0.30.5 (a patch release): it passed in run v0.30.3-win11-release, and the owner decided on 2026-11-13 that general checks that passed in 0.30.3 aren't rerun; only failed ones are. This is not a 0.30.5 pass; see that run for the result.",
+      "evidence": ""
     }
   },
   "notes": "Bug-hunt release: 1000-1030 are the fixes from PRs #246-#253 (issues #231-#245, #255-#277). 887/971 (#241), 979 (#244), 908/914 (#242) failed in v0.30.4-win11 and are fixed. 999 can only be tested by updating from 0.30.4 to 0.30.5."
