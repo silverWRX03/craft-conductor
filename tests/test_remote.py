@@ -179,7 +179,11 @@ def test_headless_first_sign_in_from_another_device(hub_env, monkeypatch):
     store._auth = None
     first = store.first_run_password()
     assert first and first.startswith("Craft-Conductor-") and store.get().temporary
+    # strong, with nothing at its end that reads like punctuation ("…!" was typed in without the "!", #291)
+    assert webauth.strong_password(first) and first[-1].isalnum()
     assert (store.path.parent / "first-password.txt").read_text().count(first) == 1
+    # the sign-in page is told, so it points at the one-time password rather than at PASSWORD (#291)
+    assert c.get("/api/auth")[1]["temporary"] is True
     hub.web.host = "0.0.0.0"
     away = as_other_device(Client(c.base))
     assert away.post("/api/login", {"password": "PASSWORD"})[0] == 401

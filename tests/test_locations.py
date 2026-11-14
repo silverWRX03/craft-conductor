@@ -99,6 +99,11 @@ def test_a_new_server_never_shares_kept_backups(hub_env, tmp_path, monkeypatch):
     assert sid == "survival-2"
     assert hub.get(sid).m.config.backups.dir == B / "survival-2"
     assert (B / "survival" / "20260101-040000-scheduled.tar.gz").read_bytes() == b"the kept server's"
+    # Setup writes craft-conductor.toml again: the backups folder stays the chosen one (#282)
+    d = hub.get(sid)
+    wait_for(lambda: d.job is None and d.last_job is not None and d.last_job.get("name") == "set up server", timeout=30)
+    from craft_conductor import config as configmod
+    assert configmod.load(d.m.config.root).backups.dir == B / "survival-2"
 
 def test_a_move_is_refused_while_a_server_runs(hub_env, tmp_path):
     hub, c = hub_env
@@ -301,6 +306,38 @@ def test_new_folder_in_the_folder_browser(hub_env, tmp_path):
     assert status == 200 and r["path"] == os.path.realpath(tmp_path / "Minecraft servers") and r["folders"] == []
     for bad in ("", "..", "a/b", "con", "what?"):
         assert c.post("/api/hub/folders/new", {"parent": str(tmp_path), "name": bad})[0] == 400, bad
+
+
+def test_browse_opens_this_computers_own_folder_picker(hub_env, tmp_path, monkeypatch):
+    """Browse… (#229): the picker opens on the screen of the computer Craft Conductor runs on, so only a
+    browser there may ask; its answer goes back to the page, which opens it like a typed path."""
+    import subprocess
+    from craft_conductor import folderpicker
+    hub, c = hub_env
+    login(c)
+    seen = []
+
+    def run(argv, **kw):
+        seen.append(kw["env"])
+        return subprocess.CompletedProcess(argv, 0, stdout=(str(tmp_path) + "\n").encode(), stderr=b"")
+    monkeypatch.setattr(folderpicker, "_command", lambda start: ["picker"])
+    monkeypatch.setattr(folderpicker.subprocess, "run", run)
+    status, r, _ = c.post("/api/hub/folders/pick", {"start": str(tmp_path), "title": "Where should Craft Conductor keep servers?"})
+    assert status == 200 and r["path"] == str(tmp_path)
+    # (what it opens on and its title go in as values, never as part of a command)
+    assert seen[0]["CC_PICK_START"] == str(tmp_path) and seen[0]["CC_PICK_TITLE"].startswith("Where should")
+    monkeypatch.setattr(folderpicker.subprocess, "run",
+                        lambda argv, **kw: subprocess.CompletedProcess(argv, 1, stdout=b"", stderr=b""))
+    assert c.post("/api/hub/folders/pick", {})[1]["path"] is None  # (closed with Cancel)
+    assert folderpicker._busy.acquire(blocking=False)  # (one at a time)
+    try:
+        assert c.post("/api/hub/folders/pick", {})[0] == 409
+    finally:
+        folderpicker._busy.release()
+    assert "picker" in c.get("/api/hub/folders")[1]
+    from craft_conductor import access, web
+    assert "/api/hub/folders/pick" in web.LOCAL_ONLY  # (from another device or a phone: never)
+    assert ("POST", "/api/hub/folders/pick") not in access.HUB_ROUTES  # (the owner's only)
 
 
 def test_the_folder_browser_opens_on_the_nearest_folder_there(hub_env, tmp_path):

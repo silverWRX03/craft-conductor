@@ -289,7 +289,9 @@
     return { format: 1, name: s.name, minecraft: s.minecraft, loader: s.loader, loader_version: s.loader_version, java_major: s.java_major,
       address: sim.state.hub.share.address || "<your address>", memory_gb: s.client.memory_gb,
       mods: [...both.map((m) => one({ ...m, ...(cat().mod(m.slug) || {}) }, "both")), ...forPlayers.map((m) => one(m, "client"))],
-      manual: [], skipped: [], problems: [], icon: "", updated: new Date().toISOString() };
+      manual: [], skipped: [], problems: [], icon: "", updated: new Date().toISOString(),
+      // (the server's own id for friends' computers, #254; a demo server isn't made from a real pack's file, #288)
+      server_id: Array.from(String(s.id), (c) => c.charCodeAt(0).toString(16).slice(-1)).join("").padEnd(16, "0").slice(0, 16), pack_files: null };
   };
   sim.clientAnswer = (s) => {
     const c = s.client;

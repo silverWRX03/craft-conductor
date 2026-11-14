@@ -16,6 +16,7 @@ import gzip
 import hashlib
 import logging
 import os
+import re
 import shutil
 import sys
 import zipfile
@@ -65,16 +66,39 @@ def in_use(folder: Path) -> bool:
 
 
 # ----------------------------------------------------------------- reading
+#: data packs Minecraft itself has (its feature packs, by version), never a mod's
+BUILT_IN_PACKS = frozenset({"vanilla", "bundle", "trade_rebalance", "update_1_20", "update_1_21", "minecart_improvements",
+                            "redstone_experiments", "winter_drop", "tests", "mod_resources"})
+_PACK_ID = re.compile(r"[a-z0-9_.-]{1,64}")
+
+
+def mod_packs(enabled) -> list[str]:
+    """Of a world's data packs (level.dat's DataPacks → Enabled), the ones mods brought: a server
+    without those mods loses their blocks and items, and its log only says "Missing data pack …" (#234).
+    Forge and NeoForge name them ``mod:<id>``; Fabric and Quilt by the mod's id. Data packs from a file
+    (``file/…``) travel with the world, and Minecraft's own aren't anyone's mod."""
+    out = []
+    for name in enabled if isinstance(enabled, list) else []:
+        if not isinstance(name, str) or name.startswith("file/"):
+            continue
+        name = name[4:] if name.startswith("mod:") else name
+        if _PACK_ID.fullmatch(name) and name not in BUILT_IN_PACKS and name not in out:
+            out.append(name)
+    return sorted(out)[:200]
+
+
 def level_info(level_dat: bytes) -> dict:
-    """The world's name and the Minecraft version it was last played on."""
+    """The world's name, the Minecraft version it was last played on, and the mods whose data it has."""
     try:
         data = nbt.loads(gzip.decompress(level_dat)).get("Data", {})
     except (OSError, EOFError, nbt.NBTError):
         return {}
     version = data.get("Version") if isinstance(data.get("Version"), dict) else {}
+    packs = data.get("DataPacks") if isinstance(data.get("DataPacks"), dict) else {}
     return {"name": data.get("LevelName") if isinstance(data.get("LevelName"), str) else None,
             "version": version.get("Name") if isinstance(version.get("Name"), str) else None,
-            "hardcore": bool(getattr(data.get("hardcore"), "value", 0))}
+            "hardcore": bool(getattr(data.get("hardcore"), "value", 0)),
+            "mods": mod_packs(packs.get("Enabled"))}
 
 
 def version_of(source: Path) -> str | None:
@@ -290,6 +314,7 @@ def list_saves(sources: list[tuple[str, Path]] | None = None, limit: int = 200) 
                 worlds.append({
                     "id": save_id(w), "folder": w.name, "name": info.get("name") or w.name,
                     "version": info.get("version"), "hardcore": info.get("hardcore", False), "launcher": launcher,
+                    "mods": info.get("mods") or [],  # (the mods whose data it has: the setup page says so, #234)
                     "played": level.stat().st_mtime, "path": str(w),
                     "icon": "data:image/png;base64," + base64.b64encode(icon.read_bytes()).decode()
                             if icon.is_file() and icon.stat().st_size < 64 * 1024 else None})

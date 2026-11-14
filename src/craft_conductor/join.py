@@ -1,4 +1,4 @@
-"""`craft-conductor join`: set up a friend's Minecraft to play on an craft-conductor server.
+"""`craft-conductor join`: set up a friend's Minecraft to play on a craft-conductor server.
 
 The friend downloads craft-conductor from the server's invite page. The file is named after the
 server and carries the invite (host, share port and secret) in its name, so
@@ -30,6 +30,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -110,7 +111,7 @@ def _checked(host: str, port, token: str, fp: str) -> Invite:
         raise JoinError("that invite has a bad port") from None
     if not re.fullmatch(r"[A-Za-z0-9.:-]{1,253}", host or "") or not 1 <= port <= 65535 \
             or not re.fullmatch(r"[A-Za-z0-9_-]{16,64}", token or ""):
-        raise JoinError("that doesn't look like an Craft Conductor invite")
+        raise JoinError("that doesn't look like a Craft Conductor invite")
     if not re.fullmatch(r"[A-Za-z0-9_-]{43}", fp or ""):
         raise JoinError(OLD_INVITE)
     return Invite(host, port, token, fp)
@@ -120,17 +121,17 @@ def parse_invite(text: str) -> Invite:
     """An invite code (craft-conductor-...) or link (https://host:port/join/<secret>#<fingerprint>)."""
     text = text.strip().strip('"').strip("'").strip("<>")
     code = CODE.search(text)
-    if code and not text.startswith("craft-conductor-"):  # an invite page link, an craft-conductor:// link, a whole message
+    if code and not text.startswith("craft-conductor-"):  # an invite page link, a craft-conductor:// link, a whole message
         return parse_invite(code.group(0))
     if "://" in text:
         try:
             u = urlparse(text)
             port = u.port  # (raises for one that isn't a port, like ":99999")
         except ValueError:  # (and for a broken [address])
-            raise JoinError("that link isn't an Craft Conductor invite: its address or port is damaged") from None
+            raise JoinError("that link isn't a Craft Conductor invite: its address or port is damaged") from None
         m = re.fullmatch(r"/join/([A-Za-z0-9_-]+)(/.*)?", u.path)
         if u.scheme not in ("http", "https") or not m or not u.hostname:
-            raise JoinError("that link isn't an Craft Conductor invite (it should look like https://.../join/...)")
+            raise JoinError("that link isn't a Craft Conductor invite (it should look like https://.../join/...)")
         if u.scheme != "https":
             raise JoinError(OLD_INVITE)
         return _checked(u.hostname, port or 443, m.group(1), u.fragment)
@@ -139,11 +140,11 @@ def parse_invite(text: str) -> Invite:
         raw = base64.urlsafe_b64decode(code + "=" * (-len(code) % 4)).decode()
         parts = raw.split("|")
     except (binascii.Error, UnicodeDecodeError, ValueError):
-        raise JoinError("that doesn't look like an Craft Conductor invite") from None
+        raise JoinError("that doesn't look like a Craft Conductor invite") from None
     if len(parts) == 3:
         raise JoinError(OLD_INVITE)
     if len(parts) != 4:
-        raise JoinError("that doesn't look like an Craft Conductor invite")
+        raise JoinError("that doesn't look like a Craft Conductor invite")
     return _checked(*parts)
 
 
@@ -168,6 +169,42 @@ def minecraft_dir() -> Path:
 
 def slugify(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:40] or "server"
+
+
+SERVERS_FILE = "servers.json"  # in <.minecraft>/craft-conductor: each server's id -> the name its things go by
+_SLUG = re.compile(r"[a-z0-9][a-z0-9-]{0,59}")
+_servers_lock = threading.Lock()
+
+
+def server_slug(mc: Path, pack: dict) -> str:
+    """The name everything for this server goes by on this computer: its game folder
+    (``craft-conductor/<name>``), launcher profile and version, Prism instance, and the friend's extras.
+
+    It was the server's name alone, so two servers named alike (two people who kept "A Minecraft Server")
+    shared all of them, each setup undoing the other's (#254). A server sending its own id (``server_id``)
+    keeps the name it got the first time; the first one keeps the plain name (so a setup made before
+    stays where it is), another one of the same name gets ``<name>-<its id>``. A server from an older
+    Craft Conductor (no id) goes by its name, as before."""
+    base = slugify(pack["name"])
+    sid = pack.get("server_id")
+    if not isinstance(sid, str):
+        return base
+    path = mc / "craft-conductor" / SERVERS_FILE
+    with _servers_lock:
+        try:
+            known = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            known = {}
+        known = {k: v for k, v in known.items() if isinstance(v, str) and _SLUG.fullmatch(v)} if isinstance(known, dict) else {}
+        if sid in known:
+            return known[sid]
+        taken = set(known.values())
+        slug, n = (base if base not in taken else f"{base}-{sid[:6]}"), 2
+        while slug in taken:
+            slug, n = f"{base}-{sid[:6]}-{n}", n + 1
+        known[sid] = slug
+        _write_json(path, known)
+    return slug
 
 
 def _now() -> str:
@@ -235,6 +272,13 @@ def validate_pack(pack: object, base: str | None = None) -> dict:
             raise JoinError(f"{m.get('name')}: Craft Conductor only downloads mods from Modrinth or CurseForge")
         if not (m.get("sha512") or m.get("sha1")):
             raise JoinError(f"{m.get('name')}: the mod list has no checksum for it")
+    if not (isinstance(pack.get("server_id"), str) and re.fullmatch(r"[0-9a-f]{16}", pack["server_id"])):
+        pack.pop("server_id", None)  # (its own id, #254: none from an older Craft Conductor; an odd one isn't used)
+    from . import packfiles
+    try:  # (the modpack's configs and scripts: from CurseForge or Modrinth only, checked, #288)
+        pack["pack_files"] = packfiles.checked(pack.get("pack_files"))
+    except ValueError as e:
+        raise JoinError(f"the server's modpack: {e}") from None
     return pack
 
 
@@ -347,9 +391,11 @@ class Joiner:
         mods_dir.mkdir(parents=True, exist_ok=True)
         manifest_path = game_dir / MANIFEST
         try:
-            placed = set(json.loads(manifest_path.read_text()).get("mods", []))
+            state = json.loads(manifest_path.read_text())
+            state = state if isinstance(state, dict) else {}
+            placed = {x for x in state.get("mods") or [] if isinstance(x, str)}
         except (OSError, ValueError):
-            placed = set()
+            state, placed = {}, set()
         wanted, fetched = set(), 0
         for m in pack.get("mods", []):
             folder = folder_of(m)
@@ -373,7 +419,16 @@ class Joiner:
             if (folder or "mods") in FOLDERS and name and "\\" not in name and (game_dir / (folder or "mods") / name).is_file():
                 (game_dir / (folder or "mods") / name).unlink()
                 removed += 1
-        _write_json(manifest_path, {"mods": sorted(wanted), "server": pack["name"], "synced": _now()})
+        # The modpack's own configs and scripts, from the pack's file on its site (#288)
+        from . import packfiles
+        from .modpack import ModpackError
+        try:
+            packfiles.sync(self.http, pack.get("pack_files"), game_dir, state, self.say)
+        except HashMismatch as e:
+            raise JoinError(f"{pack['pack_files']['name']} didn't match its checksum, so its files weren't installed") from e
+        except (ModpackError, HttpError, OSError) as e:
+            raise JoinError(f"couldn't get the modpack's settings and scripts ({e}); try again") from e
+        _write_json(manifest_path, {**state, "mods": sorted(wanted), "server": pack["name"], "synced": _now()})
         from .friendextras import enable_packs
         enable_packs(game_dir, [m for m in pack.get("mods", []) if m.get("extra")], tuple(gone_packs))
         return fetched, removed
@@ -444,7 +499,7 @@ class Joiner:
         """Set up the official Minecraft Launcher."""
         pack = pack or self.fetch_pack()
         files = self.profiles()
-        slug = slugify(pack["name"])
+        slug = server_slug(self.mc, pack)
         game_dir = self.mc / "craft-conductor" / slug
         game_dir.mkdir(parents=True, exist_ok=True)
         label = pack["loader"] if pack["loader"] == "vanilla" else f"{pack['loader']} {pack['loader_version']}"
@@ -465,7 +520,7 @@ class Joiner:
                     prism_dir: Path | None = None, out_dir: Path | None = None) -> list[dict]:
         """Add the server to each chosen launcher. One failing doesn't stop the others."""
         from . import launchers, opener
-        slug = slugify(pack["name"])
+        slug = server_slug(self.mc, pack)
         out_dir = out_dir or opener.downloads_dir()
         results = []
         for key in [t for t in launchers.KEYS if t in targets]:

@@ -43,6 +43,15 @@ def test_every_route_is_in_the_tables(hub_env):
     assert not set(access.SERVER_ROUTES) & hub_routes
 
 
+def test_friends_waiting_are_counted_for_those_who_may_answer_them():
+    """The dot on Players (#239): moderators see how many friends ask to be let in; viewers don't."""
+    result = {"servers": [{"id": "alpha", "name": "Alpha", "join_requests": 2}, {"id": "beta", "name": "Beta", "join_requests": 1}]}
+    who = access.Subject("user", "u1", "Sam", grants={"alpha": access.PRESETS["moderator"], "beta": access.PRESETS["viewer"]})
+    servers = {s["id"]: s for s in access.hub_answer(who, result)["servers"]}
+    assert servers["alpha"]["join_requests"] == 2 and "join_requests" not in servers["beta"]
+    assert access.hub_answer(access.OWNER_SUBJECT, result) is result
+
+
 def test_presets_and_risky_permissions():
     p = access.PRESETS
     assert p["viewer"] == {"status.view"}

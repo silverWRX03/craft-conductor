@@ -20,6 +20,7 @@ from typing import Iterable
 
 from . import lockbox, parts, private, safearchive
 from .properties import read_properties, write_properties
+from . import removal
 from .removal import rmtree
 
 log = logging.getLogger(__name__)
@@ -364,14 +365,14 @@ def restore(archive: Path, server_dir: Path) -> dict:
                                    f"removed ({e}). The server was left as it was") from e
     if server_dir.exists():
         try:
-            server_dir.rename(aside)
+            removal.rename(server_dir, aside)  # (tried again for a few seconds while OneDrive holds a file, #290)
         except OSError as e:
             _put_back_kept(staging, server_dir)
             rmtree(staging, ignore_errors=True)
             raise RestoreError(f"the server folder couldn't be moved aside ({e}): is a program still using a "
                                "file in it? The server was left as it was") from e
     try:
-        (staging / "server").rename(server_dir)
+        removal.rename(staging / "server", server_dir)
     except OSError:
         if aside.exists() and not server_dir.exists():
             aside.rename(server_dir)  # put it back

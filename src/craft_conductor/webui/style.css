@@ -109,6 +109,11 @@ p.pair-code { font-size: 1.5em; margin: .4em 0; }
 /* A quiet red dot: a Craft Conductor update is available (settings, About & updates, Check for updates) */
 .update-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); flex: none;
   margin-inline-start: 8px; vertical-align: middle; }
+/* Friends waiting to be let in: a dot with how many, on Players and on the server's card (#239) */
+.count-dot { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 9px; background: var(--danger); color: #fff; font-size: 11px; font-weight: 700; line-height: 1; flex: none;
+  margin-inline-start: auto; }
+@media (forced-colors: active) { .count-dot { forced-color-adjust: none; } }
 .update-dot.hidden { display: none; }
 /* A mod manager that needs you (manageButton): it glows lava orange and pulses; a steady glow with
    less motion (the global rule below ends the pulse on its glowing frame). */
@@ -493,7 +498,8 @@ body.browse-mode main { padding: 0; overflow: hidden; }
 #locations .modal { width: min(720px, 100%); }
 /* the folder browser: the folders in a folder on the computer Craft Conductor runs on */
 .modal.folder-browser { width: min(640px, 100%); }
-.folder-list { display: grid; gap: 2px; max-height: min(50vh, 420px); overflow: auto; margin: 10px 0 6px; padding: 4px;
+/* (a fixed height: the window doesn't jump as folders with more or fewer folders are opened, #229) */
+.folder-list { display: grid; gap: 2px; align-content: start; height: min(50vh, 420px); overflow: auto; margin: 10px 0 6px; padding: 4px;
   border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); }
 .folder-row { text-align: start; background: none; border: 0; border-radius: 6px; padding: 7px 10px; font: inherit; color: var(--text);
   cursor: pointer; overflow-wrap: anywhere; }

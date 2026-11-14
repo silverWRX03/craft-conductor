@@ -99,6 +99,11 @@ def test_web_setup_builds_and_starts_the_server(pending_daemon):
     assert opts["pending"] and opts["versions"] == ["1.21.1"]
     assert [l["name"] for l in opts["loaders"]][:3] == ["fabric", "neoforge", "forge"]
     assert 1 <= opts["memory_gb"] <= 8
+    assert opts["reach"] == ""  # (no way chosen yet: the progress page says nothing about playit.gg, #285)
+    from craft_conductor import config as configmod
+    configmod.set_value(cfg.path, "reach", "way", '"home"')
+    d.m.reload_config()
+    assert c.get("/api/setup")[1]["reach"] == "home"
 
     # Search is filtered by the loader picked on the setup page.
     from craft_conductor.mods.modrinth import API

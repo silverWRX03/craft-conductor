@@ -157,6 +157,18 @@ def test_a_server_that_becomes_reachable_later_gets_its_whitelist_on_with_a_noti
     assert sent and "whitelist of Alpha is now on" in sent[-1] and "playit.gg address" in sent[-1]
 
 
+def test_the_whitelist_notice_is_in_the_servers_activity(hub_env):
+    """A public address set in Sharing with friends (a hub page, not the server's): the notice was only in
+    the bell, not in the server's Dashboard → Activity (#281)."""
+    hub, c = hub_env
+    login(c)
+    d = hub.get("alpha")
+    assert c.post("/api/hub/share", {"port": hub.share_settings()["port"], "address": "203.0.113.4"})[0] == 200
+    assert props(d)["white-list"] == "true"
+    events = c.get("/api/servers/alpha/events?since=0")[1]["events"]
+    assert any("The whitelist of Alpha is now on" in e["message"] for e in events), events
+
+
 @pytest.mark.parametrize("how", ["router", "public-address", "port-test", "start"])
 def test_each_way_of_becoming_reachable_turns_the_whitelist_on(hub_env, how, monkeypatch):
     hub, c = hub_env

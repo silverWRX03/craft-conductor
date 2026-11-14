@@ -189,9 +189,15 @@ def test_mods_to_download_by_hand_are_found_before_the_server_is_made(http):
     from craft_conductor import handdownload
     serve_pack(http, server_pack=False)
     serve_blocked_mod(http)
+    pack_file = b"fancy jar 2.0"
+    http.json[f"{cf.API}/mods/22/files/222"] = {"data": {
+        "id": 222, "modId": 22, "fileName": "fancy-client-2.0.jar", "displayName": "Fancy 2.0", "gameVersions": ["Forge", "1.20.1"],
+        "releaseType": 2, "fileDate": "2025-06-01", "downloadUrl": None, "hashes": _sha1(pack_file), "dependencies": []}}
     found = handdownload.needed(http, "key", "", "", [], "curseforge:9001")
-    assert [(x["name"], x["filename"], x["url"]) for x in found] == [
-        ("Fancy Client", "fancy-client-2.1.jar", f"{cf.WEBSITE}/fancy-client/files/2222")]  # (the exact file)
+    # The file the pack lists (222), which setup holds it at and waits for; not the newest (2222), which the
+    # page linked and setup never took (All the Mods 11's Player Animation Library, #280)
+    assert [(x["name"], x["filename"], x["url"], x["sha1"]) for x in found] == [
+        ("Fancy Client", "fancy-client-2.0.jar", f"{cf.WEBSITE}/fancy-client/files/222", _sha1(pack_file)[0]["value"])]
     assert handdownload.needed(http, "key", "", "", [], "curseforge:9001", ["mods/fancy-client-2.0.jar"]) == []  # (removed)
     # A mod picked by itself: found for its own channel (a release-only server wouldn't take it at all).
     assert handdownload.needed(http, "key", "forge", "1.20.1", [("22", None)]) == []

@@ -29,7 +29,7 @@ import time
 from pathlib import Path
 from typing import Callable
 
-from .config import ModSpec
+from .config import ModSpec, Pin
 from .http import HttpClient, HttpError, sha1_file
 from .loaders import LOADERS
 from .mods.base import ModError, Unavailable, safe_file_name
@@ -67,6 +67,7 @@ def needed(http: HttpClient, key: str, loader: str, minecraft: str, mods: list[t
     channel), for ``loader`` and ``minecraft``."""
     specs: dict[str, ModSpec] = {}
     pack_ids: set[str] = set()
+    pins: dict[str, Pin] = {}
     if pack_version.startswith("curseforge:"):
         from . import curseforgepack
         info = curseforgepack.preview(http, key, pack_version)
@@ -76,14 +77,19 @@ def needed(http: HttpClient, key: str, loader: str, minecraft: str, mods: list[t
             pack_ids.add(m["project_id"])
             if m["manual"] and m["included_on_server"] and m["path"] not in excluded:
                 specs[m["project_id"]] = ModSpec("curseforge", m["project_id"], channel=early(m.get("channel")))
+                # The file the pack lists, as setup holds it (curseforgepack.apply), not the newest: setup
+                # waits for that one, so a newer file downloaded from the page never counted (#280).
+                if str(m.get("version_id") or "").isdigit():
+                    pins[f"curseforge:{m['project_id']}"] = Pin(str(m["version_id"]), minecraft)
     for pid, channel in mods:
         specs.setdefault(pid, ModSpec("curseforge", pid, channel=early(channel)))
     if not specs or loader not in LOADERS or not LOADERS[loader].mod_loaders or not minecraft:
         return []
     provider = CurseForgeProvider(http, key)
+    provider.pins = pins
     out = []
     for spec in list(specs.values())[:MAX_MODS]:
-        found = _hand_file(provider, spec, minecraft, loader)
+        found = _hand_file(provider, spec, minecraft, loader, pins.get(f"curseforge:{spec.id}"))
         if found:
             out.append(found)
     picked = {pid for pid, _ in mods} - pack_ids  # (a pack's mods are as the pack says)
@@ -121,10 +127,12 @@ def _players_only(http: HttpClient, provider: CurseForgeProvider, files: list[di
     return {k.split(":", 1)[1] for k, p in found.items() if p.server_side == "unsupported"}
 
 
-def _hand_file(provider: CurseForgeProvider, spec: ModSpec, minecraft: str, loader: str) -> dict | None:
-    """The file of ``spec`` the server will ask for, when it must be downloaded by hand."""
+def _hand_file(provider: CurseForgeProvider, spec: ModSpec, minecraft: str, loader: str,
+               pin: Pin | None = None) -> dict | None:
+    """The file of ``spec`` the server will ask for, when it must be downloaded by hand (``pin``: the
+    file it's held at, which ``provider`` holds it at too)."""
     channel = lowest(SERVER_CHANNEL, spec.channel)
-    key, now = (spec.id, minecraft, loader, channel), time.monotonic()
+    key, now = (spec.id, minecraft, loader, channel, pin.version if pin else ""), time.monotonic()
     with _lock:
         hit = _resolved.get(key)
         if hit and now - hit[0] < CACHE_SECONDS:

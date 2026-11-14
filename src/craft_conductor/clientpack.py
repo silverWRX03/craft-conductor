@@ -6,6 +6,10 @@ copy of craft-conductor (`craft-conductor join`, see join.py) fetches it from th
 an installation in their own Minecraft Launcher. Nothing is redistributed: every mod
 is downloaded by the player straight from Modrinth or CurseForge.
 
+A server made from a modpack also names the pack's file (``pack_files``): the friend's Craft
+Conductor downloads it from CurseForge or Modrinth and takes the pack's configs and scripts from it
+(packfiles.py).
+
 Which mods go in: every mod the server runs that also runs on clients (Modrinth's
 ``client_side`` isn't "unsupported"; CurseForge doesn't say, so those are included),
 plus client-only extras the server's admin picked (a minimap, JEI, Sodium ...) and
@@ -19,6 +23,7 @@ import base64
 import logging
 import re
 import secrets
+import threading
 import time
 from pathlib import Path
 from urllib.parse import urlparse
@@ -44,6 +49,34 @@ JAR_NAME = re.compile(r"[A-Za-z0-9 ()\[\]+_.,'-]{1,120}\.jar")
 
 def client_dir(config) -> Path:
     return config.root / CLIENT_DIR
+
+
+# Each server's own id for friends' computers: two servers with the same name (two friends who kept "A
+# Minecraft Server") shared one game folder, launcher profile and Prism instance there (#254). Made once
+# and kept in the server's .craft-conductor folder; an export takes it along (the same server, moved),
+# and an import here of a server that's already here gets a new one (a copy: hub.import_archive).
+FRIENDS_ID = "friends-id"
+FRIENDS_ID_FORM = re.compile(r"[0-9a-f]{16}")
+_id_lock = threading.Lock()
+
+
+def read_friends_id(config) -> str | None:
+    try:
+        value = (config.state_dir / FRIENDS_ID).read_text(encoding="ascii").strip()
+    except (OSError, UnicodeError):
+        return None
+    return value if FRIENDS_ID_FORM.fullmatch(value) else None
+
+
+def friends_id(config) -> str:
+    """The server's id for friends' computers, made the first time it's asked for."""
+    with _id_lock:
+        value = read_friends_id(config)
+        if value is None:
+            value = secrets.token_hex(8)
+            config.state_dir.mkdir(parents=True, exist_ok=True)
+            (config.state_dir / FRIENDS_ID).write_text(value + "\n", encoding="ascii")
+        return value
 
 
 def local_jars(config) -> list[Path]:
@@ -123,7 +156,8 @@ class PackBuilder:
         if not lk.installed:
             raise ModError("the server isn't installed yet")
         key = (lk.updated_at, lk.minecraft, tuple(cfg.client.mods), cfg.client.memory_gb, address,
-               cfg.server.dir, tuple((p.name, p.stat().st_mtime) for p in local_jars(cfg)), tuple(sorted(cfg.pins.items())))
+               cfg.server.dir, tuple((p.name, p.stat().st_mtime) for p in local_jars(cfg)), tuple(sorted(cfg.pins.items())),
+               cfg.modpack)
         cached = self._cache.get(address)
         if cached and cached[0] == key and time.monotonic() - cached[1] < CACHE_SECONDS:
             return cached[2]
@@ -143,9 +177,15 @@ class PackBuilder:
             entry.pop("path", None)
 
         from .properties import read_properties, server_name
+        from . import packfiles
         props = read_properties(m.server_dir / "server.properties")
         icon = m.server_dir / "server-icon.png"
         return {
+            # The modpack's own files (configs, scripts): friends download the pack from its site and
+            # take them from it, as launchers do; without them a pack's server can refuse them (#288).
+            "pack_files": packfiles.describe(m),
+            # (its own id: a friend's computer keeps two servers of the same name apart, #254)
+            "server_id": friends_id(cfg),
             "format": FORMAT,
             "name": server_name(props, cfg.root.name),
             "minecraft": lk.minecraft,

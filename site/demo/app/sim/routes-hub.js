@@ -504,8 +504,10 @@
     "POST /api/hub/manual/look": () => ({ found: [], wrong: [], looked: ["Downloads"], ...demoHandFolders() }),
     "GET /api/hub/manual/folders": () => demoHandFolders(),
     "POST /api/hub/manual/folders": () => { throw sim.explain("Craft Conductor would remember this folder and look in it for mods you download by hand. The demo doesn't read your folders."); },
-    "GET /api/hub/folders": (r) => demoFolders(r.q.path || ""),
+    // (no Browse…: the demo's computer is made up, so it has no folder picker of its own, #229)
+    "GET /api/hub/folders": (r) => ({ ...demoFolders(r.q.path || ""), picker: false }),
     "POST /api/hub/folders/new": () => { throw sim.explain("Craft Conductor would make a new folder on its computer. The demo doesn't change your folders."); },
+    "POST /api/hub/folders/pick": () => { throw sim.explain("Craft Conductor would open its computer's own folder picker, on that computer's screen. There's no such computer in the demo."); },
     // Where servers, backups and exports are kept (locations.py): the demo's are the made-up computer's.
     "GET /api/hub/locations": () => demoLocations(),
     "POST /api/hub/locations": (r) => {

@@ -73,7 +73,7 @@ def _running_file(mc_dir: Path) -> Path:
 
 
 def hand_over(mc_dir: Path, invite: Invite | None) -> bool:
-    """Ask an craft-conductor that's already setting up Minecraft to show its page again (with this invite,
+    """Ask a craft-conductor that's already setting up Minecraft to show its page again (with this invite,
     if one came along). True when it did, so this copy can simply exit."""
     try:
         data = json.loads(_running_file(mc_dir).read_text())
@@ -228,7 +228,8 @@ class JoinUI:
         from .friendextras import Store
         if self.pack is None:
             raise ValueError(self.pack_error or "the server's details haven't loaded")
-        return Store(self.joiner.mc, self.pack["name"])
+        from .join import server_slug  # (a server sending its own id: its extras apart from another of the same name, #254)
+        return Store(self.joiner.mc, self.pack["name"], server_slug(self.joiner.mc, self.pack) if self.pack.get("server_id") else None)
 
     def extras(self) -> dict:
         from .friendextras import MOD_LOADERS, SHADER_LOADERS
@@ -313,7 +314,7 @@ class JoinUI:
         if key == "minecraft":
             return self.joiner.open_launcher()
         if key == "prism":
-            return launchers.open_prism(launchers_slug(self.pack), self.pack["address"])
+            return launchers.open_prism(launchers_slug(self.pack, self.joiner.mc), self.pack["address"])
         if key == "modrinth":
             return opener.open_path(Path(r["where"]))
         return opener.reveal(Path(r["where"]))
@@ -537,9 +538,9 @@ def _system_gb() -> int | None:
     return int(total) if total else None
 
 
-def launchers_slug(pack: dict) -> str:
-    from .join import slugify
-    return slugify(pack["name"])
+def launchers_slug(pack: dict, mc: Path) -> str:
+    from .join import server_slug
+    return server_slug(mc, pack)
 
 
 def run(invite: Invite | None, pack: dict | None = None, mc_dir: Path | None = None,

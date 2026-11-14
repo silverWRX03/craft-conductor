@@ -55,12 +55,12 @@ The last lines look like this:
 
 ```
 control panel: http://192.168.1.50:8765/  (open it on your own computer)
-first sign-in password: Craft-Conductor-1a2b3c-4d5e6f-7a8b9c!   (one-time: you'll choose your own; ...)
+first sign-in password: Craft-Conductor-1a2b3c-4d5e6f-7a8b9c   (one-time: you'll choose your own; ...)
 ```
 
 ## 2. Open the control panel
 
-Open that address in a browser on your computer and sign in with the one-time password.
+Open that address in a browser on your computer and sign in with the one-time password (the sign-in page says so; `PASSWORD` doesn't work here). If you start Craft Conductor yourself from a shell with no locale set (cron, `runuser -l`), it starts Java with `LC_ALL=C.UTF-8`, so folder names outside ASCII work.
 Craft Conductor asks you to choose your own. It must be strong (12+ characters, upper and lower case,
 and a special character), because the panel is reachable from your network. From then on
 everything happens in the browser: creating servers, mods, updates, backups and friends.

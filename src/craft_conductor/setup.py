@@ -12,6 +12,7 @@ import json
 import os
 import re
 import sys
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -306,12 +307,26 @@ def whitelist_as_chosen(server_dir: Path, spec: SetupSpec) -> None:
     write_properties(server_dir / "server.properties", whitelist_defaults(spec))
 
 
+def _kept_backups_dir(path: Path) -> str | None:
+    """The backups folder an existing craft-conductor.toml names, as written (None: none, or unreadable).
+    New server makes the file, points its backups at the folder chosen in Folders, then setup writes the
+    file again: without this the backups went back into the server's own folder (#282)."""
+    try:
+        value = tomllib.loads(path.read_text(encoding="utf-8")).get("backups", {}).get("dir")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return value if isinstance(value, str) and value else None
+
+
 def configure(root: Path, spec: SetupSpec) -> configmod.Config:
     """Write craft-conductor.toml, server.properties and eula.txt for a new server (downloads nothing)."""
     path = root / configmod.CONFIG_NAME
     web_password = configmod.load(root).web.password if path.exists() else ""
+    backups_dir = _kept_backups_dir(path)
     root.mkdir(parents=True, exist_ok=True)
     path.write_text(configmod.render_template(spec.loader, spec.minecraft))
+    if backups_dir is not None:  # (the folder chosen for backups, set when the server was made: #282)
+        configmod.set_value(path, "backups", "dir", configmod.toml_string(backups_dir))
     configmod.set_value(path, "server", "memory", json.dumps(f"{spec.memory_gb}G"))
     if spec.aikar_flags:
         configmod.set_value(path, "server", "aikar_flags", "true")

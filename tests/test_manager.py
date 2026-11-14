@@ -232,3 +232,26 @@ def test_a_config_file_edited_by_hand_is_read_again(make_config, http, caplog):
         d._watch_config()
         d._watch_config()
     assert m.config.schedule.backup == "" and sum("can't be used yet" in r.message for r in caplog.records) == 1
+    # what's wrong is kept to be shown (the Servers page, #283), until the file is put right
+    assert d.config_problem and "craft-conductor.toml has a problem" in d.config_problem
+    cfg.path.write_text(cfg.path.read_text().replace("\n[broken\n", "\n"))
+    d._watch_config()
+    assert d.config_problem is None
+
+
+def test_a_bad_hand_edit_is_on_the_servers_page_at_once(hub_env):
+    """`warn_minutes = 5` typed into a running Craft Conductor's server: only the console said so; the
+    Servers page named it only after a restart (#283). The server keeps its earlier settings meanwhile."""
+    from test_hub import login
+    from craft_conductor import config as configmod
+    hub, c = hub_env
+    login(c)
+    d = hub.get("alpha")
+    configmod.set_value(d.m.config.path, "updates", "warn_minutes", "5")
+    d._watch_config()
+    [card] = [s for s in c.get("/api/hub")[1]["servers"] if s["id"] == "alpha"]
+    assert card["state"] == "stopped" and "warn_minutes must be a list" in card["problem"]
+    configmod.set_value(d.m.config.path, "updates", "warn_minutes", "[5, 1]")
+    d._watch_config()
+    [card] = [s for s in c.get("/api/hub")[1]["servers"] if s["id"] == "alpha"]
+    assert "problem" not in card

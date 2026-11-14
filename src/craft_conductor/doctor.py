@@ -255,7 +255,8 @@ def internet_check(http, port: int, running: bool) -> Check:
     if not running:
         return Check("internet", title, INFO, "Start the server first: the test connects to it.")
     try:
-        r = http.get_json(PORT_CHECK.format(port=port), headers={"Accept": "application/json"})
+        # Never from the cache: the answer changes as soon as a port is forwarded or closed (#284).
+        r = http.get_json(PORT_CHECK.format(port=port), headers={"Accept": "application/json"}, cache=False)
     except Exception as e:  # the outside service is down or unreachable
         return Check("internet", title, INFO, f"Couldn't run the test ({e}).", "Try again later, or ask a friend outside your home to connect.")
     ip = str(r.get("ip", "your public address"))

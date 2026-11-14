@@ -487,7 +487,7 @@
     "POST /api/server/stop": (r) => { if (r.s.state === "stopped") return { ok: true, job: "stop" }; return sim.submit(r.s, "stop", "stop"); },
     "POST /api/server/restart": (r) => { if (!running(r.s)) return sim.submit(r.s, "start", "start"); return sim.submit(r.s, "restart", "restart"); },
     "GET /api/setup": (r) => ({ ...sim.setupOptions(), pending: !!r.s.setup_pending, network_option: false, network_access: sim.state.hub.network_access,
-      server_dir: dir(r.s), current: { loader: r.s.loader, minecraft: r.s.minecraft, memory_gb: r.s.memory_gb,
+      reach: r.s.reach || "", server_dir: dir(r.s), current: { loader: r.s.loader, minecraft: r.s.minecraft, memory_gb: r.s.memory_gb,
         mods: r.s.mods.filter((m) => !m.dependency_of && !m.manual && m.slug !== "fabric-api").map((m) => ({ slug: m.slug, required: m.required !== false })) } }),
     "POST /api/setup": (r) => {
       const s = r.s;

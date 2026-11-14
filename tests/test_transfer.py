@@ -2,6 +2,7 @@
 
 import io
 import json
+import logging
 import re
 import zipfile
 
@@ -203,7 +204,7 @@ def test_import_is_careful(tmp_path):
     manifest = json.dumps({"format": 1, "name": "X"})
     bad = tmp_path / "bad.zip"
     bad.write_bytes(zip_with({"hello.txt": "hi"}))
-    with pytest.raises(transfer.TransferError, match="isn't an Craft Conductor server export"):
+    with pytest.raises(transfer.TransferError, match="isn't a Craft Conductor server export"):
         transfer.read_manifest(bad)
     bad.write_bytes(b"not a zip")
     with pytest.raises(transfer.TransferError, match="isn't a .zip"):
@@ -242,7 +243,7 @@ def test_forge_launch_file_follows_the_os(tmp_path, monkeypatch):
     assert lockmod.load(root).launch[0].endswith("/unix_args.txt")
 
 
-def test_an_export_with_details_of_the_wrong_kind_is_still_read(hub_env, tmp_path):
+def test_an_export_with_details_of_the_wrong_kind_is_still_read(hub_env, tmp_path, caplog):
     """An export can come from anyone: a name that's a number, or "locked" that isn't a list, answered
     "internal error" instead of importing (or saying what's wrong)."""
     hub, _ = hub_env
@@ -252,5 +253,18 @@ def test_an_export_with_details_of_the_wrong_kind_is_still_read(hub_env, tmp_pat
                               "craft-conductor.toml": '[server]\nloader = "vanilla"\n', "server/world/level.dat": "ok"}))
     manifest = transfer.read_manifest(odd)
     assert "name" not in manifest and manifest["locked"] == [] and manifest["left_out"] == ["secrets"]
-    sid, _ = hub.import_archive(odd)
+    with caplog.at_level(logging.INFO, logger="craft_conductor.hub"):
+        sid, _ = hub.import_archive(odd)
     assert sid == "imported" and (hub.servers_dir / sid / "server" / "world" / "level.dat").read_text() == "ok"
+    # the log names the server as it's listed, not "imported None" (#287)
+    assert any(r.getMessage().startswith("imported imported into") for r in caplog.records)
+    assert not any("None" in r.getMessage() for r in caplog.records)
+
+
+def test_new_server_ids_keep_accented_letters():
+    """#287: "Rückkehr Café" was r-ckkehr-caf. A folder added from elsewhere keeps the id it had."""
+    from craft_conductor import hub as hubmod
+    assert hubmod.slugify("Rückkehr Café") == "ruckkehr-cafe"
+    assert hubmod.slugify("Überwelt ☕ ñ") == "uberwelt-n"
+    assert hubmod.slugify("☕☕") == "server"
+    assert hubmod._folder_id("Rückkehr Café") == "r-ckkehr-caf"

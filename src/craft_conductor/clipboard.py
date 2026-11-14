@@ -1,4 +1,4 @@
-"""Reading an craft-conductor invite from the clipboard, so friends can copy it and just open craft-conductor.
+"""Reading a craft-conductor invite from the clipboard, so friends can copy it and just open craft-conductor.
 
 The clipboard's text is only looked at here, on this computer, for something that is an
 craft-conductor invite; nothing else is kept or sent anywhere.
@@ -73,5 +73,5 @@ def find_invite(text: str):
 
 
 def invite() -> object | None:
-    """An craft-conductor invite on the clipboard, if there is one."""
+    """A craft-conductor invite on the clipboard, if there is one."""
     return find_invite(read_text())
