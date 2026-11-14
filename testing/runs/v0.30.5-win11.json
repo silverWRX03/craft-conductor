@@ -391,6 +391,13 @@
       "tester": "Claude Code + owner",
       "notes": "Release exe v0.30.5. New Fabric 26.3 server, Friends -> Let Bedrock players join (Geyser only has beta builds for 26.3: Add anyway) -> 'Geyser and Floodgate are added. Install them now?' -> Install now; the server was stopped, so no restart was asked for (the step's 'bell asks for one restart' is for a running server). Geyser 2.12.1-b1302 + Floodgate 2.2.7: config.yml has transport: both and webrtc-port: 19133; log 'Built-in signaling started on http://0.0.0.0:19132, with NetherNet on UDP port 19133'. Friends page (/api/bedrock) lists UDP 19132, TCP 19132, UDP 19133. Bedrock for Windows on a laptop on the same network added the server computer's network address, port 19132 and joined over NetherNet (as a Floodgate player). Bedrock on the server's own PC reached the signaling port (TCP connection seen) but didn't get in; not pursued (same-PC loopback).",
       "evidence": ""
+    },
+    "1010": {
+      "status": "pass",
+      "tested_at": "2026-11-14T00:51:05+00:00",
+      "tester": "Claude Code + owner",
+      "notes": "Release exe v0.30.5, Windows Narrator on, Chrome. Started a vanilla server from its Dashboard: Narrator said 'start' (more than once while starting) and then 'running'; none of the ~34 console lines that came in were read out (the console is role=log, aria-live=off; the state pill is role=status). Players: typed 'bad name!' and pressed Whitelist: the whole error \"'bad name!' is not a valid player name\" was heard (toast role=alert). Cleared the box and pressed Whitelist: 'Type a player name first.' was shown (role=alert) and heard, and the focus was in the Player name box.",
+      "evidence": ""
     }
   },
   "notes": "Bug-hunt release: 1000-1030 are the fixes from PRs #246-#253 (issues #231-#245, #255-#277). 887/971 (#241), 979 (#244), 908/914 (#242) failed in v0.30.4-win11 and are fixed. 999 can only be tested by updating from 0.30.4 to 0.30.5."
