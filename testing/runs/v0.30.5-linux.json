@@ -1,0 +1,171 @@
+{
+  "schema_version": 1,
+  "id": "v0.30.5-linux",
+  "cc_version": "0.30.5",
+  "minecraft_version": "",
+  "os": "Linux x64 (Ubuntu 24.04 on WSL2) + Docker",
+  "kind": "patch",
+  "created_at": "2026-11-06T20:35:36+00:00",
+  "features": [],
+  "fixes": [],
+  "required_ids": [
+    737,
+    738,
+    739,
+    740,
+    741,
+    742,
+    743,
+    744,
+    745,
+    754,
+    755,
+    756,
+    757,
+    758,
+    759,
+    760,
+    761,
+    802,
+    803,
+    804,
+    805,
+    806,
+    807,
+    808,
+    809,
+    810,
+    811,
+    812,
+    813,
+    814,
+    815,
+    816,
+    817,
+    818,
+    819,
+    820
+  ],
+  "results": {
+    "737": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:40:32+00:00",
+      "tester": "Claude Code",
+      "notes": "Release craft-conductor-linux-x64 v0.30.5 (checksum OK), Ubuntu 24.04 on WSL2, user minecraft. Downloaded craft-conductor-linux-x64 and the join build from the v0.30.5 release; both match SHA256SUMS.txt; --version says 0.30.5.",
+      "evidence": ""
+    },
+    "744": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:40:32+00:00",
+      "tester": "Claude Code",
+      "notes": "Release craft-conductor-linux-x64 v0.30.5 (checksum OK), Ubuntu 24.04 on WSL2, user minecraft. craft-conductor service install --panel as a normal user: installed and started craft_conductor.service as a systemd user service with lingering on; it printed the SSH tunnel command and the one-time password.",
+      "evidence": ""
+    },
+    "745": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:40:32+00:00",
+      "tester": "Claude Code",
+      "notes": "Release craft-conductor-linux-x64 v0.30.5 (checksum OK), Ubuntu 24.04 on WSL2, user minecraft. The service panel listens on 127.0.0.1:8765 only (ss). Not reachable through the Linux machine's own network address nor through the Windows PC's network address; only through localhost forwarding on the same PC.",
+      "evidence": ""
+    },
+    "738": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:40:33+00:00",
+      "tester": "Claude Code",
+      "notes": "Release craft-conductor-linux-x64 v0.30.5 (checksum OK), Ubuntu 24.04 on WSL2, user minecraft. Craft Conductor started (systemd user service); the one-time password signed in, asked for a strong password, and its file was deleted afterwards; notice accepted.",
+      "evidence": ""
+    },
+    "739": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:40:33+00:00",
+      "tester": "Claude Code",
+      "notes": "Release craft-conductor-linux-x64 v0.30.5 (checksum OK), Ubuntu 24.04 on WSL2, user minecraft. Created a Fabric server (Minecraft 26.3, fabric-api, lithium) through the control panel API in 30 s.",
+      "evidence": ""
+    },
+    "740": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:40:33+00:00",
+      "tester": "Claude Code",
+      "notes": "Release craft-conductor-linux-x64 v0.30.5 (checksum OK), Ubuntu 24.04 on WSL2, user minecraft. Started it: running on Minecraft 26.3 Fabric, console answers list.",
+      "evidence": ""
+    },
+    "741": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:40:33+00:00",
+      "tester": "Claude Code",
+      "notes": "Release craft-conductor-linux-x64 v0.30.5 (checksum OK), Ubuntu 24.04 on WSL2, user minecraft. Two mineflayer players on the Windows PC joined a vanilla 26.1.2 offline-mode server on the Linux machine (a separate WSL2 virtual machine) through WSL's port forwarding. Not a separate physical computer.",
+      "evidence": ""
+    },
+    "742": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:41:27+00:00",
+      "tester": "Claude Code",
+      "notes": "Release craft-conductor-linux-x64 v0.30.5 (checksum OK), Ubuntu 24.04 on WSL2, user minecraft. Restarted Linux (wsl --terminate of the distribution, then booted it again: systemd and every process started fresh; the WSL kernel VM itself kept running). The craft_conductor user service came back by itself at boot, on 127.0.0.1:8765.",
+      "evidence": ""
+    },
+    "743": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:41:27+00:00",
+      "tester": "Claude Code",
+      "notes": "Release craft-conductor-linux-x64 v0.30.5 (checksum OK), Ubuntu 24.04 on WSL2, user minecraft. After the restart: both servers listed (Fabric 26.3 and vanilla 26.1.2), the chosen password still signs in, memory 4G and view-distance 9 set before the restart are kept, and the Fabric server starts.",
+      "evidence": ""
+    },
+    "754": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:48:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Docker image ghcr.io/silverwrx03/craft-conductor:v0.30.5 (reports 0.30.5) with the repo's docker-compose.yml, Docker 29.9.3 on Ubuntu 24.04 (WSL2). docker compose up -d with the documented compose file (image tag set to v0.30.5, CRAFT_CONDUCTOR_LAN_IP and CRAFT_CONDUCTOR_INITIAL_PASSWORD set): started, healthy, the initial password signs in. Note: the image tags are v0.30.5 style; 0.30.5 does not exist.",
+      "evidence": ""
+    },
+    "755": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:48:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Docker image ghcr.io/silverwrx03/craft-conductor:v0.30.5 (reports 0.30.5) with the repo's docker-compose.yml, Docker 29.9.3 on Ubuntu 24.04 (WSL2). The control panel is published on 127.0.0.1:8765 on the Docker host only, as docs/docker.md says (docker-proxy on 127.0.0.1); reachable on the same PC, not through the host's network address. Minecraft 25565-25570 and 8798 on all addresses, as documented.",
+      "evidence": ""
+    },
+    "756": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:48:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Docker image ghcr.io/silverwrx03/craft-conductor:v0.30.5 (reports 0.30.5) with the repo's docker-compose.yml, Docker 29.9.3 on Ubuntu 24.04 (WSL2). Created a vanilla 26.1.2 server (port 25565) in the container in 20 s; servers live in /data/servers.",
+      "evidence": ""
+    },
+    "757": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:48:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Docker image ghcr.io/silverwrx03/craft-conductor:v0.30.5 (reports 0.30.5) with the repo's docker-compose.yml, Docker 29.9.3 on Ubuntu 24.04 (WSL2). Started it: running.",
+      "evidence": ""
+    },
+    "758": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:48:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Docker image ghcr.io/silverwrx03/craft-conductor:v0.30.5 (reports 0.30.5) with the repo's docker-compose.yml, Docker 29.9.3 on Ubuntu 24.04 (WSL2). Two mineflayer players on the Windows PC joined it through the published port 25565 (offline mode for the bots).",
+      "evidence": ""
+    },
+    "759": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:48:03+00:00",
+      "tester": "Claude Code",
+      "notes": "Docker image ghcr.io/silverwrx03/craft-conductor:v0.30.5 (reports 0.30.5) with the repo's docker-compose.yml, Docker 29.9.3 on Ubuntu 24.04 (WSL2). docker compose down (container and network removed, volume kept), then docker compose up -d: a new container started and the panel came back.",
+      "evidence": ""
+    },
+    "760": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:48:03+00:00",
+      "tester": "Claude Code",
+      "notes": "Docker image ghcr.io/silverwrx03/craft-conductor:v0.30.5 (reports 0.30.5) with the repo's docker-compose.yml, Docker 29.9.3 on Ubuntu 24.04 (WSL2). After recreating the container: the server, its settings (view-distance 11 set before) and the sign-in password are all there; the server starts and a player rejoins.",
+      "evidence": ""
+    },
+    "761": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:48:03+00:00",
+      "tester": "Claude Code",
+      "notes": "Docker image ghcr.io/silverwrx03/craft-conductor:v0.30.5 (reports 0.30.5) with the repo's docker-compose.yml, Docker 29.9.3 on Ubuntu 24.04 (WSL2). A manual backup (127 MB tar.gz) made before docker compose down is still listed and on the volume after the container was recreated.",
+      "evidence": ""
+    }
+  },
+  "notes": "Linux x64 standalone and Docker on Ubuntu 24.04 under WSL2 on the Windows 11 test PC (0.30.5 release assets). The 20 release-gate tests are in this run by default; only the Linux/Docker ones are the aim."
+}
