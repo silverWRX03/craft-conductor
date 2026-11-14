@@ -249,6 +249,55 @@
       "tester": "Claude Code",
       "notes": "Not run separately on Linux: the control panel is the same web page whatever computer runs Craft Conductor, and the screen reader is on the computer that opens it; tested with Windows Narrator in Chrome in v0.30.5-win11 (818 and 1010 pass).",
       "evidence": ""
+    },
+    "805": {
+      "status": "na",
+      "tested_at": "2026-11-14T03:35:56+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Skipped on Linux by the owner's decision (2026-11-13): the Linux machine here is WSL2, which sits on a private network inside Windows (it sees itself as 172.x), so other devices can't reach it without Windows port forwarding; this needs a real Linux computer on the network. The friend's side is the same whatever the server runs on.",
+      "evidence": ""
+    },
+    "806": {
+      "status": "na",
+      "tested_at": "2026-11-14T03:35:57+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Skipped on Linux by the owner's decision (2026-11-13): the Linux machine here is WSL2, which sits on a private network inside Windows (it sees itself as 172.x), so other devices can't reach it without Windows port forwarding; this needs a real Linux computer on the network. The friend's side is the same whatever the server runs on.",
+      "evidence": ""
+    },
+    "807": {
+      "status": "na",
+      "tested_at": "2026-11-14T03:35:57+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Skipped on Linux by the owner's decision (2026-11-13): the Linux machine here is WSL2, which sits on a private network inside Windows (it sees itself as 172.x), so other devices can't reach it without Windows port forwarding; this needs a real Linux computer on the network. The friend's side is the same whatever the server runs on. UPnP from inside WSL2 can't open the home router's port for it.",
+      "evidence": ""
+    },
+    "808": {
+      "status": "na",
+      "tested_at": "2026-11-14T03:35:57+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Skipped on Linux by the owner's decision (2026-11-13): the Linux machine here is WSL2, which sits on a private network inside Windows (it sees itself as 172.x), so other devices can't reach it without Windows port forwarding; this needs a real Linux computer on the network. The friend's side is the same whatever the server runs on.",
+      "evidence": ""
+    },
+    "809": {
+      "status": "na",
+      "tested_at": "2026-11-14T03:35:57+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Skipped on Linux by the owner's decision (2026-11-13): the Linux machine here is WSL2, which sits on a private network inside Windows (it sees itself as 172.x), so other devices can't reach it without Windows port forwarding; this needs a real Linux computer on the network. The friend's side is the same whatever the server runs on.",
+      "evidence": ""
+    },
+    "817": {
+      "status": "na",
+      "tested_at": "2026-11-14T03:35:58+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Skipped on Linux by the owner's decision (2026-11-13): the Linux machine here is WSL2, which sits on a private network inside Windows (it sees itself as 172.x), so other devices can't reach it without Windows port forwarding; this needs a real Linux computer on the network. The friend's side is the same whatever the server runs on. Needs real players (the mineflayer bots only speak up to 26.1.x).",
+      "evidence": ""
+    },
+    "820": {
+      "status": "na",
+      "tested_at": "2026-11-14T03:35:58+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Stopped early by the owner's decision (2026-11-13). Release craft-conductor-linux-x64 v0.30.5, the systemd user service's Fabric 26.3 server with an hourly scheduled backup: sampled every 10 minutes for 1 h 20 min (9 samples): running in every sample, 0 warnings and 0 errors in its activity, Craft Conductor's memory 48-53 MB, the 21:00 scheduled backup made. Not a 24-hour result.",
+      "evidence": ""
     }
   },
   "notes": "Linux x64 standalone and Docker on Ubuntu 24.04 under WSL2 on the Windows 11 test PC (0.30.5 release assets). The 20 release-gate tests are in this run by default; only the Linux/Docker ones are the aim."
