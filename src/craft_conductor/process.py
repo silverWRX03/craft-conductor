@@ -214,12 +214,28 @@ class ServerProcess:
             return None
         self.stopping = True
         if self.running:
+            starting = not self.ready.is_set()
             try:
                 self.send("stop")
             except (RuntimeError, BrokenPipeError, OSError):
                 pass
+            deadline = time.monotonic() + timeout
+            if starting:
+                # Minecraft can't take a command until it's up: a stop sent while it starts is answered "An
+                # unexpected error occurred", and it came up and ran on until it was forced to stop (#293).
+                # Sent again as soon as it's up (one that never says "Done" may still take the first).
+                while self.running and time.monotonic() < deadline:
+                    if self.ready.wait(timeout=0.5):
+                        if self.running:
+                            log.info("the server is up now: stopping it")
+                            try:
+                                self.send("stop")
+                            except (RuntimeError, BrokenPipeError, OSError):
+                                pass
+                        deadline = time.monotonic() + timeout  # (as long to stop as one that was up)
+                        break
             try:
-                self.proc.wait(timeout=timeout)
+                self.proc.wait(timeout=max(0.0, deadline - time.monotonic()))
             except subprocess.TimeoutExpired:
                 log.warning("server did not stop within %ss; terminating", timeout)
                 self.proc.terminate()

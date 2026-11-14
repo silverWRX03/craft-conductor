@@ -11,6 +11,7 @@ import os
 import shutil
 import stat
 import sys
+import time
 from pathlib import Path
 
 
@@ -41,6 +42,21 @@ def rmtree(path: str | os.PathLike, ignore_errors: bool = False) -> None:
         shutil.rmtree(path, onexc=again)
     else:
         shutil.rmtree(path, onerror=again)
+
+
+def rename(src: str | os.PathLike, dst: str | os.PathLike, wait: float = 5.0) -> None:
+    """``Path.rename``, tried again for up to ``wait`` seconds while Windows says "Access is denied":
+    OneDrive (or an antivirus) holds a file in a folder for a moment while it syncs (or scans) it,
+    and the folder can't be renamed until it lets go (#290). Other errors are raised at once."""
+    deadline = time.monotonic() + wait
+    while True:
+        try:
+            Path(src).rename(dst)
+            return
+        except PermissionError:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(0.25)
 
 
 def gone(path: Path) -> bool:

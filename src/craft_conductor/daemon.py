@@ -217,7 +217,10 @@ class Daemon:
         self.ops = threading.Lock()     # one job at a time
         self.job: dict | None = None
         self.last_job: dict | None = None
-        self.updater = selfupdate.Updater()      # a newer craft-conductor release, if any, and how its update stands
+        #: what's wrong with a craft-conductor.toml edited by hand while this runs (its earlier settings are
+        #: still used): shown on the Servers page until the file is put right (#283)
+        self.config_problem: str | None = None
+        self.updater = selfupdate.Updater()     # a newer craft-conductor release, if any, and how its update stands
         self.next_self_check = time.monotonic() + 30
         self.restart_requested = False           # re-exec craft-conductor after exiting (self-update)
         manager.on_line = self._on_line
@@ -628,7 +631,10 @@ class Daemon:
             self.m.config_stamp = stamp  # (said once; looked at again when the file changes again)
             log.warning("craft-conductor.toml was changed, but it can't be used yet (%s): Craft Conductor keeps the "
                         "settings it had", e)
+            self.config_problem = (f"its craft-conductor.toml has a problem: {e}. Its earlier settings are used "
+                                   "until the file is put right")
             return
+        self.config_problem = None
         log.info("craft-conductor.toml was changed by hand: its settings are in use now (memory, port and other "
                  "launch settings apply from the server's next start)")
 

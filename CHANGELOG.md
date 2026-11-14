@@ -4,6 +4,32 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.30.6 (not released yet)
+
+**Added**
+- While friends ask to be let in, **Players** in the sidebar and the server's card on **Your servers** show a red dot with how many, until each is answered. Moderators see it too (and get it in their bell); people who can't answer requests don't (#239).
+- The folder browser has **Browse…**, which opens the computer's own folder picker (File Explorer's on Windows) when the page is open on the computer Craft Conductor runs on. The list of folders keeps the same height, so the window no longer jumps as folders are opened (#229).
+- Importing a world on **New server** says which mods it was played with (from its `level.dat`) when the server won't have them, since their blocks and items are lost: **Choose another world** or **Use it anyway** (#234).
+
+**Changed**
+- A Vanilla server has no **Mods** page in its sidebar, and adding a mod to one is refused before anything is written: each try used to leave a `[[mods]]` entry that made its `craft-conductor.toml` unusable (#237).
+- On a friend's computer, two servers with the same name (two people who both kept "A Minecraft Server") each get their own game folder, launcher profile, Prism instance and extras; setting one up no longer undoes the other. A server set up before keeps its folder. An export takes the server's own id along, so friends keep their setup after a move; a copy imported next to the original gets a new one (#254).
+
+**Fixed**
+- Friends of a server made from a modpack got its mods but not its configs and scripts, so a pack like All the Mods 11 refused them ("registries with unknown keys"). Their Craft Conductor now downloads the pack itself from CurseForge or Modrinth and takes its files from it, as launchers do; a friend's own `options.txt` is kept (#288).
+- A stop asked for while the server was still starting was lost ("An unexpected error occurred while trying to execute that command"), and the server came up and ran until it was forced to stop two minutes later. It's sent again as soon as the server is up (#293).
+- On Linux started with no locale (cron, `runuser -l`, a minimal container), Java couldn't start from a folder with letters outside ASCII. Craft Conductor starts it with `LC_ALL=C.UTF-8` then (#292).
+- On a computer without a screen, the sign-in page said the password was PASSWORD and the password page that you were signed in with PASSWORD, though a one-time password had been made (and PASSWORD is refused there). They point at the one-time password now, and it no longer ends in a "!" that read like punctuation (#291).
+- **Roll back to this** could fail once with "Access is denied" while OneDrive was syncing the server's folder. It tries again for a few seconds (#290).
+- New server → a modpack linked the newest file of a mod to download by hand (All the Mods 11's Player Animation Library 1.2.9), but setup waited for the pack's own file (1.2.8), so the one downloaded never counted. The page links and takes the pack's file now (#280).
+- A text and naming batch (#287): "an Craft Conductor" is "a Craft Conductor"; a new server named "Rückkehr Café" gets the id `ruckkehr-cafe` (not `r-ckkehr-caf`); output sent to a file or another program on Windows is UTF-8, so accented names read right; and an imported export whose name was damaged is named in the log (not "imported None").
+- A damaged world on Minecraft 26.x ("Failed to load world data. World files may be corrupted") got no explanation on the Dashboard. It's explained as a damaged world, with **Open Backups** (#286).
+- A server made with **Only friends at home** showed "You chose playit.gg" while its setup ran. The box follows the choice the server was made with (#285).
+- **Check my setup → Reachable from the internet** answered from a 5-minute cache, so a port just opened or closed was reported wrongly. It asks again each time (#284).
+- A mistake typed into a server's `craft-conductor.toml` while Craft Conductor runs (`warn_minutes = 5`) was only in the console until a restart. The server's card on **Your servers** names it at once, while the server keeps its earlier settings (#283).
+- With a folder chosen for backups (**Craft Conductor settings → Folders**), a new server's backups went back into its own folder once its setup finished. They stay in the chosen folder (#282).
+- "The whitelist of … is now on" was in the bell but not in the server's **Activity**. It's in both (#281).
+
 ## 0.30.5 (2026-11-01)
 
 **Fixed**

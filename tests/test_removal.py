@@ -43,6 +43,39 @@ def test_a_restore_isnt_stopped_by_a_folder_it_replaced_before(tmp_path, monkeyp
     assert not (tmp_path / "server.replaced").exists() and not (tmp_path / "server.restoring").exists()
 
 
+def test_a_restore_waits_while_onedrive_holds_the_server_folder(tmp_path, monkeypatch):
+    """OneDrive syncing (or an antivirus scanning) holds a file for a moment: Windows refuses to move the
+    server folder aside ("Access is denied"). The roll back tries again for a few seconds (#290)."""
+    from pathlib import Path
+    server = tmp_path / "server"
+    server.mkdir()
+    (server / "server.properties").write_text("motd=Old\n")
+    archive = backup.create(server, tmp_path / "backups", label="test", exclude=[])
+    (server / "server.properties").write_text("motd=Changed\n")
+    real_rename, refused = Path.rename, []
+
+    def rename(self, target):
+        if self == server and len(refused) < 2:
+            refused.append(target)
+            raise PermissionError(5, "Access is denied")
+        return real_rename(self, target)
+    monkeypatch.setattr(Path, "rename", rename)
+    backup.restore(archive, server)
+    assert len(refused) == 2 and (server / "server.properties").read_text() == "motd=Old\n"
+
+
+def test_a_rename_held_too_long_still_fails(tmp_path, monkeypatch):
+    from pathlib import Path
+    from craft_conductor import removal
+    (tmp_path / "a").mkdir()
+    monkeypatch.setattr(Path, "rename", lambda self, target: (_ for _ in ()).throw(PermissionError(5, "Access is denied")))
+    with pytest.raises(PermissionError):
+        removal.rename(tmp_path / "a", tmp_path / "b", wait=0.3)
+    monkeypatch.undo()
+    with pytest.raises(FileNotFoundError):  # (anything else isn't waited for)
+        removal.rename(tmp_path / "missing", tmp_path / "b")
+
+
 def test_what_was_put_right_is_on_the_page_once(hub_env):
     """A roll back cut off while unpacking is put right at the next start; the page is told, so it says
     so once and it's in the bell, not only in the server's Activity (#200)."""

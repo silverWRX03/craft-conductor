@@ -29,7 +29,20 @@ SECRET_ENV = ("CRAFT_CONDUCTOR_CURSEFORGE_API_KEY", "CRAFT_CONDUCTOR_INITIAL_PAS
 
 def child_env() -> dict[str, str]:
     """The environment for a program Craft Conductor starts: its own, without the secrets."""
-    return {k: v for k, v in os.environ.items() if k.upper() not in SECRET_ENV}
+    env = {k: v for k, v in os.environ.items() if k.upper() not in SECRET_ENV}
+    if sys.platform.startswith("linux") and not _utf8_locale(env):
+        # Started with no locale (cron, `runuser -l`, a minimal container): Java then can't use a folder
+        # named outside ASCII ("Сервер サーバー": UnsatisfiedLinkError, it doesn't start, #292).
+        # Craft Conductor's own service sets LANG=C.UTF-8 for the same reason.
+        env["LC_ALL"] = "C.UTF-8"
+    return env
+
+
+def _utf8_locale(env: dict[str, str]) -> bool:
+    """Whether programs started with ``env`` read and write file names as UTF-8 (the locale's
+    character set: LC_ALL, else LC_CTYPE, else LANG, as the C library picks them)."""
+    ctype = env.get("LC_ALL") or env.get("LC_CTYPE") or env.get("LANG") or ""
+    return "utf-8" in ctype.lower() or "utf8" in ctype.lower()
 
 _windowless = False
 LOG_LIMIT = 5 << 20

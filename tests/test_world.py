@@ -29,7 +29,7 @@ def zip_bytes(files: dict) -> bytes:
 
 
 def test_level_info():
-    assert world.level_info(level_dat(hardcore=True)) == {"name": "My World", "version": "1.20.1", "hardcore": True}
+    assert world.level_info(level_dat(hardcore=True)) == {"name": "My World", "version": "1.20.1", "hardcore": True, "mods": []}
     assert world.level_info(b"not gzip") == {}
 
 

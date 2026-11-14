@@ -202,7 +202,9 @@ class AuthStore:
                 self._auth, self._mtime = auth, self.path.stat().st_mtime
             return None
         words = "-".join(secrets.token_hex(3) for _ in range(3))
-        password = f"Craft-Conductor-{words}!"  # e.g. Craft-Conductor-1a2b3c-4d5e6f-7a8b9c!
+        # e.g. Craft-Conductor-1a2b3c-4d5e6f-7a8b9c (strong: the dashes are its special characters). Nothing at
+        # its end that reads like punctuation: a "!" there was left off when typing it in (#291).
+        password = f"Craft-Conductor-{words}"
         auth = _hashed("password", password)
         auth.temporary = True
         with self._lock:

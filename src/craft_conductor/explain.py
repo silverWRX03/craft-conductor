@@ -27,7 +27,8 @@ CAUSES = [
      "java", "The server needs a different Java", "The Minecraft version (or a mod) needs a newer Java than the one used.",
      {"kind": "java-auto", "label": "Let Craft Conductor pick the Java version"}),
     (re.compile(r"Failed to load level|Couldn't load (?:level|chunk)|Exception reading .*level\.dat|Chunk file at .* is in the wrong location|"
-                r"Failed to read level\.dat|DataFixer.*failed", re.I), "world", "The world looks damaged",
+                r"Failed to read level\.dat|DataFixer.*failed|"
+                r"Failed to load world data|World files may be corrupted", re.I), "world", "The world looks damaged",
      "Minecraft couldn't read part of the world. Restoring the last backup made before this is the safest fix.",
      {"kind": "backups", "label": "Open Backups"}),
 ]

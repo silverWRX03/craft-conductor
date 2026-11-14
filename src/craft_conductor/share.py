@@ -49,7 +49,7 @@ HEADERS = {
 }
 # For a browser (or an old craft-conductor) that talks plain HTTP to this port.
 NOT_HTTPS = (b"HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\n"
-             b"This is an craft-conductor server's secure invite port. To join, get craft-conductor from GitHub "
+             b"This is a craft-conductor server's secure invite port. To join, get craft-conductor from GitHub "
              b"(silverWRX03/craft-conductor), open it and paste the invite you were sent.\n")
 
 
@@ -195,7 +195,7 @@ class ShareHandler(BaseHTTPRequestHandler):
         if d is None:
             return self._not_valid(sid)
         if not m.group(2):  # someone opened the invite link in a browser
-            return self._text(200, f"This is an invite to an Craft Conductor server. Get Craft Conductor from {RELEASES}, "
+            return self._text(200, f"This is an invite to a Craft Conductor server. Get Craft Conductor from {RELEASES}, "
                                    "open it, and paste the invite you were sent.")
         host, port = self._request_host()
         try:

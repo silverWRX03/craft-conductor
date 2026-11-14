@@ -638,15 +638,23 @@ let chimeSeen = null;
 function chimeFor(servers) {
   const now = new Map((servers || []).map((s) => [s.id, s]));
   if (chimeSeen) {
+    let chime = false;
     for (const [id, s] of now) {
       const before = chimeSeen.get(id);
-      if (before && ((s.state === "running" && before.state !== "running") || (s.join_requests || 0) > (before.join_requests || 0))) {
-        playSound("chime");
-        break;
-      }
+      if (!before) continue;
+      const asked = (s.join_requests || 0) > (before.join_requests || 0);
+      if ((s.state === "running" && before.state !== "running") || asked) chime = true;
+      // A moderator's bell (the owner's already has the server's own message, #241): someone is waiting (#239)
+      if (asked && !isOwner()) bellNote(`A friend asks to join ${s.name}: allow them on the Players page.`, { sid: id, from: "server" });
     }
+    if (chime) playSound("chime");
   }
   chimeSeen = now;
+}
+// How many friends are waiting to be let in (Players in the sidebar, the server's card): answered, it goes (#239).
+function joinDot(n) {
+  const words = `${n} friend${n === 1 ? " asks" : "s ask"} to be let in`;
+  return h("span", { class: "count-dot", role: "img", "aria-label": words, title: words }, String(n > 99 ? "99+" : n));
 }
 
 async function act(fn, okMessage) {
@@ -853,6 +861,9 @@ async function showLogin() {
   $("#login-hint").replaceChildren(...(
     !a ? [] :
     a.managed ? ["The password is set in craft-conductor.toml under ", h("code", {}, "[web] password"), "."] :
+    // (a computer without a screen: Craft Conductor made a one-time password and printed it; PASSWORD doesn't work, #291)
+    a.temporary ? ["First time? Use the one-time password Craft Conductor printed when it started (it's also in ",
+      h("code", {}, "first-password.txt"), " in its ", h("code", {}, ".craft-conductor"), " folder). You'll choose your own next."] :
     a.default ? ["First time? The password is ", h("strong", {}, "PASSWORD"), " (in capitals). You'll choose your own next."] :
     a.local ? ["Forgot it? ", reset, " (this works on the server's own computer)."] :
     ["Forgot it? On the server's own computer, open this page and choose \"Reset it to PASSWORD\", or run ",
@@ -1079,7 +1090,9 @@ async function showSecurity(firstTime = false) {
     };
     fill(box,
       h("h2", { id: "security-title" }, firstTime ? "Choose your own password" : "Sign-in"),
-      firstTime ? h("p", {}, "You're signed in with the default password, PASSWORD, which anyone could guess. Pick how you'd like to protect this control panel.") : null,
+      firstTime ? h("p", {}, hubInfo && hubInfo.auth && hubInfo.auth.temporary
+        ? "You're signed in with the one-time password Craft Conductor made when it first started. Choose your own to protect this control panel."
+        : "You're signed in with the default password, PASSWORD, which anyone could guess. Pick how you'd like to protect this control panel.") : null,
       h("div", { class: "choices" }, AUTH_MODES.map(([m, label, desc]) => h("button", {
         type: "button", class: "choice" + (mode === m ? " selected" : ""), disabled: m === "pin" && (!local || strongRequired),
         onclick: () => { mode = m; render(); },
@@ -4739,7 +4752,19 @@ function openFolderBrowser({ title, intro = "", start = "", actions, newFolder =
     showListing(r);
     return true;
   };
+  // Browse…: the computer's own folder picker (File Explorer's on Windows), opened on the screen of the computer
+  // Craft Conductor runs on: offered only in a browser there (#229). What comes back is opened like a typed path.
+  const browse = h("button", { type: "button", class: "btn hidden", onclick: async () => {
+    note.textContent = "";
+    browse.disabled = true;
+    try {
+      const r = await api("/api/hub/folders/pick", { method: "POST", body: { start: shown || box.value.trim(), title } });
+      if (r.path) await show(r.path);
+    } catch (e) { if (!(e instanceof Unauthorized)) note.textContent = e.message; }
+    finally { browse.disabled = false; }
+  } }, "Browse…");
   const showListing = (r) => {
+    browse.classList.toggle("hidden", !(r.picker && hubInfo && hubInfo.local));
     shown = r.path;
     box.value = r.path || "";
     buttons.forEach((b) => { b.disabled = !r.path; });
@@ -4766,7 +4791,7 @@ function openFolderBrowser({ title, intro = "", start = "", actions, newFolder =
     h("div", { class: "modal folder-browser" },
       h("h2", { id: "folder-browser-title" }, title),
       intro ? h("p", { class: "small" }, intro) : null,
-      h("div", { class: "row" }, box, h("button", { type: "button", class: "btn", onclick: () => show(box.value.trim()) }, "Open"), make),
+      h("div", { class: "row" }, box, h("button", { type: "button", class: "btn", onclick: () => show(box.value.trim()) }, "Open"), browse, make),
       note, list,
       h("p", { class: "muted small" }, "These are the folders on the computer Craft Conductor runs on."),
       h("div", { class: "row mt" }, buttons, h("button", { type: "button", class: "btn ghost", onclick: close }, "Cancel"))));
@@ -7414,7 +7439,7 @@ function pickWorld(onPick) {
     try {
       const r = await upload(`/api/hub/stage?filename=${encodeURIComponent(f.name.replace(/[^A-Za-z0-9 ()\[\]+_.,'-]/g, "_"))}`, f,
         (done) => { note.textContent = `Uploading ${f.name}: ${Math.round(done * 100)}%`; });
-      choose({ world: r.id, name: f.name.replace(/\.zip$/i, ""), version: null });
+      choose({ world: r.id, name: f.name.replace(/\.zip$/i, ""), version: r.world ? r.world.version : null, mods: r.world ? r.world.mods || [] : [] });
     } catch (e) { if (!(e instanceof Unauthorized)) { note.textContent = ""; toast(e.message, true); } }
   });
   const box = h("div", { class: "modal" },
@@ -7431,7 +7456,7 @@ function pickWorld(onPick) {
       w.icon ? h("img", { src: w.icon, alt: "" }) : h("div", { class: "noicon" }),
       h("div", { class: "grow" }, h("strong", {}, w.name), w.hardcore ? h("span", { class: "tag bad" }, "hardcore") : null,
         h("div", { class: "small muted" }, [w.launcher, w.version ? `Minecraft ${w.version}` : null, `played ${fmtTime(w.played)}`].filter(Boolean).join(" · "))),
-      h("button", { class: "btn small primary", type: "button", onclick: () => choose({ world: "save:" + w.id, name: w.name, version: w.version }) }, "Use"))))
+      h("button", { class: "btn small primary", type: "button", onclick: () => choose({ world: "save:" + w.id, name: w.name, version: w.version, mods: w.mods || [] }) }, "Use"))))
       : h("p", { class: "empty" }, "No singleplayer worlds found. Upload one as a .zip instead."));
   }).catch((e) => fill(list, h("p", { class: "empty" }, e.message)));
 }
@@ -7529,12 +7554,15 @@ views.servers = () => {
     const label = (s) => s.state === "unavailable" ? "unavailable" : s.setup_pending ? "not set up" : s.state;
     // (rebuilt only when something shown here changed: see refill)
     refill(list, JSON.stringify([!!hb.single, !!hb.local, [...busy], hb.servers.map((s) => [s.id, s.name, s.state, s.setup_pending, s.problem,
-      s.minecraft, s.loader, s.players, s.max_players, s.port, !!s.update, s.job && s.job.name, s.folder])]),
+      s.minecraft, s.loader, s.players, s.max_players, s.port, !!s.update, s.job && s.job.name, s.folder, s.join_requests || 0])]),
       hb.servers.map((s) => h("div", { class: "card server-card" },
         h("div", { class: "row" },
           h("span", { class: "pill " + (s.setup_pending ? "pending" : s.state) }, label(s)),
-          h("strong", { class: "grow server-name" }, s.name)),
-        h("div", { class: "muted" }, s.problem || (s.minecraft ? `Minecraft ${s.minecraft} · ${s.loader}` : `${s.loader} · not installed yet`)),
+          h("strong", { class: "grow server-name" }, s.name),
+          s.join_requests ? h("a", { href: `#s/${s.id}/players`, class: "row", "aria-label": `${s.name}: see who asks to be let in` }, joinDot(s.join_requests)) : null),
+        s.problem && s.state !== "unavailable"  // (a mistake typed into its craft-conductor.toml: it still runs on its earlier settings, #283)
+          ? h("div", { class: "notice warn small", role: "status" }, s.problem) : null,
+        h("div", { class: "muted" }, (s.state === "unavailable" && s.problem) || (s.minecraft ? `Minecraft ${s.minecraft} · ${s.loader}` : `${s.loader} · not installed yet`)),
         s.state === "unavailable" || s.setup_pending ? null
           : h("div", { class: "muted small" }, `${s.players} / ${s.max_players} players` + (s.port ? ` · port ${s.port}` : ""), s.update ? " · update ready" : ""),
         s.job ? h("div", { class: "row small" }, h("span", { class: "spinner" }), `${s.job.name}…`) : null,
@@ -8764,6 +8792,22 @@ function setupModVersion() {
   const st = setupState;
   return st.minecraft === "latest" ? (st.newest || "") : st.minecraft;
 }
+// The mods a world to import was played with (its level.dat's data packs, world.py) that this server won't
+// have: none at all on a server type without mods, else those not among the mods chosen (#234).
+function setupWorldModsMissing(hasMods) {
+  const st = setupState;
+  const worldMods = (st.world && st.world.mods) || [];
+  if (!worldMods.length) return [];
+  if (!hasMods) return worldMods;
+  const plain = (x) => String(x || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const have = new Set();
+  for (const [key, m] of st.mods) {
+    for (const x of [key.replace(/^curseforge:/, ""), m.name, m.slug]) if (x) have.add(plain(x));
+  }
+  if (have.has("fabricapi")) have.add("fabric");  // (Fabric API's own data is named "fabric")
+  // (a mod's parts are named after it: Fabric API's "fabric-convention-tags-v2")
+  return worldMods.filter((x) => !have.has(plain(x)) && ![...have].some((h) => h.length >= 4 && plain(x).startsWith(h)));
+}
 const LOADER_LABELS = { fabric: "Fabric", neoforge: "NeoForge", forge: "Forge", quilt: "Quilt", paper: "Paper", purpur: "Purpur", vanilla: "Vanilla" };
 const setupLoaderLabel = () => LOADER_LABELS[setupState.loader] || setupState.loader || "";
 // Mods with only alpha/beta builds for this version: shown on request, added after a warning.
@@ -9866,6 +9910,17 @@ views.setup = () => {
                 h("button", { type: "button", class: "btn small", onclick: () => pickWorld((w) => { st.world = w; renderForm(); }) }, "Choose another world"),
                 h("button", { type: "button", class: "btn small danger", onclick: () => { st.world.olderOk = true; renderForm(); } }, "Import anyway")));
         })(),
+        (() => {  // (played with mods this server won't have: their blocks and items are lost, #234)
+          const gone = setupWorldModsMissing(hasMods);
+          if (!gone.length) return null;
+          return h("div", { class: "notice warn mt-s", role: "note" },
+            h("strong", {}, `This world was played with mods: ${listNames(gone.slice(0, 12))}${gone.length > 12 ? ` and ${gone.length - 12} more` : ""}. `),
+            "Their blocks and items are lost on a server without them. Add them on the Mods card (where they're for this server type and version), or choose another world.",
+            st.world.modsOk ? h("div", { class: "small mt-s" }, "✓ You chose to use it anyway.") :
+              h("div", { class: "row mt-s wrap" },
+                h("button", { type: "button", class: "btn small", onclick: () => pickWorld((w) => { st.world = w; renderForm(); }) }, "Choose another world"),
+                h("button", { type: "button", class: "btn small", onclick: () => { st.world.modsOk = true; renderForm(); } }, "Use it anyway")));
+        })(),
         h("div", { class: "row mt-s" }, h("button", { type: "button", class: "btn small", onclick: () => pickWorld((w) => { st.world = w; renderForm(); }) }, "Choose another"),
           h("button", { type: "button", class: "btn small ghost", onclick: () => { st.world = null; renderForm(); } }, "Use a new world instead")))
       : h("div", { class: "mt-s" },
@@ -10126,6 +10181,7 @@ views.setup = () => {
   };
 
   const renderProgress = () => {
+    const way = (opts && opts.reach) || (st.filesSent ? st.reach : "");
     const events = h("div", { class: "events" });
     let seq = 0;
     // Setup waits for mods whose authors don't let other apps download them: the panel slides
@@ -10163,9 +10219,11 @@ views.setup = () => {
       card("What's happening", events),
       // While it installs: what friends outside your home will need (the lower part of the screen), for the
       // way chosen: the router's port forwarding, playit.gg's steps on the Friends page, or nothing (#196).
-      st.reach === "forward" ? h("details", { class: "card mt router-help", open: true }, h("summary", {}, h("strong", {}, "While you wait: letting friends outside your home join")),
+      // The server's own choice when it has one: this page may have been opened afresh, with the form's
+      // default rather than what was chosen (#285).
+      way === "forward" ? h("details", { class: "card mt router-help", open: true }, h("summary", {}, h("strong", {}, "While you wait: letting friends outside your home join")),
         routerHelp({ port: (status && status.port) || st.port }))
-        : st.reach === "playit" ? h("div", { class: "card mt" }, h("strong", {}, "While you wait: letting friends outside your home join"),
+        : way === "playit" ? h("div", { class: "card mt" }, h("strong", {}, "While you wait: letting friends outside your home join"),
           h("p", { class: "small" }, "You chose playit.gg: once the server is made, its Friends page walks you through it (get playit.gg's program, connect it, add a tunnel). No router settings needed."))
         : null);
     fill(main, panel);
@@ -10228,6 +10286,12 @@ views.setup = () => {
 const SERVER_VIEWS = [["dashboard", "Dashboard"], ["console", "Console"], ["players", "Players"], ["updates", "Updates"],
   ["mods", "Mods"], ["friends", "Friends"], ["backups", "Backups"], ["java", "Java"], ["settings", "Settings"]];
 let currentName = null;
+// A page that's no use to this server: Mods on a Vanilla server, which can't run mods (#237). It's back once
+// the server is switched to a type that runs mods.
+function viewUnused(view, sid = server) {
+  const me = sid && hubInfo && hubInfo.servers ? hubInfo.servers.find((x) => x.id === sid) : null;
+  return view === "mods" && !!me && me.loader === "vanilla";
+}
 
 const NAV_ICONS = {"dashboard":"M3 3h18v18H3z M3 9h18 M9 9v12","console":"M3 4h18v16H3z M7 9l3 3-3 3 M13 15h4","players":"M6 20v-2a6 6 0 0 1 12 0v2 M9 4h6v6H9z","mods":"M12 3l9 5v9l-9 5-9-5V8z M3 8l9 5 9-5 M12 13v9","backups":"M4 5h16v15H4z M4 10h16 M4 15h16","settings":"M4 7h16 M4 17h16 M9 4v6 M15 14v6","manual":"M12 5C9 3 5 3 3 4v15c3-1 6-1 9 1 M12 5c3-2 7-2 9-1v15c-3-1-6-1-9 1 V5","default":"M4 4h16v16H4z M8 8h8 M8 12h8 M8 16h5"};
 function navIcon(href) {
@@ -10246,14 +10310,16 @@ function renderNav() {
   const a = (href, label, active, extra) => h("a", { href, class: active ? "active" : null, "aria-current": active ? "page" : null, "data-fkey": href }, navIcon(href), h("span", {}, label), extra || null);
   const me = server && hb.servers ? hb.servers.find((x) => x.id === server) : null;
   const pending = me ? me.setup_pending : false;
+  const asking = me ? me.join_requests || 0 : 0;  // (only for whoever may answer them: the owner, and moderators)
   refill($("#nav"), JSON.stringify([server, me && me.name, pending, !!(me && me.update), currentName, !!hb.single, hb.device || null, !!hb.self_update,
-    hb.role || null, hb.access || null]),
+    hb.role || null, hb.access || null, me && me.loader, asking]),
     server ? [
       hb.single ? null : a("#servers", "← All servers", false),
       h("div", { class: "nav-server" }, me ? me.name : server),
       pending ? a(link("setup"), "Setup", currentName === "setup")
-        : SERVER_VIEWS.filter(([v]) => canView(v)).map(([v, label]) => a(link(v), label, currentName === v,
-            v === "updates" ? h("span", { id: "nav-update-dot", class: "dot" + (me && me.update ? "" : " hidden"), role: "img", "aria-label": "An update is ready" }) : null)),
+        : SERVER_VIEWS.filter(([v]) => canView(v) && !viewUnused(v)).map(([v, label]) => a(link(v), label, currentName === v,
+            v === "updates" ? h("span", { id: "nav-update-dot", class: "dot" + (me && me.update ? "" : " hidden"), role: "img", "aria-label": "An update is ready" })
+            : v === "players" && asking ? joinDot(asking) : null)),
     ] : [
       a("#servers", "Servers", currentName === "servers"),
       hb.single || !isOwner() ? null : a("#new", "New server", currentName === "new"),
@@ -10301,7 +10367,7 @@ function route() {
   if (m) {
     server = m[1];
     view = m[2] === "setup" || SERVER_VIEWS.some(([v]) => v === m[2]) ? m[2] : "dashboard";
-    if (!canView(view)) view = "dashboard";
+    if (!canView(view) || viewUnused(view)) view = "dashboard";
   } else {
     server = null;
     view = ["servers", "new", "craft-conductor", "help", "manual"].includes(hash) ? hash : "servers";

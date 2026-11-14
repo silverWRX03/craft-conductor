@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING
 
 from . import nbt, opener
 from .desktop import child_env
-from .http import HashMismatch, sha1_file
+from .http import HashMismatch, HttpError, sha1_file
 
 if TYPE_CHECKING:
     from .join import Joiner
@@ -144,6 +144,19 @@ def fetch_mods(joiner: "Joiner", pack: dict, dest: Path) -> list[tuple[dict, Pat
                 raise JoinError(f"{m['name']} didn't match its checksum, so it wasn't installed") from e
         out.append((m, target))
     return out
+
+
+def pack_files_into(joiner: "Joiner", pack: dict, z: zipfile.ZipFile) -> None:
+    """The modpack's own configs and scripts, in a zip a launcher imports (packfiles.py, #288)."""
+    from . import packfiles
+    from .join import JoinError
+    from .modpack import ModpackError
+    try:
+        packfiles.add_to_zip(joiner.http, pack.get("pack_files"), z, joiner.say)
+    except HashMismatch as e:
+        raise JoinError(f"{pack['pack_files']['name']} didn't match its checksum, so its files weren't added") from e
+    except (ModpackError, HttpError, OSError) as e:
+        raise JoinError(f"couldn't get the modpack's settings and scripts ({e}); try again") from e
 
 
 def servers_dat(pack: dict) -> bytes:
@@ -273,6 +286,7 @@ def build_mrpack(joiner: "Joiner", pack: dict, out_dir: Path) -> Path:
                               "env": {"client": "required", "server": "required" if m.get("side") != "client" else "unsupported"}})
             else:
                 z.writestr(f"overrides/{folder_of(m)}/{m['filename']}", data)
+        pack_files_into(joiner, pack, z)
         if pack["address"]:
             z.writestr("overrides/servers.dat", servers_dat(pack))
         _pack_settings(z, pack)
@@ -310,6 +324,7 @@ def build_curseforge(joiner: "Joiner", pack: dict, out_dir: Path) -> Path:
         from .join import folder_of
         for m, jar in fetch_mods(joiner, pack, Path(tmp)):
             z.write(jar, f"overrides/{folder_of(m)}/{m['filename']}")
+        pack_files_into(joiner, pack, z)
         if pack["address"]:
             z.writestr("overrides/servers.dat", servers_dat(pack))
         _pack_settings(z, pack)

@@ -1183,7 +1183,12 @@ def _entry(argv: list[str] | None) -> int:
     for stream in (sys.stdout, sys.stderr):
         try:  # e.g. a Windows console code page that lacks "•"
             stream.reconfigure(errors="replace")
-        except (AttributeError, ValueError):
+            # Output sent to a file or another program on Windows was in the code page ("R�ckkehr Caf�"
+            # where it's read as UTF-8): it's UTF-8 now, as the Windows executable's and the log's (#287).
+            # (A console window is written to in its own way, which shows every letter.)
+            if os.name == "nt" and not stream.isatty():
+                stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
             pass
     argv = sys.argv[1:] if argv is None else argv
     parser = build_parser()

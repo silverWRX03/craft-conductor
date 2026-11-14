@@ -75,6 +75,24 @@ def test_every_key_entered_is_checked_with_curseforge(hub_env, monkeypatch):
     assert asked == [KEY, OTHER] and hub.curseforge_key() == KEY
 
 
+def test_programs_get_a_utf8_locale(monkeypatch):
+    """Linux started with no locale (LANG empty: cron, `runuser -l`): Java couldn't start from a folder
+    named "Сервер サーバー" (#292). Programs get C.UTF-8 then; a UTF-8 locale already set is left alone."""
+    from craft_conductor import desktop
+    for name in ("LC_ALL", "LC_CTYPE", "LANG"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(desktop.sys, "platform", "linux")
+    assert desktop.child_env()["LC_ALL"] == "C.UTF-8"
+    monkeypatch.setenv("LANG", "POSIX")
+    assert desktop.child_env()["LC_ALL"] == "C.UTF-8"
+    monkeypatch.setenv("LANG", "de_DE.UTF-8")
+    assert "LC_ALL" not in desktop.child_env()
+    monkeypatch.setenv("LC_ALL", "C")  # (LC_ALL wins over LANG)
+    assert desktop.child_env()["LC_ALL"] == "C.UTF-8"
+    monkeypatch.setattr(desktop.sys, "platform", "win32")  # (Windows: a folder outside the code page is handled apart)
+    assert desktop.child_env()["LC_ALL"] == "C"
+
+
 def test_secrets_stay_out_of_programs_craft_conductor_starts(tmp_path, monkeypatch):
     """The Minecraft server runs every mod's code, and its environment is theirs to read; the
     installers and launchers aren't ours either."""
@@ -86,7 +104,8 @@ def test_secrets_stay_out_of_programs_craft_conductor_starts(tmp_path, monkeypat
     monkeypatch.setenv("CRAFT_CONDUCTOR_CURSEFORGE_API_KEY", BUILT_IN)
     monkeypatch.setenv("CRAFT_CONDUCTOR_INITIAL_PASSWORD", "first-password-for-the-test")
     monkeypatch.setenv("CRAFT_CONDUCTOR_TEST_SETTING", "kept")  # everything else is passed on
-    assert set(desktop.child_env()) == set(os.environ) - set(desktop.SECRET_ENV)
+    # (LC_ALL may be added on Linux: test_programs_get_a_utf8_locale)
+    assert set(desktop.child_env()) - {"LC_ALL"} == set(os.environ) - set(desktop.SECRET_ENV) - {"LC_ALL"}
 
     script = ("import os; print('seen:', sorted(k for k in os.environ if k.startswith('CRAFT_CONDUCTOR_')));"
               "print('[Server thread/INFO]: Done (0.1s)! For help, type \"help\"', flush=True); input()")

@@ -69,7 +69,7 @@ MAX_UPLOAD = 512 << 20
 MAX_ARCHIVE = 64 << 30
 LANGUAGES = ("es", "pt", "fr", "de", "hi", "zh", "vi", "ar", "ko")  # besides English: src/craft_conductor/webui/i18n/<code>.json
 LOCAL_ONLY = {"/api/open", "/api/hub/open", "/api/hub/remote-install/open", "/api/play-here", "/api/hub/singleplayer/install",
-              "/api/hub/firewall/remove", "/api/hub/playit/install"}  # they act on this computer's screen  # a whole server (worlds and all), for importing
+              "/api/hub/firewall/remove", "/api/hub/playit/install", "/api/hub/folders/pick"}  # they act on this computer's screen  # a whole server (worlds and all), for importing
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/app.js": ("app.js", "text/javascript; charset=utf-8"),
           "/rich.js": ("rich.js", "text/javascript; charset=utf-8"),
@@ -1629,6 +1629,7 @@ class HubApi:
         r[("GET", "/api/hub/locations")] = self.locations_info
         r[("POST", "/api/hub/locations")] = self.save_locations
         r[("POST", "/api/hub/folders/new")] = self.new_folder
+        r[("POST", "/api/hub/folders/pick")] = self.pick_folder
         r[("GET", "/api/hub/browse/search")] = lambda q, b: browse_search(self.browser(), q)
         r[("GET", "/api/hub/browse/project")] = lambda q, b: browse_project(self.browser(), q)
         r[("GET", "/api/hub/browse/categories")] = lambda q, b: browse_categories(self.browser(), q)
@@ -2809,7 +2810,15 @@ class HubApi:
         name = q.get("filename", "")
         if not STAGED_NAME.fullmatch(name):
             raise ApiError(400, "only .jar and .zip files can be added here")
-        return self.hub.stage_upload(handler, name, MAX_ARCHIVE if name.endswith(".zip") else MAX_UPLOAD)
+        staged = self.hub.stage_upload(handler, name, MAX_ARCHIVE if name.endswith(".zip") else MAX_UPLOAD)
+        if name.endswith(".zip"):  # a world: what's known of it, for the setup page's World card (#234)
+            from . import world
+            try:
+                info = world.inspect_zip(self.hub.staging_dir / staged["id"] / name)
+                staged["world"] = {"version": info.get("version"), "mods": info.get("mods") or []}
+            except (world.WorldError, OSError):
+                pass  # (not a world, or damaged: said when it's used)
+        return staged
 
     def manual_needed(self, q, b) -> dict:
         """Of a new server's chosen modpack and mods, the CurseForge files whose authors don't let
@@ -2935,13 +2944,27 @@ class HubApi:
         """The folder browser: the folders in a folder on this computer (never the files in it), or,
         without a ``path``, where to start (the home folder, Documents, Downloads, the drives)."""
         from . import folders
+        from .folderpicker import available
         path = folders.nearest(q.get("path", "")) if q.get("nearest") == "1" else q.get("path")  # (opening: #145)
+        picker = available()  # (Browse…: the page offers it in a browser on this computer only, #229)
         if not path:
-            return {"path": None, "parent": None, "folders": folders.places(), "more": False}
+            return {"path": None, "parent": None, "folders": folders.places(), "more": False, "picker": picker}
         try:
-            return folders.listing(path)
+            return {**folders.listing(path), "picker": picker}
         except folders.FolderError as e:
             raise ApiError(400, str(e)) from None
+
+    def pick_folder(self, q, b) -> dict:
+        """Browse…: this computer's own folder picker, opened on its screen (LOCAL_ONLY, the owner's).
+        The page checks the folder chosen as it checks a typed one (folder_list). Waits for the picker:
+        each request has its own thread, so the rest of the page carries on meanwhile."""
+        from . import folderpicker
+        start = b.get("start") if isinstance(b.get("start"), str) else ""
+        title = b.get("title") if isinstance(b.get("title"), str) else "Choose a folder"
+        try:
+            return {"path": folderpicker.pick(start[:1000], title)}
+        except folderpicker.PickerError as e:
+            raise ApiError(409, str(e)) from None
 
     def port_check(self, q, b) -> dict:
         try:
@@ -3368,8 +3391,10 @@ class Api:
     def setup_options(self, q, b) -> dict:
         return {**setup_options(self.m.mojang), "pending": self.d.setup_pending,
                 "server_dir": str(self.m.server_dir),
-                "network_option": self.web.hub.is_single,  # with several servers it's an craft-conductor setting
+                "network_option": self.web.hub.is_single,  # with several servers it's a craft-conductor setting
                 "network_access": self.m.config.web.host in ("0.0.0.0", "::"),
+                # (how friends outside join, as chosen when it was made: the progress page's "While you wait", #285)
+                "reach": self.m.config.reach_way,
                 "current": self._current_setup()}
 
     def _current_setup(self) -> dict | None:
@@ -3559,6 +3584,10 @@ class Api:
         mod_id = str(b.get("id", "")).strip()
         if not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", mod_id):
             raise ApiError(400, "invalid mod id")
+        if self.m.config.server.loader == "vanilla":
+            # Refused before anything is written: a [[mods]] entry made craft-conductor.toml unusable, and
+            # later changes to the server's settings were ignored until it was taken out by hand (#237).
+            raise ApiError(400, "a Vanilla server can't run mods: switch it to a server type that does (such as Fabric) first")
         plugins = self.m.loader.mods_folder != "mods"
         if source == "curseforge" and plugins:
             raise ApiError(400, "Paper plugins come from Modrinth or Hangar")

@@ -472,8 +472,12 @@ def hub_answer(subject: Subject, result: dict) -> dict:
     """The server list for an invited person: only their servers, and nothing about this computer."""
     if subject.is_owner:
         return result
+    answers = SERVER_ROUTES[("POST", "/api/join-requests/answer")]
     return {**{k: result.get(k) for k in HUB_KEEP},
-            "servers": [{k: s.get(k) for k in SERVER_KEEP} for s in result.get("servers", []) if subject.sees(s.get("id"))],
+            "servers": [{**{k: s.get(k) for k in SERVER_KEEP},
+                         # (friends waiting to be let in: for those who may answer them, the dot on Players, #239)
+                         **({"join_requests": s.get("join_requests") or 0} if subject.can(s.get("id"), answers) else {})}
+                        for s in result.get("servers", []) if subject.sees(s.get("id"))],
             "share": None, "guide": None, "health": [], "self_update": None, "home": None, "auth": None}
 
 

@@ -9015,5 +9015,149 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1031,
+    "section": "Fix: a stop while the server starts",
+    "step": "On Linux, run craft-conductor run, and craft-conductor stop before the server says Done: once it's up it stops by itself within seconds, with no \"did not stop within 120s; terminating\" (#293).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1032,
+    "section": "Fix: Java starts with no locale",
+    "step": "On Linux, from a shell with LANG empty (runuser -l), with CRAFT_CONDUCTOR_HOME in a folder named with non-ASCII letters, create a Vanilla server and run it: Java starts and the server comes up (#292).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1033,
+    "section": "Fix: headless sign-in points at the one-time password",
+    "step": "On a fresh Linux install with no screen (craft-conductor start --no-browser): the printed one-time password has no \"!\" at its end, the sign-in page points at the one-time password (not PASSWORD), and after signing in Choose your own password doesn't mention PASSWORD (#291).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1034,
+    "section": "Fix: roll back while OneDrive syncs",
+    "step": "With the servers folder in OneDrive (syncing), update a server, start and stop it, then Backups → Roll back to this on the backup made before the update: it works the first time (#290).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1035,
+    "section": "Fix: friends of a modpack server get its configs and scripts",
+    "step": "Create All the Mods 11 from CurseForge with friends' downloads on; set up a friend through the invite (Prism Launcher): the friend's kubegroovy and config folders match the pack's, and the friend joins the server (#288).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1036,
+    "section": "Fix: small text and naming problems",
+    "step": "The join page's error says \"a Craft Conductor\"; a new server named \"Rückkehr Café\" gets the id ruckkehr-cafe; the release exe's output redirected to a file shows accented names right; an export whose name was damaged imports with the log naming the server (#287).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1037,
+    "section": "Fix: a damaged world on Minecraft 26.x is explained",
+    "step": "On a Minecraft 26.x server, replace level.dat and level.dat_old with a file that isn't gzip and start it: the Dashboard says the world looks damaged, with Open Backups (#286).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1038,
+    "section": "Fix: the setup page follows the way friends join",
+    "step": "Create a server (a modpack, say) with Only friends at home: its setup page's While you wait box says nothing about playit.gg (#285).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1039,
+    "section": "Fix: the internet check asks again each time",
+    "step": "On a running server with Router (UPnP) on, Check my setup → Reachable from the internet says reachable; switch Router off and check again at once: it says it can't be reached (#284).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1040,
+    "section": "Fix: a bad hand edit shows on the Servers page",
+    "step": "With Craft Conductor open, set warn_minutes = 5 in a server's craft-conductor.toml: within a minute its card on Your servers names the problem; fix it and the problem goes (#283).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1041,
+    "section": "Fix: a new server's backups stay in the chosen folder",
+    "step": "With Craft Conductor settings → Folders → Backups set to a folder, create a server: after its setup finishes its craft-conductor.toml still has [backups] dir in that folder, and Create backup puts the backup there (#282).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1042,
+    "section": "Fix: the whitelist notice is in Activity",
+    "step": "Set a public address in Sharing with friends while a server made by this version has its whitelist off: \"The whitelist of … is now on\" is in the bell and in that server's Dashboard → Activity (#281).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1043,
+    "section": "Fix: a modpack's hand downloads match setup",
+    "step": "New server → A modpack → CurseForge → All the Mods 11 (0.14.0-beta) → Use this modpack: Manage Mods links Player Animation Library's pack file (1.2.8); after downloading the three files, Create my server doesn't wait for any (#280).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1044,
+    "section": "Feature: two servers with the same name on a friend's PC",
+    "step": "On one friend's computer, set up two servers both named A Minecraft Server from two different hosts: each has its own game folder, launcher profile and Prism instance, and switching between them needs no new setup (#254).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1045,
+    "section": "Feature: a dot when someone asks to join",
+    "step": "With the whitelist on, have a friend press Ask to be let in: Players in the sidebar and the server's card show a red dot with 1 (also for a moderator, not for a viewer), the bell says so, and the dot goes once Allow or Ignore is pressed (#239).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1046,
+    "section": "Feature: no Mods page on a Vanilla server",
+    "step": "On a Vanilla server: Mods isn't in the sidebar, #s/<id>/mods opens the Dashboard, and adding a mod (the API) is refused with craft-conductor.toml unchanged (#237).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1047,
+    "section": "Feature: a modded world's mods are named before Create",
+    "step": "New server → Vanilla → World → Import a world played with Fabric mods: the World card names the mods (axiom, collective…) and offers Choose another world and Use it anyway (#234).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1048,
+    "section": "Feature: Browse… in the folder browser",
+    "step": "In the folder browser (Folders → Change…), the list keeps its height as folders are opened; on the server's own computer Browse… opens Windows' folder picker in front, and the chosen folder opens in the list; from a phone there's no Browse… (#229).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]

@@ -68,6 +68,19 @@ def test_the_internet_test(http):
     assert doctor.internet_check(http, 25565, running=False).status == "info"  # nothing to connect to
 
 
+def test_the_internet_test_asks_again_each_time():
+    """#284: a port just closed (or forwarded) is seen at once, not after the 5-minute cache."""
+    seen = []
+
+    class Recording:
+        def get_json(self, url, params=None, headers=None, cache=True):
+            seen.append(cache)
+            return {"ip": "203.0.113.7", "port": 25565, "reachable": True}
+
+    doctor.internet_check(Recording(), 25565, running=True)
+    assert seen == [False]
+
+
 def test_secrets_are_taken_out():
     text = "\n".join([
         '[client]', 'token = "abcdefghijklmnopqrstuv"', 'enabled = true',

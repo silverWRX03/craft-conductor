@@ -21,12 +21,13 @@ import stat
 import sys
 import threading
 import time
+import unicodedata
 from pathlib import Path
 from typing import Callable
 
 from . import config as configmod, private, rollback, selfupdate, setup as setupmod
 from .config import ConfigError, WebConfig
-from .daemon import Daemon, SELF_CHECK_INTERVAL, pid_alive, running_pid, set_current_server
+from .daemon import Daemon, SELF_CHECK_INTERVAL, current_server, pid_alive, running_pid, set_current_server
 from .http import HttpClient
 from .clientpack import client_dir
 from .loaders import mods_folder
@@ -111,6 +112,15 @@ def port_free(port: int) -> bool:
 
 
 def slugify(name: str) -> str:
+    """The id (and folder name) of a new server made from its name: accented letters keep their letter
+    ("Rückkehr Café" is ``ruckkehr-cafe``, not ``r-ckkehr-caf``, #287)."""
+    plain = "".join(c for c in unicodedata.normalize("NFKD", name.lower()) if not unicodedata.combining(c))
+    return re.sub(r"[^a-z0-9]+", "-", plain).strip("-")[:40] or "server"
+
+
+def _folder_id(name: str) -> str:
+    """The id of a server folder added from elsewhere, worked out from its folder name each time it's
+    found. Kept as before (letters outside a-z dropped): people's access to a server is kept by its id."""
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:40] or "server"
 
 
@@ -605,9 +615,9 @@ class Hub:
                     found[d.name] = d
         for root in self._extra_roots():
             if (root / configmod.CONFIG_NAME).exists() and root not in found.values() and root not in hidden:
-                sid, n = slugify(root.name), 2
+                sid, n = _folder_id(root.name), 2
                 while sid in found:
-                    sid, n = f"{slugify(root.name)}-{n}", n + 1
+                    sid, n = f"{_folder_id(root.name)}-{n}", n + 1
                 found[sid] = root
         return found
 
@@ -904,9 +914,16 @@ class Hub:
                 log.warning("couldn't turn on %s's whitelist: %s", sid, e)
                 continue
             name = server_name(props, sid)
-            log.info("turned on %s's whitelist: %s", sid, reasons[0])
-            d.m.notifier.send(f"The whitelist of {name} is now on, because it can be reached from the internet "
-                              f"({why or reasons[0]}). Add your friends on the Players page.")
+            # Said as this server's (its Activity takes only its own messages): this runs in a page's request
+            # (Sharing with friends) or a background check, and only reached the bell (#281).
+            before = current_server()
+            set_current_server(sid)
+            try:
+                log.info("turned on %s's whitelist: %s", sid, reasons[0])
+                d.m.notifier.send(f"The whitelist of {name} is now on, because it can be reached from the internet "
+                                  f"({why or reasons[0]}). Add your friends on the Players page.")
+            finally:
+                set_current_server(before)
             done.append(sid)
         return done
 
@@ -1507,6 +1524,11 @@ class Hub:
             sid = self._new_id(slugify(name or manifest.get("name") or manifest.get("folder") or "imported"))
             root = self.servers_dir / sid
             manifest = transfer.import_into(archive, root, password=password, skip_locked=skip_locked)
+            from . import clientpack
+            if manifest.get("friends_id") and any(clientpack.read_friends_id(d.m.config) == manifest["friends_id"]
+                                                  for d in list(self.daemons.values())):
+                # A copy of a server that's here: friends set it up apart from the other (#254)
+                (configmod.load(root).state_dir / clientpack.FRIENDS_ID).unlink(missing_ok=True)
             self._imported_backups(root, sid)
             from .properties import number, read_properties, server_name, write_properties
             props_path = configmod.load(root).server.dir / "server.properties"
@@ -1526,8 +1548,10 @@ class Hub:
                 log.info("the imported server used port %d, which is taken here; it now uses %d", port, new)
             if prepare:
                 prepare(root)
+            # (the name it's listed with: the export's own may be missing or damaged, #287)
+            shown_as = server_name(read_properties(props_path), sid)
             self._attach(sid, root)
-        log.info("imported %s into %s", name or manifest.get("name"), root)
+        log.info("imported %s into %s", shown_as, root)
         return sid, manifest
 
     def _names(self) -> set[str]:
@@ -1812,6 +1836,8 @@ class Hub:
                 "update": bool(d.last_check and not d.last_check.get("up_to_date") and d.last_check.get("target")),
                 "crashed_at": d.crashed_at, "last_job": d.last_job,
                 "join_requests": len(self.join_requests.get(sid, [])),
+                # (a mistake typed into its craft-conductor.toml while it runs: said here at once, not after a restart, #283)
+                **({"problem": d.config_problem} if d.config_problem else {}),
             })
         for sid, p in list(self.problems.items()):
             out.append({"id": sid, "name": p.get("name") or sid, "state": "unavailable", "problem": p["problem"],
@@ -1980,7 +2006,7 @@ class Hub:
         return cached[1]
 
     def run_job(self, name: str, fn: Callable[[], str]) -> None:
-        """Run a hub-level task (like installing an craft-conductor update) in the background."""
+        """Run a hub-level task (like installing a craft-conductor update) in the background."""
         def runner():
             set_current_server(None)
             try:

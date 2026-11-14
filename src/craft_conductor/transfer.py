@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from . import __version__, config as configmod, lock as lockmod, parts, private, safearchive, secretzip
+from . import __version__, clientpack, config as configmod, lock as lockmod, parts, private, safearchive, secretzip
 from .properties import SECRET_KEYS
 from .config import ConfigError
 from .removal import rmtree
@@ -163,7 +163,9 @@ def export(manager, dest: Path, include_backups: bool = False, say: Callable[[st
                 "format": FORMAT, "name": server_name(props, cfg.root.name), "folder": cfg.root.name,
                 "minecraft": lk.minecraft, "loader": lk.loader, "craft-conductor": __version__,
                 "exported": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                "backups": include_backups, "holds": sorted(holds), "left_out": left_out, "locked": locked}, indent=2))
+                "backups": include_backups, "holds": sorted(holds), "left_out": left_out, "locked": locked,
+                # (the same server, moved: its friends keep their setup of it, #254)
+                **({"friends_id": fid} if (fid := clientpack.read_friends_id(cfg)) else {})}, indent=2))
             z.writestr(configmod.CONFIG_NAME, settings)
             if (cfg.root / lockmod.LOCK_NAME).exists():
                 z.write(cfg.root / lockmod.LOCK_NAME, lockmod.LOCK_NAME)
@@ -234,7 +236,7 @@ def read_manifest(archive: Path) -> dict:
     except zipfile.BadZipFile as e:
         raise TransferError("that file isn't a .zip, or it's damaged") from e
     if raw is None:
-        raise TransferError("that file isn't an Craft Conductor server export (made with Export on a server's Settings page)")
+        raise TransferError("that file isn't a Craft Conductor server export (made with Export on a server's Settings page)")
     try:
         data = json.loads(raw)
     except ValueError as e:
@@ -248,6 +250,8 @@ def read_manifest(archive: Path) -> dict:
     for key in ("locked", "left_out"):
         value = data.get(key)
         data[key] = [x for x in value if isinstance(x, str)] if isinstance(value, list) else []
+    if not (isinstance(data.get("friends_id"), str) and clientpack.FRIENDS_ID_FORM.fullmatch(data["friends_id"])):
+        data.pop("friends_id", None)
     return data
 
 
@@ -313,12 +317,15 @@ def import_into(archive: Path, root: Path, say: Callable[[str], None] = log.info
         if opened is not None:
             _apply_locked(root, opened)
         _new_rcon_password(root / "server" / "server.properties")
-        configmod.load(root)  # it must still make sense
+        cfg = configmod.load(root)  # it must still make sense
         _fix_launch(root)
+        if manifest.get("friends_id"):  # (its id for friends' computers: hub.import_archive makes a new one for a copy)
+            cfg.state_dir.mkdir(parents=True, exist_ok=True)
+            (cfg.state_dir / clientpack.FRIENDS_ID).write_text(manifest["friends_id"] + "\n", encoding="ascii")
     except (ConfigError, OSError, zipfile.BadZipFile, ValueError) as e:
         rmtree(root, ignore_errors=True)
         raise TransferError(f"couldn't import it: {e}") from e
-    say(f"imported {manifest.get('name')} ({count} files)")
+    say(f"imported {manifest.get('name') or manifest.get('folder') or 'a server'} ({count} files)")  # (no name: damaged, #287)
     left_out = [x for x in manifest.get("left_out") or [] if x in parts.SENSITIVE]
     return {**manifest, "opened": locked if opened is not None else [],
             "left_out": sorted(set(left_out) | (set(locked) if opened is None else set()))}

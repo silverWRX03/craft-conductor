@@ -490,6 +490,40 @@ def test_a_running_server_is_copied_once_it_says_the_world_is_saved(tmp_path, wo
         ["save-off", "save-all flush", "save-on"]
 
 
+# Like Minecraft while it starts: a command that comes before it's up is answered with an error and lost.
+SLOW_STARTER = """
+import sys, threading, time
+up = threading.Event()
+def later():
+    time.sleep(1.0)
+    print("[12:00:05] [Server thread/INFO]: Done (5.0s)! For help, type \\"help\\"", flush=True)
+    up.set()
+threading.Thread(target=later, daemon=True).start()
+for line in sys.stdin:
+    if not up.is_set():
+        print("[12:00:01] [Server thread/ERROR]: An unexpected error occurred while trying to execute that command", flush=True)
+    elif line.strip() == "stop":
+        print("[12:00:06] [Server thread/INFO]: Stopping the server", flush=True)
+        sys.exit(0)
+"""
+
+
+def test_a_stop_asked_for_while_the_server_starts_stops_it_once_its_up(tmp_path):
+    """`craft-conductor stop` before "Done": the stop was lost, and the server ran on until it was forced
+    to stop 2 minutes later (#293). It's sent again once the server is up, and the server stops itself."""
+    import sys
+    import time as _time
+    from craft_conductor.process import ServerProcess
+    proc = ServerProcess([sys.executable, "-c", SLOW_STARTER], tmp_path, echo=False)
+    proc.start()
+    _time.sleep(0.3)
+    assert not proc.ready.is_set()
+    started = _time.monotonic()
+    assert proc.stop(20) == 0  # (exited by itself, not terminated)
+    assert _time.monotonic() - started < 15
+    assert any("Stopping the server" in line for line in proc.lines)
+
+
 # Reads and writes its console in UTF-8 bytes, as every Minecraft server reads it (and writes it
 # with CONSOLE_UTF8), and keeps the bytes it was sent.
 UTF8_SERVER = r"""

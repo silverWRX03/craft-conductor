@@ -267,6 +267,18 @@ def test_browse_and_add_from_the_web(hub_env):
     assert status == 200 and body["added"] == ["Good Mod"] and body["skipped"][0]["name"] == "Good Mod"
     assert c.post("/api/servers/alpha/mods/add-many", {"mods": []})[0] == 400
 
+    # A Vanilla server can't run mods: refused before anything is written (a [[mods]] entry made its
+    # craft-conductor.toml unusable, #237)
+    sid = c.post("/api/hub/create", {"loader": "vanilla", "motd": "Plain", "accept_eula": True})[1]["id"]
+    d = hub.get(sid)
+    wait_for(lambda: d.last_job and d.last_job["name"] == "set up server", timeout=30)
+    before = d.m.config.path.read_text(encoding="utf-8")
+    status, body, _ = c.post(f"/api/servers/{sid}/mods/add", {"id": "goodmod"})
+    assert status == 400 and "Vanilla server can't run mods" in body["error"]
+    status, body, _ = c.post(f"/api/servers/{sid}/mods/add-many", {"mods": [{"source": "modrinth", "id": "goodmod", "name": "Good Mod"}]})
+    assert status == 200 and body["added"] == [] and "can't run mods" in body["skipped"][0]["reason"]
+    assert d.m.config.path.read_text(encoding="utf-8") == before
+
     # A jar from this computer: Modrinth knows it, so it becomes a mod craft-conductor keeps up to date...
     mods_dir = hub.get("alpha").m.server_dir / "mods"
     hub.http.posts[f"{API}/version_files"] = lambda body: {body["hashes"][0]: {"project_id": "FAPI"}} \

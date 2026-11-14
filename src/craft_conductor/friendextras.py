@@ -52,8 +52,9 @@ _lock = threading.RLock()  # one change at a time: each request makes its own St
 class Store:
     """The friend's choices for one server: ~/.minecraft/craft-conductor/extras/<server>.json."""
 
-    def __init__(self, mc_dir: Path, server_name: str):
-        self.path = mc_dir / "craft-conductor" / "extras" / f"{slugify(server_name)}.json"
+    def __init__(self, mc_dir: Path, server_name: str, slug: str | None = None):
+        # (``slug``: the name the server goes by on this computer, join.server_slug; else its name, as before)
+        self.path = mc_dir / "craft-conductor" / "extras" / f"{slug or slugify(server_name)}.json"
 
     def load(self) -> dict:
         try:

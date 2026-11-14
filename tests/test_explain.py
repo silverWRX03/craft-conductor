@@ -15,6 +15,10 @@ def test_common_causes_in_plain_words():
     assert explain.explain(["java.lang.UnsupportedClassVersionError: net/minecraft/Main has been compiled by a more recent "
                             "version of the Java Runtime"])["cause"] == "java"
     assert explain.explain(["[Server thread/WARN]: Failed to load level.dat"])["actions"][0]["kind"] == "backups"
+    # Minecraft 26.x words a damaged level.dat differently (#286)
+    damaged = explain.explain(["[Server thread/ERROR]: Failed to load world data. World files may be corrupted. Shutting down.",
+                               "java.util.zip.ZipException: Not in GZIP format"])
+    assert damaged["cause"] == "world" and damaged["actions"][0]["kind"] == "backups"
     assert explain.explain(["You need to agree to the EULA in order to run the server."])["cause"] == "eula"
     assert explain.explain(["[Server thread/INFO]: Done (1.0s)!"]) is None
 
