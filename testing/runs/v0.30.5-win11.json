@@ -496,6 +496,20 @@
       "tester": "Claude Code + owner",
       "notes": "Release exe v0.30.5, Chrome. Rechecked what failed in v0.30.3 (#217). With Windows Narrator on (owner listened, same session as 1010): starting a server, 'running' was announced once and not repeated, console lines weren't read, the Players errors were heard in full, and the Player name / Reason boxes have names. Accessibility tree: Your servers' card buttons name their server ('Start Café ☕ test', 'Open Friends test', 'Delete …'; 58 buttons), Java's version box is named 'Java version to install', Console has its page heading (h1 Console; title 'Console · Home only · Craft Conductor').",
       "evidence": ""
+    },
+    "816": {
+      "status": "pass",
+      "tested_at": "2026-11-14T01:02:35+00:00",
+      "tester": "Claude Code + owner",
+      "notes": "Release exe v0.30.5, isolated home. Rechecked what failed in v0.30.3 (#191, #192). All the Mods 11 0.14.0-beta (CurseForge file 9426887): the setup reads the pack's official server pack (preview: server_pack true, sides_from_modrinth 0), so its 7 players-only mods (Sodium, Sodium Extra, Iris, Euphoria Patches, Drippy Loading Screen, Just Zoom, Simple Backups) are left off the server; the server ran its 291 mods and the owner joined with the pack's own Prism instance (see 914). Modrinth pack Vanilla Perfected 1.0.3+26.2 (Fabric 0.19.3) updated to 1.0.0+26.3: 'Updated the pack to Vanilla Perfected 1.0.0+26.3 (3 mod(s) added, 52 removed, 27 moved to the pack's new file; kept your changes to config/modernfix-mixins.properties)', and the server started ('Loading Minecraft 26.3 with Fabric Loader 0.19.5', Done). Also this run: the Modrinth pack Adrenaline was made and updated (914), and All the Mods 11's CurseForge hand downloads worked apart from one wrong link (1009, #280).",
+      "evidence": ""
+    },
+    "813": {
+      "status": "fail",
+      "tested_at": "2026-11-14T01:16:45+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5, fresh isolated install with its Servers folder inside the OneDrive folder; the OneDrive app running and syncing (it marked the server folders read-only, as in #216). Vanilla 26.2 server: made, started, stopped, backed up, updated 26.2 -> 26.3 (Minecraft 26.2 -> 26.3), started on 26.3. Backups -> Roll back to this: the first try failed: \"the server folder couldn't be moved aside ([WinError 5] Access is denied …): is a program still using a file in it? The server was left as it was\" (#290); the retry straight away worked. 5 more roll backs (3 right after a start/stop, 2 right after another 26.2 -> 26.3 update) all worked. No server.replaced / server.restoring left at any point, the server started after the roll backs, and after restarting Craft Conductor it was listed and started normally (no 'stopped in the middle of something'). Not done: joining with a game client, and a Windows restart.",
+      "evidence": "#290"
     }
   },
   "notes": "Bug-hunt release: 1000-1030 are the fixes from PRs #246-#253 (issues #231-#245, #255-#277). 887/971 (#241), 979 (#244), 908/914 (#242) failed in v0.30.4-win11 and are fixed. 999 can only be tested by updating from 0.30.4 to 0.30.5."
