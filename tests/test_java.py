@@ -547,3 +547,21 @@ def test_the_java_page(running):  # noqa: F811  (the fixture)
     (cfg.state_dir / "java" / "21" / "lib.bin").write_bytes(b"x" * 1000)
     r = c.get("/api/java")[1]
     assert r["old_folder"] == str(cfg.state_dir / "java") and r["old_bytes"] == 1000
+
+
+def test_a_java_download_that_was_cut_off_is_tidied(tmp_path):
+    """Craft Conductor closed while it downloaded Java left .download-… in the shared folder for
+    good (#199). One nothing has written to for an hour goes; one still being written stays."""
+    import os
+    import time
+    from craft_conductor.java import STALE_WORK, Store
+    root = tmp_path / "java"
+    old, going = root / ".download-28b8695b6c57", root / ".extract-0123456789ab"
+    for folder in (old, going):
+        folder.mkdir(parents=True)
+        (folder / "OpenJDK25.zip").write_bytes(b"part")
+    past = time.time() - STALE_WORK - 60
+    for p in (old / "OpenJDK25.zip", old):
+        os.utime(p, (past, past))
+    Store(root).tidy()
+    assert not old.exists() and going.exists()

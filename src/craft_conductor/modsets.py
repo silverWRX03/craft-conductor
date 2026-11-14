@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 import time
 import tomllib
 from pathlib import Path
@@ -19,6 +20,10 @@ FILE = "mod-sets.json"
 KEEP = 30
 NAME = re.compile(r"[^\x00-\x1f]{1,60}")
 MOD_ID = re.compile(r"[A-Za-z0-9_.-]{1,100}")
+#: one change to the file at a time: two saves at once both wrote mod-sets.tmp (on Windows the second
+#: failed with "being used by another process"), and one could undo the other; readers wait too, as
+#: Windows can't replace a file someone is reading
+_lock = threading.RLock()
 
 
 class ModSetError(ValueError):
@@ -31,7 +36,8 @@ def _path(cfg) -> Path:
 
 def load(cfg) -> list[dict]:
     try:
-        data = json.loads(_path(cfg).read_text())
+        with _lock:
+            data = json.loads(_path(cfg).read_text())
         return [x for x in data if isinstance(x, dict) and isinstance(x.get("name"), str) and isinstance(x.get("mods"), list)]
     except (OSError, ValueError):
         return []
@@ -57,6 +63,8 @@ def check(entry: dict) -> dict:
     name = str(entry.get("name", "")).strip()
     if not NAME.fullmatch(name):
         raise ModSetError("give the list a name (up to 60 characters)")
+    if not isinstance(entry.get("mods", []), list) or not isinstance(entry.get("client_mods", []), list):
+        raise ModSetError("the list's mods aren't written right")
     mods = []
     for m in entry.get("mods", []):
         if not isinstance(m, dict) or m.get("source", "modrinth") not in configmod.MOD_SOURCES or not MOD_ID.fullmatch(str(m.get("id", ""))):
@@ -72,22 +80,24 @@ def check(entry: dict) -> dict:
 
 def save(cfg, name: str, minecraft: str | None = None) -> dict:
     entry = check(current(cfg, name, minecraft))
-    sets = [x for x in load(cfg) if x["name"] != entry["name"]]
-    _write(cfg, [entry, *sets])
+    with _lock:
+        _write(cfg, [entry, *[x for x in load(cfg) if x["name"] != entry["name"]]])
     return entry
 
 
 def add(cfg, entry: dict) -> dict:
     """A list loaded from a file (power users)."""
     entry = check(entry)
-    _write(cfg, [entry, *[x for x in load(cfg) if x["name"] != entry["name"]]])
+    with _lock:
+        _write(cfg, [entry, *[x for x in load(cfg) if x["name"] != entry["name"]]])
     return entry
 
 
 def delete(cfg, name: str) -> bool:
-    sets = load(cfg)
-    kept = [x for x in sets if x["name"] != name]
-    _write(cfg, kept)
+    with _lock:
+        sets = load(cfg)
+        kept = [x for x in sets if x["name"] != name]
+        _write(cfg, kept)
     return len(kept) != len(sets)
 
 

@@ -38,7 +38,8 @@ def _players(daemon) -> set[str]:
 def state(hub) -> dict:
     saved = hub._hub_file().get("guide") or {}
     return {"asked": bool(saved.get("asked")), "active": bool(saved.get("active")),
-            "ticked": [x for x in saved.get("ticked", []) if x in MANUAL],
+            "ticked": [x for x in saved.get("ticked") if isinstance(x, str) and x in MANUAL]
+            if isinstance(saved.get("ticked"), list) else [],
             "started": bool(saved.get("started")), "joined": int(saved.get("joined") or 0)}
 
 

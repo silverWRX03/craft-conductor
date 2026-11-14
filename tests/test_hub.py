@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from craft_conductor import cli, lock as lockmod, setup as setupmod, webauth
+from craft_conductor import cli, config as configmod, lock as lockmod, setup as setupmod, webauth
 from craft_conductor.hub import Hub
 
 from test_web import Client, wait_for
@@ -318,3 +318,154 @@ def test_start_opens_the_server_list(tmp_path, monkeypatch, fake_template, capsy
     assert cli.main(["-C", str(other), "start", "--no-browser"]) == 0
     assert set(ran[-1].discover()) == {"main", "other-server"}
     assert setupmod.is_pending(home)
+
+
+def test_throwaway_servers_dont_get_the_same_port(tmp_path):
+    """A map preview and a mod test picked at once both got 25590 before either Java bound it (#163)."""
+    from craft_conductor.hub import Hub
+    hub = Hub(tmp_path / "home")
+    first = hub.free_port(25590, hold=True)
+    second = hub.free_port(25590, hold=True)
+    assert first != second and hub.free_port(25590) not in (first, second)
+    hub.release_port(first)
+    assert hub.free_port(25590) == first
+
+
+def test_a_typo_in_server_properties_doesnt_break_the_page(hub_env):
+    """``max-players=twenty`` typed into a stopped server's server.properties: Minecraft uses its
+    default, but the server list and the status every page asks for answered "invalid literal for
+    int()" (400), and the whole control panel said it was reconnecting."""
+    from craft_conductor.properties import write_properties
+    hub, c = hub_env
+    login(c)
+    write_properties(hub.get("alpha").m.server_dir / "server.properties", {"max-players": "twenty", "server-port": "25565x"})
+    status, body, _ = c.call("GET", "/api/hub")
+    assert status == 200, body
+    assert next(s for s in body["servers"] if s["id"] == "alpha")["max_players"] == 20  # (Minecraft's default, as it uses)
+    for path in ("/api/servers/alpha/status", "/api/servers/alpha/settings", "/api/servers/alpha/reach", "/api/servers/alpha/doctor"):
+        assert c.call("GET", path)[0] == 200, path
+
+
+
+def test_a_server_whose_settings_are_the_wrong_kind_is_listed_with_its_problem(hub_env):
+    """``warn_minutes = 5`` (not a list) typed into a server's craft-conductor.toml: the hub's scan
+    raised a TypeError, and Craft Conductor stopped (every server's page with it)."""
+    hub, c = hub_env
+    login(c)
+    root = hub.servers_dir / "broken"
+    root.mkdir()
+    import re
+    text, n = re.subn(r"warn_minutes = \[[^\]]*\]", "warn_minutes = 5", configmod.render_template("vanilla", "1.21.1"))
+    assert n == 1
+    (root / "craft-conductor.toml").write_text(text, encoding="utf-8")
+    hub.scan()  # (raised)
+    servers = {s["id"]: s for s in c.get("/api/hub")[1]["servers"]}
+    assert "warn_minutes" in servers["broken"]["problem"] and servers["alpha"]["state"]
+
+
+def test_a_server_trying_an_update_on_a_copy_isnt_deleted_or_moved(hub_env, tmp_path):
+    """The rehearsal's copy runs from inside the server's folder, but isn't one of its jobs: Delete went
+    ahead (on Windows, stopped halfway by the copy's open files; its Java left running), and so did
+    moving the servers to another folder."""
+    from types import SimpleNamespace
+    hub, c = hub_env
+    login(c)
+    d = hub.get("alpha")
+    d.rehearsal = SimpleNamespace(state="running")
+    status, body, _ = c.post("/api/hub/delete", {"id": "alpha", "delete_files": True})
+    assert status == 400 and "copy" in body["error"], body
+    assert hub.get("alpha") is d and (d.m.config.root / "craft-conductor.toml").exists()
+    plan = c.post("/api/hub/locations", {"servers": str(tmp_path / "Elsewhere")})[1]
+    assert any("copy of itself" in b for b in plan["busy"]), plan
+    d.rehearsal = SimpleNamespace(state="done")
+    assert c.post("/api/hub/delete", {"id": "alpha"})[0] == 200  # (once it's over)
+
+
+def test_a_damaged_hub_json_doesnt_stop_craft_conductor(hub_env):
+    """hub.json with parts of the wrong kind (damaged, or edited by hand): "extra": 5 made the scan raise,
+    which stopped Craft Conductor; a share port that isn't one made every page answer "internal error"."""
+    from craft_conductor import hub as hubmod
+    hub, c = hub_env
+    login(c)
+    path = hub.state_dir / hubmod.HUB_FILE
+    data = json.loads(path.read_text())
+    path.write_text(json.dumps({**data, "extra": 5, "hidden": None, "share": {"port": None, "address": 7},
+                                "upnp": {"enabled": True, "mapped": 5}, "discord": {"token": "x", "bot": True, "whitelist": 5}}))
+    hub.scan()
+    assert c.get("/api/hub")[0] == 200 and c.get("/api/hub/discord")[0] == 200
+    assert hub.share_settings()["address"] == "" and hub.upnp_settings()["mapped"] == []
+
+
+def test_one_step_going_wrong_doesnt_stop_craft_conductor(hub_env, monkeypatch):
+    """An unexpected error in one step of the hub's own loop (the scan, the router, the friends'
+    downloads) left the loop, and Craft Conductor stopped: every server's page with it. It's logged now,
+    and the loop goes on."""
+    from craft_conductor import hub as hubmod
+    from test_web import wait_for
+    hub, c = hub_env
+    login(c)
+    tries = []
+
+    def broken():
+        tries.append(1)
+        raise RuntimeError("a bug")
+    monkeypatch.setattr(hubmod, "SCAN_EVERY", 0.05)
+    monkeypatch.setattr(hub, "scan", broken)
+    wait_for(lambda: len(tries) >= 3, timeout=10)
+    assert c.get("/api/hub")[0] == 200 and not hub.stop_requested.is_set()
+
+
+def test_one_step_going_wrong_doesnt_leave_a_server_without_its_manager(hub_env, monkeypatch):
+    """The same for each server's own loop: its thread ended, and the hub made a new manager that
+    didn't know about the Minecraft still running (Stop no longer reached it)."""
+    import time
+    from test_web import wait_for
+    hub, c = hub_env
+    d = hub.get("alpha")
+    tries = []
+
+    def broken(*a, **k):
+        tries.append(1)
+        raise RuntimeError("a bug")
+    monkeypatch.setattr(d, "_run_schedules", broken)
+    wait_for(lambda: len(tries) >= 3, timeout=10)
+    time.sleep(0.3)
+    assert hub._threads["alpha"].is_alive() and hub.get("alpha") is d
+
+
+def test_damaged_sign_in_files_dont_lock_the_owner_out(hub_env):
+    """web-auth.json holding "null" (damaged): every page, and signing in, answered "internal error". It's
+    treated like one that can't be read: the default password (from this computer), and the prompt to
+    choose one. users.json whose list of people isn't one broke the People page."""
+    from craft_conductor import webauth
+    from test_web import Client
+    hub, c = hub_env
+    (hub.state_dir / webauth.FILE).write_text("null")
+    fresh = Client(c.base)
+    assert fresh.get("/api/auth")[0] == 200
+    assert fresh.post("/api/login", {"password": webauth.DEFAULT_PASSWORD})[0] == 200
+    (hub.state_dir / "users.json").write_text(json.dumps({"format": 1, "users": 5}))
+    assert fresh.get("/api/hub/users")[0] == 200
+
+
+def test_a_damaged_list_of_paired_phones_is_read_as_none(hub_env):
+    """devices.json whose list isn't one raised on every paired phone's request."""
+    from craft_conductor import webauth
+    hub, c = hub_env
+    (hub.state_dir / webauth.DEVICES_FILE).write_text(json.dumps({"devices": 5}))
+    assert hub.ui.devices.find("x" * 40, 0) is None
+
+
+def test_a_damaged_lock_file_lists_the_server_with_its_problem(hub_env):
+    """craft-conductor.lock.json of the wrong shape raised a TypeError when the server was picked up: it
+    vanished from the list (an error logged every few seconds) instead of being listed with what's wrong."""
+    from craft_conductor import lock as lockmod
+    hub, c = hub_env
+    login(c)
+    root = hub.servers_dir / "damaged"
+    root.mkdir()
+    (root / "craft-conductor.toml").write_text(hub.get("alpha").m.config.path.read_text(encoding="utf-8"), encoding="utf-8")
+    (root / lockmod.LOCK_NAME).write_text(json.dumps({"mods": 5}))
+    hub.scan()
+    servers = {s["id"]: s for s in c.get("/api/hub")[1]["servers"]}
+    assert lockmod.LOCK_NAME in servers["damaged"]["problem"] and "toml" not in servers["damaged"]["problem"]

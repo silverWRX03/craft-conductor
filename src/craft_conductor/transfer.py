@@ -28,6 +28,7 @@ from typing import Callable
 from . import __version__, config as configmod, lock as lockmod, parts, private, safearchive, secretzip
 from .properties import SECRET_KEYS
 from .config import ConfigError
+from .removal import rmtree
 
 log = logging.getLogger(__name__)
 
@@ -240,6 +241,13 @@ def read_manifest(archive: Path) -> dict:
         raise TransferError("the export's details are damaged") from e
     if not isinstance(data, dict) or data.get("format") != FORMAT:
         raise TransferError("that export was made by a newer Craft Conductor; update Craft Conductor first")
+    # (an export can come from anyone: what's read from it is the kind it should be, or left out)
+    for key in ("name", "folder"):
+        if not isinstance(data.get(key), str):
+            data.pop(key, None)
+    for key in ("locked", "left_out"):
+        value = data.get(key)
+        data[key] = [x for x in value if isinstance(x, str)] if isinstance(value, list) else []
     return data
 
 
@@ -308,7 +316,7 @@ def import_into(archive: Path, root: Path, say: Callable[[str], None] = log.info
         configmod.load(root)  # it must still make sense
         _fix_launch(root)
     except (ConfigError, OSError, zipfile.BadZipFile, ValueError) as e:
-        shutil.rmtree(root, ignore_errors=True)
+        rmtree(root, ignore_errors=True)
         raise TransferError(f"couldn't import it: {e}") from e
     say(f"imported {manifest.get('name')} ({count} files)")
     left_out = [x for x in manifest.get("left_out") or [] if x in parts.SENSITIVE]

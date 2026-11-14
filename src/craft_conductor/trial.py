@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import logging
 import secrets
-import shutil
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -27,6 +26,7 @@ from .diagnose import headline
 from .http import HttpError
 from .mods.base import ModError
 from .mods.modrinth import ModrinthProvider
+from .removal import rmtree
 
 log = logging.getLogger(__name__)
 
@@ -168,7 +168,7 @@ class Trial:
     def _prepare(self) -> None:
         spec = setupmod.SetupSpec.from_dict({
             "loader": self.loader, "minecraft": self.minecraft, "motd": "Craft Conductor test", "accept_eula": True,
-            "memory_gb": 2, "port": self.hub.free_port(25590),
+            "memory_gb": 2, "port": self._port(),
             "properties": {"level-type": "minecraft:flat", "generate-structures": "false", "view-distance": "3",
                            "simulation-distance": "3", "spawn-protection": "0"}})
         spec.mods = []  # set per test
@@ -179,6 +179,10 @@ class Trial:
         self.m = self.hub.make_manager(configmod.load(self.root))
         self.m.java.temporary = True  # (the shared Java folder, without counting as a server using it)
         self.m.on_process = lambda proc: setattr(self, "proc", proc)
+
+    def _port(self) -> int:
+        self.port = self.hub.free_port(25590, hold=True)  # (released when the test ends: _run)
+        return self.port
 
     def stop(self) -> None:
         """Craft Conductor is quitting: end the test, and the throwaway server it may be booting (a
@@ -283,4 +287,6 @@ class Trial:
         finally:
             if self.m is not None:
                 self.m = None
-            shutil.rmtree(self.root, ignore_errors=True)
+            if getattr(self, "port", None):
+                self.hub.release_port(self.port)
+            rmtree(self.root, ignore_errors=True)

@@ -300,6 +300,24 @@ def test_a_hub_runs_one_update_too(hub_env, monkeypatch):
     assert calls == ["v9.9.9"]
 
 
+def test_update_now_works_before_the_first_check(hub_env, monkeypatch):
+    """#245: a copy just started again (a failed update put it back) hadn't looked yet: Update now said there
+    was no update until Check for updates was pressed. It looks itself now."""
+    hub, c = hub_env
+    hub_login(c)
+    assert hub.updater.snapshot() is None
+    looked = []
+    monkeypatch.setattr(selfupdate, "check", lambda http, channel=None: looked.append(1) or selfupdate.Release.from_dict(INFO))
+    monkeypatch.setattr(selfupdate, "install_method", lambda rel: (True, ""))
+    gate = threading.Event()
+    monkeypatch.setattr(selfupdate, "install", lambda rel, **kw: gate.wait(20) and "installed")
+    status, r, _ = c.post("/api/self-update/apply", {"version": "9.9.9"})
+    assert status == 200 and r["started"] is True and looked == [1]
+    assert c.post("/api/self-update/apply", {"version": "9.9.9"})[1]["started"] is False and looked == [1]
+    gate.set()
+    wait_for(lambda: hub.restart_requested)
+
+
 def test_servers_that_ran_start_again_after_an_update(hub_env, http, monkeypatch):
     """Servers running when Craft Conductor updates itself are stopped for it and started again by the
     new version, once the update's guard has let the previous version go; nothing else starts, and a

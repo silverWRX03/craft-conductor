@@ -132,3 +132,60 @@ def test_failed_setup_can_be_retried(pending_daemon):
 
     assert c.post("/api/setup", {"loader": "fabric", "mods": ["goodmod"], "accept_eula": True})[0] == 200
     wait_for(lambda: d.state == "running" and not d.setup_pending, timeout=30)
+
+
+def test_a_retry_takes_out_what_was_taken_off_the_form(pending_daemon):
+    """#235: the first try put a file of your own and an imported world in the server. Removed on the
+    setup page since (or a new world chosen), the retry takes them out, so it doesn't fail the same way."""
+    d, c, cfg = pending_daemon
+    login(c)
+    assert c.post("/api/setup", {"loader": "fabric", "mods": ["no-such-mod"], "accept_eula": True})[0] == 200
+    wait_for(lambda: d.last_job and d.last_job["name"] == "set up server")
+    assert d.setup_pending
+    mods, server = cfg.server.dir / "mods", cfg.server.dir
+    mods.mkdir(parents=True, exist_ok=True)
+    (mods / "rt-server-needs-1.0.0.jar").write_bytes(b"PK")   # (as the first try left them)
+    (mods / "kept-1.0.jar").write_bytes(b"PK")
+    (server / "world").mkdir(exist_ok=True)
+    (server / "world" / "level.dat").write_bytes(b"imported")
+    body = {"loader": "fabric", "mods": ["goodmod"], "accept_eula": True,
+            "remove_local": ["rt-server-needs-1.0.0.jar", "../craft-conductor.toml"], "replace_world": True}
+    assert c.post("/api/setup", body)[0] == 200
+    wait_for(lambda: d.state == "running" and not d.setup_pending, timeout=30)
+    assert not (mods / "rt-server-needs-1.0.0.jar").exists() and (mods / "kept-1.0.jar").exists()
+    assert (cfg.root / "craft-conductor.toml").exists()
+    assert not (server / "world" / "level.dat").exists() or (server / "world" / "level.dat").read_bytes() != b"imported"
+
+
+def test_a_second_setup_while_one_runs_changes_nothing(pending_daemon):
+    """A second click (or browser) while the setup runs is refused as busy before it removes the world
+    or files the running one is using."""
+    import threading
+    d, c, cfg = pending_daemon
+    login(c)
+    server, mods = cfg.server.dir, cfg.server.dir / "mods"
+    mods.mkdir(parents=True, exist_ok=True)
+    (mods / "mine-1.0.jar").write_bytes(b"PK")
+    (server / "world").mkdir(exist_ok=True)
+    (server / "world" / "level.dat").write_bytes(b"being imported")
+    gate = threading.Event()
+    assert d.submit("set up server", lambda: gate.wait(20) and "done")  # (the first setup, still running)
+    try:
+        body = {"loader": "fabric", "mods": [], "accept_eula": True, "remove_local": ["mine-1.0.jar"], "replace_world": True}
+        status, r, _ = c.post("/api/setup", body)
+        assert status == 409 and "busy" in r["error"], r
+        assert (server / "world" / "level.dat").read_bytes() == b"being imported" and (mods / "mine-1.0.jar").exists()
+    finally:
+        gate.set()
+
+
+def test_lists_of_the_wrong_kind_are_a_plain_answer(hub_env):
+    """A list on the setup page (or the mod check) sent as something else, e.g. "local_mods": 5 from a
+    script or an old page: "internal error" instead of being read as none."""
+    from test_hub import login as hub_login
+    hub, c = hub_env
+    hub_login(c)
+    base = {"loader": "fabric", "minecraft": "1.21.1", "accept_eula": True, "motd": "Lists"}
+    for key in ("local_mods", "client_mods", "client_local", "manual_files"):
+        assert c.post("/api/servers/main/setup", {**base, key: 5})[0] < 500, key
+    assert c.post("/api/hub/mods/check", {"loader": "fabric", "minecraft": "1.21.1", "mods": 5})[0] == 200

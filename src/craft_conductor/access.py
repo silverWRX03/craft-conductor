@@ -271,6 +271,7 @@ SERVER_ROUTES: dict[tuple[str, str], str | tuple[str, ...]] = {
     ("POST", "/api/client"): "mods.manage",
     ("POST", "/api/client/local"): "mods.manage",
     ("POST", "/api/client/local/remove"): "mods.manage",
+    ("POST", "/api/client/local/to-server"): "mods.manage",
     ("POST", "/api/client/new-link"): "friends.share",
     ("POST", "/api/client/stop-link"): "friends.share",
     ("POST", "/api/client/discord"): "friends.share",
@@ -382,7 +383,7 @@ PROPERTY_NEEDS: dict[str, tuple[str, ...]] = {
 }
 PROBLEM_NEEDS: dict[str, str] = {
     "dismiss": "server.power", "memory-up": "runtime.configure", "java-auto": "runtime.configure",
-    "add-mod": "mods.manage", "remove-mod": "mods.manage", "disable-jar": "mods.manage", "players-only": "mods.manage",
+    "add-mod": "mods.manage", "remove-mod": "mods.manage", "disable-jar": "mods.manage", "players-only": "mods.manage", "jar-to-players": "mods.manage",
 }
 
 

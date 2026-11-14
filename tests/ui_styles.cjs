@@ -174,13 +174,13 @@ const path = require('node:path');
   const starts = [];
   page.on('request', (r) => { if (/\/server\/start$/.test(r.url())) starts.push(r.url()); });
   const card = page.locator('.server-card', { hasText: 'Alpha' });
-  await card.getByRole('button', { name: 'Start', exact: true }).click();
-  await card.getByRole('button', { name: 'Stop', exact: true }).waitFor({ timeout: 40000 });
+  await card.getByRole('button', { name: 'Start Alpha', exact: true }).click();
+  await card.getByRole('button', { name: 'Stop Alpha', exact: true }).waitFor({ timeout: 40000 });
   assert.equal(starts.length, 1, 'Start pressed once starts once');
-  await card.getByRole('button', { name: 'Stop', exact: true }).click();
+  await card.getByRole('button', { name: 'Stop Alpha', exact: true }).click();
   const yes = page.locator('.toast-dialog').getByRole('button', { name: /^Stop/ });
   if (await yes.count()) await yes.first().click();
-  await card.getByRole('button', { name: 'Start', exact: true }).waitFor({ timeout: 40000 });
+  await card.getByRole('button', { name: 'Start Alpha', exact: true }).waitFor({ timeout: 40000 });
   const listeners = await page.evaluate(() => ({
     list: window.__listeners(document.querySelector('.server-list'), 'click'),
     buttons: [...document.querySelectorAll('.server-list button[data-act]')].map((b) => window.__listeners(b, 'click')),

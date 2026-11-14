@@ -9,6 +9,7 @@ the old way (and starts it); the web UI treats that as a hub with one server.
 
 from __future__ import annotations
 
+import collections
 import json
 import logging
 import os
@@ -30,6 +31,7 @@ from .http import HttpClient
 from .clientpack import client_dir
 from .loaders import mods_folder
 from .manager import Manager
+from .removal import rmtree
 
 log = logging.getLogger(__name__)
 
@@ -37,7 +39,11 @@ SERVERS_DIR = "servers"
 HUB_FILE = "hub.json"
 HOME_ID = "main"           # the server kept directly in the home folder (craft-conductor 0.1-0.3)
 START_AFTER_UPDATE = "start_after_update"  # hub.json: the servers to start again after Craft Conductor updates
+# What each part of hub.json is (Hub._hub_file).
+HUB_FILE_KINDS = {"extra": list, "hidden": list, "hand_folders": list, "share": dict, "upnp": dict, "discord": dict,
+                  "web": dict, "self_update": dict, "locations": dict, "guide": dict, START_AFTER_UPDATE: dict}
 SCAN_EVERY = 5.0
+NOTICES_KEPT, NOTICE_CHARS = 50, 8000  # the servers' messages kept for the bell (the page keeps its own copy)
 
 
 def hub_pid_path(home: Path) -> Path:
@@ -68,20 +74,6 @@ def running_hub(home: Path) -> int | None:
     except (FileNotFoundError, ValueError):
         return None
     return pid if pid != os.getpid() and pid_alive(pid) else None
-
-
-def _rmtree(path: Path) -> None:
-    """Delete a folder, including read-only files (Windows marks some that way)."""
-    import shutil
-    import stat
-
-    def retry(func, p, _exc):
-        os.chmod(p, stat.S_IWRITE)
-        func(p)
-    if sys.version_info >= (3, 12):
-        shutil.rmtree(path, onexc=retry)
-    else:
-        shutil.rmtree(path, onerror=retry)
 
 
 def receive(handler, dest: Path, max_bytes: int) -> Path:
@@ -122,6 +114,12 @@ def slugify(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:40] or "server"
 
 
+def rehearsing(d: Daemon) -> bool:
+    """An update being tried on a copy of the server (rehearsal.py): not one of its jobs, but its copy
+    runs from inside the server's folder."""
+    return d.rehearsal is not None and d.rehearsal.state == "running"
+
+
 def put_tomls(tomls: dict) -> None:
     """Put back what servers' craft-conductor.toml said for [backups] dir (a move undone)."""
     for path, literal in tomls.items():
@@ -140,6 +138,31 @@ class Hub:
         self.home = home.resolve()
         self.http = http or HttpClient()
         self.make_manager = make_manager or (lambda cfg: Manager(cfg, http=self.http, echo=False))
+        self.tick = tick
+        self._start_state()
+        self._web = self._load_web()
+        self._apply_curseforge_key()
+
+    @classmethod
+    def single(cls, daemon: Daemon) -> Hub:
+        """`craft-conductor run --web`: a hub view of one server run the classic way."""
+        hub = cls.__new__(cls)
+        hub.home = daemon.m.config.root
+        hub.http = daemon.m.http
+        hub.make_manager = lambda cfg: Manager(cfg, http=hub.http, echo=False)
+        hub.tick = daemon.tick
+        hub._start_state()  # (everything a hub keeps: the same as __init__'s, so no route meets a missing one)
+        hub._single = daemon
+        hub.updater = daemon.updater
+        hub.daemons = {HOME_ID: daemon}
+        daemon.m.notifier.listeners.append(lambda message: hub.keep_notice(HOME_ID, message))  # (its messages for the bell too, #241)
+        hub.stop_requested = daemon.stop_requested
+        hub.web_port_chosen = True  # (`craft-conductor run`: its craft-conductor.toml says the port)
+        return hub
+
+    def _start_state(self) -> None:
+        """What every hub keeps while it runs: set by __init__ and by single() alike (a field only one of
+        them set made the other's routes fail)."""
         self.trials: dict = {}  # test boots (trial.Trial) by id
         self.setup_checks: dict = {}  # the setup page's file checks (filecheck.for_setup) by what was checked
         self.previews: dict = {}  # map previews (preview.Preview) by id
@@ -147,6 +170,10 @@ class Hub:
         self.gallery = None  # the last seed gallery (preview.Gallery)
         self.map_session = None  # the last previewed world, to explore (preview.MapSession)
         self._upnp_lock = threading.Lock()
+        #: ports lent to throwaway servers (a mod test, a map preview) until they're released, or for
+        #: HOLD_PORT seconds: picked long before Java binds them, two at once could get the same (#163)
+        self._held_ports: dict[int, float] = {}
+        self._held_lock = threading.Lock()
         self._upnp_status: dict | None = None
         self._gateway, self._gateway_at = None, 0.0
         self.join_requests: dict[str, list[dict]] = {}  # friends asking to be let in, by server
@@ -158,11 +185,13 @@ class Hub:
         self._request_times: dict[str, float] = {}
         self._requests_lock = threading.Lock()
         self.checks: dict = {}  # quick mod checks running in the background (trial.CheckJob) by id
-        self.tick = tick
         self._single: Daemon | None = None
         self.daemons: dict[str, Daemon] = {}
         self._threads: dict[str, threading.Thread] = {}
         self.problems: dict[str, dict] = {}      # servers that can't be run here, and why
+        #: the servers' messages (what goes to Discord and phones), newest last, for the owner's bell (#241)
+        self.notices: collections.deque[dict] = collections.deque(maxlen=NOTICES_KEPT)
+        self._notice_lock = threading.Lock()  # (its own: _lock is held through a whole server create)
         self.stop_requested = threading.Event()
         self.restart_requested = False
         self.updater = selfupdate.Updater()  # where this copy stands with its own update (one source for everything)
@@ -172,40 +201,6 @@ class Hub:
         self.share_error: str | None = None
         self._lock = threading.RLock()
         self._hub_lock = threading.RLock()  # hub.json: one change at a time (see _update_hub_file)
-        self._web = self._load_web()
-        self._apply_curseforge_key()
-
-    @classmethod
-    def single(cls, daemon: Daemon) -> Hub:
-        """`craft-conductor run --web`: a hub view of one server run the classic way."""
-        hub = cls.__new__(cls)
-        hub.home = daemon.m.config.root
-        hub.http = daemon.m.http
-        hub._single = daemon
-        hub.updater = daemon.updater
-        hub.daemons = {HOME_ID: daemon}
-        hub.problems = {}
-        hub.join_requests = {}  # summary() also runs for classic single-server dashboards
-        hub.stop_requested = daemon.stop_requested
-        hub._lock = threading.RLock()
-        hub._hub_lock = threading.RLock()
-        hub.web_port_chosen = True  # (`craft-conductor run`: its craft-conductor.toml says the port)
-        hub.ui = None
-        hub.share = None
-        hub.share_error = None
-        hub.trials = {}
-        hub.setup_checks = {}
-        hub.previews = {}
-        hub._push = None
-        hub.discord_bot = None
-        hub._health, hub._health_lock = None, threading.Lock()
-        hub.gallery = None
-        hub.map_session = None
-        hub._upnp_lock = threading.Lock()
-        hub._upnp_status = None
-        hub._gateway, hub._gateway_at = None, 0.0
-        hub.make_manager = lambda cfg: Manager(cfg, http=hub.http, echo=False)
-        return hub
 
     # --------------------------------------------------------- settings
     @property
@@ -225,11 +220,18 @@ class Hub:
         return self._single.m.config.web if self._single else self._web
 
     def _hub_file(self) -> dict:
+        """hub.json, with any part of the wrong kind left out (as if it weren't there): one damaged or
+        edited by hand stopped Craft Conductor (``"extra": 5``) or every page (``"share": null``)."""
         try:
             data = json.loads((self.state_dir / HUB_FILE).read_text())
-            return data if isinstance(data, dict) else {}
         except (OSError, ValueError):
             return {}
+        if not isinstance(data, dict):
+            return {}
+        for key, kind in HUB_FILE_KINDS.items():
+            if key in data and not isinstance(data[key], kind):
+                del data[key]
+        return data
 
     def _update_hub_file(self, change: Callable[[dict], object]) -> object:
         """Change hub.json: read it, let ``change`` edit what's in it, write it back, all as one step,
@@ -338,7 +340,8 @@ class Hub:
 
     def discord_settings(self) -> dict:
         d = self._hub_file().get("discord", {})
-        return {"set": bool(d.get("token")), "bot": d.get("bot"), "guild": d.get("guild", ""), "channel": d.get("channel", ""),
+        bot = d.get("bot") if isinstance(d.get("bot"), dict) and isinstance(d["bot"].get("id"), str) else None
+        return {"set": bool(d.get("token")), "bot": bot, "guild": d.get("guild", ""), "channel": d.get("channel", ""),
                 "status_channel": d.get("status_channel", "")}
 
     def set_discord_status(self, channel: str) -> None:
@@ -407,7 +410,8 @@ class Hub:
 
     # ------------------------------------------- Whitelist through Discord
     def discord_whitelist(self) -> dict:
-        w = self._hub_file().get("discord", {}).get("whitelist", {})
+        w = self._hub_file().get("discord", {}).get("whitelist")
+        w = w if isinstance(w, dict) else {}
         bot = self.discord_bot
         return {"enabled": bool(w.get("enabled")), "mode": w.get("mode", "ask"), "role": w.get("role", ""),
                 "status": bot.status() if bot else None}
@@ -500,7 +504,10 @@ class Hub:
         address they opened the invite with)."""
         from .share import DEFAULT_PORT
         s = self._hub_file().get("share", {}) if not self.is_single else {}
-        return {"port": int(s.get("port", DEFAULT_PORT)), "address": str(s.get("address", ""))}
+        port = s.get("port")  # (one that isn't a port, in a hub.json edited by hand: the usual one)
+        port = port if isinstance(port, int) and not isinstance(port, bool) and 0 < port < 65536 else DEFAULT_PORT
+        address = s.get("address")
+        return {"port": port, "address": address if isinstance(address, str) else ""}
 
     def save_share(self, port: int, address: str) -> None:
         # (a playit.gg tunnel for the downloads, kept here before, needs a paid plan: no longer offered)
@@ -620,7 +627,8 @@ class Hub:
             m = self.make_manager(configmod.load(root))
             m.mod_files = self.mod_files  # (files the setup page or a check already downloaded)
         except (ConfigError, OSError, ValueError) as e:
-            self.problems[sid] = {"root": str(root), "problem": f"its craft-conductor.toml has a problem: {e}"}
+            problem = f"its craft-conductor.toml has a problem: {e}" if isinstance(e, ConfigError) else str(e)
+            self.problems[sid] = {"root": str(root), "problem": problem}
             self.daemons.pop(sid, None)
             return
         if pid := running_pid(m):
@@ -633,7 +641,7 @@ class Hub:
         self._end_long_link(sid, m)
         d = Daemon(m, tick=self.tick, autostart=False, server_id=sid, hub_managed=True)
         d.hub = self
-        m.notifier.listeners.append(lambda message, sid=sid: self.phone_notify(sid, message))
+        m.notifier.listeners.append(lambda message, sid=sid: self.notice(sid, message))
         d.web_enabled = True  # problems are shown in the web UI instead of stopping craft-conductor
         self.daemons[sid] = d
         t = threading.Thread(target=d.run, daemon=True, name=f"server:{sid}")
@@ -674,6 +682,19 @@ class Hub:
             self._push = Push(self.state_dir)
         return self._push
 
+    def notice(self, sid: str, message: str) -> None:
+        """A server's message (what goes to Discord): kept for the bell, and sent to phones."""
+        self.keep_notice(sid, message)
+        self.phone_notify(sid, message)
+
+    def keep_notice(self, sid: str, message: str) -> None:
+        """Kept for the owner's bell (/api/hub's notices)."""
+        with self._notice_lock:  # (times only go up: the page asks for the ones after the last it has)
+            now = time.time()
+            if self.notices and self.notices[-1]["time"] >= now:
+                now = self.notices[-1]["time"] + 0.001  # (each one's time tells it apart)
+            self.notices.append({"sid": sid, "message": str(message)[:NOTICE_CHARS], "time": now})
+
     def phone_notify(self, sid: str, message: str) -> None:
         """A server's message (what goes to Discord), to the phones that turned notifications on."""
         from .properties import read_properties, server_name
@@ -694,7 +715,7 @@ class Hub:
         """Minecraft port -> server id, for every server here."""
         from .properties import read_properties
         out = {}
-        for sid, d in self.daemons.items():
+        for sid, d in list(self.daemons.items()):
             if sid != exclude:
                 try:
                     out[int(read_properties(d.m.server_dir / "server.properties").get("server-port", "25565"))] = sid
@@ -702,12 +723,25 @@ class Hub:
                     pass
         return out
 
-    def free_port(self, start: int = 25565) -> int:
-        taken = self.ports()
-        port = start
-        while port in taken or port in self.reserved_ports() or not port_free(port):
-            port += 1
+    HOLD_PORT = 30 * 60
+
+    def free_port(self, start: int = 25565, hold: bool = False) -> int:
+        """The first port from ``start`` nobody uses. With ``hold``, it's lent (to a throwaway server)
+        and not given out again until :meth:`release_port`, or HOLD_PORT seconds."""
+        taken, reserved = self.ports(), self.reserved_ports()
+        with self._held_lock:
+            now = time.monotonic()
+            self._held_ports = {p: until for p, until in self._held_ports.items() if until > now}
+            port = start
+            while port in taken or port in reserved or port in self._held_ports or not port_free(port):
+                port += 1
+            if hold:
+                self._held_ports[port] = now + self.HOLD_PORT
         return port
+
+    def release_port(self, port: int) -> None:
+        with self._held_lock:
+            self._held_ports.pop(port, None)
 
     def reserved_ports(self) -> set[int]:
         """Ports craft-conductor itself listens on (the control panel, the tunnels' ways in to it, and
@@ -739,7 +773,7 @@ class Hub:
         """Refuse to start a server whose port another running server here already uses."""
         from .properties import read_properties, server_name
         port = read_properties(daemon.m.server_dir / "server.properties").get("server-port", "25565")
-        for sid, other in self.daemons.items():
+        for sid, other in list(self.daemons.items()):
             if other is daemon or not (other.proc and other.proc.running):
                 continue
             if read_properties(other.m.server_dir / "server.properties").get("server-port", "25565") == port:
@@ -753,7 +787,7 @@ class Hub:
         RCON's and the query port when they're on, Bedrock's (Geyser), the control panel's, the
         friends' download's."""
         from .properties import read_properties
-        from .reach import geyser_config, geyser_port
+        from .reach import geyser_ports
         out = set(self.reserved_ports())
         for sid, d in list(self.daemons.items()):
             if sid == exclude:
@@ -765,8 +799,7 @@ class Hub:
                     out.add(int(props.get("rcon.port", "25575") or 25575))
                 if props.get("enable-query") == "true":
                     out.add(int(props.get("query.port", "25565") or 25565))
-                if geyser_config(d.m.server_dir) is not None:  # (Bedrock players, on UDP)
-                    out.add(geyser_port(d.m.server_dir))
+                out.update(port for port, _ in geyser_ports(d.m.server_dir))  # (Bedrock players)
             except (OSError, ValueError):
                 continue
         return out
@@ -785,7 +818,7 @@ class Hub:
         except ValueError:
             port = 25565
         c = daemon.m.config
-        return reach.why_reachable(c.reach_way, c.tunnel_address, self.upnp_settings()["enabled"],
+        return reach.why_reachable(c.reach_way, c.tunnel_address, self.upnp_settings()["enabled"] and c.reach_way == "forward",
                                    "" if self.is_single else self.share_settings()["address"],
                                    reach.read_state(c.state_dir).get("port_test"), port)
 
@@ -800,7 +833,51 @@ class Hub:
                 reach.set_geyser_port(daemon.m.server_dir, wanted)
             except (OSError, ValueError) as e:
                 log.warning("couldn't set the Bedrock port in Geyser's config: %s", e)
+        self.bedrock_both_ways(daemon)
         self.whitelist_when_reachable()
+
+    def bedrock_both_ways(self, daemon: Daemon) -> bool:
+        """Geyser 2.12 and later take only Bedrock's new connection method at first, which a Bedrock
+        player who adds the server by address can't join with (#211): set it to take both, with a UDP
+        port of its own for the new one (picked like the Bedrock port, and kept). Done once a server;
+        a change made by hand afterwards stays. True when Geyser's config was changed (it takes it
+        at its next start)."""
+        from . import reach
+        server_dir, state_dir = daemon.m.server_dir, daemon.m.config.state_dir
+        if reach.geyser_transport(server_dir) not in ("nethernet", "both"):
+            return False
+        state = reach.read_state(state_dir)
+        forward = daemon.m.config.reach_way == "forward"
+        current = reach.geyser_webrtc_port(server_dir)
+        if state.get("bedrock_both") and not (forward and current is not None and not reach.in_open_range(current)):
+            return False
+        bedrock, taken = reach.geyser_port(server_dir), self.taken_ports(exclude=daemon.server_id)
+        port = current if current is not None and current != bedrock and current not in taken else state.get("webrtc_port")
+        if forward and not (isinstance(port, int) and reach.in_open_range(port)):
+            port = None  # (one in the range opened on routers)
+        if not (isinstance(port, int) and port != bedrock and port not in taken):
+            port = bedrock + 1 if not forward and bedrock < 65535 and bedrock + 1 not in taken and reach.udp_free(bedrock + 1) else None
+        while port is None or port == bedrock:
+            port = self.pick_open_port(exclude=daemon.server_id, udp=True)
+        try:
+            changed = reach.set_geyser_both(server_dir, port, replace=port != current)
+        except (OSError, ValueError) as e:
+            log.warning("couldn't set Geyser to take both of Bedrock's connection methods: %s", e)
+            return False
+        reach.write_state(state_dir, bedrock_both=True, webrtc_port=port)
+        if changed and forward and self.upnp_settings()["enabled"]:
+            threading.Thread(target=self.upnp_sync, daemon=True, name="upnp").start()
+        return changed
+
+    def after_ready(self, daemon: Daemon) -> None:
+        """A server finished starting. Geyser writes its config on its first start, with only the
+        new Bedrock connection method: it's set to both now, for the next start, and the owner told."""
+        try:
+            if self.bedrock_both_ways(daemon):
+                daemon.m.notifier.send("Bedrock players: Geyser was set up so they can join by address. "
+                                       "Restart the server once for it to take effect.")
+        except Exception:
+            log.exception("couldn't check Geyser's connection methods")
 
     def whitelist_when_reachable(self, why: str = "") -> list[str]:
         """Turn the whitelist on for each server made with this rule (reach.py) that can now be
@@ -856,18 +933,26 @@ class Hub:
         plan = limits.memory_fits([gb(d) for d in running.values()], gb(extra) if extra else 0.0, total)
         plan["running"] = [{"id": sid, "gb": round(gb(d), 1)} for sid, d in running.items()]
         plan["adding_gb"] = round(gb(extra), 1) if extra else 0.0
+        # What's free now: other programs (a browser, a game) use memory the total doesn't say about (#187).
+        from .health import memory_available_gb
+        free = memory_available_gb()
+        plan["available_gb"] = round(free, 1) if free is not None else None
+        plan["fits_free"] = free is None or not extra or plan["adding_gb"] <= free - limits.FREE_MARGIN_GB
         return plan
 
     def check_memory(self, daemon: Daemon) -> None:
         """Say (in the activity) when starting this server gives the servers more memory than the
         computer has; the page asks before starting it (see memory_plan)."""
-        sid = next((k for k, v in self.daemons.items() if v is daemon), None)
+        sid = next((k for k, v in list(self.daemons.items()) if v is daemon), None)
         if sid is None:
             return
         plan = self.memory_plan(sid)
         if not plan["fits"]:
             log.warning("the running servers are given %.1f GB of memory with this one, and this computer has %.1f GB: "
                         "it may slow down or a server may crash; give them less memory, or stop one", plan["after_gb"], plan["total_gb"])
+        elif not plan["fits_free"]:
+            log.warning("this server is given %.1f GB of memory, and only %.1f GB is free on this computer now (other programs "
+                        "use the rest): it may slow down, or Windows may fill the disk making room", plan["adding_gb"], plan["available_gb"])
 
     @property
     def staging_dir(self) -> Path:
@@ -888,7 +973,7 @@ class Hub:
         if self.staging_dir.is_dir():
             for old in self.staging_dir.iterdir():
                 if old.stat().st_mtime < cutoff:
-                    shutil.rmtree(old, ignore_errors=True)
+                    rmtree(old, ignore_errors=True)
         sid = secrets.token_hex(8)
         dest = self.staging_dir / sid / filename
         receive(handler, dest, max_bytes)
@@ -956,8 +1041,19 @@ class Hub:
                 mods_dir.mkdir(parents=True, exist_ok=True)
                 shutil.move(str(f), mods_dir / f.name)
                 moved += 1
-            shutil.rmtree(folder, ignore_errors=True)
+            rmtree(folder, ignore_errors=True)
         return moved
+
+    def _new_id(self, base: str) -> str:
+        """An id (and folder name) for a new server: no other server's, and no folder that's in use, its
+        own or the backups of one taken off the list but kept (``<backups folder>/<id>``): sharing that,
+        keeping the newest few of one would remove the other's."""
+        loc = self.backups_location
+        taken = set(self.discover()) | {HOME_ID}
+        sid, n = base, 2
+        while sid in taken or (self.servers_dir / sid).exists() or (loc is not None and (loc / sid).exists()):
+            sid, n = f"{base}-{n}", n + 1
+        return sid
 
     def create(self, spec: setupmod.SetupSpec) -> str:
         """Make a new server folder from the setup page and start installing it (not running it)."""
@@ -965,11 +1061,7 @@ class Hub:
             raise RuntimeError("this Craft Conductor runs a single server (`craft-conductor run`); use `craft-conductor start` for several")
         self._not_while_moving()
         with self._lock:
-            base = slugify(spec.motd)
-            sid, n = base, 2
-            taken = set(self.discover()) | {HOME_ID}
-            while sid in taken or (self.servers_dir / sid).exists():
-                sid, n = f"{base}-{n}", n + 1
+            sid = self._new_id(slugify(spec.motd))
             root = self.servers_dir / sid
             if spec.port in self.ports():
                 if spec.port_chosen:
@@ -982,14 +1074,15 @@ class Hub:
                                       "downloads); pick another")
                 spec.port = self.free_port(spec.port)
             from . import reach
-            if spec.reach == "forward" and not (reach.in_open_range(spec.port) and spec.port not in self.taken_ports()
-                                                and port_free(spec.port)):
-                spec.port = self.pick_open_port()  # (the router gets a port that isn't Minecraft's usual one)
+            if spec.reach == "forward" and not ((reach.in_open_range(spec.port) or spec.port_chosen and spec.port != reach.USUAL_PORT)
+                                                and spec.port not in self.taken_ports() and port_free(spec.port)):
+                spec.port = self.pick_open_port()  # (the router gets a port that isn't Minecraft's usual one; one typed in stays, #232)
             spec.reachable = (spec.reach in ("playit", "forward") or self.upnp_settings()["enabled"]
                               or bool(self.share_settings()["address"]))
             setupmod.whitelist_defaults(spec)  # (refused before any file is written: whitelist off unconfirmed)
             spec.network_access = False  # the hub's own setting decides who can open the panel
             spec.world_source = self.world_source(spec.world)  # before any files are written
+            setupmod.world_not_newer(spec)
             setupmod.configure(root, spec)
             setupmod.mark_pending(root)
             if self.backups_location is not None:  # (its backups in the folder chosen for backups)
@@ -1097,6 +1190,8 @@ class Hub:
                 out.append(f"{name} is running")
             elif d.job:
                 out.append(f"{name} is busy ({d.job['name']})")
+            elif rehearsing(d):
+                out.append(f"{name} is trying an update on a copy of itself (stop it on its Updates page)")
             elif d.m.journal_path.exists():
                 out.append(f"{name} has an interrupted update to put right first (start it once)")
         return out
@@ -1109,7 +1204,7 @@ class Hub:
         if old.is_dir():
             items = [locmod.Item(d, new / d.name) for d in sorted(old.iterdir())
                      if d.is_dir() and (d / configmod.CONFIG_NAME).exists()]
-        ds = {sid: d for sid, d in self.daemons.items() if d.m.config.root.parent == old}
+        ds = {sid: d for sid, d in list(self.daemons.items()) if d.m.config.root.parent == old}
         return locmod.Plan("servers", old, new, items), ds
 
     def _backups_plan(self, old: Path | None, new: Path | None):
@@ -1135,7 +1230,7 @@ class Hub:
         if old.is_dir():
             items = [locmod.Item(x, new / x.name) for x in sorted(old.iterdir())
                      if (x.is_dir() and any(x.glob("*.craft-conductor.zip"))) or x.name.endswith(".craft-conductor.zip")]
-        ds = {sid: d for sid, d in self.daemons.items() if d.job and d.job.get("name") == "export"}
+        ds = {sid: d for sid, d in list(self.daemons.items()) if d.job and d.job.get("name") == "export"}
         return locmod.Plan("exports", old, new, items), ds
 
     def plan_locations(self, wanted: dict) -> dict:
@@ -1159,7 +1254,8 @@ class Hub:
         warnings: list[str] = []
         for kind in locmod.KINDS:
             if kind in wanted and new[kind] is not None:
-                new[kind], w = locmod.check_place(kind, str(new[kind]), new, self.state_dir)
+                staying = current[kind] is not None and locmod._norm(new[kind]) == locmod._norm(current[kind])
+                new[kind], w = locmod.check_place(kind, str(new[kind]), new, self.state_dir, staying=staying)
                 warnings += w
 
         def same(a, b) -> bool:
@@ -1351,7 +1447,7 @@ class Hub:
             sid, manifest = self.import_archive(found[0], password=password, skip_locked=skip_locked)
         except transfer.NeedsPassword as e:
             return {"needs_password": True, "locked": e.locked}
-        shutil.rmtree(self.staging_dir / stage_id, ignore_errors=True)
+        rmtree(self.staging_dir / stage_id, ignore_errors=True)
         left_out = manifest.get("left_out")
         return {"id": sid, "left_out": [str(x) for x in left_out] if isinstance(left_out, list) else [],
                 "opened": list(manifest.get("opened") or [])}
@@ -1408,15 +1504,11 @@ class Hub:
         self._not_while_moving()
         manifest = transfer.read_manifest(archive)
         with self._lock:
-            base = slugify(name or manifest.get("name") or manifest.get("folder") or "imported")
-            sid, n = base, 2
-            taken = set(self.discover()) | {HOME_ID}
-            while sid in taken or (self.servers_dir / sid).exists():
-                sid, n = f"{base}-{n}", n + 1
+            sid = self._new_id(slugify(name or manifest.get("name") or manifest.get("folder") or "imported"))
             root = self.servers_dir / sid
             manifest = transfer.import_into(archive, root, password=password, skip_locked=skip_locked)
             self._imported_backups(root, sid)
-            from .properties import read_properties, server_name, write_properties
+            from .properties import number, read_properties, server_name, write_properties
             props_path = configmod.load(root).server.dir / "server.properties"
             if name:
                 write_properties(props_path, {"motd": name[:59]})
@@ -1427,7 +1519,7 @@ class Hub:
                     n_copy += 1
                 write_properties(props_path, {"motd": f"{shown[:50]} ({n_copy})"})
                 log.info("the imported server has the name of one already here (%s); it is now %s (%d)", shown, shown, n_copy)
-            port = int(read_properties(props_path).get("server-port", "25565") or 25565)
+            port = number(read_properties(props_path), "server-port", 25565)
             if port in self.ports():  # another server here already uses it
                 new = self.free_port(port)
                 write_properties(props_path, {"server-port": str(new)})
@@ -1442,7 +1534,7 @@ class Hub:
         """The names of the servers here as the server list shows them (lower case)."""
         from .properties import read_properties, server_name
         out = set()
-        for sid, d in self.daemons.items():
+        for sid, d in list(self.daemons.items()):
             try:
                 out.add(server_name(read_properties(d.m.server_dir / "server.properties"), sid).casefold())
             except OSError:
@@ -1458,6 +1550,8 @@ class Hub:
                 raise RuntimeError("there's no server with that id")
             if (d.proc and d.proc.running) or d.job:
                 raise RuntimeError("stop the server (and wait for anything it's doing to finish) first")
+            if rehearsing(d):  # (its copy runs from inside the server's folder, and would be left running)
+                raise RuntimeError("an update is being tried on a copy of this server: stop it on its Updates page first")
             cfg = d.m.config
             root = cfg.root
             d.stop_requested.set()
@@ -1483,9 +1577,9 @@ class Hub:
             from . import locations as locmod
             loc = self.backups_location
             if loc is not None and locmod.inside(cfg.backups.dir, loc / sid) and cfg.backups.dir.is_dir():
-                _rmtree(cfg.backups.dir)  # (its backups, in the folder chosen for backups)
+                rmtree(cfg.backups.dir)  # (its backups, in the folder chosen for backups)
             if root.parent == self.servers_dir:
-                _rmtree(root)  # craft-conductor's own folder for this server
+                rmtree(root)  # craft-conductor's own folder for this server
             else:
                 # A folder craft-conductor doesn't own (the home folder, or one you pointed it at): delete
                 # only what belongs to the server, and leave anything else there alone.
@@ -1499,7 +1593,7 @@ class Hub:
                     if p == store or p in store.parents:
                         continue  # nor the shared Java folder
                     if p.is_dir():
-                        _rmtree(p)
+                        rmtree(p)
                     else:
                         p.unlink()
                 if root == self.home:
@@ -1514,12 +1608,13 @@ class Hub:
 
     def upnp_settings(self) -> dict:
         u = self._hub_file().get("upnp", {}) if not self.is_single else {}
-        return {"enabled": bool(u.get("enabled")), "mapped": [tuple(x) for x in u.get("mapped", [])
-                                                              if isinstance(x, list) and len(x) == 2]}
+        mapped = u.get("mapped") if isinstance(u.get("mapped"), list) else []
+        return {"enabled": bool(u.get("enabled")), "mapped": [tuple(x) for x in mapped if isinstance(x, list) and len(x) == 2]}
 
     def upnp_wanted(self) -> list[tuple[int, str, str]]:
-        """(port, protocol, label) craft-conductor forwards: each server's Minecraft port (and Bedrock's, on
-        UDP, with Geyser) and friends' downloads (only while a link works: the share server runs).
+        """(port, protocol, label) craft-conductor forwards: the Minecraft port (and Bedrock's, on UDP, with
+        Geyser) of each server set to "Open a port on my router" (reach.way "forward": never one set to only
+        friends at home, or to playit.gg) and friends' downloads (only while a link works: the share server runs).
         Never the control panel's port or a server's RCON port, even if one of those is the same number."""
         from .properties import read_properties
         out, private = [], {self.web.port}
@@ -1533,10 +1628,12 @@ class Hub:
                     private.add(int(props.get("rcon.port", "25575") or 25575))
             except (OSError, ValueError):
                 continue
+            if d.m.config.reach_way != "forward":
+                continue
             out.append((port, "TCP", f"Craft Conductor {sid}"[:60]))
-            from .reach import geyser_config, geyser_port
-            if geyser_config(d.m.server_dir) is not None:  # Bedrock players (Geyser), on UDP
-                out.append((geyser_port(d.m.server_dir), "UDP", f"Craft Conductor {sid} Bedrock"[:60]))
+            from .reach import geyser_ports
+            for bedrock, proto in geyser_ports(d.m.server_dir):  # Bedrock players (Geyser)
+                out.append((bedrock, proto, f"Craft Conductor {sid} Bedrock"[:60]))
         if self.share:
             out.append((self.share_settings()["port"], "TCP", "Craft Conductor friends' downloads"))
         seen, unique = set(), []
@@ -1703,20 +1800,20 @@ class Hub:
     def summary(self) -> list[dict]:
         out = []
         for sid, d in list(self.daemons.items()):
-            from .properties import read_properties, server_name
+            from .properties import number, read_properties, server_name
             props = read_properties(d.m.server_dir / "server.properties")
             lk = d.m.lock
             out.append({
                 "id": sid, "name": server_name(props, sid), "state": d.state,
                 "setup_pending": d.setup_pending, "job": d.job, "minecraft": lk.minecraft,
                 "loader": lk.loader or d.m.config.server.loader, "players": len(d.players),
-                "max_players": int(props.get("max-players", "20") or 20),
+                "max_players": number(props, "max-players", 20),
                 "port": props.get("server-port", "25565"), "folder": str(d.m.config.root),
                 "update": bool(d.last_check and not d.last_check.get("up_to_date") and d.last_check.get("target")),
                 "crashed_at": d.crashed_at, "last_job": d.last_job,
                 "join_requests": len(self.join_requests.get(sid, [])),
             })
-        for sid, p in self.problems.items():
+        for sid, p in list(self.problems.items()):
             out.append({"id": sid, "name": p.get("name") or sid, "state": "unavailable", "problem": p["problem"],
                         "folder": p["root"]})
         return out
@@ -1771,7 +1868,11 @@ class Hub:
 
     def start_self_update(self, version: str) -> bool:
         """Accept the update and install it in the background. False when one is already under way:
-        a second click (or a second browser) starts nothing."""
+        a second click (or a second browser) starts nothing. When this copy doesn't know that version
+        yet (it was just started again: after a failed update put it back, #245), it looks first."""
+        u = self.updater
+        if not u.in_progress and version and u.release is None:
+            self.check_self_update()
         if not self.updater.begin(version):
             return False
         self.run_job(f"update Craft Conductor to {version}", self.apply_self_update)
@@ -1791,7 +1892,7 @@ class Hub:
         except Exception as e:
             self.update_failed(old, new, str(e), bool(u.failure and u.failure.get("reverted")))
             raise
-        running = {sid: d for sid, d in self.daemons.items() if d.proc and d.proc.running}
+        running = {sid: d for sid, d in list(self.daemons.items()) if d.proc and d.proc.running}
         # They're stopped for the update and started again on the new version (start_after_update).
         if running:
             self._update_hub_file(lambda data: data.__setitem__(START_AFTER_UPDATE, {"servers": sorted(running), "at": time.time()}))
@@ -1930,30 +2031,33 @@ class Hub:
                     hub_stop_path(self.home).unlink(missing_ok=True)
                     log.info("stop requested")
                     break
-                now = time.monotonic()
-                if now >= next_scan:
-                    next_scan = now + SCAN_EVERY
-                    self.scan()
-                    self.update_share()
-                    if after_update:
-                        after_update = self.start_after_update()
-                if now >= next_self_check:
-                    next_self_check = now + SELF_CHECK_INTERVAL
-                    self.run_job("craft-conductor update check", self.check_self_update)
-                if now >= next_tunnels:
-                    next_tunnels = now + 300
-                    threading.Thread(target=self.check_tunnels, daemon=True, name="tunnels").start()
-                if now >= next_upnp:
-                    next_upnp = now + self.UPNP_EVERY
-                    if self.upnp_settings()["enabled"]:
-                        threading.Thread(target=self.upnp_sync, daemon=True, name="upnp").start()
-                if now >= next_health:
-                    next_health = now + 60
-                    threading.Thread(target=self._check_health, daemon=True, name="health").start()
-                if now >= next_status:
-                    next_status = now + 30
-                    threading.Thread(target=self.discord_status, daemon=True, name="discord-status").start()
-                    threading.Thread(target=self.sync_discord_bot, daemon=True, name="discord-whitelist-sync").start()
+                try:  # (one step going wrong is logged, and the next go round tries again: never Craft Conductor stopping)
+                    now = time.monotonic()
+                    if now >= next_scan:
+                        next_scan = now + SCAN_EVERY
+                        self.scan()
+                        self.update_share()
+                        if after_update:
+                            after_update = self.start_after_update()
+                    if now >= next_self_check:
+                        next_self_check = now + SELF_CHECK_INTERVAL
+                        self.run_job("craft-conductor update check", self.check_self_update)
+                    if now >= next_tunnels:
+                        next_tunnels = now + 300
+                        threading.Thread(target=self.check_tunnels, daemon=True, name="tunnels").start()
+                    if now >= next_upnp:
+                        next_upnp = now + self.UPNP_EVERY
+                        if self.upnp_settings()["enabled"]:
+                            threading.Thread(target=self.upnp_sync, daemon=True, name="upnp").start()
+                    if now >= next_health:
+                        next_health = now + 60
+                        threading.Thread(target=self._check_health, daemon=True, name="health").start()
+                    if now >= next_status:
+                        next_status = now + 30
+                        threading.Thread(target=self.discord_status, daemon=True, name="discord-status").start()
+                        threading.Thread(target=self.sync_discord_bot, daemon=True, name="discord-whitelist-sync").start()
+                except Exception:
+                    log.exception("something went wrong in Craft Conductor's own loop; carrying on")
                 self.stop_requested.wait(self.tick)
             return 0
         finally:

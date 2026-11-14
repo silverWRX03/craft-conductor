@@ -33,6 +33,7 @@ EMPTY_RETRY = 300       # seconds between "is anyone online?" checks when waitin
 SELF_CHECK_INTERVAL = 24 * 3600
 MANUAL_WAIT = 12 * 3600  # how long setup waits for mods to be downloaded by hand
 MANUAL_POLL = 10         # seconds between looks in the manual-downloads folder while it waits
+RESTART_WARNING = 60     # seconds players are given when Restart is pressed with them on (and the owner agrees)
 
 
 # Which server the current thread is working for, so that with several servers in one
@@ -179,6 +180,8 @@ class Daemon:
         self.hub_managed = hub_managed
         self.proc: ServerProcess | None = None
         self.stop_requested = threading.Event()
+        #: set while a restart gives players their minute (#205): Stop sets it, and the server stops instead
+        self.restart_warning: threading.Event | None = None
         self.exit_code = 0
         self.crashes: deque[float] = deque()
         self.next_check = 0.0
@@ -243,6 +246,9 @@ class Daemon:
             self.activity.left(m.group(1))
         elif READY.search(line):
             self.started_at = time.time()
+            hub = getattr(self, "hub", None)
+            if hub is not None:
+                threading.Thread(target=hub.after_ready, args=(self,), daemon=True, name="after-ready").start()
 
     def send_command(self, command: str) -> None:
         if not self.proc or not self.proc.running:
@@ -305,6 +311,7 @@ class Daemon:
             if not self.m.lock.installed:
                 raise RuntimeError("no server could be installed yet; see the Updates page")
             if self.proc and self.proc.running:  # the install left it running
+                self._started()
                 return "installed and started"
         elif not self.autostart and self.m.config.updates.auto_upgrade:
             # Started by hand after sitting stopped: bring it up to date on the way up.
@@ -314,16 +321,22 @@ class Daemon:
                 log.warning("update before starting failed (%s); starting the current version", e)
                 self.m.recover()  # (if its backup couldn't be put back, don't start half-updated files)
             if self.proc and self.proc.running:
+                self._started()
                 return "updated and started"
         try:
             self.m.start_server()
         except Exception:
             self._explain(getattr(self.m, "last_start_lines", None) or [], "start")
             raise
-        if self.problem and self.problem.get("kind") == "start":  # (a crash's explanation stays until dismissed)
-            self.problem = None
+        self._started()
         self.m.notifier.send(f"Server is up (Minecraft {self.m.lock.minecraft})")
         return "started"
+
+    def _started(self) -> None:
+        """The server is up, however it got there (a plain start, or after an install or update):
+        an earlier failed start's explanation goes from the Dashboard (#188)."""
+        if self.problem and self.problem.get("kind") == "start":  # (a crash's explanation stays until dismissed)
+            self.problem = None
 
     def _explain(self, lines: list[str], kind: str) -> None:
         """Keep what went wrong, in plain words with fix buttons, for the Dashboard."""
@@ -342,9 +355,38 @@ class Daemon:
         log.info("server stopped")
         return "stopped"
 
-    def restart_server(self) -> str:
+    def restart_server(self, warn: bool = False) -> str:
+        """``warn``: with players on, they're told in game and given a minute first (#205). Stop pressed
+        meanwhile stops the server instead; Craft Conductor closing meanwhile stops it as it closes."""
+        if warn and self.proc and self.proc.running and self.players:
+            self.proc.say(f"Server restarting in {RESTART_WARNING} seconds")
+            self.restart_warning = called_off = threading.Event()
+            if self.job:
+                self.job["can_stop"] = True  # (the page keeps Stop pressable)
+            try:
+                end = time.monotonic() + RESTART_WARNING
+                while not (called_off.is_set() or self.stop_requested.is_set()) and time.monotonic() < end:
+                    called_off.wait(min(1.0, end - time.monotonic()))
+            finally:
+                self.restart_warning = None
+                if self.job:
+                    self.job.pop("can_stop", None)
+            if self.stop_requested.is_set():
+                return "not restarted: Craft Conductor is closing"
+            if called_off.is_set():
+                return self.stop_server()
+            if self.proc and self.proc.running:
+                self.proc.say("Restarting now!")
         self.stop_server()
         return self.start_server()
+
+    def call_off_restart(self) -> bool:
+        """Stop pressed while a restart warns players: it stops instead of restarting (True)."""
+        waiting = self.restart_warning
+        if waiting is None:
+            return False
+        waiting.set()
+        return True
 
     def backup_now(self, label: str = "manual") -> str:
         """A backup of the server folder, taken safely while it runs (saving paused), then pruned
@@ -371,7 +413,7 @@ class Daemon:
         if not checked["ok"]:
             log.error("the new backup %s doesn't look right: %s", path.name, checked["detail"])
             self.m.notifier.send(f"The backup {path.name} doesn't look right: {checked['detail']}")
-        copied = backup.copy_out(path, cfg.backups.copy_to, cfg.root.name, cfg.backups.copy_keep)
+        copied = backup.copy_out(path, cfg.backups.copy_to, cfg.root, cfg.backups.copy_keep)
         return f"created {path.name}" + (" (checked)" if checked["ok"] else " (but it doesn't look right: " + checked["detail"] + ")") + \
             (f" (copied to {copied.parent})" if copied else "")
 
@@ -526,43 +568,49 @@ class Daemon:
         import datetime as _dt
         self._sched_last = _dt.datetime.now()  # schedules count from now, not from a missed past
 
+        last_error = None
         while not self.stop_requested.is_set():
-            if stop_request_path(self.m).exists():
-                stop_request_path(self.m).unlink(missing_ok=True)
-                log.info("stop requested")
-                self.stop_requested.set()
-                break
-            idle = not self.ops.locked()
-            if (idle and self.want_running and self.proc is not None and not self.proc.running
-                    and not self.proc.stopping):
-                self._handle_crash()
-            req = request_path(self.m)
-            requested = req.exists()
-            if self.setup_pending:  # nothing to check or restart until the server exists
-                self.stop_requested.wait(self.tick)
-                continue
-            if idle and (requested or time.monotonic() >= self.next_check):
-                target = (req.read_text().strip() or None) if requested else None
-                req.unlink(missing_ok=True)
-                self.submit("update check", self.check_for_updates, requested, target)
-            if idle:
-                self._watch_config()
-            self._run_schedules(idle)  # (busy too: a time that comes meanwhile waits, it isn't skipped)
-            if idle:
-                self._watch_lag()
-            sreq = self_update_request_path(self.m)
-            if self.hub_managed:  # the hub checks for and installs craft-conductor updates
-                self.stop_requested.wait(self.tick)
-                continue
-            if idle and sreq.exists():
-                sreq.unlink(missing_ok=True)
-                self.check_self_update()
-                info = self.updater.release
-                if info and info.get("can_install") and self.updater.begin(info["version"]):
-                    self.submit(f"update Craft Conductor to {info['version']}", self.apply_self_update)
-            if self.m.config.self_update_check and time.monotonic() >= self.next_self_check:
-                self.next_self_check = time.monotonic() + SELF_CHECK_INTERVAL
-                threading.Thread(target=self.check_self_update, daemon=True, name="self-update-check").start()
+            try:  # (one step going wrong is logged, and the next tick tries again: never the server left without a manager)
+                if stop_request_path(self.m).exists():
+                    stop_request_path(self.m).unlink(missing_ok=True)
+                    log.info("stop requested")
+                    self.stop_requested.set()
+                    break
+                idle = not self.ops.locked()
+                if (idle and self.want_running and self.proc is not None and not self.proc.running
+                        and not self.proc.stopping):
+                    self._handle_crash()
+                req = request_path(self.m)
+                requested = req.exists()
+                if self.setup_pending:  # nothing to check or restart until the server exists
+                    self.stop_requested.wait(self.tick)
+                    continue
+                if idle and (requested or time.monotonic() >= self.next_check):
+                    target = (req.read_text().strip() or None) if requested else None
+                    req.unlink(missing_ok=True)
+                    self.submit("update check", self.check_for_updates, requested, target)
+                if idle:
+                    self._watch_config()
+                self._run_schedules(idle)  # (busy too: a time that comes meanwhile waits, it isn't skipped)
+                if idle:
+                    self._watch_lag()
+                sreq = self_update_request_path(self.m)
+                if self.hub_managed:  # the hub checks for and installs craft-conductor updates
+                    self.stop_requested.wait(self.tick)
+                    continue
+                if idle and sreq.exists():
+                    sreq.unlink(missing_ok=True)
+                    self.check_self_update()
+                    info = self.updater.release
+                    if info and info.get("can_install") and self.updater.begin(info["version"]):
+                        self.submit(f"update Craft Conductor to {info['version']}", self.apply_self_update)
+                if self.m.config.self_update_check and time.monotonic() >= self.next_self_check:
+                    self.next_self_check = time.monotonic() + SELF_CHECK_INTERVAL
+                    threading.Thread(target=self.check_self_update, daemon=True, name="self-update-check").start()
+            except Exception as e:
+                if str(e) != last_error:  # (once, not every tick)
+                    log.exception("something went wrong looking after the server; carrying on")
+                last_error = str(e)
             self.stop_requested.wait(self.tick)
         return self.exit_code
 

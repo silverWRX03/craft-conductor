@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from .http import HttpClient
+from .http import HttpClient, HttpError
 
 log = logging.getLogger(__name__)
 
@@ -26,4 +26,6 @@ class Notifier:
         try:
             self.http.post_json(self.discord_webhook, {"content": message[:2000], "username": "Craft Conductor"})
         except Exception as e:  # a notification failure must never break an upgrade
-            log.warning("discord notification failed: %s", e)
+            # (never the webhook's address: it's its password, and this line shows in the server's
+            # activity, which people with only "view status" see)
+            log.warning("discord notification failed: %s", e.friendly if isinstance(e, HttpError) else type(e).__name__)

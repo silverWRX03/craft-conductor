@@ -89,11 +89,13 @@ def test_the_homepage_walkthrough_loads_only_when_requested():
     assert len(placeholders) == 1
     assert "walkthrough" in placeholders[0].get("aria-label", "").lower()
     assert placeholders[0]["id"] == "watch-video"
+    assert 'src="images/walkthrough-thumbnail.webp"' in home
+    assert (SITE / "images" / "walkthrough-thumbnail.webp").is_file()
     assert not any(tag in {"iframe", "video"} for tag, _ in parser.tags)
     assert not any(attrs.get("href") in {"#demo", "#download"} for _, attrs in parser.tags)
     csp = re.search(r'Content-Security-Policy" content="([^"]+)"', text).group(1)
     assert "frame-src 'self' https://www.youtube-nocookie.com;" in csp
-    assert "Watch video · Loads YouTube" in home
+    assert "video-note" not in home
 
 
 def test_the_homepage_links():

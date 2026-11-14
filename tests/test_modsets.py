@@ -51,3 +51,38 @@ def test_a_saved_list_keeps_each_mods_settings(tmp_path, make_config):
     assert mods == [("terralith", True, None, True), ("betamod", True, "beta", False), ("lithium", False, None, False)]
     entry = modsets.check({"name": "x", "mods": [{"source": "curseforge", "id": "123", "datapack": True}]})
     assert entry["mods"][0]["datapack"] is False
+
+
+def test_lists_saved_at_the_same_time_are_all_kept(tmp_path, make_config):
+    """Two saves at once both wrote mod-sets.tmp: on Windows one failed ("being used by another
+    process"), and one could undo the other. They take turns now; so do two server.properties changes."""
+    import threading
+    from craft_conductor import modsets
+    from craft_conductor.properties import read_properties, write_properties
+    cfg = make_config([ModSpec("modrinth", "lithium")])
+    props = tmp_path / "server.properties"
+    errors = []
+
+    def work(i):
+        try:
+            for j in range(5):
+                modsets.save(cfg, f"List {i}-{j}")
+                write_properties(props, {f"key-{i}-{j}": "on"})
+                read_properties(props)
+        except Exception as e:  # (any: the point is that none happens)
+            errors.append(e)
+    threads = [threading.Thread(target=work, args=(i,)) for i in range(6)]
+    [t.start() for t in threads]
+    [t.join(60) for t in threads]
+    assert errors == []
+    assert {x["name"] for x in modsets.load(cfg)} == {f"List {i}-{j}" for i in range(6) for j in range(5)}
+    assert set(read_properties(props)) == {f"key-{i}-{j}" for i in range(6) for j in range(5)}
+
+
+def test_a_shared_list_whose_mods_arent_a_list_is_refused_plainly():
+    """A mod list from a file someone shared, "mods": 5: a TypeError ("internal error")."""
+    import pytest
+    from craft_conductor import modsets
+    for entry in ({"name": "Mine", "mods": 5}, {"name": "Mine", "mods": [], "client_mods": True}):
+        with pytest.raises(modsets.ModSetError):
+            modsets.check(entry)

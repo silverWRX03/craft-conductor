@@ -66,3 +66,78 @@ def test_the_dashboard_explains_a_failed_start_and_fixes_it(hub_env):
     assert access.allows(operator, "POST", "/api/problem/fix", {"kind": "dismiss"})
     for kind in ("memory-up", "java-auto", "add-mod", "remove-mod", "disable-jar", "eula", "port", "anything"):
         assert not any(access.allows(p, "POST", "/api/problem/fix", {"kind": kind}) for p in access.PRESETS.values()), kind
+
+
+def test_a_start_that_updates_first_clears_the_old_failed_start(hub_env, monkeypatch):
+    """Start installs a mod change first ("updated and started"): the earlier failed start's
+    explanation goes, as after a plain start (#188)."""
+    import dataclasses
+    hub, c = hub_env
+    d = hub.get("alpha")
+    d.problem = {"kind": "start", "cause": "mod", "time": 0, "actions": []}
+    cfg = d.m.config
+    monkeypatch.setattr(d.m, "config", dataclasses.replace(cfg, updates=dataclasses.replace(cfg.updates, auto_upgrade=True)))
+    monkeypatch.setattr(d, "autostart", False)
+
+    monkeypatch.setattr(d, "check_for_updates", lambda **kw: d.m.start_server())  # (the update leaves it running)
+    try:
+        assert d.start_server() == "updated and started"
+        assert d.problem is None
+    finally:
+        d.stop_server()
+def test_a_file_of_your_own_that_only_runs_on_players_computers(tmp_path):
+    """A mod file of your own (not one Craft Conductor manages) reaching for the parts of Minecraft
+    only players have: said so, no "check for an update", and offered to players' mods (#189)."""
+    mods = tmp_path / "mods"
+    mods.mkdir()
+    (mods / "controlify-3.5.3.jar").write_bytes(b"PK")
+    lines = ["java.lang.NoClassDefFoundError: net/minecraft/client/gui/screens/Screen",
+             "\tat dev.isxander.controlify.Controlify.init(Controlify.java:3) [controlify-3.5.3.jar:?]"]
+    e = explain.explain(lines, tmp_path, [])
+    assert e["cause"] == "players-only" and "only runs on players' computers" in e["title"], e
+    assert "update" in e["words"] and "won't change" in e["words"]
+    assert [a["kind"] for a in e["actions"]] == ["jar-to-players", "disable-jar"]
+    assert e["actions"][0]["filename"] == "controlify-3.5.3.jar"
+
+
+def test_a_fabric_mod_that_only_runs_on_players_computers(tmp_path):
+    """Fabric names the mod in its entrypoint error ("provided by 'x'"), not in the stack trace (#231)."""
+    import json
+    import zipfile
+    mods = tmp_path / "mods"
+    mods.mkdir()
+    with zipfile.ZipFile(mods / "rt-hud-tweaks-1.0.jar", "w") as z:
+        z.writestr("fabric.mod.json", json.dumps({"id": "rt_hud_tweaks", "name": "RT HUD Tweaks", "environment": "*"}))
+    lines = ["java.lang.RuntimeException: Could not execute entrypoint stage 'main' due to errors, provided by "
+             "'rt_hud_tweaks' at 'net.minecraft.client.gui.RtHudTweaks'!",
+             "Caused by: net.fabricmc.loader.api.EntrypointException: Exception while loading entries for entrypoint "
+             "'main' provided by 'rt_hud_tweaks'",
+             "Caused by: java.lang.ClassNotFoundException: net.minecraft.client.gui.RtHudTweaks"]
+    e = explain.explain(lines, tmp_path, [])
+    assert e["cause"] == "players-only" and e["title"] == "RT HUD Tweaks only runs on players' computers", e
+    assert [a["kind"] for a in e["actions"]] == ["jar-to-players", "disable-jar"]
+    assert e["actions"][0]["filename"] == "rt-hud-tweaks-1.0.jar"
+
+
+def test_moving_a_file_of_your_own_to_players_mods(hub_env):
+    hub, c = hub_env
+    login(c)
+    d = hub.get("alpha")
+    mods = d.m.server_dir / "mods"
+    mods.mkdir(exist_ok=True)
+    (mods / "controlify-3.5.3.jar").write_bytes(b"PK")
+    d.problem = {"kind": "start", "cause": "players-only", "time": 0,
+                 "actions": [{"kind": "jar-to-players", "filename": "controlify-3.5.3.jar", "name": "controlify",
+                              "label": "Move controlify to players' mods"}]}
+    status, r, _ = c.post("/api/servers/alpha/problem/fix", {"kind": "jar-to-players", "filename": "controlify-3.5.3.jar"})
+    assert status == 200 and "friends' download" in r["message"], r
+    from craft_conductor.clientpack import local_jars
+    assert not (mods / "controlify-3.5.3.jar").exists()
+    assert [p.name for p in local_jars(d.m.config)] == ["controlify-3.5.3.jar"]
+    assert c.post("/api/servers/alpha/problem/fix", {"kind": "jar-to-players", "filename": "controlify-3.5.3.jar"})[0] == 409
+    # Moved by mistake: Manage Friends Mods → Put back on the server (#236)
+    status, r, _ = c.post("/api/servers/alpha/client/local/to-server", {"name": "controlify-3.5.3.jar"})
+    assert status == 200 and "back on the server" in r["message"], r
+    assert (mods / "controlify-3.5.3.jar").read_bytes() == b"PK" and local_jars(d.m.config) == []
+    assert c.post("/api/servers/alpha/client/local/to-server", {"name": "controlify-3.5.3.jar"})[0] == 404
+    assert c.post("/api/servers/alpha/client/local/to-server", {"name": "../hub.json"})[0] == 404

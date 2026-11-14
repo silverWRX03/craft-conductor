@@ -34,7 +34,8 @@ height. What it does is at least 1.5 times as tall and grows to fit the full-siz
 Narrow screens stack naturally.
 
 The introduction's responsive 16:9 **Product walkthrough** shows the owner's approved video:
-https://youtu.be/7facGOmax5M. Press **Watch video · Loads YouTube** to load and play it in place.
+https://youtu.be/7facGOmax5M. Until it plays, it shows the video's thumbnail, a local copy in
+site/images/walkthrough-thumbnail.webp (not loaded from YouTube). Press it to load and play the video in place.
 Until that press, no player or YouTube requests are made. With JavaScript disabled, a link opens
 it on YouTube. The player uses youtube-nocookie.com and supports fullscreen; the homepage's CSP
 allows that exact frame origin while scripts, styles and connections remain local. To replace

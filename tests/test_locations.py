@@ -84,6 +84,22 @@ def test_servers_backups_and_exports_go_where_chosen(hub_env, tmp_path):
     assert list((real_s / "alpha" / "backups").glob("*.tar.gz"))
 
 
+
+def test_a_new_server_never_shares_kept_backups(hub_env, tmp_path, monkeypatch):
+    """A server taken off the list keeps its files, its backups in <backups folder>/<id> too. A new
+    server of the same name got that id, so the same backups folder, and keeping the newest few of
+    the new one removed the older server's backups."""
+    hub, c = hub_env
+    login(c)
+    B = tmp_path / "My backups"
+    (B / "survival").mkdir(parents=True)
+    (B / "survival" / "20260101-040000-scheduled.tar.gz").write_bytes(b"the kept server's")
+    monkeypatch.setattr(type(hub), "backups_location", property(lambda self: B))
+    sid = c.post("/api/hub/create", {"loader": "vanilla", "motd": "Survival", "accept_eula": True})[1]["id"]
+    assert sid == "survival-2"
+    assert hub.get(sid).m.config.backups.dir == B / "survival-2"
+    assert (B / "survival" / "20260101-040000-scheduled.tar.gz").read_bytes() == b"the kept server's"
+
 def test_a_move_is_refused_while_a_server_runs(hub_env, tmp_path):
     hub, c = hub_env
     login(c)
@@ -113,6 +129,10 @@ def test_places_that_are_refused(hub_env, tmp_path, monkeypatch):
     assert "isn't a full path" in refused(servers="relative/folder")
     monkeypatch.setattr(locmod, "is_removable", lambda p: True)
     assert "removable drive" in refused(backups=str(tmp_path / "usb"))
+    # Where the folders already are (Craft Conductor's home on a USB stick): kept, with a warning (#214)
+    here = hub.locations()
+    status, r, _ = c.post("/api/hub/locations", {"servers": str(here["servers"]), "exports": str(here["exports"])})
+    assert status == 200 and any("removable drive" in w for w in r["warnings"]), r
     monkeypatch.setattr(locmod, "is_removable", lambda p: False)
     network = folders.is_network
     monkeypatch.setattr(folders, "is_network", lambda p: True)
@@ -332,3 +352,11 @@ def test_only_the_owner_chooses_where_files_are_kept(hub_env, tmp_path):
         assert status == 403, path
     assert "locations" not in person.get("/api/hub")[1]
     assert not (tmp_path / "E").exists() and not (tmp_path / "x").exists()
+
+
+def test_a_damaged_move_note_that_isnt_one_is_removed(tmp_path):
+    """The note of a move under way, holding JSON that isn't one (a list): read at every start, it
+    stopped Craft Conductor starting."""
+    (tmp_path / locmod.JOURNAL).write_text("[1, 2]", encoding="utf-8")
+    assert "damaged" in locmod.recover(tmp_path, lambda extra: None)
+    assert not (tmp_path / locmod.JOURNAL).exists()

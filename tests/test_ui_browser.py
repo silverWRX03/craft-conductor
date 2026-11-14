@@ -88,3 +88,12 @@ def test_removing_a_mod_whose_dependency_is_unavailable_asks_about_friends_mods(
     result = subprocess.run([os.environ["CRAFT_UI_NODE"], str(Path(__file__).with_name("ui_setup_remove.cjs")), client.base],
                             capture_output=True, text=True, timeout=180)
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.skipif(not os.environ.get("CRAFT_UI_NODE"), reason="optional browser verification")
+def test_new_server_keeps_the_port_typed_in(hub_env):
+    """New server: the port typed in stays after going to another page and back (#195)."""
+    hub, client = hub_env
+    result = subprocess.run([os.environ["CRAFT_UI_NODE"], str(Path(__file__).with_name("ui_setup_port.cjs")), client.base],
+                            capture_output=True, text=True, timeout=180)
+    assert result.returncode == 0, result.stdout + result.stderr

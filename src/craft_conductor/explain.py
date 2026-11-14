@@ -85,6 +85,16 @@ def explain(lines: list[str], server_dir=None, mods=(), since: float | None = No
                                  "label": f"Move {first.name} to players' mods"},
                                 {"kind": "remove-mod", "filename": first.filename, "name": first.name,
                                  "label": f"Remove {first.name}"}]}
+        if players and first.filename and first.filename.endswith(".jar"):  # (a file of your own, #189)
+            return {**base, "cause": "players-only", "title": f"{first.name} only runs on players' computers",
+                    "words": f"{first.name} reached for parts of Minecraft that only players' computers have, so the server "
+                             "stopped. An update of it won't change that. Moving it to players' mods takes it off the server "
+                             "and puts it in your friends' download (Friends → players' mods, your own files).",
+                    "evidence": _line(text, players.start()),
+                    "actions": [{"kind": "jar-to-players", "filename": first.filename, "name": first.name,
+                                 "label": f"Move {first.name} to players' mods"},
+                                {"kind": "disable-jar", "filename": first.filename, "name": first.name,
+                                 "label": f"Switch {first.name} off"}]}
         actions = []
         for s in d.suspects[:3]:
             managed = s.filename in by_file

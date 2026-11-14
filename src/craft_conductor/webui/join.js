@@ -23,6 +23,11 @@ function h(tag, attrs = {}, ...children) {
   }
   return el;
 }
+// Replace an element's contents, leaving out the parts that aren't there (null): the DOM's own
+// replaceChildren would show them as the word "null" (#164).
+function fill(el, ...children) {
+  el.replaceChildren(...children.flat(Infinity).filter((c) => c !== null && c !== undefined && c !== false));
+}
 async function api(path, body) {
   const res = await fetch(path, body === undefined ? {} : {
     method: "POST", headers: { "Content-Type": "application/json", "X-CRAFT-CONDUCTOR": "1" }, body: JSON.stringify(body) });
@@ -265,7 +270,7 @@ function renderAskInvite(error) {
     render();
   };
   const go = h("button", { class: "btn primary", type: "submit" }, "Continue");
-  $("#join").replaceChildren(
+  fill($("#join"),
     h("div", { class: "card" }, h("h1", {}, "Join a friend's Minecraft server"),
       h("p", { class: "muted" }, "Open the invite link you were sent, press ", h("strong", {}, "Copy the invite"),
         " there, and paste it here (or paste the whole link). Craft Conductor checks it's really their server, then sets up your game."),
@@ -360,7 +365,7 @@ function render() {
   };
   memory.addEventListener("change", updateHint);
   updateHint();
-  root.replaceChildren(
+  fill(root,
     h("div", { class: "join-head" },
       p.icon ? h("img", { src: p.icon, alt: "" }) : h("div", { class: "noicon" }),
       h("div", {}, h("h1", {}, p.name), h("div", { class: "muted" }, p.address || t("Single-player game")))),

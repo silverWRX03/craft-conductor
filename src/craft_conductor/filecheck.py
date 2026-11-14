@@ -21,8 +21,9 @@ from pathlib import Path
 
 from . import modcheck
 from .config import ModSpec, Pin
-from .http import HashMismatch, HttpError
+from .http import HashMismatch, HttpError, sha1_file
 from .mods.base import CHANNEL_RANK, ModError, Unavailable
+from .removal import rmtree
 
 log = logging.getLogger(__name__)
 
@@ -197,10 +198,17 @@ def for_server(m, fixes: bool = True, progress=None, client_mods: list[str] | No
     players = players_mods(m, plan.mods, minecraft, loader_version, java_major, client_mods, plan.players)
     entries = list(players["mods"])
     there = {e.get("project") for e in entries}
+    # Players' mods to download by hand count on their side too: read from the copy downloaded, or
+    # (none yet) unreadable, so a mod one of them provides isn't said to be missing (#242).
+    by_hand = {x["filename"]: x for x in players["manual"]}
     for x in plan.mods:
         if not x.datapack and x.key not in there:
             local = m._local_copy(x)
-            entries.append(_entry(x, "server", str(local) if local else None))
+            entries.append(_entry(x, "both" if by_hand.pop(x.filename, None) else "server", str(local) if local else None))
+    for x in by_hand.values():  # (players' only)
+        local = m.config.manual_dir / x["filename"] if m.config.manual_dir else None
+        entries.append({"name": x["name"], "filename": x["filename"], "project": None, "side": "client",
+                        "path": str(local) if local and local.is_file() and x.get("sha1") and sha1_file(local) == x["sha1"].lower() else None})
     for name in m.unmanaged_jars():  # (your own files in the server's mods folder)
         entries.append({"name": name, "filename": name, "project": f"local:{name}", "side": "server",
                         "path": str(m.mods_dir / name)})
@@ -276,7 +284,7 @@ def _pack_part(hub, spec) -> tuple[list, list[Path], list[str], dict]:
     for old in base.glob("*") if base.is_dir() else ():  # (packs checked days ago)
         try:
             if time.time() - old.stat().st_mtime > PACK_DAYS * 86400:
-                shutil.rmtree(old, ignore_errors=True)
+                rmtree(old, ignore_errors=True)
         except OSError:
             pass
     key = hashlib.sha256(json.dumps([3, spec.loader, spec.modpack_version, sorted(spec.modpack_exclude)]).encode()).hexdigest()[:20]
@@ -301,7 +309,7 @@ def _unpack(hub, spec, folder: Path) -> None:
     import shutil
     from . import config as configmod, setup as setupmod
     done = folder / "pack.json"
-    shutil.rmtree(folder, ignore_errors=True)
+    rmtree(folder, ignore_errors=True)
     root = folder / "root"
     bare = setupmod.SetupSpec(loader=spec.loader, minecraft=spec.minecraft, accept_eula=True, motd="pack check")
     setupmod.configure(root, bare)
@@ -319,7 +327,7 @@ def _unpack(hub, spec, folder: Path) -> None:
     keep.mkdir(parents=True, exist_ok=True)
     for name in jars:
         shutil.move(str(mods_dir / name), keep / name)
-    shutil.rmtree(root, ignore_errors=True)  # (its configs and other files aren't checked)
+    rmtree(root, ignore_errors=True)  # (its configs and other files aren't checked)
     done.write_text(json.dumps({"mods": [{"source": x.source, "id": x.id, "required": x.required, "channel": x.channel, "pack": x.pack}
                                          for x in cfg.mods[before:]],
                                 "pins": {k: [p.version, p.minecraft] for k, p in cfg.pins.items()},

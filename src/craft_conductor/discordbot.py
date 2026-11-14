@@ -29,7 +29,7 @@ from .discord import API, SNOWFLAKE, Discord, DiscordError
 log = logging.getLogger(__name__)
 
 GATEWAY = "wss://gateway.discord.gg/?v=10&encoding=json"
-NAME = re.compile(r"[A-Za-z0-9_]{3,16}")
+NAME = re.compile(r"\.?[A-Za-z0-9_]{3,16}")  # (a Java name, or a Bedrock one: Floodgate's "." and the gamertag)
 COMMAND = "whitelist"
 MODES = ("ask", "allow")   # ask: the Players page's requests; allow: straight onto the whitelist
 MAX_FRAME = 4 << 20
@@ -222,6 +222,9 @@ class WhitelistBot:
                     self.state = "stopped"
                     return
                 log.info("Discord connection lost (%s); trying again", e)
+            except Exception as e:  # (something Discord sent that wasn't as expected: connect again, not stop for good)
+                self.error = str(e)
+                log.exception("Whitelist through Discord went wrong; trying again")
             if self.stop.is_set():
                 break
             self.state = "retrying"
@@ -351,7 +354,8 @@ class WhitelistBot:
         opts = {str(o.get("name")): o.get("value") for o in data.get("options") or [] if isinstance(o, dict)}
         name = str(opts.get("name") or "").strip()
         if not NAME.fullmatch(name):
-            return "That isn't a Minecraft name: 3 to 16 letters, numbers and _ (as it shows in the game)."
+            return ("That isn't a Minecraft name: 3 to 16 letters, numbers and _ (as it shows in the game; "
+                    "a Bedrock player's starts with a dot, then their Xbox gamertag).")
         servers = self.hub.summary_for_discord()
         sid = str(opts.get("server") or (servers[0]["id"] if len(servers) == 1 else ""))
         server = next((s for s in servers if s["id"] == sid), None)

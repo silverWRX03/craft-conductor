@@ -22,6 +22,7 @@ from pathlib import Path
 
 from . import config as configmod, perf
 from .properties import write_properties
+from .removal import rmtree
 
 log = logging.getLogger(__name__)
 
@@ -364,7 +365,7 @@ class Rehearsal:
             if self.proc is not None and self.proc.running:
                 self.proc.stop(30)
             self.step, self.progress = "", None
-            shutil.rmtree(self.root, ignore_errors=True)
+            rmtree(self.root, ignore_errors=True)
             try:
                 self.root.parent.rmdir()
             except OSError:

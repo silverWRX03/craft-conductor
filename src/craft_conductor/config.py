@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import json
 import logging
+import functools
 import os
 import re
+import threading
+import time
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -31,11 +34,25 @@ class ConfigError(Exception):
     pass
 
 
+#: one change to a craft-conductor.toml at a time, each read, changed and written whole: two settings
+#: saved at once lost one, and a reader could find the file half-written ("[server] loader is required")
+_edit_lock = threading.RLock()
+
+
+def _one_edit_at_a_time(change):
+    @functools.wraps(change)
+    def wrapper(*args, **kwargs):
+        with _edit_lock:
+            return change(*args, **kwargs)
+    return wrapper
+
+
 def read_text(path: Path) -> str:
     """craft-conductor.toml's text. TOML files are UTF-8, whatever this computer's own encoding
     (Windows': mostly not); one an older editor saved in that encoding is still read. Line
     endings come back as ``\\n``, as with open() in text mode."""
-    raw = path.read_bytes()
+    with _edit_lock:  # (not while one is put in place: Windows can't replace a file that's open)
+        raw = path.read_bytes()
     try:
         text = raw.decode("utf-8-sig")
     except UnicodeDecodeError:
@@ -50,13 +67,27 @@ _SECRET_LINE = re.compile(r"""(?m)^\s*(?:password|token|discord_webhook|api_key)
 
 
 def write_text(path: Path, text: str) -> None:
-    """Write craft-conductor.toml's text (UTF-8; this computer's own line endings, as before). Once it
-    holds a secret, the file is made this account's before the secret goes in."""
-    if _SECRET_LINE.search(text):
-        if not path.exists():
-            os.close(os.open(path, os.O_WRONLY | os.O_CREAT, 0o600))
-        private.protect(path)
-    path.write_text(text, encoding="utf-8")
+    """Write craft-conductor.toml's text (UTF-8; this computer's own line endings, as before), whole:
+    a finished copy replaces it, so nothing reads it half-written. Once it holds a secret, the copy is
+    made this account's before the secret goes in."""
+    target = path.resolve() if path.is_symlink() else path  # (a linked file stays linked)
+    tmp = target.with_name(f".{target.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+    with _edit_lock:
+        try:
+            if _SECRET_LINE.search(text):
+                os.close(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600))
+                private.protect(tmp)
+            tmp.write_text(text, encoding="utf-8")
+            for attempt in range(8):  # (put in place whole; on Windows antivirus may hold it a moment)
+                try:
+                    os.replace(tmp, target)
+                    break
+                except PermissionError:
+                    if attempt == 7:
+                        raise
+                    time.sleep(0.1 * (attempt + 1))
+        finally:
+            tmp.unlink(missing_ok=True)
 
 
 def _holds_secret(data: dict) -> bool:
@@ -141,6 +172,7 @@ def pin_literal(pin: Pin) -> str:
     return f'{{ version = "{pin.version}", minecraft = "{pin.minecraft}" }}'
 
 
+@_one_edit_at_a_time
 def set_pin(path: Path, key: str, pin: Pin | None) -> None:
     """Hold a mod at a build (``None``: back to the newest build by itself)."""
     if not PIN_KEY.fullmatch(key) or (pin is not None and not PIN_VERSION.fullmatch(pin.version)):
@@ -265,6 +297,8 @@ class ClientConfig:
     #: mods only players get, never the server ("source:project id"), even when a server mod lists
     #: one as required: moved there after it stopped the server, or in Manage Mods
     only: list[str] = field(default_factory=list)
+    #: extra mods allowed early builds (picked with Show beta/alpha builds): mod -> beta | alpha (#165)
+    channels: dict[str, str] = field(default_factory=dict)
 
     def link_works(self, now: float) -> bool:
         return bool(self.enabled and self.token) and (not self.expires or now < self.expires)
@@ -320,10 +354,39 @@ def parse_duration(value: str | int) -> int:
     return n * {"s": 1, "m": 60, "h": 3600, "d": 86400}[unit]
 
 
+def _jvm_args(value: list | str) -> list[str]:
+    """[server] jvm_args: a list of flags; written as one string ("-XX:+UseZGC -Xss2m"), split at the
+    spaces (else each letter went to Java as a flag of its own)."""
+    return value.split() if isinstance(value, str) else [str(x) for x in value]
+
+
 def _choice(value: str, choices: tuple[str, ...], name: str) -> str:
     if value not in choices:
         raise ConfigError(f"{name} must be one of {', '.join(choices)} (got {value!r})")
     return value
+
+
+# The kind of value a setting must have (its name, as written in the file). A hand-edited file with
+# another kind (``warn_minutes = 5``, ``dir = 7``) is a plain error here, not a crash where it's used.
+_KINDS = {
+    ("server", "dir"): (str,), ("server", "jvm_args"): (list, str), ("server", "startup_timeout"): (str, int),
+    ("server", "stop_timeout"): (str, int), ("updates", "check_interval"): (str, int), ("updates", "warn_minutes"): (list,),
+    ("updates", "remind_days"): (int,), ("backups", "dir"): (str,), ("backups", "keep"): (int,),
+    ("backups", "exclude"): (list,), ("backups", "include"): (list,), ("backups", "copy_keep"): (int,),
+    ("downloads", "manual_dir"): (str,), ("web", "port"): (int,),
+}
+_KIND_WORDS = {str: "text in quotes", int: "a whole number", list: "a list in [ ]"}
+
+
+def _check_kinds(data: dict) -> None:
+    for table in {t for t, _ in _KINDS} | {"java", "craft-conductor", "client", "modpack"}:
+        if table in data and not isinstance(data[table], dict):
+            raise ConfigError(f"[{table}] must be a section (a line [{table}] with settings under it)")
+    for (table, key), kinds in _KINDS.items():
+        value = data.get(table, {}).get(key)
+        if value is not None and not isinstance(value, kinds):
+            raise ConfigError(f"[{table}] {key} must be " + " or ".join(_KIND_WORDS[k] for k in kinds)
+                              + f" (got {value!r})")
 
 
 def load(root: Path) -> Config:
@@ -336,7 +399,11 @@ def load(root: Path) -> Config:
         raise ConfigError(f"{path}: {e}") from e
     if _holds_secret(data):
         private.protect_once(path)
-    cfg = parse(root, data)
+    try:
+        _check_kinds(data)
+        cfg = parse(root, data)
+    except (TypeError, AttributeError) as e:  # (a value of a kind not checked above: still an error, not a crash)
+        raise ConfigError(f"{path}: a setting has the wrong kind of value ({e})") from e
     if cfg.web.password:
         cfg.web.password = _hashed_web_password(path, cfg.web.password)
     from . import snapshots
@@ -432,8 +499,17 @@ def _client(c: dict) -> ClientConfig:
     only = c.get("only", [])
     if not isinstance(only, list) or not all(isinstance(k, str) and PIN_KEY.fullmatch(k) for k in only):
         raise ConfigError('client.only must be a list of mods like "modrinth:<project id>" or "curseforge:<project id>"')
+    channels = c.get("channels", {})
+    if not isinstance(channels, dict) or not all(isinstance(k, str) and CLIENT_MOD.fullmatch(k) and v in ("beta", "alpha")
+                                                 for k, v in channels.items()):
+        raise ConfigError('client.channels must be a table like {"simple-voice-chat" = "beta"}')
     return ClientConfig(enabled=bool(c.get("enabled", False)), token=token, mods=list(mods), memory_gb=memory,
-                        expires=expires, link_days=days, only=list(dict.fromkeys(only)))
+                        expires=expires, link_days=days, only=list(dict.fromkeys(only)), channels=dict(channels))
+
+
+def channels_table(channels: dict[str, str]) -> str:
+    """``client.channels`` as a TOML inline table."""
+    return "{" + ", ".join(f"{toml_string(k)} = {toml_string(v)}" for k, v in sorted(channels.items())) + "}"
 
 
 @dataclass(frozen=True)
@@ -473,7 +549,7 @@ def parse(root: Path, data: dict) -> Config:
         loader=_choice(s["loader"], LOADERS, "server.loader"),
         minecraft=str(s.get("minecraft", "latest")),
         memory=_memory(s.get("memory", "4G")),
-        jvm_args=list(s.get("jvm_args", [])),
+        jvm_args=_jvm_args(s.get("jvm_args", [])),
         aikar_flags=bool(s.get("aikar_flags", False)),
         find_lag=bool(s.get("find_lag", True)),
         cpu_cores=_limits(s)[0], priority=_limits(s)[1],
@@ -677,6 +753,7 @@ def mod_block(spec: ModSpec) -> str:
     return f'\n[[mods]]\nsource = "{spec.source}"\nid = {ident}\nrequired = {str(spec.required).lower()}\n{channel}{datapack}{pack}'
 
 
+@_one_edit_at_a_time
 def append_mod(path: Path, spec: ModSpec) -> None:
     text = read_text(path)
     if not text.endswith("\n"):
@@ -684,6 +761,7 @@ def append_mod(path: Path, spec: ModSpec) -> None:
     write_text(path, text + mod_block(spec))
 
 
+@_one_edit_at_a_time
 def remove_mod(path: Path, source: str, mod_id: str) -> bool:
     """Remove a ``[[mods]]`` block, leaving the rest of the file (and its comments) intact."""
     lines = read_text(path).splitlines(keepends=True)
@@ -706,6 +784,7 @@ def remove_mod(path: Path, source: str, mod_id: str) -> bool:
     return removed
 
 
+@_one_edit_at_a_time
 def set_mod_required(path: Path, source: str, mod_id: str, required: bool) -> bool:
     """Set ``required`` in a ``[[mods]]`` block in place: the rest of the block (its channel, its
     datapack, comments) and its place in the list stay as they are. False if it isn't listed."""
@@ -734,6 +813,7 @@ def set_mod_required(path: Path, source: str, mod_id: str, required: bool) -> bo
     return False
 
 
+@_one_edit_at_a_time
 def set_mods(path: Path, specs: list[ModSpec]) -> None:
     """Replace every ``[[mods]]`` block with ``specs``, keeping the rest of the file as it is."""
     lines = read_text(path).splitlines(keepends=True)
@@ -748,6 +828,7 @@ def set_mods(path: Path, specs: list[ModSpec]) -> None:
     write_text(path, kept + "".join(mod_block(spec) for spec in specs))
 
 
+@_one_edit_at_a_time
 def set_value(path: Path, table: str, key: str, literal: str) -> None:
     """Set ``key = literal`` inside ``[table]``, keeping every other line (and comment) as is."""
     write_text(path, with_value(read_text(path), table, key, literal))
@@ -775,6 +856,7 @@ def with_value(text: str, table: str, key: str, literal: str) -> str:
     return "".join(lines)
 
 
+@_one_edit_at_a_time
 def unset_value(path: Path, table: str, key: str) -> bool:
     """Remove ``key = ...`` from ``[table]`` (every other line, and comment, stays). False if it wasn't there."""
     lines = read_text(path).splitlines(keepends=True)

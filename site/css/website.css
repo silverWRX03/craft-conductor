@@ -99,10 +99,11 @@ h3 { font-size: 19px; line-height: 1.3; margin-bottom: 8px; }
   border: 1px solid transparent; border-radius: 14px; color: #DFE6ED;
   background: linear-gradient(145deg, #1a2026, #0b0e11 75%) padding-box, linear-gradient(120deg, #6bbecf, #384552 55%, #ff7546) border-box;
   box-shadow: 0 16px 44px #0008; }
-.video-mark { width: clamp(54px, 6vw, 92px); margin-bottom: 24px; fill: #DFE6ED; }
-.video-mark path { fill: #0B0E11; }
-.video-title { font-size: clamp(12px, 1.1vw, 16px); letter-spacing: .2em; text-transform: uppercase; text-align: center; }
-.video-note { margin-top: 12px; padding-top: 12px; border-top: 1px solid #353E4B; font-size: 10px; letter-spacing: .24em; text-transform: uppercase; }
+.video-placeholder { position: relative; overflow: hidden; cursor: pointer; }
+.video-thumbnail { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.video-mark { position: absolute; left: 50%; top: 72%; translate: -50% -50%; width: clamp(54px, 6vw, 92px); fill: #FF0000; filter: drop-shadow(0 4px 14px #000a); transition: transform .15s; }
+.video-mark path { fill: #FFFFFF; }
+.video-placeholder:is(:hover, :focus-visible) .video-mark { transform: scale(1.08); }
 
 #features { min-height: var(--features-min-height, auto); max-width: none; padding: 40px 0 64px; overflow: hidden; }
 #features > :is(.eyebrow, h2, .section-copy) { max-width: 1320px; margin-inline: auto; padding-inline: 36px; text-align: center; }

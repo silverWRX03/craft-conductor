@@ -98,9 +98,7 @@ def read_rules(proc, minecraft: str | None = None) -> list[dict]:
         for name in candidates:
             got = proc.ask(f"gamerule {name}", _answer, timeout=2)
             if got is None:
-                if not out and style is None:
-                    return out  # not answering: don't make the page wait for every rule
-                continue
+                return out  # not answering (busy, or still starting): don't make the page wait 2 s for every rule
             if got is not False:
                 if style is None:
                     style = "camel" if name == camel else "snake"

@@ -1,0 +1,885 @@
+{
+  "schema_version": 1,
+  "id": "v0.30.3-win11-release",
+  "cc_version": "0.30.3",
+  "minecraft_version": "26.3",
+  "os": "Windows 11",
+  "kind": "patch",
+  "created_at": "2026-10-26T19:22:36+00:00",
+  "features": [],
+  "fixes": [
+    956,
+    957,
+    958,
+    959,
+    960,
+    961,
+    962,
+    963,
+    964,
+    965,
+    966,
+    967
+  ],
+  "required_ids": [
+    7,
+    187,
+    188,
+    189,
+    190,
+    191,
+    192,
+    193,
+    194,
+    195,
+    196,
+    197,
+    198,
+    199,
+    200,
+    201,
+    202,
+    203,
+    204,
+    205,
+    206,
+    223,
+    224,
+    225,
+    226,
+    227,
+    231,
+    232,
+    233,
+    244,
+    245,
+    246,
+    249,
+    279,
+    343,
+    344,
+    345,
+    346,
+    347,
+    348,
+    349,
+    350,
+    457,
+    463,
+    478,
+    479,
+    480,
+    481,
+    482,
+    483,
+    484,
+    485,
+    486,
+    487,
+    488,
+    489,
+    542,
+    568,
+    570,
+    571,
+    572,
+    573,
+    574,
+    575,
+    581,
+    582,
+    583,
+    681,
+    682,
+    683,
+    802,
+    803,
+    804,
+    805,
+    806,
+    807,
+    808,
+    809,
+    810,
+    811,
+    812,
+    813,
+    814,
+    815,
+    816,
+    817,
+    818,
+    819,
+    820,
+    821,
+    832,
+    833,
+    884,
+    885,
+    929,
+    956,
+    957,
+    958,
+    959,
+    960,
+    961,
+    962,
+    963,
+    964,
+    965,
+    966,
+    967
+  ],
+  "results": {
+    "956": {
+      "status": "pass",
+      "tested_at": "2026-10-26T22:20:55+00:00",
+      "tester": "the owner",
+      "notes": "Release exe v0.30.3, isolated test install. Prism Launcher with Settings -> Launcher -> Folders -> Instances on another drive: the owner opened a 0.30.3 server's invite link, picked Prism and set it up: the instance craft-conductor-cov-vp is in Prism's own instances folder (on that drive), nothing went to Prism's usual folder, and the owner launched it and joined the server.",
+      "evidence": ""
+    },
+    "811": {
+      "status": "pass",
+      "tested_at": "2026-10-26T22:36:53+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (SHA256SUMS checked), isolated home. CLI server (create --loader fabric --minecraft 1.21.1 --mod fabric-api --mod lithium --rcon), check offered 1.21.1 -> 26.3. Craft Conductor ended (End task) during 'update -y', once while it downloaded Java 25 and once while it downloaded the mods with the pre-update backup half written. Each time the server's files were left as they were: the next 'check' offered the same update, 'run' started Minecraft 1.21.1 with the old Fabric API and Lithium and didn't retry 26.3 at once. The half-written backup is tidied by the next backup after an hour; the half-downloaded Java folder stays for good (issue #199).",
+      "evidence": ""
+    },
+    "463": {
+      "status": "pass",
+      "tested_at": "2026-10-26T22:41:31+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (SHA256SUMS checked), isolated home. Stopped Fabric 26.3 server with a 4 MB world (a diamond block at 0 100 0); Replace the world... with a 160 MB world .zip; Craft Conductor ended (End task) while it unpacked (.world.importing half full, the old world set aside as .world.replaced). Opened again: 'putting the world world back: replacing it was interrupted', 'removed the half-imported world .world.importing ...', 'Craft Conductor was stopped in the middle of something: the world was put back (replacing it had been interrupted).' The server started on the old world (the diamond block test passed).",
+      "evidence": ""
+    },
+    "960": {
+      "status": "pass",
+      "tested_at": "2026-10-26T22:41:31+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (SHA256SUMS checked), isolated home. As 463: after End task during Replace the world... with a 160 MB .zip, opening Craft Conductor again put the old world back and said so in the activity, no .world.importing or .world.replaced folder was left, and the next backup was the old world's usual size (127.4 MB, the same as before the import).",
+      "evidence": ""
+    },
+    "457": {
+      "status": "pass",
+      "tested_at": "2026-10-26T22:41:31+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (SHA256SUMS checked), isolated home. Stopped Fabric 26.3 server on a small world; Backups -> Roll back to this on a 287 MB backup; Craft Conductor ended (End task) while it unpacked (server.restoring with 62 files). Opened again (server not started): 'a restore into ...\\server was stopped while unpacking; the server is as it was, and the half-unpacked copy was removed' and 'Craft Conductor was stopped in the middle of something: a roll back was stopped before it changed anything (the server is as it was).' No server.restoring left; the server started on the small world it had (its diamond block test passed).",
+      "evidence": ""
+    },
+    "958": {
+      "status": "pass",
+      "tested_at": "2026-10-26T22:42:00+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (SHA256SUMS checked), two isolated installations on one Windows 11 PC (different folders, panel ports 29900 and 29930). Friends' download turned on in the first: running on 8766. Then in the second, same share port: not running, 'port 8766 is busy (Only one usage of each socket address ... is normally permitted); pick another in Craft Conductor settings', and its Check my setup says 'The friends' download port isn't running: port 8766 is busy ...' with the fix. Only the first copy was listening on 8766.",
+      "evidence": ""
+    },
+    "810": {
+      "status": "pass",
+      "tested_at": "2026-10-26T22:43:21+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (SHA256SUMS checked), isolated home. Fabric 26.3 server: setblock a gold block at 0 101 0, Back up now while running ('created ...-with-gold.tar.gz (checked)'); removed the block (execute if block: Test failed); stopped; Roll back to this: 'rolled back to ...-with-gold.tar.gz: Minecraft 26.3, 1 mod(s).'; started: the gold block is back (Test passed).",
+      "evidence": ""
+    },
+    "819": {
+      "status": "pass",
+      "tested_at": "2026-10-26T22:43:21+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (SHA256SUMS checked), isolated home. Fabric 1.21.11 server (Fabric API, Lithium, Dynmap optional): Rehearse it on a copy first to 26.3 said 'It worked' with Changes Minecraft 1.21.11 -> 26.3, Fabric API 0.141.6 -> 0.165.0, Lithium mc1.21.11-0.21.4 -> mc26.3-0.26.2, '- Dynmap' (no fabric build for 26.3). The real update (applied on the next Start) made exactly those changes ('Updated: Minecraft 1.21.11 -> 26.3 ... ~ Fabric API ... ~ Lithium ... - Dynmap') and the server came up on 26.3, as the rehearsal said.",
+      "evidence": ""
+    },
+    "814": {
+      "status": "pass",
+      "tested_at": "2026-10-26T22:44:31+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (SHA256SUMS checked), English Windows 11. Fresh install with Craft Conductor's own folder named with Cyrillic and Japanese letters on C:. New vanilla 26.3 server (create): Craft Conductor said Java can't run from its own folder ('its name has letters outside this computer's code page') and put Java 25 in C:\\ProgramData\\craft-conductor-java-<account id> instead (SYSTEM, Administrators and this account only). 'run' started Minecraft from the Unicode-named folder on that Java (Done in 0.3 s) and 'stop' stopped it cleanly.",
+      "evidence": ""
+    },
+    "816": {
+      "status": "fail",
+      "tested_at": "2026-10-26T22:45:34+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (SHA256SUMS checked), isolated home. Worked: Modrinth mods (Fabric API, Lithium, Chunky, Dynmap, Terralith as a datapack, NeoForge YACL and others), a CurseForge mod (AppleSkin by slug: added, update applied, loaded, server Done), a CurseForge modpack (All the Mods 11 0.12.0-beta: 266 mods, I'm Fast by hand, made on its NeoForge build) and a Modrinth modpack (Vanilla Perfected 1.0.3+26.2: made on its Fabric build, the owner joined through Prism). Failed: All the Mods 11's official server pack is ignored (CurseForge's CDN answers ranged requests with 404: #191), and updating Vanilla Perfected to 1.0.0+26.3 is refused by a wrong MixinExtras check (#192).",
+      "evidence": ""
+    },
+    "965": {
+      "status": "pass",
+      "tested_at": "2026-10-26T22:47:20+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3, fresh isolated install, Chrome. New server, keyboard only: focus reset, Tab 13 times to the Quick start card 'Smooth survival', Enter: 'Starting point: Smooth survival. Change anything below.', the form filled in, and focus is on the chosen server type card Fabric (pressed; the page didn't jump to the top). Tab then went on to NeoForge, Forge and the rest of the form.",
+      "evidence": ""
+    },
+    "802": {
+      "status": "pass",
+      "tested_at": "2026-10-26T22:50:19+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (SHA256SUMS checked), Chrome, new isolated home (not a clean VM). The exe started with no setup; the sign-in page said 'First time? The password is PASSWORD (in capitals). You'll choose your own next.' After signing in: the first-run notice (what it does and doesn't do, GPL-3.0-or-later, made with AI) -> I understand and accept; Choose your own password (Password or PIN, the rules listed) -> 'Your new password is saved'; Where should Craft Conductor keep your files (defaults kept) -> Saved; the guided setup offer (Guide me). Java 25, Fabric and Minecraft were downloaded by themselves when the first server was made.",
+      "evidence": ""
+    },
+    "804": {
+      "status": "pass",
+      "tested_at": "2026-10-26T22:50:19+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (SHA256SUMS checked), Chrome, new isolated home (not a clean VM). Smooth survival quick start's Modrinth mods: Fabric API 0.165.0, Lithium 0.26.2, FerriteCore 9.0.0 and Krypton 0.3.2 listed as loaded (46 mods with Fabric API's parts) in the server log, no ERROR lines, Done; their config files were written (lithium.properties, ferritecore.mixin.properties).",
+      "evidence": ""
+    },
+    "803": {
+      "status": "pass",
+      "tested_at": "2026-10-26T22:58:29+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (SHA256SUMS checked), Chrome, new isolated home. Smooth survival quick start: Fabric 0.20.1 on Minecraft 26.3, Java 25 (downloaded), port 25624, 3 GB. Created with its test start ('your server is ready (Minecraft 26.3); press Start to play'), then Start: running, Done; Restart ('started') and Stop (asked first since a player was on: 'Stop the server? Players will be disconnected.') worked; the owner joined it from Minecraft at localhost; the activity listed each step.",
+      "evidence": ""
+    },
+    "963": {
+      "status": "pass",
+      "tested_at": "2026-10-26T23:00:55+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3, fresh isolated install, Chrome. With the guided setup checklist open (3/6), Sign out: the sign-in page shows no checklist. Craft Conductor ended and started again: the sign-in page still shows none. After signing in, the checklist is back, as it was (3/6, on Let friends reach it).",
+      "evidence": ""
+    },
+    "964": {
+      "status": "pass",
+      "tested_at": "2026-10-26T23:00:55+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3, fresh isolated install, Chrome. Browser accessibility tree: Mods' 'Search Modrinth for server mods', 'CurseForge project id or slug' and 'Name of the saved mod list'; Backups' 'Backup label (optional)' and 'Also copy every backup to' each have their own accessible name (aria-label or label), not just the grey example text.",
+      "evidence": ""
+    },
+    "957": {
+      "status": "pass",
+      "tested_at": "2026-10-26T23:34:55+00:00",
+      "tester": "the owner",
+      "notes": "Release exe v0.30.3, isolated test install. Fabric 1.21.10 server (Fabric API, Lithium); the owner's Minecraft Launcher had never had 1.21.10 (no versions/1.21.10 folder). The owner opened its invite, ticked the Minecraft Launcher and set it up, pressed Play on the cov-mcl profile: the launcher downloaded the game (versions/1.21.10/1.21.10.json appeared), Minecraft started and joined the server (server log: logged in).",
+      "evidence": ""
+    },
+    "967": {
+      "status": "pass",
+      "tested_at": "2026-10-26T23:34:55+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3, isolated test install (started without a console, so it keeps its own craft-conductor.log). Check my setup -> bug report: in its craft-conductor.log the Java paths keep their versions (jdk-25.0.5+8\\jdk-25.0.5+8-jre\\bin\\java.exe, jdk-21.0.10\\bin\\java.exe) and log times are kept ([18:33:13]); in latest.log the owner's network address is replaced: '<player>[/<ip>:<port>] logged in', with no home-network address left anywhere in the report.",
+      "evidence": ""
+    },
+    "962": {
+      "status": "pass",
+      "tested_at": "2026-10-27T16:06:11+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Fabric 26.3 test server, guided setup on. Two never-joined names banned beforehand: Join it yourself and A friend joined stayed unticked (2/6). Owner joined: Join it yourself ticked; a second real account joined from another PC on the home network: A friend joined ticked. Both stayed ticked after the second player was kicked and left.",
+      "evidence": ""
+    },
+    "817": {
+      "status": "pass",
+      "tested_at": "2026-10-27T16:06:11+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Two real players (owner on this PC, second account from another PC on the home network). Connected Players card: heads, names, count 2/20; row opens Message / Make op / Ban / More. Make op (with confirm) showed the OP badge, Players page showed level 4; De-op worked. Private message and Broadcast both seen in game. Kick (with confirm) removed the player; list and count updated without a page reload. Ban with a reason refused the rejoin with the reason shown; Pardon let the player back in. Note: long names are cut short on the Dashboard card.",
+      "evidence": ""
+    },
+    "961": {
+      "status": "fail",
+      "tested_at": "2026-10-27T16:09:36+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Stopped Fabric 26.3 server; Roll back to this on a 287 MB backup; Craft Conductor ended (End task) while it unpacked. Opened again without starting the server: no server.restoring left, the server was as it was, and the Dashboard Activity said the roll back was stopped before it changed anything. But the bell (Messages) was empty and nothing showed at the top of the page -> #200.",
+      "evidence": ""
+    },
+    "805": {
+      "status": "pass",
+      "tested_at": "2026-10-27T16:17:41+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Second real Windows PC on the home network (driven by the owner remotely), not set up before. Owner's Fabric 26.3 test server with mods, Friends -> Make a download for friends, Local link. Friend PC: invite link -> Download -> ran it -> it set up the cov-smooth instance in the launcher; launching it went straight into the server (server log shows the join from the LAN address).",
+      "evidence": ""
+    },
+    "806": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:03:52+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Friend's real PC on a phone hotspot (outside the home network) set up from the Internet invite link (Download -> run -> Prism instance updated with the public address and new port) and joined: server log shows the login from a mobile-carrier address, whitelist on with the player added. Separate: a later launch froze on the client right after loading textures, with no connection reaching the server (log kept by the owner; not a server/reach problem).",
+      "evidence": ""
+    },
+    "807": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:03:52+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Synology SRM router with UPnP. Friends -> Open a port on my router picked a non-25565 port and turned the whitelist on; Craft Conductor settings -> Connections -> Router -> UPnP: the router list showed the server's port and the friends' download port forwarded, with the public address. The outside friend joined through it (see 806). Problem found: it also forwarded the ports of servers set to Only friends at home -> #201.",
+      "evidence": ""
+    },
+    "808": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:23:31+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. playit.gg path (no router change for it): Friends -> playit.gg found the playit agent already running; owner added a Minecraft Java tunnel to the server's port on their free playit.gg account and the address was pasted into step 4 (Save); the guided setup's Let friends reach it ticked. The friend on a phone hotspot joined with Direct Connection to the playit address: the server log shows the login arriving from the playit agent's local address.",
+      "evidence": ""
+    },
+    "959": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:47:29+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. New server -> A modpack -> Modrinth -> Actium 26Q2.1-neoforge (38 mods) with a name, port 25628, 4 GB and Only friends at home; Create my server. First start failed on Controlify (NoClassDefFoundError: client Screen class). The setup page still had the modpack, name, port and Only friends at home (reach home in its settings), and offered Move Controlify to players' mods / Leave Controlify out. Moved it (37 left), Create my server: ready on Minecraft 26.2 NeoForge with the modpack, name and port; Controlify is in the friends' download (Manage Friends Mods), not in the server's mods folder. Note: the failure toast shows the whole Java stack trace and covers half the page.",
+      "evidence": ""
+    },
+    "681": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:33+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. From a second PC on the home network, the browser opened http://<this PC's LAN address>:<panel port> of a running test panel: ERR_CONNECTION_TIMED_OUT (the site can't be reached).",
+      "evidence": ""
+    },
+    "682": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:33+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. The panel listens on 127.0.0.1 only (no remote access configured), as the settings say; the LAN attempt above couldn't reach it.",
+      "evidence": ""
+    },
+    "194": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:33+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Friend PC: Local invite link -> Download -> Prism Launcher: the existing cov-smooth Prism instance was updated (Fabric 26.3 and its mods) with the home-network address.",
+      "evidence": ""
+    },
+    "195": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:33+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. The Prism instance launched and went straight into the server (server log: login from the LAN address).",
+      "evidence": ""
+    },
+    "202": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:33+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Another PC on the same home network joined the Fabric 26.3 test server (Only friends at home).",
+      "evidence": ""
+    },
+    "203": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:33+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. The Friends page and the Local invite link give this PC's LAN address and the server's port; the friend's instance connected with it.",
+      "evidence": ""
+    },
+    "223": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:48+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Synology SRM router, earlier today (see 807). Craft Conductor settings -> Connections -> Router -> Open the ports on my router by itself (UPnP) turned on.",
+      "evidence": ""
+    },
+    "224": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:48+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Synology SRM router, earlier today (see 807). Turning it on first asked 'Open the ports on your router?' with the internet-exposure warning; after it, the page said 'Your server is open to the internet' with the same warning.",
+      "evidence": ""
+    },
+    "225": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:49+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Synology SRM router, earlier today (see 807). The router list showed the server's Minecraft port (the one Craft Conductor picked, not 25565) forwarded. (Other servers' ports too: #201.)",
+      "evidence": ""
+    },
+    "226": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:49+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Synology SRM router, earlier today (see 807). The friends' download port was forwarded while invite links worked.",
+      "evidence": ""
+    },
+    "227": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:49+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Synology SRM router, earlier today (see 807). The control panel's port was not in the router's list (checked through UPnP itself).",
+      "evidence": ""
+    },
+    "683": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:49+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Synology SRM router, earlier today (see 807). No management port was forwarded: the router's UPnP list had only the Minecraft ports and the friends' download port, never the control panel's port.",
+      "evidence": ""
+    },
+    "231": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:49+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Synology SRM router, earlier today (see 807). A friend on a phone hotspot joined through the forwarded port (806).",
+      "evidence": ""
+    },
+    "232": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:49+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Synology SRM router, earlier today (see 807). Router -> UPnP turned off in Craft Conductor.",
+      "evidence": ""
+    },
+    "233": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:49+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Synology SRM router, earlier today (see 807). Afterwards the router's UPnP list (read directly) had no Craft Conductor mappings left; other devices' mappings were untouched.",
+      "evidence": ""
+    },
+    "244": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:49+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. A real playit.gg Minecraft Java tunnel was added (owner's free account) to the test server's port (808).",
+      "evidence": ""
+    },
+    "245": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:49+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. The playit.gg address was pasted into Friends -> playit.gg step 4 and saved; the guided setup's Let friends reach it ticked.",
+      "evidence": ""
+    },
+    "249": {
+      "status": "pass",
+      "tested_at": "2026-10-27T17:58:50+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. A friend on a phone hotspot joined through the playit.gg address; the server saw the login from the playit agent's local address.",
+      "evidence": ""
+    },
+    "204": {
+      "status": "pass",
+      "tested_at": "2026-10-27T18:17:38+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. The friend on the home network played for over 15 minutes without a disconnect (checked every 30 s).",
+      "evidence": ""
+    },
+    "205": {
+      "status": "pass",
+      "tested_at": "2026-10-27T18:17:38+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Restart pressed with the friend connected: the server stopped (friend saw Server closed) and was back in about 40 s. No question or in-game warning first -> idea filed (#205 issue).",
+      "evidence": ""
+    },
+    "206": {
+      "status": "pass",
+      "tested_at": "2026-10-27T18:17:39+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. The friend reconnected from the multiplayer list as soon as it was back.",
+      "evidence": ""
+    },
+    "187": {
+      "status": "pass",
+      "tested_at": "2026-10-27T18:44:01+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. The friend's PC (home network, Prism) joined the Fabric 26.3 test server it was set up for.",
+      "evidence": ""
+    },
+    "188": {
+      "status": "pass",
+      "tested_at": "2026-10-27T18:44:01+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Mods -> Quick add -> Carry On (needed on both sides) added; it was installed at the next restart (the friends' download went from 4 to 5 mods). Note: nothing on the Mods page said the mod waits for a restart.",
+      "evidence": ""
+    },
+    "189": {
+      "status": "pass",
+      "tested_at": "2026-10-27T18:44:01+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Opening the friend's Craft Conductor again (no invite link) showed cov-smooth as changed and offered the update (owner's report). Before that, the friend could still join with the old setup: the server lets players without Carry On in.",
+      "evidence": ""
+    },
+    "190": {
+      "status": "pass",
+      "tested_at": "2026-10-27T18:44:01+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. The update put Carry On into the friend's Prism instance.",
+      "evidence": ""
+    },
+    "191": {
+      "status": "pass",
+      "tested_at": "2026-10-27T18:44:01+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. The friend reconnected and picked up a chest with Carry On (Shift + right-click) in game.",
+      "evidence": ""
+    },
+    "192": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:02:55+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Friend PC (home network): Local invite link -> Minecraft Launcher: a cov-smooth profile (Fabric 26.3) was made in the official Minecraft Launcher.",
+      "evidence": ""
+    },
+    "193": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:02:55+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Play on that profile started the game and joined the server.",
+      "evidence": ""
+    },
+    "198": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:09:18+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Friend PC: Local invite link -> CurseForge: a cov-smooth profile appeared in the CurseForge app (Minecraft).",
+      "evidence": ""
+    },
+    "199": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:09:18+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Play on the CurseForge profile opened the Minecraft Launcher with it selected (CurseForge's normal way), the game started and joined the server; Mod Menu and Carry On were in it.",
+      "evidence": ""
+    },
+    "196": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:11:36+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Friend PC: Modrinth App freshly installed; Local invite link -> Modrinth App: a cov-smooth instance appeared in it.",
+      "evidence": ""
+    },
+    "197": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:11:36+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Play on the Modrinth App instance started the game and joined the server; Mod Menu and Carry On were in it.",
+      "evidence": ""
+    },
+    "200": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:11:36+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. In all four launchers (Minecraft Launcher, Prism, Modrinth App, CurseForge) the game had the server's mods players need (Carry On added to the server worked in game: picking up chests; Fabric API).",
+      "evidence": ""
+    },
+    "201": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:11:36+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Mod Menu was added under Friends -> Mods for players only: it showed in game (Mods button) in all four launchers, and the server's mods folder never got it (only the server's 5 mods).",
+      "evidence": ""
+    },
+    "279": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:16:30+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Two real players connected at once (owner on the host PC, a second account from another PC on the home network); the Connected Players checks were done with both on (see 817). The owner judged two players enough: the list and its rows work the same for each player.",
+      "evidence": ""
+    },
+    "884": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:20:40+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Friends -> Open a port on my router asked about the risks first (Pick a port / Cancel), then picked 39831 (in 30000-39999, not 25565); Router (UPnP) forwarded that port, the server's Java had its Windows Firewall allow rule, and a friend on a phone hotspot joined through it (806/807). Note: the server had to be stopped first ('stop the server first: it gets a new port'), said only after the risk question.",
+      "evidence": ""
+    },
+    "568": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:41:06+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Owner's Discord server with their bot, connected to the test install (owner pasted the token). Craft Conductor settings -> Connections -> Discord -> Whitelist through Discord: Ask me first, Turn on; the API reports connected in 2 Discord servers. (The card showed 'Connecting to Discord...' until the page was reloaded later.)",
+      "evidence": ""
+    },
+    "570": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:41:06+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Owner's Discord server with their bot, connected to the test install (owner pasted the token). In Discord the friend used /whitelist with their Minecraft name; only they saw the answer: 'Asked. The owner of cov-smooth will let <name> in (Craft Conductor tells them).'",
+      "evidence": ""
+    },
+    "571": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:41:06+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Owner's Discord server with their bot, connected to the test install (owner pasted the token). The request showed on the server's Players page under Asking to join (Allow / Ignore). Note: that section says 'These friends used your invite and asked', also for a Discord request.",
+      "evidence": ""
+    },
+    "572": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:41:07+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Owner's Discord server with their bot, connected to the test install (owner pasted the token). Allow pressed: the request left the list.",
+      "evidence": ""
+    },
+    "573": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:41:07+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Owner's Discord server with their bot, connected to the test install (owner pasted the token). The player was on the whitelist right after Allow (Players page and whitelist.json). Before it, joining was refused: not whitelisted.",
+      "evidence": ""
+    },
+    "574": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:41:07+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Owner's Discord server with their bot, connected to the test install (owner pasted the token). The approved player joined from another PC on the home network.",
+      "evidence": ""
+    },
+    "575": {
+      "status": "pass",
+      "tested_at": "2026-10-27T19:51:03+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. With Whitelist through Discord on (Ask me first), a second account that never asked or was approved tried to join from a laptop on the home network (plain Minecraft, Direct Connection): refused, not whitelisted, while the approved player was online.",
+      "evidence": ""
+    },
+    "929": {
+      "status": "pass",
+      "tested_at": "2026-10-27T20:05:48+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Remote access on (strong password, home network only). A laptop on the Wi-Fi typed wrong passwords until 'too many attempts; wait a few minutes'. Meanwhile this computer and another PC on the Wi-Fi signed in with the right password; after the wait the laptop could sign in again. Not tried: the part about a visitor through a tunnel pointed at the control panel (playit.gg / ssh -R).",
+      "evidence": ""
+    },
+    "343": {
+      "status": "pass",
+      "tested_at": "2026-10-27T20:16:40+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Remote access on (home network, strong password). People -> Invite someone; the invited person opened the one-time link on a laptop (private window) and chose their own sign-in. Roles are now Viewer / Moderator / Operator / Manager; 'Helper' in the plan = Moderator. Invited 'Test Viewer' with Viewer on one server only (the plan says phone; a laptop browser was used).",
+      "evidence": ""
+    },
+    "344": {
+      "status": "pass",
+      "tested_at": "2026-10-27T20:16:40+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Remote access on (home network, strong password). People -> Invite someone; the invited person opened the one-time link on a laptop (private window) and chose their own sign-in. Roles are now Viewer / Moderator / Operator / Manager; 'Helper' in the plan = Moderator. The Viewer saw that server's status and who was online, and no other servers.",
+      "evidence": ""
+    },
+    "345": {
+      "status": "pass",
+      "tested_at": "2026-10-27T20:16:40+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Remote access on (home network, strong password). People -> Invite someone; the invited person opened the one-time link on a laptop (private window) and chose their own sign-in. Roles are now Viewer / Moderator / Operator / Manager; 'Helper' in the plan = Moderator. The Viewer could not kick a player.",
+      "evidence": ""
+    },
+    "346": {
+      "status": "pass",
+      "tested_at": "2026-10-27T20:16:40+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Remote access on (home network, strong password). People -> Invite someone; the invited person opened the one-time link on a laptop (private window) and chose their own sign-in. Roles are now Viewer / Moderator / Operator / Manager; 'Helper' in the plan = Moderator. The Viewer could not change the whitelist.",
+      "evidence": ""
+    },
+    "347": {
+      "status": "pass",
+      "tested_at": "2026-10-27T20:16:40+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Remote access on (home network, strong password). People -> Invite someone; the invited person opened the one-time link on a laptop (private window) and chose their own sign-in. Roles are now Viewer / Moderator / Operator / Manager; 'Helper' in the plan = Moderator. The Viewer could not broadcast.",
+      "evidence": ""
+    },
+    "348": {
+      "status": "pass",
+      "tested_at": "2026-10-27T20:16:41+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Remote access on (home network, strong password). People -> Invite someone; the invited person opened the one-time link on a laptop (private window) and chose their own sign-in. Roles are now Viewer / Moderator / Operator / Manager; 'Helper' in the plan = Moderator. Invited 'Test Moderator' with Moderator on the same server, signed in from the laptop.",
+      "evidence": ""
+    },
+    "349": {
+      "status": "pass",
+      "tested_at": "2026-10-27T20:16:41+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Remote access on (home network, strong password). People -> Invite someone; the invited person opened the one-time link on a laptop (private window) and chose their own sign-in. Roles are now Viewer / Moderator / Operator / Manager; 'Helper' in the plan = Moderator. The Moderator kicked an online player, managed the whitelist and sent a broadcast.",
+      "evidence": ""
+    },
+    "350": {
+      "status": "pass",
+      "tested_at": "2026-10-27T20:16:41+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Remote access on (home network, strong password). People -> Invite someone; the invited person opened the one-time link on a laptop (private window) and chose their own sign-in. Roles are now Viewer / Moderator / Operator / Manager; 'Helper' in the plan = Moderator. The server's activity listed the Moderator's actions under their name ('Test Moderator: broadcast'), but a kick shows as 'Test Moderator: players/action' -> issue filed. Note: in a full-screen window on a 17-inch laptop the invite page cut off its create button and couldn't scroll -> issue filed.",
+      "evidence": ""
+    },
+    "833": {
+      "status": "pass",
+      "tested_at": "2026-10-27T20:21:40+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Server with no server-icon.png; the friend opened its Local invite link on another PC: their Craft Conductor setup page showed the Craft Conductor logo beside the server's name, not a blank box.",
+      "evidence": ""
+    },
+    "832": {
+      "status": "pass",
+      "tested_at": "2026-10-27T20:27:51+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. A players' local mod missing its library (Zoomify without YACL): the Friends page said 'The invite links are paused' with the reason, hid the links and Post to Discord, and making new links was refused. A friend opening an earlier link (from Discord) with Craft Conductor freshly started was told the owner is fixing the mods, try again later. Problems: an open Friends page only showed the pause after a full reload; and a friend whose Craft Conductor was still running from before got the old setup page with the old mods -> #210.",
+      "evidence": ""
+    },
+    "542": {
+      "status": "pass",
+      "tested_at": "2026-10-27T20:35:44+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. BlueMap added from the Mods page; Settings -> Web map -> OK, download them; the map answered on port 8100. On a laptop on the home network the shared address (this PC's LAN address, port 8100) opened BlueMap's 3D map showing the explored area of the world.",
+      "evidence": ""
+    },
+    "581": {
+      "status": "pass",
+      "tested_at": "2026-10-27T21:24:38+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Friends -> Let Bedrock players join added Geyser 2.12.1 + Floodgate. A real Bedrock client (Minecraft for Windows, current) on a laptop on the home network joined and played. Not out of the box: Geyser 2.12 defaults to transport nethernet and the first joins never reached it; after setting transport both + webrtc-port 19133 in Geyser's config it worked -> #211. The whitelist refused the Bedrock name on the Players page; fwhitelist add in the console worked -> #212. Bedrock's new Play screen has no Servers tab; minecraft://?addExternalServer=... added the server.",
+      "evidence": ""
+    },
+    "583": {
+      "status": "pass",
+      "tested_at": "2026-10-27T21:24:39+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. The Friends page's Bedrock section gives the address, port 19132, the UDP forwarding note and fwhitelist; Post to Discord offers 'Bedrock internet link' and 'Bedrock local link' with the address and Geyser port. (The port and forwarding advice need updating for NetherNet: #211.)",
+      "evidence": ""
+    },
+    "885": {
+      "status": "pass",
+      "tested_at": "2026-10-27T22:17:37+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Geyser server, Friends -> Open a port on my router: a UDP port was picked for Bedrock (not 19132), written to Geyser's config and forwarded by Router (UPnP) ('UDP <port> cov-smooth Bedrock'). A Bedrock player on a laptop on a phone hotspot joined through the home's internet address and that port (classic RakNet; Geyser had been set to transport both, see #211). The Friends page's Bedrock section still said port 19132. The joined Bedrock player wasn't shown as online (#212).",
+      "evidence": ""
+    },
+    "582": {
+      "status": "pass",
+      "tested_at": "2026-10-27T22:17:37+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. A real Bedrock client (Minecraft for Windows) on a phone hotspot, outside the home network, joined through the router-forwarded Bedrock port (see 885).",
+      "evidence": ""
+    },
+    "246": {
+      "status": "na",
+      "tested_at": "2026-10-27T22:17:50+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Not applicable to this version: the playit.gg tunnel for friends' downloads was removed (see 930); Craft Conductor settings -> Connections -> Sharing with friends has no such option.",
+      "evidence": ""
+    },
+    "820": {
+      "status": "pass",
+      "tested_at": "2026-10-27T22:33:35+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Fabric 26.3 server (cov-24h) running 24 h (2026-10-26 17:31 to 2026-10-27 17:33), sampled every 10 minutes (144 samples, no gap over 10 min): running in every sample, 0 warnings and 0 errors in its activity, Craft Conductor's memory steady (39-82 MB, no growth), hourly scheduled backups kept at the 10 the settings allow, and the daily scheduled restart (03:30, with the in-game countdown) came back by itself. At the end it answered console commands normally. Other tests ran on the same PC meanwhile.",
+      "evidence": ""
+    },
+    "815": {
+      "status": "pass",
+      "tested_at": "2026-10-27T22:33:52+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Microsoft Defender on (real-time protection, signatures updated that day) across two days of testing: no detections at all (Get-MpThreatDetection), none ever for Craft Conductor's files, and a custom scan of the release downloads folder found nothing. (Separate: Smart App Control on a fresh laptop blocks the unsigned exe, #206.)",
+      "evidence": ""
+    },
+    "809": {
+      "status": "pass",
+      "tested_at": "2026-10-28T20:34:17+00:00",
+      "tester": "owner + Claude",
+      "notes": "Windows 11 PC + Android phone on mobile data (Wi-Fi off), both on Tailscale. Use Tailscale gave the secure ts.net address; pairing QR at the Tailscale, secure address signed the phone in by itself as a Viewer test person. Phone showed only the one server that person may see, its state changed to Running live when started from the PC, and offered no Start/Stop. First code expired after 5 min unused; a new one worked. Pairing needs remote access applied first (said in the dialog). Small: the pairing address list only offered the secure address after closing and reopening the dialog.",
+      "evidence": ""
+    },
+    "812": {
+      "status": "pass",
+      "tested_at": "2026-10-28T20:55:41+00:00",
+      "tester": "owner + Claude",
+      "notes": "1 GB USB stick (FAT32), a fresh Craft Conductor home on it, vanilla 26.3 server running from it; filled to 30 MB free. Red strip at the top of every page ('Only 0.0 GB of disk space left ... may fail to save'), Check my setup: Disk space bad with 'Delete old backups (keep the newest 3)'. A backup failed cleanly: activity says the disk is full (31 MB free), the unfinished file was removed, nothing half-made listed, the earlier backup kept. save-all still saved (Minecraft warns low disk space). Stop and Start worked with the disk full. After freeing space, a backup worked again. Small: the strip says 0.0 GB instead of MB; with the home on a removable drive the first-run 'Use these folders' refuses its own defaults (#214).",
+      "evidence": ""
+    },
+    "7": {
+      "status": "pass",
+      "tested_at": "2026-10-28T21:31:39+00:00",
+      "tester": "owner + Claude",
+      "notes": "Windows 11, OneDrive personal running and signed in (folder on D:), fresh test install, Servers folder in a OneDrive-synced folder, vanilla 26.3. Recorded: server folder OneDrive-synced.",
+      "evidence": ""
+    },
+    "478": {
+      "status": "pass",
+      "tested_at": "2026-10-28T21:31:39+00:00",
+      "tester": "owner + Claude",
+      "notes": "Windows 11, OneDrive personal running and signed in (folder on D:), fresh test install, Servers folder in a OneDrive-synced folder, vanilla 26.3. Folders -> Servers -> Change... -> New folder in OneDrive; warned 'synced by OneDrive: a running world would upload all day... servers are better kept in a folder that isn't synced'; Use it anyway saved it.",
+      "evidence": ""
+    },
+    "479": {
+      "status": "pass",
+      "tested_at": "2026-10-28T21:31:39+00:00",
+      "tester": "owner + Claude",
+      "notes": "Windows 11, OneDrive personal running and signed in (folder on D:), fresh test install, Servers folder in a OneDrive-synced folder, vanilla 26.3. Server made in the OneDrive folder (Java, Minecraft download, install).",
+      "evidence": ""
+    },
+    "480": {
+      "status": "pass",
+      "tested_at": "2026-10-28T21:31:39+00:00",
+      "tester": "owner + Claude",
+      "notes": "Windows 11, OneDrive personal running and signed in (folder on D:), fresh test install, Servers folder in a OneDrive-synced folder, vanilla 26.3. Started; 'Server is up'.",
+      "evidence": ""
+    },
+    "481": {
+      "status": "pass",
+      "tested_at": "2026-10-28T21:31:39+00:00",
+      "tester": "owner + Claude",
+      "notes": "Windows 11, OneDrive personal running and signed in (folder on D:), fresh test install, Servers folder in a OneDrive-synced folder, vanilla 26.3. Owner joined from the Minecraft Launcher (localhost); list showed 1 player.",
+      "evidence": ""
+    },
+    "482": {
+      "status": "pass",
+      "tested_at": "2026-10-28T21:31:39+00:00",
+      "tester": "owner + Claude",
+      "notes": "Windows 11, OneDrive personal running and signed in (folder on D:), fresh test install, Servers folder in a OneDrive-synced folder, vanilla 26.3. Stopped cleanly with the player online.",
+      "evidence": ""
+    },
+    "483": {
+      "status": "pass",
+      "tested_at": "2026-10-28T21:31:39+00:00",
+      "tester": "owner + Claude",
+      "notes": "Windows 11, OneDrive personal running and signed in (folder on D:), fresh test install, Servers folder in a OneDrive-synced folder, vanilla 26.3. Manual backup made inside the OneDrive folder (133.5 MB), checked OK.",
+      "evidence": ""
+    },
+    "484": {
+      "status": "fail",
+      "tested_at": "2026-10-28T21:31:39+00:00",
+      "tester": "owner + Claude",
+      "notes": "Windows 11, OneDrive personal running and signed in (folder on D:), fresh test install, Servers folder in a OneDrive-synced folder, vanilla 26.3. Roll back failed: [WinError 5] Access is denied on server.replaced (OneDrive's folders are ReadOnly, rmtree can't remove them). The first restore swapped the backup in but left server.replaced; the next one stopped on it with the raw error and left server.restoring; the next start said 'Craft Conductor was stopped in the middle of something' though it wasn't. #216",
+      "evidence": ""
+    },
+    "488": {
+      "status": "pass",
+      "tested_at": "2026-10-28T21:31:39+00:00",
+      "tester": "owner + Claude",
+      "notes": "Windows 11, OneDrive personal running and signed in (folder on D:), fresh test install, Servers folder in a OneDrive-synced folder, vanilla 26.3. No corruption seen: after the failed roll back the server started and the world loaded. (Leftover copies server.replaced and server.restoring stay next to it: #216.)",
+      "evidence": ""
+    },
+    "489": {
+      "status": "fail",
+      "tested_at": "2026-10-28T21:31:39+00:00",
+      "tester": "owner + Claude",
+      "notes": "Windows 11, OneDrive personal running and signed in (folder on D:), fresh test install, Servers folder in a OneDrive-synced folder, vanilla 26.3. File-locking error recorded: WinError 5 Access is denied deleting folders inside OneDrive (ReadOnly + ReparsePoint attributes) during Roll back. #216",
+      "evidence": ""
+    },
+    "813": {
+      "status": "fail",
+      "tested_at": "2026-10-28T22:37:24+00:00",
+      "tester": "owner + Claude",
+      "notes": "Windows 11, OneDrive personal running and signed in (folder on D:), fresh test install, Servers folder in a OneDrive-synced folder, vanilla 26.3. Make, start, join, stop, backup, update (26.2 -> 26.3) and start after a Windows restart all work; Roll back fails with Access is denied in a OneDrive folder and leaves server.replaced / server.restoring behind, which later startups mis-report as removed (#216).",
+      "evidence": "",
+      "supersedes": {
+        "status": "fail",
+        "tested_at": "2026-10-28T21:31:40+00:00",
+        "tester": "owner + Claude",
+        "notes": "Windows 11, OneDrive personal running and signed in (folder on D:), fresh test install, Servers folder in a OneDrive-synced folder, vanilla 26.3. Make, start, join, stop and backup work; Roll back fails with Access is denied in a OneDrive folder and leaves copies behind (#216). Update and Windows restart (485-487) not done.",
+        "evidence": ""
+      }
+    },
+    "485": {
+      "status": "pass",
+      "tested_at": "2026-10-28T22:37:24+00:00",
+      "tester": "owner + Claude",
+      "notes": "Windows 11, OneDrive personal running and signed in (folder on D:), fresh test install, Servers folder in a OneDrive-synced folder, vanilla 26.3. a-minecraft-server was already on the newest (26.3), so a second server od-update-test was made in the same OneDrive folder on 26.2, started once (world made), stopped, then updated to 26.3: backup made inside OneDrive first (122 MB), 'Updated: Minecraft 26.2 -> 26.3', started and 'version' says 26.3. No file errors.",
+      "evidence": ""
+    },
+    "486": {
+      "status": "pass",
+      "tested_at": "2026-10-28T22:37:24+00:00",
+      "tester": "owner + Claude",
+      "notes": "Windows 11, OneDrive personal running and signed in (folder on D:), fresh test install, Servers folder in a OneDrive-synced folder, vanilla 26.3. Owner restarted Windows with the OneDrive server folder in place (OneDrive came back by itself).",
+      "evidence": ""
+    },
+    "487": {
+      "status": "pass",
+      "tested_at": "2026-10-28T22:37:24+00:00",
+      "tester": "owner + Claude",
+      "notes": "Windows 11, OneDrive personal running and signed in (folder on D:), fresh test install, Servers folder in a OneDrive-synced folder, vanilla 26.3. After the restart, panel started again and the server started: 'Server is up (Minecraft 26.3)', list works, world loaded. Small (#216): on panel start it said the half-unpacked restore copy 'was removed', but server.restoring and server.replaced are still in the folder.",
+      "evidence": ""
+    },
+    "966": {
+      "status": "pass",
+      "tested_at": "2026-10-28T23:49:59+00:00",
+      "tester": "owner + Claude",
+      "notes": "Release exe v0.30.3, Chrome on Windows 11, Modern look. Servers page with 3 servers, guided setup checklist open (3/6, step 4 expanded). Window 1500x750 (page 1978x798 CSS px) and narrow 1000x750 (1312x798): the page leaves a column for the checklist, cards wrap (3 then 2 per row); every page button (26) scrolled into view is unobstructed (elementFromPoint), none under the checklist; + New single-player game clicked and opened its form. Small: on that form's right-hand intro text the checklist covers part of the text (no buttons).",
+      "evidence": ""
+    },
+    "818": {
+      "status": "fail",
+      "tested_at": "2026-10-29T00:05:17+00:00",
+      "tester": "owner + Claude",
+      "notes": "Release exe v0.30.3, Windows 11 Narrator in Chrome, Modern look, 3 servers; owner listened, Claude checked every page's accessibility tree. Works: page titles, one page heading per page, named buttons/boxes almost everywhere, clear keyboard outline, 'starting server' announced. Fails: on Your servers the card buttons are just Start/Open/Delete/Folder with no server name (can't tell servers apart); 'running' is announced again on every status refresh; Players' Player name/Reason boxes are placeholder-only, Java's version box has no name, Console has no page heading. #217",
+      "evidence": ""
+    }
+  },
+  "notes": "Release exe v0.30.3 (SHA256SUMS checked), fresh isolated home. Release gates, the 0.30.2/0.30.3 fix retests on the release build, and the three 0.30.1 failures."
+}

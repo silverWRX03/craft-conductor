@@ -30,9 +30,12 @@ import time
 from importlib import metadata
 from pathlib import Path
 
+from .removal import rmtree
+
 log = logging.getLogger(__name__)
 
 PENDING = "self-update.json"        # an update whose new copy hasn't proven itself yet
+NEW_COPY = "self-update-new.pid"    # the process the restart started (kept apart: it never overwrites PENDING)
 RESULT = "update-result.json"       # how the last update ended (read by the page and the phones)
 BACKUP = "update-backup"
 GUARD_ENV = "CRAFT_CONDUCTOR_UPDATE_GUARD"   # set to the state folder: this process is the guard
@@ -68,7 +71,7 @@ def backup_dir(state_dir: Path) -> Path:
 def keep_previous(backup: Path, frozen: bool, exe: Path, version: str,
                   package: Path | None = None, dist_info: Path | None = None) -> None:
     """Copy what's running aside, before anything is replaced."""
-    shutil.rmtree(backup, ignore_errors=True)
+    rmtree(backup, ignore_errors=True)
     prev = backup / "previous"
     prev.mkdir(parents=True)
     plan: dict = {"kind": "binary" if frozen else "wheel", "version": version}
@@ -101,7 +104,8 @@ def restore(backup: Path) -> str:
             shutil.copy2(prev / exe.name, tmp)
             tmp.chmod(0o755)
             if os.name == "nt":  # (a running program can be renamed out of the way, not overwritten)
-                failed = exe.with_name(exe.stem + ".failed" + exe.suffix)
+                from .selfupdate import failed_binary
+                failed = failed_binary(exe)  # (removed when Craft Conductor next starts: cleanup_after_update)
                 failed.unlink(missing_ok=True)
                 if exe.exists():
                     exe.rename(failed)
@@ -111,10 +115,10 @@ def restore(backup: Path) -> str:
             if package.name != "craft_conductor" or package.parent != site or not (prev / package.name / "__init__.py").is_file() \
                     or not re.fullmatch(r"craft_conductor-[0-9A-Za-z.+!]+\.dist-info", str(plan["dist_info"])):
                 raise RollbackError("the kept plan doesn't name the Craft Conductor package")
-            shutil.rmtree(package, ignore_errors=True)
+            rmtree(package, ignore_errors=True)
             shutil.copytree(prev / package.name, package)
             for stale in site.glob("craft_conductor-*.dist-info"):
-                shutil.rmtree(stale, ignore_errors=True)
+                rmtree(stale, ignore_errors=True)
             shutil.copytree(prev / plan["dist_info"], site / plan["dist_info"])
     except (OSError, KeyError) as e:
         raise RollbackError(f"couldn't put Craft Conductor {plan.get('version', '')} back ({e}); "
@@ -123,7 +127,7 @@ def restore(backup: Path) -> str:
 
 
 def forget(backup: Path) -> None:
-    shutil.rmtree(backup, ignore_errors=True)
+    rmtree(backup, ignore_errors=True)
 
 
 # ------------------------------------------------------------------ before restarting
@@ -148,6 +152,7 @@ def check_new_version(expected: str, runner=subprocess.run, timeout: int = PREFL
 
 # ------------------------------------------------------------------ the pending update
 def write_pending(state_dir: Path, old: str, new: str, argv: list[str], pid: int | None = None) -> None:
+    (Path(state_dir) / NEW_COPY).unlink(missing_ok=True)
     _write(Path(state_dir) / PENDING, {"from": old, "to": new, "argv": argv, "pid": pid or os.getpid(),
                                        "started": time.time(), "restart_at": None, "confirmed": None})
 
@@ -162,6 +167,23 @@ def mark_restarting(state_dir: Path) -> None:
     if data is not None:
         data["restart_at"] = time.time()
         _write(Path(state_dir) / PENDING, data)
+
+
+def note_new_copy(state_dir: Path, pid: int | None) -> None:
+    """The restart started the new copy as ``pid``: if it's gone before it says it's up, the guard puts
+    the previous version back at once instead of waiting out ``GUARD_SECONDS`` (#194)."""
+    if pid:
+        try:
+            (Path(state_dir) / NEW_COPY).write_text(str(int(pid)))
+        except OSError:
+            pass  # (the guard then waits the full time, as before)
+
+
+def _new_copy(state_dir: Path) -> int | None:
+    try:
+        return int((Path(state_dir) / NEW_COPY).read_text().strip())
+    except (OSError, ValueError):
+        return None
 
 
 def result(state_dir: Path) -> dict | None:
@@ -269,7 +291,14 @@ def guard(state_dir: Path, now=time.time, sleep=time.sleep, popen=subprocess.Pop
     ``guard_seconds`` to confirm it's up and ``stable_seconds`` to stay up. Otherwise it's replaced by the
     previous version, which is started again with the same command line."""
     state_dir = Path(state_dir)
-    backup = backup_dir(state_dir)
+    try:
+        return _guard(state_dir, backup_dir(state_dir), now, sleep, popen, poll, guard_seconds, stable_seconds)
+    finally:
+        (state_dir / NEW_COPY).unlink(missing_ok=True)
+
+
+def _guard(state_dir: Path, backup: Path, now, sleep, popen, poll: float, guard_seconds: float,
+           stable_seconds: float) -> str:
     while True:
         data = pending(state_dir)
         if data is None:
@@ -285,6 +314,8 @@ def guard(state_dir: Path, now=time.time, sleep=time.sleep, popen=subprocess.Pop
         elif restart_at is None:
             if not _alive(data.get("pid")):
                 return "abandoned"  # (Craft Conductor was closed before restarting: the new files wait for the next start)
+        elif (new := _new_copy(state_dir)) and not _alive(new) and not (pending(state_dir) or {}).get("confirmed"):
+            return _revert(state_dir, backup, data, "the new version stopped right after starting", now, sleep, popen)
         elif now() - restart_at > guard_seconds:
             return _revert(state_dir, backup, data, "the new version didn't start in time", now, sleep, popen)
         sleep(poll)

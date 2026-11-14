@@ -113,6 +113,7 @@ class Health:
 
     def check(self) -> list[dict]:
         """Look now; returns the current warnings (and sends the new ones)."""
+        from .doctor import _gb
         found = []
         daemons = list(self.hub.daemons.values())
         places = [d.m.config.root for d in daemons] + [d.m.config.backups.dir for d in daemons]
@@ -120,7 +121,7 @@ class Health:
             if free < DISK_WARN_GB:
                 bad = free < DISK_BAD_GB
                 found.append({"id": f"disk:{where}", "level": "bad" if bad else "warn",
-                              "title": f"Only {free:.1f} GB of disk space left",
+                              "title": f"Only {_gb(free)} of disk space left",
                               "detail": f"On the drive with {where}. " + ("Backups, updates and the world itself may fail to save. "
                                         if bad else "Backups and updates need room. ") +
                                         "Delete old backups or exports, or move backups to another drive (Settings → Backup copies)."})

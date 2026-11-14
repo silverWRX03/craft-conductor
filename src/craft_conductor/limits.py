@@ -92,6 +92,10 @@ def check(cores: int, priority: str) -> tuple[int, str]:
     return cores, priority
 
 
+#: Left free when a server starts next to other programs (memory free now, not the computer's total).
+FREE_MARGIN_GB = 1.0
+
+
 def memory_fits(given_gb: list[float], adding_gb: float, total_gb: float | None) -> dict:
     """Whether a server given ``adding_gb`` fits next to the running ones (``given_gb``), leaving
     HEADROOM_GB for the computer itself."""

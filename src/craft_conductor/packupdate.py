@@ -163,7 +163,9 @@ def versions(m) -> dict:
         return {"pack": None, "current": None, "newer": []}
     if rec.source == "modrinth":
         from .mods.modrinth import API
-        listed = [{"id": v.get("id", ""), "name": v.get("name") or v.get("version_number", ""), "date": v.get("date_published", ""),
+        from .modpack import pack_name
+        listed = [{"id": v.get("id", ""), "name": pack_name("", v.get("version_number", ""), v.get("name", "")),
+                   "date": v.get("date_published", ""),
                    "minecraft": list(v.get("game_versions") or []), "channel": v.get("version_type", "release")}
                   for v in m.http.get_json(f"{API}/project/{rec.project}/version", cache=False)]
     else:

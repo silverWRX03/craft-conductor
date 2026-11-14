@@ -23,7 +23,7 @@ from .http import HttpClient, HttpError
 from .java import JavaError
 from .java import JavaManager
 from .players import ACTIONS, PlayerError, Players
-from .properties import read_properties, write_properties
+from .properties import number, read_properties, write_properties
 from .rcon import Rcon, RconError
 
 log = logging.getLogger("craft_conductor")
@@ -34,7 +34,7 @@ def _manager(args) -> Manager:
 
 
 def _server_port_open(manager: Manager) -> bool:
-    port = int(read_properties(manager.server_dir / "server.properties").get("server-port", "25565"))
+    port = number(read_properties(manager.server_dir / "server.properties"), "server-port", 25565)
     with socket.socket() as s:
         s.settimeout(1)
         return s.connect_ex(("127.0.0.1", port)) == 0

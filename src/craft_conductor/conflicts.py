@@ -65,6 +65,12 @@ def share(http, reports: list[dict]) -> int:
     return sent
 
 
+
+def _usable(items) -> list[dict]:
+    """The shared conflicts that are written right (a mod's id, and a list of the ones it clashes with)."""
+    return [c for c in items if isinstance(c, dict) and isinstance(c.get("mod"), str)
+            and isinstance(c.get("with") or [], list)] if isinstance(items, list) else []
+
 class Known:
     """The shared list, kept in the Craft Conductor folder and refreshed at most once a day."""
 
@@ -79,7 +85,7 @@ class Known:
         if self._items is None:
             try:
                 data = json.loads(self.path.read_text())
-                self._items = [c for c in data.get("conflicts", []) if isinstance(c, dict)]
+                self._items = _usable(data.get("conflicts"))
             except (OSError, ValueError, AttributeError):
                 self._items = []
         return self._items
@@ -96,7 +102,7 @@ class Known:
             return
         try:
             data = self.http.get_json(f"{url}/conflicts.json", cache=False)
-            items = [c for c in data.get("conflicts", []) if isinstance(c, dict)][:20000]
+            items = _usable(data.get("conflicts"))[:20000]
         except Exception as e:
             log.debug("couldn't fetch the shared mod conflicts: %s", e)
             items = None

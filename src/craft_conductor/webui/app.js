@@ -323,13 +323,33 @@ function askText(message, { ok = "OK", cancel = "Cancel", maxLength = 256 } = {}
 
 // Everyday messages ("Saved", errors): at the top of the screen, where they're noticed, without
 // getting in the way. Click one to dismiss it; errors stay longer.
-function toast(message, bad = false, ms = 0) {
+// A pop-up stays short: no Java stack trace ("at net.neoforged…" lines), a few lines at most; the whole
+// message is kept in the bell (#204).
+const TOAST_LINES = 3, TOAST_CHARS = 300;
+function toastText(message) {
+  const lines = String(message ?? "").split(/\r?\n/).map((l) => l.trimEnd())
+    .filter((l) => l.trim() && !/^\s*(at |\.\.\. \d+ more|Caused by: |Suppressed: )/.test(l));
+  let text = lines.slice(0, TOAST_LINES).join("\n");
+  if (text.length > TOAST_CHARS) text = text.slice(0, TOAST_CHARS - 1).trimEnd() + "…";
+  return text || String(message ?? "");
+}
+function toast(message, bad = false, ms = 0, note = {}) {
+  const full = String(message ?? ""), short = toastText(full);
   const el = h("div", { class: "toast" + (bad ? " bad" : ""), role: bad ? "alert" : "status", title: "Click to dismiss",
-    onclick: () => el.remove() }, h("span", { class: "toast-icon", "aria-hidden": "true" }, bad ? "⚠" : "✓"), h("span", {}, t(message)));
+    onclick: () => el.remove() }, h("span", { class: "toast-icon", "aria-hidden": "true" }, bad ? "⚠" : "✓"), h("span", {}, t(short)));
   $("#toasts").append(el);
   setTimeout(() => el.remove(), ms || (bad ? 12000 : 5000));
   if (bad) playSound("problem");
-  bellNote(message, { bad });
+  bellNote(short, { bad, more: short !== full ? full : "", ...note });
+}
+// What Craft Conductor put right when it was stopped half-way (a roll back, an update, Replace the world):
+// said once, so it's in the bell, not only in the server's Activity (#200).
+function noteRecovered(list) {
+  for (const r of list || []) {
+    const key = `recovered:${r.sid}:${r.time}`;
+    if (bell.items.some((x) => x.key === key) || bellPending.some((x) => x.key === key)) continue;
+    toast(r.message, true, 0, { key, sid: r.sid });
+  }
 }
 
 // ------------------------------------------------------------------ the bell
@@ -340,7 +360,15 @@ function toast(message, bad = false, ms = 0) {
 // in here never sees them), and Sign out clears it. Text only, never HTML: messages carry what players, mods
 // and servers wrote. Questions waiting for an answer, and the export password, never go in.
 const BELL_KEY = "craft-conductor-bell", BELL_MAX = 100;
-let bell = { who: null, items: [], seen: 0, access: "" };  // who: "owner" or "user:<id>" (access.Subject.key)
+// A whole message is kept (#244), up to BELL_MORE characters: a longer one keeps its start and its end
+// (where it says where the details file is), so 100 of them still fit in the browser's storage.
+const BELL_MORE = 8000;
+function bellClip(text) {
+  text = String(text || "");
+  return text.length <= BELL_MORE ? text : text.slice(0, BELL_MORE - 2000) + "\n…\n" + text.slice(-(2000 - 3));
+}
+// noticed: the newest of the servers' messages (from /api/hub) taken in, so one cleared away doesn't come back
+let bell = { who: null, items: [], seen: 0, access: "", noticed: 0 };  // who: "owner" or "user:<id>" (access.Subject.key)
 let bellPending = [];   // (messages shown before it's known who's signed in)
 let bellSeenBefore = 0; // (what was read when the list was opened: newer ones are marked New)
 function bellSave() {
@@ -351,13 +379,36 @@ function bellNote(text, { bad = false, more = "", sid = server, from = "page", k
   if (!text) return;
   if (!bell.who) sid = null;  // (signed out: the server last open, and hubInfo, were the last person's)
   const known = hubInfo && sid ? (hubInfo.servers || []).find((s) => s.id === sid) : null;
-  const item = { time, text: String(text).slice(0, 500), more: String(more || "").slice(0, 500), bad: !!bad,
+  const item = { time, text: String(text).slice(0, 500), more: bellClip(more), bad: !!bad,
     sid: sid || null, name: known ? String(known.name || sid) : sid || null, from, key: String(key || "") };
   if (!bell.who) {
     if (!item.key || !bellPending.some((x) => x.key === item.key)) bellPending = [item, ...bellPending].slice(0, BELL_MAX);
     return;
   }
   bellAdd([item]);
+}
+// The same message already here, about the same server and from about the same time (a pop-up on this page,
+// or a phone notification on this device, that was also one of the servers' messages).
+function bellHas(text, sid, time) {
+  text = String(text || "");
+  return bell.items.some((x) => (x.sid || null) === (sid || null) && Math.abs(x.time - time) < 120
+    && (x.text === text || x.more === text || text.startsWith(x.text.replace(/…$/, ""))));
+}
+// The servers' messages that went to Discord and phones (#241): in the bell too, each new one once.
+function noteNotices(list) {
+  if (!bell.who || !Array.isArray(list)) return;
+  const fresh = list.filter((n) => n && n.message && +n.time > bell.noticed);
+  if (!fresh.length) return;
+  bell.noticed = Math.max(bell.noticed, ...fresh.map((n) => +n.time));
+  const items = [];
+  for (const n of fresh) {
+    if (bellHas(n.message, n.sid, +n.time)) continue;
+    const message = String(n.message), short = toastText(message);
+    const known = hubInfo && n.sid ? (hubInfo.servers || []).find((x) => x.id === n.sid) : null;
+    items.push({ time: +n.time, text: short.slice(0, 500), more: short !== message ? bellClip(message) : "", bad: false,
+      sid: n.sid || null, name: known ? String(known.name || n.sid) : n.sid || null, from: "server", key: `notice:${n.sid}:${n.time}` });
+  }
+  if (items.length) bellAdd(items); else bellSave();
 }
 function bellAdd(items) {
   const fresh = items.filter((i) => !i.key || !bell.items.some((x) => x.key === i.key));
@@ -375,8 +426,8 @@ function bellSignedIn(hb) {
     let saved = null;
     try { saved = JSON.parse(localStorage.getItem(BELL_KEY) || "null"); } catch (_) { /* private mode */ }
     bell = saved && saved.who === who && Array.isArray(saved.items)
-      ? { who, items: saved.items.slice(0, BELL_MAX), seen: +saved.seen || 0, access: String(saved.access || "") }
-      : { who, items: [], seen: 0, access: "" };  // (someone else's, or none: theirs is gone from this browser)
+      ? { who, items: saved.items.slice(0, BELL_MAX), seen: +saved.seen || 0, access: String(saved.access || ""), noticed: +saved.noticed || 0 }
+      : { who, items: [], seen: 0, access: "", noticed: 0 };  // (someone else's, or none: theirs is gone from this browser)
     bellSave();
     const pending = bellPending;
     bellPending = [];
@@ -437,7 +488,7 @@ async function bellTakePushes() {
     const pushes = await bellPushes().catch(() => []);
     if (bell.who !== who) return;  // (signed out meanwhile: these were for nobody here)
     // (another person's device: not theirs to see. A push's title is its server's name, or "Craft Conductor".)
-    bellAdd(pushes.filter((p) => p && p.who === who && p.body).map((p) => ({ time: +p.time || Date.now() / 1000,
+    bellAdd(pushes.filter((p) => p && p.who === who && p.body && !bellHas(p.body, typeof p.sid === "string" ? p.sid : null, +p.time || 0)).map((p) => ({ time: +p.time || Date.now() / 1000,
       text: String(p.body).slice(0, 500), more: "", bad: false, sid: typeof p.sid === "string" ? p.sid : null,
       name: p.title && p.title !== "Craft Conductor" ? String(p.title).slice(0, 80) : null, from: "phone", key: "" })));
   } finally { bellTaking = false; }
@@ -447,7 +498,7 @@ window.addEventListener("storage", (e) => {
   if (e.key !== BELL_KEY || !bell.who) return;
   let saved = null;
   try { saved = JSON.parse(e.newValue || "null"); } catch (_) { /* half written */ }
-  if (saved && saved.who === bell.who && Array.isArray(saved.items)) bell = { ...bell, items: saved.items.slice(0, BELL_MAX), seen: +saved.seen || 0 };
+  if (saved && saved.who === bell.who && Array.isArray(saved.items)) bell = { ...bell, items: saved.items.slice(0, BELL_MAX), seen: +saved.seen || 0, noticed: Math.max(bell.noticed, +saved.noticed || 0) };
   else if (!saved) bell = { ...bell, items: [], seen: 0 };  // (signed out in the other tab)
   else return;
   renderBell();
@@ -743,8 +794,24 @@ document.addEventListener("click", (e) => {
 
 // Polling pauses while the page can't be seen (another tab, a phone's screen off) and
 // catches up at once when it's back: no work for the server, battery or data meanwhile.
-let polls = [];
-function every(ms, fn) { fn(); polls.push(fn); timers.push(setInterval(() => { if (!document.hidden) fn(); }, ms)); }
+// One call at a time: while an answer is slow (a busy server, a phone's slow connection), the next
+// turn is skipped instead of asking again for what's on its way, which showed console lines, events
+// and a test boot's log twice. After 30 s it asks anyway, in case that answer was lost.
+function oneAtATime(fn) {
+  let since = 0, turn = 0;
+  return async (...args) => {
+    if (since && Date.now() - since < 30000) return;
+    const mine = ++turn;
+    since = Date.now();
+    try { return await fn(...args); } finally { if (turn === mine) since = 0; }
+  };
+}
+let polls = [];  // (each with .fn, what was asked for: see polling)
+function every(ms, fn) {
+  const once = Object.assign(oneAtATime(fn), { fn });
+  once(); polls.push(once); timers.push(setInterval(() => { if (!document.hidden) once(); }, ms));
+}
+const polling = (fn) => polls.some((p) => p.fn === fn);
 let leaving = [];  // what a page undoes when another one opens (see onLeave)
 function onLeave(fn) { leaving.push(fn); }
 function clearTimers() { timers.forEach(clearInterval); timers = []; polls = []; leaving.forEach((fn) => fn()); leaving = []; }
@@ -1505,12 +1572,15 @@ function settleUpdateMark(hb) {
 
 // ------------------------------------------------------------------- status
 async function refreshStatus() {
-  try { hubInfo = await api("/api/hub"); } catch (e) {
+  // (only the servers' messages newer than the bell has: #241)
+  try { hubInfo = await api(bell.noticed ? `/api/hub?notices_since=${bell.noticed}` : "/api/hub"); } catch (e) {
     if (!(e instanceof Unauthorized)) { $("#state-pill").textContent = t("reconnecting"); $("#state-pill").className = "pill"; }
     return;
   }
   const hb = hubInfo;
   bellSignedIn(hb);
+  noteRecovered(hb.recovered);
+  noteNotices(hb.notices);
   styleSignedIn(hb);
   chimeFor(hb.servers);
   $("#version").textContent = "v" + hb.version + " beta";
@@ -1542,7 +1612,7 @@ async function refreshStatus() {
   if (want !== server) return;  // switched servers meanwhile
   status = s;
   const pill = $("#state-pill");
-  pill.textContent = t(s.state);
+  if (pill.textContent !== t(s.state)) pill.textContent = t(s.state);  // (a status region: said again on every change, #217)
   pill.className = "pill " + s.state;
   $("#server-title").textContent = (s.motd || s.id) + (s.minecraft
     ? ` · Minecraft ${s.minecraft} · ${s.loader}` : " · not installed yet");
@@ -1550,7 +1620,7 @@ async function refreshStatus() {
   $("#job").classList.toggle("hidden", !busy);
   $("#job-name").textContent = busy ? s.job.name + "…" : "";
   $("#btn-start").disabled = busy || s.state !== "stopped" || s.setup_pending;
-  $("#btn-stop").disabled = busy || s.state === "stopped";
+  $("#btn-stop").disabled = (busy && !s.job.can_stop) || s.state === "stopped";  // (a restart giving players their minute can be stopped, #205)
   $("#btn-restart").disabled = busy || s.state !== "running";
   const dot = $("#nav-update-dot");
   if (dot) dot.classList.toggle("hidden", !(s.update && !s.update.up_to_date && s.update.target));
@@ -1572,6 +1642,12 @@ async function refreshStatus() {
 // (limits.py) Asks when it doesn't; the server still starts if the person says so.
 async function memoryOkToStart(sid, name) {
   const plan = await api(`/api/hub/memory?adding=${encodeURIComponent(sid)}`).catch(() => null);
+  if (plan && plan.fits && plan.fits_free === false) {  // (other programs use much of it now, #187)
+    return ask(t("Start {name}? It would be given {gb} GB of memory, and only {free} GB is free on this computer now: other programs use the rest.")
+      .replace("{name}", name).replace("{gb}", plan.adding_gb).replace("{free}", plan.available_gb)
+      + "\n\n" + t("It may slow right down, or Windows may fill the disk making room. Close other programs, or give the server less memory (Settings → Memory)."),
+    { ok: "Start anyway", id: "memory-start" });
+  }
   if (!plan || plan.fits || !plan.total_gb) return true;
   return ask(t("Start {name}? The servers would be given {after} GB of memory, and this computer has {total} GB.")
     .replace("{name}", name).replace("{after}", plan.after_gb).replace("{total}", plan.total_gb)
@@ -1605,20 +1681,28 @@ $("#btn-stop").addEventListener("click", pressOnce(async () => {
   const here = ((hubInfo && hubInfo.servers) || []).find((s) => s.id === server);
   if (await confirmStop(here ? here.players : undefined)) await act(() => api("/api/server/stop", { method: "POST" }));
 }));
-$("#btn-restart").addEventListener("click", pressOnce(() => act(() => api("/api/server/restart", { method: "POST" }))));
+// With players on, it asks first: Yes warns them in game and restarts a minute later, No leaves the server
+// running (#205). Nobody on: straight away. (When the number isn't known yet, it asks.)
+$("#btn-restart").addEventListener("click", pressOnce(async () => {
+  const here = ((hubInfo && hubInfo.servers) || []).find((s) => s.id === server);
+  if (here && here.players === 0) return act(() => api("/api/server/restart", { method: "POST" }));
+  if (!(await ask("Players online. Do you want to give them a minute warning and restart?", { ok: "Yes", cancel: "No" }))) return;
+  await act(() => api("/api/server/restart", { method: "POST", body: { warn: true } }),
+    "The players were told \"Server restarting in 60 seconds\"");
+}));
 
 // -------------------------------------------------------------------- views
 const views = {};
 
 // A live server console: output plus a command box. Used on the Console page and the dashboard.
 function consolePanel({ compact = false } = {}) {
-  const out = h("div", { class: "console cc-terminal-box" + (compact ? " compact" : ""), role: "log", "aria-label": "Server console", "aria-live": "polite" });
+  const out = h("div", { class: "console cc-terminal-box" + (compact ? " compact" : ""), role: "log", "aria-label": "Server console", "aria-live": "off", tabindex: "0" });  // (read on purpose, not aloud by itself: #238)
   const input = h("input", { placeholder: "Type a server command, e.g. say hello  (↑/↓ for history)", autocomplete: "off",
     "aria-label": "Server command" });
   const history = []; let hi = 0; let seq = 0;
 
   const cls = (line) => line.user ? "l-user" : /\/(ERROR|FATAL)\]|Exception/.test(line.text) ? "l-error cc-log-error" : /\/WARN\]/.test(line.text) ? "l-warn cc-log-warning" : /Done \(|joined the game|Server ready/i.test(line.text) ? "cc-log-success" : "";
-  const poll = async () => {
+  const poll = oneAtATime(async () => {  // (also right after a command is sent)
     if (!can("logs.view")) return;  // (reading the console is a permission of its own)
     const r = await api(`/api/console?since=${seq}`).catch(() => null);
     if (!r || !r.lines.length) return;
@@ -1634,7 +1718,7 @@ function consolePanel({ compact = false } = {}) {
     out.append(frag);
     while (out.childElementCount > (compact ? 500 : 3000)) out.firstChild.remove();
     if (stick) out.scrollTop = out.scrollHeight;
-  };
+  });
   const send = async () => {
     const command = input.value.trim();
     if (!command) return;
@@ -1757,11 +1841,18 @@ function reachChoices(way, pick) {
       "aria-pressed": String(way === w), "data-reach": w, onclick: () => pick(w) },
     h("strong", {}, label), h("span", { class: "small muted" }, desc))));
 }
+// Bedrock's ports, as one phrase: "UDP and TCP port 19132, and UDP port 19133" (Geyser's two connection methods, #211).
+function bedrockPortsText(ports, port) {
+  const list = ports && ports.length ? ports : [{ port, protocol: "UDP" }];
+  const byPort = new Map();
+  list.forEach((p) => byPort.set(p.port, [...(byPort.get(p.port) || []), p.protocol]));
+  return [...byPort].map(([p, protos]) => `${protos.join(" and ")} port ${p}`).join(", and ");
+}
 // The ports to forward and why opening one is risky, next to the port-forwarding choice.
-function forwardDetails(port, bedrock, lanIp) {
+function forwardDetails(port, bedrock, lanIp, bedrockPorts) {
   return [h("div", { class: "notice warn small mt-s", role: "note" }, h("strong", {}, "Before you open a port: "), REACH_TEXT.router),
     h("p", { class: "small mt-s" }, "Forward ", h("strong", {}, `TCP port ${port}`),
-      bedrock ? [" (and ", h("strong", {}, `UDP port ${bedrock}`), " for Bedrock players)"] : null,
+      bedrock ? [" (and ", h("strong", {}, bedrockPortsText(bedrockPorts, bedrock)), " for Bedrock players)"] : null,
       ` on your router to this computer${lanIp ? ` (${lanIp})` : ""}. Craft Conductor picked ${bedrock ? "these ports" : "this port"}: not Minecraft's usual 25565, ` +
       "which bots try first, and not one another server or Craft Conductor uses."),
     h("p", { class: "muted small" }, "Craft Conductor can ask your router to do it (Craft Conductor settings → Router), and let it through Windows Firewall (Check my setup). " +
@@ -1851,7 +1942,7 @@ function reachCard(sid, { compact = false } = {}) {
       !r.way ? h("p", { class: "muted small mt-s" }, "Not chosen yet: friends outside join the way you set up before.") : null,
       r.way === "playit" ? [h("div", { class: "notice warn small mt-s", role: "note" }, h("strong", {}, "About playit.gg: "), REACH_TEXT.playit),
         compact ? null : playitSetup(r.port, bedrock, r.tunnel_address, saveAddress)] : null,
-      r.way === "forward" ? forwardDetails(r.port, bedrock, r.lan_ip) : null,
+      r.way === "forward" ? forwardDetails(r.port, bedrock, r.lan_ip, r.bedrock && r.bedrock.ports) : null,
       r.way === "forward" && r.any_port && !compact ? ownPort(r, async (port) => {
         const res = await act(() => api(path, { method: "POST", body: { way: "forward", port } }));
         if (res) { toast(res.message); render(res); }
@@ -2467,7 +2558,7 @@ views.dashboard = () => {
 views.console = () => {
   const con = consolePanel();
   const folders = hubInfo && hubInfo.local ? h("div", { class: "row mb" }, folderBtn("logs", "Logs folder"), folderBtn("crash", "Crash reports")) : null;
-  fill($("#main"), folders, con.el);
+  fill($("#main"), h("h1", { class: "view-title" }, "Console"), folders, con.el);  // (a page heading, like the other pages, #217)
   con.input.focus();
   every(1000, con.poll);
   return {};
@@ -2780,8 +2871,8 @@ views.updates = () => {
 
 views.players = () => {
   const body = h("div");
-  const name = h("input", { placeholder: "Player name", autocomplete: "off", maxlength: 16 });
-  const reason = h("input", { placeholder: "Reason (optional, shown when kicked/banned)", maxlength: 200 });
+  const name = h("input", { placeholder: "Player name", autocomplete: "off", maxlength: 16, "aria-label": "Player name" });
+  const reason = h("input", { placeholder: "Reason (optional, shown when kicked/banned)", maxlength: 200, "aria-label": "Reason (optional, shown when kicked/banned)" });
   let data = null;
 
   const CONFIRM = {
@@ -2842,7 +2933,8 @@ views.players = () => {
               h("span", { class: "muted small" }, r.whitelist_enabled ? ": only listed players can join" : ": anyone can join")),
             h("button", { class: "btn small", "data-act": "whitelist", "data-fkey": "wl-toggle" }, r.whitelist_enabled ? "Turn off" : "Turn on")),
           r.whitelist.length ? h("ul", { class: "list" }, r.whitelist.map((w) => h("li", {}, h("div", { class: "grow" }, w.name), btn("Remove", "whitelist-remove", w.name, "", "wl"))))
-            : h("p", { class: "empty" }, "Nobody whitelisted")),
+            : h("p", { class: "empty" }, "Nobody whitelisted"),
+          r.bedrock_prefix ? h("p", { class: "muted small mt-s" }, `Bedrock players: type ${r.bedrock_prefix} and their Xbox gamertag (not a Java name) in Add or manage a player, then press Whitelist.`) : null),
         card("Banned",
           r.bans.length || r.ip_bans.length ? h("ul", { class: "list" },
             r.bans.map((b) => h("li", {}, h("div", { class: "grow" }, h("strong", {}, b.name),
@@ -2854,15 +2946,21 @@ views.players = () => {
     );
   };
 
-  // Built once, outside the refreshed area, so typing isn't interrupted.
+  // Built once, outside the refreshed area, so typing isn't interrupted. An empty name says so (#238).
+  const byName = (action) => {
+    const who = name.value.trim();
+    if (who) return run(action, who);
+    toast(action === "ban-ip" ? "Type an IP address or a player name first." : "Type a player name first.", true);
+    name.focus();
+  };
   const manage = card("Add or manage a player",
         h("div", { class: "row" }, name, reason),
         h("div", { class: "row mt-s" },
           ...[["Op", "op"], ["De-op", "deop"], ["Whitelist", "whitelist-add"], ["Un-whitelist", "whitelist-remove"], ["Kick", "kick"], ["Pardon", "pardon"]]
-            .map(([label, action]) => h("button", { class: "btn", onclick: () => name.value.trim() && run(action, name.value.trim()) }, label)),
-          h("button", { class: "btn danger", onclick: () => name.value.trim() && run("ban", name.value.trim()) }, "Ban"),
+            .map(([label, action]) => h("button", { class: "btn", onclick: () => byName(action) }, label)),
+          h("button", { class: "btn danger", onclick: () => byName("ban") }, "Ban"),
           h("button", { class: "btn danger", title: "Enter an IP address, or the name of an online player",
-                        onclick: () => name.value.trim() && run("ban-ip", name.value.trim()) }, "Ban IP")));
+                        onclick: () => byName("ban-ip") }, "Ban IP")));
   const requests = joinRequestsCard(() => load());
   const activity = activityCard();
   fill($("#main"), h("h1", { class: "view-title" }, "Players"), requests.el, manage, h("div", { class: "mt" }, body), h("div", { class: "mt" }, activity.el));
@@ -3634,7 +3732,7 @@ views.java = () => {
     const pick = h("select", {}, h("option", { value: "auto" }, "auto (what Minecraft needs)"),
       [8, 11, 16, 17, 21, 25].map((v) => h("option", { value: String(v) }, `Java ${v}`)));
     pick.value = r.forced ? String(r.forced) : "auto";
-    const major = h("input", { type: "number", min: 8, max: 99, value: r.required || 21, class: "narrow" });
+    const major = h("input", { type: "number", min: 8, max: 99, value: r.required || 21, class: "narrow", "aria-label": "Java version to install" });
     const others = c && c.also && c.also.length ? h("span", { class: "muted" }, " · also used by ", names(c.also)) : null;
     const using = !c ? "—"
       : c.source === "shared" ? h("span", {}, h("strong", {}, `Shared Java ${c.major}`), " ", h("span", { class: "tag" }, c.release), others || h("span", { class: "muted" }, " · only this server uses it"))
@@ -4059,10 +4157,11 @@ function bedrockCard() {
       on ? [
         h("div", { class: `notice ${r.installed ? "ok" : "warn"} mt-s` }, r.installed ? "Bedrock players can join." : "Added: installed with the next update (Updates page)."),
         h("ul", { class: "small mt-s" },
-          h("li", {}, "In Bedrock: Play → Servers → Add Server, with the same address as your Java friends use, and port ", h("strong", {}, String(r.port)), "."),
-          h("li", {}, "Friends outside your home: also forward ", h("strong", {}, `UDP port ${r.port}`), " on your router (Bedrock uses UDP, not TCP; see Help → Router setup)."),
+          h("li", {}, "In Bedrock: add a server with the same address as your Java friends use, and port ", h("strong", {}, String(r.port)),
+            ". On Windows, Win+R and ", h("code", {}, `minecraft://?addExternalServer=Server|<address>:${r.port}`), " adds it straight away (the Bedrock invite link shows how too)."),
+          h("li", {}, "Friends outside your home: also forward ", h("strong", {}, bedrockPortsText(r.ports, r.port)), " on your router (see Help → Router setup)."),
           h("li", {}, "Xbox, PlayStation and Switch can't add servers by themselves; GeyserMC's guide shows the workarounds."),
-          h("li", {}, "With the whitelist on, add Bedrock players with the console command ", h("code", {}, "fwhitelist add <name>"), "; their names start with a dot (.) in game."))]
+          h("li", {}, "With the whitelist on, add a Bedrock player on the Players page: a dot (.) and their Xbox gamertag, not their Java name (that's their name in game)."))]
         : h("div", { class: "row mt-s" }, turnOn, h("span", { class: "muted small" }, "Adds the Geyser and Floodgate mods from Modrinth; remove them on the Mods page any time."))));
   };
   load();
@@ -4186,6 +4285,11 @@ views.friends = () => {
       if (x.slug) byProject.set(x.source === "curseforge" ? x.slug : `modrinth:${x.slug}`, x);
     }
     const items = [];
+    // A file of your own (moved here from the server, perhaps by mistake) can go back on the server (#236).
+    const toServer = (name) => () => h("button", { class: "btn small", onclick: async () => {
+      const res = await act(() => api("/api/client/local/to-server", { method: "POST", body: { name } }));
+      if (res) { toast(res.message); await reload(); }
+    } }, "Put back on the server");
     const add = (m, manual = false) => {
       const explicit = byProject.get(m.project) || null;
       const local = !!m.local || (d.local_mods || []).includes(m.filename);
@@ -4207,6 +4311,7 @@ views.friends = () => {
             if (!res) return false;
             await reload(); return true;
           } : null,
+        controls: local && !explicit ? toServer(m.filename || m.name) : null,
       });
     };
     for (const m of pack.mods || []) add(m);
@@ -4224,6 +4329,7 @@ views.friends = () => {
           if (!res) return false;
           await reload(); return true;
         },
+        controls: toServer(name),
       });
     }
     return items;
@@ -4978,7 +5084,7 @@ function openManualDownloads({ items, intro, onArrived = null, onStop = null }) 
   if (backdrop) for (const type of ["dragover", "drop"]) backdrop.addEventListener(type, (e) => e.preventDefault());
   if (look) {
     manualPanelLook = lookNow;
-    if (polls.includes(manualPanelPoll)) lookNow(); else every(5000, manualPanelPoll);
+    if (polling(manualPanelPoll)) lookNow(); else every(5000, manualPanelPoll);
   }
 }
 
@@ -5958,7 +6064,10 @@ function browserPanel(params, host) {
       const cur = await api(`/api/servers/${encodeURIComponent(target)}/client`).catch(() => null);
       if (!cur) return;
       const r = await act(() => api(`/api/servers/${encodeURIComponent(target)}/client`, { method: "POST",
-        body: { mods: [...new Set([...cur.mods, ...mods.map((m) => m.slug || m.id)])] } }), `Added ${mods.map((m) => m.name).join(", ")} for players`);
+        body: { mods: [...new Set([...cur.mods, ...mods.map((m) => m.slug || m.id)])],
+          // (early builds agreed to here hold for the friends' download and the server's copy too, #165)
+          channels: Object.fromEntries(mods.filter((m) => m.channel && m.channel !== "release").map((m) => [m.slug || m.id, m.channel])) } }),
+        `Added ${mods.map((m) => m.name).join(", ")} for players`);
       if (r) announceAlsoOnServer(r);
       if (r && host) host.changed();
       return;
@@ -6080,7 +6189,7 @@ function routerHelp(opts = {}) {
       "The menus and names above are typical, not exact. If you can't find the setting, check your router's manual or its maker's support site ",
       "(search for your router's model and “port forwarding”), or ask your internet provider. Some providers share one public address between ",
       "customers (called CGNAT); port forwarding can't work then, and they may give you your own address if you ask."),
-    h("p", { class: "muted small" }, "Only forward the ports above. Never forward the control panel's port (8765): to manage Craft Conductor from elsewhere, use ",
+    h("p", { class: "muted small" }, `Only forward the ports above. Never forward the control panel's port (${location.port || (location.protocol === "https:" ? 443 : 80)}): to manage Craft Conductor from elsewhere, use `,
       h("button", { type: "button", class: "link-btn", onclick: openRemoteAccess }, "Remote access & phones"), " instead."));
 }
 
@@ -6427,7 +6536,7 @@ function openRemoteAccess({ setup = currentName === "new" || currentName === "se
         : ["Apply this change without closing Craft Conductor. Your servers and work stay open. ",
           h("button", { class: "btn small", onclick: async () => { await act(() => api("/api/hub/network/apply", { method: "POST" })); load(); } }, "Apply remote access")]) : null;
     // 3. away from home: Tailscale, or Cloudflare's quick tunnel for a few hours
-    const away = [outsideChooser(r.strong)];
+    const away = [outsideChooser(r.strong, load)];  // (Use Tailscale changes the pairing addresses below too, #213)
     // HTTPS (optional)
     const cert = h("input", { value: r.tls_cert || "", placeholder: "Certificate file (.crt / .pem)", "aria-label": "Certificate file" });
     const key = h("input", { value: r.tls_key || "", placeholder: "Key file (.key / .pem)", "aria-label": "Key file" });
@@ -6942,7 +7051,7 @@ function openDiscord(links) {
         bedrockEnabled ? [
           h("label", { class: "row check-row mt-s" }, useBedrockInternet, h("span", {}, "Bedrock internet link", links.bedrock_internet ? "" : " (use your public IP on the Friends page first)")),
           h("label", { class: "row check-row mt-s" }, useBedrockLocal, h("span", {}, "Bedrock local link (only works on this computer's network)")),
-          h("p", { class: "muted small" }, "Bedrock links show the address and Geyser port. Install Geyser before players join; internet players need that UDP port forwarded on your router.")
+          h("p", { class: "muted small" }, "Bedrock links show the address and Geyser port. Install Geyser before players join; internet players need the Bedrock ports forwarded on your router (the Friends page lists them).")
         ] : null),
       h("div", { class: "row mt" }, post, h("span", { class: "muted small grow" }, `Posting as ${info.bot.name}.`)),
       addBot);
@@ -7036,7 +7145,7 @@ function openTester(opts) {
     catch (e) { idle(); fill(body, h("div", { class: "notice bad" }, e.message)); finished(e.message); return; }
     running = r.id;
     let seen = 0;
-    poll = setInterval(async () => {
+    poll = setInterval(oneAtATime(async () => {
       const t = await api(`/api/hub/trial?id=${running}&since=${seen}`).catch(() => null);
       if (!t) return;
       seen = t.next;
@@ -7053,7 +7162,7 @@ function openTester(opts) {
       const res = t.result || {};
       finished(t.state === "cancelled" ? "The test was stopped." : res.ok ? "✓ The server started with these mods."
         : res.bisected ? `${(res.outliers || []).length} mod(s) don't work.` : "✗ The server didn't start.");
-    }, 1500);
+    }), 1500);
   };
 
   const report = (t, logText) => {
@@ -7433,12 +7542,13 @@ views.servers = () => {
           s.setup_pending ? (can("runtime.configure", s.id) ? h("a", { class: "btn primary", href: `#s/${s.id}/setup`, "data-fkey": `${s.id}:power` }, s.job ? "See progress" : "Finish setup") : null)
             : !can("server.power", s.id) ? null
             : s.state === "stopped"
-              ? h("button", { class: "btn primary", disabled: !!s.job || busy.has(s.id), "data-act": "start", "data-sid": s.id, "data-fkey": `${s.id}:power` }, "Start")
-              : h("button", { class: "btn danger", disabled: busy.has(s.id), "data-act": "stop", "data-sid": s.id, "data-fkey": `${s.id}:power` }, "Stop"),
-          s.setup_pending ? null : h("a", { class: "btn", href: `#s/${s.id}/dashboard`, "data-fkey": `${s.id}:open` }, "Open"),
-          !hb.single && !s.job && can("server.delete", s.id) ? h("button", { class: "btn ghost", "data-act": "delete", "data-sid": s.id, "data-fkey": `${s.id}:delete` }, "Delete") : null),
+              // (each button names its server for a screen reader: "Start Alpha", not "Start" again and again, #217)
+              ? h("button", { class: "btn primary", disabled: !!s.job || busy.has(s.id), "data-act": "start", "data-sid": s.id, "data-fkey": `${s.id}:power`, "aria-label": `Start ${s.name}` }, "Start")
+              : h("button", { class: "btn danger", disabled: busy.has(s.id), "data-act": "stop", "data-sid": s.id, "data-fkey": `${s.id}:power`, "aria-label": `Stop ${s.name}` }, "Stop"),
+          s.setup_pending ? null : h("a", { class: "btn", href: `#s/${s.id}/dashboard`, "data-fkey": `${s.id}:open`, "aria-label": `Open ${s.name}` }, "Open"),
+          !hb.single && !s.job && can("server.delete", s.id) ? h("button", { class: "btn ghost", "data-act": "delete", "data-sid": s.id, "data-fkey": `${s.id}:delete`, "aria-label": `Delete ${s.name}` }, "Delete") : null),
         !isOwner() ? null : h("div", { class: "row" }, h("div", { class: "muted small folder grow" }, s.folder),
-          ((b) => { if (b) b.setAttribute("data-fkey", `${s.id}:folder`); return b; })(folderBtn("server", "Folder", s.id))))),
+          ((b) => { if (b) { b.setAttribute("data-fkey", `${s.id}:folder`); b.setAttribute("aria-label", `${s.name}'s folder`); } return b; })(folderBtn("server", "Folder", s.id))))),
       hb.single || !isOwner() ? null : h("a", { class: "card server-card new", href: "#new", "data-fkey": "new" },
         h("strong", {}, "+ New server"), h("span", { class: "muted small" }, "Pick a server type, Minecraft version and mods")));
   };
@@ -7856,7 +7966,7 @@ function routerBox() {
       h("span", { class: "muted" }, ` · ${p.label}`), p.ok ? null : h("span", { class: "bad-text" }, ` · ${p.error}`)));
     fill(box, h("h3", {}, "Router"),
       h("label", { class: "row check-row" }, on, h("span", {}, "Open the ports on my router by itself (UPnP)")),
-      h("p", { class: "muted small" }, "Craft Conductor asks your router to forward each server's Minecraft port and the friends' download port to this computer, " +
+      h("p", { class: "muted small" }, "Craft Conductor asks your router to forward the Minecraft port of each server set to Open a port on my router, and the friends' download port to this computer, " +
         "and takes them back when you switch this off or quit Craft Conductor. Only Craft Conductor's own ports are opened. Many routers have UPnP switched off: " +
         "then forward the ports by hand (Help → Router setup), or use playit.gg."),
       busy ? h("p", { class: "small" }, busy) : null,
@@ -8127,7 +8237,8 @@ const OUTSIDE_TEXT = {
   cloudflare: "Anyone on the internet who has the address can reach the sign-in page, for a few hours. Free, and no account needed.",
   never: "Don't forward the control panel's port on your router, and never point a playit.gg tunnel at it: those put it on the internet with nothing to tell the visitors apart.",
 };
-function outsideChooser(strong) {
+// `changed`: after Use Tailscale or Stop, the dialog around it reloads (its pairing addresses change too).
+function outsideChooser(strong, changed = null) {
   const box = h("div", { class: "outside" });
   let ts = null, cf = null, funnelAllowed = false, pick = null, polls = 0, pollTimer = null;
   const out = h("div", { class: "mt-s" });
@@ -8153,9 +8264,9 @@ function outsideChooser(strong) {
       return;
     }
     toast(funnel ? "The control panel is on the internet at " + r.url : "Ready: your devices can open " + r.url);
-    load();
+    (changed || load)();
   };
-  const tailscaleStop = async () => { await act(() => api("/api/hub/phone/tailscale", { method: "POST", body: { on: false } }), "Stopped"); load(); };
+  const tailscaleStop = async () => { await act(() => api("/api/hub/phone/tailscale", { method: "POST", body: { on: false } }), "Stopped"); (changed || load)(); };
   const tailscalePart = () => {
     const recheck = h("button", { class: "link-btn", onclick: load }, "check again");
     if (!ts) return h("p", { class: "small muted" }, "Couldn't ask Tailscale.");
@@ -8616,7 +8727,7 @@ views["craft-conductor"] = () => {
 // server's id), and it starts fresh when that changes, so a new server never inherits the
 // choices of the last one set up.
 const freshSetup = () => ({ target: null, friends: false, reach: "playit", loader: null, minecraft: "latest", mods: new Map(), motd: "A Minecraft server",
-  properties: null, advancedOpen: false, max_players: 20, difficulty: "normal", gamemode: "survival", port: 25565, memory_gb: null,
+  properties: null, advancedOpen: false, max_players: 20, difficulty: "normal", gamemode: "survival", port: 25565, portChosen: false, portTyped: false, memory_gb: null,
   network_access: null, accept_eula: false, submitted: false, prefilled: false, modpack: null, localMods: [], world: null, showBetas: false,
   aikar: false, clientMods: new Map(), clientMeta: new Map(), clientLocal: [], companionsSeen: new Set(),  // friends' download: slug -> name; staged files
   hand: [], handKey: "", handError: "", handCheck: null, handGot: new Map(),  // mods to download by hand: the files; filename -> staging id
@@ -8638,6 +8749,17 @@ function setupChanged() { if (setupState.onChange) setupState.onChange(); setupS
 const earlyChannels = () => Object.fromEntries([...setupState.mods].filter(([, m]) => m.channel).map(([k, m]) => [k, m.channel]));
 // The mods picked to use as their datapack build (in the world, not the mods folder).
 const setupDatapacks = () => [...setupState.mods].filter(([, m]) => m.explicit && m.datapack).map(([k]) => k);
+// A world from a newer Minecraft than the server's (#233): its version, or null. Releases only (26.2, 1.21.1).
+function setupWorldNewer() {
+  const st = setupState, world = st.world && st.world.version, server = setupModVersion();
+  const key = (v) => /^\d{1,3}(\.\d{1,3}){1,2}$/.test(v || "") ? v.split(".").map(Number) : null;
+  const a = key(world), b = key(server);
+  if (!a || !b) return null;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0) ? world : null;
+  }
+  return null;
+}
 function setupModVersion() {
   const st = setupState;
   return st.minecraft === "latest" ? (st.newest || "") : st.minecraft;
@@ -8893,7 +9015,7 @@ function setupHandQuery() {
     modpack_version: packHas ? pack.version_id : "", modpack_exclude: packHas ? [...removed] : [] };
 }
 const setupHandMissing = () => (setupState.hand || []).filter((m) => !setupState.handGot.has(m.filename));
-function setupHandCheck() {
+function setupHandCheck(again = false) {
   const st = setupState;
   const body = setupHandQuery();
   const key = body ? JSON.stringify(body) : "";
@@ -8906,7 +9028,7 @@ function setupHandCheck() {
     if (st.handKey !== key) return;
     st.hand = r.mods || [];
     const left = setupHandMissing().length;
-    if (left) toast(`${left} mod(s) must be downloaded from CurseForge by hand: see Manage Mods`);
+    if (left && !again) toast(`${left} mod(s) must be downloaded from CurseForge by hand: see Manage Mods`);
     if (left) setupHandLook();  // (maybe they're in Downloads already)
   }).catch((e) => {
     if (st.handKey !== key || e instanceof Unauthorized) return;
@@ -8924,6 +9046,8 @@ function setupHandLook(chosen = false) {
   if (!missing.length || st.submitted || !isOwner()) return Promise.resolve(null);
   st.handBusy = api("/api/hub/manual/look", { method: "POST", body: { filenames: missing, ...(st.handOnce ? { folder: st.handOnce } : {}) } }).then((r) => {
     for (const x of r.found) { st.handGot.set(x.filename, x.id); st.handWrong.delete(x.filename); }
+    // Craft Conductor was restarted since it said which files to download (#243): it's asked again, once.
+    if ((r.unknown || []).length && st.handAgain !== st.handKey) { st.handAgain = st.handKey; st.handKey = null; setupHandCheck(true); }
     for (const w of r.wrong) st.handWrong.set(w.filename, w.where);
     handWrongToasts(r.wrong, st.handTold);
     handFoundToast(r.found, setupHandMissing().length);
@@ -9614,7 +9738,7 @@ views.setup = () => {
     };
     const renderSelected = () => {
       setupHandCheck();
-      if (isOwner() && !polls.includes(setupHandLook)) every(5000, setupHandLook);  // (nothing to do until some are missing)
+      if (isOwner() && !polling(setupHandLook)) every(5000, setupHandLook);  // (nothing to do until some are missing)
       const items = setupServerModItems();
       fill(selected, items.length || st.modpack
         ? modSummary(items, { noun: runsPlugins(st.loader) ? "plugins" : "mods",
@@ -9706,7 +9830,7 @@ views.setup = () => {
         else if (r.busy) { note.className = "small warn-text"; note.textContent = `Another program on this computer is using port ${port}; the server won't start until it's free. Try ${r.suggestion}.`; }
         else { note.className = "small ok-text"; note.textContent = `Port ${port} is free.` + (port === 25565 ? "" : " Friends connect with your address followed by :" + port + "."); }
       };
-      input.addEventListener("input", () => { st.port = Number(input.value); clearTimeout(timer); timer = setTimeout(check, 300); });
+      input.addEventListener("input", () => { st.port = Number(input.value); st.portChosen = st.portTyped = true; clearTimeout(timer); timer = setTimeout(check, 300); });
       check();
       return field("Port (players connect to this)", input, note);
     };
@@ -9729,6 +9853,19 @@ views.setup = () => {
         st.world.version ? h("span", { class: "muted" }, ` · last played on Minecraft ${st.world.version}`) : null,
         h("div", { class: "small muted" }, "Minecraft upgrades an older world when the server first starts; a world can't go back to an older version, " +
           "and blocks from mods the server doesn't have are lost."),
+        (() => {  // (a newer world than the server: asked before it's brought in, #233)
+          const newer = setupWorldNewer();
+          if (!newer) return null;
+          const canUse = (opts.versions || []).includes(newer);
+          return h("div", { class: "notice warn mt-s", role: "note" },
+            h("strong", {}, `This world was last played on Minecraft ${newer}, newer than this server's ${setupModVersion()}. `),
+            `Opening it in an older version can lose what ${newer} added (blocks, items, whole chunks).`,
+            st.world.olderOk ? h("div", { class: "small mt-s" }, "✓ You chose to import it anyway.") :
+              h("div", { class: "row mt-s wrap" },
+                canUse ? h("button", { type: "button", class: "btn small", onclick: () => { st.minecraft = newer; setupRecheckMods(); renderForm(); } }, `Use Minecraft ${newer}`) : null,
+                h("button", { type: "button", class: "btn small", onclick: () => pickWorld((w) => { st.world = w; renderForm(); }) }, "Choose another world"),
+                h("button", { type: "button", class: "btn small danger", onclick: () => { st.world.olderOk = true; renderForm(); } }, "Import anyway")));
+        })(),
         h("div", { class: "row mt-s" }, h("button", { type: "button", class: "btn small", onclick: () => pickWorld((w) => { st.world = w; renderForm(); }) }, "Choose another"),
           h("button", { type: "button", class: "btn small ghost", onclick: () => { st.world = null; renderForm(); } }, "Use a new world instead")))
       : h("div", { class: "mt-s" },
@@ -9789,17 +9926,26 @@ views.setup = () => {
       const bad = [...st.mods.values()].filter((m) => m.bad);
       if (bad.length && !(await ask(`${bad.map((m) => `${m.name}: ${m.bad}`).join("\n")}\n\nCraft Conductor won't change your Minecraft version to make ${bad.length === 1 ? "it" : "them"} work: ` +
         "a required mod that can't be used stops the server from being made (you're told why), and an optional one is left out.\n\nCreate the server anyway?", { ok: "Create anyway" }))) return;
+      if (setupWorldNewer() && !st.world.olderOk) {
+        toast(`The world is from Minecraft ${setupWorldNewer()}, newer than this server: choose what to do on the World card first.`, true);
+        return;
+      }
       const mods = [...st.mods].filter(([, m]) => m.explicit && m.required).map(([slug]) => slug);
       const optional = [...st.mods].filter(([, m]) => m.explicit && !m.required).map(([slug]) => slug);
+      const sent = st.sent || { ids: new Set(), local: [], client: [], world: "" };  // (what a first try put in the server)
       const body = { loader: st.loader, minecraft: st.minecraft, mods, optional_mods: optional, memory_gb: st.memory_gb,
         aikar_flags: !!st.aikar && st.memory_gb > AIKAR_ABOVE_GB,
         motd: st.motd, max_players: st.max_players, difficulty: st.difficulty, gamemode: st.gamemode, port: st.port,
         network_access: st.network_access, accept_eula: true, properties: changedProps(st.properties, propDefaults),
-        // (trying again after a failed first start: the uploaded mods and world are in the server already)
-        friends: !!st.friends, local_mods: st.filesSent ? [] : st.localMods.map((m) => m.id), world: st.world && !st.filesSent ? st.world.world : "",
+        // (trying again after a failed first start: the files sent then are in the server already. Only what was
+        // added since is sent, and what was taken off the form since is taken out of the server: #235)
+        friends: !!st.friends, local_mods: st.localMods.filter((m) => !sent.ids.has(m.id)).map((m) => m.id),
+        world: st.world && (!st.filesSent || st.world.world !== sent.world) ? st.world.world : "",
+        world_older_ok: !!(st.world && st.world.olderOk),
         ...(isNew ? { reach: st.reach, ...(st.reach !== "home" && st.ownerName ? { owner_name: st.ownerName } : {}) } : {}),
-        client_mods: st.friends ? [...st.clientMods.keys()] : [], client_local: st.friends && !st.filesSent ? st.clientLocal.map((m) => m.id) : [],
-        manual_files: st.filesSent ? [] : (st.hand || []).filter((m) => st.handGot.has(m.filename)).map((m) => st.handGot.get(m.filename)),
+        client_mods: st.friends ? [...st.clientMods.keys()] : [],
+        client_local: st.friends ? st.clientLocal.filter((m) => !sent.ids.has(m.id)).map((m) => m.id) : [],
+        manual_files: (st.hand || []).filter((m) => st.handGot.has(m.filename)).map((m) => st.handGot.get(m.filename)).filter((id) => !sent.ids.has(id)),
         mod_channels: Object.fromEntries([...st.mods].filter(([, m]) => m.explicit && m.channel).map(([k, m]) => [k, m.channel])), datapacks: setupDatapacks(),
         pins: setupPins() };
       if (isNew && st.reach !== "home") {  // (reachable from the internet: the whitelist is sent either way, and off only when still wanted)
@@ -9818,6 +9964,16 @@ views.setup = () => {
         body.modpack_version = st.modpack.version_id;
         body.modpack_exclude = [...(st.modpack.removed instanceof Set ? st.modpack.removed : [])];
       }
+      if (st.filesSent) {
+        const localNow = new Set(st.localMods.map((m) => m.name)), clientNow = new Set(st.friends ? st.clientLocal.map((m) => m.name) : []);
+        body.remove_local = sent.local.filter((n) => !localNow.has(n));
+        body.remove_client_local = sent.client.filter((n) => !clientNow.has(n));
+        body.replace_world = !!sent.world && (!st.world || st.world.world !== sent.world);
+      }
+      // What's in the server after this try: a retry takes off what's no longer on the form.
+      const nowSent = { ids: new Set([...sent.ids, ...body.local_mods, ...body.client_local, ...body.manual_files]),
+        local: st.localMods.map((m) => m.name), client: st.friends ? st.clientLocal.map((m) => m.name) : [],
+        world: st.world ? st.world.world : "" };
       if (isNew) {
         const r = await act(() => api("/api/hub/create", { method: "POST", body }));
         if (r) {
@@ -9826,7 +9982,7 @@ views.setup = () => {
           // The choices stay with the new server's setup page: if its first start fails, the form still
           // has the modpack, name, port and the rest for trying again (it was rebuilt from
           // craft-conductor.toml, which doesn't have them). The files sent are in the server already.
-          Object.assign(st, { target: r.id, prefilled: true, submitted: true, filesSent: true, playersOnlyDone: null });
+          Object.assign(st, { target: r.id, prefilled: true, submitted: true, filesSent: true, sent: nowSent, playersOnlyDone: null });
           location.hash = `#s/${r.id}/setup`;
         }
         return;
@@ -9835,6 +9991,7 @@ views.setup = () => {
       if (r) {
         saveSetupFollowup({ id: server, friends: !!body.friends, remote: !!st.remoteAfterCreate, phase: "creating" });
         st.submitted = true;
+        st.sent = nowSent;
         renderProgress();
       }
     };
@@ -9878,8 +10035,11 @@ views.setup = () => {
           st.properties["white-list"] = closed ? "true" : propDefaults["white-list"];
           st.properties["enforce-whitelist"] = closed ? "true" : propDefaults["enforce-whitelist"];
         }
-        if (w === "forward" && opts.open_port) st.port = opts.open_port;  // (one Craft Conductor picked: not 25565)
-        else if (st.reach === "forward" && st.port === opts.open_port) st.port = opts.port;
+        // A port to open on the router: one Craft Conductor picks (not 25565), unless one was typed in
+        // that isn't 25565 (it stays, #232).
+        const typed = st.portTyped && st.port !== 25565;
+        if (w === "forward" && opts.open_port && !typed) { st.port = opts.open_port; st.portChosen = true; }
+        else if (w !== "forward" && st.reach === "forward" && !st.portTyped && st.port === opts.open_port) { st.port = opts.port; st.portChosen = false; }
         st.reach = w;
         renderForm();
       };
@@ -10001,9 +10161,13 @@ views.setup = () => {
         h("div", { class: "small muted mt-s" }, "You can close this page: Craft Conductor keeps going. Open Craft Conductor again and choose See progress on the server.")),
       manualBox,
       card("What's happening", events),
-      // While it installs: what friends outside your home will need (the lower part of the screen).
-      h("details", { class: "card mt router-help", open: true }, h("summary", {}, h("strong", {}, "While you wait: letting friends outside your home join")),
-        routerHelp({ port: (status && status.port) || st.port })));
+      // While it installs: what friends outside your home will need (the lower part of the screen), for the
+      // way chosen: the router's port forwarding, playit.gg's steps on the Friends page, or nothing (#196).
+      st.reach === "forward" ? h("details", { class: "card mt router-help", open: true }, h("summary", {}, h("strong", {}, "While you wait: letting friends outside your home join")),
+        routerHelp({ port: (status && status.port) || st.port }))
+        : st.reach === "playit" ? h("div", { class: "card mt" }, h("strong", {}, "While you wait: letting friends outside your home join"),
+          h("p", { class: "small" }, "You chose playit.gg: once the server is made, its Friends page walks you through it (get playit.gg's program, connect it, add a tunnel). No router settings needed."))
+        : null);
     fill(main, panel);
     let startedAt = null;  // only this setup's events, not an earlier attempt's
     every(1500, async () => {
@@ -10040,7 +10204,7 @@ views.setup = () => {
     propDefaults = Object.fromEntries(opts.properties_schema.map((p) => [p.key, p.default]));
     if (!st.properties) st.properties = { ...propDefaults };
     if (st.memory_gb === null) st.memory_gb = opts.memory_gb;
-    if (isNew && opts.port) st.port = opts.port;  // a port no other server here uses
+    if (isNew && opts.port && !st.portChosen) st.port = opts.port;  // a port no other server here uses (one typed in stays, #195)
     if (st.network_access === null) st.network_access = opts.network_access;
     if (opts.versions_error) toast(opts.versions_error, true);
     const s = status || (server ? await api("/api/status").catch(() => ({})) : {});

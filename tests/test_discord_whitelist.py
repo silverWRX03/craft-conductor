@@ -119,3 +119,27 @@ def test_turning_it_on_needs_a_bot(hub_env):
         discordbot.check_settings("everyone", "")
     with pytest.raises(ValueError):
         discordbot.check_settings("allow", "not-a-role")
+
+
+def test_something_unexpected_from_discord_connects_again(monkeypatch):
+    """Only network and Discord errors were caught: anything else Discord sent that wasn't as expected
+    (a KeyError reading it) ended the bot's thread for good, and Whitelist through Discord stopped
+    answering with nothing said."""
+    import time
+    hub = FakeHub([{"id": "alpha", "name": "Alpha"}])
+    bot = WhitelistBot(hub, "x" * 60, {"mode": "ask"})
+    sessions = []
+
+    def session():
+        sessions.append(1)
+        if len(sessions) == 1:
+            raise KeyError("d")
+        bot.stop.set()
+    monkeypatch.setattr(bot, "_session", session)
+    monkeypatch.setattr(discordbot.random, "random", lambda: 0.0)
+    real_wait = bot.stop.wait
+    monkeypatch.setattr(bot.stop, "wait", lambda t=None: real_wait(0.01))
+    t = threading.Thread(target=bot._run, daemon=True)
+    t.start()
+    t.join(5)
+    assert len(sessions) == 2 and bot.error == "'d'"

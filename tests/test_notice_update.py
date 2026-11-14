@@ -212,3 +212,21 @@ def test_web_self_update_refused_for_source_installs(web_daemon):
                      "can_install": False, "reason": "running from a source checkout"}
     status, body, _ = c.post("/api/self-update/apply", {"version": "9.9.9"})
     assert status == 400 and "source checkout" in body["error"]
+
+
+def test_single_server_mode_has_everything_a_hub_keeps(web_daemon):
+    """`craft-conductor run --web` made its hub without __init__: a background mod check, a friend's join
+    request (and answering it) and the port fix failed with "'Hub' object has no attribute ..." (500)."""
+    from craft_conductor.hub import HOME_ID, Hub
+    d, c, cfg = web_daemon
+    notice.accept(cfg.root, by="web")
+    login(c)
+    status, r, _ = c.post("/api/mods/check", {"background": True})
+    assert status == 200 and r["id"], r
+    hub = d.ui.hub
+    assert hub.add_join_request(HOME_ID, "Alex", "192.0.2.7")
+    assert c.post("/api/join-requests/answer", {"name": "Alex", "allow": False})[0] == 200
+    assert hub.free_port(25590, hold=True)
+    fresh = Hub.__new__(Hub)
+    fresh._start_state()
+    assert set(vars(fresh)) <= set(vars(hub)), set(vars(fresh)) - set(vars(hub))

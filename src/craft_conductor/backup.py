@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import errno
 import gzip
+import hashlib
 import io
 import json
 import logging
@@ -19,6 +20,7 @@ from typing import Iterable
 
 from . import lockbox, parts, private, safearchive
 from .properties import read_properties, write_properties
+from .removal import rmtree
 
 log = logging.getLogger(__name__)
 
@@ -215,18 +217,42 @@ def prune(backups_dir: Path, keep: int) -> list[Path]:
     return removed
 
 
-def copy_out(archive: Path, folder: Path | None, name: str, keep: int = 10) -> Path | None:
+COPY_OWNER = ".craft-conductor-server"  # in each copy folder: the server whose backups these are (its path, hashed)
+
+
+def _copy_dir(folder: Path, root: Path) -> Path:
+    """The server's own folder in ``folder``: named after the server's folder, or "<name>-2" and so on
+    when another server of that name (somewhere else on this computer) has it. Two servers in one
+    folder pruned each other's copies."""
+    safe = re.sub(r"[^A-Za-z0-9._ -]+", "_", root.name).strip() or "server"
+    # (hashed: a folder OneDrive or Google Drive syncs needn't learn where the server is, or the account name)
+    me = hashlib.sha256(os.path.normcase(str(root.resolve())).encode("utf-8")).hexdigest()[:32]
+    for n in range(1, 100):
+        dest = folder / (safe if n == 1 else f"{safe}-{n}")
+        mark = dest / COPY_OWNER
+        dest.mkdir(exist_ok=True)
+        try:
+            with open(mark, "x", encoding="utf-8") as f:  # (a folder an earlier version made: claimed)
+                f.write(me)
+            return dest
+        except FileExistsError:
+            if mark.read_text(encoding="utf-8").strip() == me:
+                return dest
+    raise OSError(f"too many servers named {safe} copy their backups to {folder}")
+
+
+def copy_out(archive: Path, folder: Path | None, root: Path, keep: int = 10) -> Path | None:
     """Copy a backup to another place too (a USB drive, a OneDrive/Dropbox/Google Drive folder),
-    in a folder named after the server, keeping the newest ``keep`` there. A copy that can't
-    be made (the drive is unplugged) is logged, never an error: the backup itself is made."""
+    in a folder of the server's own (``root``: the server's folder), keeping the newest ``keep``
+    there. A copy that can't be made (the drive is unplugged) is logged, never an error: the
+    backup itself is made."""
     if folder is None:
         return None
-    safe = re.sub(r"[^A-Za-z0-9._ -]+", "_", name).strip() or "server"
-    dest_dir = folder / safe
+    dest_dir = folder / root.name
     try:
         if not folder.exists():
             raise OSError(f"{folder} isn't there (is the drive plugged in?)")
-        dest_dir.mkdir(exist_ok=True)
+        dest_dir = _copy_dir(folder, root)
         tmp = dest_dir / (archive.name + ".part")
         shutil.copyfile(archive, tmp)
         dest = dest_dir / archive.name
@@ -293,7 +319,7 @@ def restore(archive: Path, server_dir: Path) -> dict:
     aside = server_dir.with_name(server_dir.name + ".replaced")
     recover(server_dir)
     if staging.exists():
-        shutil.rmtree(staging)
+        rmtree(staging)
     try:
         size = archive.stat().st_size
     except OSError as e:
@@ -317,7 +343,7 @@ def restore(archive: Path, server_dir: Path) -> dict:
             private.protect(props)  # (unpacked with the folder's permissions: its passwords are this account's only)
     except BaseException as e:
         _put_back_kept(staging, server_dir)
-        shutil.rmtree(staging, ignore_errors=True)
+        rmtree(staging, ignore_errors=True)
         reason = _why(e)
         if reason is None:
             raise
@@ -325,13 +351,23 @@ def restore(archive: Path, server_dir: Path) -> dict:
         raise RestoreError(f"the backup {archive.name} can't be restored: {reason}. "
                            "The server was left as it was") from e
     if aside.exists():  # (left over from a restore that finished, but was stopped before tidying up)
-        shutil.rmtree(aside)
+        rmtree(aside, ignore_errors=True)
+        if aside.exists():  # (it can't be deleted: out of the way under another name, said in the log, #216)
+            stray = aside.with_name(f"{aside.name}-{time.strftime('%Y%m%d-%H%M%S')}")
+            try:
+                aside.rename(stray)
+                log.warning("couldn't delete %s (an earlier server folder): moved it to %s, to delete by hand", aside, stray)
+            except OSError as e:
+                _put_back_kept(staging, server_dir)
+                rmtree(staging, ignore_errors=True)
+                raise RestoreError(f"an earlier copy of the server folder ({aside.name}) is in the way and couldn't be "
+                                   f"removed ({e}). The server was left as it was") from e
     if server_dir.exists():
         try:
             server_dir.rename(aside)
         except OSError as e:
             _put_back_kept(staging, server_dir)
-            shutil.rmtree(staging, ignore_errors=True)
+            rmtree(staging, ignore_errors=True)
             raise RestoreError(f"the server folder couldn't be moved aside ({e}): is a program still using a "
                                "file in it? The server was left as it was") from e
     try:
@@ -340,10 +376,12 @@ def restore(archive: Path, server_dir: Path) -> dict:
         if aside.exists() and not server_dir.exists():
             aside.rename(server_dir)  # put it back
         _put_back_kept(staging, server_dir)
-        shutil.rmtree(staging, ignore_errors=True)
+        rmtree(staging, ignore_errors=True)
         raise
-    shutil.rmtree(staging, ignore_errors=True)
-    shutil.rmtree(aside, ignore_errors=True)
+    rmtree(staging, ignore_errors=True)
+    rmtree(aside, ignore_errors=True)
+    if aside.exists():
+        log.warning("the backup is in place, but the server folder it replaced couldn't be deleted: it's in %s", aside)
     return result
 
 
@@ -458,7 +496,7 @@ def recover(server_dir: Path) -> str | None:
             _put_back_kept(staging, server_dir)
             done = PUT_BACK
     elif staging.is_dir() and server_dir.is_dir():  # (only the backup's files: nothing of the server's to lose)
-        shutil.rmtree(staging, ignore_errors=True)
+        rmtree(staging, ignore_errors=True)
         log.warning("a restore into %s was stopped while unpacking; the server is as it was, and the "
                     "half-unpacked copy was removed", server_dir)
         done = done or CUT_OFF

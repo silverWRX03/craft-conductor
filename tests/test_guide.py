@@ -43,3 +43,15 @@ def test_the_guided_setup(hub_env, monkeypatch):
     assert {s["id"]: s["done"] for s in g["steps"]}["invite"]
     assert c.post("/api/hub/guide", {"action": "tick", "step": "friend"})[0] == 400
     assert not c.post("/api/hub/guide", {"action": "stop"})[1]["active"]
+
+
+def test_a_damaged_guide_in_hub_json_is_read_as_new(hub_env):
+    """hub.json's guide that isn't one (or its ticked steps that aren't a list): the guide, which the
+    page asks about every few seconds, answered "internal error"."""
+    from craft_conductor import guide, hub as hubmod
+    hub, c = hub_env
+    path = hub.state_dir / hubmod.HUB_FILE
+    data = json.loads(path.read_text())
+    for value in (5, {"ticked": 5}, {"ticked": [{"a": 1}, "nope"]}):
+        path.write_text(json.dumps({**data, "guide": value}))
+        assert guide.state(hub)["ticked"] == []

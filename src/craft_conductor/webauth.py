@@ -158,7 +158,7 @@ class AuthStore:
                     return Auth(mode=d["mode"], salt=d.get("salt", ""), hash=d.get("hash", ""),
                                 iterations=int(d.get("iterations", ITERATIONS)), default=bool(d.get("default")),
                                 strong=bool(d.get("strong")), temporary=bool(d.get("temporary")))
-            except (ValueError, TypeError):
+            except (ValueError, TypeError, AttributeError):  # (damaged: as if it weren't there; "null" made every page fail)
                 pass
         # craft-conductor 0.1 generated a random password into a plain-text file; nobody chose it, so
         # start over with the default (and the prompt to pick your own).
@@ -277,7 +277,8 @@ class Devices:
             stamp = (st.st_mtime_ns, st.st_size, st.st_ino)
             if self._cache is None or self._cache[0] != stamp:
                 data = json.loads(self.path.read_text())
-                devices = [d for d in data.get("devices", []) if isinstance(d, dict)] if isinstance(data, dict) else []
+                found = data.get("devices") if isinstance(data, dict) else None  # (a list, unless damaged)
+                devices = [d for d in found if isinstance(d, dict)] if isinstance(found, list) else []
                 self._cache = (stamp, devices)
             return [dict(d) for d in self._cache[1]]
         except (OSError, ValueError):

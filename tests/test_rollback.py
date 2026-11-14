@@ -157,6 +157,24 @@ def test_a_new_copy_that_dies_right_after_starting_is_replaced(tmp_path, monkeyp
     assert exe.read_bytes() == b"old program"
 
 
+def test_a_new_copy_that_dies_before_it_says_its_up_is_replaced_at_once(tmp_path, monkeypatch):
+    """#194: the guard knows the process the restart started, so it doesn't wait out the 3 minutes."""
+    state, exe, clock, stopped, started = guarded(tmp_path, monkeypatch, restart_at=1000.0 - 5)
+    rollback.note_new_copy(state, 2 ** 22 + 23456)  # (ended in Task Manager: not running)
+    assert run_guard(state, clock, started, guard_seconds=180) == "reverted"
+    assert clock.t - 1000.0 < 10                         # within seconds, not minutes
+    assert exe.read_bytes() == b"old program" and started
+    assert "stopped right after starting" in rollback.result(state)["message"]
+    assert not (state / rollback.NEW_COPY).exists()
+
+
+def test_a_new_copy_still_starting_is_given_its_time(tmp_path, monkeypatch):
+    state, exe, clock, stopped, started = guarded(tmp_path, monkeypatch, restart_at=1000.0 - 5)
+    rollback.note_new_copy(state, os.getpid())  # (running, but hasn't said it's up)
+    assert run_guard(state, clock, started, guard_seconds=180) == "reverted"
+    assert clock.t - 1000.0 > 170 and "didn't start in time" in rollback.result(state)["message"]
+
+
 def test_nothing_is_undone_when_craft_conductor_was_closed_before_restarting(tmp_path, monkeypatch):
     state, exe, clock, stopped, started = guarded(tmp_path, monkeypatch, pid=2 ** 22 + 54321)  # (never restarted, gone)
     assert run_guard(state, clock, started) == "abandoned"
@@ -321,3 +339,19 @@ def test_the_saved_reason_of_a_failed_start_says_why():
         "server did not finish starting. Sodium is client-only: last line"
     assert failure_reason(UpgradeError("Update failed: no space")) == "Update failed: no space"
     assert failure_reason(RuntimeError("")) == "RuntimeError('')"
+
+
+def test_the_copy_that_failed_is_removed_at_the_next_start(tmp_path, monkeypatch):
+    """On Windows, putting the previous version back moves the one that failed aside as
+    ….failed.exe; like ….old.exe after an update that worked, it goes when Craft Conductor next
+    starts (#193)."""
+    exe = tmp_path / "craft-conductor-windows-x64.exe"
+    exe.write_bytes(b"the version put back")
+    failed, old = selfupdate.failed_binary(exe), selfupdate.old_binary(exe)
+    failed.write_bytes(b"the version that failed")
+    old.write_bytes(b"the one before")
+    assert failed.name == "craft-conductor-windows-x64.failed.exe"
+    monkeypatch.setattr(selfupdate, "frozen", lambda: True)
+    monkeypatch.setattr(sys, "executable", str(exe))
+    selfupdate.cleanup_after_update()
+    assert exe.exists() and not failed.exists() and not old.exists()

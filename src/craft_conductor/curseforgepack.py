@@ -169,7 +169,8 @@ def _platform(manifest: dict) -> tuple[str, str, str]:
     minecraft = str(mc.get("version", ""))
     if not _MINECRAFT.fullmatch(minecraft):
         raise ModpackError("the modpack doesn't say which Minecraft version it's for")
-    loaders = [x for x in mc.get("modLoaders") or [] if isinstance(x, dict)]
+    found = mc.get("modLoaders")
+    loaders = [x for x in found if isinstance(x, dict)] if isinstance(found, list) else []
     loaders.sort(key=lambda x: not x.get("primary"))
     for x in loaders:
         name, _, build = str(x.get("id", "")).partition("-")

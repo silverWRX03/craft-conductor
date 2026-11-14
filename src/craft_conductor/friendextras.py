@@ -14,8 +14,10 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 import time
 from pathlib import Path
+from typing import Callable
 
 from .browse import MAX_RESULTS, PAGE, paging, side_facets
 from .config import ModSpec
@@ -44,6 +46,9 @@ def slugify(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:60] or "server"
 
 
+_lock = threading.RLock()  # one change at a time: each request makes its own Store
+
+
 class Store:
     """The friend's choices for one server: ~/.minecraft/craft-conductor/extras/<server>.json."""
 
@@ -52,7 +57,8 @@ class Store:
 
     def load(self) -> dict:
         try:
-            data = json.loads(self.path.read_text())
+            with _lock:  # (not while a save replaces it: Windows refuses that)
+                data = json.loads(self.path.read_text())
             if isinstance(data, dict) and isinstance(data.get("items"), list):
                 return data
         except (OSError, ValueError):
@@ -60,35 +66,44 @@ class Store:
         return {"minecraft": None, "items": []}
 
     def save(self, data: dict) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(data, indent=2))
-        tmp.replace(self.path)
+        with _lock:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self.path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(data, indent=2))
+            tmp.replace(self.path)
+
+    def change(self, edit: Callable[[dict], object]) -> dict:
+        """Read the choices, let ``edit`` change them, write them back, all as one step, so two
+        clicks at once (or a click while setup checks Modrinth) never undo each other. Nothing is
+        written if ``edit`` raises."""
+        with _lock:
+            data = self.load()
+            edit(data)
+            self.save(data)
+            return data
 
     def add(self, kind: str, project_id: str, slug: str, name: str) -> dict:
         if kind not in KINDS or not ID.fullmatch(project_id):
             raise ExtrasError("that isn't something Craft Conductor can add")
-        data = self.load()
-        if any(i["id"] == project_id for i in data["items"]):
-            raise ExtrasError(f"{name} is already added")
-        data["items"].append({"kind": kind, "id": project_id, "slug": slug if ID.fullmatch(slug or "") else project_id,
-                              "name": str(name)[:100], "enabled": True, "added": time.time()})
-        self.save(data)
-        return data
+
+        def edit(data: dict) -> None:
+            if any(i["id"] == project_id for i in data["items"]):
+                raise ExtrasError(f"{name} is already added")
+            data["items"].append({"kind": kind, "id": project_id, "slug": slug if ID.fullmatch(slug or "") else project_id,
+                                  "name": str(name)[:100], "enabled": True, "added": time.time()})
+        return self.change(edit)
 
     def remove(self, project_id: str) -> dict:
-        data = self.load()
-        data["items"] = [i for i in data["items"] if i["id"] != project_id]
-        self.save(data)
-        return data
+        def edit(data: dict) -> None:
+            data["items"] = [i for i in data["items"] if i["id"] != project_id]
+        return self.change(edit)
 
     def set_enabled(self, project_id: str, enabled: bool) -> dict:
-        data = self.load()
-        for i in data["items"]:
-            if i["id"] == project_id:
-                i["enabled"] = bool(enabled)
-        self.save(data)
-        return data
+        def edit(data: dict) -> None:
+            for i in data["items"]:
+                if i["id"] == project_id:
+                    i["enabled"] = bool(enabled)
+        return self.change(edit)
 
 
 # ------------------------------------------------------------------ search
@@ -221,23 +236,24 @@ def changes_for(data: dict, pack: dict, problems: list[dict]) -> list[dict]:
     return out
 
 
-def apply_changes(store: Store, data: dict, pack: dict, problems: list[dict]) -> tuple[dict, list[str]]:
+def apply_changes(store: Store, pack: dict, problems: list[dict]) -> tuple[dict, list[str]]:
     """The friend chose to go on: leave out mods that don't fit, keep packs but switch them off."""
-    notes = []
+    notes: list[str] = []
     bad = {p["id"] for p in problems}
-    items = []
-    for i in data["items"]:
-        if i["id"] in bad and i["kind"] == "mod":
-            notes.append(f"{i['name']} was removed: it has no build for Minecraft {pack['minecraft']} yet")
-            continue
-        if i["id"] in bad and i.get("enabled", True):
-            i["enabled"] = False
-            notes.append(f"{i['name']} was switched off: it may not work on Minecraft {pack['minecraft']}. You can switch "
-                         "it back on, but the game may crash")
-        items.append(i)
-    data = {**data, "items": items, "minecraft": pack["minecraft"]}
-    store.save(data)
-    return data, notes
+
+    def edit(data: dict) -> None:
+        items = []
+        for i in data["items"]:
+            if i["id"] in bad and i["kind"] == "mod":
+                notes.append(f"{i['name']} was removed: it has no build for Minecraft {pack['minecraft']} yet")
+                continue
+            if i["id"] in bad and i.get("enabled", True):
+                i["enabled"] = False
+                notes.append(f"{i['name']} was switched off: it may not work on Minecraft {pack['minecraft']}. You can "
+                             "switch it back on, but the game may crash")
+            items.append(i)
+        data["items"], data["minecraft"] = items, pack["minecraft"]
+    return store.change(edit), notes
 
 
 # ------------------------------------------------------------ in the game

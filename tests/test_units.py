@@ -90,6 +90,23 @@ def test_invalid_config(tmp_path):
         configmod.load(tmp_path)
 
 
+
+def test_a_setting_of_the_wrong_kind_is_a_plain_error(tmp_path):
+    """Valid TOML with a value of another kind (a number where a folder or a list goes) raised a
+    TypeError, which stopped Craft Conductor (and the server list with it) instead of listing
+    the server with its problem."""
+    template = configmod.render_template("fabric", "1.21.1")
+    for old, new, words in (("warn_minutes = [10, 5, 1]", "warn_minutes = 5", "warn_minutes must be a list"),
+                            ('dir = "backups"', "dir = 7", "dir must be text"),
+                            ("remind_days = 30", "remind_days = []", "remind_days must be a whole number")):
+        assert old in template
+        (tmp_path / "craft-conductor.toml").write_text(template.replace(old, new, 1), encoding="utf-8")
+        with pytest.raises(ConfigError, match=words):
+            configmod.load(tmp_path)
+    # Flags written as one string: each one goes to Java, not each letter.
+    (tmp_path / "craft-conductor.toml").write_text(template.replace("jvm_args = []", 'jvm_args = "-XX:+UseZGC -Xss2m"'), encoding="utf-8")
+    assert configmod.load(tmp_path).server.jvm_args == ["-XX:+UseZGC", "-Xss2m"]
+
 def test_java_version_parsing():
     assert parse_major('openjdk version "21.0.4" 2024-07-16') == 21
     assert parse_major('java version "1.8.0_392"') == 8
@@ -126,6 +143,41 @@ def test_config_set_value_keeps_comments(tmp_path):
     assert cfg.java_version == 21
     assert cfg.server.memory == "8G"
     assert "# download Eclipse Temurin" in path.read_text()
+
+
+def test_config_changes_at_the_same_time_are_all_kept(tmp_path):
+    """Settings saved at once each read, changed and wrote the whole file: most were lost, and a reader
+    could find it half-written ("[server] loader is required"). They take turns, and each is put in
+    place whole."""
+    import threading
+    path = tmp_path / "craft-conductor.toml"
+    path.write_text(configmod.render_template("fabric", "1.21.1"))
+    errors, stop = [], threading.Event()
+
+    def change(i):
+        try:
+            for j in range(10):
+                configmod.set_value(path, "client", f"k{i}_{j}", "1")
+        except Exception as e:  # (any: the point is that none happens)
+            errors.append(e)
+
+    def read():
+        while not stop.is_set():
+            try:
+                configmod.load(tmp_path)
+            except Exception as e:
+                errors.append(e)
+    reader = threading.Thread(target=read)
+    reader.start()
+    writers = [threading.Thread(target=change, args=(i,)) for i in range(6)]
+    [t.start() for t in writers]
+    [t.join(60) for t in writers]
+    stop.set()
+    reader.join(10)
+    assert errors == []
+    text = configmod.read_text(path)
+    assert all(f"k{i}_{j} = 1" in text for i in range(6) for j in range(10))
+    assert not list(tmp_path.glob("*.tmp"))  # (no copies left behind)
 
 
 def test_server_properties_editing(tmp_path):

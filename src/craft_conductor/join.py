@@ -123,13 +123,17 @@ def parse_invite(text: str) -> Invite:
     if code and not text.startswith("craft-conductor-"):  # an invite page link, an craft-conductor:// link, a whole message
         return parse_invite(code.group(0))
     if "://" in text:
-        u = urlparse(text)
+        try:
+            u = urlparse(text)
+            port = u.port  # (raises for one that isn't a port, like ":99999")
+        except ValueError:  # (and for a broken [address])
+            raise JoinError("that link isn't an Craft Conductor invite: its address or port is damaged") from None
         m = re.fullmatch(r"/join/([A-Za-z0-9_-]+)(/.*)?", u.path)
         if u.scheme not in ("http", "https") or not m or not u.hostname:
             raise JoinError("that link isn't an Craft Conductor invite (it should look like https://.../join/...)")
         if u.scheme != "https":
             raise JoinError(OLD_INVITE)
-        return _checked(u.hostname, u.port or 443, m.group(1), u.fragment)
+        return _checked(u.hostname, port or 443, m.group(1), u.fragment)
     code = text.removeprefix("craft-conductor-")
     try:
         raw = base64.urlsafe_b64decode(code + "=" * (-len(code) % 4)).decode()
@@ -211,6 +215,10 @@ def validate_pack(pack: object, base: str | None = None) -> dict:
         pass  # a single-player game (singleplayer.py): no server to join
     elif not isinstance(pack.get("address"), str) or not re.fullmatch(r"[A-Za-z0-9.:\[\]-]{1,260}", pack["address"]):
         raise JoinError("the server's address is missing")
+    for key in ("mods", "manual"):  # (lists, from whichever server sent them)
+        if not isinstance(pack.get(key, []), list):
+            raise JoinError("the server sent something this version of Craft Conductor doesn't understand; "
+                            "download the invite again")
     # Mods to download by hand: shown as links on the friend's page, so https ones only.
     pack["manual"] = [m for m in pack.get("manual", []) if isinstance(m, dict) and isinstance(m.get("url"), str)
                       and m["url"].startswith("https://") and isinstance(m.get("name"), str)]

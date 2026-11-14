@@ -57,6 +57,20 @@ def test_offline_edits_when_server_stopped(server, http):
     assert s["bans"] == [] and s["ops"] == [] and s["ip_bans"] == [] and not s["whitelist_enabled"]
 
 
+
+def test_two_players_added_at_once_are_both_kept(server, http, monkeypatch):
+    """With the server stopped, adding a player read the whitelist, asked Mojang, then wrote what it
+    had read: two at once (two Allow clicks, the Discord whitelist sync) kept only the last."""
+    import threading
+    import time
+    from craft_conductor import players as pm
+    monkeypatch.setattr(pm.Players, "lookup", lambda self, name: (time.sleep(0.2), (pm.offline_uuid(name), name))[1])
+    names = [f"Player{i}" for i in range(5)]
+    threads = [threading.Thread(target=Players(server, http).act, args=("whitelist-add", n)) for n in names]
+    [t.start() for t in threads]
+    [t.join(30) for t in threads]
+    assert sorted(e["name"] for e in read(server, "whitelist.json")) == names
+
 def test_offline_mode_uses_offline_uuids(server, http):
     (server / "server.properties").write_text("online-mode=false\n")
     Players(server, http).act("op", "Notch")
@@ -310,3 +324,47 @@ def test_a_running_server_says_when_a_name_does_not_exist(server, http):
     assert p.act("op", "Steve") == "Made Steve a server operator"
     assert p.act("deop", "Steve") == "sent: deop Steve"   # (no answer in time: as before)
     assert asked[0] == "whitelist add Ghost"
+
+
+def test_bedrock_names_on_a_server_with_floodgate(server, http):
+    """Floodgate names Bedrock players with a "." and their Xbox gamertag: the Players page
+    whitelists them (Floodgate's own command while it runs, Geyser's lookup while it's stopped)
+    and lists them like the others (#212)."""
+    from craft_conductor.players import GEYSER_XUID, floodgate_prefix
+    p = Players(server, http)
+    with pytest.raises(PlayerError, match="valid player name"):  # (no Floodgate: not a name at all)
+        p.act("whitelist-add", ".SilverWRX03")
+    assert floodgate_prefix(server) is None
+    (server / "mods").mkdir()
+    (server / "mods" / "Floodgate-Fabric-2.2.7.jar").write_bytes(b"PK")
+    assert floodgate_prefix(server) == "."  # (before its first start wrote config.yml)
+    sent = []
+    running = Players(server, http, sent.append)
+    running.act("whitelist-add", ".SilverWRX03")
+    running.act("whitelist-remove", ".SilverWRX03")
+    running.act("kick", ".SilverWRX03")
+    assert sent == ["fwhitelist add SilverWRX03", "fwhitelist remove SilverWRX03", "kick .SilverWRX03"]
+    # stopped: the XUID from Geyser's lookup makes Floodgate's UUID
+    http.json[f"{GEYSER_XUID}/SilverWRX03"] = {"xuid": 2535428654021843}
+    stopped = Players(server, http)
+    assert "SilverWRX03" in stopped.act("whitelist-add", ".SilverWRX03")
+    assert read(server, "whitelist.json") == [{"uuid": "00000000-0000-0000-0009-01f57c46bcd3", "name": ".SilverWRX03"}]
+    assert stopped.summary()["bedrock_prefix"] == "."
+    with pytest.raises(PlayerError, match="Xbox account"):
+        stopped.act("whitelist-add", ".NoSuchTag")
+    with pytest.raises(PlayerError, match=r"put \. before their Xbox gamertag"):
+        stopped.act("op", "NoSuchPlayer")  # (a Java name Mojang doesn't know: it says how a Bedrock one looks)
+    # Floodgate's prefix as its config.yml sets it
+    cfg = server / "config" / "floodgate" / "config.yml"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text('# the prefix\nusername-prefix: "*"\nreplace-spaces: true\n')
+    assert floodgate_prefix(server) == "*"
+    assert not Players(server, http).valid_name(".SilverWRX03") and Players(server, http).valid_name("*SilverWRX03")
+
+
+def test_bedrock_players_show_as_online():
+    from craft_conductor.process import JOINED, LEFT
+    assert JOINED.search("[12:00:01] [Server thread/INFO]: .SilverWRX03 joined the game").group(1) == ".SilverWRX03"
+    assert LEFT.search("[12:00:01] [Server thread/INFO]: System chat: .SilverWRX03 left the game").group(1) == ".SilverWRX03"
+    assert JOINED.search("[12:00:01] [Server thread/INFO]: Steve joined the game").group(1) == "Steve"
+    assert JOINED.search("[12:00:01] [Server thread/INFO]: <Steve> Bob joined the game") is None

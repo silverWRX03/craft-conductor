@@ -123,7 +123,7 @@ def read_profile(server_dir: Path, since: float) -> str:
     for path in files:
         try:
             if path.suffix == ".txt":
-                text = path.read_text(errors="replace")
+                text = path.read_text(encoding="utf-8", errors="replace")
             else:
                 with zipfile.ZipFile(path) as z:
                     names = [n for n in z.namelist() if n.endswith(".txt") and "profil" in n.lower()]

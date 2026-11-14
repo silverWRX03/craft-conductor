@@ -215,3 +215,17 @@ def test_the_modpack_page_answers(hub_env):
     assert c.get("/api/servers/alpha/modpack")[1] == {"pack": None}
     assert c.post("/api/servers/alpha/modpack/update", {"version": "PACKV002"})[0] == 400  # (not made from a pack)
     assert c.post("/api/servers/alpha/modpack/check", {})[1] == {"pack": None, "current": None, "newer": []}
+
+
+def test_a_modrinth_pack_is_named_by_the_pack_and_its_version_number(http):
+    """Not by the version's title alone ("Chaos Cubed Hotfix 3.0" says nothing about which pack, #197)."""
+    from craft_conductor import modpack
+    from craft_conductor.mods.modrinth import API
+    assert modpack.pack_name("Vanilla Perfected", "1.0.3+26.2", "Chaos Cubed Hotfix 3.0") == \
+        "Vanilla Perfected 1.0.3+26.2 (Chaos Cubed Hotfix 3.0)"
+    assert modpack.pack_name("Fabulously Optimized", "6.4.0", "6.4.0") == "Fabulously Optimized 6.4.0"
+    assert modpack.pack_name("", "1.0.0+26.3", "Wilderness Bound Update 26.3") == "1.0.0+26.3 (Wilderness Bound Update 26.3)"
+    http.json[f"{API}/version/VPv10300"] = {"id": "VPv10300", "project_id": "VanPerf1", "name": "Chaos Cubed Hotfix 3.0",
+                                             "version_number": "1.0.3+26.2", "files": [{"filename": "vp.mrpack", "url": "u", "primary": True}]}
+    http.json[f"{API}/project/VanPerf1"] = {"id": "VanPerf1", "title": "Vanilla Perfected"}
+    assert modpack.version_info(http, "VPv10300")["name"] == "Vanilla Perfected 1.0.3+26.2 (Chaos Cubed Hotfix 3.0)"

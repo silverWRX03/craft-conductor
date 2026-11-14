@@ -27,6 +27,7 @@ PENDING = "setup-pending"
 OPEN_BY_DEFAULT = {"white-list": "false", "enforce-whitelist": "false"}
 CLOSED_BY_DEFAULT = {"white-list": "true", "enforce-whitelist": "true"}
 NAME_LIMIT = 59  # server.properties motd is shown in the server list; keep it short
+RELEASE = re.compile(r"\d{1,3}(\.\d{1,3}){1,2}")  # a Minecraft release (1.21.1, 26.2): not a snapshot
 
 LOADER_INFO = [
     ("fabric", "Fabric", "Lightweight and quick to update. Most performance and quality-of-life mods.", True),
@@ -125,6 +126,7 @@ class SetupSpec:
     world_source: Path | None = None  # where that world is, found by the hub (never from the form)
     reach: str = ""                # how friends outside join: playit | forward | home (reach.py)
     whitelist_off_ok: bool = False  # the person was warned and still wants the whitelist off on a reachable server
+    world_older_ok: bool = False    # the person was warned the imported world is from a newer Minecraft, and imports it anyway
     owner_name: str = ""           # the person's own Minecraft name, put on the whitelist so they aren't locked out
     reachable: bool = False        # it can be reached from the internet (decided by the hub, never from the form)
 
@@ -143,6 +145,10 @@ class SetupSpec:
                 if item not in out:
                     out.append(item)
             return out
+
+        def texts(key: str) -> list[str]:  # (a list of names; anything else sent: none)
+            value = d.get(key)
+            return [x for x in value if isinstance(x, str)] if isinstance(value, list) else []
 
         def pack_paths(key: str) -> list[str]:
             items = d.get(key) or []
@@ -187,13 +193,14 @@ class SetupSpec:
             port_chosen="port" in d,
             reach=str(d.get("reach") or ""),
             whitelist_off_ok=d.get("whitelist_off_ok") is True,
+            world_older_ok=d.get("world_older_ok") is True,
             owner_name=str(d.get("owner_name") or "").strip(),
             modpack_version=str(d.get("modpack_version") or ""),
             modpack_exclude=pack_paths("modpack_exclude"),
-            local_mods=[str(x) for x in (d.get("local_mods") or []) if isinstance(x, str)],
-            client_mods=[str(x) for x in (d.get("client_mods") or []) if isinstance(x, str)],
-            client_local=[str(x) for x in (d.get("client_local") or []) if isinstance(x, str)],
-            manual_files=[str(x) for x in (d.get("manual_files") or []) if isinstance(x, str)],
+            local_mods=texts("local_mods"),
+            client_mods=texts("client_mods"),
+            client_local=texts("client_local"),
+            manual_files=texts("manual_files"),
             world=str(d.get("world") or ""),
             mod_channels={str(k): v for k, v in (d.get("mod_channels") or {}).items()
                           if v in ("beta", "alpha")} if isinstance(d.get("mod_channels"), dict) else {},
@@ -257,6 +264,27 @@ def _mod_spec(item: str, required: bool, channel: str | None = None, datapack: b
     if item.startswith("curseforge:"):
         return ModSpec("curseforge", item.split(":", 1)[1], required=required, channel=channel)
     return ModSpec("modrinth", item, required=required, channel=channel, datapack=datapack)
+
+
+def world_not_newer(spec: SetupSpec) -> None:
+    """A world brought in from a newer Minecraft than the server's (#233): opening it in an older one can lose
+    what the newer one added, and setup's first start would save it so. Refused unless the person said to
+    import it anyway (the setup page asks)."""
+    if spec.world_source is None or spec.world_older_ok or not RELEASE.fullmatch(spec.minecraft or ""):
+        return
+    from . import world
+    try:
+        version = world.version_of(spec.world_source)
+    except (OSError, world.WorldError):
+        return  # (said when it's brought in)
+    if version and RELEASE.fullmatch(version) and release_key(version) > release_key(spec.minecraft):
+        raise ConfigError(f"This world was last played on Minecraft {version}, newer than this server's {spec.minecraft}. "
+                          f"Opening it in an older version can lose what {version} added. Use Minecraft {version}, "
+                          "choose another world, or confirm that you want to import it anyway.")
+
+
+def release_key(version: str) -> tuple[int, ...]:
+    return tuple(int(x) for x in version.split("."))
 
 
 def whitelist_defaults(spec: SetupSpec) -> dict[str, str]:

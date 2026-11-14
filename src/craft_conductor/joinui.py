@@ -250,7 +250,7 @@ class JoinUI:
         entries, problems = self._resolve(data)
         adds = [{"name": e["name"], "needed_by": e.get("needed_by")} for e in entries if e.get("needed_by")]
         if data.get("deps") != adds:  # remembered, so the list can show what each extra brings along
-            store.save({**store.load(), "deps": adds})
+            store.change(lambda d: d.update(deps=adds))
         return {"adds": adds,
                 "changes": changes_for(data, self.pack, problems), "previous": data.get("minecraft"),
                 "minecraft": self.pack["minecraft"]}
@@ -275,9 +275,9 @@ class JoinUI:
             if problems and not accept_changes:
                 raise ExtrasChanges(changes_for(data, self.pack, problems))
             if problems:
-                data, notes = apply_changes(store, data, self.pack, problems)
+                data, notes = apply_changes(store, self.pack, problems)
                 entries, _ = self._resolve(data)
-            store.save({**data, "minecraft": self.pack["minecraft"]})
+            store.change(lambda d: d.update(minecraft=self.pack["minecraft"]))  # (and keeps one added meanwhile)
             install_pack = {**self.pack, "mods": self.pack.get("mods", []) + entries}
         else:
             install_pack = self.pack
@@ -448,7 +448,8 @@ class JoinUI:
                         self._json(200, {"ok": True})
                     elif rest == "api/setup":
                         mem = body.get("memory_gb")
-                        ui.setup([str(x) for x in body.get("launchers", [])],
+                        launchers = body.get("launchers")
+                        ui.setup([str(x) for x in launchers] if isinstance(launchers, list) else [],
                                  int(mem) if isinstance(mem, (int, float)) else None, body.get("accept_changes") is True)
                         self._json(200, {"ok": True})
                     elif rest == "api/extras/add":
@@ -497,16 +498,17 @@ class JoinUI:
             log.debug("couldn't note the open page: %s", e)
 
     def reopen(self, invite_text: str) -> None:
-        """Show the page again (someone closed the tab, then opened craft-conductor again). A new invite
-        replaces the current one unless Minecraft is being set up right now."""
+        """Show the page again (someone closed the tab, then opened craft-conductor again). The invite
+        (a new one, or the same one again) replaces the current one unless Minecraft is being set up
+        right now, and its mods are asked for again: the server's owner may have changed them, or
+        paused the links while fixing them (#210)."""
         if invite_text and not self.running:
             from .join import parse_invite
             try:
                 new = parse_invite(invite_text)
-                if self.invite is None or new.code != self.invite.code:
-                    with self._lock:
-                        self.invite, self.pack, self.pack_error, self.results = new, None, "", []
-                        self.joiner = Joiner(new, mc_dir=self._mc_dir, http=self._http, say=self._say)
+                with self._lock:
+                    self.invite, self.pack, self.pack_error, self.results = new, None, "", []
+                    self.joiner = Joiner(new, mc_dir=self._mc_dir, http=self._http, say=self._say)
             except JoinError as e:
                 log.debug("ignored an invite handed over: %s", e)
         self.last_seen = time.monotonic()

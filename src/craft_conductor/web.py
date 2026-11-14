@@ -19,6 +19,7 @@ import ipaddress
 import json
 import os
 import logging
+import math
 import re
 import secrets
 import shutil
@@ -53,7 +54,8 @@ from .mods.curseforge import CurseForgeProvider
 from .mods.modrinth import ModrinthProvider, keep_buildable
 from .planner import DATAPACK_LOADERS, lowest
 from .players import PlayerError, Players, broadcast_text
-from .properties import read_properties, server_name, write_properties
+from .properties import number, read_properties, server_name, write_properties
+from .removal import rmtree
 from .skins import SkinError, Skins
 
 log = logging.getLogger(__name__)
@@ -107,6 +109,7 @@ SECURITY_HEADERS = {
 
 # Reachable before the first-run notice has been accepted.
 # A sign-in with craft-conductor's one-time password (headless first run) can only replace it.
+STAGED_NAME = re.compile(r"[A-Za-z0-9 ()\[\]+_.,'-]{1,120}\.(jar|zip)")  # a file added on the setup page
 FIRST_SIGN_IN_OK = {"/api/auth/change", "/api/logout", "/api/hub", "/api/notice", "/api/notice/accept", "/api/licenses"}
 NOTICE_EXEMPT = {"/api/notice", "/api/notice/accept", "/api/status", "/api/licenses", "/api/auth/change", "/api/hub"}
 # Routes whose request body is a file, streamed to disk rather than parsed as JSON.
@@ -118,6 +121,24 @@ PROXY_HEADERS = ("X-Forwarded-For", "Forwarded", "X-Real-IP", "X-Forwarded-Host"
 # The forgotten-password reset's code (in Craft Conductor's own folder: WebUI.new_reset_code).
 RESET_FILE = "craft-conductor-reset-code.txt"
 SERVER_PATH = re.compile(r"^/api/servers/([a-z0-9][a-z0-9-]{0,63})(/.*)$")
+
+
+#: What an invited person's player action did, in the activity (#209); {name} is who it was done to.
+DID = {"kick": "kicked {name}", "ban": "banned {name}", "pardon": "unbanned {name}", "ban-ip": "banned the IP address of {name}",
+       "pardon-ip": "unbanned the IP address {name}", "op": "made {name} an operator", "deop": "took {name}'s operator role away",
+       "whitelist-add": "added {name} to the whitelist", "whitelist-remove": "removed {name} from the whitelist",
+       "whitelist-on": "turned the whitelist on", "whitelist-off": "turned the whitelist off"}
+
+
+def did(path: str, body: dict) -> str:
+    """An invited person's request in the activity's plain words: "kicked Steve", not "players/action"."""
+    def clean(value, n=60):  # (text they typed: one line, short)
+        return re.sub(r"[\x00-\x1f\x7f]", " ", str(value or "")).strip()[:n]
+    if path == "/api/players/action" and str(body.get("action")) in DID:
+        return DID[str(body.get("action"))].format(name=clean(body.get("name"), 40) or "a player")
+    if path == "/api/broadcast":
+        return f'broadcast "{clean(body.get("message"), 100)}"'
+    return path.removeprefix("/api/")
 
 
 @functools.lru_cache(maxsize=None)
@@ -997,12 +1018,12 @@ class RequestHandler(BaseHTTPRequestHandler):
                 raise ApiError(403, "that only works in a browser on the server's own computer")
             api = self.web.api_for(sid)
             set_current_server(api.d.server_id)  # so this server's activity feed shows what happens
-            if not subject.is_owner and method == "POST":
-                log.info("%s%s: %s", subject.name, f" (phone {subject.device_name})" if subject.device else "",
-                         path.removeprefix("/api/"))
             handler = api.routes.get((method, path))
             if handler is None:
                 raise ApiError(404, "not found")
+            who = "" if subject.is_owner or method != "POST" else                 subject.name + (f" (phone {subject.device_name})" if subject.device else "")
+            if who and (path == "/api/manual/upload" or path in RAW_UPLOADS):
+                log.info("%s: %s", who, path.removeprefix("/api/"))
             if path == "/api/manual/upload":
                 return self._json(200, api.upload(self, q))
             if path in RAW_UPLOADS:
@@ -1037,6 +1058,8 @@ class RequestHandler(BaseHTTPRequestHandler):
                 body = {**body, "__local": local and subject.is_owner}  # (from this request, not the page's say-so)
             if path == "/api/reach" and method == "POST":
                 body = {**body, "__any_port": self.web.risk("any-port")}
+            if who:
+                log.info("%s: %s", who, did(path, body))
             return self._json(200, access.server_answer(subject, sid, path, handler(q, body)))
         except ApiError as e:
             self._fail(e.status, str(e), e.confirm)
@@ -1149,6 +1172,15 @@ def tailscale_ip() -> str | None:
         return ip if ipaddress.ip_address(ip) in ipaddress.ip_network("100.64.0.0/10") else None
     except ValueError:
         return None
+
+
+def _number(value) -> float:
+    """A number from a query (0 when it isn't one)."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return number if math.isfinite(number) else 0.0
 
 
 def early_channel(b: dict, mod: str) -> str | None:
@@ -1654,6 +1686,13 @@ class HubApi:
                          {"chosen": hub.locations()["chosen"], "choosable": locations_choosable()},
             "network_access": hub.web.host in ("0.0.0.0", "::"),
             "servers": hub.summary(),
+            # (what was put right after Craft Conductor was stopped half-way: the page says it once, #200)
+            "recovered": [{"sid": sid, "message": d.m.recovered["message"], "time": d.m.recovered["time"]}
+                          for sid, d in sorted(hub.daemons.items())
+                          if getattr(d.m, "recovered", None) and time.time() - d.m.recovered["time"] < 86400],
+            # (the servers' messages that went to Discord and phones, for the bell: the page takes new ones, #241)
+            # (only those newer than the page has: notices_since, asked every 2 s)
+            "notices": [n for n in list(hub.notices) if n["time"] > max(_number(q.get("notices_since")), time.time() - 86400)],
             "share": hub.share_status() if not hub.is_single else None,
             "guide": None if hub.is_single else self._guide_state(),
             "health": [*(hub._health.warnings if getattr(hub, "_health", None) else []),  # (checked every minute: health.py)
@@ -2045,7 +2084,8 @@ class HubApi:
         loader = str(b.get("loader", ""))
         if loader not in LOADERS or not LOADERS[loader].mod_loaders:
             raise ApiError(400, "that server type doesn't run mods")
-        mods = [str(x) for x in (b.get("mods") or []) if re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", str(x))]
+        mods = b.get("mods") if isinstance(b.get("mods"), list) else []  # (anything else sent: none)
+        mods = [str(x) for x in mods if re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", str(x))]
         minecraft = str(b.get("minecraft") or "") or None
         provider = ModrinthProvider(self.hub.http)
         channels = {m: early_channel(b, m) for m in mods if early_channel(b, m)}
@@ -2327,7 +2367,7 @@ class HubApi:
         sid = str(q.get("id", ""))
         if not firewall.available() or sid not in self.hub.daemons:
             return {"rules": []}
-        from .reach import geyser_config, geyser_port
+        from .reach import geyser_ports
         server_dir = self.hub.daemons[sid].m.server_dir
         try:
             port = int(read_properties(server_dir / "server.properties").get("server-port", "25565"))
@@ -2335,7 +2375,7 @@ class HubApi:
             return {"rules": []}
         others = self.hub.taken_ports(exclude=sid)  # (a port another server here uses keeps its rule)
         state = firewall.read(fresh=True)
-        mine = [port] + ([geyser_port(server_dir)] if geyser_config(server_dir) is not None else [])
+        mine = [port] + [p for p, _ in geyser_ports(server_dir)]
         return {"rules": [r for p in dict.fromkeys(mine) if p not in others
                           for r in firewall.own_rules(state, p)]}
 
@@ -2767,7 +2807,7 @@ class HubApi:
         if handler.headers.get("X-CRAFT-CONDUCTOR") != "1":
             raise ApiError(403, "missing X-CRAFT-CONDUCTOR header")
         name = q.get("filename", "")
-        if not re.fullmatch(r"[A-Za-z0-9 ()\[\]+_.,'-]{1,120}\.(jar|zip)", name):
+        if not STAGED_NAME.fullmatch(name):
             raise ApiError(400, "only .jar and .zip files can be added here")
         return self.hub.stage_upload(handler, name, MAX_ARCHIVE if name.endswith(".zip") else MAX_UPLOAD)
 
@@ -2806,7 +2846,7 @@ class HubApi:
         folder = self.hub.staging_dir / staged["id"]
         found = handdownload.match(folder / "upload.jar")
         if found is None or not safe_file_name(found["filename"]):
-            shutil.rmtree(folder, ignore_errors=True)
+            rmtree(folder, ignore_errors=True)
             raise ApiError(400, f"{name} isn't one of the mods to download by hand (or it's another version of it): "
                                 "download it again from its link")
         (folder / "upload.jar").rename(folder / found["filename"])
@@ -2831,6 +2871,9 @@ class HubApi:
         out = self.hub.look_for_hand_downloads(files, chosen_folder(b.get("folder")), into)
         for x in out["found"]:
             x["id"] = ids[x["filename"]]
+        # (names Craft Conductor wasn't told about: it was restarted since the page asked. The page asks again, #243)
+        known = {x["filename"] for x in files}
+        out["unknown"] = [n for n in dict.fromkeys(str(x) for x in names) if n not in known]
         return out
 
     def hand_folders_info(self, q=None, b=None) -> dict:
@@ -3031,8 +3074,9 @@ class Api:
         get("/api/events", self.events)
         post("/api/command", self.command)
         post("/api/server/start", lambda q, b: self._job("start", self.d.start_server))
-        post("/api/server/stop", lambda q, b: self._job("stop", self.d.stop_server))
-        post("/api/server/restart", lambda q, b: self._job("restart", self.d.restart_server))
+        post("/api/server/stop", lambda q, b: {"ok": True, "job": "stop"} if self.d.call_off_restart()  # (#205)
+             else self._job("stop", self.d.stop_server))
+        post("/api/server/restart", lambda q, b: self._job("restart", self.d.restart_server, bool((b or {}).get("warn"))))
         get("/api/updates", lambda q, b: {"check": self.d.last_check})
         get("/api/updates/readiness", self.readiness)
         get("/api/beta", self.betas)
@@ -3140,6 +3184,7 @@ class Api:
         post("/api/client/discord", self.post_to_discord)
         post("/api/client/local", self.upload_client_jar)
         post("/api/client/local/remove", self.remove_client_jar)
+        post("/api/client/local/to-server", self.client_jar_to_server)
         get("/api/client/search", self.client_search)
         self.routes = r
         self.sampler = stats.Sampler()
@@ -3178,7 +3223,7 @@ class Api:
             "java_forced": m.config.java_version,
             "mods": len(lk.mods),
             "players": sorted(d.players),
-            "max_players": int(props.get("max-players", "20") or 20),
+            "max_players": number(props, "max-players", 20),
             "motd": server_name(props),
             "port": props.get("server-port", "25565"),
             "server_dir": str(m.server_dir),
@@ -3343,14 +3388,57 @@ class Api:
             raise ApiError(409, "this server is already set up")
         spec = setupmod.SetupSpec.from_dict(b)
         spec.world_source = self.web.hub.world_source(spec.world)
-        if spec.local_mods:
-            self.web.hub.take_staged(spec.local_mods, self.m.mods_dir)
-        if spec.client_local:
-            from .clientpack import client_dir
-            self.web.hub.take_staged(spec.client_local, client_dir(self.m.config))  # friends' own files
-        if spec.manual_files and self.m.config.manual_dir:
-            self.web.hub.take_staged(spec.manual_files, self.m.config.manual_dir)  # mods downloaded by hand
-        return self._job("set up server", self.d.run_setup, spec)
+        try:
+            setupmod.world_not_newer(spec)
+        except ConfigError as e:
+            raise ApiError(400, str(e)) from None
+        if b.get("replace_world") is True:
+            from . import world
+            try:
+                world.level_dir(self.m.server_dir)  # (a name it can't use is said now, not as a failed setup)
+            except world.WorldError as e:
+                raise ApiError(400, str(e)) from None
+
+        def set_up() -> str:
+            # In the job: a second click, or a second browser, while a setup runs is refused (busy) before
+            # it removes or moves anything the running one uses.
+            self._retry_matches_the_form(b)
+            if spec.local_mods:
+                self.web.hub.take_staged(spec.local_mods, self.m.mods_dir)
+            if spec.client_local:
+                from .clientpack import client_dir
+                self.web.hub.take_staged(spec.client_local, client_dir(self.m.config))  # friends' own files
+            if spec.manual_files and self.m.config.manual_dir:
+                self.web.hub.take_staged(spec.manual_files, self.m.config.manual_dir)  # mods downloaded by hand
+            return self.d.run_setup(spec)
+        return self._job("set up server", set_up)
+
+    def _retry_matches_the_form(self, b: dict) -> None:
+        """Trying a failed setup again (#235): the server folder already has what the first try put in it.
+        Files of your own taken off the form since (``remove_local``, ``remove_client_local``: their names)
+        are taken out, and with ``replace_world`` the world the first try brought in goes (a new world is
+        made, or the one now chosen is brought in)."""
+        from .clientpack import local_jars
+        from . import world
+
+        def names(key: str) -> list[str]:
+            given = b.get(key)
+            return [x for x in given if isinstance(x, str) and STAGED_NAME.fullmatch(x)][:500] if isinstance(given, list) else []
+        mine = set(self.m.unmanaged_jars())
+        for name in names("remove_local"):
+            if name in mine:
+                (self.m.mods_dir / name).unlink(missing_ok=True)
+                log.info("took %s out of the server's mods: it was removed from the setup page", name)
+        theirs = {p.name: p for p in local_jars(self.m.config)}
+        for name in names("remove_client_local"):
+            if name in theirs:
+                theirs[name].unlink(missing_ok=True)
+        if b.get("replace_world") is True:
+            level = world.level_dir(self.m.server_dir)  # (checked by setup_apply)
+            for folder in (level, level.with_name(level.name + "_nether"), level.with_name(level.name + "_the_end")):
+                if folder.is_dir() and not folder.is_symlink():
+                    rmtree(folder)
+                    log.info("removed the world %s from the first try: another was chosen on the setup page", folder.name)
 
     # ---------------------------------------------------------------- mods
     def mods(self, q, b) -> dict:
@@ -3891,12 +3979,12 @@ class Api:
                        self.d.ask_command if running else None)
 
     def players(self, q, b) -> dict:
-        return self._players().summary(self.d.players)
+        return self._players().summary(set(self.d.players))  # (a copy: players join meanwhile)
 
     def players_online(self, q, b) -> dict:
         """The Dashboard's Connected Players card (polled): who is online with their role and ping, the
         player limit, whether the whitelist is on (and its names with ?whitelist=1). Reads files only."""
-        return self._players().roster(self.d.players, whitelist=q.get("whitelist") == "1")
+        return self._players().roster(set(self.d.players), whitelist=q.get("whitelist") == "1")
 
     def broadcast(self, q, b) -> dict:
         """A message to everyone online, through the server's ``say``."""
@@ -4105,7 +4193,7 @@ class Api:
         except (TypeError, ValueError):
             raise ApiError(400, "the port must be a number") from None
         props = read_properties(self.m.server_dir / "server.properties")
-        taken = set(self.web.hub.ports().keys()) | {int(props.get("server-port", "25565") or 25565)} | self.web.hub.reserved_ports()
+        taken = set(self.web.hub.ports().keys()) | {number(props, "server-port", 25565)} | self.web.hub.reserved_ports()
         try:
             message = webmap.set_port(self.m.server_dir, kind, self.m.lock.loader or self.m.config.server.loader, new, taken)
         except webmap.WebMapError as e:
@@ -4131,9 +4219,9 @@ class Api:
         props = read_properties(self.m.server_dir / "server.properties")
         bedrock = self.bedrock({}, {})
         state = reach.read_state(self.m.config.state_dir)
-        return {"way": self.m.config.reach_way, "port": int(props.get("server-port", "25565") or 25565),
+        return {"way": self.m.config.reach_way, "port": number(props, "server-port", 25565),
                 "bedrock": {"on": bool(bedrock["supported"] and bedrock["geyser"]), "port": bedrock["port"],
-                            "wanted": state.get("bedrock_port")},
+                            "ports": bedrock["ports"], "wanted": state.get("bedrock_port")},
                 "reachable": hub.why_reachable(self.d), "whitelist_on": props.get("white-list", "false") == "true",
                 "running": self.d.state == "running", "lan_ip": lan_ip(), "upnp": hub.upnp_settings()["enabled"],
                 "tunnel_address": self.m.config.tunnel_address, "range": list(reach.OPEN_RANGE),
@@ -4153,7 +4241,7 @@ class Api:
             raise ApiError(400, "choose playit.gg, port forwarding, or only friends at home")
         hub = self.web.hub
         props_path = self.m.server_dir / "server.properties"
-        port = int(read_properties(props_path).get("server-port", "25565") or 25565)
+        port = number(read_properties(props_path), "server-port", 25565)
         bedrock = self.bedrock({}, {})
         message = {"playit": "Friends outside join through playit.gg", "home": "Only friends on your network can join",
                    "forward": "Friends outside join through the port on your router"}[way]
@@ -4199,8 +4287,8 @@ class Api:
         configmod.set_value(self.m.config.path, "reach", "way", json.dumps(way))
         self.m.reload_config()
         hub.whitelist_when_reachable()
-        if way == "forward" and hub.upnp_settings()["enabled"]:
-            threading.Thread(target=hub.upnp_sync, daemon=True, name="upnp").start()  # (the router gets the new port)
+        if hub.upnp_settings()["enabled"]:  # (the router gets the new port, or takes back one no longer wanted)
+            threading.Thread(target=hub.upnp_sync, daemon=True, name="upnp").start()
         log.info("%s", message)
         return {**self.reach({}, {}), "ok": True, "message": message}
 
@@ -4210,13 +4298,15 @@ class Api:
     def bedrock(self, q, b) -> dict:
         """Whether Bedrock players (phones, tablets, consoles, Windows) can join through Geyser, and
         the port they use (UDP; Geyser's config says, 19132 until it's written)."""
-        from .reach import geyser_port
+        from .reach import geyser_port, geyser_ports
         loader = self.m.lock.loader or self.m.config.server.loader
         ids = {s.id.lower() for s in self.m.config.mods}
         port = geyser_port(self.m.server_dir)
+        # (every port to forward: with Bedrock's new connection method, TCP and a second UDP one too, #211)
+        ports = [{"port": p, "protocol": proto} for p, proto in geyser_ports(self.m.server_dir) or [(port, "UDP")]]
         return {"supported": loader in self.BEDROCK_LOADERS, "geyser": "geyser" in ids, "floodgate": "floodgate" in ids,
                 "installed": any(x.name.lower().startswith("geyser") for x in self.m.lock.mods), "port": port,
-                "minecraft": self.m.lock.minecraft}
+                "ports": ports, "minecraft": self.m.lock.minecraft}
 
     def bedrock_check(self, q, b) -> dict:
         """Preflight both bridge mods, including explicitly offered early builds."""
@@ -4245,8 +4335,9 @@ class Api:
                 "whitelist_on": props.get("white-list", "false") == "true"}
 
     def answer_join_request(self, q, b) -> dict:
+        from .players import REQUEST_NAME_RE
         name = str(b.get("name", "")).strip()
-        if not re.fullmatch(r"[A-Za-z0-9_]{3,16}", name):
+        if not REQUEST_NAME_RE.fullmatch(name):
             raise ApiError(400, "that isn't a Minecraft name")
         message = f"ignored {name}"
         if b.get("allow") is True:
@@ -4323,6 +4414,23 @@ class Api:
         jar.unlink()
         log.info("removed %s for players", jar.name)
         return {"ok": True}
+
+    def client_jar_to_server(self, q, b) -> dict:
+        """Put back on the server: a file of your own moved to players' mods goes back to the server's
+        mods folder (#236), as a mod site's mod does with Put back on the server."""
+        from .clientpack import local_jars
+        jar = next((p for p in local_jars(self.m.config) if p.name == str(b.get("name", ""))), None)
+        if jar is None:
+            raise ApiError(404, "no such file")
+        if self.m.loader.mods_folder != "mods":
+            raise ApiError(400, "this server doesn't run mods")
+        dest = self.m.mods_dir / jar.name
+        if dest.exists() or dest.with_name(dest.name + ".disabled").exists():
+            raise ApiError(409, f"the server's mods folder already has {jar.name}")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(jar), str(dest))
+        log.info("moved %s from players' mods back to the server's mods", jar.name)
+        return {"ok": True, "message": f"{jar.name} is back on the server (from its next start), and out of your friends' download"}
 
     def post_to_discord(self, q, b) -> dict:
         """Post this server's invite to a Discord channel (the links come from here, not the page)."""
@@ -4414,7 +4522,9 @@ class Api:
         share = None if hub.is_single else hub.share_status()
         return doctor.run(self.m, self.d.state, share=share,
                           self_update={"available": True, **info} if info else None,
-                          upnp=None if hub.is_single else hub.upnp_status(), firewall=self._firewall(share))
+                          # (the router check is for a server set to Open a port on my router: UPnP forwards only those)
+                          upnp=hub.upnp_status() if not hub.is_single and self.m.config.reach_way == "forward" else None,
+                          firewall=self._firewall(share))
 
     def _firewall_ports(self, share: dict | None) -> list[dict]:
         """What should get through Windows Firewall: the Minecraft port (Java listens on it) and
@@ -4422,16 +4532,19 @@ class Api:
         import sys
         from .java import JavaError
         props = read_properties(self.m.server_dir / "server.properties")
-        port = int(props.get("server-port", "25565") or 25565)
+        port = number(props, "server-port", 25565)
         try:
             java = self.m.java.choose(self.m.lock.java_major or 8).binary if self.m.lock.installed else None
         except (JavaError, OSError):
             java = None
         ports = [{"port": port, "label": f"{props.get('motd') or self.d.server_id or 'server'} (Minecraft)", "program": java}]
         bedrock = self.bedrock({}, {})
-        if bedrock["supported"] and bedrock["geyser"]:  # (Bedrock players come in on UDP, through Geyser in the same Java)
-            ports.append({"port": bedrock["port"], "label": f"{props.get('motd') or self.d.server_id or 'server'} (Bedrock)",
-                          "program": java, "protocol": "UDP"})
+        if bedrock["supported"] and bedrock["geyser"]:  # (Bedrock players come in through Geyser, in the same Java)
+            from .reach import geyser_ports
+            label = f"{props.get('motd') or self.d.server_id or 'server'} (Bedrock)"
+            for p, proto in geyser_ports(self.m.server_dir) or [(bedrock["port"], "UDP")]:
+                if (p, proto) != (port, "TCP"):
+                    ports.append({"port": p, "label": label, "program": java, "protocol": proto})
         if self.m.config.client.enabled and share and share.get("running") and share.get("port"):
             ports.append({"port": int(share["port"]), "label": "friends' downloads", "program": sys.executable})
         return ports
@@ -4467,7 +4580,7 @@ class Api:
         from dataclasses import asdict
         from . import doctor
         from . import reach
-        port = int(read_properties(self.m.server_dir / "server.properties").get("server-port", "25565") or 25565)
+        port = number(read_properties(self.m.server_dir / "server.properties"), "server-port", 25565)
         check = doctor.internet_check(self.m.http, port, self.d.state == "running")
         if check.status == doctor.OK:  # (remembered: it can be reached from the internet, so its whitelist goes on)
             reach.write_state(self.m.config.state_dir, port_test={"port": port, "ok": True, "at": int(time.time())})
@@ -4507,7 +4620,7 @@ class Api:
         elif action == "port":
             if self.d.state == "running":
                 raise ApiError(409, "stop the server first")
-            port = hub.free_port(int(read_properties(props).get("server-port", "25565") or 25565) + 1)
+            port = hub.free_port(number(read_properties(props), "server-port", 25565) + 1)
             write_properties(props, {"server-port": str(port)})
             message = f"The server now uses port {port}" + ("" if port == 25565 else f": friends connect with your address followed by :{port}")
         elif action == "online-mode":
@@ -4620,6 +4733,16 @@ class Api:
                 message = self.m.set_jar(action["filename"], "disable")
             except UpgradeError as e:
                 raise ApiError(400, str(e)) from None
+        elif kind == "jar-to-players":  # (a file of your own: it goes to the friends' own files)
+            from .clientpack import JAR_NAME, client_dir
+            name = action["filename"]
+            if not JAR_NAME.fullmatch(name) or name not in self.m.unmanaged_jars():
+                raise ApiError(409, f"there's no {name} of your own in the mods folder any more")
+            folder = client_dir(self.m.config)
+            folder.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(self.m.mods_dir / name), str(folder / name))
+            log.info("moved %s from the server's mods to players' mods", name)
+            message = f"{action['name']} is off the server and in your friends' download (Friends → players' mods)"
         else:  # backups: the page opens them
             return {"ok": True, "message": ""}
         self.d.problem = {**problem, "fixed": message}
@@ -4642,7 +4765,7 @@ class Api:
         total = total_ram_gb()
         return {"installed": self.m.lock.installed, "system_gb": round(total, 1) if total else None,
                 "cpus": os.cpu_count() or 1, "server_gb": round(server_gb, 1), "game_gb": cfg.client.memory_gb,
-                "mods": len(self.m.lock.mods), "max_players": int(props.get("max-players", "20") or 20)}
+                "mods": len(self.m.lock.mods), "max_players": number(props, "max-players", 20)}
 
     def play_here(self, q, b) -> dict:
         """Set up this computer's Minecraft for this server (the friends' page, pointed at
@@ -4739,7 +4862,7 @@ class Api:
         listed = {s.id for s in self.m.config.mods if s.source == "modrinth"}
         return [x for x in slugs if x in listed]
 
-    def _also_on_server(self, slugs: list[str]) -> tuple[list[dict], list[dict]]:
+    def _also_on_server(self, slugs: list[str], channels: dict[str, str] | None = None) -> tuple[list[dict], list[dict]]:
         """Mods picked for players that run on both sides (Modrinth's environment tags) are also
         added to the server's own mods, with what they need, the way any server mod is. Returns
         what was added (with its dependencies) and what couldn't be (with why). Mods that only
@@ -4758,8 +4881,9 @@ class Api:
                 continue
             if any(s.source == "modrinth" and s.id in (slug, project.id, project.slug) for s in self.m.config.mods):
                 continue
-            try:
-                deps = self._list_server_mod("modrinth", project, required=project.server_side == "required")
+            try:  # (with the early builds agreed to for players, #165)
+                deps = self._list_server_mod("modrinth", project, required=project.server_side == "required",
+                                             early=(channels or {}).get(slug))
             except ApiError as e:
                 skipped.append({"name": project.name, "reason": str(e)})
                 continue
@@ -4790,9 +4914,16 @@ class Api:
                 raise ApiError(400, "mods must be a list of Modrinth project names (or curseforge:<project id>)")
             before = list(c.mods)
             mods = list(dict.fromkeys(mods))
+            asked = b.get("channels") or {}  # (mods added with Show beta/alpha builds: their early builds are agreed to)
+            if not isinstance(asked, dict) or not all(isinstance(k, str) and configmod.CLIENT_MOD.fullmatch(k) and v in ("beta", "alpha")
+                                                      for k, v in asked.items()):
+                raise ApiError(400, "channels must be mod names with beta or alpha")
+            channels = {k: v for k, v in {**c.channels, **asked}.items() if k in mods}
             configmod.set_value(path, "client", "mods", json.dumps(mods))
+            if channels != c.channels:
+                configmod.set_value(path, "client", "channels", configmod.channels_table(channels))
             self.m.reload_config()
-            also, skipped = self._also_on_server([x for x in mods if x not in before and not x.startswith("curseforge:")])
+            also, skipped = self._also_on_server([x for x in mods if x not in before and not x.startswith("curseforge:")], channels)
             drop = b.get("remove_from_server")
             if drop is not None:  # "remove it from the server too": a mod that's no longer on the players' list
                 if not isinstance(drop, list) or not all(isinstance(x, str) and re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", x)
@@ -5051,7 +5182,7 @@ class Api:
             try:
                 sid, _ = hub.import_archive(archive, f"{name} (beta {version})", prepare)
             finally:
-                shutil.rmtree(tmp, ignore_errors=True)
+                rmtree(tmp, ignore_errors=True)
             copy = hub.get(sid)
             if copy is None or not copy.submit("install beta", copy.check_for_updates, True, version):
                 raise RuntimeError("the copy was made but couldn't start installing; open it and press Update")
@@ -5117,7 +5248,7 @@ class Api:
                 log.info("backed up the old world to %s", path.name)
             info = world.replace(source, dest)
             if source.parent.parent == self.web.hub.staging_dir:
-                shutil.rmtree(source.parent, ignore_errors=True)
+                rmtree(source.parent, ignore_errors=True)
             return f"the world is now {info.get('name') or dest.name}; press Start to play it"
         return self._job("replace world", run)
 
@@ -5346,7 +5477,7 @@ class Api:
             "discord_webhook": c.discord_webhook,
             **self._schedule_info(),
             "tunnel_address": c.tunnel_address,
-            "port": int(read_properties(self.m.server_dir / "server.properties").get("server-port", "25565") or 25565),
+            "port": number(read_properties(self.m.server_dir / "server.properties"), "server-port", 25565),
             "properties": serverprops.current(read_properties(self.m.server_dir / "server.properties")),
             "properties_schema": serverprops.schema(),
             "choices": {"strategy": configmod.STRATEGIES, "mod_channel": configmod.CHANNELS},

@@ -1,0 +1,242 @@
+{
+  "schema_version": 1,
+  "id": "v0.30.3-win11-coverage",
+  "cc_version": "0.30.3",
+  "minecraft_version": "26.3",
+  "os": "Windows 11",
+  "kind": "patch",
+  "created_at": "2026-10-26T19:58:23+00:00",
+  "features": [],
+  "fixes": [],
+  "required_ids": [
+    16,
+    372,
+    373,
+    374,
+    375,
+    376,
+    377,
+    378,
+    379,
+    380,
+    381,
+    418,
+    541,
+    542,
+    554,
+    555,
+    558,
+    664,
+    667,
+    681,
+    682,
+    683,
+    721,
+    722,
+    723,
+    724,
+    802,
+    803,
+    804,
+    805,
+    806,
+    807,
+    808,
+    809,
+    810,
+    811,
+    812,
+    813,
+    814,
+    815,
+    816,
+    817,
+    818,
+    819,
+    820,
+    821,
+    827,
+    830,
+    831,
+    839,
+    840,
+    841,
+    842,
+    847,
+    900,
+    901,
+    903,
+    905,
+    908,
+    909,
+    912,
+    914,
+    918,
+    926,
+    927,
+    929,
+    930,
+    933,
+    934,
+    953,
+    954,
+    955
+  ],
+  "results": {
+    "664": {
+      "status": "pass",
+      "tested_at": "2026-10-26T20:01:21+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Fabric 26.3 server, friends' download turned on: Check my setup says 'Friends' downloads: Running on port 8766. No public address is set.' with the Use my public IP fix; port 8766 is listening, the share reports running, no public address. Matches.",
+      "evidence": ""
+    },
+    "667": {
+      "status": "pass",
+      "tested_at": "2026-10-26T20:01:21+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. On the newest release (0.30.3): Check my setup shows no Craft Conductor update line, and Check for Craft Conductor updates says 'Craft Conductor 0.30.3 is the latest version' (stable channel).",
+      "evidence": ""
+    },
+    "541": {
+      "status": "pass",
+      "tested_at": "2026-10-26T20:17:29+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Fabric 1.21.11 server (Dynmap v3.8 has a build for it) made with Fabric API, Dynmap, Lithium: on start Web map shows Dynmap on port 8123, answers, configured, with this computer's and the network address. localhost:8123 serves the Dynmap page and up/configuration; after 'dynmap radiusrender world 0 0 200' the flat, surface and cave maps have tiles showing real terrain (grass, trees). On a Fabric 26.3 server Dynmap isn't offered (no build) and adding it says 'Dynmap has no fabric build for Minecraft 26.3 yet, so it can't be added'.",
+      "evidence": ""
+    },
+    "839": {
+      "status": "pass",
+      "tested_at": "2026-10-26T20:21:51+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Fabric 26.3 server running with Chunky pre-generating (world about 250 MB). Backup: save-off, 'Saving the game', 'Saved the game', then the copy (15 s, checked: 223 files, 36 region files), save-on after. Then the server's Java was paused for 80 s during a backup: after 60 s the activity feed showed the warning 'the server didn't say it had saved the world within 60 seconds; copying its files anyway', the backup finished and checked OK, and automatic saving was enabled again once the server resumed.",
+      "evidence": ""
+    },
+    "418": {
+      "status": "pass",
+      "tested_at": "2026-10-26T20:27:31+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Fabric 1.21.11 server (Fabric API, Lithium, Dynmap optional), Updates -> Rehearse it on a copy first, to 26.3. With Dynmap required the rehearsal stops at once ('no update can be installed yet', since upgrades wait for every mod by default). With it left out: 'It worked', Changes lists the Minecraft, Fabric API and Lithium moves and '- Dynmap', Left out says 'Dynmap has no fabric build for 26.3'. With an unknown option added to config/lithium.properties, the report shows '1 other warning(s) not about a particular mod' with the log line (Lithium's 'No configuration key exists with name ...'). It isn't put under Lithium because the 26.3 log line doesn't name the mod.",
+      "evidence": ""
+    },
+    "721": {
+      "status": "pass",
+      "tested_at": "2026-10-26T20:30:13+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Out-of-date shared Java set up by hand: Temurin 25.0.1+8 JRE (Adoptium, checksum checked) put in the shared Java folder as Craft Conductor lays it out, a Fabric 26.3 server restarted onto it, and 25.0.5+8 removed. Java -> Update shared Java while that server ran: 'Java 25: jdk-25.0.5+8 (servers move to it at their next start)'. 25.0.5+8 downloaded and listed as the newest, 25.0.1+8 marked running.",
+      "evidence": ""
+    },
+    "722": {
+      "status": "pass",
+      "tested_at": "2026-10-26T20:30:13+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Out-of-date shared Java set up by hand: Temurin 25.0.1+8 JRE (Adoptium, checksum checked) put in the shared Java folder as Craft Conductor lays it out, a Fabric 26.3 server restarted onto it, and 25.0.5+8 removed. During and after the update the server stayed running on the same Java process (same PID, still 25.0.1+8); nothing restarted or stopped it.",
+      "evidence": ""
+    },
+    "723": {
+      "status": "pass",
+      "tested_at": "2026-10-26T20:30:13+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Out-of-date shared Java set up by hand: Temurin 25.0.1+8 JRE (Adoptium, checksum checked) put in the shared Java folder as Craft Conductor lays it out, a Fabric 26.3 server restarted onto it, and 25.0.5+8 removed. Restart from the panel: the server came back up running normally.",
+      "evidence": ""
+    },
+    "724": {
+      "status": "pass",
+      "tested_at": "2026-10-26T20:30:13+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Out-of-date shared Java set up by hand: Temurin 25.0.1+8 JRE (Adoptium, checksum checked) put in the shared Java folder as Craft Conductor lays it out, a Fabric 26.3 server restarted onto it, and 25.0.5+8 removed. After the restart it started from jdk-25.0.5+8 (activity: 'starting server: ...\\java\u0015\\jdk-25.0.5+8\\...'); the Java page shows 25.0.5+8 running and newest, 25.0.1+8 no longer running (kept for the grace period before tidy-up, as the manual says).",
+      "evidence": ""
+    },
+    "554": {
+      "status": "pass",
+      "tested_at": "2026-10-26T20:32:49+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Three servers running at once from one Craft Conductor: Fabric 26.3 (3 GB, port 25610), Fabric 1.21.11 (3 GB, 25611) and Paper 26.3 (19 GB, 25612). Each was running, took connections on its own port and answered 'list' in its own console; the Servers page showed the memory given to the running servers.",
+      "evidence": ""
+    },
+    "555": {
+      "status": "fail",
+      "tested_at": "2026-10-26T20:34:06+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. 32 GB PC with other programs using about 20 GB (about 11 GB free). With two 3 GB servers running, a Paper server given 19 GB started without any question, and Check my setup -> Memory said ok ('uses 19 GB of this computer's 32 GB'); Windows grew its page file by more than 15 GB to make room. Given 26 GB (32 GB in all) Start asked 'The servers would be given 32 GB of memory, and this computer has 31.9 GB ... Start anyway / Cancel' (clear wording). Only the servers' own memory is counted, not what's free: issue #187.",
+      "evidence": ""
+    },
+    "909": {
+      "status": "pass",
+      "tested_at": "2026-10-26T20:38:16+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Fabric 26.3 server with [java.versions] 25 pointed at a freshly unzipped Temurin 25.0.1 JRE. While its java.exe was held open with no sharing (as an antivirus scan does), Start logged \"couldn't ask which Java this is just now (... [WinError 32] The process cannot access the file because it is being used by another process): asking again in a minute\" and started on the shared Java 25 it already had: it wasn't called 'not Java' and nothing new was downloaded. Started again a minute later, after the file was released: it started from that unzipped Java.",
+      "evidence": ""
+    },
+    "905": {
+      "status": "pass",
+      "tested_at": "2026-10-26T20:40:20+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Published website, Chrome on Windows. A 0.30.3 server's invite link opens /join/ ('You're invited to play on cov-fabric', the Windows download resolves to the v0.30.3 join app, Open in Craft Conductor uses craft-conductor://join/). The v0.30.3 join app run with that invite (into a stand-in Minecraft folder) contacted the server and set up the 'cov-fabric' installation: Minecraft 26.3 with Fabric 0.20.1, its 3 mods, the server in the multiplayer list. /testing/ lists the runs (0.30.3 down to the 0.27.0 workbook) with counts and the table. The homepage says 'Demo: 0.30.3 · beta' and 'The demo is Craft Conductor 0.30.3 (beta), the newest published release.' The game itself wasn't started.",
+      "evidence": ""
+    },
+    "827": {
+      "status": "pass",
+      "tested_at": "2026-10-26T20:55:05+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. New server in Chrome: Fabric + Terralith (from the mod browser), then server type Forge (26.3). Manage Mods: 'No Forge build for Minecraft 26.3 ... It has NeoForge and Fabric builds ... and a datapack build', with Use NeoForge / Use Fabric / Stay on Forge: use its datapack / Use Minecraft 1.21.11 ... Pressing Stay on Forge: 'Terralith uses its datapack build on Forge, in the world's datapacks folder: it doesn't need Lithostitched or Fabric API', tagged datapack. The map preview's private server had Terralith_v2.6.5+26.3.zip in world/datapacks. Created the server: Terralith_v2.6.5+26.3.zip is in world/datapacks, mods/ is empty, and 'datapack list enabled' shows file/Terralith_v2.6.5+26.3.zip (world). (The browser itself rightly doesn't list Terralith for Forge 26.3.)",
+      "evidence": ""
+    },
+    "840": {
+      "status": "pass",
+      "tested_at": "2026-10-26T20:56:27+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. Forge 26.3 server with Terralith used as its datapack: Saved mod lists -> save 'with-terralith'; removed Terralith and updated (datapacks folder empty); restored 'with-terralith' and updated: Terralith is back as a datapack (craft-conductor.toml 'datapack = true', Manage Mods datapack, Terralith_v2.6.5+26.3.zip in world/datapacks, nothing in mods/). A 'Before with-terralith' list was kept as well.",
+      "evidence": ""
+    },
+    "16": {
+      "status": "pass",
+      "tested_at": "2026-10-26T21:03:55+00:00",
+      "tester": "Claude Code",
+      "notes": "Chrome on Windows 11: the website's Download -> Windows card (releases/latest/download/craft-conductor-windows-x64.exe, resolving to v0.30.3) saved the full file (15,878,236 bytes) to Downloads by itself: no .crdownload left waiting for a Keep/Discard choice, so Chrome didn't hold it back. Its SHA-256 (6a291a2...) matches the release's SHA256SUMS.txt; the file carries Windows' internet mark (Zone 3), as any download does. (Chrome's own download bubble wasn't in view, so the absence of a warning was judged from the finished file.)",
+      "evidence": ""
+    },
+    "841": {
+      "status": "pass",
+      "tested_at": "2026-10-26T21:32:02+00:00",
+      "tester": "Claude Code",
+      "notes": "v0.30.2 release exe (isolated home, panel 29910) updating itself to the v0.30.3 release, Chrome. Failure before the restart (a folder put where the update renames the old program): 'The update didn't finish.' with the reason (no permission to replace ...exe; move Craft Conductor somewhere you can write to, or download the new version from <release link>), 'Craft Conductor 0.30.2 was put back and is still running', Try again, View update log (each step: updating, downloading, verifying, installing, 0.30.2 is back, failed: ...) and Close. Failure after the restart (the new copy and its guard both stopped at once, so nothing answered): after 5 minutes 'Craft Conductor could not restart after the update. The new version didn't answer in time.' with Retry connection, View update log and Restart Craft Conductor manually ('Close any Craft Conductor window that's still open, then start Craft Conductor again the way you usually do (... craft-conductor start). Then press Retry connection.'). Doing that brought 0.30.3 up and the page back.",
+      "evidence": ""
+    },
+    "842": {
+      "status": "pass",
+      "tested_at": "2026-10-26T21:32:02+00:00",
+      "tester": "Claude Code",
+      "notes": "v0.30.2 release exe (isolated home, panel 29910) updating itself to the v0.30.3 release, Chrome. The updated 0.30.3 copy was killed one second after the restart (the guard left running): the page kept 'Restarting Craft Conductor... Waiting for the new version to start', and when the 3 minutes were up the guard put 0.30.2 back and started it (update-result: 'The update to 0.30.3 didn't work (the new version didn't start in time); Craft Conductor 0.30.2 is back'). After signing in again the page said 'The update to Craft Conductor 0.30.3 didn't work, so Craft Conductor 0.30.2 is back.' and showed v0.30.2. (The copy that died at once was only noticed at the 3-minute mark, not straight away.)",
+      "evidence": ""
+    },
+    "830": {
+      "status": "pass",
+      "tested_at": "2026-10-26T21:35:33+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. New server from All the Mods 11 0.12.0-beta (CurseForge) waiting for I'm Fast by hand: the I'm Fast jar renamed to renamed-by-me.jar, given to the 'Drag mods that were downloaded here' box in Chrome: 'received imfast-NEOFORGE-26.1.2-1.0.3.jar, downloaded by hand', 'every mod downloaded by hand is in; carrying on' (matched by its checksum, whatever its name).",
+      "evidence": ""
+    },
+    "831": {
+      "status": "pass",
+      "tested_at": "2026-10-26T21:35:33+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. New server from All the Mods 11 0.12.0-beta (CurseForge), with no copy of I'm Fast in Downloads: Create my server waits ('waiting for 1 mod(s) to be downloaded by hand: I'm Fast'); the page 'Download these mods by hand' lists I'm Fast 'waiting for the file' with a Download link to CurseForge, says Craft Conductor looks in the Downloads folder by itself (named, with Choose the folder...), and has the drop box. (The 0.26.0 'Load downloaded mods' button is now this watching of Downloads: with a copy there it was found by itself on the first try.) Stop setting up asks first ('The mods you've downloaded stay, so you can try again'), then 'Setup didn't finish: setup stopped: it was waiting for mods to be downloaded by hand' with the choices kept (modpack, name, port); Create my server again went back to waiting.",
+      "evidence": ""
+    },
+    "908": {
+      "status": "fail",
+      "tested_at": "2026-10-26T21:40:38+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. All the Mods 11 0.12.0-beta (CurseForge, has an official server pack): the server pack wasn't used. 'couldn't read ... server pack from the server (HTTP 404 ...ServerFiles-0.12.0-beta.zip); downloading it', then '... is bigger than expected (622597985 bytes); every mod goes on the server', and the players-only mods were taken from what Modrinth says (25 to friends, 4 kept on the server). CurseForge's edge.forgecdn.net answers ranged requests with 404 (mediafilez.forgecdn.net, where it redirects, serves them): issue #191. The friend join and Prism comparison weren't done.",
+      "evidence": ""
+    },
+    "914": {
+      "status": "fail",
+      "tested_at": "2026-10-26T22:20:55+00:00",
+      "tester": "Claude Code with the owner",
+      "notes": "Release exe v0.30.3 (sha256 6a291a2…), isolated home. All the Mods 11 0.12.0-beta (CurseForge, NeoForge): made on NeoForge 26.1.2.109 (the pack's build); Updates -> Modpack: 'Its mods are held at the pack's files and NeoForge at 26.1.2.109, so players on the pack can join'. Modrinth Fabric pack Vanilla Perfected 1.0.3+26.2: made on Fabric 0.19.3 (the pack's build; newest is 0.20.1), Modpack says it's held at Fabric 0.19.3. The owner set it up from the invite in Prism Launcher and joined without 'Incompatible client'. Updating the pack to 1.0.0+26.3 (Fabric 0.19.5) was refused: 'Lithium 0.26.2+mc26.3 needs MixinExtras 0.5.5 or later, but MixinExtras 0.3.5 is the one there', though Fabric Loader 0.19.5 brings MixinExtras 0.5.5 (0.3.5 is only bundled in Axiom): issue #192. The server stayed on 26.2, unchanged.",
+      "evidence": ""
+    }
+  },
+  "notes": "Coverage run: catalog tests never run on Windows before, on the v0.30.3 release exe (SHA256SUMS checked) in a fresh isolated home."
+}

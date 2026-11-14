@@ -7,9 +7,10 @@ A zip keeps its list of files at the end, so a few small range requests are enou
 from __future__ import annotations
 
 import io
+import urllib.parse
 import zipfile
 
-from .http import HttpClient
+from .http import HttpClient, HttpError
 
 BLOCK = 256 << 10          # asked for at a time (the end of the file first, where the list is)
 MAX_READ = 32 << 20        # a zip whose list needs more than this isn't a modpack's
@@ -64,6 +65,15 @@ class RemoteFile(io.RawIOBase):
 
 
 def names(http: HttpClient, url: str) -> list[str]:
-    """The names of the files in the zip at ``url``."""
-    with zipfile.ZipFile(RemoteFile(http, url)) as z:
+    """The names of the files in the zip at ``url``. A server that answers a range request with an
+    error but redirects a plain one (CurseForge's edge.forgecdn.net, #191) is asked where the file
+    really is, and that place is read instead."""
+    try:
+        remote = RemoteFile(http, url)
+    except HttpError:
+        real = http.final_url(url)
+        if real == url or urllib.parse.urlsplit(real).scheme != "https":
+            raise
+        remote = RemoteFile(http, real)
+    with zipfile.ZipFile(remote) as z:
         return z.namelist()

@@ -358,13 +358,21 @@ def old_binary(exe: Path) -> Path:
     return exe.with_name(exe.stem + ".old" + exe.suffix)
 
 
+def failed_binary(exe: Path) -> Path:
+    """Where putting the previous version back (rollback.restore) moves the version that failed."""
+    return exe.with_name(exe.stem + ".failed" + exe.suffix)
+
+
 def cleanup_after_update() -> None:
-    """Delete the previous executable that a Windows self-update left behind."""
+    """Delete the executables a Windows self-update left behind: the previous one after an update,
+    and the one that failed after the previous one was put back (#193)."""
     if frozen():
-        try:
-            old_binary(Path(sys.executable)).unlink(missing_ok=True)
-        except OSError:
-            pass
+        exe = Path(sys.executable)
+        for leftover in (old_binary(exe), failed_binary(exe)):
+            try:
+                leftover.unlink(missing_ok=True)
+            except OSError:  # (still running for a moment, or in use: next time)
+                pass
 
 
 def restart_argv() -> list[str]:
@@ -411,9 +419,13 @@ def restart() -> None:
     if WINDOWS:
         # (Windows has no real exec: os.execv starts another process without quoting paths
         # with spaces. Start it properly, sharing this console, and end this one.)
-        subprocess.Popen(argv, env=env)
+        new = subprocess.Popen(argv, env=env)
+        if _GUARDED_STATE is not None:  # (the guard watches that process: gone before it's up = put back, #194)
+            rollback.note_new_copy(_GUARDED_STATE, getattr(new, "pid", None))
         os._exit(0)
         return  # (only reached in tests)
+    if _GUARDED_STATE is not None:  # (exec keeps this process's number for the new copy)
+        rollback.note_new_copy(_GUARDED_STATE, os.getpid())
     os.execve(argv[0], argv, env)
 
 
