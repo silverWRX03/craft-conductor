@@ -104,6 +104,413 @@
     1029,
     1030
   ],
-  "results": {},
+  "results": {
+    "1022": {
+      "status": "pass",
+      "tested_at": "2026-11-06T19:29:09+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. Stopped Fabric 26.3 server, server.properties max-players=twenty: Servers page and Dashboard showed 0 / 20 players, API status max_players 20; the server started and Minecraft rewrote it to 20.",
+      "evidence": ""
+    },
+    "1023": {
+      "status": "fail",
+      "tested_at": "2026-11-06T19:33:58+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. Craft Conductor kept running and the other server kept working; after a restart of Craft Conductor the server was listed as unavailable with the problem named ([updates] warn_minutes must be a list), and jvm_args = \"-Xss2m\" went to Java as one flag and the server started. But with Craft Conductor open (the step as written), the Servers page and the server status never named the problem (checked after 65 s and 70 s, twice): only the console output said the change cannot be used yet and the old settings are kept.",
+      "evidence": ""
+    },
+    "1029": {
+      "status": "pass",
+      "tested_at": "2026-11-06T19:35:09+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. Quit, hub.json given \"extra\": 5 and \"share\": {\"port\": null}, started: Craft Conductor started, Servers page listed both servers, Settings > Connections > Sharing with friends showed the usual download port 8766.",
+      "evidence": ""
+    },
+    "1030": {
+      "status": "pass",
+      "tested_at": "2026-11-06T19:35:53+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. Quit, web-auth.json replaced with null, started: on this computer the sign-in page accepted the default password PASSWORD and then asked to choose your own password (Save worked).",
+      "evidence": ""
+    },
+    "1024": {
+      "status": "pass",
+      "tested_at": "2026-11-06T19:37:09+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. Exported a stopped vanilla 26.3 server, set name to 5 and locked to 5 in craft-conductor-export.json inside a copy of the .zip, imported it from the exports folder: imported with no error, with its world (level.dat, region). It was named Other server (2) (from its folder and server.properties), not imported.",
+      "evidence": ""
+    },
+    "1025": {
+      "status": "blocked",
+      "tested_at": "2026-11-06T19:37:40+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. Not testable as written: the released app only makes servers from a modpack version on Modrinth (or CurseForge); there is no way to give it a local .mrpack file, so a hand-edited modrinth.index.json cannot reach it. Needs a different test step.",
+      "evidence": ""
+    },
+    "1026": {
+      "status": "pass",
+      "tested_at": "2026-11-06T19:37:55+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. On this PC with a separate home and APPDATA (as a friend), craft-conductor join with an https invite link whose port is 99999: Error: that link isn't an Craft Conductor invite: its address or port is damaged (exit 2), no Python traceback. (Wording: an Craft Conductor.)",
+      "evidence": ""
+    },
+    "1028": {
+      "status": "pass",
+      "tested_at": "2026-11-06T19:39:22+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. Vanilla 26.2 server, Rehearse the update to 26.3 (copy started, watching 5 min). While it ran: delete answered an update is being tried on a copy of this server: stop it on its Updates page first; moving the servers folder in settings answered stop these first: Rehearse me is trying an update on a copy of itself. Server folder kept, nothing moved. (A first try on a server with no update ended at once with there is no update to rehearse, so delete and move then went ahead: expected.)",
+      "evidence": ""
+    },
+    "1014": {
+      "status": "pass",
+      "tested_at": "2026-11-06T19:41:37+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. Three rounds of memory and view-distance saved at the same moment from separate sessions (like two tabs), plus a second setting: every last change kept; craft-conductor.toml still parses with all 51 comment lines. Fabric 26.2 server (fabric-api, lithium) updated to 26.3 while 15 settings saves ran during the update: no errors (no loader is required), the update finished (26.2 -> 26.3) and the last setting values were kept. Not done: the server name, which 0.30.5 has no field for on the Settings page (the API refuses motd).",
+      "evidence": ""
+    },
+    "1013": {
+      "status": "pass",
+      "tested_at": "2026-11-06T19:41:37+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. Two saved mod lists with different names saved at the same moment from separate sessions: both ok, both listed after a refresh. view-distance and simulation-distance changed at the same moment from two sessions: both in server.properties.",
+      "evidence": ""
+    },
+    "1016": {
+      "status": "pass",
+      "tested_at": "2026-11-06T19:42:43+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. New Fabric server importing an uploaded world (.zip, not from saves: this home has no game saves). Submitted the same setup again 0.5 s after create while the setup ran: 409 busy: set up server is running. The first setup finished (server ready, Minecraft 26.3) and the imported world is complete: every file of the uploaded world is there.",
+      "evidence": ""
+    },
+    "1007": {
+      "status": "pass",
+      "tested_at": "2026-11-06T19:45:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. New server -> Fabric -> Minecraft 26.2 -> Import a world: a singleplayer world last played on 26.3 (from Worlds on this computer). The World card warned it is newer with Use Minecraft 26.3, Choose another world and Import anyway; Create my server was refused (choose what to do on the World card first); Use Minecraft 26.3 set the version to 26.3 and the warning went. Note: an uploaded world .zip shows no version on the card, so no warning there; the server refuses Create for it with the same explanation (checked through the API).",
+      "evidence": ""
+    },
+    "979": {
+      "status": "pass",
+      "tested_at": "2026-11-06T19:48:22+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. New server from Modrinth Actium 26Q2.1-neoforge (26.2) via the browser: the first start failed on Controlify. The pop-up was 5 lines ending in Failed..., with no at net.neoforged lines, top right, not covering the setup page buttons (Move Controlify to players mods / Leave it out). The bell had the whole message.",
+      "evidence": ""
+    },
+    "1001": {
+      "status": "pass",
+      "tested_at": "2026-11-06T19:48:22+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. Same Actium setup failure: the bell entry shows the whole message (2197 characters) in a scrolling box, down to The details are in <logs folder>\\...-set-up-server.txt.",
+      "evidence": ""
+    },
+    "1027": {
+      "status": "pass",
+      "tested_at": "2026-11-06T22:11:21+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. Vanilla 26.3 server, Settings discord_webhook set to a made-up discord.com webhook URL (no such webhook). Started the server: Dashboard -> Activity shows \"discord notification failed: discord.com doesn't have that (not found)\" right after \"Server is up\"; the webhook URL appears nowhere in the activity or the panel log.",
+      "evidence": ""
+    },
+    "1015": {
+      "status": "pass",
+      "tested_at": "2026-11-06T22:13:53+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. Vanilla 26.1.2 server (offline mode, whitelist on) with friends' downloads on, stopped. Two friends asked to join through the invite's request endpoint on the share port (two different source addresses), both showed on Players; pressed Allow on both in the same instant (two clicks back to back in the page). whitelist.json then had both (offline UUIDs). Started the server: both players (mineflayer bots Pal01, Pal02) joined; a third, unlisted name was refused. The friends' requests were sent with curl to the same /join/<secret>/request endpoint the invite page uses, not from two real friend PCs.",
+      "evidence": ""
+    },
+    "1017": {
+      "status": "pass",
+      "tested_at": "2026-11-06T22:17:14+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. Friend side = the same exe run as craft-conductor join <invite> in a separate isolated home on this PC (not a second computer), invite page in Chrome for a vanilla 26.1.2 server. Under the server's extras, ticked two resource packs and pressed Add selected (two /api/extras/add calls back to back), then sent two more adds at the same instant from the page. After reloading the page all four were listed. Add to my launchers (Minecraft Launcher only) then installed all four into the installation's resourcepacks folder.",
+      "evidence": ""
+    },
+    "1011": {
+      "status": "pass",
+      "tested_at": "2026-11-07T00:30:10+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. Fabric 26.3 server (Fabric API, Lithium) made with craft-conductor create and run with craft-conductor run --web. Mods -> Test these mods ran the mod check (also checked in the background through the same endpoint the page polls): it finished with no problems and no internal error. Players: Allow and Ignore on join requests both answered (whitelist add / ignored). Note: in run --web mode the friends' invite port is not started (friend downloads need craft-conductor start), so a real request from the invite page could not be made; Allow/Ignore were exercised directly. Stopped the server, held its port with another program, started it: Dashboard problem \"Another program is using the server's port\" with Use a free port; pressing it moved the server to the next port and it started, with no internal error anywhere in the log.",
+      "evidence": ""
+    },
+    "1008": {
+      "status": "pass",
+      "tested_at": "2026-11-07T00:40:42+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. New server -> A modpack -> CurseForge -> All the Mods 11 (0.14.0-beta): Manage Mods listed 3 mods to download by hand (Player Animation Library, More Overlays Updated, I'm Fast). With the New server page left open, quit Craft Conductor from the panel and started it again; after signing in again the page still had NeoForge / 26.1.2 / All the Mods 11 and the same 3 listed. Downloaded each from its CurseForge file page in Chrome into Downloads: each showed loaded by itself (log: found ... downloaded by hand; the list said All the mods to download by hand are loaded 6 s after the last file landed). Caveat: done on the New server page kept open across the restart, not on a pending server's setup page; a fresh load of New server starts empty.",
+      "evidence": "",
+      "supersedes": {
+        "status": "pass",
+        "tested_at": "2026-11-07T00:35:57+00:00",
+        "tester": "Claude Code",
+        "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. New server -> A modpack -> CurseForge -> All the Mods 11 (0.14.0-beta): Manage Mods listed 3 mods to download by hand (Player Animation Library, More Overlays Updated, I'm Fast). Quit Craft Conductor from the panel and started it again; New server still had NeoForge / 26.1.2 / All the Mods 11 picked and the same 3 listed. Downloaded each from its CurseForge file page in Chrome into Downloads: each showed loaded by itself (the last one, I'm Fast, was already shown loaded and the list had switched to \"All the mods to download by hand are loaded\" 6 s after the file landed).",
+        "evidence": ""
+      }
+    },
+    "1004": {
+      "status": "pass",
+      "tested_at": "2026-11-07T00:54:24+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. New server (Vanilla 26.1.2): typed 25622 in Port, then Friends outside your home -> Open a port on my router: the port stayed 25622 and the router text said to forward TCP 25622; switched to Only friends at home, then playit.gg, then back to Open a port on my router: still 25622 each time. Created it (Router test): server.properties server-port=25622, whitelist on. On a fresh form with the port left at its default (25567 here, because 25565 and 25566 are already used by other servers on this panel), choosing Open a port on my router picked 31592; back to Only friends at home restored 25567, and router again gave 31592.",
+      "evidence": ""
+    },
+    "1009": {
+      "status": "fail",
+      "tested_at": "2026-11-07T00:59:39+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. New server -> A modpack -> CurseForge -> All the Mods 11 (0.14.0-beta) -> Use this modpack. Manage Mods listed 3 hand downloads; downloaded all 3 from the linked CurseForge file pages: all showed loaded. The players' check (Manage Friends Mods) finished with no complaint about Player Animation Library. But Create my server did not make the server: setup stopped at \"waiting for 1 mod(s) to be downloaded by hand: Player Animation Library\". The form had linked and accepted PlayerAnimationLibMerged-1.2.9-mc.26.1.jar (CurseForge file 9443698, the newest), while setup waits for the pack's own build PlayerAnimationLibMerged-1.2.8+mc.26.1.jar (file 9080907, checked by sha1), so the 1.2.9 file in manual-downloads never counts. Downloading 1.2.8 from the setup page let it carry on. The setup page also said \"You chose playit.gg\" although the server was made with Only friends at home (reach way = home in its craft-conductor.toml).",
+      "evidence": ""
+    },
+    "807": {
+      "status": "pass",
+      "tested_at": "2026-11-07T01:03:32+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. Real home router (Synology SRM, UPnP on). Server made with Open a port on my router on port 25622 (whitelist on). Craft Conductor settings -> Connections -> Router: switching on showed the exposure warning first; after Open the ports the page listed the router, its internet address and TCP 25622, and the router's own UPnP table had 25622/TCP (and the friends' download port 8766, since another server had a working invite link) mapped to this PC with a 2 h lease. Started the server: Check my setup -> Reachable from the internet said friends outside can reach it (outside service ifconfig.co connected). Switched the Router setting off: both mappings were gone from the router and an outside check (curl to the same service) showed 25622 not reachable. Problem found: Check my setup kept answering Reachable for about 5 minutes after the port closed, because the internet check reuses the HTTP client's 5-minute GET cache; after that it said can't be reached. (Same would happen the other way: just after forwarding a port, a re-check keeps saying it can't be reached.)",
+      "evidence": ""
+    },
+    "1000": {
+      "status": "pass",
+      "tested_at": "2026-11-07T01:05:11+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. No Discord webhook and no phone notifications set. Home only (vanilla 26.1.2, Only friends at home, whitelist off) made with this version. Craft Conductor settings -> Connections -> Sharing with friends: typed a made-up public address and pressed Save. The bell had \"The whitelist of Home only is now on, because it can be reached from the internet (a public address is set in Sharing with friends)...\" with the server's name (one such message per affected server, 8 in all). Pressed Clear in the bell and reloaded the page: none came back.",
+      "evidence": ""
+    },
+    "887": {
+      "status": "fail",
+      "tested_at": "2026-11-07T01:05:11+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. Setting a public address in Sharing with friends turned the whitelist on for every server made by this version that had it off (server.properties white-list=true, bell message for each), and left alone a server folder without the new-server marker (a server made with craft-conductor create and then added to the servers folder, standing in for one made before this version): its whitelist stayed off. But the notice is not in the servers' activity: Home only's Dashboard -> Activity and /api/events for it and Other server have no whitelist line; the message is only in the bell and the panel log. (whitelist_when_reachable runs in the panel's request thread, so the per-server activity handler drops the message as another server's.)",
+      "evidence": ""
+    },
+    "1012": {
+      "status": "pass",
+      "tested_at": "2026-11-07T01:16:51+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. All the Mods 11 server (291 mods, about 2 min to start). In this version the World tools (game rules, border, Chunky) are on the server's Settings page. Opened Settings while the server was starting: the page and its World tools card showed within 0.3 s (saying to start the server for game rules). The world tools API answered within 0.1 s on every call during the 2-minute start. Once running and idle, opened Settings again: World tools loaded within 1 s with all 11 listed game rules (the same 11 a vanilla server lists) plus Another game rule. Not tried with Chunky pre-generating.",
+      "evidence": ""
+    },
+    "1003": {
+      "status": "pass",
+      "tested_at": "2026-11-07T01:18:24+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. Fabric 26.3 server, Mods -> Local files: added a test jar made for this (Peekaboo HUD: fabric.mod.json environment *, main entrypoint calls net.minecraft.client.Minecraft.getInstance(); unknown to Modrinth). Start: the server stopped and the Dashboard said \"Peekaboo HUD only runs on players' computers\" (evidence: NoClassDefFoundError: net/minecraft/client/Minecraft) with buttons Move Peekaboo HUD to players' mods and Switch Peekaboo HUD off.",
+      "evidence": ""
+    },
+    "1006": {
+      "status": "pass",
+      "tested_at": "2026-11-07T01:19:34+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. After Dashboard -> Move Peekaboo HUD to players' mods (the own client-only test jar from 1003), the file moved from server/mods to client-mods. Switched on the friends' download for that server; Friends -> Manage Friends Mods listed peekaboo-hud-1.0.0 (players only, Local) with Put back on the server. Pressed it: toast said it is back on the server and out of the friends' download; server/mods has the jar again, client-mods is empty, and the friends' download info no longer lists it.",
+      "evidence": ""
+    },
+    "1005": {
+      "status": "pass",
+      "tested_at": "2026-11-07T01:21:45+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. New server -> Fabric (26.3), Local files: a test jar (Needy Widgets) that depends on a mod that does not exist; World -> Import a world (a 26.3 singleplayer world listed under Worlds on this computer). Create: the setup failed (\"Needy Widgets 1.0.0 needs totally_missing_lib (1.0 or later), which is missing\"), with the jar in server/mods and the imported world in server/world. On the setup page: Manage Mods -> Remove (No mods selected), Use a new world instead, Create my server: \"your server is ready (Minecraft 26.3)\". server/mods no longer has the jar, and server/world is a new world (level.dat Time = 1, different from the imported one).",
+      "evidence": ""
+    },
+    "1020": {
+      "status": "pass",
+      "tested_at": "2026-11-07T01:24:29+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. Two existing server folders both named Survival, in two different places on this PC (made with craft-conductor create, then added to the list by running craft-conductor start in each folder): listed as survival and survival-2. For both: Backups to keep 2 and Also copy every backup to the same folder. Three backups of each: the copy folder got Survival and Survival-2, each with only its own server's backups (3 each while Copies to keep there was at its default 10; set Copies to keep there to 2 and made one more each: each folder then held exactly its own two newest). Each server kept its own 2 newest locally. The copy folder was a plain folder on this PC, not a USB stick or cloud folder.",
+      "evidence": ""
+    },
+    "1021": {
+      "status": "fail",
+      "tested_at": "2026-11-07T01:32:37+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. Chose a backups folder (Craft Conductor settings -> Folders -> Backups; the existing servers' backups were moved there, one folder per server). Two existing server folders named Survival (from 1020) had backups there (survival, survival-2); removed both from the list keeping their files. Created a new server named Survival (id survival-3), Backups to keep 2, made 3 backups. The first servers' backups were still in the backups folder, untouched. But the new server's backups went to its own server folder (moved/survival-3/backups), not to a folder of its own in the chosen backups folder. Checked with another new server: right after Create its craft-conductor.toml has [backups] dir = <backups folder>\backup-probe, and once its setup finished the same line is back to dir = \"backups\": the setup step overwrites the backups location chosen at Create.",
+      "evidence": ""
+    },
+    "814": {
+      "status": "pass",
+      "tested_at": "2026-11-07T01:41:03+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. A vanilla 26.1.2 server in a folder named \"Überwelt ☕ ñ\" (German umlaut, emoji, Spanish ñ) under another folder, made with craft-conductor create and added by running craft-conductor start there. It installed, started from the panel, and two players (offline-mode bots) joined; backup, restore and the panel's activity all worked with that path, and paths in the activity and setup details show the name intact. Note: its id on the list became \"berwelt\" (the Ü is dropped from the id; the folder and name are fine).",
+      "evidence": ""
+    },
+    "810": {
+      "status": "pass",
+      "tested_at": "2026-11-07T01:41:03+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. On the Unicode-path server: Gamerule keep_inventory false; made a backup from the panel (checked); set keep_inventory true and saved; stopped; Backups -> restore that backup: \"rolled back to <backup>: Minecraft 26.1.2, 0 mod(s)\"; started again: keep_inventory is false again, and a player joined after the restore. (Also earlier in this run: the Docker and Linux backup survived restarts, and backup copies in 1020.)",
+      "evidence": ""
+    },
+    "1018": {
+      "status": "pass",
+      "tested_at": "2026-11-13T22:06:16+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. A server named (motd) Café ☕ test: the report from Check my setup has motd=Café ☕ test in its server.properties, and with a line '# Café ☕ — Zoë's server' added to its craft-conductor.toml, the report's craft-conductor.toml shows it exactly (the description itself lives in server.properties, not craft-conductor.toml as the step says). A Fabric 26.1.2 server in a folder named 'Zoë Fabric ☕' with a test mod that crashes the server (main entrypoint reaches for a client-only class): the start failed and was explained as 'Peekaboo HUD only runs on players' computers', and the message's details path names the folder intact (…\\placeC\\Zoë Fabric ☕\\.craft-conductor\\logs\\…). Fabric wrote no file in crash-reports for this crash, so reading a crash-reports file with an accented name was not exercised for real.",
+      "evidence": ""
+    },
+    "999": {
+      "status": "pass",
+      "tested_at": "2026-11-13T22:19:20+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.4 (sha256 0f9d717…, from the v0.30.4 release) in its own folder and isolated home, panel on localhost. Update now (POST /api/self-update/apply for 0.30.5): it downloaded, verified and installed 0.30.5 and restarted. 1.3 s after the new copy started (pid from self-update-new.pid) it was ended with taskkill /F /T (as End task in Task Manager). The panel answered again 2.7 s after the kill, on 0.30.4 (the exe is the 0.30.4 one again, same sha256), and the update status / update-result.json says: 'The update to 0.30.5 didn't work (the new version stopped right after starting); Craft Conductor 0.30.4 is back' (reverted: true). Before that, the same update without the kill worked: 'Craft Conductor was updated to 0.30.5'. Checked through the panel's API, not by looking at the page.",
+      "evidence": ""
+    },
+    "1002": {
+      "status": "blocked",
+      "tested_at": "2026-11-13T22:19:37+00:00",
+      "tester": "Claude Code",
+      "notes": "The fix (#245, PR #246) is first in 0.30.5, and no release newer than 0.30.5 exists yet to update to (0.30.4 -> 0.30.5 runs the old code without the fix). Testable once 0.30.6 is out: update 0.30.5 to it, make it fail to start, then Update now again.",
+      "evidence": ""
+    },
+    "1019": {
+      "status": "pass",
+      "tested_at": "2026-11-13T22:31:35+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5 (sha256 bcaf0b9…), isolated home. The computer very busy (16 processes spinning on 8 cores: CPU 97-100%, and the panel's own warning 'The computer's CPU has been 97% busy for 5 minutes'); browser was Chrome on the same computer (its priority raised so it could be driven), not a phone on mobile data. Fabric 26.3 server Update me running: Console -> sent help, then help, list, seed straight after each other: 265 lines, none repeated (only the two '> help' echoes, sent twice; the two help outputs have different times). Mods -> Test these mods -> Start a test boot: the log showed 'Test 1: all 2 mod(s) together…' / 'started fine (Minecraft 26.3)' once each, the result '✓ It works. The server started with all these mods on Minecraft 26.3.' once, and the bell has one 'Mod test finished'.",
+      "evidence": ""
+    },
+    "914": {
+      "status": "pass",
+      "tested_at": "2026-11-13T23:23:22+00:00",
+      "tester": "Claude Code + owner",
+      "notes": "Release exe v0.30.5. All the Mods 11 0.14.0-beta (CurseForge file 9426887): the server runs NeoForge 26.1.2.126, the pack's build (the step's 26.1.2.109 was an older pack version's; newest differs), and the owner's Prism instance imported from the real pack by Prism (NeoForge 26.1.2.126) joined with no 'Incompatible client'. Modrinth Fabric pack Adrenaline 26.4.2+mc26.1.2: the Dashboard showed Fabric Loader 0.19.3 (the pack's; newest is 0.20.1) and Updates -> Modpack says its mods are held at the pack's files. Updating the pack to 26.5.1+mc26.1.2 (Loader 0.19.5) moved the server to 0.19.5 (log: 'Loading Minecraft 26.1.2 with Fabric Loader 0.19.5'). A Prism instance built from the pack's own 26.5.1 .mrpack (all sha1s checked) joined it.",
+      "evidence": "",
+      "supersedes": {
+        "status": "not-tested",
+        "tested_at": "2026-11-13T23:06:08+00:00",
+        "tester": "Claude Code",
+        "notes": "Partly done (2026-11-13), release exe v0.30.5: the All the Mods 11 0.14.0-beta server (CurseForge file 9426887) runs NeoForge 26.1.2.126, the pack's build (the step's 26.1.2.109 was an older pack version's); Updates says it's up to date on that loader. The owner's Prism instance imported from the real pack by Prism itself (ManagedPackVersionID 9426887, NeoForge 26.1.2.126) joined with no 'Incompatible client' (JourneyMap 6.0.10 on both sides). Not done yet: a server from a Modrinth NeoForge or Fabric pack, and updating the pack to a version with another loader build.",
+        "evidence": ""
+      }
+    },
+    "908": {
+      "status": "fail",
+      "tested_at": "2026-11-13T23:21:35+00:00",
+      "tester": "Claude Code + owner",
+      "notes": "Release exe v0.30.5. All the Mods 11 0.14.0-beta server (CurseForge file 9426887). Friends page: the 7 players-only mods (Sodium, Sodium Extra, Iris, Euphoria Patches, Drippy Loading Screen, Just Zoom, Simple Backups) are held at exactly the pack's builds. A friend set up through a new invite (craft-conductor join --launcher prism into the owner's Prism) got 298 mod files identical by sha1 to Prism's own import of the pack (plus the 3 hand downloads, put in as the setup said). But the owner could not join with it: 'The server sent registries with unknown keys' (kubegroovy:*, neovitae:*, mysticalagriculture:* items registered by the pack's KubeGroovy scripts). The friend instance has none of the pack's overrides: kubegroovy has 6 files (2272 in the pack's instance), config 549 files (1427). join/clientpack never copy a modpack's overrides to friends. The pack's own Prism instance joins fine.",
+      "evidence": ""
+    },
+    "971": {
+      "status": "pass",
+      "tested_at": "2026-11-13T23:47:59+00:00",
+      "tester": "Claude Code + owner",
+      "notes": "Release exe v0.30.5. New Fabric 26.3 server, Friends -> Let Bedrock players join (Geyser only has beta builds for 26.3: Add anyway) -> 'Geyser and Floodgate are added. Install them now?' -> Install now; the server was stopped, so no restart was asked for (the step's 'bell asks for one restart' is for a running server). Geyser 2.12.1-b1302 + Floodgate 2.2.7: config.yml has transport: both and webrtc-port: 19133; log 'Built-in signaling started on http://0.0.0.0:19132, with NetherNet on UDP port 19133'. Friends page (/api/bedrock) lists UDP 19132, TCP 19132, UDP 19133. Bedrock for Windows on a laptop on the same network added the server computer's network address, port 19132 and joined over NetherNet (as a Floodgate player). Bedrock on the server's own PC reached the signaling port (TCP connection seen) but didn't get in; not pursued (same-PC loopback).",
+      "evidence": ""
+    },
+    "1010": {
+      "status": "pass",
+      "tested_at": "2026-11-14T00:51:05+00:00",
+      "tester": "Claude Code + owner",
+      "notes": "Release exe v0.30.5, Windows Narrator on, Chrome. Started a vanilla server from its Dashboard: Narrator said 'start' (more than once while starting) and then 'running'; none of the ~34 console lines that came in were read out (the console is role=log, aria-live=off; the state pill is role=status). Players: typed 'bad name!' and pressed Whitelist: the whole error \"'bad name!' is not a valid player name\" was heard (toast role=alert). Cleared the box and pressed Whitelist: 'Type a player name first.' was shown (role=alert) and heard, and the focus was in the Player name box.",
+      "evidence": ""
+    },
+    "802": {
+      "status": "na",
+      "tested_at": "2026-11-14T00:55:31+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Not rerun for 0.30.5 (a patch release): it passed in run v0.30.3-win11-release, and the owner decided on 2026-11-13 that general checks that passed in 0.30.3 aren't rerun; only failed ones are. This is not a 0.30.5 pass; see that run for the result.",
+      "evidence": ""
+    },
+    "803": {
+      "status": "na",
+      "tested_at": "2026-11-14T00:55:31+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Not rerun for 0.30.5 (a patch release): it passed in run v0.30.3-win11-release, and the owner decided on 2026-11-13 that general checks that passed in 0.30.3 aren't rerun; only failed ones are. This is not a 0.30.5 pass; see that run for the result.",
+      "evidence": ""
+    },
+    "804": {
+      "status": "na",
+      "tested_at": "2026-11-14T00:55:32+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Not rerun for 0.30.5 (a patch release): it passed in run v0.30.3-win11-release, and the owner decided on 2026-11-13 that general checks that passed in 0.30.3 aren't rerun; only failed ones are. This is not a 0.30.5 pass; see that run for the result.",
+      "evidence": ""
+    },
+    "805": {
+      "status": "na",
+      "tested_at": "2026-11-14T00:55:32+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Not rerun for 0.30.5 (a patch release): it passed in run v0.30.3-win11-release, and the owner decided on 2026-11-13 that general checks that passed in 0.30.3 aren't rerun; only failed ones are. This is not a 0.30.5 pass; see that run for the result.",
+      "evidence": ""
+    },
+    "806": {
+      "status": "na",
+      "tested_at": "2026-11-14T00:55:32+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Not rerun for 0.30.5 (a patch release): it passed in run v0.30.3-win11-release, and the owner decided on 2026-11-13 that general checks that passed in 0.30.3 aren't rerun; only failed ones are. This is not a 0.30.5 pass; see that run for the result.",
+      "evidence": ""
+    },
+    "808": {
+      "status": "na",
+      "tested_at": "2026-11-14T00:55:32+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Not rerun for 0.30.5 (a patch release): it passed in run v0.30.3-win11-release, and the owner decided on 2026-11-13 that general checks that passed in 0.30.3 aren't rerun; only failed ones are. This is not a 0.30.5 pass; see that run for the result.",
+      "evidence": ""
+    },
+    "809": {
+      "status": "na",
+      "tested_at": "2026-11-14T00:55:32+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Not rerun for 0.30.5 (a patch release): it passed in run v0.30.3-win11-release, and the owner decided on 2026-11-13 that general checks that passed in 0.30.3 aren't rerun; only failed ones are. This is not a 0.30.5 pass; see that run for the result.",
+      "evidence": ""
+    },
+    "811": {
+      "status": "na",
+      "tested_at": "2026-11-14T00:55:33+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Not rerun for 0.30.5 (a patch release): it passed in run v0.30.3-win11-release, and the owner decided on 2026-11-13 that general checks that passed in 0.30.3 aren't rerun; only failed ones are. This is not a 0.30.5 pass; see that run for the result.",
+      "evidence": ""
+    },
+    "812": {
+      "status": "na",
+      "tested_at": "2026-11-14T00:55:33+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Not rerun for 0.30.5 (a patch release): it passed in run v0.30.3-win11-release, and the owner decided on 2026-11-13 that general checks that passed in 0.30.3 aren't rerun; only failed ones are. This is not a 0.30.5 pass; see that run for the result.",
+      "evidence": ""
+    },
+    "815": {
+      "status": "na",
+      "tested_at": "2026-11-14T00:55:33+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Not rerun for 0.30.5 (a patch release): it passed in run v0.30.3-win11-release, and the owner decided on 2026-11-13 that general checks that passed in 0.30.3 aren't rerun; only failed ones are. This is not a 0.30.5 pass; see that run for the result.",
+      "evidence": ""
+    },
+    "817": {
+      "status": "na",
+      "tested_at": "2026-11-14T00:55:33+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Not rerun for 0.30.5 (a patch release): it passed in run v0.30.3-win11-release, and the owner decided on 2026-11-13 that general checks that passed in 0.30.3 aren't rerun; only failed ones are. This is not a 0.30.5 pass; see that run for the result.",
+      "evidence": ""
+    },
+    "819": {
+      "status": "na",
+      "tested_at": "2026-11-14T00:55:34+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Not rerun for 0.30.5 (a patch release): it passed in run v0.30.3-win11-release, and the owner decided on 2026-11-13 that general checks that passed in 0.30.3 aren't rerun; only failed ones are. This is not a 0.30.5 pass; see that run for the result.",
+      "evidence": ""
+    },
+    "820": {
+      "status": "na",
+      "tested_at": "2026-11-14T00:55:34+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Not rerun for 0.30.5 (a patch release): it passed in run v0.30.3-win11-release, and the owner decided on 2026-11-13 that general checks that passed in 0.30.3 aren't rerun; only failed ones are. This is not a 0.30.5 pass; see that run for the result.",
+      "evidence": ""
+    },
+    "818": {
+      "status": "pass",
+      "tested_at": "2026-11-14T00:59:16+00:00",
+      "tester": "Claude Code + owner",
+      "notes": "Release exe v0.30.5, Chrome. Rechecked what failed in v0.30.3 (#217). With Windows Narrator on (owner listened, same session as 1010): starting a server, 'running' was announced once and not repeated, console lines weren't read, the Players errors were heard in full, and the Player name / Reason boxes have names. Accessibility tree: Your servers' card buttons name their server ('Start Café ☕ test', 'Open Friends test', 'Delete …'; 58 buttons), Java's version box is named 'Java version to install', Console has its page heading (h1 Console; title 'Console · Home only · Craft Conductor').",
+      "evidence": ""
+    },
+    "816": {
+      "status": "pass",
+      "tested_at": "2026-11-14T01:02:35+00:00",
+      "tester": "Claude Code + owner",
+      "notes": "Release exe v0.30.5, isolated home. Rechecked what failed in v0.30.3 (#191, #192). All the Mods 11 0.14.0-beta (CurseForge file 9426887): the setup reads the pack's official server pack (preview: server_pack true, sides_from_modrinth 0), so its 7 players-only mods (Sodium, Sodium Extra, Iris, Euphoria Patches, Drippy Loading Screen, Just Zoom, Simple Backups) are left off the server; the server ran its 291 mods and the owner joined with the pack's own Prism instance (see 914). Modrinth pack Vanilla Perfected 1.0.3+26.2 (Fabric 0.19.3) updated to 1.0.0+26.3: 'Updated the pack to Vanilla Perfected 1.0.0+26.3 (3 mod(s) added, 52 removed, 27 moved to the pack's new file; kept your changes to config/modernfix-mixins.properties)', and the server started ('Loading Minecraft 26.3 with Fabric Loader 0.19.5', Done). Also this run: the Modrinth pack Adrenaline was made and updated (914), and All the Mods 11's CurseForge hand downloads worked apart from one wrong link (1009, #280).",
+      "evidence": ""
+    },
+    "813": {
+      "status": "fail",
+      "tested_at": "2026-11-14T01:16:45+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.5, fresh isolated install with its Servers folder inside the OneDrive folder; the OneDrive app running and syncing (it marked the server folders read-only, as in #216). Vanilla 26.2 server: made, started, stopped, backed up, updated 26.2 -> 26.3 (Minecraft 26.2 -> 26.3), started on 26.3. Backups -> Roll back to this: the first try failed: \"the server folder couldn't be moved aside ([WinError 5] Access is denied …): is a program still using a file in it? The server was left as it was\" (#290); the retry straight away worked. 5 more roll backs (3 right after a start/stop, 2 right after another 26.2 -> 26.3 update) all worked. No server.replaced / server.restoring left at any point, the server started after the roll backs, and after restarting Craft Conductor it was listed and started normally (no 'stopped in the middle of something'). Not done: joining with a game client, and a Windows restart.",
+      "evidence": "#290"
+    }
+  },
   "notes": "Bug-hunt release: 1000-1030 are the fixes from PRs #246-#253 (issues #231-#245, #255-#277). 887/971 (#241), 979 (#244), 908/914 (#242) failed in v0.30.4-win11 and are fixed. 999 can only be tested by updating from 0.30.4 to 0.30.5."
 }

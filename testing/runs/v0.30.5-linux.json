@@ -1,0 +1,304 @@
+{
+  "schema_version": 1,
+  "id": "v0.30.5-linux",
+  "cc_version": "0.30.5",
+  "minecraft_version": "",
+  "os": "Linux x64 (Ubuntu 24.04 on WSL2) + Docker",
+  "kind": "patch",
+  "created_at": "2026-11-06T20:35:36+00:00",
+  "features": [],
+  "fixes": [],
+  "required_ids": [
+    737,
+    738,
+    739,
+    740,
+    741,
+    742,
+    743,
+    744,
+    745,
+    754,
+    755,
+    756,
+    757,
+    758,
+    759,
+    760,
+    761,
+    802,
+    803,
+    804,
+    805,
+    806,
+    807,
+    808,
+    809,
+    810,
+    811,
+    812,
+    813,
+    814,
+    815,
+    816,
+    817,
+    818,
+    819,
+    820
+  ],
+  "results": {
+    "737": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:40:32+00:00",
+      "tester": "Claude Code",
+      "notes": "Release craft-conductor-linux-x64 v0.30.5 (checksum OK), Ubuntu 24.04 on WSL2, user minecraft. Downloaded craft-conductor-linux-x64 and the join build from the v0.30.5 release; both match SHA256SUMS.txt; --version says 0.30.5.",
+      "evidence": ""
+    },
+    "744": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:40:32+00:00",
+      "tester": "Claude Code",
+      "notes": "Release craft-conductor-linux-x64 v0.30.5 (checksum OK), Ubuntu 24.04 on WSL2, user minecraft. craft-conductor service install --panel as a normal user: installed and started craft_conductor.service as a systemd user service with lingering on; it printed the SSH tunnel command and the one-time password.",
+      "evidence": ""
+    },
+    "745": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:40:32+00:00",
+      "tester": "Claude Code",
+      "notes": "Release craft-conductor-linux-x64 v0.30.5 (checksum OK), Ubuntu 24.04 on WSL2, user minecraft. The service panel listens on 127.0.0.1:8765 only (ss). Not reachable through the Linux machine's own network address nor through the Windows PC's network address; only through localhost forwarding on the same PC.",
+      "evidence": ""
+    },
+    "738": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:40:33+00:00",
+      "tester": "Claude Code",
+      "notes": "Release craft-conductor-linux-x64 v0.30.5 (checksum OK), Ubuntu 24.04 on WSL2, user minecraft. Craft Conductor started (systemd user service); the one-time password signed in, asked for a strong password, and its file was deleted afterwards; notice accepted.",
+      "evidence": ""
+    },
+    "739": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:40:33+00:00",
+      "tester": "Claude Code",
+      "notes": "Release craft-conductor-linux-x64 v0.30.5 (checksum OK), Ubuntu 24.04 on WSL2, user minecraft. Created a Fabric server (Minecraft 26.3, fabric-api, lithium) through the control panel API in 30 s.",
+      "evidence": ""
+    },
+    "740": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:40:33+00:00",
+      "tester": "Claude Code",
+      "notes": "Release craft-conductor-linux-x64 v0.30.5 (checksum OK), Ubuntu 24.04 on WSL2, user minecraft. Started it: running on Minecraft 26.3 Fabric, console answers list.",
+      "evidence": ""
+    },
+    "741": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:40:33+00:00",
+      "tester": "Claude Code",
+      "notes": "Release craft-conductor-linux-x64 v0.30.5 (checksum OK), Ubuntu 24.04 on WSL2, user minecraft. Two mineflayer players on the Windows PC joined a vanilla 26.1.2 offline-mode server on the Linux machine (a separate WSL2 virtual machine) through WSL's port forwarding. Not a separate physical computer.",
+      "evidence": ""
+    },
+    "742": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:41:27+00:00",
+      "tester": "Claude Code",
+      "notes": "Release craft-conductor-linux-x64 v0.30.5 (checksum OK), Ubuntu 24.04 on WSL2, user minecraft. Restarted Linux (wsl --terminate of the distribution, then booted it again: systemd and every process started fresh; the WSL kernel VM itself kept running). The craft_conductor user service came back by itself at boot, on 127.0.0.1:8765.",
+      "evidence": ""
+    },
+    "743": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:41:27+00:00",
+      "tester": "Claude Code",
+      "notes": "Release craft-conductor-linux-x64 v0.30.5 (checksum OK), Ubuntu 24.04 on WSL2, user minecraft. After the restart: both servers listed (Fabric 26.3 and vanilla 26.1.2), the chosen password still signs in, memory 4G and view-distance 9 set before the restart are kept, and the Fabric server starts.",
+      "evidence": ""
+    },
+    "754": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:48:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Docker image ghcr.io/silverwrx03/craft-conductor:v0.30.5 (reports 0.30.5) with the repo's docker-compose.yml, Docker 29.9.3 on Ubuntu 24.04 (WSL2). docker compose up -d with the documented compose file (image tag set to v0.30.5, CRAFT_CONDUCTOR_LAN_IP and CRAFT_CONDUCTOR_INITIAL_PASSWORD set): started, healthy, the initial password signs in. Note: the image tags are v0.30.5 style; 0.30.5 does not exist.",
+      "evidence": ""
+    },
+    "755": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:48:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Docker image ghcr.io/silverwrx03/craft-conductor:v0.30.5 (reports 0.30.5) with the repo's docker-compose.yml, Docker 29.9.3 on Ubuntu 24.04 (WSL2). The control panel is published on 127.0.0.1:8765 on the Docker host only, as docs/docker.md says (docker-proxy on 127.0.0.1); reachable on the same PC, not through the host's network address. Minecraft 25565-25570 and 8798 on all addresses, as documented.",
+      "evidence": ""
+    },
+    "756": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:48:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Docker image ghcr.io/silverwrx03/craft-conductor:v0.30.5 (reports 0.30.5) with the repo's docker-compose.yml, Docker 29.9.3 on Ubuntu 24.04 (WSL2). Created a vanilla 26.1.2 server (port 25565) in the container in 20 s; servers live in /data/servers.",
+      "evidence": ""
+    },
+    "757": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:48:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Docker image ghcr.io/silverwrx03/craft-conductor:v0.30.5 (reports 0.30.5) with the repo's docker-compose.yml, Docker 29.9.3 on Ubuntu 24.04 (WSL2). Started it: running.",
+      "evidence": ""
+    },
+    "758": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:48:02+00:00",
+      "tester": "Claude Code",
+      "notes": "Docker image ghcr.io/silverwrx03/craft-conductor:v0.30.5 (reports 0.30.5) with the repo's docker-compose.yml, Docker 29.9.3 on Ubuntu 24.04 (WSL2). Two mineflayer players on the Windows PC joined it through the published port 25565 (offline mode for the bots).",
+      "evidence": ""
+    },
+    "759": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:48:03+00:00",
+      "tester": "Claude Code",
+      "notes": "Docker image ghcr.io/silverwrx03/craft-conductor:v0.30.5 (reports 0.30.5) with the repo's docker-compose.yml, Docker 29.9.3 on Ubuntu 24.04 (WSL2). docker compose down (container and network removed, volume kept), then docker compose up -d: a new container started and the panel came back.",
+      "evidence": ""
+    },
+    "760": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:48:03+00:00",
+      "tester": "Claude Code",
+      "notes": "Docker image ghcr.io/silverwrx03/craft-conductor:v0.30.5 (reports 0.30.5) with the repo's docker-compose.yml, Docker 29.9.3 on Ubuntu 24.04 (WSL2). After recreating the container: the server, its settings (view-distance 11 set before) and the sign-in password are all there; the server starts and a player rejoins.",
+      "evidence": ""
+    },
+    "761": {
+      "status": "pass",
+      "tested_at": "2026-11-06T20:48:03+00:00",
+      "tester": "Claude Code",
+      "notes": "Docker image ghcr.io/silverwrx03/craft-conductor:v0.30.5 (reports 0.30.5) with the repo's docker-compose.yml, Docker 29.9.3 on Ubuntu 24.04 (WSL2). A manual backup (127 MB tar.gz) made before docker compose down is still listed and on the volume after the container was recreated.",
+      "evidence": ""
+    },
+    "802": {
+      "status": "pass",
+      "tested_at": "2026-11-14T02:12:41+00:00",
+      "tester": "Claude Code",
+      "notes": "Release craft-conductor-linux-x64 v0.30.5 (sha256 1960ca0…, matches SHA256SUMS), Ubuntu 24.04 on WSL2, a new Linux user with nothing set up (cctest), panel reached from Chrome on the Windows PC through WSL's localhost forwarding. 'craft-conductor start --no-browser' with no setup: no screen, so it printed a one-time password (and the SSH tunnel line). Signed in with it -> the first-run notice -> I understand and accept -> Choose your own password -> 'Your new password is saved' -> Where should Craft Conductor keep your files (defaults kept) -> Saved -> the guided setup offer. Java 25 and Fabric were downloaded by themselves when the first server was made. The default password PASSWORD is refused (401). But the sign-in page said 'First time? The password is PASSWORD (in capitals)' and the password page said 'You're signed in with the default password, PASSWORD', which isn't so on this install; and the printed one-time password ends in '!' right before '<- one-time', easy to leave off (#291).",
+      "evidence": "#291"
+    },
+    "803": {
+      "status": "pass",
+      "tested_at": "2026-11-14T02:12:42+00:00",
+      "tester": "Claude Code",
+      "notes": "Release craft-conductor-linux-x64 v0.30.5 (sha256 1960ca0…, matches SHA256SUMS), Ubuntu 24.04 on WSL2, a new Linux user with nothing set up (cctest), panel reached from Chrome on the Windows PC through WSL's localhost forwarding. Smooth survival (Fabric, newest Minecraft, Lithium, FerriteCore, Krypton): made in 50 s, Fabric 0.20.1 on Minecraft 26.3, Java 25 ('your server is ready (Minecraft 26.3); press Start to play'). Start: running (Server is up); Restart: 'started'; Stop: stopped; the activity listed each step. Nobody joined it with a game (bots only speak up to 26.1.x).",
+      "evidence": ""
+    },
+    "804": {
+      "status": "pass",
+      "tested_at": "2026-11-14T02:12:42+00:00",
+      "tester": "Claude Code",
+      "notes": "Release craft-conductor-linux-x64 v0.30.5 (sha256 1960ca0…, matches SHA256SUMS), Ubuntu 24.04 on WSL2, a new Linux user with nothing set up (cctest), panel reached from Chrome on the Windows PC through WSL's localhost forwarding. The Smooth survival server's Modrinth mods: Fabric API 0.166.2+26.3, Lithium mc26.3-0.26.3, FerriteCore 9.0.0, Krypton 0.3.2; the log says 'Loading 46 mods', 0 ERROR lines, Server is up; lithium.properties and ferritecore.mixin.properties were written.",
+      "evidence": ""
+    },
+    "810": {
+      "status": "pass",
+      "tested_at": "2026-11-14T02:12:42+00:00",
+      "tester": "Claude Code",
+      "notes": "Release craft-conductor-linux-x64 v0.30.5 (sha256 1960ca0…, matches SHA256SUMS), Ubuntu 24.04 on WSL2, a new Linux user with nothing set up (cctest), panel reached from Chrome on the Windows PC through WSL's localhost forwarding. Fabric 26.3 server running: setblock a gold block at 0 100 0 (forceloaded), Back up now while running: 'created 20261113-201117-manual.tar.gz (checked)'; removed the block (execute if block: Test failed); stopped; Roll back to this: 'rolled back to 20261113-201117-manual.tar.gz: Minecraft 26.3, 4 mod(s).'; started: the gold block is back (Test passed).",
+      "evidence": ""
+    },
+    "811": {
+      "status": "pass",
+      "tested_at": "2026-11-14T02:18:48+00:00",
+      "tester": "Claude Code",
+      "notes": "Release craft-conductor-linux-x64 v0.30.5 (checksum OK), Ubuntu 24.04 on WSL2, user cctest, separate home. CLI server (create --loader fabric --minecraft 1.21.1 --mod fabric-api --mod lithium --rcon); check offered 1.21.1 -> 26.3 (Fabric API 0.116.18 -> 0.166.2, Lithium 0.15.4 -> 0.26.3). Craft Conductor killed (SIGKILL, whole process group) during 'update -y': once while it downloaded Java 25, once while it downloaded Lithium with the pre-update backup half written. Each time the server's files were as before (same fingerprint of the jar, mods and lock file), the next 'check' offered the same update, and 'run' started Minecraft 1.21.1 with the old Fabric API and Lithium (Done) without retrying 26.3 at once. No half-downloaded Java folder was left (unlike #199 in 0.30.3); the half-written backup (.part files) stays until a later backup tidies it.",
+      "evidence": ""
+    },
+    "819": {
+      "status": "pass",
+      "tested_at": "2026-11-14T02:24:40+00:00",
+      "tester": "Claude Code",
+      "notes": "Release craft-conductor-linux-x64 v0.30.5 (checksum OK), Ubuntu 24.04 on WSL2, user cctest. Fabric 1.21.11 server (Fabric API 0.141.6, Lithium 0.21.4, Dynmap v3.8 optional). With the default 'wait for every mod, optional ones too' on, no update to 26.3 was offered (Dynmap has no Fabric build for 26.3: as designed); turned it off. Rehearse it on a copy first to 26.3: 'It worked: the copy started and ran without problems' (started in 26.4 s, 20 TPS, no warnings or errors) with changes Minecraft 1.21.11 -> 26.3, ~ Fabric API -> 0.166.2+26.3, ~ Lithium -> mc26.3-0.26.3, - Dynmap v3.8; the server itself was left on 1.21.11. The real update ('updated: Minecraft 1.21.11 -> 26.3') made exactly those changes (Fabric API 0.166.2+26.3, Lithium mc26.3-0.26.3, Dynmap removed) and the server came up on 26.3.",
+      "evidence": ""
+    },
+    "814": {
+      "status": "pass",
+      "tested_at": "2026-11-14T02:33:32+00:00",
+      "tester": "Claude Code",
+      "notes": "Release craft-conductor-linux-x64 v0.30.5 (checksum OK), Ubuntu 24.04 on WSL2, user cctest. Fresh install with Craft Conductor's own folder named 'Сервер サーバー' and the server folder 'мир ワールド ☕' inside it. With a UTF-8 locale (LANG=C.UTF-8, which is what the systemd service Craft Conductor installs runs with, checked in /proc): create --loader vanilla --minecraft 26.3 made it (Java 25 in the Unicode folder), run started it (Done), backup made a backup there, stop stopped it cleanly in 3 s. But from a shell with no locale (LANG empty) Java couldn't start from that folder: UnsatisfiedLinkError 'int sun.nio.fs.UnixNativeDispatcher.init()' (#292).",
+      "evidence": "#292"
+    },
+    "812": {
+      "status": "pass",
+      "tested_at": "2026-11-14T02:37:13+00:00",
+      "tester": "Claude Code",
+      "notes": "Release craft-conductor-linux-x64 v0.30.5 (checksum OK), Ubuntu 24.04 on WSL2, user cctest. A 1 GB ext4 disk (a loop-mounted image instead of a USB stick) with a fresh Craft Conductor home on it; vanilla 26.3 server running from it; filled to 30 MB free. Red strip at the top of the page: 'Only 30 MB of disk space left On the drive with …/small-disk. Backups, updates and the world itself may fail to save…' (in MB now; 0.30.3 said 0.0 GB). Check my setup: Disk space bad, 'Only 30 MB free where the server is', with 'Delete old backups (keep the newest 3)'. A backup failed cleanly: \"couldn't make the backup …: the disk is full (31 MB free). The unfinished file was removed\"; only the earlier backup listed, no half-made file left. save-all still saved (Minecraft warns 'Low disk space!'). Stop and Start worked with the disk full. After freeing space a backup worked again ('created … (checked)').",
+      "evidence": ""
+    },
+    "816": {
+      "status": "pass",
+      "tested_at": "2026-11-14T02:43:46+00:00",
+      "tester": "Claude Code",
+      "notes": "Release craft-conductor-linux-x64 v0.30.5 (checksum OK), Ubuntu 24.04 on WSL2, user cctest. Modrinth mods: Fabric API, Lithium, FerriteCore, Krypton (804). A CurseForge mod by slug (AppleSkin, with the build's own CurseForge key): added, installed at the next start and loaded ('appleskin 3.0.10+mc26.3', 5 mods). CurseForge modpack: All the Mods 11 0.14.0-beta is read with its official server pack (preview: server_pack true, sides_from_modrinth 0, 291 server mods, 7 players-only; NeoForge 26.1.2.126). Modrinth modpack: Vanilla Perfected 1.0.3+26.2 (Fabric 0.19.3) made, then updated to 1.0.0+26.3: 'Updated the pack to Vanilla Perfected 1.0.0+26.3 (3 mod(s) added, 52 removed, 27 moved to the pack's new file …)', Fabric 0.19.5, started on 26.3. Small: on this brand-new server the update said it 'kept your changes' to config files nobody changed (ferritecore.mixin.properties and others: likely rewritten by the mods at the first start).",
+      "evidence": ""
+    },
+    "813": {
+      "status": "na",
+      "tested_at": "2026-11-14T02:44:00+00:00",
+      "tester": "Claude Code",
+      "notes": "Not applicable on Linux: OneDrive has no Linux sync client (tested on Windows in v0.30.5-win11).",
+      "evidence": ""
+    },
+    "815": {
+      "status": "na",
+      "tested_at": "2026-11-14T02:44:00+00:00",
+      "tester": "Claude Code",
+      "notes": "Not applicable on Linux: Microsoft Defender is Windows-only (Linux has no equivalent scanner by default).",
+      "evidence": ""
+    },
+    "818": {
+      "status": "na",
+      "tested_at": "2026-11-14T02:44:00+00:00",
+      "tester": "Claude Code",
+      "notes": "Not run separately on Linux: the control panel is the same web page whatever computer runs Craft Conductor, and the screen reader is on the computer that opens it; tested with Windows Narrator in Chrome in v0.30.5-win11 (818 and 1010 pass).",
+      "evidence": ""
+    },
+    "805": {
+      "status": "na",
+      "tested_at": "2026-11-14T03:35:56+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Skipped on Linux by the owner's decision (2026-11-13): the Linux machine here is WSL2, which sits on a private network inside Windows (it sees itself as 172.x), so other devices can't reach it without Windows port forwarding; this needs a real Linux computer on the network. The friend's side is the same whatever the server runs on.",
+      "evidence": ""
+    },
+    "806": {
+      "status": "na",
+      "tested_at": "2026-11-14T03:35:57+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Skipped on Linux by the owner's decision (2026-11-13): the Linux machine here is WSL2, which sits on a private network inside Windows (it sees itself as 172.x), so other devices can't reach it without Windows port forwarding; this needs a real Linux computer on the network. The friend's side is the same whatever the server runs on.",
+      "evidence": ""
+    },
+    "807": {
+      "status": "na",
+      "tested_at": "2026-11-14T03:35:57+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Skipped on Linux by the owner's decision (2026-11-13): the Linux machine here is WSL2, which sits on a private network inside Windows (it sees itself as 172.x), so other devices can't reach it without Windows port forwarding; this needs a real Linux computer on the network. The friend's side is the same whatever the server runs on. UPnP from inside WSL2 can't open the home router's port for it.",
+      "evidence": ""
+    },
+    "808": {
+      "status": "na",
+      "tested_at": "2026-11-14T03:35:57+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Skipped on Linux by the owner's decision (2026-11-13): the Linux machine here is WSL2, which sits on a private network inside Windows (it sees itself as 172.x), so other devices can't reach it without Windows port forwarding; this needs a real Linux computer on the network. The friend's side is the same whatever the server runs on.",
+      "evidence": ""
+    },
+    "809": {
+      "status": "na",
+      "tested_at": "2026-11-14T03:35:57+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Skipped on Linux by the owner's decision (2026-11-13): the Linux machine here is WSL2, which sits on a private network inside Windows (it sees itself as 172.x), so other devices can't reach it without Windows port forwarding; this needs a real Linux computer on the network. The friend's side is the same whatever the server runs on.",
+      "evidence": ""
+    },
+    "817": {
+      "status": "na",
+      "tested_at": "2026-11-14T03:35:58+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Skipped on Linux by the owner's decision (2026-11-13): the Linux machine here is WSL2, which sits on a private network inside Windows (it sees itself as 172.x), so other devices can't reach it without Windows port forwarding; this needs a real Linux computer on the network. The friend's side is the same whatever the server runs on. Needs real players (the mineflayer bots only speak up to 26.1.x).",
+      "evidence": ""
+    },
+    "820": {
+      "status": "na",
+      "tested_at": "2026-11-14T03:35:58+00:00",
+      "tester": "Claude Code (owner's decision)",
+      "notes": "Stopped early by the owner's decision (2026-11-13). Release craft-conductor-linux-x64 v0.30.5, the systemd user service's Fabric 26.3 server with an hourly scheduled backup: sampled every 10 minutes for 1 h 20 min (9 samples): running in every sample, 0 warnings and 0 errors in its activity, Craft Conductor's memory 48-53 MB, the 21:00 scheduled backup made. Not a 24-hour result.",
+      "evidence": ""
+    }
+  },
+  "notes": "Linux x64 standalone and Docker on Ubuntu 24.04 under WSL2 on the Windows 11 test PC (0.30.5 release assets). The 20 release-gate tests are in this run by default; only the Linux/Docker ones are the aim."
+}
