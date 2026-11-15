@@ -239,12 +239,36 @@ def test_a_serve_from_an_earlier_version_moves_to_tailscales_door(hub_env):
     door = hub.ui.doors.port("tailscale")
     assert calls == [(door, False)] and door != panel
     assert hub.ui.doors.saved_tailscale() == {"port": door, "name": TS_NAME, "funnel": False}
-    assert at(c, door, TAILSCALE).get("/api/auth")[0] == 200
-    # Next start: the same door again, and Tailscale left as it is.
+    # Next start: the same door again, and Tailscale left as it is. (No request goes through the door
+    # before it's closed: on Windows a connection just closed can keep its port taken for a while, and
+    # the door would then move, as in the test below.)
     hub.ui.doors.close("tailscale")
     calls.clear()
     hub.ui.doors.resume(status, serve)
     assert hub.ui.doors.port("tailscale") == door and calls == []
+    assert at(c, door, TAILSCALE).get("/api/auth")[0] == 200
+
+
+def test_tailscales_door_moves_when_its_port_is_taken_and_tailscale_follows(hub_env):
+    hub, c = hub_env
+    calls = []
+
+    def serve(port, funnel):
+        calls.append((port, funnel))
+        return {"ok": True}
+    hub.ui.doors.tailscale_on(TS_NAME, False, serve)
+    door = hub.ui.doors.port("tailscale")
+    hub.ui.doors.close("tailscale")
+    calls.clear()
+    # Next start: another program has the door's port by then.
+    with socket.socket() as other:
+        other.bind(("127.0.0.1", door))
+        other.listen()
+        hub.ui.doors.resume(lambda port: {}, serve)
+        moved = hub.ui.doors.port("tailscale")
+        assert moved != door and calls == [(moved, False)]
+        assert hub.ui.doors.saved_tailscale() == {"port": moved, "name": TS_NAME, "funnel": False}
+    assert at(c, moved, TAILSCALE).get("/api/auth")[0] == 200
 
 
 def test_tailscale_serve_and_funnel_commands(monkeypatch):
