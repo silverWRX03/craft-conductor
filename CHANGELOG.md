@@ -4,7 +4,7 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
-## 0.30.6 (not released yet)
+## 0.30.6 (2026-11-15)
 
 **Added**
 - While friends ask to be let in, **Players** in the sidebar and the server's card on **Your servers** show a red dot with how many, until each is answered. Moderators see it too (and get it in their bell); people who can't answer requests don't (#239).
