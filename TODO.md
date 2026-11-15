@@ -8,10 +8,12 @@ comes first; it says which.
 
 Before continuing or starting a feature, check this list: some features wait on one of these.
 
-- [ ] **Real-world run for 0.30.5** (`v0.30.5-win11`, 56 tests): the bug-hunt fixes (1000–1030, each
-      named in its issue #231–#245, #255–#277) and the v0.30.4 failures they fix (887, 971, 979,
-      908, 914; 999 by updating from 0.30.4). Several need a file edited by hand or damaged on
-      purpose: quit Craft Conductor first and keep a copy. `/real-world-test v0.30.5-win11`.
+- [ ] **Real-world run for 0.30.6** (`v0.30.6-win11`, 48 tests): the whole release gate (802–820,
+      run on every release), the fixes in this release (1034–1048, from #295), and older failures
+      that were fixed but never retested (887, 908, 1009, 1021, 1023 from 0.30.5; 602, 876, 878, 879,
+      912, 978 from 0.30.4; 873, 874, 880 from the 0.27 workbook). 1031–1033 need Linux
+      (`v0.30.6-linux`). Several need a file edited by hand: quit Craft Conductor first and keep a
+      copy. `/real-world-test v0.30.6-win11`.
 
 - [x] **Refresh wiki screenshots for the naming cleanup:** every page is retaken by
       `tests/test_screenshots.py` with example servers, the friend's setup page included.
