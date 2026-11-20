@@ -74,8 +74,8 @@ earlier brief for 47 also said "don't add it to a server without asking".
   helper and the card says why.
 
 **Craft Conductor's side:**
-- **Turning it on:** a server setting, `[players] ping = true` in `craft-conductor.toml` (off by
-  default). The Connected Players card shows **Show players' ping…** where ping is "—" and the
+- **Turning it on:** per server, never by default (the owner's decision on 2026-11-20: "per
+  server"). A server setting, `[players] ping = true` in `craft-conductor.toml` (off by default). The Connected Players card shows **Show players' ping…** where ping is "—" and the
   server type can run the helper. It explains in one short paragraph what gets added (a small
   Craft Conductor mod or plugin on the server only; players install nothing) and asks; **Turn on**
   sets the setting. Needs `mods.manage`. Settings → Players has the same switch to turn it off.
