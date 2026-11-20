@@ -44,6 +44,10 @@ python tools/real_world_tests.py add-test --section "Feature: Bedrock" --step "O
 python tools/real_world_tests.py new-run --run v0.29.0-win11 --version 0.29.0 --kind feature --os "Windows 11" --features 882 --fixes 877
 ```
 
+## Tests that will not be run (N/A)
+
+Record `na` when a test will not be run: it's out of date (the feature changed or was removed), or it needs hardware the owner doesn't have (a Mac). The notes say that the test will not be run and why. On the public dashboard an N/A test's row is struck through, and N/A tests aren't counted in the numbers at the top. Unlike a test on hold, an N/A test stays visible, so it's clear why it isn't run.
+
 ## Tests on hold
 
 A test can be put **on hold** without deleting it: it stays in `catalog.json` (with an `on_hold` reason) and in the runs that already have its result, but new runs leave it out, `report` doesn't count it, `record` refuses it, and the public dashboard doesn't show it or its results. The Dad Test (31–49, 781–801 and gate 821) is on hold until the product is stable.
