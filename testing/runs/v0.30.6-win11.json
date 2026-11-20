@@ -372,6 +372,7 @@
     600,
     601,
     602,
+    605,
     616,
     617,
     618,
@@ -473,6 +474,18 @@
     722,
     723,
     724,
+    725,
+    726,
+    727,
+    728,
+    729,
+    730,
+    731,
+    732,
+    733,
+    734,
+    735,
+    736,
     771,
     772,
     774,
@@ -4235,6 +4248,97 @@
       "tested_at": "2026-11-20T14:26:38+00:00",
       "tester": "Claude Code",
       "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, main panel. playit.gg already installed on this PC (the owner's account; its Minecraft Java tunnel points at 127.0.0.1:25565). Server RT Smooth (Fabric 26.3, port 25565) given the owner's *.tun.ply.gg address as its playit.gg address for the test (removed afterwards), started. The tunnel check is the one the Friends page shows (GET /api/tunnel, Check now). Status recovered by itself: 18 s after the start the check said 'Working: friends can join through playit.gg.' again (agent running, answer RT Smooth), and the log and notifications said 'playit.gg tunnel works again'. Server stopped and the test address removed afterwards; the playitd service left stopped, as it was found.",
+      "evidence": ""
+    },
+    "605": {
+      "status": "na",
+      "tested_at": "2026-11-20T15:57:31+00:00",
+      "tester": "owner",
+      "notes": "Hardware not owned: the owner has no Mac, so this Mac-only test can't be run. The macOS build is smoke-tested and runs a real Fabric server in CI on every PR. (Owner, 2026-11-20.)",
+      "evidence": ""
+    },
+    "725": {
+      "status": "na",
+      "tested_at": "2026-11-20T15:57:31+00:00",
+      "tester": "owner",
+      "notes": "Hardware not owned: the owner has no Mac, so this Mac-only test can't be run. The macOS build is smoke-tested and runs a real Fabric server in CI on every PR. (Owner, 2026-11-20.)",
+      "evidence": ""
+    },
+    "726": {
+      "status": "na",
+      "tested_at": "2026-11-20T15:57:31+00:00",
+      "tester": "owner",
+      "notes": "Hardware not owned: the owner has no Mac, so this Mac-only test can't be run. The macOS build is smoke-tested and runs a real Fabric server in CI on every PR. (Owner, 2026-11-20.)",
+      "evidence": ""
+    },
+    "727": {
+      "status": "na",
+      "tested_at": "2026-11-20T15:57:31+00:00",
+      "tester": "owner",
+      "notes": "Hardware not owned: the owner has no Mac, so this Mac-only test can't be run. The macOS build is smoke-tested and runs a real Fabric server in CI on every PR. (Owner, 2026-11-20.)",
+      "evidence": ""
+    },
+    "728": {
+      "status": "na",
+      "tested_at": "2026-11-20T15:57:31+00:00",
+      "tester": "owner",
+      "notes": "Hardware not owned: the owner has no Mac, so this Mac-only test can't be run. The macOS build is smoke-tested and runs a real Fabric server in CI on every PR. (Owner, 2026-11-20.)",
+      "evidence": ""
+    },
+    "729": {
+      "status": "na",
+      "tested_at": "2026-11-20T15:57:32+00:00",
+      "tester": "owner",
+      "notes": "Hardware not owned: the owner has no Mac, so this Mac-only test can't be run. The macOS build is smoke-tested and runs a real Fabric server in CI on every PR. (Owner, 2026-11-20.)",
+      "evidence": ""
+    },
+    "730": {
+      "status": "na",
+      "tested_at": "2026-11-20T15:57:32+00:00",
+      "tester": "owner",
+      "notes": "Hardware not owned: the owner has no Mac, so this Mac-only test can't be run. The macOS build is smoke-tested and runs a real Fabric server in CI on every PR. (Owner, 2026-11-20.)",
+      "evidence": ""
+    },
+    "731": {
+      "status": "na",
+      "tested_at": "2026-11-20T15:57:32+00:00",
+      "tester": "owner",
+      "notes": "Hardware not owned: the owner has no Mac, so this Mac-only test can't be run. The macOS build is smoke-tested and runs a real Fabric server in CI on every PR. (Owner, 2026-11-20.)",
+      "evidence": ""
+    },
+    "732": {
+      "status": "na",
+      "tested_at": "2026-11-20T15:57:32+00:00",
+      "tester": "owner",
+      "notes": "Hardware not owned: the owner has no Mac, so this Mac-only test can't be run. The macOS build is smoke-tested and runs a real Fabric server in CI on every PR. (Owner, 2026-11-20.)",
+      "evidence": ""
+    },
+    "733": {
+      "status": "na",
+      "tested_at": "2026-11-20T15:57:32+00:00",
+      "tester": "owner",
+      "notes": "Hardware not owned: the owner has no Mac, so this Mac-only test can't be run. The macOS build is smoke-tested and runs a real Fabric server in CI on every PR. (Owner, 2026-11-20.)",
+      "evidence": ""
+    },
+    "734": {
+      "status": "na",
+      "tested_at": "2026-11-20T15:57:33+00:00",
+      "tester": "owner",
+      "notes": "Hardware not owned: the owner has no Mac, so this Mac-only test can't be run. The macOS build is smoke-tested and runs a real Fabric server in CI on every PR. (Owner, 2026-11-20.)",
+      "evidence": ""
+    },
+    "735": {
+      "status": "na",
+      "tested_at": "2026-11-20T15:57:33+00:00",
+      "tester": "owner",
+      "notes": "Hardware not owned: the owner has no Mac, so this Mac-only test can't be run. The macOS build is smoke-tested and runs a real Fabric server in CI on every PR. (Owner, 2026-11-20.)",
+      "evidence": ""
+    },
+    "736": {
+      "status": "na",
+      "tested_at": "2026-11-20T15:57:33+00:00",
+      "tester": "owner",
+      "notes": "Hardware not owned: the owner has no Mac, so this Mac-only test can't be run. The macOS build is smoke-tested and runs a real Fabric server in CI on every PR. (Owner, 2026-11-20.)",
       "evidence": ""
     }
   },
