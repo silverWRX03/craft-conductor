@@ -376,6 +376,7 @@
     538,
     539,
     540,
+    569,
     597,
     598,
     599,
@@ -535,6 +536,7 @@
     880,
     887,
     888,
+    892,
     893,
     895,
     896,
@@ -543,6 +545,7 @@
     907,
     908,
     912,
+    913,
     926,
     930,
     933,
@@ -4467,6 +4470,27 @@
       "tested_at": "2026-11-20T19:29:13+00:00",
       "tester": "Owner",
       "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. Done by the owner with Windows Narrator, not NVDA (NVDA is not installed); the owner judged the screen-reader pass complete with Narrator and asked for 597 to be marked passed (2026-11-20). See also 818 and 602, which passed with Narrator in this run.",
+      "evidence": ""
+    },
+    "569": {
+      "status": "pass",
+      "tested_at": "2026-11-20T19:50:51+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, test panel A (port 29976, its own home), the owner's Discord server and their test bot (the owner pasted its token: UPnP off test, Friends, Post to Discord, then Craft Conductor settings, Connections, Discord, Whitelist through Discord, Ask me first, Turn on). The owner kicked the bot from their Discord server and added it back with Add it to another Discord server (scope bot + applications.commands). /whitelist was not there at first: the panel log shows Discord answering 'rate limited' several times while Craft Conductor added the command (retries of 1 s to 59 s); after the retries it appeared. /whitelist TestFriiend123 from Discord then reached the Players page as a join request ('TestFriiend123 asks to join upnp-off-test').",
+      "evidence": ""
+    },
+    "913": {
+      "status": "pass",
+      "tested_at": "2026-11-20T20:26:33+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, test panel A (port 29976, its own home), Modrinth route only (owner's call: the CurseForge route's update passed in v0.30.1-win11; its join and failure parts were not redone). New server from Adrenaline 26.5.0+mc26.3 (Fabric, 19 server mods), started once. Changed config/lithium.properties by hand and removed the pack mod Krypton in Manage Mods (uninstalled by the update). Updates, Look for a new version of the pack listed 26.5.1+mc26.3; See what changes: Fast Surface added, 7 updated, Krypton kept removed. Update the pack: 1 added, 7 moved to the pack's new files, Krypton left out as before, the config change still there, the server started on 26.5.1. The owner joined it from a Prism instance built from the real 26.5.1+mc26.3 .mrpack (checksums OK). A version that fails: the pack's 26.5.1+mc1.20.1 build did not finish starting and the backup was put back (26.2 mods and the config change back, server up). The first put-back was blocked because a test script's shell had its working folder inside the server folder; Craft Conductor said so plainly and put it back on the next start. Found on the way: the list also offers builds for older Minecraft, and the mc26.2 one moved the 26.3 world back to 26.2 without a warning, despite mods-only: #329.",
+      "evidence": ""
+    },
+    "892": {
+      "status": "pass",
+      "tested_at": "2026-11-20T20:26:34+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. Covered by 809 in this run (release exe v0.30.6, the phone test home on panel 29972, the owner's Android phone, a Samsung S23): Remote access & phones, Use Tailscale gave the https://<pc>.<tailnet>.ts.net address and the phone opened it and signed in (paired). In v0.30.3-win11-release, 809 did the same with the phone on mobile data (Wi-Fi off). Recorded as covered on the owner's decision (2026-11-20).",
       "evidence": ""
     }
   },
