@@ -166,6 +166,7 @@
     235,
     244,
     245,
+    246,
     247,
     248,
     249,
@@ -177,6 +178,10 @@
     255,
     256,
     257,
+    258,
+    259,
+    260,
+    261,
     262,
     263,
     264,
@@ -442,6 +447,8 @@
     688,
     689,
     690,
+    691,
+    692,
     693,
     694,
     695,
@@ -523,12 +530,14 @@
     880,
     887,
     888,
+    893,
     903,
     904,
     907,
     908,
     912,
     926,
+    930,
     933,
     953,
     954,
@@ -4339,6 +4348,69 @@
       "tested_at": "2026-11-20T15:57:33+00:00",
       "tester": "owner",
       "notes": "Hardware not owned: the owner has no Mac, so this Mac-only test can't be run. The macOS build is smoke-tested and runs a real Fabric server in CI on every PR. (Owner, 2026-11-20.)",
+      "evidence": ""
+    },
+    "246": {
+      "status": "na",
+      "tested_at": "2026-11-20T16:20:21+00:00",
+      "tester": "owner",
+      "notes": "This test will not be run: it is out of date (the playit.gg tunnel for friends' downloads was removed). Marked N/A by the owner, 2026-11-20.",
+      "evidence": ""
+    },
+    "258": {
+      "status": "na",
+      "tested_at": "2026-11-20T16:20:22+00:00",
+      "tester": "owner",
+      "notes": "This test will not be run: it is out of date (invite links last 1, 3 or 7 days; there are no 30-day or until-regenerated links). Marked N/A by the owner, 2026-11-20.",
+      "evidence": ""
+    },
+    "259": {
+      "status": "na",
+      "tested_at": "2026-11-20T16:20:22+00:00",
+      "tester": "owner",
+      "notes": "This test will not be run: it is out of date (invite links last 1, 3 or 7 days; there are no 30-day or until-regenerated links). Marked N/A by the owner, 2026-11-20.",
+      "evidence": ""
+    },
+    "260": {
+      "status": "na",
+      "tested_at": "2026-11-20T16:20:22+00:00",
+      "tester": "owner",
+      "notes": "This test will not be run: it is out of date (invite links last 1, 3 or 7 days; there are no 30-day or until-regenerated links). Marked N/A by the owner, 2026-11-20.",
+      "evidence": ""
+    },
+    "261": {
+      "status": "na",
+      "tested_at": "2026-11-20T16:20:22+00:00",
+      "tester": "owner",
+      "notes": "This test will not be run: it is out of date (invite links last 1, 3 or 7 days; there are no 30-day or until-regenerated links). Marked N/A by the owner, 2026-11-20.",
+      "evidence": ""
+    },
+    "691": {
+      "status": "na",
+      "tested_at": "2026-11-20T16:20:22+00:00",
+      "tester": "owner",
+      "notes": "This test will not be run: it is out of date (there is no modpack ZIP import; modpacks come from Modrinth or CurseForge). Marked N/A by the owner, 2026-11-20.",
+      "evidence": ""
+    },
+    "692": {
+      "status": "na",
+      "tested_at": "2026-11-20T16:20:23+00:00",
+      "tester": "owner",
+      "notes": "This test will not be run: it is out of date (there is no modpack ZIP import; modpacks come from Modrinth or CurseForge). Marked N/A by the owner, 2026-11-20.",
+      "evidence": ""
+    },
+    "893": {
+      "status": "na",
+      "tested_at": "2026-11-20T16:20:23+00:00",
+      "tester": "owner",
+      "notes": "This test will not be run: it is out of date (it only applies to updating from 0.28.0 or earlier). Marked N/A by the owner, 2026-11-20.",
+      "evidence": ""
+    },
+    "930": {
+      "status": "na",
+      "tested_at": "2026-11-20T16:20:23+00:00",
+      "tester": "owner",
+      "notes": "This test will not be run: it is out of date (the playit.gg tunnel for friends' downloads was removed). Marked N/A by the owner, 2026-11-20.",
       "evidence": ""
     }
   },

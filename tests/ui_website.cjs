@@ -179,7 +179,13 @@ const base = process.argv[2];
       assert.ok(nav.x === 0 && nav.width > 180, "the testing dashboard has the homepage's sidebar");
       assert.equal(await testing.locator('#site-nav .nav-link').count(), await page.locator('#site-nav .nav-link').count(), 'the same links');
       assert.match(await testing.textContent('#site-nav [aria-current="page"]'), /Real-world testing$/, 'Real-world testing is the page on show');
-      assert.ok((await testing.locator('#stats .card').count()) === 5, 'the counts');
+      assert.equal(await testing.locator('#stats .card').count(), 4, 'the counts: passed, failed, blocked, not tested (N/A is not counted)');
+      assert.ok(!/N\/A/.test(await testing.textContent('#stats')), 'no N/A count at the top');
+      const na = testing.locator('#tests tr.na');
+      if (await na.count()) {
+        assert.equal(await na.first().locator('td').nth(2).evaluate((td) => getComputedStyle(td).textDecorationLine), 'line-through', 'an N/A test is struck through');
+        assert.match(await testing.textContent('#scope-note'), /N\/A tests \(struck through\) will not be run and aren't counted/, 'the line under the counts says N/A tests are left out');
+      }
       await shot(testing, `${name}-testing-dark`);
       await testing.click('#site-nav a[href="../#download"]');
       await testing.waitForURL(/#download$/);
