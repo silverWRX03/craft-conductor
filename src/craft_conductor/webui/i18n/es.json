@@ -1189,5 +1189,6 @@
   "Server icon removed. Minecraft's own picture is back from the next restart.": "Icono del servidor quitado. La imagen propia de Minecraft vuelve desde el próximo reinicio.",
   "That file isn't a picture this browser can open.": "Ese archivo no es una imagen que este navegador pueda abrir.",
   "This server's icon": "El icono de este servidor",
-  "Choose a picture for the server icon": "Elegir una imagen para el icono del servidor"
+  "Choose a picture for the server icon": "Elegir una imagen para el icono del servidor",
+  "Recent, at the top of the left panel, lists up to three servers to jump between, running ones first. Choosing one opens the same page on that server.": "Recientes, arriba en el panel izquierdo, muestra hasta tres servidores entre los que saltar, primero los que están en marcha. Al elegir uno se abre la misma página en ese servidor."
 }

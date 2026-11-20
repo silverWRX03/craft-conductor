@@ -1202,5 +1202,6 @@
   "Server icon removed. Minecraft's own picture is back from the next restart.": "서버 아이콘을 지웠습니다. 다음 재시작부터 Minecraft 기본 그림으로 돌아갑니다.",
   "That file isn't a picture this browser can open.": "이 파일은 이 브라우저가 열 수 있는 그림이 아닙니다.",
   "This server's icon": "이 서버의 아이콘",
-  "Choose a picture for the server icon": "서버 아이콘으로 쓸 그림 선택"
+  "Choose a picture for the server icon": "서버 아이콘으로 쓸 그림 선택",
+  "Recent, at the top of the left panel, lists up to three servers to jump between, running ones first. Choosing one opens the same page on that server.": "왼쪽 패널 맨 위의 최근에는 오가며 쓸 서버가 최대 세 개 나오며, 실행 중인 서버가 먼저 나옵니다. 하나를 고르면 그 서버의 같은 페이지가 열립니다."
 }

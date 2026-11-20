@@ -250,7 +250,7 @@ Added 2026-10-16 (briefs in "Additional requests (2026-10-16)" below; numbering 
         reached from the internet. Merged in #121, in the next release. playit.gg's tunnel for
         friends' downloads was removed (it now needs a paid plan); invite links work 1, 3 or 7
         days instead. See THREAT_MODEL.md section 1.5; real-world tests 882–891.
-37. [ ] **Discord webhook help link** in a server's Settings, next to the Discord webhook URL.
+37. [x] **Discord webhook help link** in a server's Settings, next to the Discord webhook URL.
 38. [ ] **Clean uninstall:** remove everything Craft Conductor added; ask separately about servers,
         worlds, backups and exports.
 39. [ ] **Choose where files are kept:** on first use, choose the folders for servers, backups and
@@ -273,8 +273,8 @@ Added 2026-10-16 (briefs in "Additional requests (2026-10-16)" below; numbering 
         and added to the pack; if they aren't there, ask where they are.
 49. [ ] **Modpack download screen:** a progress bar that holds the page while a modpack downloads,
         with Chrome's dinosaur game to play meanwhile.
-50. [ ] **Custom server icon:** choose the picture players see in Minecraft's server list.
-51. [ ] **Recent servers in the left panel:** the last 3 run.
+50. [x] **Custom server icon:** choose the picture players see in Minecraft's server list.
+51. [x] **Recent servers in the left panel:** the last 3 run.
 52. [ ] **Craft Conductor's website** on GitHub Pages.
 53. [ ] **Make a modpack from a server's mods:** Modrinth (.mrpack) or CurseForge format.
 54. [ ] **No load check for a modpack's own mods** during setup (mods added on top still checked).
@@ -282,7 +282,7 @@ Added 2026-10-16 (briefs in "Additional requests (2026-10-16)" below; numbering 
 
 Added 2026-11-01 (from the bug hunt released as 0.30.5):
 
-56. [ ] **Friend's PC: one game folder per server, not per name (#254):** two servers with the same
+56. [x] **Friend's PC: one game folder per server, not per name (#254):** Shipped in 0.30.6. two servers with the same
         name (Minecraft's default "A Minecraft Server" included) share a friend's game folder,
         launcher profile and Prism instance. Needs a stable per-server id in the pack; the design
         and acceptance are in the issue.

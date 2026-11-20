@@ -1203,5 +1203,6 @@
   "Server icon removed. Minecraft's own picture is back from the next restart.": "सर्वर आइकन हटाया गया। अगले रीस्टार्ट से Minecraft की अपनी तस्वीर वापस आ जाएगी।",
   "That file isn't a picture this browser can open.": "यह फ़ाइल ऐसी तस्वीर नहीं है जिसे यह ब्राउज़र खोल सके।",
   "This server's icon": "इस सर्वर का आइकन",
-  "Choose a picture for the server icon": "सर्वर आइकन के लिए तस्वीर चुनें"
+  "Choose a picture for the server icon": "सर्वर आइकन के लिए तस्वीर चुनें",
+  "Recent, at the top of the left panel, lists up to three servers to jump between, running ones first. Choosing one opens the same page on that server.": "बाएँ पैनल में सबसे ऊपर हाल के, बीच में जाने के लिए तीन तक सर्वर दिखाता है, चल रहे सर्वर पहले। किसी एक को चुनने पर उसी सर्वर पर वही पेज खुलता है।"
 }

@@ -6281,6 +6281,7 @@ function screenshot(name, caption) {
 
 const HELP = [
   ["navigation", "Finding your way", () => [
+    h("p", {}, "Recent, at the top of the left panel, lists up to three servers to jump between, running ones first. Choosing one opens the same page on that server."),
     h("p", {}, "Help and User manual keep your current page open underneath. Use the contents on the left, then Close Help or Escape to return to the same place, with your unsaved entries intact."),
     h("p", {}, "Craft Conductor settings are grouped into Appearance, Sounds & notifications, Sign-in & security, Connections, and About & updates. A small red dot on Craft Conductor settings and About & updates means a Craft Conductor update is waiting: press Check for Craft Conductor updates to install it (Later only stops the message from appearing by itself until Craft Conductor restarts)."),
     screenshot("craft-conductor-settings", "Craft Conductor settings: pick a section on the left."),

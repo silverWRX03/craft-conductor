@@ -91,3 +91,46 @@ def test_only_people_who_may_change_settings_set_the_icon(hub_env):
     assert viewer.get("/api/servers/main/server-icon")[0] == 404  # (a server they weren't given)
     manager, _ = invite(hub, c, "Manny", {"alpha": ["status.view", "settings.safe"]})
     assert manager.post("/api/servers/alpha/server-icon/remove")[0] == 200
+
+
+def test_only_a_real_icon_is_ever_served(tmp_path):
+    """Whatever else is called server-icon.png (put there by hand, a mod or a link) is never sent to the page."""
+    assert servericon.read(tmp_path) is None
+    (tmp_path / servericon.FILE).write_bytes(b"not a picture, maybe a password")
+    assert servericon.read(tmp_path) is None
+    (tmp_path / servericon.FILE).write_bytes(png(128, 128))
+    assert servericon.read(tmp_path) is None
+    servericon.save(tmp_path, png())
+    assert servericon.read(tmp_path) == png()
+
+
+def test_a_link_called_server_icon_is_not_followed(tmp_path):
+    secret = tmp_path / "elsewhere.png"
+    secret.write_bytes(png())
+    server = tmp_path / "server"
+    server.mkdir()
+    try:
+        (server / servericon.FILE).symlink_to(secret)
+    except OSError:
+        pytest.skip("this computer doesn't allow making links")
+    assert servericon.read(server) is None
+
+
+def test_saving_never_writes_through_a_link(tmp_path):
+    outside = tmp_path / "outside.txt"
+    outside.write_text("keep me")
+    server = tmp_path / "server"
+    server.mkdir()
+    try:
+        (server / (servericon.FILE + ".tmp")).symlink_to(outside)
+    except OSError:
+        pytest.skip("this computer doesn't allow making links")
+    servericon.save(server, png())
+    assert outside.read_text() == "keep me"
+    assert servericon.read(server) == png()
+
+
+def test_a_leftover_temporary_file_is_replaced(tmp_path):
+    (tmp_path / (servericon.FILE + ".tmp")).write_bytes(b"half a picture from a power cut")
+    servericon.save(tmp_path, png())
+    assert servericon.read(tmp_path) == png() and not (tmp_path / (servericon.FILE + ".tmp")).exists()

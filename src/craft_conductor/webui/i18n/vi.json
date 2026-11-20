@@ -1198,5 +1198,6 @@
   "Server icon removed. Minecraft's own picture is back from the next restart.": "Đã gỡ biểu tượng máy chủ. Hình mặc định của Minecraft trở lại từ lần khởi động lại tiếp theo.",
   "That file isn't a picture this browser can open.": "Tệp đó không phải là hình mà trình duyệt này mở được.",
   "This server's icon": "Biểu tượng của máy chủ này",
-  "Choose a picture for the server icon": "Chọn hình cho biểu tượng máy chủ"
+  "Choose a picture for the server icon": "Chọn hình cho biểu tượng máy chủ",
+  "Recent, at the top of the left panel, lists up to three servers to jump between, running ones first. Choosing one opens the same page on that server.": "Gần đây, ở đầu bảng bên trái, liệt kê tối đa ba máy chủ để chuyển qua lại, máy đang chạy xếp trước. Chọn một máy sẽ mở cùng trang đó trên máy chủ ấy."
 }

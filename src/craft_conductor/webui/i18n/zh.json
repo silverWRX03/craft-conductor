@@ -1203,5 +1203,6 @@
   "Server icon removed. Minecraft's own picture is back from the next restart.": "服务器图标已移除。从下次重启起恢复 Minecraft 自带的图片。",
   "That file isn't a picture this browser can open.": "该文件不是此浏览器能打开的图片。",
   "This server's icon": "此服务器的图标",
-  "Choose a picture for the server icon": "为服务器图标选择图片"
+  "Choose a picture for the server icon": "为服务器图标选择图片",
+  "Recent, at the top of the left panel, lists up to three servers to jump between, running ones first. Choosing one opens the same page on that server.": "左侧面板顶部的“最近”列出最多三个可快速切换的服务器，运行中的排在前面。选择一个会在该服务器上打开同一页面。"
 }

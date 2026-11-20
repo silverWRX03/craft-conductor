@@ -1041,10 +1041,9 @@ class RequestHandler(BaseHTTPRequestHandler):
                 return self._send(200, api.doctor_report(), "application/zip",
                                   {"Content-Disposition": f'attachment; filename="{name}"'})
             if path == "/api/server-icon" and method == "GET":  # the picture in Minecraft's server list (servericon.py)
-                try:
-                    icon = (api.m.server_dir / servericon.FILE).read_bytes()
-                except OSError:
-                    raise ApiError(404, "this server has no icon of its own") from None
+                icon = servericon.read(api.m.server_dir)
+                if icon is None:
+                    raise ApiError(404, "this server has no icon of its own")
                 return self._send(200, icon, "image/png", {"Cache-Control": "private, max-age=86400"})
             if path == "/api/players/skin":
                 try:

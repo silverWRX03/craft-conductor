@@ -9,6 +9,7 @@ The page shrinks whatever picture is chosen to 64 × 64 before sending it; here 
 from __future__ import annotations
 
 import os
+import stat
 import struct
 import zlib
 from pathlib import Path
@@ -41,8 +42,11 @@ def save(server_dir: Path, data: bytes) -> None:
     check(data)
     dest = Path(server_dir) / FILE
     tmp = dest.with_name(FILE + ".tmp")
+    tmp.unlink(missing_ok=True)  # (a leftover, or a link: never written through)
     try:
-        tmp.write_bytes(data)
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0), 0o644)
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
         os.replace(tmp, dest)
     finally:
         tmp.unlink(missing_ok=True)
@@ -57,9 +61,35 @@ def remove(server_dir: Path) -> bool:
         return False
 
 
-def stamp(server_dir: Path) -> int | None:
-    """When the icon last changed (milliseconds), for the page to ask for the new one; None without one."""
+def _plain(server_dir: Path) -> os.stat_result | None:
+    """The icon file's own details, unless it's missing, a link (or junction), not a plain file, or too big."""
+    from .folders import link_stat
     try:
-        return (Path(server_dir) / FILE).stat().st_mtime_ns // 1_000_000
+        st = os.lstat(Path(server_dir) / FILE)
     except OSError:
         return None
+    if link_stat(st) or not stat.S_ISREG(st.st_mode) or st.st_size > MAX_BYTES:
+        return None
+    return st
+
+
+def read(server_dir: Path) -> bytes | None:
+    """The icon, only if it's a real one: anything else called server-icon.png (put there by hand, by a mod,
+    or a link to another file) is never sent to the page."""
+    if _plain(server_dir) is None:
+        return None
+    try:
+        fd = os.open(Path(server_dir) / FILE, os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0))
+        with os.fdopen(fd, "rb") as f:
+            data = f.read(MAX_BYTES + 1)
+        check(data)
+    except (OSError, ValueError):
+        return None
+    return data
+
+
+def stamp(server_dir: Path) -> int | None:
+    """When the icon last changed (milliseconds), for the page to ask for the new one; None without one.
+    (Only the file's details: the server list asks often.)"""
+    st = _plain(server_dir)
+    return st.st_mtime_ns // 1_000_000 if st else None

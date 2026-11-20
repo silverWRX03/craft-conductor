@@ -9199,5 +9199,29 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1049,
+    "section": "Feature: recent servers in the left panel",
+    "step": "With three or more servers: Recent at the top of the left panel shows three, running ones first (the one that last had players first), then the last started; a green dot on running ones. On one server's Players page, choosing another opens that server's Players page; with a single server Recent isn't shown. An invited person sees only their servers in it.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1050,
+    "section": "Feature: custom server icon",
+    "step": "A server's Settings, Server icon: Choose a picture… with a large non-square photo; the card shows a 64 x 64 icon and the server's card on Your servers shows it. Restart the server: Minecraft's multiplayer list shows the new icon. Remove: Minecraft's own picture is back after the next restart. A person with only Viewer doesn't see the card.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1051,
+    "section": "Feature: Discord webhook help link",
+    "step": "A server's Settings: How to make a webhook ↗ next to Discord webhook URL opens Discord's Intro to Webhooks article in a new tab; following it, the webhook URL pasted and saved gets a message when the server starts.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]

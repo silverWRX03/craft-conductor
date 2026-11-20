@@ -1203,5 +1203,6 @@
   "Server icon removed. Minecraft's own picture is back from the next restart.": "أُزيلت أيقونة الخادم. تعود صورة Minecraft الافتراضية من إعادة التشغيل التالية.",
   "That file isn't a picture this browser can open.": "هذا الملف ليس صورة يستطيع هذا المتصفح فتحها.",
   "This server's icon": "أيقونة هذا الخادم",
-  "Choose a picture for the server icon": "اختر صورة لأيقونة الخادم"
+  "Choose a picture for the server icon": "اختر صورة لأيقونة الخادم",
+  "Recent, at the top of the left panel, lists up to three servers to jump between, running ones first. Choosing one opens the same page on that server.": "تعرض الأخيرة، أعلى اللوحة اليسرى، حتى ثلاثة خوادم للتنقل بينها، والتي تعمل أولًا. اختيار أحدها يفتح الصفحة نفسها على ذلك الخادم."
 }

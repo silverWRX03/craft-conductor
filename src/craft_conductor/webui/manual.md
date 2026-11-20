@@ -166,6 +166,8 @@ Questions you'll meet again and again ("Stop the server?", "Quit Craft Conductor
 
 **Servers** lists every server with its state, version, players and port: **Start**, **Open**, **Delete**, and **Folder** (on the server's own computer). **Import a server...** adds one exported from another computer: it lists the exports in the exports folder (copy the export from the other computer there), each with **Import**, so nothing has to be uploaded; **Another file…** picks one from anywhere else. If a server with the same name is already here, the imported one is named "Name (2)" (then (3), and so on) so the two cards can't be mixed up; rename it in Settings if you like. When an import is refused (for example, not enough free disk space), the reason stays in a red notice above the list until you press **Dismiss**.
 
+**Recent** at the top of the left panel, on every page, lists up to three servers to jump between: the running ones first (the one that last had players on first), then the others by when they last started. A green dot means it's running. Choosing one opens the same page on that server (from one server's Players to the other's Players), or its Dashboard when it doesn't have that page or you may not see it. It shows when there are two servers or more; servers still being set up aren't in it.
+
 Under the list: how much memory the running servers are given, out of this computer's. Starting a server that would take more than the computer can spare (keeping 1.5 GB for everything else) asks first, with **Start anyway**: servers that together are given more memory than the computer has slow right down or crash.
 
 ### Modded single-player games
@@ -317,6 +319,10 @@ Nothing changes until you press **Save settings**. It stays at the bottom of the
 - **Lower priority:** the computer serves this server after everything else when it's busy. Good for a server friends use now and then, next to your main one.
 
 **Schedule:** restart the server and make backups at set times: **Every day at…**, **Every week on…**, **Every few hours** (backups), or **Custom (cron)** for anything else (five parts: minute, hour, day of the month, month, day of the week; for example `30 5 * * 1-5` is 5:30 on weekdays). Times are this computer's; the next run is shown. A scheduled restart gives players the in-game countdown first, and **Skip a scheduled restart while players are online** leaves them be. A backup and a restart at the same time both happen, the backup first; one that comes while Craft Conductor is busy (an update, a long backup) happens as soon as that's done. The same settings are `[schedule]` in `craft-conductor.toml`.
+
+**Server icon:** the picture players see next to the server in Minecraft's server list (`server-icon.png`). **Choose a picture…** takes any picture and makes it 64 × 64 (the middle of one that isn't square); **Remove** goes back to Minecraft's own. Minecraft shows a new icon from the next restart. The server's card on **Your servers** shows it too, and friends get it with their setup. People you invited can change it if they may change everyday settings.
+
+**Discord webhook URL** (yours only): messages about the server (it's up, it crashed, an update is ready) are posted to a Discord channel. **How to make a webhook ↗** next to it opens Discord's own instructions: in Discord, the channel's **Edit Channel → Integrations → Webhooks**, then **Copy Webhook URL** and paste it here.
 
 **Backup copies:** see Backups.
 
