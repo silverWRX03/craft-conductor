@@ -175,13 +175,13 @@ main { padding: 24px; overflow: auto; flex: 1; }
 input, select { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px;
   padding: 7px 10px; font: inherit; width: 100%; }
 input:focus, select:focus { border-color: var(--accent-2); }
-input[type=checkbox] { width: auto; }
+input[type=checkbox], input[type=radio] { width: auto; }
 label { display: grid; gap: 5px; font-size: 14px; color: var(--muted); }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .row > input { flex: 1; min-width: 160px; }
 .row > .grow { flex: 1; min-width: 0; }
 .row > .spinner { flex-shrink: 0; }
-.row > input[type=checkbox] { flex: none; min-width: 0; }
+.row > input[type=checkbox], .row > input[type=radio] { flex: none; min-width: 0; }
 a.btn { text-decoration: none; display: inline-block; }
 
 /* cards & grids */

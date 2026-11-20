@@ -1189,5 +1189,22 @@
   "Change…": "변경…",
   "Classic": "클래식",
   "Modern": "모던",
-  "Interface style": "인터페이스 스타일"
+  "Interface style": "인터페이스 스타일",
+  "Asking the mod sites…": "모드 사이트에 확인하는 중…",
+  "{n} mod(s) go in": "모드 {n}개가 들어갑니다",
+  "Not included": "포함되지 않음",
+  "Make a modpack": "모드팩 만들기",
+  "A file players open in their launcher (Modrinth App, Prism, CurseForge) to get the same mods. It holds links to the mod sites only: no mod files, and none of your config files.": "플레이어가 런처(Modrinth App, Prism, CurseForge)에서 열면 같은 모드를 받을 수 있는 파일입니다. 모드 사이트 링크만 들어 있으며, 모드 파일과 설정 파일은 하나도 들어 있지 않습니다.",
+  "Format": "형식",
+  "Make a modpack…": "모드팩 만들기…",
+  "Downloading the modpack": "모드팩 다운로드 중",
+  "Choosing the mods' files": "모드 파일 선택 중",
+  "Waiting for mods you download by hand": "직접 다운로드하는 모드를 기다리는 중",
+  "Getting Java": "Java 가져오는 중",
+  "Downloading the mods": "모드 다운로드 중",
+  "Downloading Minecraft and the mod loader": "Minecraft와 모드 로더 다운로드 중",
+  "Starting the server once to check it works": "작동하는지 확인하려고 서버를 한 번 시작하는 중",
+  "{0} of {1}": "{0}/{1}",
+  "Creating your server": "서버를 만드는 중",
+  "The modpack's own mods aren't checked: its maker did that.": "모드팩 자체의 모드는 확인하지 않습니다: 제작자가 이미 확인했습니다."
 }

@@ -1190,5 +1190,22 @@
   "Change…": "تغيير…",
   "Classic": "كلاسيكي",
   "Modern": "حديث",
-  "Interface style": "نمط الواجهة"
+  "Interface style": "نمط الواجهة",
+  "Asking the mod sites…": "جارٍ سؤال مواقع التعديلات…",
+  "{n} mod(s) go in": "سيتم تضمين {n} تعديل",
+  "Not included": "غير مضمَّن",
+  "Make a modpack": "إنشاء حزمة تعديلات",
+  "A file players open in their launcher (Modrinth App, Prism, CurseForge) to get the same mods. It holds links to the mod sites only: no mod files, and none of your config files.": "ملف يفتحه اللاعبون في المشغّل لديهم (Modrinth App وPrism وCurseForge) للحصول على التعديلات نفسها. لا يحتوي إلا على روابط لمواقع التعديلات: لا ملفات تعديلات، ولا أيًّا من ملفات الإعدادات لديك.",
+  "Format": "التنسيق",
+  "Make a modpack…": "إنشاء حزمة تعديلات…",
+  "Downloading the modpack": "جارٍ تنزيل حزمة التعديلات",
+  "Choosing the mods' files": "جارٍ اختيار ملفات التعديلات",
+  "Waiting for mods you download by hand": "في انتظار التعديلات التي تنزّلها يدويًا",
+  "Getting Java": "جارٍ الحصول على Java",
+  "Downloading the mods": "جارٍ تنزيل التعديلات",
+  "Downloading Minecraft and the mod loader": "جارٍ تنزيل Minecraft ومحمّل التعديلات",
+  "Starting the server once to check it works": "جارٍ تشغيل الخادم مرة واحدة للتحقق من أنه يعمل",
+  "{0} of {1}": "{0} من {1}",
+  "Creating your server": "جارٍ إنشاء خادمك",
+  "The modpack's own mods aren't checked: its maker did that.": "لا يتم فحص تعديلات الحزمة نفسها: لقد فعل صانعها ذلك."
 }

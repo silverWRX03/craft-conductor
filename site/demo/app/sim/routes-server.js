@@ -805,6 +805,23 @@
     "POST /api/modsets/delete": (r) => { r.s.modsets = r.s.modsets.filter((x) => x.name !== r.b.name); return { ok: true }; },
     "POST /api/modsets/import": () => { throw sim.explain("Craft Conductor would load a mod list from a file. The demo doesn't read your files."); },
     "GET /api/modsets/export": () => { throw new ApiError(400, "a download"); },
+    // Make a modpack…: what a .mrpack or CurseForge .zip of the server's mods holds (makepack.py).
+    "GET /api/modpack/make": (r) => {
+      const fmt = r.q.format;
+      if (fmt !== "mrpack" && fmt !== "curseforge") throw new ApiError(400, "choose Modrinth (.mrpack) or CurseForge (.zip)");
+      if (!["fabric", "quilt", "forge", "neoforge"].includes(r.s.loader)) throw new ApiError(400, "a modpack is made from a server that runs mods (Fabric, Quilt, Forge or NeoForge)");
+      const site = fmt === "mrpack" ? "modrinth" : "curseforge";
+      const other = fmt === "mrpack" ? "only on CurseForge: a Modrinth pack can't link to it" : "only on Modrinth: a CurseForge pack can't link to it";
+      const included = [], left_out = [];
+      for (const m of r.s.mods.filter((x) => x.installed !== false)) {
+        if (m.datapack) left_out.push({ name: m.name, why: "a datapack for the world, not a mod" });
+        else if ((m.source || "modrinth") === site) included.push({ name: m.name, side: m.environment === "server" ? "server" : "both" });
+        else left_out.push({ name: m.name, why: other });
+      }
+      const safe = String(r.s.name || "").replace(/[^A-Za-z0-9._ -]+/g, "_").replace(/^[ ._]+|[ ._]+$/g, "").slice(0, 60) || "modpack";
+      return { name: r.s.name, filename: `${safe}-${new Date().toISOString().slice(0, 10)}.${fmt === "mrpack" ? "mrpack" : "zip"}`, included, left_out };
+    },
+    "GET /api/modpack/make/download": () => { throw new ApiError(400, "a download"); },
   });
 
   // ------------------------------------------------------------- pictures and downloads
@@ -823,7 +840,8 @@
   sim.downloadNote = (path) => {
     const p = path.replace(/^\/api\/servers\/[^/]+\//, "/api/");
     const what = { "/api/doctor/report": "a zip of the check-up and the logs, for a bug report", "/api/modsets/export": "the mod list as a file, to load on another server",
-      "/api/export/download": "the exported server (a .zip to move it to another computer)" }[p] || "a file";
+      "/api/export/download": "the exported server (a .zip to move it to another computer)",
+      "/api/modpack/make/download": "the modpack file (links to the mod sites, to open in a launcher)" }[p] || "a file";
     return `Demo: in the real app this downloads ${what}. The demo has no files to download.`;
   };
 })();

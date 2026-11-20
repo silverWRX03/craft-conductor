@@ -1166,5 +1166,21 @@
   "Change…": "Ändern…",
   "Classic": "Klassisch",
   "Modern": "Modern",
-  "Interface style": "Oberflächenstil"
+  "Interface style": "Oberflächenstil",
+  "Asking the mod sites…": "Mod-Seiten werden gefragt…",
+  "{n} mod(s) go in": "{n} Mod(s) kommen hinein",
+  "Not included": "Nicht enthalten",
+  "Make a modpack": "Ein Modpack erstellen",
+  "A file players open in their launcher (Modrinth App, Prism, CurseForge) to get the same mods. It holds links to the mod sites only: no mod files, and none of your config files.": "Eine Datei, die Spieler in ihrem Launcher öffnen (Modrinth App, Prism, CurseForge), um dieselben Mods zu bekommen. Sie enthält nur Links zu den Mod-Seiten: keine Mod-Dateien und keine deiner Konfigurationsdateien.",
+  "Make a modpack…": "Ein Modpack erstellen…",
+  "Downloading the modpack": "Modpack wird heruntergeladen",
+  "Choosing the mods' files": "Dateien der Mods werden ausgewählt",
+  "Waiting for mods you download by hand": "Warten auf Mods, die du von Hand herunterlädst",
+  "Getting Java": "Java wird besorgt",
+  "Downloading the mods": "Mods werden heruntergeladen",
+  "Downloading Minecraft and the mod loader": "Minecraft und der Mod-Loader werden heruntergeladen",
+  "Starting the server once to check it works": "Der Server wird einmal gestartet, um zu prüfen, ob er funktioniert",
+  "{0} of {1}": "{0} von {1}",
+  "Creating your server": "Dein Server wird erstellt",
+  "The modpack's own mods aren't checked: its maker did that.": "Die eigenen Mods des Modpacks werden nicht geprüft: Das hat sein Ersteller schon getan."
 }

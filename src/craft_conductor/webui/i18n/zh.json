@@ -1190,5 +1190,22 @@
   "Change…": "更改…",
   "Classic": "经典",
   "Modern": "现代",
-  "Interface style": "界面风格"
+  "Interface style": "界面风格",
+  "Asking the mod sites…": "正在询问模组网站…",
+  "{n} mod(s) go in": "将包含 {n} 个模组",
+  "Not included": "未包含",
+  "Make a modpack": "制作整合包",
+  "A file players open in their launcher (Modrinth App, Prism, CurseForge) to get the same mods. It holds links to the mod sites only: no mod files, and none of your config files.": "玩家在启动器（Modrinth App、Prism、CurseForge）中打开此文件即可获得相同的模组。它只包含指向模组网站的链接：不含模组文件，也不含你的任何配置文件。",
+  "Format": "格式",
+  "Make a modpack…": "制作整合包…",
+  "Downloading the modpack": "正在下载整合包",
+  "Choosing the mods' files": "正在选择模组文件",
+  "Waiting for mods you download by hand": "正在等待你手动下载的模组",
+  "Getting Java": "正在获取 Java",
+  "Downloading the mods": "正在下载模组",
+  "Downloading Minecraft and the mod loader": "正在下载 Minecraft 和模组加载器",
+  "Starting the server once to check it works": "正在首次启动服务器以检查其能否运行",
+  "{0} of {1}": "{0} / {1}",
+  "Creating your server": "正在创建你的服务器",
+  "The modpack's own mods aren't checked: its maker did that.": "整合包自带的模组不做检查：其作者已检查过。"
 }

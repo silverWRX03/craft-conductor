@@ -1185,5 +1185,22 @@
   "Change…": "Đổi…",
   "Classic": "Cổ điển",
   "Modern": "Hiện đại",
-  "Interface style": "Kiểu giao diện"
+  "Interface style": "Kiểu giao diện",
+  "Asking the mod sites…": "Đang hỏi các trang mod…",
+  "{n} mod(s) go in": "{n} mod sẽ được đưa vào",
+  "Not included": "Không bao gồm",
+  "Make a modpack": "Tạo modpack",
+  "A file players open in their launcher (Modrinth App, Prism, CurseForge) to get the same mods. It holds links to the mod sites only: no mod files, and none of your config files.": "Một tệp người chơi mở trong launcher của họ (Modrinth App, Prism, CurseForge) để có cùng các mod. Tệp chỉ chứa liên kết tới các trang mod: không có tệp mod nào, và không có tệp cấu hình nào của bạn.",
+  "Format": "Định dạng",
+  "Make a modpack…": "Tạo modpack…",
+  "Downloading the modpack": "Đang tải modpack",
+  "Choosing the mods' files": "Đang chọn tệp cho các mod",
+  "Waiting for mods you download by hand": "Đang chờ các mod bạn tải thủ công",
+  "Getting Java": "Đang lấy Java",
+  "Downloading the mods": "Đang tải các mod",
+  "Downloading Minecraft and the mod loader": "Đang tải Minecraft và trình tải mod",
+  "Starting the server once to check it works": "Đang khởi động máy chủ một lần để kiểm tra nó chạy được",
+  "{0} of {1}": "{0} trên {1}",
+  "Creating your server": "Đang tạo máy chủ của bạn",
+  "The modpack's own mods aren't checked: its maker did that.": "Các mod riêng của modpack không được kiểm tra: người tạo ra nó đã làm việc đó."
 }

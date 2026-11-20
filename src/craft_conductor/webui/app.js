@@ -6324,6 +6324,8 @@ const HELP = [
     screenshot("mod-versions", "A players' mod that wouldn't start: the version that works, and Change version."),
     h("p", {}, h("strong", {}, "Modpacks"), " come from Modrinth or CurseForge (pick the source in the mod browser). The server runs the pack's own files and its build of the mod loader, so players on the pack can join. A CurseForge pack's mods that its official server pack leaves out only run on players' computers, so they go in your friends' download instead of on the server; without a server pack, Modrinth says which ones. " +
       "When the pack has a new version, ", h("strong", {}, "Updates → Look for a new version of the pack"), " shows what changes and ", h("strong", {}, "Update the pack"), " moves the server to it, with a backup first."),
+    h("p", {}, h("strong", {}, "Make a modpack…"), " on the Mods page turns the server's mods into a file players open in their launcher: a Modrinth .mrpack or a CurseForge .zip. " +
+      "It only links to the mod sites (no mod files, no config files), and names each mod it can't include, with why."),
     h("p", {}, "Mods that only run on players' computers stay off the server when Craft Conductor can tell (Modrinth says so, or another mod's file needs them only there), and go in your friends' download. " +
       "One that stops the server anyway can be moved there: ", h("strong", {}, "Move … to players' mods"), " on the Dashboard, or in ", h("strong", {}, "Manage Mods"), "."),
     h("p", {}, "Some CurseForge authors don't let other apps download their mods. A panel then slides open on the right with a ", h("strong", {}, "Download ↗"),

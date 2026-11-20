@@ -269,15 +269,15 @@ Added 2026-10-16 (briefs in "Additional requests (2026-10-16)" below; numbering 
 46. [ ] **Research: wake on request:** a stopped server starts when a player tries to join.
 47. [ ] **Ping:** a mod or plugin of our own that reports players' ping, or a suggested one
         (follows up 34).
-48. [ ] **Manual CurseForge downloads picked up by themselves:** found where the browser saved them
+48. [x] **Manual CurseForge downloads picked up by themselves:** Shipped in 0.29.0. found where the browser saved them
         and added to the pack; if they aren't there, ask where they are.
-49. [ ] **Modpack download screen:** a progress bar that holds the page while a modpack downloads,
+49. [x] **Modpack download screen:** No game: just the progress bar (the steps and how far along). a progress bar that holds the page while a modpack downloads,
         with Chrome's dinosaur game to play meanwhile.
 50. [ ] **Custom server icon:** choose the picture players see in Minecraft's server list.
 51. [ ] **Recent servers in the left panel:** the last 3 run.
 52. [ ] **Craft Conductor's website** on GitHub Pages.
-53. [ ] **Make a modpack from a server's mods:** Modrinth (.mrpack) or CurseForge format.
-54. [ ] **No load check for a modpack's own mods** during setup (mods added on top still checked).
+53. [x] **Make a modpack from a server's mods:** Modrinth (.mrpack) or CurseForge format.
+54. [x] **No load check for a modpack's own mods** during setup (mods added on top still checked).
 55. [ ] **Report a bug and GitHub links** at the bottom of the left panel.
 
 Added 2026-11-01 (from the bug hunt released as 0.30.5):

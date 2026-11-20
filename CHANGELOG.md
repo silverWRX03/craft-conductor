@@ -4,6 +4,15 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.31.0 (not released yet)
+
+**Added**
+- **Make a modpack…** on the Mods page turns a server's mods into a modpack file players open in their launcher: Modrinth (`.mrpack`) or CurseForge (`.zip`), chosen when it's made. It only links to the mod sites (no mod files and no config files), and names each mod it can't include, with why (roadmap 53).
+- Creating a server shows its steps (downloading the modpack, choosing the mods' files, getting Java, downloading the mods with how many of how many, downloading Minecraft and the mod loader, the first start) and a progress bar, instead of only a spinner (roadmap 49).
+
+**Changed**
+- A modpack's own mods are no longer checked before **Create my server** can be pressed, or when the server is installed: its maker already did that, and a big pack had to download every file first. Mods added on top are still checked (roadmap 54).
+
 ## 0.30.6 (2026-11-15)
 
 **Added**
