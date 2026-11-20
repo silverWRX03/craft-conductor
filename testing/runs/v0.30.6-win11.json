@@ -376,6 +376,7 @@
     538,
     539,
     540,
+    597,
     598,
     599,
     600,
@@ -4459,6 +4460,13 @@
       "tested_at": "2026-11-20T19:16:33+00:00",
       "tester": "Claude Code",
       "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, fresh empty test panel A (port 29976, its own home servers/v0.30.6-cf), a throwaway vanilla 26.3 server UPnP off test set to Open a port on my router, started (helpers/t236.py). Check my setup did not claim it was reachable, and the server's Friends page made no claim either. But the Router card showed 'Your server is open to the internet.' (with the exposure warning) right above 'It didn't work: no router answered...', so it does claim the server is open when the router opened nothing. Seen in Chrome (screenshot kept privately). Afterwards UPnP switched off in Craft Conductor and the server stopped. #326",
+      "evidence": ""
+    },
+    "597": {
+      "status": "pass",
+      "tested_at": "2026-11-20T19:29:13+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. Done by the owner with Windows Narrator, not NVDA (NVDA is not installed); the owner judged the screen-reader pass complete with Narrator and asked for 597 to be marked passed (2026-11-20). See also 818 and 602, which passed with Narrator in this run.",
       "evidence": ""
     }
   },
