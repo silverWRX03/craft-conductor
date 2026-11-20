@@ -222,6 +222,11 @@
     369,
     370,
     371,
+    372,
+    373,
+    374,
+    375,
+    376,
     377,
     378,
     379,
@@ -279,6 +284,15 @@
     440,
     441,
     442,
+    445,
+    446,
+    447,
+    448,
+    449,
+    450,
+    451,
+    452,
+    453,
     454,
     455,
     456,
@@ -503,6 +517,7 @@
     968,
     978,
     986,
+    990,
     991,
     1009,
     1021,
@@ -873,7 +888,7 @@
         "status": "pass",
         "tested_at": "2026-11-17T03:37:05+00:00",
         "tester": "Claude Code",
-        "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), test home servers\u000b0.30.6-win11\\home (main panel 29970).  Vanilla 26.3 server rt-24h ran from 2026-11-15 15:57 to past 2026-11-16 21:30 (29.5 hours), checked every 10 minutes (run24.csv, 179 samples): running in every sample, 0 warnings and 0 errors in the activity, no crash restarts. Hourly backups ran every hour on the hour; the count rose to 10 and stayed at 10 (backups_keep 10). Scheduled restart (every day at 3:30): in-game countdown at 03:30, 03:35 and 03:39, restarted at 03:40, up again at 03:40:15 (11 seconds). Panel memory 41-103 MB with no growth; Java working set 1.6 GB after start, then Windows trimmed it while the server stood idle with no players (33-120 MB), no growth.",
+        "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), test home servers/v0.30.6-win11/home (main panel 29970).  Vanilla 26.3 server rt-24h ran from 2026-11-15 15:57 to past 2026-11-16 21:30 (29.5 hours), checked every 10 minutes (run24.csv, 179 samples): running in every sample, 0 warnings and 0 errors in the activity, no crash restarts. Hourly backups ran every hour on the hour; the count rose to 10 and stayed at 10 (backups_keep 10). Scheduled restart (every day at 3:30): in-game countdown at 03:30, 03:35 and 03:39, restarted at 03:40, up again at 03:40:15 (11 seconds). Panel memory 41-103 MB with no growth; Java working set 1.6 GB after start, then Windows trimmed it while the server stood idle with no players (33-120 MB), no growth.",
         "evidence": ""
       }
     },
@@ -4053,6 +4068,125 @@
       "tested_at": "2026-11-20T07:21:28+00:00",
       "tester": "Claude Code",
       "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, the 813 test copy (panel 29972) in Chrome, Tailscale signed in on this PC. Craft Conductor settings -> Connections -> Remote access & phones; Tailscale was in use, so first Stop using Tailscale for this: section 4 then listed Home network (192.168.1.69) first with the note that the page opens in the phone's browser, not as an app. Pressed Use Tailscale and, without closing the dialog, 4. People, and their phones at once listed 'Tailscale, secure (<pc>.<tailnet>.ts.net): for the phone app' first and picked, and the browser note was replaced by 'A secure address: the phone can install Craft Conductor as an app, with notifications.' Tailscale left on, as before.",
+      "evidence": ""
+    },
+    "445": {
+      "status": "pass",
+      "tested_at": "2026-11-20T13:32:16+00:00",
+      "tester": "Claude Code",
+      "notes": "2026-11-20, a disposable WSL2 VM (Ubuntu 24.04) on the Windows 11 PC, running the release's Linux x64 build 0.30.6 (sha256 matches the release's checksum), as a normal user with its own home. Server: craft-conductor create, Fabric 26.2 + Fabric API + Lithium, a gold block and a sign placed at 0,200,0 and saved. The VM is used only for testing; nothing else ran in it.",
+      "evidence": ""
+    },
+    "446": {
+      "status": "pass",
+      "tested_at": "2026-11-20T13:32:16+00:00",
+      "tester": "Claude Code",
+      "notes": "2026-11-20, a disposable WSL2 VM (Ubuntu 24.04) on the Windows 11 PC, running the release's Linux x64 build 0.30.6 (sha256 matches the release's checksum), as a normal user with its own home. Server: craft-conductor create, Fabric 26.2 + Fabric API + Lithium, a gold block and a sign placed at 0,200,0 and saved. Began the update: craft-conductor update --to 26.3 -y (Minecraft 26.2 -> 26.3, Fabric API and Lithium to their 26.3 builds). It made the backup before-26.2-to-26.3 and wrote its update-in-progress note.",
+      "evidence": ""
+    },
+    "447": {
+      "status": "pass",
+      "tested_at": "2026-11-20T13:32:17+00:00",
+      "tester": "Claude Code",
+      "notes": "2026-11-20, a disposable WSL2 VM (Ubuntu 24.04) on the Windows 11 PC, running the release's Linux x64 build 0.30.6 (sha256 matches the release's checksum), as a normal user with its own home. Server: craft-conductor create, Fabric 26.2 + Fabric API + Lithium, a gold block and a sign placed at 0,200,0 and saved. Cut the power 1.5 s into the updated server's first boot (new mods already swapped in, Fabric fetching the 26.3 server): sysrq 'o' powers the VM off at once, without syncing the disks. After it the server folder was half-updated (26.3 mods, lock file still 26.2) and the update's own log was lost (0 lines), as after a real power cut.",
+      "evidence": ""
+    },
+    "448": {
+      "status": "pass",
+      "tested_at": "2026-11-20T13:32:17+00:00",
+      "tester": "Claude Code",
+      "notes": "2026-11-20, a disposable WSL2 VM (Ubuntu 24.04) on the Windows 11 PC, running the release's Linux x64 build 0.30.6 (sha256 matches the release's checksum), as a normal user with its own home. Server: craft-conductor create, Fabric 26.2 + Fabric API + Lithium, a gold block and a sign placed at 0,200,0 and saved. Booted the VM again (fresh boot, uptime 4 s); the update-in-progress note and the before-update backup were still there.",
+      "evidence": ""
+    },
+    "449": {
+      "status": "pass",
+      "tested_at": "2026-11-20T13:32:17+00:00",
+      "tester": "Claude Code",
+      "notes": "2026-11-20, a disposable WSL2 VM (Ubuntu 24.04) on the Windows 11 PC, running the release's Linux x64 build 0.30.6 (sha256 matches the release's checksum), as a normal user with its own home. Server: craft-conductor create, Fabric 26.2 + Fabric API + Lithium, a gold block and a sign placed at 0,200,0 and saved. Launched Craft Conductor: craft-conductor run in the server folder.",
+      "evidence": ""
+    },
+    "450": {
+      "status": "pass",
+      "tested_at": "2026-11-20T13:32:17+00:00",
+      "tester": "Claude Code",
+      "notes": "2026-11-20, a disposable WSL2 VM (Ubuntu 24.04) on the Windows 11 PC, running the release's Linux x64 build 0.30.6 (sha256 matches the release's checksum), as a normal user with its own home. Server: craft-conductor create, Fabric 26.2 + Fabric API + Lithium, a gold block and a sign placed at 0,200,0 and saved. Recovery ran before anything else: 'the update (Minecraft 26.2 -> 26.3) was interrupted; putting the backup 20261120-073107-before-26.2-to-26.3.tar.gz back', then 'Craft Conductor was stopped in the middle of something: the update ... was interrupted, so the backup ... was put back.' The note was removed and the update was marked 'Craft Conductor stopped in the middle of this update' so it isn't retried by itself.",
+      "evidence": ""
+    },
+    "451": {
+      "status": "pass",
+      "tested_at": "2026-11-20T13:32:17+00:00",
+      "tester": "Claude Code",
+      "notes": "2026-11-20, a disposable WSL2 VM (Ubuntu 24.04) on the Windows 11 PC, running the release's Linux x64 build 0.30.6 (sha256 matches the release's checksum), as a normal user with its own home. Server: craft-conductor create, Fabric 26.2 + Fabric API + Lithium, a gold block and a sign placed at 0,200,0 and saved. The old version is back: Minecraft 26.2, Fabric 0.20.1, Fabric API 0.161.0+26.2 and Lithium mc26.2-0.25.3 (mods folder and status both).",
+      "evidence": ""
+    },
+    "452": {
+      "status": "pass",
+      "tested_at": "2026-11-20T13:32:17+00:00",
+      "tester": "Claude Code",
+      "notes": "2026-11-20, a disposable WSL2 VM (Ubuntu 24.04) on the Windows 11 PC, running the release's Linux x64 build 0.30.6 (sha256 matches the release's checksum), as a normal user with its own home. Server: craft-conductor create, Fabric 26.2 + Fabric API + Lithium, a gold block and a sign placed at 0,200,0 and saved. The server started straight after recovery: 'Starting minecraft server version 26.2', Done (1.5 s), 'Server is up (Minecraft 26.2)'; no errors or exceptions in the log.",
+      "evidence": ""
+    },
+    "453": {
+      "status": "pass",
+      "tested_at": "2026-11-20T13:32:17+00:00",
+      "tester": "Claude Code",
+      "notes": "2026-11-20, a disposable WSL2 VM (Ubuntu 24.04) on the Windows 11 PC, running the release's Linux x64 build 0.30.6 (sha256 matches the release's checksum), as a normal user with its own home. Server: craft-conductor create, Fabric 26.2 + Fabric API + Lithium, a gold block and a sign placed at 0,200,0 and saved. The world opened normally: the gold block and the sign placed before the update are there (execute if block: Test passed, both), no world errors in the log; stopped cleanly afterwards.",
+      "evidence": ""
+    },
+    "373": {
+      "status": "pass",
+      "tested_at": "2026-11-20T13:32:40+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, main panel, server Backup Probe, a 1 GB USB stick (FAT) as drive F:, Also copy every backup to = the folder cc-backup-copies on F:, Copies to keep 2. Made a backup (Back up now): 'created 20261120-072350-manual.tar.gz (checked) (copied to F: cc-backup-copies, backup-probe)'.",
+      "evidence": "",
+      "supersedes": {
+        "status": "pass",
+        "tested_at": "2026-11-20T13:32:31+00:00",
+        "tester": "Claude Code",
+        "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, main panel, server Backup Probe, a 1 GB USB stick (FAT) as F:, Also copy every backup to = F:\\cc-backup-copies, Copies to keep 2. Made a backup (Back up now): 'created 20261120-072350-manual.tar.gz (checked) (copied to F:\\cc-backup-copies\backup-probe)'.",
+        "evidence": ""
+      }
+    },
+    "374": {
+      "status": "pass",
+      "tested_at": "2026-11-20T13:32:40+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, main panel, server Backup Probe, a 1 GB USB stick (FAT) as drive F:, Also copy every backup to = the folder cc-backup-copies on F:, Copies to keep 2. The copy is on the USB stick in a folder of the server's own (cc-backup-copies, backup-probe, 20261120-072350-manual.tar.gz, 125.6 MB) and is byte-identical to the backup (same sha1).",
+      "evidence": "",
+      "supersedes": {
+        "status": "pass",
+        "tested_at": "2026-11-20T13:32:31+00:00",
+        "tester": "Claude Code",
+        "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, main panel, server Backup Probe, a 1 GB USB stick (FAT) as F:, Also copy every backup to = F:\\cc-backup-copies, Copies to keep 2. The copy is on the USB stick in a folder of the server's own (F:\\cc-backup-copies\backup-probe61120-072350-manual.tar.gz, 125.6 MB) and is byte-identical to the backup (same sha1).",
+        "evidence": ""
+      }
+    },
+    "372": {
+      "status": "pass",
+      "tested_at": "2026-11-20T13:33:43+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, main panel, server Backup Probe, a 1 GB USB stick (FAT) as drive F:. Backups page -> Backup settings: Also copy every backup to = the folder cc-backup-copies on F:, Copies to keep 2 (saved with the same settings call the Save backup settings button makes; the page then showed the folder and the count). A folder that doesn't exist yet isn't created: the page says 'That folder isn't there right now (is the drive plugged in?). Copies are skipped until it is.' and no copy is made, by design (so an unplugged drive's letter never gets copies on another disk); with the folder made on the stick, the hint goes back to normal and copies are made.",
+      "evidence": ""
+    },
+    "375": {
+      "status": "pass",
+      "tested_at": "2026-11-20T13:44:10+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, main panel, server Backup Probe, a 1 GB USB stick (FAT) as drive F:, copies to the folder cc-backup-copies on it, Copies to keep 2. Disconnected: ejected the stick with Windows' Eject (the disk then showed No Media), later the owner unplugged it and plugged it back in. While it was gone: Back up now still made the backup ('created 20261120-072507-manual.tar.gz (checked)'), the copy was skipped with the log line 'couldn't copy the backup ... isn't there (is the drive plugged in?)', and the Backups page showed in red 'That folder isn't there right now (is the drive plugged in?). Copies are skipped until it is.'",
+      "evidence": ""
+    },
+    "376": {
+      "status": "pass",
+      "tested_at": "2026-11-20T13:44:10+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, main panel, server Backup Probe, a 1 GB USB stick (FAT) as drive F:, copies to the folder cc-backup-copies on it, Copies to keep 2. After reconnecting, with no change in Craft Conductor: the next backup was copied again ('copied to F: cc-backup-copies, backup-probe'), and the one after it too; Copies to keep 2 removed the oldest copy, leaving the newest two, each byte-identical to its backup (same sha1). The backup made while the stick was out isn't copied afterwards (only new backups are), as the setting describes.",
+      "evidence": ""
+    },
+    "990": {
+      "status": "pass",
+      "tested_at": "2026-11-20T13:45:27+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20: a fresh home on a 1 GB USB stick (FAT, drive F:) as CRAFT_CONDUCTOR_HOME, panel on its own port, Chrome. Signed in with the first-time password and chose a test one; then 'Where should Craft Conductor keep your files?' showed Servers and Exports on the stick (Backups in each server's own folder). Use these folders -> 'Use this folder?' with the warning, for both: '... is on a removable drive (a USB stick or a memory card): keep it plugged in while Craft Conductor runs, or the files go missing until it's back' -> Use it anyway -> 'Saved.', the dialog closed and stayed closed after a reload; the folders were saved in hub.json (locations). The panel also showed 'Only 739 MB of disk space left' for the stick, which is right for a 1 GB stick.",
       "evidence": ""
     }
   },
