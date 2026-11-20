@@ -33,6 +33,7 @@ class Activity:
         self._pruned = 0.0
         self._cache: tuple | None = None     # (key, summary)
         self._names: tuple | None = None     # (key, names)
+        self._last: tuple | None = None      # (key, when the last visit ended)
 
     # ------------------------------------------------------------- recording
     def joined(self, name: str, now: float | None = None) -> None:
@@ -101,6 +102,23 @@ class Activity:
             rows = [r for r in self._read() if r["end"] >= since]
             rows += [{"name": n, "start": s, "end": now, "online": True} for n, s in self.online.items()]
         return sorted(rows, key=lambda r: r["start"])
+
+    def last_played(self, now: float | None = None) -> float | None:
+        """When someone was last on: now while someone is; else when the last visit ended (None
+        without any). The file is read again only when it changed (the server list asks often)."""
+        with self.lock:
+            if self.online:
+                return now or time.time()
+        try:
+            stat = self.path.stat() if self.path else None
+        except OSError:
+            stat = None
+        if stat is None:
+            return None
+        key = (stat.st_mtime_ns, stat.st_size)
+        if self._last is None or self._last[0] != key:
+            self._last = (key, max((r["end"] for r in self._read()), default=None))
+        return self._last[1]
 
     def players(self) -> set[str]:
         """Everyone who has joined (in the last ``KEEP_DAYS``) or is on now."""

@@ -1,0 +1,59 @@
+"""Recent servers in the left panel: when each server last started, and last had players on."""
+
+import json
+
+from craft_conductor.activity import Activity
+from craft_conductor.hub import HUB_FILE
+
+
+def test_last_played_is_now_while_someone_is_on(tmp_path):
+    a = Activity(tmp_path)
+    a.joined("Alex", now=100.0)
+    assert a.last_played(now=500.0) == 500.0
+
+
+def test_last_played_is_when_the_last_visit_ended(tmp_path):
+    a = Activity(tmp_path)
+    a.joined("Alex", now=100.0)
+    a.left("Alex", now=200.0)
+    a.joined("Steve", now=150.0)
+    a.left("Steve", now=300.0)
+    assert a.last_played(now=1000.0) == 300.0
+    assert Activity(tmp_path).last_played(now=1000.0) == 300.0  # (kept in the file, after a restart)
+
+
+def test_last_played_is_none_without_visits(tmp_path):
+    assert Activity(tmp_path).last_played() is None
+    assert Activity(None).last_played() is None
+
+
+def _summary(hub, sid):
+    return next(s for s in hub.summary() if s["id"] == sid)
+
+
+def test_a_server_that_comes_up_is_noted_as_last_started(hub_env):
+    hub, _ = hub_env
+    assert _summary(hub, "alpha")["last_started"] is None
+    hub.after_ready(hub.get("alpha"))
+    started = _summary(hub, "alpha")["last_started"]
+    assert isinstance(started, float) and started > 0
+    assert _summary(hub, "main")["last_started"] is None
+    saved = json.loads((hub.state_dir / HUB_FILE).read_text())
+    assert saved["started"]["alpha"] == started
+    assert "last_played" in _summary(hub, "alpha")
+
+
+def test_a_damaged_started_list_is_ignored(hub_env):
+    hub, _ = hub_env
+    hub._update_hub_file(lambda data: data.update(started=5))
+    assert _summary(hub, "alpha")["last_started"] is None
+    hub.after_ready(hub.get("alpha"))  # (and replaced by a good one)
+    assert _summary(hub, "alpha")["last_started"]
+
+
+def test_a_removed_server_is_forgotten(hub_env):
+    hub, _ = hub_env
+    hub.after_ready(hub.get("alpha"))
+    hub.delete("alpha", delete_files=False)
+    saved = json.loads((hub.state_dir / HUB_FILE).read_text())
+    assert "alpha" not in saved.get("started", {})
