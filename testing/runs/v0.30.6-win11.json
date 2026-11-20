@@ -25,6 +25,17 @@
     1048
   ],
   "required_ids": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    12,
+    13,
     23,
     24,
     25,
@@ -45,6 +56,29 @@
     70,
     72,
     73,
+    74,
+    75,
+    77,
+    78,
+    79,
+    80,
+    83,
+    84,
+    86,
+    87,
+    88,
+    90,
+    91,
+    93,
+    94,
+    95,
+    96,
+    97,
+    98,
+    100,
+    101,
+    102,
+    104,
     105,
     106,
     107,
@@ -78,14 +112,42 @@
     138,
     139,
     140,
+    141,
+    142,
+    143,
+    144,
+    145,
+    146,
+    147,
+    148,
+    154,
+    155,
+    156,
+    157,
+    158,
+    159,
+    160,
+    161,
+    162,
+    163,
+    164,
+    165,
+    166,
+    167,
+    168,
     176,
     178,
     179,
     180,
     181,
+    183,
     184,
+    185,
     186,
     187,
+    188,
+    189,
+    190,
     220,
     221,
     222,
@@ -104,6 +166,16 @@
     244,
     245,
     249,
+    254,
+    255,
+    256,
+    257,
+    262,
+    263,
+    264,
+    265,
+    266,
+    267,
     311,
     312,
     313,
@@ -149,6 +221,11 @@
     369,
     370,
     371,
+    377,
+    378,
+    379,
+    380,
+    381,
     382,
     383,
     384,
@@ -169,6 +246,13 @@
     400,
     401,
     402,
+    404,
+    405,
+    406,
+    407,
+    408,
+    409,
+    410,
     411,
     412,
     414,
@@ -181,6 +265,12 @@
     422,
     423,
     424,
+    429,
+    430,
+    431,
+    432,
+    433,
+    435,
     436,
     437,
     438,
@@ -237,6 +327,18 @@
     508,
     509,
     511,
+    512,
+    513,
+    523,
+    524,
+    533,
+    534,
+    535,
+    536,
+    537,
+    538,
+    539,
+    540,
     598,
     599,
     600,
@@ -300,6 +402,15 @@
     676,
     677,
     678,
+    680,
+    681,
+    682,
+    683,
+    684,
+    685,
+    686,
+    687,
+    688,
     689,
     690,
     693,
@@ -3070,6 +3181,790 @@
       "tested_at": "2026-11-20T05:06:07+00:00",
       "tester": "Claude Code",
       "notes": "Covered by 819 in this run (release exe v0.30.6, isolated home): Fabric 1.21.11 server (Fabric API 0.141.6, Lithium 0.21.4, Dynmap optional), check offered 26.3. The server started (and stopped) normally on 26.3.",
+      "evidence": ""
+    },
+    "1": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:16:51+00:00",
+      "tester": "Claude Code",
+      "notes": "2026-11-19, the test PC for v0.30.6-win11: Craft Conductor 0.30.6 (release exe craft-conductor-windows-x64.exe from the v0.30.6 GitHub release, sha256 ddfe4ce...; the sidebar says v0.30.6 beta).",
+      "evidence": ""
+    },
+    "2": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:16:51+00:00",
+      "tester": "Claude Code",
+      "notes": "2026-11-19, the test PC for v0.30.6-win11: Windows 11 Pro 23H2, 10.0.22631.",
+      "evidence": ""
+    },
+    "3": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:16:52+00:00",
+      "tester": "Claude Code",
+      "notes": "2026-11-19, the test PC for v0.30.6-win11: Intel Core i7-9700K @ 3.60 GHz, 8 cores / 8 threads.",
+      "evidence": ""
+    },
+    "4": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:16:52+00:00",
+      "tester": "Claude Code",
+      "notes": "2026-11-19, the test PC for v0.30.6-win11: 32 GB RAM (31.9 GB usable).",
+      "evidence": ""
+    },
+    "5": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:16:52+00:00",
+      "tester": "Claude Code",
+      "notes": "2026-11-19, the test PC for v0.30.6-win11: Before today's testing E: (servers) had about 172 GB free of 954 GB; C: 58 GB free of 476 GB.",
+      "evidence": ""
+    },
+    "6": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:16:52+00:00",
+      "tester": "Claude Code",
+      "notes": "2026-11-19, the test PC for v0.30.6-win11: Servers on an NVMe SSD (Intel SSDPEKNW010T8, E:); Windows on an NVMe SSD (Samsung 970 PRO); an 8 TB HDD also present.",
+      "evidence": ""
+    },
+    "7": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:16:52+00:00",
+      "tester": "Claude Code",
+      "notes": "2026-11-19, the test PC for v0.30.6-win11: Main test home on a local folder (E:/craft-conductor/servers/v0.30.6-win11); a separate OneDrive-synced home was used for 813/1034.",
+      "evidence": ""
+    },
+    "8": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:16:52+00:00",
+      "tester": "Claude Code",
+      "notes": "2026-11-19, the test PC for v0.30.6-win11: Microsoft Defender only (real-time protection on, signatures updated 2026-11-19); Smart App Control is on the laptop (#206), not here.",
+      "evidence": ""
+    },
+    "9": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:16:52+00:00",
+      "tester": "Claude Code",
+      "notes": "2026-11-19, the test PC for v0.30.6-win11: Home router: Synology SRM (UPnP on).",
+      "evidence": ""
+    },
+    "12": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:16:52+00:00",
+      "tester": "Claude Code",
+      "notes": "2026-11-19, the test PC for v0.30.6-win11: Minecraft Java Edition 26.3 for most servers (also 26.2, 26.1.2 for the ATM11 pack, 1.21.1 and 1.21.11 for update tests).",
+      "evidence": ""
+    },
+    "13": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:16:53+00:00",
+      "tester": "Claude Code",
+      "notes": "2026-11-19, the test PC for v0.30.6-win11: Every failed test in this run has notes and a filed issue (#300-#315 and earlier ones); untested ones are left not-tested, never ticked.",
+      "evidence": ""
+    },
+    "680": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:18:00+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19. Main test home (panel 29970), access from other devices off. The panel runs with remote access disabled: it listens on 127.0.0.1:29970 only (netstat).",
+      "evidence": ""
+    },
+    "681": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:18:00+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19. Main test home (panel 29970), access from other devices off. Connected to the PC's LAN address 192.168.1.69:29970 (from this PC, the same address another LAN computer would use).",
+      "evidence": ""
+    },
+    "682": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:18:00+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19. Main test home (panel 29970), access from other devices off. Refused (WinError 10061, actively refused); 127.0.0.1 answered. Not exposed.",
+      "evidence": ""
+    },
+    "683": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:18:00+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19. Router (UPnP) on for Backup Probe (666): the router's list gained only the game port 36066/TCP, never the panel port 29970; also 807 (never 29972 or RCON).",
+      "evidence": ""
+    },
+    "684": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:18:00+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19. All 14 servers have enable-rcon=false (Craft Conductor's default) and nothing listens on the RCON port 25575; an imported export also left RCON out ('left_out: rcon', 695).",
+      "evidence": ""
+    },
+    "685": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:18:00+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19. The 813 test copy (panel 29972). Access from other devices on: it listens on 0.0.0.0:29972.",
+      "evidence": ""
+    },
+    "686": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:18:00+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19. The 813 test copy (panel 29972). From the LAN address with no sign-in: the page loads (sign-in), but /api/hub and a server's status answer 401 'login required'.",
+      "evidence": ""
+    },
+    "687": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:18:01+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19. The 813 test copy (panel 29972). Access from other devices switched off ('restart_needed': true), Craft Conductor quit and started again.",
+      "evidence": ""
+    },
+    "688": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:18:01+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19. The 813 test copy (panel 29972). Then it listened on 127.0.0.1:29972 only and the LAN address was refused (10061). Switched back on afterwards, as the copy was before.",
+      "evidence": ""
+    },
+    "404": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:19:11+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, Backup Probe (vanilla 26.3, stopped), E:/craft-conductor/helpers/t403.py. Another program (PowerShell) held server/server.properties open with no sharing ([IO.File]::Open(..., 'None')). The file stayed locked for the whole first attempt.",
+      "evidence": ""
+    },
+    "405": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:19:11+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, Backup Probe (vanilla 26.3, stopped), E:/craft-conductor/helpers/t403.py. Another program (PowerShell) held server/server.properties open with no sharing ([IO.File]::Open(..., 'None')). Roll back to this on 20261119-175838-t29-emerald.tar.gz.",
+      "evidence": ""
+    },
+    "406": {
+      "status": "fail",
+      "tested_at": "2026-11-20T05:19:11+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, Backup Probe (vanilla 26.3, stopped), E:/craft-conductor/helpers/t403.py. Another program (PowerShell) held server/server.properties open with no sharing ([IO.File]::Open(..., 'None')). It failed, but the message doesn't say a file is in use: \"the backup ... can't be restored: it couldn't be unpacked ([Errno 13] Permission denied: '...\\server\\server.properties'). The server was left as it was\" (the backup did unpack; reading the server's current server.properties after it failed). #316.",
+      "evidence": ""
+    },
+    "407": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:19:11+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, Backup Probe (vanilla 26.3, stopped), E:/craft-conductor/helpers/t403.py. Another program (PowerShell) held server/server.properties open with no sharing ([IO.File]::Open(..., 'None')). The server folder was unchanged (same files and sizes) and nothing was left next to it.",
+      "evidence": ""
+    },
+    "408": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:19:11+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, Backup Probe (vanilla 26.3, stopped), E:/craft-conductor/helpers/t403.py. Another program (PowerShell) held server/server.properties open with no sharing ([IO.File]::Open(..., 'None')). Closed the other program.",
+      "evidence": ""
+    },
+    "409": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:19:11+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, Backup Probe (vanilla 26.3, stopped), E:/craft-conductor/helpers/t403.py. Another program (PowerShell) held server/server.properties open with no sharing ([IO.File]::Open(..., 'None')). Roll back again.",
+      "evidence": ""
+    },
+    "410": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:19:12+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, Backup Probe (vanilla 26.3, stopped), E:/craft-conductor/helpers/t403.py. Another program (PowerShell) held server/server.properties open with no sharing ([IO.File]::Open(..., 'None')). 'rolled back to 20261119-175838-t29-emerald.tar.gz: Minecraft 26.3, 0 mod(s).'; the server started on it (the emerald block from that backup there) and stopped.",
+      "evidence": ""
+    },
+    "377": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:20:26+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970, Backup Probe: Backup settings -> Also copy every backup to D:/onedrive/cc-test-377 (the owner's OneDrive folder, OneDrive running), Copies to keep 2. Accepted (backup_copy_ok true).",
+      "evidence": ""
+    },
+    "378": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:20:26+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970, Backup Probe: Backup settings -> Also copy every backup to D:/onedrive/cc-test-377 (the owner's OneDrive folder, OneDrive running), Copies to keep 2. Made three backups in a row (t377-0, -1, -2).",
+      "evidence": ""
+    },
+    "379": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:20:27+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970, Backup Probe: Backup settings -> Also copy every backup to D:/onedrive/cc-test-377 (the owner's OneDrive folder, OneDrive running), Copies to keep 2. Each said '(copied to D:/onedrive/cc-test-377/backup-probe)'; the copies there are byte-identical to the backups (same sha256).",
+      "evidence": ""
+    },
+    "380": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:20:27+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970, Backup Probe: Backup settings -> Also copy every backup to D:/onedrive/cc-test-377 (the owner's OneDrive folder, OneDrive running), Copies to keep 2. Only the newest 2 copies stayed (t377-1, t377-2); t377-0's copy was removed after the third.",
+      "evidence": ""
+    },
+    "381": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:20:27+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970, Backup Probe: Backup settings -> Also copy every backup to D:/onedrive/cc-test-377 (the owner's OneDrive folder, OneDrive running), Copies to keep 2. The primary backups were untouched: all three t377 backups and every earlier one still listed (6 -> 9; Backups to keep is 10). Copying switched off and the test folder deleted afterwards.",
+      "evidence": ""
+    },
+    "429": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:27:54+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, throwaway Fabric 26.3 server CC Test Failupdate (Fabric API, Lithostitched; Test-boot and roll back on failure on; a gold block at 0,200,0), deleted afterwards. An update that fails only when the server starts: Lithostitched held at 2.0.5, plus a test mod compiled for this (CC Test Tripwire, E:/craft-conductor/testfiles/36) whose startup throws when Lithostitched is 2.0.6 or later; with 2.0.5 the server ran fine. (Easier ways were all caught before anything changed: a Lithostitched build for 26.1 - 'made for Minecraft 26.1 ... not 26.3' - and a mod declaring it breaks Lithostitched 2.0.6, even nested inside another jar - 'doesn't work with Lithostitched 2.0.6'; the server was untouched each time.)",
+      "evidence": ""
+    },
+    "430": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:27:54+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, throwaway Fabric 26.3 server CC Test Failupdate (Fabric API, Lithostitched; Test-boot and roll back on failure on; a gold block at 0,200,0), deleted afterwards. Let Lithostitched follow the newest again and pressed Update (2.0.5 -> 2.0.6).",
+      "evidence": ""
+    },
+    "431": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:27:54+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, throwaway Fabric 26.3 server CC Test Failupdate (Fabric API, Lithostitched; Test-boot and roll back on failure on; a gold block at 0,200,0), deleted afterwards. It backed up first (20261119-232626-before-mod-updates-26.3), test-booted, and detected the failure: 'Update failed and was rolled back ... server did not finish starting. It looks like this mod is the problem: CC Test Tripwire (it crashed while loading ...)'.",
+      "evidence": ""
+    },
+    "432": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:27:54+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, throwaway Fabric 26.3 server CC Test Failupdate (Fabric API, Lithostitched; Test-boot and roll back on failure on; a gold block at 0,200,0), deleted afterwards. Rolled back to the pre-update state: Lithostitched 2.0.5 and its jar back, the other jars as before; 'not retrying Minecraft 26.3 automatically: the same update failed before'.",
+      "evidence": ""
+    },
+    "433": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:27:54+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, throwaway Fabric 26.3 server CC Test Failupdate (Fabric API, Lithostitched; Test-boot and roll back on failure on; a gold block at 0,200,0), deleted afterwards. The old version started (running) and stopped normally.",
+      "evidence": ""
+    },
+    "435": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:28:07+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, throwaway Fabric 26.3 server CC Test Failupdate (deleted afterwards): after the rolled-back update the old mod set (Fabric API 0.166.2, Lithostitched 2.0.5, the same jars) and the world restored from the pre-update backup started normally twice (running, then stopped). Correction: the gold-block console check after the roll back returned no output (twice), so the block itself was not confirmed; it had been confirmed at 23:25:10, just before the pre-update backup was made.",
+      "evidence": "",
+      "supersedes": {
+        "status": "pass",
+        "tested_at": "2026-11-20T05:27:54+00:00",
+        "tester": "Claude Code",
+        "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, throwaway Fabric 26.3 server CC Test Failupdate (Fabric API, Lithostitched; Test-boot and roll back on failure on; a gold block at 0,200,0), deleted afterwards. The world and mods were as before: the gold block still there (execute if block: Test passed), Fabric API 0.166.2 and Lithostitched 2.0.5.",
+        "evidence": ""
+      }
+    },
+    "90": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:33:35+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, throwaway server CC Test Paper made through the setup API (E:/craft-conductor/helpers/tloader.py). Paper on Minecraft 26.3 (Paper 26.3-256): 'your server is ready (Minecraft 26.3)' in 30 s.",
+      "evidence": ""
+    },
+    "91": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:33:35+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, throwaway server CC Test Paper made through the setup API (E:/craft-conductor/helpers/tloader.py). Started: 'This server is running Paper version 26.3-256-main...', Done (8.8 s).",
+      "evidence": ""
+    },
+    "93": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:33:35+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, throwaway server CC Test Paper made through the setup API (E:/craft-conductor/helpers/tloader.py). Added the real Modrinth plugin Chunky; the update installed Chunky-Paper-1.5.66.jar in plugins/.",
+      "evidence": ""
+    },
+    "94": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:33:35+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, throwaway server CC Test Paper made through the setup API (E:/craft-conductor/helpers/tloader.py). Restarted (stop, start).",
+      "evidence": ""
+    },
+    "95": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:33:35+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, throwaway server CC Test Paper made through the setup API (E:/craft-conductor/helpers/tloader.py). '[Chunky] Enabling Chunky v1.5.66'; the plugins command lists Chunky.",
+      "evidence": ""
+    },
+    "96": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:33:36+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, throwaway server CC Test Paper made through the setup API (E:/craft-conductor/helpers/tloader.py). Held Chunky at the older 1.5.3 (Change version): the update put Chunky-Bukkit-1.5.3.jar in its place and the server ran it; let go, the check offered '~ Chunky 1.5.3 -> 1.5.66', Update swapped the jar (no old copy left) and the server ran 1.5.66. (Chunky has two builds both numbered 1.5.66; moving between them shows as '1.5.66 -> 1.5.66'.)",
+      "evidence": ""
+    },
+    "97": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:36:08+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, throwaway server CC Test Purpur made through the setup API (deleted afterwards). Purpur on Minecraft 26.3 (Purpur 26.3-2660): 'your server is ready (Minecraft 26.3)' in 30 s.",
+      "evidence": ""
+    },
+    "98": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:36:08+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, throwaway server CC Test Purpur made through the setup API (deleted afterwards). Started: 'This server is running Purpur version 26.3-2660-HEAD...', Done (10.5 s).",
+      "evidence": ""
+    },
+    "100": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:36:08+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, throwaway server CC Test Purpur made through the setup API (deleted afterwards). Added the real Modrinth plugin LuckPerms (spark was refused first with a clear 'spark has no Purpur build for Minecraft 26.3'); the update installed LuckPerms-Bukkit-5.5.71.jar.",
+      "evidence": ""
+    },
+    "101": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:36:08+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, throwaway server CC Test Purpur made through the setup API (deleted afterwards). Restarted (stop, start).",
+      "evidence": ""
+    },
+    "102": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:36:09+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, throwaway server CC Test Purpur made through the setup API (deleted afterwards). '[LuckPerms] Enabling LuckPerms v5.5.71'; plugins lists 'Bukkit Plugins (1): LuckPerms'.",
+      "evidence": ""
+    },
+    "104": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:36:09+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, throwaway server CC Test Purpur made through the setup API (deleted afterwards). As the manual says (Plugins page; Paper/Spigot/Bukkit plugins run; kept updated like mods): adding put it in with the next update; the Mods/Plugins list showed LuckPerms v5.5.71-bukkit; removing took it off the list and the next update deleted the jar (plugins/ then empty). Plugin updates checked on Paper (96).",
+      "evidence": ""
+    },
+    "74": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:38:00+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, throwaway server CC Test NeoForge made through the setup API (deleted afterwards). NeoForge 26.1.2.127 on Minecraft 26.1.2: 'your server is ready (Minecraft 26.1.2)' in 30 s.",
+      "evidence": ""
+    },
+    "75": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:38:01+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, throwaway server CC Test NeoForge made through the setup API (deleted afterwards). Started: 'Starting minecraft server version 26.1.2', Done.",
+      "evidence": ""
+    },
+    "77": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:38:01+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, throwaway server CC Test NeoForge made through the setup API (deleted afterwards). Added the real Modrinth mod FerriteCore; the update installed ferritecore-9.0.0-neoforge.jar.",
+      "evidence": ""
+    },
+    "78": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:38:01+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, throwaway server CC Test NeoForge made through the setup API (deleted afterwards). Restarted (stop, start).",
+      "evidence": ""
+    },
+    "79": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:38:01+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, throwaway server CC Test NeoForge made through the setup API (deleted afterwards). NeoForge's mod list in the log: 'Ferrite Core 9.0.0 (ferritecore)' from mods/ferritecore-9.0.0-neoforge.jar; Done.",
+      "evidence": ""
+    },
+    "80": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:38:01+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, throwaway server CC Test NeoForge made through the setup API (deleted afterwards). Check now: 'up to date (Minecraft 26.1.2)' - latest Minecraft 26.3, target 26.1.2 (newest the server's loader and mods support), no changes; FerriteCore has only the one 26.1.2 NeoForge build.",
+      "evidence": ""
+    },
+    "83": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:42:43+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, throwaway server CC Test Forge made through the setup API (deleted afterwards). Forge 47.4.28 on Minecraft 1.20.1; Craft Conductor downloaded the Java 17 it needs by itself ('downloading Java 17 (jdk-17.0.21+9)').",
+      "evidence": ""
+    },
+    "84": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:42:43+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, throwaway server CC Test Forge made through the setup API (deleted afterwards). Started: 'MinecraftForge v47.4.28 Initialized', 'Starting minecraft server version 1.20.1', Done (4.2 s on the second start).",
+      "evidence": ""
+    },
+    "86": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:42:43+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, throwaway server CC Test Forge made through the setup API (deleted afterwards). Added the real Modrinth mod FerriteCore; the update installed ferritecore-6.0.1-forge.jar.",
+      "evidence": ""
+    },
+    "87": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:42:43+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, throwaway server CC Test Forge made through the setup API (deleted afterwards). Restarted (stop, start).",
+      "evidence": ""
+    },
+    "88": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:42:44+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, throwaway server CC Test Forge made through the setup API (deleted afterwards). Forge's log: 'Found valid mod file ferritecore-6.0.1-forge.jar with {ferritecore} mods - versions {6.0.1}', its mixin configs registered, 0 ERROR lines; Done. Also held at 6.0.0-forge then updated: the check offered '~ FerriteCore 6.0.0-forge -> 6.0.1' and the server started on it.",
+      "evidence": ""
+    },
+    "141": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:44:46+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, Mod World (Fabric 26.3). Download mods with CurseForge as the source, search 'appleskin' for 26.3 Fabric: real results (AppleSkin 248787, AppleStats..., FFFoodSpoilage...).",
+      "evidence": ""
+    },
+    "142": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:44:47+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, Mod World (Fabric 26.3). No key was entered: Craft Conductor's built-in CurseForge key is used ('set': true, 'builtin': true, 'own': false).",
+      "evidence": ""
+    },
+    "143": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:44:47+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, Mod World (Fabric 26.3). Added AppleSkin (CurseForge, which allows other apps to download it).",
+      "evidence": ""
+    },
+    "144": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:44:47+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, Mod World (Fabric 26.3). The update installed appleskin-fabric-mc26.3-3.0.10.jar ('updated: mod updates for Minecraft 26.3'); removed again afterwards.",
+      "evidence": ""
+    },
+    "145": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:44:47+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 on this computer only, Mod World (Fabric 26.3). The jar's SHA-1 on disk (3d19e40c...) equals the SHA-1 CurseForge publishes for that file (kept in the lock file with sha512/sha256); downloads are verified against these and refused on a mismatch.",
+      "evidence": ""
+    },
+    "146": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:44:47+00:00",
+      "tester": "Claude Code",
+      "notes": "Covered by 816, 908 and 1035 in this run (release exe v0.30.6): All the Mods 11 0.14.0-beta from CurseForge, 291 mods. Three of its files come from CurseForge projects that don't allow other apps to download them.",
+      "evidence": ""
+    },
+    "147": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:44:48+00:00",
+      "tester": "Claude Code",
+      "notes": "Covered by 816, 908 and 1035 in this run (release exe v0.30.6): All the Mods 11 0.14.0-beta from CurseForge, 291 mods. Craft Conductor didn't fetch them itself.",
+      "evidence": ""
+    },
+    "148": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:44:48+00:00",
+      "tester": "Claude Code",
+      "notes": "Covered by 816, 908 and 1035 in this run (release exe v0.30.6): All the Mods 11 0.14.0-beta from CurseForge, 291 mods. It named each with its CurseForge page for a hand download, found the 3 in Downloads by itself (816), and the friend setup named them the same way (1035).",
+      "evidence": ""
+    },
+    "154": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:50:12+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 in Chrome on this computer, Mod World (Fabric 26.3) with Make a download for friends switched on for the test (off again afterwards). Friends -> Mods for players -> Add Friends Mods (filter: Client-side and both).",
+      "evidence": ""
+    },
+    "155": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:50:13+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 in Chrome on this computer, Mod World (Fabric 26.3) with Make a download for friends switched on for the test (off again afterwards). Picked Waystones (server + client).",
+      "evidence": ""
+    },
+    "156": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:50:13+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 in Chrome on this computer, Mod World (Fabric 26.3) with Make a download for friends switched on for the test (off again afterwards). Picked Sodium (client-side).",
+      "evidence": ""
+    },
+    "157": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:50:13+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 in Chrome on this computer, Mod World (Fabric 26.3) with Make a download for friends switched on for the test (off again afterwards). Add selected mods with both ticked: 'Added Sodium, Waystones for players'.",
+      "evidence": ""
+    },
+    "158": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:50:13+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 in Chrome on this computer, Mod World (Fabric 26.3) with Make a download for friends switched on for the test (off again afterwards). Waystones went on the server's own mod list ([[mods]] waystones) and the next update installed it there.",
+      "evidence": ""
+    },
+    "159": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:50:13+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 in Chrome on this computer, Mod World (Fabric 26.3) with Make a download for friends switched on for the test (off again afterwards). Its dependencies came too: the server got Balm and Shogi (installed by the update: balm-fabric-26.3-26.3.0.3, shogi-fabric-26.3-26.3.0.3), and players got them as well ('Added Shogi, Balm for players, because Waystones needs them on their computers').",
+      "evidence": ""
+    },
+    "160": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:50:13+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 in Chrome on this computer, Mod World (Fabric 26.3) with Make a download for friends switched on for the test (off again afterwards). Message: 'Waystones also runs on the server, so it was added there too, with Fabric API, Shogi, Balm'.",
+      "evidence": ""
+    },
+    "161": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:50:14+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 in Chrome on this computer, Mod World (Fabric 26.3) with Make a download for friends switched on for the test (off again afterwards). Sodium was not put on the server: the server's mods stayed Collective, Fabric API, Lithostitched, Terralith + Waystones/Balm/Shogi.",
+      "evidence": ""
+    },
+    "162": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:50:14+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 in Chrome on this computer, Mod World (Fabric 26.3) with Make a download for friends switched on for the test (off again afterwards). Manage Friends Mods -> Remove on Waystones.",
+      "evidence": ""
+    },
+    "163": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:50:14+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970 in Chrome on this computer, Mod World (Fabric 26.3) with Make a download for friends switched on for the test (off again afterwards). It asked: 'waystones is also one of the server's mods. Remove it from the server too? Cancel keeps it on the server.' (shows the mod's id, not its name); Remove from the server -> 'waystones removed from the server', and the next update took it off.",
+      "evidence": ""
+    },
+    "164": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:50:14+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, the friends' setup page for Mod World (the same page friends get; opened on this computer with Play on this computer -> Put it in my launcher), in Chrome. The page: 'This server runs Minecraft 26.3 with Fabric 0.20.1 and 5 mods', Make it yours: Shaders, Resource packs, More mods; launcher choices.",
+      "evidence": ""
+    },
+    "165": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:50:14+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, the friends' setup page for Mod World (the same page friends get; opened on this computer with Play on this computer -> Put it in my launcher), in Chrome. Opened More mods: the results keep loading as you scroll (100 loaded).",
+      "evidence": ""
+    },
+    "166": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:50:14+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, the friends' setup page for Mod World (the same page friends get; opened on this computer with Play on this computer -> Put it in my launcher), in Chrome. Every result is a client-only mod: of 74 checked against Modrinth, 73 are client required / server unsupported; Melody (an OpenAL music library, client-only) reports 'unknown' on its project page though Modrinth's search lists it as server-unsupported. No server mod appeared.",
+      "evidence": ""
+    },
+    "254": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:52:30+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970, Backup Probe -> Friends -> Make a download for friends (on for the test, off afterwards); the friend side was craft-conductor join in its own home with a throwaway Minecraft Launcher folder (E:/craft-conductor/helpers/t254.py, t265.py). Links work for: 1 day.",
+      "evidence": ""
+    },
+    "255": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:52:30+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970, Backup Probe -> Friends -> Make a download for friends (on for the test, off afterwards); the friend side was craft-conductor join in its own home with a throwaway Minecraft Launcher folder (E:/craft-conductor/helpers/t254.py, t265.py). The page said 'These links work until 11/20/2026, 11:52:08 PM, then stop by themselves' (24 hours ahead).",
+      "evidence": ""
+    },
+    "256": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:52:30+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970, Backup Probe -> Friends -> Make a download for friends (on for the test, off afterwards); the friend side was craft-conductor join in its own home with a throwaway Minecraft Launcher folder (E:/craft-conductor/helpers/t254.py, t265.py). Links work for: 7 days.",
+      "evidence": ""
+    },
+    "257": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:52:30+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970, Backup Probe -> Friends -> Make a download for friends (on for the test, off afterwards); the friend side was craft-conductor join in its own home with a throwaway Minecraft Launcher folder (E:/craft-conductor/helpers/t254.py, t265.py). 'These links work until 11/26/2026, 11:52:17 PM' and 'The links work for 7 days from now'.",
+      "evidence": ""
+    },
+    "262": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:52:31+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970, Backup Probe -> Friends -> Make a download for friends (on for the test, off afterwards); the friend side was craft-conductor join in its own home with a throwaway Minecraft Launcher folder (E:/craft-conductor/helpers/t254.py, t265.py). The friend app used the valid local link: 'Contacting the server (192.168.1.69)...'.",
+      "evidence": ""
+    },
+    "263": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:52:31+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970, Backup Probe -> Friends -> Make a download for friends (on for the test, off afterwards); the friend side was craft-conductor join in its own home with a throwaway Minecraft Launcher folder (E:/craft-conductor/helpers/t254.py, t265.py). It worked: 'Done in 0s. 0 mod(s) downloaded.' and a Backup Probe profile in the Minecraft Launcher folder ('Minecraft will join 192.168.1.69:25573 by itself').",
+      "evidence": ""
+    },
+    "264": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:52:31+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970, Backup Probe -> Friends -> Make a download for friends (on for the test, off afterwards); the friend side was craft-conductor join in its own home with a throwaway Minecraft Launcher folder (E:/craft-conductor/helpers/t254.py, t265.py). Stop these links: the page has no link any more (expired).",
+      "evidence": ""
+    },
+    "265": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:52:31+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970, Backup Probe -> Friends -> Make a download for friends (on for the test, off afterwards); the friend side was craft-conductor join in its own home with a throwaway Minecraft Launcher folder (E:/craft-conductor/helpers/t254.py, t265.py). The stopped link failed (the share port closed: 'couldn't reach the server at 192.168.1.69:8766'); and after New links, with sharing running, the replaced link was refused: 'the server doesn't recognise this invite any more; ask for a new one'.",
+      "evidence": ""
+    },
+    "266": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:52:31+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970, Backup Probe -> Friends -> Make a download for friends (on for the test, off afterwards); the friend side was craft-conductor join in its own home with a throwaway Minecraft Launcher folder (E:/craft-conductor/helpers/t254.py, t265.py). New links: a different link, working for 7 days.",
+      "evidence": ""
+    },
+    "267": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:52:31+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, panel 29970, Backup Probe -> Friends -> Make a download for friends (on for the test, off afterwards); the friend side was craft-conductor join in its own home with a throwaway Minecraft Launcher folder (E:/craft-conductor/helpers/t254.py, t265.py). The new link worked: 'Done in 0s' and the Backup Probe profile made.",
+      "evidence": ""
+    },
+    "183": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:54:03+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, Mod World (Fabric 26.3) with a friends' download; the friend side was craft-conductor join with the local invite in its own home and a throwaway Minecraft Launcher folder (E:/craft-conductor/helpers/t182.py). The friend's Minecraft Launcher got a 'Mod World' profile on version craft-conductor-mod-world, which inherits fabric-loader-0.20.1-26.3: Minecraft 26.3 with Fabric 0.20.1, the server's versions.",
+      "evidence": ""
+    },
+    "185": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:54:03+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, Mod World (Fabric 26.3) with a friends' download; the friend side was craft-conductor join with the local invite in its own home and a throwaway Minecraft Launcher folder (E:/craft-conductor/helpers/t182.py). Its mods folder got the server's 4 mods including Lithostitched, which Terralith needs; after Waystones was added, also Balm and Shogi, which Waystones needs.",
+      "evidence": ""
+    },
+    "188": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:54:03+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, Mod World (Fabric 26.3) with a friends' download; the friend side was craft-conductor join with the local invite in its own home and a throwaway Minecraft Launcher folder (E:/craft-conductor/helpers/t182.py). Changed the server's mods: added Waystones (server + client; Balm and Shogi came with it) and updated the server.",
+      "evidence": ""
+    },
+    "189": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:54:03+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, Mod World (Fabric 26.3) with a friends' download; the friend side was craft-conductor join with the local invite in its own home and a throwaway Minecraft Launcher folder (E:/craft-conductor/helpers/t182.py). Running the friend app again with the same invite (as it tells friends: 'If the server updates, run this file again before playing') found the change and fetched only what was new: 'downloading Shogi', 'downloading Waystones', '3 mod(s) downloaded'.",
+      "evidence": ""
+    },
+    "190": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:54:04+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19, Mod World (Fabric 26.3) with a friends' download; the friend side was craft-conductor join with the local invite in its own home and a throwaway Minecraft Launcher folder (E:/craft-conductor/helpers/t182.py). The friend's setup was updated in place: the same profile, mods folder now 7 jars matching the server (Balm, Collective, Fabric API, Lithostitched, Shogi, Terralith, Waystones). Mod World put back afterwards.",
+      "evidence": ""
+    },
+    "167": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:54:42+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19: Mod World (Fabric 26.3) has a known-working group of real mods: Collective, Fabric API, Lithostitched (needed by Terralith), Terralith; Check my setup: Every mod has the mods and versions it says it needs.",
+      "evidence": ""
+    },
+    "168": {
+      "status": "pass",
+      "tested_at": "2026-11-20T05:54:42+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19: it started every time today (snapshot roll back, mod update, Check my setup tests): Server is up (Minecraft 26.3), 0 errors.",
+      "evidence": ""
+    },
+    "533": {
+      "status": "pass",
+      "tested_at": "2026-11-20T06:09:15+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19/20, panel 29970 on this computer only. Mod World (Fabric 26.3): a server and version BlueMap supports (the Web map card: BlueMap available, Dynmap not).",
+      "evidence": ""
+    },
+    "534": {
+      "status": "pass",
+      "tested_at": "2026-11-20T06:09:15+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19/20, panel 29970 on this computer only. Mod World (Fabric 26.3): Add BlueMap offered; Dynmap not offered (no Fabric build for 26.3).",
+      "evidence": ""
+    },
+    "535": {
+      "status": "pass",
+      "tested_at": "2026-11-20T06:09:16+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19/20, panel 29970 on this computer only. Mod World (Fabric 26.3): Added BlueMap ('deps': Fabric API); the update installed it; then OK'd BlueMap downloading Minecraft's textures (it asks once BlueMap has made its settings on the first start).",
+      "evidence": ""
+    },
+    "536": {
+      "status": "pass",
+      "tested_at": "2026-11-20T06:09:16+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19/20, panel 29970 on this computer only. Mod World (Fabric 26.3): Started: 'BlueMap loaded!', 'WebServer bound to all network interfaces on port 8100'.",
+      "evidence": ""
+    },
+    "537": {
+      "status": "pass",
+      "tested_at": "2026-11-20T06:09:16+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19/20, panel 29970 on this computer only. Mod World (Fabric 26.3): Opened the map address the card gives (http://localhost:8100/) in Chrome: 'BlueMap - world (overworld)'.",
+      "evidence": ""
+    },
+    "538": {
+      "status": "pass",
+      "tested_at": "2026-11-20T06:09:16+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19/20, panel 29970 on this computer only. Mod World (Fabric 26.3): The map showed the world's rendered terrain around spawn (3D view; the Nether and End had no regions yet, as BlueMap logged). BlueMap removed afterwards.",
+      "evidence": ""
+    },
+    "539": {
+      "status": "pass",
+      "tested_at": "2026-11-20T06:09:16+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19/20, panel 29970 on this computer only. Backup Probe: vanilla 26.3 (plain Minecraft, no mods or plugins).",
+      "evidence": ""
+    },
+    "540": {
+      "status": "pass",
+      "tested_at": "2026-11-20T06:09:16+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-19/20, panel 29970 on this computer only. Backup Probe's Web map card offers neither (available: bluemap false, dynmap false; adding says it needs a server that runs mods or plugins); Mod World on 26.3 doesn't offer Dynmap (no build), and a Fabric 1.21.11 server offers both.",
+      "evidence": ""
+    },
+    "512": {
+      "status": "pass",
+      "tested_at": "2026-11-20T06:11:20+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, panel 29970 in Chrome: New server -> New lands to explore (Fabric 26.3 with Terralith) -> World generation & map preview, seed cctest512, 256x256 (quick). Preview map started a private server with the server's mods.",
+      "evidence": ""
+    },
+    "513": {
+      "status": "pass",
+      "tested_at": "2026-11-20T06:11:20+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, panel 29970 in Chrome: New server -> New lands to explore (Fabric 26.3 with Terralith) -> World generation & map preview, seed cctest512, 256x256 (quick). Generation completed in about a minute: a drawn 256x256 map, 'Normal - 3 mod(s) - 6 biome(s) in view', with + / - / Back to spawn / Make this area.",
+      "evidence": ""
+    },
+    "523": {
+      "status": "pass",
+      "tested_at": "2026-11-20T06:11:21+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, panel 29970 in Chrome: New server -> New lands to explore (Fabric 26.3 with Terralith) -> World generation & map preview, seed cctest512, 256x256 (quick). Terralith is a world-generation mod that needs Lithostitched.",
+      "evidence": ""
+    },
+    "524": {
+      "status": "pass",
+      "tested_at": "2026-11-20T06:11:21+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, panel 29970 in Chrome: New server -> New lands to explore (Fabric 26.3 with Terralith) -> World generation & map preview, seed cctest512, 256x256 (quick). The panel said 'The map is made with all 3 of the server's mods and the 2 they need', with Lithostitched ticked in the list: the preview ran with the dependency.",
       "evidence": ""
     }
   },
