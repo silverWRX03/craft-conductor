@@ -25,7 +25,18 @@ const assert = require('node:assert/strict');
   const none = await page.evaluate(() => setupSteps(undefined));
   assert.deepEqual(none, { items: [], value: 0, label: '' });
 
-  // MAKE-A-MODPACK
+  // Make a modpack, on the Mods page: Modrinth's format first, CurseForge's on choosing it.
+  await page.goto(base + '/#s/alpha/mods');
+  await page.getByRole('button', { name: 'Make a modpack…' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Make a modpack' });
+  await dialog.waitFor();
+  assert.match(await dialog.innerText(), /Modrinth \(\.mrpack\)/);
+  await dialog.getByText(/mod\(s\) go in/).waitFor();
+  await dialog.getByLabel('CurseForge (.zip)').check();
+  const link = dialog.getByRole('link', { name: 'Download' });
+  await page.waitForFunction(() => /format=curseforge/.test((document.querySelector('[role=dialog] a[download]') || {}).href || ''));
+  const [download] = await Promise.all([page.waitForEvent('download'), link.click()]);
+  assert.match(download.suggestedFilename(), /\.zip$/);
 
   assert.deepEqual(errors, []);
   await browser.close();

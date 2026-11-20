@@ -3063,6 +3063,43 @@ function joinRequestsCard(after = () => {}) {
   return { el, load };
 }
 
+// Make a modpack…: the server's mods as a Modrinth .mrpack or a CurseForge .zip (links to the mod
+// sites only, no jars or config files), with what can't go in and why. Changing the format asks again.
+const PACK_LOADERS = ["fabric", "quilt", "forge", "neoforge"];
+function makeModpack() {
+  if ($("#make-modpack")) return;
+  const onKey = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); } };
+  const close = () => { document.removeEventListener("keydown", onKey, true); const m = $("#make-modpack"); if (m) m.remove(); };
+  document.addEventListener("keydown", onKey, true);
+  const body = h("div", { "aria-live": "polite" });
+  const download = h("a", { class: "btn primary", download: "", hidden: true }, "Download");
+  let asked = 0;
+  const show = async (fmt) => {
+    const mine = ++asked;
+    download.hidden = true;
+    fill(body, h("p", { class: "muted" }, "Asking the mod sites…"));
+    const r = await api(`/api/modpack/make?format=${fmt}`).catch((e) => { fill(body, h("p", { class: "notice warn" }, e.message)); return null; });
+    if (!r || mine !== asked) return;
+    download.href = scoped(`/api/modpack/make/download?format=${fmt}`);
+    download.hidden = false;
+    fill(body,
+      h("p", {}, t("{n} mod(s) go in").replace("{n}", r.included.length), h("span", { class: "muted small" }, ` · ${r.filename}`)),
+      r.left_out.length ? [h("h3", { class: "mt-s" }, "Not included"),
+        h("ul", { class: "list small" }, r.left_out.map((x) => h("li", {}, h("strong", {}, x.name), h("span", { class: "muted" }, ` — ${x.why}`))))] : null);
+  };
+  const choice = (fmt, label, checked) => h("label", { class: "row check-row" },
+    h("input", { type: "radio", name: "pack-format", value: fmt, checked, onchange: () => show(fmt) }), h("span", {}, label));
+  const box = h("div", { class: "modal" },
+    h("h2", { id: "make-modpack-title" }, "Make a modpack"),
+    h("p", { class: "muted small" }, "A file players open in their launcher (Modrinth App, Prism, CurseForge) to get the same mods. It holds links to the mod sites only: no mod files, and none of your config files."),
+    h("fieldset", { class: "choices" }, h("legend", { class: "small" }, "Format"),
+      choice("mrpack", "Modrinth (.mrpack)", true), choice("curseforge", "CurseForge (.zip)", false)),
+    body,
+    h("div", { class: "row mt" }, download, h("button", { class: "btn ghost", type: "button", onclick: close }, "Close")));
+  document.body.append(h("div", { class: "modal-backdrop", id: "make-modpack", role: "dialog", "aria-modal": "true", "aria-labelledby": "make-modpack-title" }, box));
+  show("mrpack");
+}
+
 views.mods = () => {
   const me = hubInfo && hubInfo.servers ? hubInfo.servers.find((x) => x.id === server) : null;
   const plugins = !!me && runsPlugins(me.loader);
@@ -3329,6 +3366,8 @@ views.mods = () => {
             load();
           },
         }),
+        PACK_LOADERS.includes(info.loader) && info.minecraft && can("mods.view")
+          ? h("button", { class: "btn", onclick: makeModpack }, "Make a modpack…") : null,
         hubInfo && hubInfo.local ? folderBtn("mods", plugins ? "Plugins folder" : "Mods folder") : null,
         hubInfo && hubInfo.local ? folderBtn("config", "Config folder") : null));
   };
