@@ -8201,7 +8201,7 @@
   {
     "id": 926,
     "section": "Feature: Project website and demo",
-    "step": "Open the website's Real-world testing page on a computer and on a phone: it has the homepage's sidebar (on a phone, under ☰ Menu), with Real-world testing marked; each link goes to that part of the homepage; the Light/Dark switch matches the homepage's and is remembered between them; the filters, counts and table work, and the page never scrolls sideways.",
+    "step": "Open the website's Real-world testing page on a computer and on a phone: it has the homepage's sidebar (on a phone, under ☰ Menu), with Real-world testing marked; each link goes to that part of the homepage; the Light/Dark switch matches the homepage's and is remembered between them; the filters, counts and table work. The results table scrolls sideways inside its own box so its columns stay readable (this is intended); the rest of the page never scrolls sideways.",
     "type": "Core",
     "tags": [],
     "source": "added-in-git"

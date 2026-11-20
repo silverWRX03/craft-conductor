@@ -136,6 +136,7 @@
     487,
     488,
     489,
+    496,
     499,
     500,
     501,
@@ -1790,6 +1791,13 @@
       "tested_at": "2026-10-25T06:26:36+00:00",
       "tester": "Claude Code",
       "notes": "Release exe v0.30.1 (sha256 21f2625…), isolated home. After the interrupted-update recovery (439-442) the restored Fabric 1.21.1 server (Fabric API, Lithium; whitelist on) accepted the owner from Prism Launcher 1.21.1 by Direct Connection, 2026-10-25: three joins/leaves 01:12-01:16, played normally (advancements), no errors.",
+      "evidence": ""
+    },
+    "496": {
+      "status": "pass",
+      "tested_at": "2026-11-17T04:46:19+00:00",
+      "tester": "Claude Code",
+      "notes": "Covered by 499 in this run (release exe v0.30.1): CRAFT_CONDUCTOR_HOME under C:/cc/<Cyrillic folders>, server folder named with Cyrillic letters and é; create made a Fabric 1.21.1 server with the mods Fabric API and Lithium, then update -y moved it to 26.3 with both mods updated; the test boot reached Done.",
       "evidence": ""
     }
   },
