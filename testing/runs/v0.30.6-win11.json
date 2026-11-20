@@ -166,7 +166,13 @@
     235,
     244,
     245,
+    247,
+    248,
     249,
+    250,
+    251,
+    252,
+    253,
     254,
     255,
     256,
@@ -4187,6 +4193,48 @@
       "tested_at": "2026-11-20T13:45:27+00:00",
       "tester": "Claude Code",
       "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20: a fresh home on a 1 GB USB stick (FAT, drive F:) as CRAFT_CONDUCTOR_HOME, panel on its own port, Chrome. Signed in with the first-time password and chose a test one; then 'Where should Craft Conductor keep your files?' showed Servers and Exports on the stick (Backups in each server's own folder). Use these folders -> 'Use this folder?' with the warning, for both: '... is on a removable drive (a USB stick or a memory card): keep it plugged in while Craft Conductor runs, or the files go missing until it's back' -> Use it anyway -> 'Saved.', the dialog closed and stayed closed after a reload; the folders were saved in hub.json (locations). The panel also showed 'Only 739 MB of disk space left' for the stick, which is right for a 1 GB stick.",
+      "evidence": ""
+    },
+    "247": {
+      "status": "pass",
+      "tested_at": "2026-11-20T14:26:37+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, main panel. playit.gg already installed on this PC (the owner's account; its Minecraft Java tunnel points at 127.0.0.1:25565). Server RT Smooth (Fabric 26.3, port 25565) given the owner's *.tun.ply.gg address as its playit.gg address for the test (removed afterwards), started. The tunnel check is the one the Friends page shows (GET /api/tunnel, Check now). Ran the tunnel check (Check now) with the playit agent (Windows service playitd) running.",
+      "evidence": ""
+    },
+    "248": {
+      "status": "pass",
+      "tested_at": "2026-11-20T14:26:37+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, main panel. playit.gg already installed on this PC (the owner's account; its Minecraft Java tunnel points at 127.0.0.1:25565). Server RT Smooth (Fabric 26.3, port 25565) given the owner's *.tun.ply.gg address as its playit.gg address for the test (removed afterwards), started. The tunnel check is the one the Friends page shows (GET /api/tunnel, Check now). It reported 'Working: friends can join through playit.gg.', agent running, and the answer through the tunnel was this server's own MOTD (RT Smooth). (#308 is about Check my setup's internet test, not this check.)",
+      "evidence": ""
+    },
+    "250": {
+      "status": "pass",
+      "tested_at": "2026-11-20T14:26:37+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, main panel. playit.gg already installed on this PC (the owner's account; its Minecraft Java tunnel points at 127.0.0.1:25565). Server RT Smooth (Fabric 26.3, port 25565) given the owner's *.tun.ply.gg address as its playit.gg address for the test (removed afterwards), started. The tunnel check is the one the Friends page shows (GET /api/tunnel, Check now). Stopped the playit agent (Stop-Service playitd; it was Stopped within 2 s).",
+      "evidence": ""
+    },
+    "251": {
+      "status": "pass",
+      "tested_at": "2026-11-20T14:26:37+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, main panel. playit.gg already installed on this PC (the owner's account; its Minecraft Java tunnel points at 127.0.0.1:25565). Server RT Smooth (Fabric 26.3, port 25565) given the owner's *.tun.ply.gg address as its playit.gg address for the test (removed afterwards), started. The tunnel check is the one the Friends page shows (GET /api/tunnel, Check now). The next check said 'Friends can't reach the server through playit.gg right now. Check that the playit program is running on this computer, and playit.gg's status page...', agent: not running; the panel log and notifications said 'playit.gg tunnel stopped working (<the address>)'.",
+      "evidence": ""
+    },
+    "252": {
+      "status": "pass",
+      "tested_at": "2026-11-20T14:26:38+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, main panel. playit.gg already installed on this PC (the owner's account; its Minecraft Java tunnel points at 127.0.0.1:25565). Server RT Smooth (Fabric 26.3, port 25565) given the owner's *.tun.ply.gg address as its playit.gg address for the test (removed afterwards), started. The tunnel check is the one the Friends page shows (GET /api/tunnel, Check now). Started the playit agent again (Start-Service playitd).",
+      "evidence": ""
+    },
+    "253": {
+      "status": "pass",
+      "tested_at": "2026-11-20T14:26:38+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, main panel. playit.gg already installed on this PC (the owner's account; its Minecraft Java tunnel points at 127.0.0.1:25565). Server RT Smooth (Fabric 26.3, port 25565) given the owner's *.tun.ply.gg address as its playit.gg address for the test (removed afterwards), started. The tunnel check is the one the Friends page shows (GET /api/tunnel, Check now). Status recovered by itself: 18 s after the start the check said 'Working: friends can join through playit.gg.' again (agent running, answer RT Smooth), and the log and notifications said 'playit.gg tunnel works again'. Server stopped and the test address removed afterwards; the playitd service left stopped, as it was found.",
       "evidence": ""
     }
   },
