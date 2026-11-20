@@ -1,0 +1,53 @@
+name: helpers
+
+# Craft Conductor Ping (helpers/ping/): the jars shipped in src/craft_conductor/helpers/ must be
+# exactly what the source builds. The built jars are uploaded, so when a local JDK makes different
+# bytes, the CI jar can be committed instead.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "helpers/**"
+      - "src/craft_conductor/helpers/**"
+      - "tools/build_helpers.py"
+      - ".github/workflows/helpers.yml"
+  pull_request:
+    paths:
+      - "helpers/**"
+      - "src/craft_conductor/helpers/**"
+      - "tools/build_helpers.py"
+      - ".github/workflows/helpers.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+      - name: Build the helpers and compare with the shipped jars
+        run: python tools/build_helpers.py --check
+      - name: Keep the built jars (to commit when they differ)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: helper-jars
+          path: helpers/ping/*/build/libs/craft_conductor_ping-*.jar
+          if-no-files-found: ignore

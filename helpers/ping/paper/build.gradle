@@ -1,0 +1,38 @@
+plugins {
+    id 'java'
+}
+
+// The helper's own version (the jar is craft_conductor_ping-paper-<version>.jar).
+version = '1.0.0'
+
+repositories {
+    maven { url = 'https://repo.papermc.io/repository/maven-public/' }
+}
+
+dependencies {
+    // Compiled against the oldest supported API; nothing is bundled into the jar.
+    compileOnly 'io.papermc.paper:paper-api:1.17.1-R0.1-SNAPSHOT'
+}
+
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 16
+    options.encoding = 'UTF-8'
+}
+
+processResources {
+    inputs.property('version', project.version)
+    filesMatching('plugin.yml') {
+        expand(version: project.version)
+    }
+}
+
+jar {
+    archiveBaseName = 'craft_conductor_ping-paper'
+    // Reproducible: the same source gives the same bytes on any computer.
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+    includeEmptyDirs = false
+    fileMode = 0644
+    dirMode = 0755
+}

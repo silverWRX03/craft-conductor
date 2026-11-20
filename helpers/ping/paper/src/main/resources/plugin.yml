@@ -1,0 +1,6 @@
+name: craft_conductor_ping
+version: '${version}'
+main: craft_conductor.ping.PingPlugin
+api-version: "1.17"
+description: Reports each player's ping to Craft Conductor (writes .craft-conductor/ping.json).
+author: Craft Conductor

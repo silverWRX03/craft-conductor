@@ -1,0 +1,4 @@
+// Craft Conductor Ping: the small server-side helpers that report each player's ping to Craft
+// Conductor. One sub-project per platform; see README.md for how to build them.
+rootProject.name = 'craft-conductor-ping'
+include 'paper'
