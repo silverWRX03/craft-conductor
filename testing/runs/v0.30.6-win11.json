@@ -164,6 +164,10 @@
     233,
     234,
     235,
+    236,
+    237,
+    238,
+    239,
     244,
     245,
     246,
@@ -4427,6 +4431,34 @@
       "tested_at": "2026-11-20T19:00:08+00:00",
       "tester": "Claude Code",
       "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, fresh empty test panel A (port 29976, its own home servers/v0.30.6-cf), Cloudflare quick tunnel opened at 08:33 from the Hub's Control panel away from home card; helpers/cfwait.py watched it. Closing works: it closed by itself at 12:33:28 (end time 12:33:23), the address answered 530 right after, and no cloudflared was left running. Closing Craft Conductor while a tunnel was open (panel B, port 29977) left no cloudflared either. Fail on the notice: the only notice is a warning line in the command window and log ('The control panel is off the internet again: the Cloudflare tunnel closed after 4 hours'); the panel card keeps showing 'On the internet until 12:33' (it does not ask again while open) and after a reload gives no reason. #323",
+      "evidence": ""
+    },
+    "236": {
+      "status": "pass",
+      "tested_at": "2026-11-20T19:16:33+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, fresh empty test panel A (port 29976, its own home servers/v0.30.6-cf), a throwaway vanilla 26.3 server UPnP off test set to Open a port on my router, started (helpers/t236.py). The owner switched UPnP off in the router's settings. Checked from this PC: an SSDP search for an Internet Gateway Device got no answer (helpers/igd.py: no router answered); with UPnP on, the same search had listed the router's port mappings.",
+      "evidence": ""
+    },
+    "237": {
+      "status": "pass",
+      "tested_at": "2026-11-20T19:16:33+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, fresh empty test panel A (port 29976, its own home servers/v0.30.6-cf), a throwaway vanilla 26.3 server UPnP off test set to Open a port on my router, started (helpers/t236.py). Craft Conductor settings, Connections, Router: Open the ports on my router by itself (UPnP) switched on. Switching it on without confirming was refused (HTTP 400, confirm first, with the exposure warning); with the confirmation it tried the router.",
+      "evidence": ""
+    },
+    "238": {
+      "status": "pass",
+      "tested_at": "2026-11-20T19:16:33+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, fresh empty test panel A (port 29976, its own home servers/v0.30.6-cf), a throwaway vanilla 26.3 server UPnP off test set to Open a port on my router, started (helpers/t236.py). It reported the failure in plain words: 'It didn't work: no router answered: UPnP is probably switched off on it (or this computer's firewall blocks the answer).' No ports were listed as opened. Check my setup's Reachable from the internet said bad: the port can't be reached from the internet, with how to forward it by hand and a CGNAT note.",
+      "evidence": ""
+    },
+    "239": {
+      "status": "fail",
+      "tested_at": "2026-11-20T19:16:33+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, fresh empty test panel A (port 29976, its own home servers/v0.30.6-cf), a throwaway vanilla 26.3 server UPnP off test set to Open a port on my router, started (helpers/t236.py). Check my setup did not claim it was reachable, and the server's Friends page made no claim either. But the Router card showed 'Your server is open to the internet.' (with the exposure warning) right above 'It didn't work: no router answered...', so it does claim the server is open when the router opened nothing. Seen in Chrome (screenshot kept privately). Afterwards UPnP switched off in Craft Conductor and the server stopped. #326",
       "evidence": ""
     }
   },
