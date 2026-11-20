@@ -3960,6 +3960,55 @@ function webMapCard() {
   return { el, load };
 }
 
+// Discord's own instructions for making a webhook (a server's Settings, #37).
+const DISCORD_WEBHOOK_HELP = "https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks";
+
+// The picture players see next to a server in Minecraft's server list (#50): any picture, made 64 × 64 here
+// (the middle square of one that isn't square); servericon.py checks it.
+function serverIconCard(thisServer) {
+  const el = h("div", { class: "card mt" });
+  let stamp = (thisServer() || {}).icon || null;
+  const picker = h("input", { type: "file", accept: "image/*", class: "hidden", "aria-label": "Choose a picture for the server icon" });
+  const remember = (v) => {  // (the server's card on Your servers shows it too)
+    stamp = v;
+    const me = thisServer();
+    if (me) me.icon = v;
+    render();
+  };
+  picker.onchange = () => {
+    const file = picker.files[0];
+    picker.value = "";
+    if (!file) return;
+    act(async () => {
+      let picture;
+      try { picture = await createImageBitmap(file); } catch { throw new Error(t("That file isn't a picture this browser can open.")); }
+      const canvas = h("canvas", { width: 64, height: 64 });
+      const g = canvas.getContext("2d");
+      g.imageSmoothingQuality = "high";
+      const side = Math.min(picture.width, picture.height);
+      g.drawImage(picture, (picture.width - side) / 2, (picture.height - side) / 2, side, side, 0, 0, 64, 64);
+      const r = await api("/api/server-icon", { method: "POST", body: { png: canvas.toDataURL("image/png").split(",")[1] } });
+      remember(r.icon);
+    }, "Server icon saved. Minecraft shows it from the next restart.");
+  };
+  const render = () => {
+    if (!can("settings.safe")) { el.classList.add("hidden"); return; }
+    el.classList.remove("hidden");
+    fill(el, h("h3", {}, "Server icon"),
+      h("p", { class: "muted small" }, "The picture players see next to this server in Minecraft's server list. Any picture works: it's made 64 × 64 here (the middle of a picture that isn't square). Minecraft shows a new one from the next restart."),
+      h("div", { class: "row" },
+        stamp ? h("img", { class: "server-icon", src: `${scoped("/api/server-icon")}?v=${stamp}`, alt: t("This server's icon"), width: 64, height: 64 })
+          : h("span", { class: "muted" }, "Now: Minecraft's own picture"),
+        h("button", { class: "btn", type: "button", onclick: () => picker.click() }, "Choose a picture…"),
+        stamp ? h("button", { class: "btn ghost", type: "button",
+          onclick: () => act(async () => { await api("/api/server-icon/remove", { method: "POST", body: {} }); remember(null); },
+            "Server icon removed. Minecraft's own picture is back from the next restart.") }, "Remove") : null,
+        picker));
+  };
+  render();
+  return el;
+}
+
 views.settings = () => {
   const form = h("form", { class: "card" });
   let edited = false;  // changes not saved yet
@@ -4014,7 +4063,8 @@ views.settings = () => {
       h("div", { class: "grid" },
         h("label", {}, "Memory (e.g. 6G)", txt("memory")),
         h("label", {}, "Port players connect to", txt("port", { type: "number", min: 1024, max: 65535 })),
-        h("label", {}, "Discord webhook URL", txt("discord_webhook", { type: "url", placeholder: "https://discord.com/api/webhooks/…" })),
+        h("label", {}, "Discord webhook URL", txt("discord_webhook", { type: "url", placeholder: "https://discord.com/api/webhooks/…" }),
+          h("a", { class: "small", href: DISCORD_WEBHOOK_HELP, target: "_blank", rel: "noopener noreferrer" }, "How to make a webhook ↗")),
         // Limits (limits.py): CPU cores where the computer allows it, and a lower priority everywhere.
         s.can_pin_cores ? h("label", {}, "CPU cores it may use",
           (f.cpu_cores = h("select", {}, h("option", { value: "0" }, t("All ({n})").replace("{n}", s.cpu_count)),
@@ -4123,7 +4173,8 @@ views.settings = () => {
   worldCard.classList.add("mt");
   const tools = worldTools();
   const map = webMapCard();
-  fill($("#main"), h("h1", { class: "view-title" }, "Server settings"), form, worldCard, tools.el, map.el, exportCard, danger);
+  const iconCard = serverIconCard(thisServer);
+  fill($("#main"), h("h1", { class: "view-title" }, "Server settings"), form, iconCard, worldCard, tools.el, map.el, exportCard, danger);
   tools.load();
   map.load();
   load();
@@ -7554,9 +7605,10 @@ views.servers = () => {
     const label = (s) => s.state === "unavailable" ? "unavailable" : s.setup_pending ? "not set up" : s.state;
     // (rebuilt only when something shown here changed: see refill)
     refill(list, JSON.stringify([!!hb.single, !!hb.local, [...busy], hb.servers.map((s) => [s.id, s.name, s.state, s.setup_pending, s.problem,
-      s.minecraft, s.loader, s.players, s.max_players, s.port, !!s.update, s.job && s.job.name, s.folder, s.join_requests || 0])]),
+      s.minecraft, s.loader, s.players, s.max_players, s.port, !!s.update, s.job && s.job.name, s.folder, s.join_requests || 0, s.icon || null])]),
       hb.servers.map((s) => h("div", { class: "card server-card" },
         h("div", { class: "row" },
+          s.icon ? h("img", { class: "server-icon small", src: `/api/servers/${encodeURIComponent(s.id)}/server-icon?v=${s.icon}`, alt: "", width: 32, height: 32 }) : null,
           h("span", { class: "pill " + (s.setup_pending ? "pending" : s.state) }, label(s)),
           h("strong", { class: "grow server-name" }, s.name),
           s.join_requests ? h("a", { href: `#s/${s.id}/players`, class: "row", "aria-label": `${s.name}: see who asks to be let in` }, joinDot(s.join_requests)) : null),
@@ -10305,6 +10357,39 @@ function navIcon(href) {
   return span;
 }
 
+// Recent in the left panel (#51): up to 3 servers to jump between. Running ones first, the one that last
+// had players on first; then the others by when they last started; never-started ones last, by name.
+// Nothing with fewer than two (nothing to switch to).
+function recentServers(servers) {
+  const list = (servers || []).filter((s) => s.state !== "unavailable" && !s.setup_pending);
+  if (list.length < 2) return [];
+  const on = (s) => s.state === "running" || s.state === "starting";
+  const key = (s) => on(s) ? [0, -(s.last_played || 0), -(s.last_started || 0)] : [s.last_started ? 1 : 2, -(s.last_started || 0), 0];
+  return list.slice().sort((a, b) => {
+    const x = key(a), y = key(b);
+    for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] - y[i];
+    return String(a.name).localeCompare(String(b.name));
+  }).slice(0, 3);
+}
+
+function recentNav(hb) {
+  const recent = hb.single ? [] : recentServers(hb.servers);
+  if (!recent.length) return null;
+  // The same page on the other server when it has it (and this person may see it), else its Dashboard.
+  const target = (sid) => SERVER_VIEWS.some(([v]) => v === currentName) && canView(currentName, sid) && !viewUnused(currentName, sid)
+    ? currentName : "dashboard";
+  return h("div", { class: "nav-recent", role: "group", "aria-label": "Recent servers" },
+    h("div", { class: "nav-heading" }, "Recent"),
+    recent.map((s) => {
+      const on = s.state === "running" || s.state === "starting";
+      return h("a", { href: `#s/${s.id}/${target(s.id)}`, class: s.id === server ? "here" : null, "aria-current": s.id === server ? "true" : null,
+        "data-fkey": `recent:${s.id}` },
+        h("span", { class: "recent-dot" + (on ? " on" : ""), role: "img", "aria-label": on ? "Running" : "Stopped" }),
+        h("span", {}, s.name));
+    }),
+    h("div", { class: "nav-sep" }));
+}
+
 function renderNav() {
   const hb = hubInfo || {};
   const a = (href, label, active, extra) => h("a", { href, class: active ? "active" : null, "aria-current": active ? "page" : null, "data-fkey": href }, navIcon(href), h("span", {}, label), extra || null);
@@ -10312,7 +10397,9 @@ function renderNav() {
   const pending = me ? me.setup_pending : false;
   const asking = me ? me.join_requests || 0 : 0;  // (only for whoever may answer them: the owner, and moderators)
   refill($("#nav"), JSON.stringify([server, me && me.name, pending, !!(me && me.update), currentName, !!hb.single, hb.device || null, !!hb.self_update,
-    hb.role || null, hb.access || null, me && me.loader, asking]),
+    hb.role || null, hb.access || null, me && me.loader, asking,
+    hb.single ? null : recentServers(hb.servers).map((s) => [s.id, s.name, s.state])]),
+    recentNav(hb),
     server ? [
       hb.single ? null : a("#servers", "← All servers", false),
       h("div", { class: "nav-server" }, me ? me.name : server),

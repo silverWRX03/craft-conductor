@@ -1190,5 +1190,18 @@
   "Change…": "更改…",
   "Classic": "经典",
   "Modern": "现代",
-  "Interface style": "界面风格"
+  "Interface style": "界面风格",
+  "Recent": "最近",
+  "Recent servers": "最近的服务器",
+  "Running": "运行中",
+  "How to make a webhook ↗": "如何创建 Webhook ↗",
+  "Server icon": "服务器图标",
+  "The picture players see next to this server in Minecraft's server list. Any picture works: it's made 64 × 64 here (the middle of a picture that isn't square). Minecraft shows a new one from the next restart.": "玩家在 Minecraft 服务器列表中看到的、显示在此服务器旁边的图片。任何图片都可以：这里会把它变成 64 × 64（不是正方形的图片取中间部分）。Minecraft 从下次重启起显示新图标。",
+  "Now: Minecraft's own picture": "当前：Minecraft 自带的图片",
+  "Choose a picture…": "选择图片…",
+  "Server icon saved. Minecraft shows it from the next restart.": "服务器图标已保存。Minecraft 从下次重启起显示它。",
+  "Server icon removed. Minecraft's own picture is back from the next restart.": "服务器图标已移除。从下次重启起恢复 Minecraft 自带的图片。",
+  "That file isn't a picture this browser can open.": "该文件不是此浏览器能打开的图片。",
+  "This server's icon": "此服务器的图标",
+  "Choose a picture for the server icon": "为服务器图标选择图片"
 }

@@ -1190,5 +1190,18 @@
   "Change…": "बदलें…",
   "Classic": "क्लासिक",
   "Modern": "मॉडर्न",
-  "Interface style": "इंटरफ़ेस की शैली"
+  "Interface style": "इंटरफ़ेस की शैली",
+  "Recent": "हाल के",
+  "Recent servers": "हाल के सर्वर",
+  "Running": "चल रहा है",
+  "How to make a webhook ↗": "वेबहुक कैसे बनाएँ ↗",
+  "Server icon": "सर्वर आइकन",
+  "The picture players see next to this server in Minecraft's server list. Any picture works: it's made 64 × 64 here (the middle of a picture that isn't square). Minecraft shows a new one from the next restart.": "वह तस्वीर जो खिलाड़ी Minecraft की सर्वर सूची में इस सर्वर के बगल में देखते हैं। कोई भी तस्वीर चलेगी: यहाँ उसे 64 × 64 बना दिया जाता है (जो तस्वीर चौकोर नहीं है, उसका बीच का हिस्सा)। Minecraft नई तस्वीर अगले रीस्टार्ट से दिखाता है।",
+  "Now: Minecraft's own picture": "अभी: Minecraft की अपनी तस्वीर",
+  "Choose a picture…": "तस्वीर चुनें…",
+  "Server icon saved. Minecraft shows it from the next restart.": "सर्वर आइकन सहेजा गया। Minecraft इसे अगले रीस्टार्ट से दिखाएगा।",
+  "Server icon removed. Minecraft's own picture is back from the next restart.": "सर्वर आइकन हटाया गया। अगले रीस्टार्ट से Minecraft की अपनी तस्वीर वापस आ जाएगी।",
+  "That file isn't a picture this browser can open.": "यह फ़ाइल ऐसी तस्वीर नहीं है जिसे यह ब्राउज़र खोल सके।",
+  "This server's icon": "इस सर्वर का आइकन",
+  "Choose a picture for the server icon": "सर्वर आइकन के लिए तस्वीर चुनें"
 }

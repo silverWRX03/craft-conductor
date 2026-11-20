@@ -1190,5 +1190,18 @@
   "Change…": "تغيير…",
   "Classic": "كلاسيكي",
   "Modern": "حديث",
-  "Interface style": "نمط الواجهة"
+  "Interface style": "نمط الواجهة",
+  "Recent": "الأخيرة",
+  "Recent servers": "الخوادم الأخيرة",
+  "Running": "يعمل",
+  "How to make a webhook ↗": "كيفية إنشاء Webhook ↗",
+  "Server icon": "أيقونة الخادم",
+  "The picture players see next to this server in Minecraft's server list. Any picture works: it's made 64 × 64 here (the middle of a picture that isn't square). Minecraft shows a new one from the next restart.": "الصورة التي يراها اللاعبون بجانب هذا الخادم في قائمة خوادم Minecraft. أي صورة تصلح: تُجعل هنا بحجم 64 × 64 (منتصف الصورة إن لم تكن مربعة). يعرض Minecraft الصورة الجديدة من إعادة التشغيل التالية.",
+  "Now: Minecraft's own picture": "الآن: صورة Minecraft الافتراضية",
+  "Choose a picture…": "اختر صورة…",
+  "Server icon saved. Minecraft shows it from the next restart.": "حُفظت أيقونة الخادم. يعرضها Minecraft من إعادة التشغيل التالية.",
+  "Server icon removed. Minecraft's own picture is back from the next restart.": "أُزيلت أيقونة الخادم. تعود صورة Minecraft الافتراضية من إعادة التشغيل التالية.",
+  "That file isn't a picture this browser can open.": "هذا الملف ليس صورة يستطيع هذا المتصفح فتحها.",
+  "This server's icon": "أيقونة هذا الخادم",
+  "Choose a picture for the server icon": "اختر صورة لأيقونة الخادم"
 }

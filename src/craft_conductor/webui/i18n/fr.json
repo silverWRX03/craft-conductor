@@ -1161,5 +1161,18 @@
   "Change…": "Changer…",
   "Classic": "Classique",
   "Modern": "Moderne",
-  "Interface style": "Style de l’interface"
+  "Interface style": "Style de l’interface",
+  "Recent": "Récents",
+  "Recent servers": "Serveurs récents",
+  "Running": "En marche",
+  "How to make a webhook ↗": "Comment créer un webhook ↗",
+  "Server icon": "Icône du serveur",
+  "The picture players see next to this server in Minecraft's server list. Any picture works: it's made 64 × 64 here (the middle of a picture that isn't square). Minecraft shows a new one from the next restart.": "L'image que les joueurs voient à côté de ce serveur dans la liste des serveurs de Minecraft. N'importe quelle image convient : elle est mise en 64 × 64 ici (le centre d'une image qui n'est pas carrée). Minecraft affiche la nouvelle à partir du prochain redémarrage.",
+  "Now: Minecraft's own picture": "Pour l'instant : l'image de Minecraft",
+  "Choose a picture…": "Choisir une image…",
+  "Server icon saved. Minecraft shows it from the next restart.": "Icône du serveur enregistrée. Minecraft l'affiche à partir du prochain redémarrage.",
+  "Server icon removed. Minecraft's own picture is back from the next restart.": "Icône du serveur retirée. L'image de Minecraft revient à partir du prochain redémarrage.",
+  "That file isn't a picture this browser can open.": "Ce fichier n'est pas une image que ce navigateur peut ouvrir.",
+  "This server's icon": "L'icône de ce serveur",
+  "Choose a picture for the server icon": "Choisir une image pour l'icône du serveur"
 }

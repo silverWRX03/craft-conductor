@@ -1185,5 +1185,18 @@
   "Change…": "Đổi…",
   "Classic": "Cổ điển",
   "Modern": "Hiện đại",
-  "Interface style": "Kiểu giao diện"
+  "Interface style": "Kiểu giao diện",
+  "Recent": "Gần đây",
+  "Recent servers": "Máy chủ gần đây",
+  "Running": "Đang chạy",
+  "How to make a webhook ↗": "Cách tạo webhook ↗",
+  "Server icon": "Biểu tượng máy chủ",
+  "The picture players see next to this server in Minecraft's server list. Any picture works: it's made 64 × 64 here (the middle of a picture that isn't square). Minecraft shows a new one from the next restart.": "Hình người chơi thấy cạnh máy chủ này trong danh sách máy chủ của Minecraft. Hình nào cũng được: ở đây hình được đưa về 64 × 64 (lấy phần giữa nếu hình không vuông). Minecraft hiện hình mới từ lần khởi động lại tiếp theo.",
+  "Now: Minecraft's own picture": "Hiện tại: hình mặc định của Minecraft",
+  "Choose a picture…": "Chọn hình…",
+  "Server icon saved. Minecraft shows it from the next restart.": "Đã lưu biểu tượng máy chủ. Minecraft hiện nó từ lần khởi động lại tiếp theo.",
+  "Server icon removed. Minecraft's own picture is back from the next restart.": "Đã gỡ biểu tượng máy chủ. Hình mặc định của Minecraft trở lại từ lần khởi động lại tiếp theo.",
+  "That file isn't a picture this browser can open.": "Tệp đó không phải là hình mà trình duyệt này mở được.",
+  "This server's icon": "Biểu tượng của máy chủ này",
+  "Choose a picture for the server icon": "Chọn hình cho biểu tượng máy chủ"
 }
