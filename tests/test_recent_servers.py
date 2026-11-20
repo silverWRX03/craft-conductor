@@ -67,3 +67,22 @@ def test_invited_people_get_what_the_recent_list_and_icon_need():
     s = access.hub_answer(who, result)["servers"][0]
     assert (s["icon"], s["last_started"], s["last_played"]) == (123, 10.0, 20.0)
     assert "folder" not in s or s["folder"] is None
+
+
+def test_start_times_that_arent_numbers_json_can_send_are_ignored(hub_env):
+    """hub.json edited by hand: infinity, NaN or a huge number never breaks the server list (every page)."""
+    hub, _ = hub_env
+    (hub.state_dir / HUB_FILE).write_text('{"started": {"alpha": 1e999, "main": NaN, "x": 1' + "0" * 400 + '}}')
+    hub._started = None
+    servers = hub.summary()
+    json.dumps(servers, allow_nan=False)
+    assert all(s.get("last_started") is None for s in servers)
+
+
+def test_a_start_that_cant_be_noted_doesnt_stop_the_rest(hub_env, monkeypatch):
+    hub, _ = hub_env
+    checked = []
+    monkeypatch.setattr(hub, "bedrock_both_ways", lambda d: checked.append(d) or False)
+    monkeypatch.setattr(hub, "_update_hub_file", lambda change: (_ for _ in ()).throw(RuntimeError("busy")))
+    hub.after_ready(hub.get("alpha"))
+    assert checked == [hub.get("alpha")]

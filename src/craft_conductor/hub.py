@@ -12,6 +12,7 @@ from __future__ import annotations
 import collections
 import json
 import logging
+import math
 import os
 import tomllib
 import re
@@ -46,6 +47,18 @@ HUB_FILE_KINDS = {"extra": list, "hidden": list, "hand_folders": list, "share": 
                   "started": dict}
 SCAN_EVERY = 5.0
 NOTICES_KEPT, NOTICE_CHARS = 50, 8000  # the servers' messages kept for the bell (the page keeps its own copy)
+
+
+def _when(value) -> float | None:
+    """A time from hub.json, if it's a real one (edited by hand, it could be text, infinity or a huge number,
+    which would break the server list for every page)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        t = float(value)
+    except OverflowError:
+        return None
+    return t if math.isfinite(t) else None
 
 
 def hub_pid_path(home: Path) -> Path:
@@ -895,13 +908,14 @@ class Hub:
     def last_started(self) -> dict[str, float]:
         """When each server last came up (for Recent in the left panel), from hub.json once."""
         if self._started is None:
-            saved = self._hub_file().get("started", {})
-            self._started = {k: float(v) for k, v in saved.items() if isinstance(v, (int, float)) and not isinstance(v, bool)}
+            with self._hub_lock:  # (not while a start is being written down)
+                if self._started is None:
+                    self._started = {k: t for k, v in self._hub_file().get("started", {}).items() if (t := _when(v)) is not None}
         return self._started
 
     def _note_started(self, daemon: Daemon) -> None:
-        sid = next((k for k, d in self.daemons.items() if d is daemon), None)
-        if sid is None:
+        sid = daemon.server_id
+        if not sid:
             return
         now = time.time()
 
@@ -911,7 +925,7 @@ class Hub:
             data["started"] = started
         try:
             self._update_hub_file(change)
-        except OSError as e:
+        except Exception as e:
             log.warning("couldn't note when %s started: %s", sid, e)
         self.last_started()[sid] = now
 
