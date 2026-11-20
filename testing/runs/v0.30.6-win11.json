@@ -531,6 +531,8 @@
     887,
     888,
     893,
+    895,
+    896,
     903,
     904,
     907,
@@ -4411,6 +4413,20 @@
       "tested_at": "2026-11-20T16:20:23+00:00",
       "tester": "owner",
       "notes": "This test will not be run: it is out of date (the playit.gg tunnel for friends' downloads was removed). Marked N/A by the owner, 2026-11-20.",
+      "evidence": ""
+    },
+    "895": {
+      "status": "pass",
+      "tested_at": "2026-11-20T19:00:07+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, fresh empty test panel A (port 29976, its own home servers/v0.30.6-cf), Cloudflare quick tunnel on the Hub's Control panel away from home card. Nothing was downloaded before pressing Download cloudflared (tools folder empty; the download was checked: checksum and Cloudflare's signature OK). Open to the internet for 4 hours listed the downsides first and again in the confirm. The trycloudflare.com address worked through Cloudflare with sign-in, and the owner opened it and signed in on their phone on mobile data (Wi-Fi off), on a second tunnel opened for the phone check. Stop now closed it: the address answered 530 (first tunnel) and 502 (second) right after, and no cloudflared was left.",
+      "evidence": ""
+    },
+    "896": {
+      "status": "fail",
+      "tested_at": "2026-11-20T19:00:08+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, fresh empty test panel A (port 29976, its own home servers/v0.30.6-cf), Cloudflare quick tunnel opened at 08:33 from the Hub's Control panel away from home card; helpers/cfwait.py watched it. Closing works: it closed by itself at 12:33:28 (end time 12:33:23), the address answered 530 right after, and no cloudflared was left running. Closing Craft Conductor while a tunnel was open (panel B, port 29977) left no cloudflared either. Fail on the notice: the only notice is a warning line in the command window and log ('The control panel is off the internet again: the Cloudflare tunnel closed after 4 hours'); the panel card keeps showing 'On the internet until 12:33' (it does not ask again while open) and after a reload gives no reason. #323",
       "evidence": ""
     }
   },
