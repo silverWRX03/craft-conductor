@@ -9467,6 +9467,37 @@ const setupPins = () => Object.fromEntries([...setupState.pins].map(([k, p]) => 
 // Will the new server's mods start, and players' (the mod loader's own check, on the files): checked
 // again a moment after each change. Create my server waits for it; when something's wrong, the mod
 // manager that has it glows and the page goes there.
+// Creating a server, step by step (Daemon.run_setup's job.progress): what each step is called, and
+// how far along it is for the steps list and the progress bar.
+const SETUP_STEP_TEXT = {
+  pack: "Downloading the modpack", plan: "Choosing the mods' files", manual: "Waiting for mods you download by hand",
+  java: "Getting Java", mods: "Downloading the mods", runtime: "Downloading Minecraft and the mod loader",
+  boot: "Starting the server once to check it works",
+};
+function setupSteps(progress) {
+  const p = progress || {};
+  const steps = (Array.isArray(p.steps) ? p.steps : []).filter((s) => SETUP_STEP_TEXT[s]);
+  const at = steps.indexOf(p.step);
+  const items = steps.map((key, i) => ({ key, text: t(SETUP_STEP_TEXT[key]),
+    state: at < 0 || i > at ? "later" : i < at ? "done" : "now" }));
+  const counted = at >= 0 && p.total > 0;
+  const part = counted ? Math.min(1, Math.max(0, (Number(p.done) || 0) / p.total)) : 0;
+  return {
+    items,
+    value: steps.length && at >= 0 ? (at + part) / steps.length : 0,
+    label: at < 0 ? "" : items[at].text + (counted ? ": " + t("{0} of {1}").replace("{0}", Number(p.done) || 0).replace("{1}", p.total) : ""),
+  };
+}
+function drawSetupSteps(box, progress) {
+  const s = setupSteps(progress);
+  refill(box, JSON.stringify(s), s.items.length ? [
+    h("progress", { class: "setup-bar", max: "1", value: String(s.value), "aria-valuetext": s.label, "aria-label": t("Creating your server") }),
+    h("p", { class: "small", role: "status" }, s.label),
+    h("ol", { class: "setup-steps" }, s.items.map((x) => h("li", { class: x.state, ...(x.state === "now" ? { "aria-current": "step" } : {}) },
+      x.state === "done" ? "✓ " : "", x.text))),
+  ] : null);
+}
+
 function setupCheckBody() {
   const st = setupState;
   const body = { loader: st.loader, minecraft: st.minecraft, friends: !!st.friends,
@@ -10188,6 +10219,7 @@ views.setup = () => {
     // Setup waits for mods whose authors don't let other apps download them: the panel slides
     // open by itself the first time, and this notice opens it again.
     const manualBox = h("div");
+    const stepsBox = h("div", { class: "setup-progress mt-s" });
     let manualKey = null;
     const stopSetup = async () => {
       if (!(await ask("Stop setting up this server? The mods you've downloaded stay, so you can try again.", { ok: "Stop setting up", danger: true }))) return;
@@ -10216,6 +10248,7 @@ views.setup = () => {
       h("div", { class: "notice" }, h("div", { class: "row" }, h("span", { class: "spinner" }),
         h("span", { class: "grow" }, "Downloading Java, the mod loader, Minecraft and your mods, then checking that the server starts. This usually takes a few minutes.")),
         h("div", { class: "small muted mt-s" }, "You can close this page: Craft Conductor keeps going. Open Craft Conductor again and choose See progress on the server.")),
+      stepsBox,
       manualBox,
       card("What's happening", events),
       // While it installs: what friends outside your home will need (the lower part of the screen), for the
@@ -10232,6 +10265,7 @@ views.setup = () => {
     every(1500, async () => {
       if (!events.isConnected && seq) return;  // slid away (or shown again in a newer panel)
       showManual(status && status.manual_wait);
+      drawSetupSteps(stepsBox, status && status.job && status.job.progress);
       if (startedAt === null) {
         const s = await api("/api/status").catch(() => null);
         if (!s) return;

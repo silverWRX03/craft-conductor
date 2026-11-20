@@ -967,11 +967,39 @@ class Daemon:
     def setup_pending(self) -> bool:
         return setupmod.is_pending(self.m.config.root)
 
+    #: The steps a new server goes through, as the setup page shows them (job["progress"]).
+    SETUP_STEPS = ("pack", "plan", "manual", "java", "mods", "runtime", "boot")
+
+    def _progress(self, step: str, done: int | None = None, total: int | None = None) -> None:
+        """Where setting up this server is at, for the page: the step, and how many of its files are in."""
+        job = self.job
+        if not isinstance(job, dict):
+            return
+        progress = job.get("progress") or {"steps": []}
+        steps = list(progress["steps"])
+        if step == "mods" and total == 0:
+            steps = [s for s in steps if s != "mods"]  # (no mods to get)
+        elif step not in steps:  # (waiting for mods downloaded by hand: only when it happens)
+            steps.append(step)
+            steps.sort(key=self.SETUP_STEPS.index)
+        job["progress"] = {"steps": steps, "step": step, "done": done, "total": total}
+
     def run_setup(self, spec: "setupmod.SetupSpec") -> str:
         """First-time setup from the web UI: write the config, then install and boot the server."""
         if self.m.lock.installed:
             raise RuntimeError("this server is already set up")
+        if isinstance(self.job, dict):
+            self.job["progress"] = {"steps": [s for s in self.SETUP_STEPS if s != "manual" and (s != "pack" or spec.modpack_version)]}
+        self.m.progress = self._progress
+        try:
+            return self._run_setup(spec)
+        finally:
+            self.m.progress = None
+
+    def _run_setup(self, spec: "setupmod.SetupSpec") -> str:
         setupmod.configure(self.m.config.root, spec)
+        if spec.modpack_version:
+            self._progress("pack")
         if spec.modpack_version.startswith("curseforge:"):
             from . import curseforgepack
             log.info("downloading the modpack from CurseForge")
@@ -996,10 +1024,12 @@ class Daemon:
             world.install(spec.world_source, world.level_dir(self.m.server_dir))
         log.info("setting up a %s server (Minecraft %s, %d mod(s))", self.m.config.server.loader,
                  self.m.config.server.minecraft, len(self.m.config.mods))
+        self._progress("plan")
         self.check_only()
         if not self.last_check or not self.last_check.get("target"):
             raise RuntimeError(self._setup_conflict(spec))
         if self.last_check.get("manual"):
+            self._progress("manual")
             self.wait_for_manual_downloads()
         if self.autostart:
             self.start_server()

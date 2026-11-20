@@ -1031,3 +1031,11 @@ ul.people li { align-items: flex-start; gap: 10px; }
   .topbar .bell { position: absolute; top: 16px; inset-inline-end: 16px; }
   .bell-panel { top: 64px; inset-inline-end: 16px; }
 }
+
+/* Creating a server: its steps and a progress bar (setupSteps in app.js). */
+.setup-progress .setup-bar { width: 100%; height: 14px; accent-color: var(--accent); }
+.setup-progress .setup-steps { margin: 6px 0 0; padding-inline-start: 22px; font-size: 14px; }
+.setup-progress .setup-steps li.done, .setup-progress .setup-steps li.later { color: var(--muted); }
+.setup-progress .setup-steps li.now { font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { :root:not([data-motion="normal"]) .setup-progress .setup-bar { animation: none; transition: none; } }
+:root[data-motion="reduce"] .setup-progress .setup-bar { animation: none; transition: none; }

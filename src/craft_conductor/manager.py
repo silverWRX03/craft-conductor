@@ -142,6 +142,17 @@ class Manager:
         self.on_line: Callable[[str], None] | None = None
         #: called with each server process as soon as it has been launched
         self.on_process: Callable[[ServerProcess], None] | None = None
+        #: called with each step of an install, and how many of its files are in: (step, done, total).
+        #: Steps: "java", "mods", "runtime", "boot". Set while a new server is made (Daemon.run_setup).
+        self.progress: Callable[[str, int | None, int | None], None] | None = None
+
+    def _report(self, step: str, done: int | None = None, total: int | None = None) -> None:
+        if self.progress is None:
+            return
+        try:
+            self.progress(step, done, total)
+        except Exception as e:  # (only what the page shows: never what stops an install)
+            log.debug("couldn't report progress (%s): %s", step, e)
 
     # ----------------------------------------------------------------- paths
     @property
@@ -459,13 +470,15 @@ class Manager:
                 self.config.manual_dir.mkdir(parents=True, exist_ok=True)
             raise ManualDownloadRequired(missing, self.config.manual_dir)
         info = self.mojang.info(plan.minecraft)
+        self._report("java")
         java = self.java.select(info.java_major)
         if self.staging_dir.exists():
             rmtree(self.staging_dir)
         mods_out = self.staging_dir / "mods"
         mods_out.mkdir(parents=True)
 
-        for mod in plan.mods:
+        self._report("mods", 0, len(plan.mods))
+        for done, mod in enumerate(plan.mods, 1):
             local = self._local_copy(mod)
             if local:
                 shutil.copy2(local, mods_out / mod.filename)
@@ -474,12 +487,14 @@ class Manager:
             else:
                 log.info("downloading %s %s", mod.name, mod.version_number)
                 self.http.download(mod.url, mods_out / mod.filename, sha1=mod.sha1, sha512=mod.sha512, sha256=mod.sha256)
+            self._report("mods", done, len(plan.mods))
 
         runtime = None
         if changes.runtime:
             rt_dir = self.staging_dir / "runtime"
             rt_dir.mkdir()
             log.info("installing %s %s for Minecraft %s", self.loader.name, plan.loader_version, plan.minecraft)
+            self._report("runtime")
             runtime = self.loader.install(plan.minecraft, plan.loader_version, rt_dir, java)
         return Staged(self.staging_dir, java, info.java_major, runtime)
 
@@ -637,6 +652,7 @@ class Manager:
                 prepare()
             new_lock = self._swap(staged, plan)
             if will_boot:
+                self._report("boot")
                 proc = self.start_server(new_lock)
                 if not restart:
                     proc.stop(self.config.server.stop_timeout)
