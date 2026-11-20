@@ -5369,8 +5369,7 @@
     "step": "Test the same major screens with VoiceOver on macOS if hardware is available.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
-    "on_hold": "No Mac available: the macOS build is smoke-tested and runs a real Fabric server in CI on every PR (owner, 2026-11-15)"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
   },
   {
     "id": 606,
@@ -6405,8 +6404,7 @@
     "step": "Test on a clean Apple Silicon Mac.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
-    "on_hold": "No Mac available: the macOS build is smoke-tested and runs a real Fabric server in CI on every PR (owner, 2026-11-15)"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
   },
   {
     "id": 726,
@@ -6414,8 +6412,7 @@
     "step": "Download craft-conductor-macos-arm64.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
-    "on_hold": "No Mac available: the macOS build is smoke-tested and runs a real Fabric server in CI on every PR (owner, 2026-11-15)"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
   },
   {
     "id": 727,
@@ -6423,8 +6420,7 @@
     "step": "Follow the documented first-run procedure exactly.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
-    "on_hold": "No Mac available: the macOS build is smoke-tested and runs a real Fabric server in CI on every PR (owner, 2026-11-15)"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
   },
   {
     "id": 728,
@@ -6432,8 +6428,7 @@
     "step": "Confirm Craft Conductor starts.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
-    "on_hold": "No Mac available: the macOS build is smoke-tested and runs a real Fabric server in CI on every PR (owner, 2026-11-15)"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
   },
   {
     "id": 729,
@@ -6441,8 +6436,7 @@
     "step": "Confirm the browser opens.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
-    "on_hold": "No Mac available: the macOS build is smoke-tested and runs a real Fabric server in CI on every PR (owner, 2026-11-15)"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
   },
   {
     "id": 730,
@@ -6450,8 +6444,7 @@
     "step": "Create a server.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
-    "on_hold": "No Mac available: the macOS build is smoke-tested and runs a real Fabric server in CI on every PR (owner, 2026-11-15)"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
   },
   {
     "id": 731,
@@ -6459,8 +6452,7 @@
     "step": "Start it.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
-    "on_hold": "No Mac available: the macOS build is smoke-tested and runs a real Fabric server in CI on every PR (owner, 2026-11-15)"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
   },
   {
     "id": 732,
@@ -6468,8 +6460,7 @@
     "step": "Join it.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
-    "on_hold": "No Mac available: the macOS build is smoke-tested and runs a real Fabric server in CI on every PR (owner, 2026-11-15)"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
   },
   {
     "id": 733,
@@ -6477,8 +6468,7 @@
     "step": "Restart the Mac.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
-    "on_hold": "No Mac available: the macOS build is smoke-tested and runs a real Fabric server in CI on every PR (owner, 2026-11-15)"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
   },
   {
     "id": 734,
@@ -6486,8 +6476,7 @@
     "step": "Confirm Craft Conductor can be started again.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
-    "on_hold": "No Mac available: the macOS build is smoke-tested and runs a real Fabric server in CI on every PR (owner, 2026-11-15)"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
   },
   {
     "id": 735,
@@ -6497,8 +6486,7 @@
     "tags": [
       "security"
     ],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
-    "on_hold": "No Mac available: the macOS build is smoke-tested and runs a real Fabric server in CI on every PR (owner, 2026-11-15)"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
   },
   {
     "id": 736,
@@ -6506,8 +6494,7 @@
     "step": "Have a nontechnical Mac user attempt this without coaching and record where they fail.",
     "type": "Extra",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
-    "on_hold": "No Mac available: the macOS build is smoke-tested and runs a real Fabric server in CI on every PR (owner, 2026-11-15)"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
   },
   {
     "id": 737,
