@@ -9948,6 +9948,7 @@ views.setup = () => {
       const bad = fileCheckBad(c);
       fill(createBox,
         c && c.running ? h("p", { class: "small row", role: "status" }, h("span", { class: "spinner" }), t("Checking that the mods start together…")) : null,
+        c && c.result && c.result.pack_only ? h("p", { class: "small muted" }, t("The modpack's own mods aren't checked: its maker did that.")) : null,
         bad ? h("p", { class: "small bad-text", role: "alert" }, "These mods wouldn't start together. Fix them in ",
           fileCheckBad(c, "server") ? "Manage Mods" : "Manage Friends Mods", " (it glows), then create the server.") : null,
         h("button", { type: "submit", class: "btn primary big", disabled: !!(c && c.running) || bad || !!st.creating }, "Create my server"));
