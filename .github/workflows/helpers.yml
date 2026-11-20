@@ -1,8 +1,9 @@
 name: helpers
 
-# Craft Conductor Ping (helpers/ping/): the jars shipped in src/craft_conductor/helpers/ must be
-# exactly what the source builds. The built jars are uploaded, so when a local JDK makes different
-# bytes, the CI jar can be committed instead.
+# Craft Conductor Ping (helpers/ping/): the jars shipped in src/craft_conductor/helpers/ (the
+# Paper/Purpur plugin and the two Fabric/Quilt mod jars) must be exactly what the source builds.
+# The built jars are uploaded, so when a local JDK makes different bytes, the CI jar can be
+# committed instead.
 
 on:
   push:

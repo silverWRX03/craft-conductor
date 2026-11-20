@@ -1,4 +1,13 @@
 // Craft Conductor Ping: the small server-side helpers that report each player's ping to Craft
-// Conductor. One sub-project per platform; see README.md for how to build them.
+// Conductor. One sub-project per platform (common/ holds the file writing they share); see README.md
+// for how to build them.
+pluginManagement {
+    repositories {
+        maven { url = 'https://maven.fabricmc.net/' } // (Fabric Loom, for the Fabric mod)
+        gradlePluginPortal()
+    }
+}
+
 rootProject.name = 'craft-conductor-ping'
 include 'paper'
+include 'fabric'

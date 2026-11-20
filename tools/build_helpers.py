@@ -1,5 +1,8 @@
 """Build the Craft Conductor Ping helper jars (helpers/ping/) and ship them in the package.
 
+Builds every helper: the Paper/Purpur plugin and the Fabric/Quilt mod (Fabric Loom, which downloads
+the Minecraft server jar and its mappings into Gradle's cache the first time).
+
     python tools/build_helpers.py           build, then copy the jars into src/craft_conductor/helpers/
     python tools/build_helpers.py --check   build into a temporary folder and exit 1 when a shipped
                                             jar's SHA-256 differs (or a shipped jar has no source)
@@ -33,10 +36,10 @@ def find_gradle() -> str:
 
 
 def build() -> list[Path]:
-    """Run Gradle and return the jars it made."""
+    """Run Gradle and return the jars it made (``assemble``: the Fabric mod's is Loom's remapped jar)."""
     for old in PROJECT.glob("*/build/libs"):
         shutil.rmtree(old, ignore_errors=True)
-    cmd = [find_gradle(), "-p", str(PROJECT), "--no-daemon", "--console=plain", "-q", "jar"]
+    cmd = [find_gradle(), "-p", str(PROJECT), "--no-daemon", "--console=plain", "-q", "assemble"]
     if subprocess.run(cmd, check=False).returncode:
         sys.exit("The Gradle build failed.")
     jars = sorted(PROJECT.glob(f"*/build/libs/{JAR_GLOB}"))

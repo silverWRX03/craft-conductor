@@ -14,6 +14,9 @@ dependencies {
     compileOnly 'io.papermc.paper:paper-api:1.17.1-R0.1-SNAPSHOT'
 }
 
+// The file writing the helpers share.
+sourceSets.main.java.srcDir '../common/src/main/java'
+
 tasks.withType(JavaCompile).configureEach {
     options.release = 16
     options.encoding = 'UTF-8'
@@ -23,6 +26,8 @@ processResources {
     inputs.property('version', project.version)
     filesMatching('plugin.yml') {
         expand(version: project.version)
+        // (the same bytes from a Windows checkout, whose text files may end lines in CRLF)
+        filter(org.apache.tools.ant.filters.FixCrLfFilter, eol: org.apache.tools.ant.filters.FixCrLfFilter.CrLf.newInstance('lf'))
     }
 }
 

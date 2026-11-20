@@ -1,0 +1,79 @@
+plugins {
+    id 'fabric-loom' version '1.8.13'
+}
+
+// The helper's own version (the jar is craft_conductor_ping-fabric-<version>.jar).
+version = '1.0.0'
+
+// The Minecraft versions each jar runs on (fabric.mod.json "depends"). Up to 1.21.11 Minecraft is
+// obfuscated and Fabric runs mods on its intermediary names: craft_conductor_ping-fabric, Loom's
+// remapped jar. From 26.1 Minecraft isn't obfuscated and Fabric runs mods on Mojang's own names, the
+// ones the mod is compiled against: craft_conductor_ping-fabric26, the same classes not remapped.
+def minecraftRange = '>=1.20.2 <26'
+def minecraft26Range = '>=26'
+def lfOnly = [eol: org.apache.tools.ant.filters.FixCrLfFilter.CrLf.newInstance('lf')]
+
+loom {
+    serverOnlyMinecraftJar() // (a server-only mod: compiled against the server jar alone)
+}
+
+dependencies {
+    // Compiled against the oldest supported Minecraft and Fabric Loader; no Fabric API, nothing bundled.
+    minecraft 'com.mojang:minecraft:1.20.2'
+    mappings loom.officialMojangMappings()
+    modImplementation 'net.fabricmc:fabric-loader:0.14.25'
+}
+
+java {
+    sourceSets.main.java.srcDir '../common/src/main/java'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 17
+    options.encoding = 'UTF-8'
+}
+
+processResources {
+    inputs.property('version', project.version)
+    inputs.property('minecraft', minecraftRange)
+    filesMatching('fabric.mod.json') {
+        expand(version: project.version, minecraft: minecraftRange)
+        // (the same bytes from a Windows checkout, whose text files may end lines in CRLF)
+        filter(lfOnly, org.apache.tools.ant.filters.FixCrLfFilter)
+    }
+}
+
+def fabric26Resources = tasks.register('fabric26Resources', Copy) {
+    inputs.property('version', project.version)
+    inputs.property('minecraft', minecraft26Range)
+    from 'src/main/resources'
+    into layout.buildDirectory.dir('fabric26/resources')
+    filesMatching('fabric.mod.json') {
+        expand(version: project.version, minecraft: minecraft26Range)
+        filter(lfOnly, org.apache.tools.ant.filters.FixCrLfFilter)
+    }
+}
+
+def fabric26Jar = tasks.register('fabric26Jar', Jar) {
+    archiveBaseName = 'craft_conductor_ping-fabric26'
+    destinationDirectory = layout.buildDirectory.dir('libs')
+    from sourceSets.main.output.classesDirs // (Mojang's names: not remapped)
+    from fabric26Resources
+}
+
+tasks.named('assemble') {
+    dependsOn fabric26Jar
+}
+
+// Reproducible: the same source gives the same bytes on any computer (remapJar and fabric26Jar are shipped).
+tasks.withType(AbstractArchiveTask).configureEach {
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+    includeEmptyDirs = false
+    filePermissions { unix('rw-r--r--') }
+    dirPermissions { unix('rwxr-xr-x') }
+}
+
+base {
+    archivesName = 'craft_conductor_ping-fabric'
+}
