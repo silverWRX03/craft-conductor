@@ -57,6 +57,25 @@ def load_state(root: Path) -> dict:
     return data
 
 
+def pack_files(root: Path, plan_mods: list, mods_dir: Path) -> tuple[set[str], bool]:
+    """The jar names in the mods folder that are the modpack's own files, as its maker checked them
+    (each mod at the file the pack holds it at, and the pack's own jars unchanged), and whether
+    mods were left out of the pack. A server not made from a pack: nothing."""
+    state = load_state(root)
+    held = state["mods"]
+    own = {x.filename for x in plan_mods if held.get(x.key) is not None and str(held[x.key]) == str(x.version_id)}
+    for path, sha1 in state["files"].items():
+        parts = PurePosixPath(str(path)).parts
+        if len(parts) == 2 and parts[0] == "mods" and parts[1].endswith(".jar"):
+            jar = Path(mods_dir) / parts[1]
+            try:
+                if jar.is_file() and not jar.is_symlink() and sha1_file(jar) == str(sha1).lower():
+                    own.add(parts[1])
+            except OSError:
+                pass
+    return own, bool(state["removed"])
+
+
 def record(root: Path, source: str, project: str, version: str, name: str, mods: dict[str, str],
            removed: list[str], friends: dict[str, str], files: dict[str, str]) -> None:
     """Remember the pack a server was made from (or moved to): ``[modpack]`` and modpack.json.

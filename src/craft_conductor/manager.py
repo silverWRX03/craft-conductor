@@ -496,8 +496,21 @@ class Manager:
                 mods += modcheck.read_file(path, self.loader.name)
             except OSError:
                 complete = False
-        return modcheck.check(mods, loader=self.loader.name, minecraft=plan.minecraft, loader_version=plan.loader_version,
-                              java_major=staged.java_major, side="server", complete=complete)
+        problems = modcheck.check(mods, loader=self.loader.name, minecraft=plan.minecraft, loader_version=plan.loader_version,
+                                  java_major=staged.java_major, side="server", complete=complete)
+        if problems and self.config.modpack is not None:
+            from .packupdate import pack_files
+            own, left_out = pack_files(self.config.root, plan.mods, self.mods_dir)
+            if own:
+                givers: dict[str, set[str]] = {}
+                for info in mods:
+                    for mod_id in (info.id, *info.provides):
+                        givers.setdefault(mod_id, set()).add(info.file)
+                # A modpack's own mods are its maker's to check (as on the setup page: filecheck.pack_own).
+                problems = [p for p in problems
+                            if not (p.file in own and givers.get(p.needs, set()) <= own
+                                    and not (left_out and p.kind == "missing"))]
+        return problems
 
     def _swap(self, staged: Staged, plan: Plan) -> Lock:
         server = self.server_dir

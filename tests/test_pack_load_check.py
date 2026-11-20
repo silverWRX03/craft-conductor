@@ -91,3 +91,43 @@ def test_pack_own_rule():
     assert not filecheck.pack_own(p("modrinth:A"), pack, excluded=True)        # (a mod left out may be what's missing)
     assert filecheck.pack_own(p("modrinth:A", kind="minecraft"), pack, excluded=True)
     assert not filecheck.pack_own(p(None), pack, excluded=False)
+
+
+# ------------------------------------------------------------------ the install
+def pack_server(make_config, http, modrinth):
+    a_pack(http, modrinth)
+    cfg = make_config()
+    modpack.apply(cfg.root, "PACKV001", http)
+    return configmod.load(cfg.root)
+
+
+def test_a_pack_server_installs_despite_its_own_problems(make_config, http, modrinth):
+    cfg = pack_server(make_config, http, modrinth)
+    m = manager(cfg, http, ["1.21.1"])
+    r = update(m)
+    assert r.ok, r.message
+    assert m.lock.installed and "Pack Mod" in {x.name for x in m.lock.mods}
+
+
+def test_an_added_mods_problem_still_stops_the_install(make_config, http, modrinth):
+    cfg = pack_server(make_config, http, modrinth)
+    added_mod(modrinth)
+    configmod.append_mod(cfg.path, ModSpec("modrinth", "ADDED"))
+    m = manager(configmod.load(cfg.root), http, ["1.21.1"])
+    r = update(m)
+    assert not r.ok and "wouldn't start together" in r.message and "alsomissing" in r.message
+    assert "missingthing" not in r.message
+
+
+def test_a_pack_mod_on_another_file_is_checked(make_config, http, modrinth):
+    """Changed in Manage Mods since: it isn't the file the pack's maker checked any more."""
+    cfg = pack_server(make_config, http, modrinth)
+    build(http, modrinth, "PACKMODA", "PACKV200", "Pack Mod", fabric("packmod", "2.0", {"missingthing": "*"}, "Pack Mod"))
+    configmod.set_pin(cfg.path, "modrinth:PACKMODA", Pin("PACKV200", "1.21.1"))
+    m = manager(configmod.load(cfg.root), http, ["1.21.1"])
+    r = update(m)
+    assert not r.ok and "missingthing" in r.message
+
+
+def test_pack_files_without_a_pack(tmp_path):
+    assert packupdate.pack_files(tmp_path, [], tmp_path / "mods") == (set(), False)
