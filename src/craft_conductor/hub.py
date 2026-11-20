@@ -25,7 +25,7 @@ import unicodedata
 from pathlib import Path
 from typing import Callable
 
-from . import config as configmod, private, rollback, selfupdate, setup as setupmod
+from . import config as configmod, private, rollback, selfupdate, servericon, setup as setupmod
 from .config import ConfigError, WebConfig
 from .daemon import Daemon, SELF_CHECK_INTERVAL, current_server, pid_alive, running_pid, set_current_server
 from .http import HttpClient
@@ -1866,6 +1866,7 @@ class Hub:
                 "crashed_at": d.crashed_at, "last_job": d.last_job,
                 "join_requests": len(self.join_requests.get(sid, [])),
                 # (Recent in the left panel: running ones by who last played, the others by when they last started)
+                "icon": servericon.stamp(d.m.server_dir),  # (when it changed: the page asks for the new picture)
                 "last_started": started.get(sid), "last_played": d.activity.last_played() if d.state == "running" else None,
                 # (a mistake typed into its craft-conductor.toml while it runs: said here at once, not after a restart, #283)
                 **({"problem": d.config_problem} if d.config_problem else {}),

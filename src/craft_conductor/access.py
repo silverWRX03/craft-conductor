@@ -179,6 +179,9 @@ SERVER_ROUTES: dict[tuple[str, str], str | tuple[str, ...]] = {
     ("GET", "/api/events"): "status.view",
     ("GET", "/api/players/online"): "status.view",
     ("GET", "/api/players/skin"): "status.view",
+    ("GET", "/api/server-icon"): "status.view",
+    ("POST", "/api/server-icon"): "settings.safe",
+    ("POST", "/api/server-icon/remove"): "settings.safe",
     ("GET", "/api/performance"): "status.view",
     ("GET", "/api/performance/lag"): "status.view",
     # power
@@ -465,7 +468,7 @@ def server_answer(subject: Subject, sid: str, path: str, result):
 
 HUB_KEEP = ("version", "single", "notice_accepted")
 SERVER_KEEP = ("id", "name", "state", "setup_pending", "job", "minecraft", "loader", "players", "max_players", "port",
-               "update", "problem")
+               "update", "problem", "icon", "last_started", "last_played")
 
 
 def hub_answer(subject: Subject, result: dict) -> dict:

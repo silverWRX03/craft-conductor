@@ -57,3 +57,13 @@ def test_a_removed_server_is_forgotten(hub_env):
     hub.delete("alpha", delete_files=False)
     saved = json.loads((hub.state_dir / HUB_FILE).read_text())
     assert "alpha" not in saved.get("started", {})
+
+
+def test_invited_people_get_what_the_recent_list_and_icon_need():
+    from craft_conductor import access
+    result = {"servers": [{"id": "alpha", "name": "Alpha", "state": "running", "icon": 123,
+                           "last_started": 10.0, "last_played": 20.0, "folder": "C:/secret"}]}
+    who = access.Subject("user", "u1", "Sam", grants={"alpha": access.PRESETS["viewer"]})
+    s = access.hub_answer(who, result)["servers"][0]
+    assert (s["icon"], s["last_started"], s["last_played"]) == (123, 10.0, 20.0)
+    assert "folder" not in s or s["folder"] is None
