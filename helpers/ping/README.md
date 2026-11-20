@@ -25,6 +25,6 @@ python tools/build_helpers.py --check   # build, and exit 1 when a shipped jar d
 ```
 
 The build is reproducible (no file timestamps, fixed file order), so the same source gives the
-same jar on any computer. CI (`.github/workflows/helpers.yml`) runs `--check` and uploads the jars it
+same jar on any computer. Checked to give byte-identical jars (SHA-256 `4e1e1fea...664ce` for 1.0.0): Windows with JDK 21.0.10 and Gradle 8.10.2, and Linux with Temurin 21.0.5 (the `gradle:8.10.2-jdk21` Docker image). CI (`.github/workflows/helpers.yml`) runs `--check` and uploads the jars it
 built; if a local JDK ever gives different bytes, commit the CI jar. Raise the version in
 `paper/build.gradle` when the helper changes (the jar name carries it), and rebuild.
