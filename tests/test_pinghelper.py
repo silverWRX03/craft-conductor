@@ -168,6 +168,7 @@ def test_read(tmp_path):
     for bad in (doc(time=int(now * 1000) - 16000),            # 16 s old
                 doc(time=int(now * 1000) + 3_600_000),        # from the future
                 doc(time="soon"), doc(time=True), doc(version=2), doc(version=True),
+                doc(time=10 ** 400), doc(time=-10 ** 400), doc(time=10 ** 15), doc(time=0), doc(time=-5),  # (impossible times)
                 {"version": 1, "time": int(now * 1000)},      # (no players)
                 doc(players=["Alex"]), [1, 2], "text", 5):
         write_ping(tmp_path, bad)

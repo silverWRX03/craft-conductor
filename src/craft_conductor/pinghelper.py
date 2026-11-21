@@ -187,6 +187,8 @@ def read(server_dir: Path, now: float) -> dict[str, int] | None:
     written, players = data.get("time"), data.get("players")
     if isinstance(written, bool) or not isinstance(written, int) or not isinstance(players, dict):
         return None
+    if not 0 < written < 10 ** 15:                   # (a count too big for a float below would raise)
+        return None
     if abs(now - written / 1000) > FRESH_SECONDS:    # (too old; or from the future: a clock that is wrong)
         return None
     return {name: ms for name, ms in players.items()
