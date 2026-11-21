@@ -108,6 +108,16 @@ with Temurin 21.0.5 (the `gradle:8.10.2-jdk21` Docker image):
 | `craft_conductor_ping-forge1.20.2-1.0.0.jar` | `2d5e66f4...4e5a61f4` |
 | `craft_conductor_ping-forge1.20.6-1.0.0.jar` | `13f3fb3d...ce0a0dff` |
 
+Every tool and dependency Gradle downloads for the build (the plugins, ModDevGradle's tools, Forge's
+and NeoForge's data, the libraries) must match a SHA-256 in `gradle/verification-metadata.xml`, or the
+build stops. To regenerate it after updating a tool or dependency, run `gradle -p helpers/ping
+--write-verification-metadata sha256 assemble` on Windows and again on Linux (the `gradle:8.10.2-jdk21`
+Docker image) on top of the Windows file, so it lists what either platform resolves, and check the diff
+with `python tools/build_helpers.py --check` on both. Gradle 8.10.2 can't write the Paper API's SNAPSHOT
+("Multiple entries with same key"), so take `include 'paper'` out of `settings.gradle` while you
+generate, and add what `:paper:assemble` then reports missing by hand; the two files Fabric Loom
+makes itself (different bytes every build) are `trusted-artifacts` in the file, not hashed.
+
 CI (`.github/workflows/helpers.yml`) runs `--check` and uploads the jars it built; if a local JDK
 ever gives different bytes, commit the CI jar. Raise the version in `paper/build.gradle`,
 `fabric/build.gradle`, `neoforge/build.gradle`, `forge/build.gradle` or `forge1.20.2/build.gradle` when

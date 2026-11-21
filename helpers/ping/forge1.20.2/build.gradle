@@ -30,19 +30,27 @@ def forgeVersion = '1.20.2-48.1.0'
 def mcpConfig = 'de.oceanlabs.mcp:mcp_config:1.20.2-20230921.100330@zip'
 def mojangMappingsSha1 = 'dced504a9b5df367ddd3477adac084cea8024ba4'
 
+// Each repository is the only source of its groups (exclusiveContent): a tampered copy of them on
+// another repository, or one a plugin adds, is never used.
 repositories {
-    maven {
-        url = 'https://maven.minecraftforge.net/'
-        content {
+    exclusiveContent {
+        forRepository {
+            maven { url = 'https://maven.minecraftforge.net/' }
+        }
+        filter {
             includeGroup 'net.minecraftforge'
             includeGroup 'de.oceanlabs.mcp'
         }
     }
-    ivy {
-        url = 'https://piston-data.mojang.com/v1/objects/'
-        patternLayout { artifact '[revision]/server.[ext]' }
-        metadataSources { artifact() }
-        content { includeModule 'mojang', 'server-mappings' }
+    exclusiveContent {
+        forRepository {
+            ivy {
+                url = 'https://piston-data.mojang.com/v1/objects/'
+                patternLayout { artifact '[revision]/server.[ext]' }
+                metadataSources { artifact() }
+            }
+        }
+        filter { includeModule 'mojang', 'server-mappings' }
     }
 }
 
