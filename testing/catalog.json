@@ -9184,5 +9184,37 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1052,
+    "section": "Feature: progress while a server is made",
+    "step": "New server from a big modpack (All the Mods, say), Create my server: the page lists the steps (Downloading the modpack, Choosing the mods' files, Getting Java, Downloading the mods with n of N, Downloading Minecraft and the mod loader, Starting the server once to check it works), ticks each one off as it ends, and the bar fills to the end. A plain Fabric server with no mods skips Downloading the mods. With Less motion on, the bar doesn't animate.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1053,
+    "section": "Feature: make a modpack (Modrinth)",
+    "step": "A Fabric server with Modrinth mods, a CurseForge mod and a jar added by hand: Mods page, Make a modpack…, Modrinth (.mrpack), Download. Not included names the CurseForge mod and the jar, with why. Import the .mrpack in Prism or the Modrinth App: it installs the same Minecraft, Fabric and Modrinth mods (players-only mods too, server-only ones not), and the instance joins the server.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1054,
+    "section": "Feature: make a modpack (CurseForge)",
+    "step": "The same server: Make a modpack…, CurseForge (.zip), Download. Not included names the Modrinth mods. Import the .zip in the CurseForge app: it installs the same Minecraft, loader and CurseForge mods; modlist.html in the zip lists the mods and Not included. Neither pack holds a .jar or a config file.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1055,
+    "section": "Feature: no load check for a modpack's own mods",
+    "step": "New server, A modpack, a big CurseForge pack with nothing added: the page says The modpack's own mods aren't checked: its maker did that, and Create my server can be pressed at once (no wait for every file). Add one mod on top: it's checked. Remove a pack mod another pack mod needs: that mod is flagged. Create my server installs and starts the server.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]

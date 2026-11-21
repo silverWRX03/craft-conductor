@@ -1030,6 +1030,10 @@ class RequestHandler(BaseHTTPRequestHandler):
                 return self._json(200, handler(q, self))
             if path == "/api/export/download":
                 return self._send_file(api.export_file(q.get("name", "")))
+            if path == "/api/modpack/make/download":
+                filename, data = api.make_modpack_file(q.get("format", ""))
+                kind = "application/x-modrinth-modpack+zip" if filename.endswith(".mrpack") else "application/zip"
+                return self._send(200, data, kind, {"Content-Disposition": f'attachment; filename="{filename}"'})
             if path == "/api/modsets/export":
                 entry = api.modset_export(q.get("name", ""))
                 safe = re.sub(r"[^A-Za-z0-9._ -]+", "_", entry["name"]).strip() or "mods"
@@ -3148,6 +3152,8 @@ class Api:
         post("/api/modsets/delete", self.modset_delete)
         post("/api/modsets/import", self.modset_import)
         get("/api/modsets/export", lambda q, b: None)  # sent by the request handler (a .json file)
+        get("/api/modpack/make", self.make_modpack)
+        get("/api/modpack/make/download", lambda q, b: None)  # sent by the request handler (the pack's file)
         post("/api/world/rule", self.world_rule)
         post("/api/world/border", self.world_border)
         post("/api/world/chunky", self.world_chunky)
@@ -4079,6 +4085,25 @@ class Api:
             raise ApiError(400, "choose a mod list file saved from Craft Conductor")
         entry = self._modset(modsets.add, entry)
         return {"ok": True, "message": f"loaded {entry['name']!r} ({len(entry['mods'])} mods)"}
+
+    def make_modpack(self, q, b) -> dict:
+        """What a modpack made from this server's mods holds, in the chosen format (makepack.py)."""
+        from . import makepack
+        try:
+            return makepack.contents(self.m, str(q.get("format", "")))
+        except ValueError as e:
+            raise ApiError(400, str(e)) from None
+        except HttpError as e:
+            raise ApiError(502, f"couldn't ask the mod sites: {e.friendly}") from None
+
+    def make_modpack_file(self, fmt: str) -> tuple[str, bytes]:
+        from . import makepack
+        try:
+            return makepack.build(self.m, fmt)
+        except ValueError as e:
+            raise ApiError(400, str(e)) from None
+        except HttpError as e:
+            raise ApiError(502, f"couldn't ask the mod sites: {e.friendly}") from None
 
     def modset_export(self, name: str) -> dict:
         from . import modsets

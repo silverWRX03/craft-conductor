@@ -3063,6 +3063,43 @@ function joinRequestsCard(after = () => {}) {
   return { el, load };
 }
 
+// Make a modpack…: the server's mods as a Modrinth .mrpack or a CurseForge .zip (links to the mod
+// sites only, no jars or config files), with what can't go in and why. Changing the format asks again.
+const PACK_LOADERS = ["fabric", "quilt", "forge", "neoforge"];
+function makeModpack() {
+  if ($("#make-modpack")) return;
+  const onKey = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); } };
+  const close = () => { document.removeEventListener("keydown", onKey, true); const m = $("#make-modpack"); if (m) m.remove(); };
+  document.addEventListener("keydown", onKey, true);
+  const body = h("div", { "aria-live": "polite" });
+  const download = h("a", { class: "btn primary", download: "", hidden: true }, "Download");
+  let asked = 0;
+  const show = async (fmt) => {
+    const mine = ++asked;
+    download.hidden = true;
+    fill(body, h("p", { class: "muted" }, "Asking the mod sites…"));
+    const r = await api(`/api/modpack/make?format=${fmt}`).catch((e) => { fill(body, h("p", { class: "notice warn" }, e.message)); return null; });
+    if (!r || mine !== asked) return;
+    download.href = scoped(`/api/modpack/make/download?format=${fmt}`);
+    download.hidden = false;
+    fill(body,
+      h("p", {}, t("{n} mod(s) go in").replace("{n}", r.included.length), h("span", { class: "muted small" }, ` · ${r.filename}`)),
+      r.left_out.length ? [h("h3", { class: "mt-s" }, "Not included"),
+        h("ul", { class: "list small" }, r.left_out.map((x) => h("li", {}, h("strong", {}, x.name), h("span", { class: "muted" }, ` — ${x.why}`))))] : null);
+  };
+  const choice = (fmt, label, checked) => h("label", { class: "row check-row" },
+    h("input", { type: "radio", name: "pack-format", value: fmt, checked, onchange: () => show(fmt) }), h("span", {}, label));
+  const box = h("div", { class: "modal" },
+    h("h2", { id: "make-modpack-title" }, "Make a modpack"),
+    h("p", { class: "muted small" }, "A file players open in their launcher (Modrinth App, Prism, CurseForge) to get the same mods. It holds links to the mod sites only: no mod files, and none of your config files."),
+    h("fieldset", { class: "choices" }, h("legend", { class: "small" }, "Format"),
+      choice("mrpack", "Modrinth (.mrpack)", true), choice("curseforge", "CurseForge (.zip)", false)),
+    body,
+    h("div", { class: "row mt" }, download, h("button", { class: "btn ghost", type: "button", onclick: close }, "Close")));
+  document.body.append(h("div", { class: "modal-backdrop", id: "make-modpack", role: "dialog", "aria-modal": "true", "aria-labelledby": "make-modpack-title" }, box));
+  show("mrpack");
+}
+
 views.mods = () => {
   const me = hubInfo && hubInfo.servers ? hubInfo.servers.find((x) => x.id === server) : null;
   const plugins = !!me && runsPlugins(me.loader);
@@ -3329,6 +3366,8 @@ views.mods = () => {
             load();
           },
         }),
+        PACK_LOADERS.includes(info.loader) && info.minecraft && can("mods.view")
+          ? h("button", { class: "btn", onclick: makeModpack }, "Make a modpack…") : null,
         hubInfo && hubInfo.local ? folderBtn("mods", plugins ? "Plugins folder" : "Mods folder") : null,
         hubInfo && hubInfo.local ? folderBtn("config", "Config folder") : null));
   };
@@ -6285,6 +6324,8 @@ const HELP = [
     screenshot("mod-versions", "A players' mod that wouldn't start: the version that works, and Change version."),
     h("p", {}, h("strong", {}, "Modpacks"), " come from Modrinth or CurseForge (pick the source in the mod browser). The server runs the pack's own files and its build of the mod loader, so players on the pack can join. A CurseForge pack's mods that its official server pack leaves out only run on players' computers, so they go in your friends' download instead of on the server; without a server pack, Modrinth says which ones. " +
       "When the pack has a new version, ", h("strong", {}, "Updates → Look for a new version of the pack"), " shows what changes and ", h("strong", {}, "Update the pack"), " moves the server to it, with a backup first."),
+    h("p", {}, h("strong", {}, "Make a modpack…"), " on the Mods page turns the server's mods into a file players open in their launcher: a Modrinth .mrpack or a CurseForge .zip. " +
+      "It only links to the mod sites (no mod files, no config files), and names each mod it can't include, with why."),
     h("p", {}, "Mods that only run on players' computers stay off the server when Craft Conductor can tell (Modrinth says so, or another mod's file needs them only there), and go in your friends' download. " +
       "One that stops the server anyway can be moved there: ", h("strong", {}, "Move … to players' mods"), " on the Dashboard, or in ", h("strong", {}, "Manage Mods"), "."),
     h("p", {}, "Some CurseForge authors don't let other apps download their mods. A panel then slides open on the right with a ", h("strong", {}, "Download ↗"),
@@ -9467,6 +9508,37 @@ const setupPins = () => Object.fromEntries([...setupState.pins].map(([k, p]) => 
 // Will the new server's mods start, and players' (the mod loader's own check, on the files): checked
 // again a moment after each change. Create my server waits for it; when something's wrong, the mod
 // manager that has it glows and the page goes there.
+// Creating a server, step by step (Daemon.run_setup's job.progress): what each step is called, and
+// how far along it is for the steps list and the progress bar.
+const SETUP_STEP_TEXT = {
+  pack: "Downloading the modpack", plan: "Choosing the mods' files", manual: "Waiting for mods you download by hand",
+  java: "Getting Java", mods: "Downloading the mods", runtime: "Downloading Minecraft and the mod loader",
+  boot: "Starting the server once to check it works",
+};
+function setupSteps(progress) {
+  const p = progress || {};
+  const steps = (Array.isArray(p.steps) ? p.steps : []).filter((s) => SETUP_STEP_TEXT[s]);
+  const at = steps.indexOf(p.step);
+  const items = steps.map((key, i) => ({ key, text: t(SETUP_STEP_TEXT[key]),
+    state: at < 0 || i > at ? "later" : i < at ? "done" : "now" }));
+  const counted = at >= 0 && p.total > 0;
+  const part = counted ? Math.min(1, Math.max(0, (Number(p.done) || 0) / p.total)) : 0;
+  return {
+    items,
+    value: steps.length && at >= 0 ? (at + part) / steps.length : 0,
+    label: at < 0 ? "" : items[at].text + (counted ? ": " + t("{0} of {1}").replace("{0}", Number(p.done) || 0).replace("{1}", p.total) : ""),
+  };
+}
+function drawSetupSteps(box, progress) {
+  const s = setupSteps(progress);
+  refill(box, JSON.stringify(s), s.items.length ? [
+    h("progress", { class: "setup-bar", max: "1", value: String(s.value), "aria-valuetext": s.label, "aria-label": t("Creating your server") }),
+    h("p", { class: "small", role: "status" }, s.label),
+    h("ol", { class: "setup-steps" }, s.items.map((x) => h("li", { class: x.state, ...(x.state === "now" ? { "aria-current": "step" } : {}) },
+      x.state === "done" ? "✓ " : "", x.text))),
+  ] : null);
+}
+
 function setupCheckBody() {
   const st = setupState;
   const body = { loader: st.loader, minecraft: st.minecraft, friends: !!st.friends,
@@ -9948,6 +10020,7 @@ views.setup = () => {
       const bad = fileCheckBad(c);
       fill(createBox,
         c && c.running ? h("p", { class: "small row", role: "status" }, h("span", { class: "spinner" }), t("Checking that the mods start together…")) : null,
+        c && c.result && c.result.pack_only ? h("p", { class: "small muted" }, t("The modpack's own mods aren't checked: its maker did that.")) : null,
         bad ? h("p", { class: "small bad-text", role: "alert" }, "These mods wouldn't start together. Fix them in ",
           fileCheckBad(c, "server") ? "Manage Mods" : "Manage Friends Mods", " (it glows), then create the server.") : null,
         h("button", { type: "submit", class: "btn primary big", disabled: !!(c && c.running) || bad || !!st.creating }, "Create my server"));
@@ -10187,6 +10260,7 @@ views.setup = () => {
     // Setup waits for mods whose authors don't let other apps download them: the panel slides
     // open by itself the first time, and this notice opens it again.
     const manualBox = h("div");
+    const stepsBox = h("div", { class: "setup-progress mt-s" });
     let manualKey = null;
     const stopSetup = async () => {
       if (!(await ask("Stop setting up this server? The mods you've downloaded stay, so you can try again.", { ok: "Stop setting up", danger: true }))) return;
@@ -10215,6 +10289,7 @@ views.setup = () => {
       h("div", { class: "notice" }, h("div", { class: "row" }, h("span", { class: "spinner" }),
         h("span", { class: "grow" }, "Downloading Java, the mod loader, Minecraft and your mods, then checking that the server starts. This usually takes a few minutes.")),
         h("div", { class: "small muted mt-s" }, "You can close this page: Craft Conductor keeps going. Open Craft Conductor again and choose See progress on the server.")),
+      stepsBox,
       manualBox,
       card("What's happening", events),
       // While it installs: what friends outside your home will need (the lower part of the screen), for the
@@ -10231,6 +10306,7 @@ views.setup = () => {
     every(1500, async () => {
       if (!events.isConnected && seq) return;  // slid away (or shown again in a newer panel)
       showManual(status && status.manual_wait);
+      drawSetupSteps(stepsBox, status && status.job && status.job.progress);
       if (startedAt === null) {
         const s = await api("/api/status").catch(() => null);
         if (!s) return;

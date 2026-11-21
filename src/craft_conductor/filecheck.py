@@ -108,9 +108,10 @@ def _plain(problem: modcheck.Problem, side: str, files: Files) -> dict:
 
 def check(entries: list[dict], *, loader: str, minecraft: str, loader_version: str | None, java_major: int | None,
           store, providers: dict | None = None, mod_loaders: tuple[str, ...] = (), channel: str = "release",
-          sides: tuple[str, ...] = ("server", "client"), fixes: bool = True, progress=None) -> dict:
+          sides: tuple[str, ...] = ("server", "client"), fixes: bool = True, progress=None, ignore=None) -> dict:
     """Problems with ``entries`` on each side, each with the fixes found (when ``fixes`` and
-    ``providers``): {"ok", "problems": [...], "unreadable": [names]}."""
+    ``providers``): {"ok", "problems": [...], "unreadable": [names]}. A problem ``ignore`` says
+    isn't ours to judge (a modpack's own: ``pack_own``) is left out."""
     if loader not in modcheck.LOADERS:
         return {"ok": True, "problems": [], "unreadable": []}
     where = dict(minecraft=minecraft, loader_version=loader_version, java_major=java_major)
@@ -119,6 +120,8 @@ def check(entries: list[dict], *, loader: str, minecraft: str, loader_version: s
     for side in sides:
         for p in files.problems(side, **where):
             item = _plain(p, side, files)
+            if ignore is not None and ignore(item):
+                continue
             if not any(x["side"] != side and x["text"] == item["text"] for x in out):  # (once, for both sides)
                 out.append(item)
                 if fixes and providers:
@@ -174,7 +177,7 @@ def _fixes(problem: modcheck.Problem, side: str, files: Files, providers: dict, 
     return out
 
 
-def for_server(m, fixes: bool = True, progress=None, client_mods: list[str] | None = None) -> dict:
+def for_server(m, fixes: bool = True, progress=None, client_mods: list[str] | None = None, ignore=None) -> dict:
     """The check of what this server's next update installs (its held versions included), on
     the server and on players' computers: what Manage Mods and Manage Friends Mods show."""
     from .clientpack import _entry, players_mods
@@ -214,7 +217,7 @@ def for_server(m, fixes: bool = True, progress=None, client_mods: list[str] | No
                         "path": str(m.mods_dir / name)})
     result = check(entries, loader=loader, minecraft=minecraft, loader_version=loader_version, java_major=java_major,
                    store=store_for(m), providers=m.providers, mod_loaders=m.loader.mod_loaders,
-                   channel=cfg.updates.mod_channel, fixes=fixes, progress=progress)
+                   channel=cfg.updates.mod_channel, fixes=fixes, progress=progress, ignore=ignore)
     result["minecraft"] = minecraft
     return result
 
@@ -235,6 +238,9 @@ def for_setup(hub, spec, progress=None) -> dict:
     from .manager import Manager
     if spec.loader not in modcheck.LOADERS:
         return {"ok": True, "problems": [], "unreadable": []}
+    if spec.modpack_version and not (spec.mods or spec.optional_mods or spec.client_mods):
+        # A modpack alone: its maker checked its mods (nothing is downloaded to check them again).
+        return {"ok": True, "problems": [], "unreadable": [], "pack_only": True}
     pack_specs, pack_jars, pack_client, pack_pins = _pack_part(hub, spec)
     hub.state_dir.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=hub.state_dir, prefix="setup-check-") as tmp:
@@ -258,7 +264,21 @@ def for_setup(hub, spec, progress=None) -> dict:
         if cf is not None and not getattr(cf, "api_key", ""):
             cf.api_key = hub.curseforge_key() or ""
         m.mod_files = hub.mod_files
-        return for_server(m, progress=progress, client_mods=cfg.client.mods)
+        keys = {x.label for x in pack_specs} | {f"local:{jar.name}" for jar in pack_jars} | set(pack_client)
+        excluded = bool(spec.modpack_exclude)
+        return for_server(m, progress=progress, client_mods=cfg.client.mods,
+                          ignore=(lambda p: pack_own(p, keys, excluded)) if keys else None)
+
+
+def pack_own(problem: dict, pack_keys: set[str], excluded: bool) -> bool:
+    """A problem among a modpack's own mods only (the one that complains, and the one it's about when
+    another mod has it): the pack's maker checked those. Not when mods were left out of the pack and
+    one is missing something: taking a mod out may be what made it missing."""
+    if problem.get("key") not in pack_keys:
+        return False
+    if problem.get("needs_key") is not None and problem.get("needs_key") not in pack_keys:
+        return False
+    return not (excluded and problem.get("kind") == "missing")
 
 
 def setup_fingerprint(spec) -> str:

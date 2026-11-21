@@ -242,6 +242,8 @@ SERVER_ROUTES: dict[tuple[str, str], str | tuple[str, ...]] = {
     ("GET", "/api/browse/added"): "mods.view",
     ("GET", "/api/modsets"): "mods.view",
     ("GET", "/api/modsets/export"): "mods.view",
+    ("GET", "/api/modpack/make"): "mods.view",
+    ("GET", "/api/modpack/make/download"): "mods.view",
     ("GET", "/api/bedrock"): "mods.view",
     ("GET", "/api/bedrock/check"): "mods.view",
     ("GET", "/api/webmap"): "mods.view",

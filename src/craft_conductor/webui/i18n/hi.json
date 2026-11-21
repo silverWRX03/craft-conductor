@@ -1190,5 +1190,22 @@
   "Change…": "बदलें…",
   "Classic": "क्लासिक",
   "Modern": "मॉडर्न",
-  "Interface style": "इंटरफ़ेस की शैली"
+  "Interface style": "इंटरफ़ेस की शैली",
+  "Asking the mod sites…": "मॉड साइटों से पूछ रहे हैं…",
+  "{n} mod(s) go in": "{n} मॉड शामिल होंगे",
+  "Not included": "शामिल नहीं",
+  "Make a modpack": "मॉडपैक बनाएँ",
+  "A file players open in their launcher (Modrinth App, Prism, CurseForge) to get the same mods. It holds links to the mod sites only: no mod files, and none of your config files.": "एक फ़ाइल जिसे खिलाड़ी अपने लॉन्चर (Modrinth App, Prism, CurseForge) में खोलकर वही मॉड पाते हैं। इसमें केवल मॉड साइटों के लिंक होते हैं: कोई मॉड फ़ाइल नहीं, और आपकी कोई कॉन्फ़िग फ़ाइल नहीं।",
+  "Format": "फ़ॉर्मैट",
+  "Make a modpack…": "मॉडपैक बनाएँ…",
+  "Downloading the modpack": "मॉडपैक डाउनलोड हो रहा है",
+  "Choosing the mods' files": "मॉड की फ़ाइलें चुनी जा रही हैं",
+  "Waiting for mods you download by hand": "उन मॉड का इंतज़ार जिन्हें आप ख़ुद डाउनलोड करते हैं",
+  "Getting Java": "Java लाया जा रहा है",
+  "Downloading the mods": "मॉड डाउनलोड हो रहे हैं",
+  "Downloading Minecraft and the mod loader": "Minecraft और मॉड लोडर डाउनलोड हो रहे हैं",
+  "Starting the server once to check it works": "यह जाँचने के लिए कि सर्वर काम करता है, उसे एक बार शुरू किया जा रहा है",
+  "{0} of {1}": "{1} में से {0}",
+  "Creating your server": "आपका सर्वर बनाया जा रहा है",
+  "The modpack's own mods aren't checked: its maker did that.": "मॉडपैक के अपने मॉड नहीं जाँचे जाते: उसके निर्माता ने यह कर लिया है।"
 }
