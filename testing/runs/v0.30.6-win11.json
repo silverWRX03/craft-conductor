@@ -212,6 +212,10 @@
     328,
     329,
     330,
+    331,
+    332,
+    333,
+    334,
     335,
     336,
     337,
@@ -376,6 +380,7 @@
     538,
     539,
     540,
+    558,
     569,
     597,
     598,
@@ -549,6 +554,7 @@
     926,
     930,
     933,
+    934,
     953,
     954,
     955,
@@ -4491,6 +4497,48 @@
       "tested_at": "2026-11-20T20:26:34+00:00",
       "tester": "Owner + Claude Code",
       "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. Covered by 809 in this run (release exe v0.30.6, the phone test home on panel 29972, the owner's Android phone, a Samsung S23): Remote access & phones, Use Tailscale gave the https://<pc>.<tailnet>.ts.net address and the phone opened it and signed in (paired). In v0.30.3-win11-release, 809 did the same with the phone on mobile data (Wi-Fi off). Recorded as covered on the owner's decision (2026-11-20).",
+      "evidence": ""
+    },
+    "331": {
+      "status": "pass",
+      "tested_at": "2026-11-21T00:11:33+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, the phone test home (panel 29972) over Tailscale HTTPS, the owner's Android phone (Samsung S23, Chrome app) signed in as the owner with Connections, Phone app, Turn on notifications here (a new registration; the old one from 11-16 answered HTTP 410). Phone mods (Fabric 26.2) got Comforts, which has no build for 26.3, and update strategy latest-compatible: Check now said 'up to date on Minecraft 26.2; 26.3 waits for 1 mod(s) to support it'. 26.3 came out 66 days ago, so the monthly reminder was due (reminder state cleared to send it again for the phone).",
+      "evidence": ""
+    },
+    "332": {
+      "status": "pass",
+      "tested_at": "2026-11-21T00:11:33+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, the phone test home (panel 29972) over Tailscale HTTPS, the owner's Android phone (Samsung S23, Chrome app) signed in as the owner with Connections, Phone app, Turn on notifications here (a new registration; the old one from 11-16 answered HTTP 410). The notification arrived on the phone: Minecraft 26.3 came out 2 months ago and Comforts still doesn't support it; the server stays on 26.2 (owner read it on the phone).",
+      "evidence": ""
+    },
+    "333": {
+      "status": "pass",
+      "tested_at": "2026-11-21T00:11:33+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, the phone test home (panel 29972) over Tailscale HTTPS, the owner's Android phone (Samsung S23, Chrome app) signed in as the owner with Connections, Phone app, Turn on notifications here (a new registration; the old one from 11-16 answered HTTP 410). Phonetestmakeaserver (vanilla 26.3) with the owner joined from Minecraft on the PC; about 2000 chickens summoned in a pit next to them: 125 to 240 ms a tick. (A first crowd of 2664 tripped Minecraft's own watchdog; Craft Conductor restarted the server by itself.) After three slow readings Craft Conductor looked for the cause by itself.",
+      "evidence": ""
+    },
+    "334": {
+      "status": "pass",
+      "tested_at": "2026-11-21T00:11:33+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, the phone test home (panel 29972) over Tailscale HTTPS, the owner's Android phone (Samsung S23, Chrome app) signed in as the owner with Connections, Phone app, Turn on notifications here (a new registration; the old one from 11-16 answered HTTP 410). The notification arrived on the phone: 'The server kept falling behind with players on (6.5 TPS). The biggest cost: mobs, animals, items on the ground and other entities. The busiest place is around x -56, z 488 in the Overworld: 1609 in all (1454 chicken, ...)'. Chickens cleared afterwards.",
+      "evidence": ""
+    },
+    "558": {
+      "status": "pass",
+      "tested_at": "2026-11-21T00:11:34+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, the phone test home (panel 29972) over Tailscale HTTPS, the owner's Android phone (Samsung S23, Chrome app) signed in as the owner with Connections, Phone app, Turn on notifications here (a new registration; the old one from 11-16 answered HTTP 410). Every CPU core loaded to 100% (helpers/cpuhog.py) for about 6 minutes: the panel warned 'The computer's CPU has been 98% busy for 5 minutes. Servers may lag. See each server's Performance ...' and the notification arrived on the phone. Load stopped right after.",
+      "evidence": ""
+    },
+    "934": {
+      "status": "pass",
+      "tested_at": "2026-11-21T00:16:24+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. Computer half checked 2026-11-19 in Chrome on this PC (mod browser and a friend's Resource packs page: dragging the scroll bar to the bottom loaded the next results by themselves, up to That's everything; held for the phone half). Phone half 2026-11-20, the owner's Android phone (S23, Chrome app) over the Tailscale address of the phone test home: Phone mods, Mods, Download mods, flicked straight to the bottom 2-3 times: the next results loaded by themselves, no Load more press. (A friend's page runs on the friend's computer, not on a phone.) Found on the way: on the phone only about an inch is left for the results and the Add selected bar scrolls away with the page: #331.",
       "evidence": ""
     }
   },
