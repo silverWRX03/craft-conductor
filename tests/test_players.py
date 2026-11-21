@@ -2,8 +2,9 @@ import json
 
 import pytest
 
-from craft_conductor.players import (MAX_BROADCAST, MOJANG_PROFILE, NO_PING_REASON, PlayerError, Players, broadcast_text,
+from craft_conductor.players import (MAX_BROADCAST, MOJANG_PROFILE, PlayerError, Players, broadcast_text,
                                      offline_uuid, ping_state)
+from craft_conductor.pinghelper import VANILLA_REASON as NO_PING_REASON   # (what a roster says without a reason)
 
 
 

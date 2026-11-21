@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Callable
 
 from .http import HttpClient, HttpError
+from .pinghelper import VANILLA_REASON   # (why there is no ping, when nothing says more: pinghelper.card gives the real reason)
 from .properties import read_properties, write_properties
 
 MOJANG_PROFILE = "https://api.mojang.com/users/profiles/minecraft"
@@ -87,10 +88,6 @@ class PlayerError(Exception):
 #: The most a broadcast may say (Minecraft's chat box takes 256 characters).
 MAX_BROADCAST = 256
 
-#: Why there is no ping to show, when nothing says more. No server type Craft Conductor runs shares each
-#: player's ping with the console on its own; the helper mod or plugin that does (pinghelper.py) is
-#: added only where the owner turned it on, and ``roster(why_no_ping=...)`` gives the real reason.
-NO_PING_REASON = "Minecraft doesn't share each player's ping with the server console, so Craft Conductor can't show it. (It never adds a mod or plugin only to measure it.)"  # (one piece: it is a key of the page's translations)
 GOOD_PING, FAIR_PING = 100, 200   # milliseconds: under 100 is good, under 200 fair, above poor
 
 
@@ -273,7 +270,7 @@ class Players:
         }
 
     def roster(self, online: set[str] | list[str], pings: dict[str, int] | None = None,
-               whitelist: bool = False, why_no_ping: str = NO_PING_REASON) -> dict:
+               whitelist: bool = False, why_no_ping: str = VANILLA_REASON) -> dict:
         """The Dashboard's Connected Players card: who is online, with only what is reliably known
         about each (operator, and at which level, from ops.json; ping when ``pings`` has a source),
         the player limit and whether the whitelist is on. Reads two small files and asks the

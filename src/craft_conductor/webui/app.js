@@ -2202,6 +2202,20 @@ const OP_WORDS = { 1: "can ignore spawn protection", 2: "can use cheat commands 
   3: "can also kick, ban and op players", 4: "can use every command, including /stop" };
 const PING_MARK = { good: "●", fair: "◐", poor: "▲" };  // (a different shape for each, so colour is never the only sign)
 const PING_WORDS = { good: "good connection", fair: "fair connection", poor: "poor connection" };
+// The reasons the server fills in ("needs Minecraft 1.17", "doesn't run on neoforge") are matched back to
+// their text with the {placeholder}, so they translate; every other reason is its own text.
+const PING_REASONS = [
+  [/^Craft Conductor's ping helper needs Minecraft (\S+) or newer on this server type\.$/, "Craft Conductor's ping helper needs Minecraft {version} or newer on this server type.", "{version}"],
+  [/^Craft Conductor's ping helper doesn't run on (.+) yet\.$/, "Craft Conductor's ping helper doesn't run on {loader} yet.", "{loader}"],
+];
+function pingReason(text) {
+  for (const [re, key, slot] of PING_REASONS) {
+    const m = re.exec(text);
+    if (m) return t(key).replace(slot, () => m[1]);
+  }
+  return t(text);
+}
+
 function playersCard(con) {
   const viewer = !can("players.moderate");   // look only: the list, none of the buttons
   const canMessage = can("console.execute");   // (Message types a console command)
@@ -2308,7 +2322,7 @@ function playersCard(con) {
     row.ping.className = "ping " + (ms === null ? "none" : p.ping_state);
     if (ms === null) {
       const why = info && !info.ping.available ? info.ping.reason : "";
-      row.ping.title = t(why);
+      row.ping.title = pingReason(why);
       fill(row.ping, "—", h("span", { class: "sr-only" }, why ? t("Ping isn't available.") : t("Ping not read yet.")));
     } else {
       row.ping.title = t(PING_WORDS[p.ping_state]);
@@ -2350,7 +2364,7 @@ function playersCard(con) {
     empty.classList.toggle("hidden", !!names.length);
     const noPing = names.length && info && !info.ping.available;
     pingNote.classList.toggle("hidden", !noPing);
-    if (noPing) pingWhy.textContent = t(info.ping.reason);
+    if (noPing) pingWhy.textContent = pingReason(info.ping.reason);
     showPingSwitch();
     if (!names.length) selected = null;
   };
@@ -6272,6 +6286,7 @@ const HELP = [
     h("p", {}, "Press ", h("strong", {}, "Start"), " when you want to play. In Minecraft, choose Multiplayer → Add Server and use this computer's address."),
     screenshot("dashboard", "A running server's Dashboard: how busy it is, who's on, and the live console."),
     h("p", {}, "The Dashboard's Connected Players card lists who's on. Press a player for more actions, press Kick to remove them, and use Whitelist and Broadcast under the list to manage who may join and to send a message to everyone online."),
+    h("p", {}, "On Paper, Purpur, Fabric and Quilt servers, ", h("strong", {}, "Show players' ping…"), " on the card adds each player's ping: Craft Conductor puts its own small helper on the server at the next restart, and players install nothing."),
     h("p", {}, "Something not working? Press ", h("strong", {}, "🩺 Check my setup"), " on the server's Dashboard: it checks the usual causes ",
       "(Java, memory, disk space, the port, the firewall) and says what to do. ", h("strong", {}, "Test from the internet"), " there checks friends outside your home can connect."),
     screenshot("check-my-setup", "Check my setup: each check with what to do, and a button where Craft Conductor can fix it."),

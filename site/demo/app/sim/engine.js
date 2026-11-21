@@ -51,6 +51,27 @@
   };
   sim.hasMod = (s, slug) => s.mods.some((m) => m.slug === slug);
 
+  // Craft Conductor Ping, the helper behind players' ping (pinghelper.py): which servers can run it, why not,
+  // and the file it would put in the mods (or plugins) folder. The reasons are the real ones, word for word.
+  const atLeast = (version, lowest) => {
+    const a = String(version).split(".").map(Number), b = lowest.split(".").map(Number);
+    for (let i = 0; i < Math.max(a.length, b.length); i++) { if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0); }
+    return true;
+  };
+  sim.pingHelper = (s) => {
+    const lowest = { paper: "1.17", purpur: "1.17", fabric: "1.20.2", quilt: "1.20.2" }[s.loader];
+    if (lowest && atLeast(s.minecraft, lowest)) return { ok: true, reason: "", jar: `craft_conductor_ping-${s.loader === "paper" || s.loader === "purpur" ? "paper" : "fabric"}-1.0.0.jar` };
+    if (s.loader === "vanilla") return { ok: false, reason: "Minecraft doesn't share each player's ping without a mod or plugin, and plain Minecraft runs neither." };
+    if (!lowest && sim.catalog.runsMods(s.loader)) return { ok: false, reason: `Craft Conductor's ping helper doesn't run on ${s.loader} yet.` };
+    return { ok: false, reason: `Craft Conductor's ping helper needs Minecraft ${lowest} or newer on this server type.` };
+  };
+  // A made-up but steady ping for a player: the same name gives about the same number, drifting a little.
+  sim.pingOf = (name, t) => {
+    let h = 0;
+    for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) % 997;
+    return Math.max(8, Math.round(28 + (h % 150) + Math.sin(t / 9 + h) * 6));
+  };
+
   // ------------------------------------------------------------- the two ways to start
   const FRIENDS = ["Alex", "Mia", "KaiCrafts", "Sam_Builds", "JordanMC", "Riley", "Noor", "LenaPlays", "Bruno_77"];
   sim.FRIENDS = FRIENDS;

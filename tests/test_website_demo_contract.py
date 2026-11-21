@@ -216,3 +216,37 @@ def test_the_demo_survives_a_visit(catalog):
             assert not demo.unhandled, demo.unhandled
         finally:
             demo.close()
+
+
+@needs_node
+def test_the_demo_shows_players_ping_when_it_is_switched_on(catalog):
+    """A Fabric example server shows ping numbers once Show players' ping… is on (its reasons before, the
+    real texts); NeoForge says it doesn't run there yet; Manage Mods lists the helper."""
+    demo = Demo(catalog, "existing")
+    try:
+        sid = "family-survival"
+        card = demo.ask("GET", f"/api/servers/{sid}/players/online")[1]
+        assert card["players"] and card["ping"] == {"available": False, "reason": "Ping is off for this server.",
+                                                    "can_turn_on": True, "on": False}
+        assert demo.ask("GET", f"/api/servers/{sid}/mods")[1]["helper"] is None
+        assert demo.ask("POST", f"/api/servers/{sid}/settings", {"player_ping": True})[0] == 200
+        card = demo.ask("GET", f"/api/servers/{sid}/players/online", advance=3)[1]
+        assert card["ping"] == {"available": True, "reason": "", "can_turn_on": False, "on": True}
+        assert all(isinstance(p["ping_ms"], int) and p["ping_state"] in ("good", "fair", "poor") for p in card["players"])
+        assert demo.ask("GET", f"/api/servers/{sid}/mods")[1]["helper"] == {
+            "name": "Craft Conductor Ping", "filename": "craft_conductor_ping-fabric-1.0.0.jar"}
+        assert not demo.unhandled, demo.unhandled
+    finally:
+        demo.close()
+    demo = Demo(catalog, "new")   # (other server types give their reason and no button)
+    try:
+        for loader, why in (("vanilla", "Minecraft doesn't share each player's ping without a mod or plugin, and plain Minecraft runs neither."),
+                            ("neoforge", "Craft Conductor's ping helper doesn't run on neoforge yet.")):
+            s, r = demo.ask("POST", "/api/hub/create", {"loader": loader, "minecraft": "1.21.1", "motd": loader, "mods": [],
+                                                         "accept_eula": True, "port": 25565 if loader == "vanilla" else 25566})
+            assert s == 200, r
+            assert demo.ask("GET", f"/api/servers/{r['id']}/players/online", advance=10)[1]["ping"] == {
+                "available": False, "reason": why, "can_turn_on": False, "on": False}
+        assert not demo.unhandled, demo.unhandled
+    finally:
+        demo.close()

@@ -15,6 +15,15 @@
   // Turning the whitelist off on a server that can be reached from the internet asks first (since 0.29,
   // reach.py). A release from before has no such warning: there, as it did then, the whitelist just goes off.
   const whitelistGuarded = (s) => cat().hasReach() && sim.reachable(s);
+  // The Connected Players card's ping: numbers on a server that can run the helper and has Show players' ping…
+  // switched on (while it runs), else the reason and which button the card may offer.
+  const pingCard = (s) => {
+    const h = sim.pingHelper(s), on = !!s.settings.player_ping;
+    if (!h.ok) return { available: false, reason: h.reason, can_turn_on: false, on };
+    if (!on) return { available: false, reason: "Ping is off for this server.", can_turn_on: true, on: false };
+    return running(s) ? { available: true, reason: "", can_turn_on: false, on: true }
+      : { available: false, reason: "Ping shows after the next restart.", can_turn_on: false, on: true };
+  };
 
   // ------------------------------------------------------------- the Dashboard
   const resources = (s) => {
@@ -532,9 +541,11 @@
         const op = p.ops.find((o) => o.name === name);
         return { name, op: !!op, op_level: op ? op.level : null, ping_ms: null, ping_state: null };
       }), max: s.max_players, whitelist_enabled: p.whitelist_enabled,
-      ping: s.settings.player_ping
-        ? { available: false, reason: "Ping shows after the next restart.", can_turn_on: false, on: true }   // (the demo never restarts a helper in)
-        : { available: false, reason: "Ping is off for this server.", can_turn_on: true, on: false } };
+      ping: pingCard(s) };
+      if (out.ping.available) out.players.forEach((p) => {   // (the helper is "in" at once: the demo has no restart to wait for)
+        p.ping_ms = sim.pingOf(p.name, now());
+        p.ping_state = p.ping_ms < 100 ? "good" : p.ping_ms < 200 ? "fair" : "poor";
+      });
       if (r.q.whitelist === "1") out.whitelist = p.whitelist.slice().sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
       return out;
     },
