@@ -7990,6 +7990,9 @@ function routerBox() {
       const r = await api("/api/hub/upnp", { method: "POST", body: { enabled: on.checked, accept: on.checked } }).catch((e) => { toast(e.message, true); return null; });
       render(r || st);
     } });
+    // Open only once the router said yes to a port: with UPnP off on the router nothing is (#326).
+    const opened = !!st.enabled && !st.error && (st.ports || []).some((p) => p.ok);
+    const risk = st.exposure || UPNP_WARNING;
     const ports = (st.ports || []).map((p) => h("li", {}, p.ok ? "✓ " : "✗ ", h("strong", {}, `${p.protocol} ${p.port}`),
       h("span", { class: "muted" }, ` · ${p.label}`), p.ok ? null : h("span", { class: "bad-text" }, ` · ${p.error}`)));
     fill(box, h("h3", {}, "Router"),
@@ -7998,7 +8001,9 @@ function routerBox() {
         "and takes them back when you switch this off or quit Craft Conductor. Only Craft Conductor's own ports are opened. Many routers have UPnP switched off: " +
         "then forward the ports by hand (Help → Router setup), or use playit.gg."),
       busy ? h("p", { class: "small" }, busy) : null,
-      !busy && st.enabled ? h("div", { class: "notice warn", role: "status" }, h("strong", {}, "Your server is open to the internet. "), st.exposure || UPNP_WARNING) : null,
+      !busy && opened ? h("div", { class: "notice warn", role: "status" }, h("strong", {}, "Your server is open to the internet. "), risk) : null,
+      !busy && st.enabled && !opened ? h("p", { class: "muted small", role: "status" }, "Nothing is open on your router now. If it works, " +
+        risk[0].toLowerCase() + risk.slice(1)) : null,
       !busy && st.enabled && st.error ? h("div", { class: "notice warn" }, h("strong", {}, "It didn't work: "), st.error, ".") : null,
       !busy && st.enabled && !st.error && st.router ? h("p", { class: "small ok-text" },
         `${st.router}${st.external_ip ? ` (internet address ${st.external_ip})` : ""}`) : null,
