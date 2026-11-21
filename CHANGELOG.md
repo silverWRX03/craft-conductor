@@ -8,6 +8,7 @@ its fix will say which version it's in.
 
 **Fixed**
 - Importing a world (or a modpack or an exported server) that held a file with `?`, `*`, `<`, `>`, `"` or `|` in its name failed with "[Errno 22] Invalid argument" on Windows, and nothing was imported. Such a file is left out like the other names Windows can't make, and the rest comes in (#314).
+- **Roll back to this** while another program held a server file open (an editor with `server.properties`) said "it couldn't be unpacked ([Errno 13] Permission denied …)". It names the file that's open in another program and asks you to close it and try again; the server is still left as it was (#316).
 
 ## 0.30.6 (2026-11-15)
 

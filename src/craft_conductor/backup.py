@@ -345,7 +345,7 @@ def restore(archive: Path, server_dir: Path) -> dict:
     except BaseException as e:
         _put_back_kept(staging, server_dir)
         rmtree(staging, ignore_errors=True)
-        reason = _why(e)
+        reason = _why(e, server_dir)
         if reason is None:
             raise
         log.error("couldn't restore %s: %s. The server was left as it was", archive.name, reason)
@@ -460,8 +460,22 @@ def _put_back_kept(staging: Path, server_dir: Path) -> None:
     (staging / KEPT).unlink(missing_ok=True)
 
 
-def _why(e: BaseException) -> str | None:
+def _in_use(e: OSError, server_dir: Path) -> str | None:
+    """The server's file another program holds open (Windows refuses to read or move it), or None."""
+    if not (isinstance(e, PermissionError) or getattr(e, "winerror", None) in (32, 33)) or not e.filename:
+        return None
+    try:
+        rel = Path(os.fsdecode(e.filename)).resolve().relative_to(server_dir.resolve())
+    except (ValueError, OSError):
+        return None  # (not one of the server's files: the backup's own, or the disk's)
+    return str(rel) if rel.parts else None
+
+
+def _why(e: BaseException, server_dir: Path | None = None) -> str | None:
     """A restore failure in plain words (None for one that isn't about the backup or the disk)."""
+    if isinstance(e, OSError) and server_dir is not None and (name := _in_use(e, server_dir)):
+        return (f"{name} in the server's folder is open in another program (or Windows won't let Craft Conductor "
+                "read it): close it and try again")
     if isinstance(e, RestoreError):
         return str(e)
     if isinstance(e, tarfile.FilterError):
