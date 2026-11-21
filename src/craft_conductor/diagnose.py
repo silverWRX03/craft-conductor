@@ -21,6 +21,8 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from . import pinghelper
+
 # Each rule: a pattern and which group holds a mod id or name ("id") or a jar file ("jar").
 RULES: list[tuple[re.Pattern, str, str]] = [
     (re.compile(r"Mod '([^']+)' \(([\w.-]+)\)[^\n]*?(requires|is incompatible|breaks|conflicts)", re.I), "id2",
@@ -103,6 +105,15 @@ def _installed(server_dir: Path, jar: str) -> bool:
     return (server_dir / "mods" / jar).is_file() or (server_dir / "plugins" / jar).is_file()
 
 
+def _helper_jars(server_dir: Path) -> list[Path]:
+    """Craft Conductor's own ping helper in mods/ or plugins/ (configs.jars() leaves it out: it has no config)."""
+    out = []
+    for folder in ("mods", "plugins"):
+        if (server_dir / folder).is_dir():
+            out += [p for p in sorted((server_dir / folder).glob("*.jar")) if pinghelper.is_helper(p.name)]
+    return out
+
+
 def diagnose(lines: list[str], server_dir: Path | None = None, mods=(), since: float | None = None) -> Diagnosis:
     """Find the mods to blame. ``mods`` are the installed ModFiles (for names and file names)."""
     from .configs import jar_mods, jars
@@ -110,11 +121,14 @@ def diagnose(lines: list[str], server_dir: Path | None = None, mods=(), since: f
     ids: dict[str, str] = {}   # mod id -> jar file name
     names: dict[str, str] = {}  # lower-case name -> jar file name
     shown: dict[str, str] = {}  # mod id -> the name its jar gives it
-    for jar in jars(server_dir) if server_dir is not None else []:
+    for jar in jars(server_dir) + _helper_jars(server_dir) if server_dir is not None else []:
         for mod_id, display in jar_mods(jar):
             ids.setdefault(mod_id.lower(), jar.name)
             names.setdefault(display.lower(), jar.name)
             shown.setdefault(mod_id.lower(), display)
+        if pinghelper.is_helper(jar.name):   # (and as people may write it: "Craft Conductor Ping", "CraftConductorPing")
+            for alias in (pinghelper.NAME, pinghelper.NAME.replace(" ", "")):
+                names.setdefault(alias.lower(), jar.name)
     for m in mods:
         names.setdefault(m.name.lower(), m.filename)
 
