@@ -70,7 +70,9 @@ the ping on the Dashboard; it copies the jar into `plugins/` (or `mods/`) when t
   Checked on real servers with Forge 48.0.0 and 48.1.0 (1.20.2), 49.2.13 (1.20.4), 50.1.0 and 50.2.14
   (1.20.6), and the builds Craft Conductor installs for 1.21.1, 1.21.11, 26.1 and 26.3; the names the jar
   uses were also checked against the server Forge 49.0.2 (1.20.3) installs.
-- `common/`: the file writing they all share (`PingFile`).
+- `common/`: the file writing they all share (`PingFile`). Windows refuses to rename over a file that is
+  open, as `ping.json` is for a moment while Craft Conductor reads it: the rename is tried once more 50 ms
+  later, and the server's log gets one warning only when 3 readings in a row couldn't be written.
 
 Checked on real servers by `tests/test_ping_helper_real.py` (see its docstring: it needs
 `CRAFT_REAL_SERVERS=1` and mineflayer).
@@ -99,14 +101,14 @@ with Temurin 21.0.5 (the `gradle:8.10.2-jdk21` Docker image):
 
 | Jar | SHA-256 |
 | --- | --- |
-| `craft_conductor_ping-paper-1.0.0.jar` | `6ab15467...b9becabc` |
-| `craft_conductor_ping-fabric-1.0.0.jar` | `78c48350...b874f8e1` |
-| `craft_conductor_ping-fabric26-1.0.0.jar` | `b12eb495...b8f59ed9` |
-| `craft_conductor_ping-neoforge-1.0.0.jar` | `b82786a4...14808d3d` |
-| `craft_conductor_ping-neoforge1.20.5-1.0.0.jar` | `f8541039...1ad53602` |
-| `craft_conductor_ping-forge-1.0.0.jar` | `02bad2ea...657a50a4` |
-| `craft_conductor_ping-forge1.20.2-1.0.0.jar` | `2d5e66f4...4e5a61f4` |
-| `craft_conductor_ping-forge1.20.6-1.0.0.jar` | `13f3fb3d...ce0a0dff` |
+| `craft_conductor_ping-paper-1.0.0.jar` | `e61b39a2...56ba733c` |
+| `craft_conductor_ping-fabric-1.0.0.jar` | `5fc5715b...56738bb7` |
+| `craft_conductor_ping-fabric26-1.0.0.jar` | `2aa4bfef...8a2e8ae0` |
+| `craft_conductor_ping-neoforge-1.0.0.jar` | `32d13a2f...8c1faae3` |
+| `craft_conductor_ping-neoforge1.20.5-1.0.0.jar` | `587e45b2...f625cee8` |
+| `craft_conductor_ping-forge-1.0.0.jar` | `b934a025...ad2233e1` |
+| `craft_conductor_ping-forge1.20.2-1.0.0.jar` | `d653aa83...2fc6747f` |
+| `craft_conductor_ping-forge1.20.6-1.0.0.jar` | `fa7ee80d...03a9b2f7` |
 
 Every tool and dependency Gradle downloads for the build (the plugins, ModDevGradle's tools, Forge's
 and NeoForge's data, the libraries) must match a SHA-256 in `gradle/verification-metadata.xml`, or the
@@ -117,6 +119,13 @@ with `python tools/build_helpers.py --check` on both. Gradle 8.10.2 can't write 
 ("Multiple entries with same key"), so take `include 'paper'` out of `settings.gradle` while you
 generate, and add what `:paper:assemble` then reports missing by hand; the two files Fabric Loom
 makes itself (different bytes every build) are `trusted-artifacts` in the file, not hashed.
+`--write-verification-metadata` only adds entries, never removes stale ones, and trusts whatever is
+downloaded at that moment: review the diff of `verification-metadata.xml` for unexpected hash changes
+before committing it (and the Paper entries added by hand the same way).
+
+What it doesn't cover: Gradle's own download, the JDK, what Fabric Loom, ModDevGradle and the NeoForm
+runtime fetch outside Gradle's dependency resolution (Mojang's jars and mappings, which they check by
+the SHA-1 Mojang publishes), and the two files Loom makes itself (trusted, as above).
 
 CI (`.github/workflows/helpers.yml`) runs `--check` and uploads the jars it built; if a local JDK
 ever gives different bytes, commit the CI jar. Raise the version in `paper/build.gradle`,

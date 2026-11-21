@@ -5,9 +5,10 @@
       <verify-signatures>false</verify-signatures>
       <trusted-artifacts>
          <!-- Fabric Loom makes these two itself on the build machine (the layered mappings, and the Minecraft
-              server remapped with them); their bytes differ from one build to the next. What they are made
-              from is a Mojang download Loom checks by Mojang's SHA-1, and the Fabric intermediary jar listed below. -->
-         <trust group="loom" name="mappings"/>
+              server remapped with them); their bytes differ from one build to the next, so they are trusted, not
+              hashed. What they are made from is a Mojang download Loom checks by Mojang's SHA-1, and the Fabric
+              intermediary jar listed below. Only Loom's own coordinates for them (loom:mappings:layered+hash.<n>). -->
+         <trust group="loom" name="mappings" version="layered\+hash\.[0-9]+" regex="true"/>
          <trust group="net.minecraft" name="minecraft-server" version="1.20.2-loom.mappings.1_20_2.layered+hash.2198-v2"/>
       </trusted-artifacts>
    </configuration>

@@ -1,4 +1,5 @@
-# Craft Conductor Ping for Forge 48 and newer (Minecraft 1.20.2 and newer): every Forge reads this file.
+# Craft Conductor Ping for Forge 48 and newer (every Forge reads this file); see the dependencies below
+# for the Forge and Minecraft versions this jar runs on.
 modLoader="javafml"
 loaderVersion="${forge}"
 license="GPL-3.0-or-later"

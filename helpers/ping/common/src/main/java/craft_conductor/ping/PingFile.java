@@ -19,9 +19,15 @@ final class PingFile {
     static final String FOLDER = ".craft-conductor";
     static final String FILE = "ping.json";
 
+    /** A rename refused once is tried again this much later (on Windows, Craft Conductor reading the file holds it). */
+    static final long RETRY_MILLIS = 50;
+    /** Readings in a row that can't be written before the warning: one now and then is no problem. */
+    static final int FAILURES_BEFORE_WARNING = 3;
+
     private final Path folder;
     private final Consumer<String> warn;
     private final AtomicBoolean warned = new AtomicBoolean(false);
+    private int failures; // (in a row, since the last reading written; guarded by this)
 
     /** {@code workingFolder}: the server's own folder; {@code warn}: logs a warning (said once, not every time). */
     PingFile(Path workingFolder, Consumer<String> warn) {
@@ -37,11 +43,20 @@ final class PingFile {
             Files.write(tmp, toJson(now, pings).getBytes(StandardCharsets.UTF_8));
             Path target = folder.resolve(FILE);
             try {
-                Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException e) {
-                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
+                move(tmp, target);
+            } catch (IOException first) {
+                // Windows refuses to rename over a file that is open, as it is while Craft Conductor reads it:
+                // once more, a moment later.
+                try {
+                    Thread.sleep(RETRY_MILLIS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw first;
+                }
+                move(tmp, target);
             }
             tmp = null;
+            failures = 0;
         } catch (IOException | RuntimeException e) {
             failed(e);
         } finally {
@@ -55,9 +70,18 @@ final class PingFile {
         }
     }
 
-    /** The file can't be written (or the pings can't be read): said the first time only. */
-    void failed(Throwable e) {
-        if (warned.compareAndSet(false, true)) {
+    private static void move(Path tmp, Path target) throws IOException {
+        try {
+            Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException e) {
+            Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+    /** A reading can't be written (or the pings can't be read): warned when it keeps happening
+     * ({@link #FAILURES_BEFORE_WARNING} in a row), and said the first time only. */
+    synchronized void failed(Throwable e) {
+        if (++failures >= FAILURES_BEFORE_WARNING && warned.compareAndSet(false, true)) {
             warn.accept("Craft Conductor Ping: can't write " + FOLDER + "/" + FILE + " (" + e + ")");
         }
     }

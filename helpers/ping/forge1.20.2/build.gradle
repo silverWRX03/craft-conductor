@@ -180,15 +180,24 @@ def reobfJar = tasks.register('reobfJar', JavaExec) {
 }
 
 // The tools' own output (ART lists every library) goes to build/tmp/<task>/console.log, not the console.
-tasks.withType(JavaExec).configureEach { task ->
-    def console = layout.buildDirectory.file("tmp/${task.name}/console.log")
-    doFirst {
-        def file = console.get().asFile
-        file.parentFile.mkdirs()
-        task.standardOutput = new FileOutputStream(file)
-    }
-    doLast {
-        task.standardOutput.close()
+// The exit code is checked after the log is closed, so a tool that fails leaves no file open, and says where
+// its output is.
+[obfToSrg, namedToSrgMembers, namedToSrg, reobfJar].each { provider ->
+    provider.configure { task ->
+        def console = layout.buildDirectory.file("tmp/${task.name}/console.log")
+        task.ignoreExitValue = true
+        task.doFirst {
+            def file = console.get().asFile
+            file.parentFile.mkdirs()
+            task.standardOutput = new FileOutputStream(file)
+        }
+        task.doLast {
+            task.standardOutput.close()
+            def exit = task.executionResult.get().exitValue
+            if (exit != 0) {
+                throw new GradleException("${task.name} failed (exit code ${exit}): see ${console.get().asFile}")
+            }
+        }
     }
 }
 
