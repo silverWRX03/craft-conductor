@@ -12,6 +12,7 @@ its fix will say which version it's in.
 - With UPnP switched off on the router, **Craft Conductor settings → Connections → Router** said "Your server is open to the internet" right above "It didn't work: no router answered". It only says the server is open once the router opened a port; until then it says nothing is open on your router now (#326).
 - Deleting a server that had a Windows Firewall rule only brought the rule up after the server was gone. The **Delete** confirmation now says the server has a rule in Windows Firewall, and that you'll be asked whether to remove it (#311).
 - When the Cloudflare quick tunnel closed by itself after 4 hours, only Craft Conductor's command window said so: the **Control panel away from home** card kept showing "On the internet until …". The bell (and phones that get tunnel notifications) now say the control panel is off the internet again, and the card says when it closed (#323).
+- On a friend's computer, setting up a second server with the same name as one set up before (two people who both kept "A Minecraft Server") took the first off **Servers you've joined**, so it could no longer be updated without a new invite. Both are kept, each shown with its computer's address (#305).
 
 ## 0.30.6 (2026-11-15)
 

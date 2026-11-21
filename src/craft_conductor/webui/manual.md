@@ -424,7 +424,7 @@ The setup checks both mods first. When a compatible Geyser build is labeled beta
 
 **Already have Craft Conductor?** On the invite page, press **Open in Craft Conductor** (Windows and Linux; on a Mac, press **Copy the invite** and open Craft Conductor).
 
-**When the server updates**, click the invite link again and press **Open in Craft Conductor**, or open Craft Conductor and press **Update** next to it under **Servers you've joined**. Craft Conductor checks each one when it opens and marks those that **changed** since you set up (a new Minecraft or different mods), so you know when to update.
+**When the server updates**, click the invite link again and press **Open in Craft Conductor**, or open Craft Conductor and press **Update** next to it under **Servers you've joined**. Craft Conductor checks each one when it opens and marks those that **changed** since you set up (a new Minecraft or different mods), so you know when to update. Two servers with the same name (two people who both kept "A Minecraft Server") are listed apart, with the address of each one's computer.
 
 **The server has a whitelist?** The setup page shows **Ask to be let in**: type your Minecraft name (the one you play with) and press it. The owner lets you in with one click. If some of your extras don't work on the new Minecraft yet, Craft Conductor tells you first: **Continue** removes those mods and switches those shaders/resource packs off (you can switch them back on, but the game may crash), or **Cancel** keeps everything as it is (you can't join the updated server until you continue).
 
