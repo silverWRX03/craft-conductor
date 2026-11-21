@@ -9184,5 +9184,15 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1065,
+    "section": "Fix: a Forge 1.20.3 server can be made (#340)",
+    "step": "On New server, pick Forge and Minecraft 1.20.3, then Create my server. Confirm it installs, starts (the console reaches \"Done\") and a player can join; then confirm a Forge 1.20.4 and a Forge 1.20.1 server still install and start.",
+    "type": "Extra",
+    "tags": [
+      "minecraft-version"
+    ],
+    "source": "added-in-git"
   }
 ]
