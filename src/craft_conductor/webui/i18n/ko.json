@@ -1203,6 +1203,6 @@
   "The helper is taken off the server at the next restart.": "다음 재시작 때 도우미가 서버에서 제거됩니다.",
   "Ping stops showing after the next restart.": "핑은 다음 재시작 후에 더 이상 표시되지 않습니다.",
   "Craft Conductor's own: shows players' ping": "Craft Conductor 자체 제공: 플레이어 핑을 표시합니다",
-  "On Paper, Purpur, Fabric and Quilt servers,": "Paper, Purpur, Fabric, Quilt 서버에서는 카드의",
+  "On Paper, Purpur, Fabric, Quilt, NeoForge and Forge servers,": "Paper, Purpur, Fabric, Quilt, NeoForge, Forge 서버에서는 카드의",
   "on the card adds each player's ping: Craft Conductor puts its own small helper on the server at the next restart, and players install nothing.": "가 플레이어별 핑을 보여 줍니다. Craft Conductor가 다음 재시작 때 자체 소형 도우미를 서버에 넣으며, 플레이어는 아무것도 설치하지 않습니다."
 }

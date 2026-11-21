@@ -1187,6 +1187,6 @@
   "The helper is taken off the server at the next restart.": "O auxiliar é removido do servidor no próximo reinício.",
   "Ping stops showing after the next restart.": "O ping deixa de aparecer depois do próximo reinício.",
   "Craft Conductor's own: shows players' ping": "Do próprio Craft Conductor: mostra o ping dos jogadores",
-  "On Paper, Purpur, Fabric and Quilt servers,": "Em servidores Paper, Purpur, Fabric e Quilt,",
+  "On Paper, Purpur, Fabric, Quilt, NeoForge and Forge servers,": "Em servidores Paper, Purpur, Fabric, Quilt, NeoForge e Forge,",
   "on the card adds each player's ping: Craft Conductor puts its own small helper on the server at the next restart, and players install nothing.": "no cartão adiciona o ping de cada jogador: o Craft Conductor coloca seu próprio auxiliar pequeno no servidor no próximo reinício, e os jogadores não instalam nada."
 }

@@ -9204,8 +9204,8 @@
   },
   {
     "id": 1059,
-    "section": "Feature: ping reasons on Vanilla, Forge and NeoForge servers (roadmap 47)",
-    "step": "On a Vanilla server with a friend online the card shows — with no Show players' ping… button, and the reason (hover, or Why no ping?) says Minecraft doesn't share each player's ping without a mod or plugin and plain Minecraft runs neither. On a NeoForge or Forge server it says the ping helper doesn't run on that server type yet, still with no button. On a Paper server older than 1.17 or Fabric older than 1.20.2 it says which Minecraft version the helper needs. In another language (for example German) these reasons and the buttons are translated.",
+    "section": "Feature: ping reasons on Vanilla and older servers (roadmap 47)",
+    "step": "On a Vanilla server with a friend online the card shows — with no Show players' ping… button, and the reason (hover, or Why no ping?) says Minecraft doesn't share each player's ping without a mod or plugin and plain Minecraft runs neither. On a server older than the helper supports it says which Minecraft version the helper needs, with no button: Paper or Purpur older than 1.17, Fabric or Quilt older than 1.20.2, NeoForge older than 1.20.2, Forge older than 1.20.1. In another language (for example German) these reasons and the buttons are translated.",
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
@@ -9214,6 +9214,38 @@
     "id": 1060,
     "section": "Feature: a friend with plain Minecraft joins a server with players' ping on (roadmap 47)",
     "step": "With players' ping on (Paper, then Fabric), a friend joins with plain Minecraft (the Minecraft Launcher, no mods installed and nothing added for the ping): they get in as before, appear on the card with their ping, and leave cleanly. The friends' download and the invite page don't mention the helper, and the server console has no repeated ping lines.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1061,
+    "section": "Feature: players' ping on a NeoForge server (roadmap 47)",
+    "step": "On a running NeoForge server (Minecraft 1.20.2 or newer; try 1.20.4 and 1.21.1) with a friend online, the Connected Players card shows — with a Show players' ping… button. Press it, read the question, press Turn on: the toast says 'Ping shows after the next restart.' Restart the server: the mods folder has Craft Conductor Ping, the server starts normally with no other mods needed, the card says 'Waiting for the server to report ping…' for a moment, then the friend's row shows their ping in ms with the good, fair or poor word and colour, updating every few seconds. Manage Mods lists the helper as Craft Conductor's own, with no Change version or Remove, and it isn't counted as one of your mods.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1062,
+    "section": "Feature: players' ping on a Forge 1.20.1 modpack server (roadmap 47)",
+    "step": "On a running Forge server for Minecraft 1.20.1 made from a modpack (for example a CurseForge pack on Forge 1.20.1) with a friend online, press Show players' ping… on the Connected Players card and Turn on, then restart the server. The pack's mods and Craft Conductor Ping all load (no 'mod is missing' or version-conflict screen on the start), the friend joins with the pack's own client, and their row shows their ping in ms with the good, fair or poor word and colour. Manage Mods lists the helper as Craft Conductor's own, apart from the pack's mods. Stop showing ping and a restart take it out again.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1063,
+    "section": "Feature: players' ping on a newer Forge server (roadmap 47)",
+    "step": "On a running Forge server for Minecraft 1.21.x (and 1.20.2 to 1.20.5 if available) with a friend online, press Show players' ping… and Turn on, then restart the server: the mods folder has Craft Conductor Ping, the server starts normally and the friend's row shows their ping in ms with the good, fair or poor word and colour. Manage Mods lists the helper as Craft Conductor's own, with no Change version or Remove.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1064,
+    "section": "Feature: a friend with plain Minecraft joins a NeoForge or Forge server with players' ping on (roadmap 47)",
+    "step": "With players' ping on (a NeoForge server, then a Forge server), a friend joins with plain Minecraft or with the mods the server's friends' download gives them, and nothing added for the ping: they get in as before, appear on the card with their ping, and leave cleanly. The friends' download and the invite page don't mention the helper, and the server console has no repeated ping lines.",
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"

@@ -268,7 +268,7 @@ Added 2026-10-16 (briefs in "Additional requests (2026-10-16)" below; numbering 
 45. [ ] **Easier server scheduling.**
 46. [ ] **Research: wake on request:** a stopped server starts when a player tries to join.
 47. [x] **Ping:** a mod or plugin of our own that reports players' ping, or a suggested one
-        (follows up 34). Paper, Purpur, Fabric and Quilt; NeoForge and Forge next.
+        (follows up 34). Done for Paper, Purpur, Fabric, Quilt, NeoForge and Forge.
 48. [ ] **Manual CurseForge downloads picked up by themselves:** found where the browser saved them
         and added to the pack; if they aren't there, ask where they are.
 49. [ ] **Modpack download screen:** a progress bar that holds the page while a modpack downloads,

@@ -1199,6 +1199,6 @@
   "The helper is taken off the server at the next restart.": "Trình hỗ trợ sẽ được gỡ khỏi máy chủ ở lần khởi động lại tới.",
   "Ping stops showing after the next restart.": "Ping sẽ ngừng hiện sau lần khởi động lại tới.",
   "Craft Conductor's own: shows players' ping": "Của riêng Craft Conductor: hiện ping của người chơi",
-  "On Paper, Purpur, Fabric and Quilt servers,": "Trên máy chủ Paper, Purpur, Fabric và Quilt, nút",
+  "On Paper, Purpur, Fabric, Quilt, NeoForge and Forge servers,": "Trên máy chủ Paper, Purpur, Fabric, Quilt, NeoForge và Forge, nút",
   "on the card adds each player's ping: Craft Conductor puts its own small helper on the server at the next restart, and players install nothing.": "trên thẻ sẽ thêm ping của từng người chơi: Craft Conductor đặt trình hỗ trợ nhỏ của riêng nó lên máy chủ ở lần khởi động lại tới, và người chơi không cần cài gì."
 }
