@@ -4,6 +4,11 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.31.0 (not released yet)
+
+**Fixed**
+- A Forge server for Minecraft 1.20.3 couldn't be made: setup failed with "Forge installer did not produce …win_args.txt" (`unix_args.txt` on Linux and macOS). Forge's only build for 1.20.3 (and its first builds for 1.20.4, which a modpack can ask for) installs differently from the others; Craft Conductor now starts those from the jar they install, and they run like any other Forge server (#340).
+
 ## 0.30.6 (2026-11-15)
 
 **Added**

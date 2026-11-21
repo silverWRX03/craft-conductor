@@ -1,4 +1,4 @@
-"""NeoForge and Forge (1.17+, which use the ``@args`` launch files)."""
+"""NeoForge and Forge (1.17+, which use the ``@args`` launch files, or for a few Forge builds a starter jar)."""
 
 from __future__ import annotations
 
@@ -130,6 +130,13 @@ class ForgeLoader(Loader):
         self.http.download(f"{FORGE_MAVEN}/{full}/forge-{full}-installer.jar", jar)
         run_installer(java, jar, ["--installServer"], cwd=dest)
         args = f"libraries/net/minecraftforge/forge/{full}/{args_file_name()}"
-        if not (dest / args).exists():
-            raise LoaderError(f"Forge installer did not produce {args} (only Minecraft 1.17+ is supported)")
-        return Runtime(files=installer_files(dest, args), launch=[f"@{args}", "nogui"])
+        if (dest / args).exists():
+            return Runtime(files=installer_files(dest, args), launch=[f"@{args}", "nogui"])
+        # Forge's first builds for Minecraft 1.20.3 and 1.20.4 (49.0.1 to 49.0.12, so 1.20.3's only
+        # one) write no args file (nor run.sh and run.bat): the jar they leave beside the libraries
+        # starts the server alone.
+        shim = f"forge-{full}-shim.jar"
+        if shim == Path(shim).name and (dest / shim).is_file():
+            files = [name for name in INSTALLER_FILES if (dest / name).exists()]
+            return Runtime(files=[*files, shim], launch=["-jar", shim, "nogui"])
+        raise LoaderError(f"Forge installer did not produce {args} (only Minecraft 1.17+ is supported)")
