@@ -15,6 +15,15 @@
   // Turning the whitelist off on a server that can be reached from the internet asks first (since 0.29,
   // reach.py). A release from before has no such warning: there, as it did then, the whitelist just goes off.
   const whitelistGuarded = (s) => cat().hasReach() && sim.reachable(s);
+  // The Connected Players card's ping: numbers on a server that can run the helper and has Show players' ping…
+  // switched on (while it runs), else the reason and which button the card may offer.
+  const pingCard = (s) => {
+    const h = sim.pingHelper(s), on = !!s.settings.player_ping;
+    if (!h.ok) return { available: false, reason: h.reason, can_turn_on: false, on };
+    if (!on) return { available: false, reason: "Ping is off for this server.", can_turn_on: true, on: false };
+    return running(s) ? { available: true, reason: "", can_turn_on: false, on: true }
+      : { available: false, reason: "Ping shows after the next restart.", can_turn_on: false, on: true };
+  };
 
   // ------------------------------------------------------------- the Dashboard
   const resources = (s) => {
@@ -321,7 +330,7 @@
   sim.job("update java", { duration: 3, steps: [], end: () => "the shared Java is up to date" });
 
   // ------------------------------------------------------------- settings
-  const SETTINGS_KEYS = ["memory", "aikar_flags", "find_lag", "cpu_cores", "priority", "restart_on_crash", "strategy", "mod_channel", "auto_upgrade",
+  const SETTINGS_KEYS = ["memory", "aikar_flags", "find_lag", "player_ping", "cpu_cores", "priority", "restart_on_crash", "strategy", "mod_channel", "auto_upgrade",
     "check_interval", "warn_minutes", "wait_for_empty", "verify_boot", "rehearse", "backups_keep", "discord_webhook", "schedule_restart",
     "schedule_backup", "restart_when_empty", "backup_copy_to", "backup_copy_keep", "backup_include", "tunnel_address", "minecraft", "java_version", "motd"];
   const scheduleWords = (cron) => {
@@ -532,7 +541,11 @@
         const op = p.ops.find((o) => o.name === name);
         return { name, op: !!op, op_level: op ? op.level : null, ping_ms: null, ping_state: null };
       }), max: s.max_players, whitelist_enabled: p.whitelist_enabled,
-      ping: { available: false, reason: "Minecraft doesn't share each player's ping with the server console, so Craft Conductor can't show it. (It never adds a mod or plugin only to measure it.)" } };
+      ping: pingCard(s) };
+      if (out.ping.available) out.players.forEach((p) => {   // (the helper is "in" at once: the demo has no restart to wait for)
+        p.ping_ms = sim.pingOf(p.name, now());
+        p.ping_state = p.ping_ms < 100 ? "good" : p.ping_ms < 200 ? "fair" : "poor";
+      });
       if (r.q.whitelist === "1") out.whitelist = p.whitelist.slice().sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
       return out;
     },

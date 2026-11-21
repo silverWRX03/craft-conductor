@@ -51,6 +51,38 @@
   };
   sim.hasMod = (s, slug) => s.mods.some((m) => m.slug === slug);
 
+  // Craft Conductor Ping, the helper behind players' ping (pinghelper.py): which servers can run it, why not,
+  // and the file it would put in the mods (or plugins) folder. The reasons are the real ones, word for word.
+  const atLeast = (version, lowest) => {
+    const a = String(version).split(".").map(Number), b = lowest.split(".").map(Number);
+    for (let i = 0; i < Math.max(a.length, b.length); i++) { if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0); }
+    return true;
+  };
+  // The rows of pinghelper.SUPPORT: server types, the lowest Minecraft, the first one that is past the row, and the jar's name.
+  const PING_SUPPORT = [
+    [["paper", "purpur"], "1.17", null, "paper"],
+    [["fabric", "quilt"], "1.20.2", "26", "fabric"],
+    [["fabric", "quilt"], "26", null, "fabric26"],
+    [["neoforge"], "1.20.2", "1.20.5", "neoforge"],
+    [["neoforge"], "1.20.5", null, "neoforge1.20.5"],
+    [["forge"], "1.20.1", "1.20.2", "forge"],
+    [["forge"], "1.20.2", "1.20.6", "forge1.20.2"],
+    [["forge"], "1.20.6", null, "forge1.20.6"],
+  ];
+  sim.pingHelper = (s) => {
+    const row = PING_SUPPORT.find(([loaders, lowest, below]) => loaders.includes(s.loader) && atLeast(s.minecraft, lowest) && (!below || !atLeast(s.minecraft, below)));
+    if (row) return { ok: true, reason: "", jar: `craft_conductor_ping-${row[3]}-1.0.0.jar` };
+    if (s.loader === "vanilla") return { ok: false, reason: "Minecraft doesn't share each player's ping without a mod or plugin, and plain Minecraft runs neither." };
+    const lowest = PING_SUPPORT.filter(([loaders]) => loaders.includes(s.loader)).map(([, low]) => low).sort((x, y) => (atLeast(x, y) ? 1 : -1))[0];
+    return { ok: false, reason: `Craft Conductor's ping helper needs Minecraft ${lowest} or newer on this server type.` };
+  };
+  // A made-up but steady ping for a player: the same name gives about the same number, drifting a little.
+  sim.pingOf = (name, t) => {
+    let h = 0;
+    for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) % 997;
+    return Math.max(8, Math.round(28 + (h % 150) + Math.sin(t / 9 + h) * 6));
+  };
+
   // ------------------------------------------------------------- the two ways to start
   const FRIENDS = ["Alex", "Mia", "KaiCrafts", "Sam_Builds", "JordanMC", "Riley", "Noor", "LenaPlays", "Bruno_77"];
   sim.FRIENDS = FRIENDS;

@@ -38,7 +38,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Any, Callable
 
-from . import __version__, access, backup, config as configmod, configs, licenses, limits, notice, passkeys, safearchive, selfupdate, serverprops, setup as setupmod, stats, webauth
+from . import __version__, access, backup, config as configmod, configs, licenses, limits, notice, passkeys, pinghelper, safearchive, selfupdate, serverprops, setup as setupmod, stats, webauth
 from . import peer, private, tunnels
 from . import users as usersmod
 from .config import ConfigError, ModSpec
@@ -2810,6 +2810,8 @@ class HubApi:
         name = q.get("filename", "")
         if not STAGED_NAME.fullmatch(name):
             raise ApiError(400, "only .jar and .zip files can be added here")
+        if name.startswith(pinghelper.PREFIX):   # (as upload_local: the new server would take it for the helper)
+            raise ApiError(400, "that file name is kept for Craft Conductor's own ping helper: rename the file")
         staged = self.hub.stage_upload(handler, name, MAX_ARCHIVE if name.endswith(".zip") else MAX_UPLOAD)
         if name.endswith(".zip"):  # a world: what's known of it, for the setup page's World card (#234)
             from . import world
@@ -3488,6 +3490,8 @@ class Api:
             "players_only": self.m.config.client.only,  # moved to players' mods: never on the server
             "unmanaged": self.m.unmanaged_jars(),
             "disabled": self.m.disabled_jars(),
+            # Craft Conductor's own ping helper, when its file is in the folder (not a mod of the owner's)
+            "helper": pinghelper.in_folder(self.m.mods_dir),
             # combinations other people found don't work (conflicts.py; empty until the list exists)
             "known_conflicts": self.web.hub.known_conflicts.matching(
                 lk.loader or self.m.config.server.loader, lk.minecraft or "", [s.id for s in self.m.config.mods]),
@@ -3755,6 +3759,8 @@ class Api:
         name = q.get("filename", "")
         if not re.fullmatch(r"[A-Za-z0-9 ()\[\]+_.,'-]{1,120}\.jar", name):
             raise ApiError(400, "only .jar files can be added as mods")
+        if name.startswith(pinghelper.PREFIX):
+            raise ApiError(400, "that file name is kept for Craft Conductor's own ping helper: rename the file")
         mods_dir = self.m.mods_dir
         dest = receive(handler, mods_dir / name, MAX_UPLOAD)
         try:
@@ -4013,7 +4019,14 @@ class Api:
     def players_online(self, q, b) -> dict:
         """The Dashboard's Connected Players card (polled): who is online with their role and ping, the
         player limit, whether the whitelist is on (and its names with ?whitelist=1). Reads files only."""
-        return self._players().roster(set(self.d.players), whitelist=q.get("whitelist") == "1")
+        now = time.time()
+        pings, info = pinghelper.card(self.m, self.d.state == "running", now)
+        with self.d.activity.lock:
+            joined = dict(self.d.activity.online)   # (when each joined: Minecraft's 0 ms before it has measured them)
+        out = self._players().roster(set(self.d.players), pings=pings, whitelist=q.get("whitelist") == "1",
+                                     why_no_ping=info["reason"], joined=joined, now=now)
+        out["ping"].update(can_turn_on=info["can_turn_on"], on=info["on"])   # (the page asks before turning it on)
+        return out
 
     def broadcast(self, q, b) -> dict:
         """A message to everyone online, through the server's ``say``."""
@@ -4772,6 +4785,10 @@ class Api:
             shutil.move(str(self.m.mods_dir / name), str(folder / name))
             log.info("moved %s from the server's mods to players' mods", name)
             message = f"{action['name']} is off the server and in your friends' download (Friends → players' mods)"
+        elif kind == "ping-off":   # (Craft Conductor's own ping helper to blame: the player_ping setting off)
+            configmod.set_value(self.m.config.path, "players", "ping", "false")
+            self.m.reload_config()
+            message = "Ping is off: Craft Conductor takes its helper off the server at the next start"
         else:  # backups: the page opens them
             return {"ok": True, "message": ""}
         self.d.problem = {**problem, "fixed": message}
@@ -5468,6 +5485,7 @@ class Api:
         "memory": ("server", "memory", str),
         "aikar_flags": ("server", "aikar_flags", bool),
         "find_lag": ("server", "find_lag", bool),
+        "player_ping": ("players", "ping", bool),   # (Craft Conductor's ping helper on the server: pinghelper.py)
         "cpu_cores": ("server", "cpu_cores", int),
         "priority": ("server", "priority", str),
         "restart_on_crash": ("server", "restart_on_crash", bool),
@@ -5495,6 +5513,7 @@ class Api:
         interval = c.updates.check_interval
         return {
             "memory": c.server.memory, "aikar_flags": c.server.aikar_flags, "find_lag": c.server.find_lag,
+            "player_ping": c.player_ping,
             "cpu_cores": c.server.cpu_cores, "priority": c.server.priority, "cpu_count": limits.cpu_count(),
             "can_pin_cores": limits.can_pin_cores(),
             "restart_on_crash": c.restart_on_crash,

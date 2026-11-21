@@ -330,6 +330,9 @@ class Config:
     #: mods held at one version (Manage Mods → Change version): "source:project id" -> Pin
     pins: dict[str, "Pin"] = field(default_factory=dict)
     modpack: "Modpack | None" = None   # the modpack it was made from, if it was
+    #: ``[players] ping``: show each player's ping on the Connected Players card, by putting Craft
+    #: Conductor's own helper mod or plugin on this server (pinghelper.py); off unless turned on, per server
+    player_ping: bool = False
 
     @property
     def path(self) -> Path:
@@ -652,7 +655,13 @@ def parse(root: Path, data: dict) -> Config:
         reach_way=_reach(data.get("reach", {}).get("way", "")),
         pins=_pins(data.get("pins", {})),
         modpack=_modpack(data.get("modpack")),
+        player_ping=_ping_setting(data.get("players", {})),
     )
+
+
+def _ping_setting(table) -> bool:
+    """``[players] ping``: on only for a real ``true`` (never "yes", 1 or text)."""
+    return isinstance(table, dict) and table.get("ping") is True
 
 
 TEMPLATE = """\
@@ -714,6 +723,9 @@ default = "java"               # a system Java to use if it is exactly the right
 
 [notify]
 discord_webhook = ""
+
+# [players]
+# ping = true                  # show each player's ping on the Dashboard: adds Craft Conductor's small helper mod or plugin to this server (players install nothing)
 
 [craft-conductor]
 update_check = true            # tell you when a new version of Craft Conductor is out (it never installs without asking)

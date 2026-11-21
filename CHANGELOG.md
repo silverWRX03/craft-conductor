@@ -4,6 +4,11 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.31.0 (not released yet)
+
+**Added**
+- **Players' ping** on the **Connected Players** card (roadmap 47). The card showed **—** for everyone because Minecraft doesn't hand each player's ping to anything outside the server. Now **Show players' ping…** (for people who may manage mods) switches on a small helper of Craft Conductor's own, a plugin on Paper and Purpur (Minecraft 1.17 or newer) or a mod on Fabric and Quilt (1.20.2 or newer), NeoForge (1.20.2 or newer) and Forge (1.20.1 or newer), that is put on that server at its next restart and passes each player's ping on. The numbers then show with the same good, fair and poor colours and words (someone who has just joined shows **—** until Minecraft has measured them, not "0 ms"). It asks first, only that server gets it, and **Stop showing ping** takes it off again. Players install nothing. **Manage Mods** lists it as **Craft Conductor Ping** (Craft Conductor's own), with no **Change version** or **Remove**, and it doesn't count as one of your mods. Vanilla servers say why there is no ping, and so does a server on an older Minecraft than that. A snapshot, pre-release or release candidate gets no helper (the card says so), a file uploaded under **Local files** (on the Mods page or for a **New server**) can't be named `craft_conductor_ping-…` (that name is the helper's), and if the helper ever stopped a server from starting, the Dashboard would offer **Stop showing ping**.
+
 ## 0.30.6 (2026-11-15)
 
 **Added**

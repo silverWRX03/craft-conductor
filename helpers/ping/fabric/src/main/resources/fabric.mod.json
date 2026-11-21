@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "craft_conductor_ping",
+  "version": "${version}",
+  "name": "Craft Conductor Ping",
+  "description": "Reports each player's ping to Craft Conductor (writes .craft-conductor/ping.json).",
+  "authors": ["Craft Conductor"],
+  "license": "GPL-3.0-or-later",
+  "environment": "server",
+  "entrypoints": {
+    "server": ["craft_conductor.ping.PingMod"]
+  },
+  "depends": {
+    "fabricloader": ">=0.14",
+    "minecraft": "${minecraft}"
+  }
+}

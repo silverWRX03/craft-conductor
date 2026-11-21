@@ -16,12 +16,14 @@ import os
 import re
 import tempfile
 import threading
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
 from .http import HttpClient, HttpError
+from .pinghelper import VANILLA_REASON   # (why there is no ping, when nothing says more: pinghelper.card gives the real reason)
 from .properties import read_properties, write_properties
 
 MOJANG_PROFILE = "https://api.mojang.com/users/profiles/minecraft"
@@ -87,12 +89,11 @@ class PlayerError(Exception):
 #: The most a broadcast may say (Minecraft's chat box takes 256 characters).
 MAX_BROADCAST = 256
 
-#: Why there is no ping to show. No server type Craft Conductor runs shares each player's ping with
-#: the console on its own (vanilla, Fabric, Quilt, Forge and NeoForge have no such command, and
-#: Paper keeps it inside the server), and Craft Conductor doesn't add mods or plugins to people's
-#: servers for it. A source goes in ``roster(pings=...)`` the day there is one.
-NO_PING_REASON = "Minecraft doesn't share each player's ping with the server console, so Craft Conductor can't show it. (It never adds a mod or plugin only to measure it.)"  # (one piece: it is a key of the page's translations)
 GOOD_PING, FAIR_PING = 100, 200   # milliseconds: under 100 is good, under 200 fair, above poor
+#: Minecraft says 0 ms until it has measured a player: its first keep-alive goes 15 s after they join, and the
+#: helper writes every 5 s. So in a player's first this-many seconds online a 0 is "not measured yet" (a dash);
+#: after that it is a real 0 (someone on the server's own computer).
+PING_SETTLING_SECONDS = 25
 
 
 def ping_state(ms: int) -> str:
@@ -274,20 +275,26 @@ class Players:
         }
 
     def roster(self, online: set[str] | list[str], pings: dict[str, int] | None = None,
-               whitelist: bool = False) -> dict:
+               whitelist: bool = False, why_no_ping: str = VANILLA_REASON,
+               joined: dict[str, float] | None = None, now: float | None = None) -> dict:
         """The Dashboard's Connected Players card: who is online, with only what is reliably known
         about each (operator, and at which level, from ops.json; ping when ``pings`` has a source),
         the player limit and whether the whitelist is on. Reads two small files and asks the
-        server nothing, so the page can poll it. ``whitelist`` adds the listed names."""
+        server nothing, so the page can poll it. ``whitelist`` adds the listed names. ``joined``: when
+        each player joined (Unix time), so a 0 ms that isn't a measurement yet shows as none."""
         props = self.properties
         ops = {e["name"].lower(): e for e in self._read("ops") if isinstance(e, dict) and isinstance(e.get("name"), str)}
         has_source = pings is not None     # ({} is a source that hasn't read anyone yet)
         pings = {k.lower(): v for k, v in (pings or {}).items()}
+        joined, now = joined or {}, time.time() if now is None else now
         people = []
         for name in sorted(online, key=str.lower):
             entry = ops.get(name.lower())
             ms = pings.get(name.lower())
             ms = ms if isinstance(ms, int) and not isinstance(ms, bool) and ms >= 0 else None
+            since = joined.get(name)
+            if ms == 0 and since is not None and now - since < PING_SETTLING_SECONDS:
+                ms = None                  # (not measured yet: Minecraft's 0 before its first keep-alive)
             people.append({"name": name, "op": entry is not None, "op_level": op_level(entry) if entry else None,
                            "ping_ms": ms, "ping_state": ping_state(ms) if ms is not None else None})
         try:
@@ -296,7 +303,7 @@ class Players:
             limit = 20
         out = {"running": self.send is not None, "players": people, "max": limit,
                "whitelist_enabled": props.get("white-list", "false") == "true",
-               "ping": {"available": has_source, "reason": "" if has_source else NO_PING_REASON}}
+               "ping": {"available": has_source, "reason": "" if has_source else why_no_ping}}
         if whitelist:
             out["whitelist"] = sorted((e["name"] for e in self._read("whitelist")
                                        if isinstance(e, dict) and isinstance(e.get("name"), str) and e["name"]), key=str.lower)

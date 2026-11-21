@@ -25,7 +25,8 @@
         dependency_of: keyOf(m), for_players: s.client.mods.includes(d.slug) ? d.slug : null })) })),
     players_mods: s.client.mods.slice(),
     held: Object.fromEntries(s.mods.filter((m) => m.pinned).map((m) => [keyOf(m), { version: m.pinned, number: m.version }])),
-    skipped: [], unmanaged: s.mods.filter((m) => m.manual).map((m) => m.filename), disabled: s.disabledJars || [], known_conflicts: [],
+    skipped: [], unmanaged: s.mods.filter((m) => m.manual).map((m) => m.filename), disabled: s.disabledJars || [],
+    helper: s.settings.player_ping && sim.pingHelper(s).ok ? { name: "Craft Conductor Ping", filename: sim.pingHelper(s).jar } : null, known_conflicts: [],
     players_only: (s.playersOnly || []).slice(),
   });
   // Adding a mod: it needs a build for this server's Minecraft and server type, and the mods it

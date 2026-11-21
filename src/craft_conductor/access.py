@@ -223,7 +223,8 @@ SERVER_ROUTES: dict[tuple[str, str], str | tuple[str, ...]] = {
     ("POST", "/api/beta/test"): "updates.apply",
     # settings and the world
     ("GET", "/api/settings"): _SETTINGS_ANY,
-    ("POST", "/api/settings"): _SETTINGS_ANY + ("server.power", "backups.make", "players.op"),   # body_needs
+    # ("mods.manage": for showing players' ping, which adds a helper mod; body_needs checks each setting)
+    ("POST", "/api/settings"): _SETTINGS_ANY + ("server.power", "backups.make", "players.op", "mods.manage"),   # body_needs
     ("GET", "/api/world/tools"): "settings.safe",
     ("POST", "/api/world/rule"): "settings.safe",
     ("POST", "/api/world/border"): "settings.safe",
@@ -361,6 +362,7 @@ MODERATE_ACTIONS = {"kick", "ban", "pardon", "ban-ip", "pardon-ip", "whitelist-a
 # Each setting (web.Api.SETTINGS) -> what changing it needs (all of them).
 SETTING_NEEDS: dict[str, tuple[str, ...]] = {
     "memory": ("runtime.configure",), "aikar_flags": ("runtime.configure",), "find_lag": ("runtime.configure",),
+    "player_ping": ("mods.manage",),   # (it adds a helper mod or plugin to the server)
     "cpu_cores": ("runtime.configure",), "priority": ("runtime.configure",),
     "restart_on_crash": ("server.power",),
     "strategy": ("updates.apply",), "mod_channel": ("updates.apply",), "auto_upgrade": ("updates.apply",),
@@ -384,6 +386,7 @@ PROPERTY_NEEDS: dict[str, tuple[str, ...]] = {
 PROBLEM_NEEDS: dict[str, str] = {
     "dismiss": "server.power", "memory-up": "runtime.configure", "java-auto": "runtime.configure",
     "add-mod": "mods.manage", "remove-mod": "mods.manage", "disable-jar": "mods.manage", "players-only": "mods.manage", "jar-to-players": "mods.manage",
+    "ping-off": "mods.manage",   # (the player_ping setting, which it turns off, needs the same)
 }
 
 

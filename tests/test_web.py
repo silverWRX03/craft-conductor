@@ -288,7 +288,7 @@ def test_web_players_page(running):
 
 
 def test_dashboard_connected_players(running):
-    """The Connected Players card: a light call to poll, roles from ops.json, no ping source."""
+    """The Connected Players card: a light call to poll, roles from ops.json, ping off by default."""
     d, c, cfg = running
     login(c)
     (cfg.server.dir / "server.properties").write_text("max-players=30\nwhite-list=true\n")
@@ -302,7 +302,7 @@ def test_dashboard_connected_players(running):
     assert status == 200 and body["max"] == 30 and body["whitelist_enabled"] and body["running"]
     assert [(p["name"], p["op"], p["op_level"], p["ping_ms"]) for p in body["players"]] == [
         ("Alex", True, 2, None), ("Kit", False, None, None), ("Steve", True, 4, None)]
-    assert body["ping"]["available"] is False and "ping" in body["ping"]["reason"]
+    assert body["ping"] == {"available": False, "reason": "Ping is off for this server.", "can_turn_on": True, "on": False}
     assert "whitelist" not in body                                   # (the names only when the panel is open)
     assert c.get("/api/players/online?whitelist=1")[1]["whitelist"] == ["Sam"]
     for _ in range(3):

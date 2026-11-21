@@ -33,7 +33,10 @@ a = Analysis(
     [str(root / "packaging" / "entry.py")],
     pathex=[str(root / "src")],
     # The web UI's HTML/JS/CSS, loaded with importlib.resources at runtime.
-    datas=[(str(root / "src" / "craft_conductor" / "webui"), "craft_conductor/webui"), *license_files()],
+    datas=[(str(root / "src" / "craft_conductor" / "webui"), "craft_conductor/webui"),
+           # Craft Conductor Ping's jars (built by tools/build_helpers.py), copied into servers.
+           (str(root / "src" / "craft_conductor" / "helpers"), "craft_conductor/helpers"),
+           *license_files()],
     hiddenimports=["craft_conductor.web"]  # imported lazily by the daemon
     + (["craft_conductor._buildkeys"] if (root / "src" / "craft_conductor" / "_buildkeys.py").is_file() else []),  # release builds' CurseForge key
     excludes=["tkinter", "unittest", "pydoc_data", "test"],

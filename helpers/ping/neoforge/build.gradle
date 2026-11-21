@@ -1,0 +1,84 @@
+plugins {
+    id 'net.neoforged.moddev' version '2.0.141'
+}
+
+// The helper's own version (the jars are craft_conductor_ping-neoforge[1.20.5]-<version>.jar).
+version = '1.0.0'
+
+// NeoForge runs Minecraft on Mojang's names from 1.20.2, the names the mod is compiled against, so both
+// jars hold the same classes. Only the metadata differs: NeoForge 20.2 to 20.4 (Minecraft 1.20.2 to
+// 1.20.4) read META-INF/mods.toml, with a display test; from 20.5 (Minecraft 1.20.5) NeoForge reads
+// META-INF/neoforge.mods.toml and has no display test. Each declares the Minecraft versions it runs on
+// (pinghelper.SUPPORT must say the same), and any NeoForge from 20.2 (the classes need nothing newer).
+def minecraftRange = '[1.20.2,1.20.5)'
+def minecraft1205Range = '[1.20.5,)'
+def neoforgeRange = '[20.2,)'
+def lfOnly = [eol: org.apache.tools.ant.filters.FixCrLfFilter.CrLf.newInstance('lf')]
+
+neoForge {
+    enable {
+        // ModDevGradle starts at NeoForge 20.4; what the mod uses of Minecraft and NeoForge
+        // (ServerLifecycleHooks) has the same names and types in 20.2, so the classes are the same.
+        version = '20.4.253'
+        disableRecompilation = true // (only compiled against: no need to decompile Minecraft)
+    }
+}
+
+// ModDevGradle would run its tools for 1.20.4 on a Java 17 it looks for; Java 21 runs them too, so the
+// helpers need only one JDK.
+tasks.named('createMinecraftArtifacts') {
+    toolsJavaExecutable = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(21)
+    }.map { it.executablePath.asFile.absolutePath }
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+    sourceSets.main.java.srcDir '../common/src/main/java'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 17 // (Minecraft 1.20.2 to 1.20.4 run on Java 17)
+    options.encoding = 'UTF-8'
+}
+
+def metadata = { String name, String file, String range ->
+    tasks.register(name, Copy) {
+        inputs.property('version', project.version)
+        inputs.property('minecraft', range)
+        inputs.property('neoforge', neoforgeRange)
+        from('src/main/metadata') { include file }
+        into layout.buildDirectory.dir("metadata/${name}")
+        expand(version: project.version, minecraft: range, neoforge: neoforgeRange)
+        // (the same bytes from a Windows checkout, whose text files may end lines in CRLF)
+        filter(lfOnly, org.apache.tools.ant.filters.FixCrLfFilter)
+    }
+}
+
+def neoforgeMetadata = metadata.call('neoforgeMetadata', 'mods.toml', minecraftRange)
+def neoforge1205Metadata = metadata.call('neoforge1205Metadata', 'neoforge.mods.toml', minecraft1205Range)
+
+jar {
+    archiveBaseName = 'craft_conductor_ping-neoforge'
+    from(neoforgeMetadata) { into 'META-INF' }
+}
+
+def neoforge1205Jar = tasks.register('neoforge1205Jar', Jar) {
+    archiveBaseName = 'craft_conductor_ping-neoforge1.20.5'
+    destinationDirectory = layout.buildDirectory.dir('libs')
+    from sourceSets.main.output.classesDirs
+    from(neoforge1205Metadata) { into 'META-INF' }
+}
+
+tasks.named('assemble') {
+    dependsOn neoforge1205Jar
+}
+
+// Reproducible: the same source gives the same bytes on any computer.
+tasks.withType(AbstractArchiveTask).configureEach {
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+    includeEmptyDirs = false
+    filePermissions { unix('rw-r--r--') }
+    dirPermissions { unix('rwxr-xr-x') }
+}

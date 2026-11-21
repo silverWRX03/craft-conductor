@@ -21,3 +21,7 @@ node_modules/
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+
+# Craft Conductor Ping helper build (the shipped jars live in src/craft_conductor/helpers/)
+helpers/**/.gradle/
+helpers/**/build/

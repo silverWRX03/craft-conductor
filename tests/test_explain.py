@@ -2,6 +2,8 @@
 
 from types import SimpleNamespace
 
+import pytest
+
 from craft_conductor import explain
 
 from test_hub import login
@@ -145,3 +147,103 @@ def test_moving_a_file_of_your_own_to_players_mods(hub_env):
     assert (mods / "controlify-3.5.3.jar").read_bytes() == b"PK" and local_jars(d.m.config) == []
     assert c.post("/api/servers/alpha/client/local/to-server", {"name": "controlify-3.5.3.jar"})[0] == 404
     assert c.post("/api/servers/alpha/client/local/to-server", {"name": "../hub.json"})[0] == 404
+
+
+def test_the_ping_helper_to_blame_offers_stop_showing_ping(tmp_path):
+    """Craft Conductor's own ping helper can't be switched off or moved to players' mods (both are refused
+    for it): when it is the one to blame, the fix is Stop showing ping (#342)."""
+    mods = tmp_path / "mods"
+    mods.mkdir()
+    (mods / "craft_conductor_ping-fabric-1.0.0.jar").write_bytes(b"PK")
+    (mods / "lithium.jar").write_bytes(b"PK")
+    lines = ["java.lang.NoSuchMethodError: foo",
+             "\tat craft_conductor.ping.PingMod.tick(PingMod.java:3) [craft_conductor_ping-fabric-1.0.0.jar:?]",
+             "\tat me.jellysquid.Lithium.x(Lithium.java:3) [lithium.jar:?]"]
+    e = explain.explain(lines, tmp_path, [])
+    assert e["cause"] == "mod", e
+    assert e["actions"] == [{"kind": "ping-off", "filename": "craft_conductor_ping-fabric-1.0.0.jar",
+                             "name": "Craft Conductor Ping", "label": "Stop showing ping"},
+                            {"kind": "disable-jar", "filename": "lithium.jar", "name": "lithium", "label": "Switch lithium off"}]
+    assert "Stop showing ping" in e["words"] and "Removing it" not in e["words"], e["words"]
+    # ... and when it reached for the parts of Minecraft only players have (never: it's the server's own)
+    lines = ["java.lang.NoClassDefFoundError: net/minecraft/client/gui/screens/Screen",
+             "\tat craft_conductor.ping.PingMod.tick(PingMod.java:3) [craft_conductor_ping-fabric-1.0.0.jar:?]"]
+    e = explain.explain(lines, tmp_path, [])
+    assert [a["kind"] for a in e["actions"]] == ["ping-off"], e
+
+
+def test_stop_showing_ping_from_what_went_wrong(hub_env):
+    hub, c = hub_env
+    login(c)
+    d = hub.get("alpha")
+    from craft_conductor import access, config as configmod
+    configmod.set_value(d.m.config.path, "players", "ping", "true")
+    d.m.reload_config()
+    assert d.m.config.player_ping
+    d.problem = {"kind": "start", "cause": "mod", "time": 0,
+                 "actions": [{"kind": "ping-off", "filename": "craft_conductor_ping-fabric-1.0.0.jar",
+                              "name": "Craft Conductor Ping", "label": "Stop showing ping"}]}
+    status, r, _ = c.post("/api/servers/alpha/problem/fix", {"kind": "ping-off"})
+    assert status == 200 and "next start" in r["message"], r
+    assert d.m.config.player_ping is False
+    assert c.get("/api/servers/alpha/status")[1]["problem"]["fixed"]
+    # the same as the setting: it needs mods.manage
+    assert access.PROBLEM_NEEDS["ping-off"] == "mods.manage"
+    assert not access.allows(access.PRESETS["operator"], "POST", "/api/problem/fix", {"kind": "ping-off"})
+
+
+def test_someone_who_may_manage_mods_can_stop_showing_ping(hub_env):
+    """Over HTTP, as an invited person: mods.manage may apply the ping-off fix, status.view alone may not (#342)."""
+    from craft_conductor import config as configmod
+    from test_access import owner_ready
+    from test_remote import invite
+    hub, c = hub_env
+    owner_ready(hub, c)
+    d = hub.get("alpha")
+    configmod.set_value(d.m.config.path, "players", "ping", "true")
+    d.m.reload_config()
+    d.problem = {"kind": "start", "cause": "mod", "time": 0,
+                 "actions": [{"kind": "ping-off", "filename": "craft_conductor_ping-fabric-1.0.0.jar",
+                              "name": "Craft Conductor Ping", "label": "Stop showing ping"}]}
+    viewer, _ = invite(hub, c, "Sam", {"alpha": ["status.view", "server.power"]})
+    assert viewer.post("/api/servers/alpha/problem/fix", {"kind": "ping-off"})[0] == 403
+    assert d.m.config.player_ping is True
+    allowed, _ = invite(hub, c, "Mia", {"alpha": ["status.view", "mods.manage"]})
+    status, r, _ = allowed.post("/api/servers/alpha/problem/fix", {"kind": "ping-off"})
+    assert status == 200 and "next start" in r["message"], r
+    assert d.m.config.player_ping is False
+
+
+# How each loader names a mod that stopped the server, with Craft Conductor's own (real, shipped) helper in
+# the folder: each is the helper, so each offers Stop showing ping (#342).
+HELPER_LINES = [
+    ("fabric", "mods", "net.fabricmc.loader.impl.FormattedException: java.lang.RuntimeException: Could not execute "
+                       "entrypoint stage 'server' due to errors, provided by 'craft_conductor_ping' at "
+                       "'craft_conductor.ping.PingMod'!"),
+    ("neoforge1.20.5", "mods", "\tFailed to create mod instance. ModID: craft_conductor_ping, class "
+                               "craft_conductor.ping.PingNeoForge"),
+    ("forge", "mods", "[main/ERROR] [net.minecraftforge.fml.ModLoader/]: Mod craft_conductor_ping has failed to "
+                      "load correctly"),
+    ("forge1.20.6", "mods", "\tSuspected Mods: Craft Conductor Ping (craft_conductor_ping)"),
+    ("paper", "plugins", "[Server thread/ERROR]: Error occurred while enabling craft_conductor_ping v1.0.0 "
+                         "(Is it up to date?)"),
+    ("paper", "plugins", "[Server thread/ERROR]: Error occurred while enabling CraftConductorPing (Is it up to date?)"),
+]
+
+
+@pytest.mark.parametrize("platform, folder, line", HELPER_LINES)
+def test_the_ping_helper_is_known_by_its_mod_id(tmp_path, platform, folder, line):
+    """Not only from a stack frame naming its file: by the mod id, plugin name or display name it declares,
+    though configs.jars() leaves it out (it has no config files)."""
+    import shutil
+    from craft_conductor import pinghelper
+    jar = next(pinghelper.JARS_DIR.glob(f"craft_conductor_ping-{platform}-*.jar"))
+    (tmp_path / folder).mkdir()
+    shutil.copyfile(jar, tmp_path / folder / jar.name)
+    e = explain.explain(["[Server thread/INFO]: Starting minecraft server", line], tmp_path, [])
+    assert e is not None, line
+    assert e["actions"] == [{"kind": "ping-off", "filename": jar.name, "name": "Craft Conductor Ping",
+                             "label": "Stop showing ping"}], e
+    assert e["title"] == "Craft Conductor Ping stopped the server"
+    from craft_conductor import configs
+    assert jar.name not in [p.name for p in configs.jars(tmp_path)]   # (still no config files of its own)

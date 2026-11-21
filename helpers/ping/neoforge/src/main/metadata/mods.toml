@@ -1,0 +1,30 @@
+# Craft Conductor Ping for NeoForge 20.2 to 20.4 (Minecraft 1.20.2 to 1.20.4), which read this file.
+modLoader="javafml"
+loaderVersion="[1,)"
+license="GPL-3.0-or-later"
+
+[[mods]]
+modId="craft_conductor_ping"
+version="${version}"
+displayName="Craft Conductor Ping"
+authors="Craft Conductor"
+description="Reports each player's ping to Craft Conductor (writes .craft-conductor/ping.json)."
+# Only for the server: a client without it is never shown as missing it, and can join.
+displayTest="IGNORE_ALL_VERSION"
+
+# "mandatory" for NeoForge 20.2, "type" for 20.4 (which reads "mandatory" only when "type" is missing).
+[[dependencies.craft_conductor_ping]]
+modId="neoforge"
+type="required"
+mandatory=true
+versionRange="${neoforge}"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.craft_conductor_ping]]
+modId="minecraft"
+type="required"
+mandatory=true
+versionRange="${minecraft}"
+ordering="NONE"
+side="BOTH"

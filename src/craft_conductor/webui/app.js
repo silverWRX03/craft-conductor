@@ -2202,6 +2202,20 @@ const OP_WORDS = { 1: "can ignore spawn protection", 2: "can use cheat commands 
   3: "can also kick, ban and op players", 4: "can use every command, including /stop" };
 const PING_MARK = { good: "●", fair: "◐", poor: "▲" };  // (a different shape for each, so colour is never the only sign)
 const PING_WORDS = { good: "good connection", fair: "fair connection", poor: "poor connection" };
+// The reasons the server fills in ("needs Minecraft 1.17", "doesn't run on … yet") are matched back to
+// their text with the {placeholder}, so they translate; every other reason is its own text.
+const PING_REASONS = [
+  [/^Craft Conductor's ping helper needs Minecraft (\S+) or newer on this server type\.$/, "Craft Conductor's ping helper needs Minecraft {version} or newer on this server type.", "{version}"],
+  [/^Craft Conductor's ping helper doesn't run on (.+) yet\.$/, "Craft Conductor's ping helper doesn't run on {loader} yet.", "{loader}"],
+];
+function pingReason(text) {
+  for (const [re, key, slot] of PING_REASONS) {
+    const m = re.exec(text);
+    if (m) return t(key).replace(slot, () => m[1]);
+  }
+  return t(text);
+}
+
 function playersCard(con) {
   const viewer = !can("players.moderate");   // look only: the list, none of the buttons
   const canMessage = can("console.execute");   // (Message types a console command)
@@ -2216,6 +2230,24 @@ function playersCard(con) {
   const empty = h("p", { class: "empty" }, "Nobody online right now.");
   const pingWhy = h("p", { class: "small" });
   const pingNote = h("details", { class: "muted small hidden" }, h("summary", {}, "Why no ping?"), pingWhy);
+  // Players' ping: with nobody online the card still says it can be turned on (or off): the helper is
+  // Craft Conductor's own small mod or plugin, put on the server at its next start (pinghelper.py).
+  const pingOn = h("button", { type: "button", class: "btn small hidden", onclick: () => setPing(true) }, "Show players' ping…");
+  const pingOff = h("button", { type: "button", class: "link-btn small hidden", onclick: () => setPing(false) }, "Stop showing ping");
+  const pingSwitch = can("mods.manage") ? h("div", { class: "ping-switch" }, pingOn, pingOff) : null;   // (those who may turn it on or off)
+  const setPing = async (on) => {
+    const question = on
+      ? "Show players' ping?\n\nCraft Conductor adds its own small helper (a mod or plugin that only runs on the server) at the next restart. Players don't install anything."
+      : "Stop showing players' ping?\n\nThe helper is taken off the server at the next restart.";
+    if (!(await ask(question, { ok: on ? "Turn on" : "Stop" }))) return;
+    const r = await act(() => api("/api/settings", { method: "POST", body: { player_ping: on } }), on ? "Ping shows after the next restart." : "Ping stops showing after the next restart.");
+    if (r) poll(true);   // (the button swaps now, not at the next poll)
+  };
+  const showPingSwitch = () => {   // (the buttons stay in place: a focused one isn't rebuilt every poll)
+    const mine = !!info && !!pingSwitch;
+    pingOn.classList.toggle("hidden", !(mine && info.ping.can_turn_on));
+    pingOff.classList.toggle("hidden", !(mine && info.ping.on));
+  };
   const mapLink = h("div");  // the web map, when there is one and it answers (Settings → Web map)
   (can("mods.view") ? api("/api/webmap") : Promise.reject(null)).then((r) => {
     if (r.kind && r.answers) fill(mapLink, h("a", { class: "btn small ghost mt-s", href: hubInfo && hubInfo.local ? r.local_url : r.lan_url || r.local_url,
@@ -2290,7 +2322,7 @@ function playersCard(con) {
     row.ping.className = "ping " + (ms === null ? "none" : p.ping_state);
     if (ms === null) {
       const why = info && !info.ping.available ? info.ping.reason : "";
-      row.ping.title = t(why);
+      row.ping.title = pingReason(why);
       fill(row.ping, "—", h("span", { class: "sr-only" }, why ? t("Ping isn't available.") : t("Ping not read yet.")));
     } else {
       row.ping.title = t(PING_WORDS[p.ping_state]);
@@ -2332,7 +2364,8 @@ function playersCard(con) {
     empty.classList.toggle("hidden", !!names.length);
     const noPing = names.length && info && !info.ping.available;
     pingNote.classList.toggle("hidden", !noPing);
-    if (noPing) pingWhy.textContent = t(info.ping.reason);
+    if (noPing) pingWhy.textContent = pingReason(info.ping.reason);
+    showPingSwitch();
     if (!names.length) selected = null;
   };
 
@@ -2417,11 +2450,13 @@ function playersCard(con) {
   });
 
   let asking = false, askAgain = false;
-  const poll = async () => {
+  let fresh = false;
+  const poll = async (now) => {   // (poll(true): look again even with nobody online, after the ping switch changed)
     const wantNames = panel === "whitelist";
-    if (!names.length && !wantNames) return;   // (nobody to describe: nothing to ask)
+    if (now === true) fresh = true;
+    if (!names.length && !wantNames && info && !fresh) return;   // (nobody to describe: nothing to ask, after the first look)
     if (asking) { askAgain = true; return; }   // (one question at a time; again right after if something changed meanwhile)
-    asking = true;
+    asking = true; fresh = false;
     const r = await api(`/api/players/online${wantNames ? "?whitelist=1" : ""}`).catch(() => null);
     asking = false;
     if (askAgain) { askAgain = false; setTimeout(poll, 0); }
@@ -2438,6 +2473,7 @@ function playersCard(con) {
     sync();
   };
   const el = h("div", { class: "card players-card" }, h("h3", {}, "Connected Players ", count), live, empty, scroll, pingNote,
+    pingSwitch,
     foot, foot ? [wlPanel, bcPanel] : null, mapLink);
   return { el, set, poll };
 }
@@ -3278,6 +3314,12 @@ views.mods = () => {
       versions: m.datapack ? null : versionsFor(m.key, m.source), held: heldLabel(m.key),
       problems: problemsFor(modCheck && modCheck.result, m.key, "server"),
       controls: () => playersButton(m.key),
+    });
+    // Craft Conductor's own ping helper: one row, with no Change version or Remove (the switch on the
+    // Dashboard's Connected Players card puts it in and takes it out), and not counted as one of your mods.
+    if (r.helper) items.push({
+      key: `helper:${r.helper.filename}`, name: r.helper.name, excludedFromCount: true,
+      tags: ["Craft Conductor's own: shows players' ping"], detail: r.helper.filename,
     });
     for (const [name, on] of [...(r.unmanaged || []).map((x) => [x, true]), ...(r.disabled || []).map((x) => [x, false])]) {
       items.push({
@@ -6244,6 +6286,7 @@ const HELP = [
     h("p", {}, "Press ", h("strong", {}, "Start"), " when you want to play. In Minecraft, choose Multiplayer → Add Server and use this computer's address."),
     screenshot("dashboard", "A running server's Dashboard: how busy it is, who's on, and the live console."),
     h("p", {}, "The Dashboard's Connected Players card lists who's on. Press a player for more actions, press Kick to remove them, and use Whitelist and Broadcast under the list to manage who may join and to send a message to everyone online."),
+    h("p", {}, "On Paper, Purpur, Fabric, Quilt, NeoForge and Forge servers, ", h("strong", {}, "Show players' ping…"), " on the card adds each player's ping: Craft Conductor puts its own small helper on the server at the next restart, and players install nothing."),
     h("p", {}, "Something not working? Press ", h("strong", {}, "🩺 Check my setup"), " on the server's Dashboard: it checks the usual causes ",
       "(Java, memory, disk space, the port, the firewall) and says what to do. ", h("strong", {}, "Test from the internet"), " there checks friends outside your home can connect."),
     screenshot("check-my-setup", "Check my setup: each check with what to do, and a button where Craft Conductor can fix it."),

@@ -33,7 +33,7 @@ const step = async (name) => { console.log('STEP ' + name); await lines.next(); 
   assert.match(await card.locator('h3').textContent(), /Connected Players\s+25 \/ 30/);
   assert.equal(await rows.count(), 25);
   const box = await card.boundingBox();
-  assert.ok(box.height < 520, 'the card stays compact with 25 players: ' + box.height);
+  assert.ok(box.height < 570, 'the card stays compact with 25 players (with the ping button under it): ' + box.height);
   const sc = card.locator('.player-scroll');
   assert.ok(await sc.evaluate((el) => el.scrollHeight > el.clientHeight + 50), 'the list scrolls inside the card');
   // (one 44-pixel target high: Modern's name button and Kick are big enough for a finger, and for a mouse)
@@ -51,9 +51,9 @@ const step = async (name) => { console.log('STEP ' + name); await lines.next(); 
   assert.equal(await steve.locator('.pdot').count(), 1);
   assert.match(await steve.locator('.sr-only').first().innerText(), /Online/);
   assert.equal((await steve.locator('.ping').innerText()).startsWith('—'), true);
-  assert.match(await steve.locator('.ping').getAttribute('title'), /doesn't share each player's ping/);
+  assert.match(await steve.locator('.ping').getAttribute('title'), /Ping is off for this server/);
   await card.locator('summary', { hasText: 'Why no ping?' }).click();
-  assert.match(await card.locator('details').innerText(), /doesn't share each player's ping/);
+  assert.match(await card.locator('details').innerText(), /Ping is off for this server/);
   assert.equal(await steve.getByRole('button', { name: 'Kick Steve' }).count(), 1);
 
   // pressing a row opens the other actions; Kick asks first

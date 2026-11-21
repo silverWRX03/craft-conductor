@@ -216,3 +216,51 @@ def test_the_demo_survives_a_visit(catalog):
             assert not demo.unhandled, demo.unhandled
         finally:
             demo.close()
+
+
+@needs_node
+def test_the_demo_shows_players_ping_when_it_is_switched_on(catalog):
+    """A Fabric example server shows ping numbers once Show players' ping… is on (its reasons before, the
+    real texts); Manage Mods lists the helper."""
+    demo = Demo(catalog, "existing")
+    try:
+        sid = "family-survival"
+        card = demo.ask("GET", f"/api/servers/{sid}/players/online")[1]
+        assert card["players"] and card["ping"] == {"available": False, "reason": "Ping is off for this server.",
+                                                    "can_turn_on": True, "on": False}
+        assert demo.ask("GET", f"/api/servers/{sid}/mods")[1]["helper"] is None
+        assert demo.ask("POST", f"/api/servers/{sid}/settings", {"player_ping": True})[0] == 200
+        card = demo.ask("GET", f"/api/servers/{sid}/players/online", advance=3)[1]
+        assert card["ping"] == {"available": True, "reason": "", "can_turn_on": False, "on": True}
+        assert all(isinstance(p["ping_ms"], int) and p["ping_state"] in ("good", "fair", "poor") for p in card["players"])
+        assert demo.ask("GET", f"/api/servers/{sid}/mods")[1]["helper"] == {
+            "name": "Craft Conductor Ping", "filename": "craft_conductor_ping-fabric-1.0.0.jar"}
+        assert not demo.unhandled, demo.unhandled
+    finally:
+        demo.close()
+    demo = Demo(catalog, "new")   # (every server type and version gives what pinghelper says: its reason, or a button and its jar)
+    try:
+        from craft_conductor import pinghelper
+        port = 25565
+        for loader, minecraft in (("vanilla", "1.21.1"), ("paper", "1.16.5"), ("paper", "1.21.1"), ("purpur", "1.17"),
+                                  ("fabric", "1.20.1"), ("fabric", "1.21.1"), ("fabric", "26.1"), ("quilt", "1.20.2"),
+                                  ("neoforge", "1.20.1"), ("neoforge", "1.20.2"), ("neoforge", "1.20.4"), ("neoforge", "1.20.5"),
+                                  ("neoforge", "1.21.1"), ("forge", "1.19.4"), ("forge", "1.20.1"), ("forge", "1.20.2"),
+                                  ("forge", "1.20.5"), ("forge", "1.20.6"), ("forge", "1.21.1"), ("forge", "26.1")):
+            port += 1
+            s, r = demo.ask("POST", "/api/hub/create", {"loader": loader, "minecraft": minecraft, "motd": f"{loader} {minecraft}",
+                                                         "mods": [], "accept_eula": True, "port": port})
+            assert s == 200, r
+            sid = r["id"]
+            reason = pinghelper.unsupported_reason(loader, minecraft)
+            card = demo.ask("GET", f"/api/servers/{sid}/players/online", advance=10)[1]["ping"]
+            if reason:
+                assert card == {"available": False, "reason": reason, "can_turn_on": False, "on": False}, (loader, minecraft)
+                continue
+            assert card == {"available": False, "reason": "Ping is off for this server.", "can_turn_on": True, "on": False}, (loader, minecraft)
+            assert demo.ask("POST", f"/api/servers/{sid}/settings", {"player_ping": True})[0] == 200
+            jar = pinghelper.helper_jar(loader, minecraft)
+            assert demo.ask("GET", f"/api/servers/{sid}/mods")[1]["helper"] == {"name": "Craft Conductor Ping", "filename": jar.name}, (loader, minecraft)
+        assert not demo.unhandled, demo.unhandled
+    finally:
+        demo.close()

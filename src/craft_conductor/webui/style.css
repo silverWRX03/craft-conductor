@@ -250,6 +250,9 @@ button.prow-open[aria-expanded="true"] { background: var(--selected-bg); }
 .ping.fair { color: var(--warn-fg); }
 .ping.poor { color: var(--bad-fg); }
 .ping.none { color: var(--muted); }
+.ping-switch { margin-top: 8px; }   /* (Show players' ping…, or Stop showing ping, under the card's ping note) */
+.ping-switch:not(:has(> :not(.hidden))) { display: none; }
+.ping-switch .link-btn { font-size: 13px; padding: 4px 0; }
 .players-card summary { cursor: pointer; margin-top: 8px; }
 .foot-panel { margin-top: 10px; padding: 10px 12px; background: var(--panel-2); border-radius: var(--radius); }
 .wl-scroll { max-height: 180px; overflow-y: auto; overscroll-behavior: contain; margin-top: 8px; }

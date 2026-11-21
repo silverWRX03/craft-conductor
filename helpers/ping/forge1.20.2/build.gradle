@@ -1,0 +1,222 @@
+plugins {
+    id 'net.neoforged.moddev' version '2.0.141'
+}
+
+// The helper's own version (the jars are craft_conductor_ping-forge1.20.2[/1.20.6]-<version>.jar).
+version = '1.0.0'
+
+// Forge from Minecraft 1.20.2: one compile on Mojang's names, two jars. What the mod uses of Forge (@Mod,
+// ServerLifecycleHooks) and its mods.toml (mandatory, displayTest) are the same from Forge 48 to 66.
+// - forge1.20.2: Forge 48 and 49 (Minecraft 1.20.2 to 1.20.4) still run Minecraft on SRG names, the same
+//   ones on all three versions (ServerPlayer.connection is f_8906_, its latency() m_293018_): the compile
+//   renamed to them (reobfJar below).
+// - forge1.20.6: from Forge 50 (Minecraft 1.20.6; there is no Forge for 1.20.5) Forge runs Minecraft on
+//   Mojang's names, and on 26.x Minecraft isn't obfuscated at all: the compile as it is.
+// Each declares the Minecraft versions it runs on (pinghelper.SUPPORT must say the same) and the Forge
+// they come with.
+def minecraftRange = '[1.20.2,1.20.6)'
+def forgeRange = '[48,)'
+def minecraft1206Range = '[1.20.6,)'
+def forge1206Range = '[50,)'
+def lfOnly = [eol: org.apache.tools.ant.filters.FixCrLfFilter.CrLf.newInstance('lf')]
+
+// ModDevGradle's legacyforge plugin (the forge/ mod's) can't do this: the NeoForm runtime under it uses
+// SRG names only up to Minecraft 1.20.1. So the mod is compiled against plain Minecraft 1.20.2 on Mojang's
+// names (ModDevGradle without a loader) and Forge's own jars for what it uses of Forge, and renamed to SRG
+// with the tools legacyforge itself runs (NeoForged's installertools and AutoRenamingTool), from the
+// mappings Forge 48's installer uses: Forge's MCPConfig for 1.20.2 (obfuscated to SRG) and Mojang's for
+// the 1.20.2 server (Mojang's names to obfuscated, fetched by the SHA-1 Mojang publishes them under).
+def forgeVersion = '1.20.2-48.1.0'
+def mcpConfig = 'de.oceanlabs.mcp:mcp_config:1.20.2-20230921.100330@zip'
+def mojangMappingsSha1 = 'dced504a9b5df367ddd3477adac084cea8024ba4'
+
+// Each repository is the only source of its groups (exclusiveContent): a tampered copy of them on
+// another repository, or one a plugin adds, is never used.
+repositories {
+    exclusiveContent {
+        forRepository {
+            maven { url = 'https://maven.minecraftforge.net/' }
+        }
+        filter {
+            includeGroup 'net.minecraftforge'
+            includeGroup 'de.oceanlabs.mcp'
+        }
+    }
+    exclusiveContent {
+        forRepository {
+            ivy {
+                url = 'https://piston-data.mojang.com/v1/objects/'
+                patternLayout { artifact '[revision]/server.[ext]' }
+                metadataSources { artifact() }
+            }
+        }
+        filter { includeModule 'mojang', 'server-mappings' }
+    }
+}
+
+neoForge {
+    enable {
+        neoFormVersion = '1.20.2-20241215.201144' // (plain Minecraft 1.20.2, on Mojang's names)
+        disableRecompilation = true // (only compiled against: no need to decompile Minecraft)
+    }
+}
+
+// ModDevGradle would run its tools for 1.20.2 on a Java 17 it looks for; Java 21 runs them too, so the
+// helpers need only one JDK.
+def toolJava = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+tasks.named('createMinecraftArtifacts') {
+    toolsJavaExecutable = toolJava.map { it.executablePath.asFile.absolutePath }
+}
+
+configurations {
+    mcpConfigZip { canBeConsumed = false; transitive = false }
+    mojangMappings { canBeConsumed = false; transitive = false }
+    installerTools { canBeConsumed = false; transitive = false }
+    renamingTool { canBeConsumed = false; transitive = false }
+}
+
+dependencies {
+    // (only compiled against: Forge is on the server)
+    compileOnly("net.minecraftforge:javafmllanguage:${forgeVersion}") { transitive = false } // (@Mod)
+    compileOnly("net.minecraftforge:forge:${forgeVersion}:universal") { transitive = false } // (ServerLifecycleHooks)
+    mcpConfigZip mcpConfig
+    mojangMappings "mojang:server-mappings:${mojangMappingsSha1}@txt"
+    installerTools 'net.neoforged.installertools:installertools:3.0.4:fatjar'
+    renamingTool 'net.neoforged:AutoRenamingTool:2.0.4:all'
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+    sourceSets.main.java.srcDir '../common/src/main/java'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 17 // (Minecraft 1.20.2 to 1.20.4 run on Java 17)
+    options.encoding = 'UTF-8'
+}
+
+def mappings = layout.buildDirectory.dir('mappings')
+def obfToSrgFile = mappings.map { it.file('obf-to-srg.tsrg') }
+def namedToSrgMembersFile = mappings.map { it.file('named-to-srg-members.tsrg') }
+def namedToSrgFile = mappings.map { it.file('named-to-srg.tsrg') }
+
+// Runs one of installertools' tasks.
+def installerTool = { String name, Provider<RegularFile> output, List<Object> inputFiles, Closure args ->
+    tasks.register(name, JavaExec) {
+        inputs.files(inputFiles)
+        outputs.file(output)
+        javaLauncher = toolJava
+        classpath = configurations.installerTools
+        mainClass = 'net.neoforged.installertools.ConsoleTool'
+        argumentProviders.add({ args.call() + ['--output', output.get().asFile.absolutePath] } as CommandLineArgumentProvider)
+    }
+}
+def mojang = {
+    def file = configurations.mojangMappings.singleFile
+    def sha1 = java.security.MessageDigest.getInstance('SHA-1').digest(file.bytes).encodeHex().toString()
+    if (sha1 != mojangMappingsSha1) {
+        throw new GradleException("Mojang's 1.20.2 server mappings have SHA-1 ${sha1}, not ${mojangMappingsSha1}")
+    }
+    file.absolutePath
+}
+
+// Obfuscated to SRG names: Forge's MCPConfig for 1.20.2.
+def obfToSrg = installerTool.call('obfToSrgMappings', obfToSrgFile, [configurations.mcpConfigZip]) {
+    ['--task', 'MCP_DATA', '--input', configurations.mcpConfigZip.singleFile.absolutePath, '--key', 'mappings']
+}
+// Mojang's names to SRG for fields and methods (the classes still obfuscated: Mojang's to obfuscated)...
+def namedToSrgMembers = installerTool.call('namedToSrgMembersMappings', namedToSrgMembersFile,
+        [configurations.mojangMappings, obfToSrg]) {
+    ['--task', 'CHAIN_MAPPING', '--left', mojang.call(), '--right', obfToSrgFile.get().asFile.absolutePath,
+     '--fields', '--methods']
+}
+// ... then the classes back to Mojang's names, which Forge keeps for them: Mojang's names to Forge's runtime
+// names, what the mod is renamed with.
+def namedToSrg = installerTool.call('namedToSrgMappings', namedToSrgFile,
+        [configurations.mojangMappings, namedToSrgMembers]) {
+    ['--task', 'CHAIN_MAPPING', '--left', namedToSrgMembersFile.get().asFile.absolutePath, '--right', mojang.call(),
+     '--reverse-right', '--classes']
+}
+
+def metadata = { String name, String minecraft, String forge ->
+    tasks.register(name, Copy) {
+        inputs.property('version', project.version)
+        inputs.property('minecraft', minecraft)
+        inputs.property('forge', forge)
+        from('src/main/metadata') { include 'mods.toml' }
+        into layout.buildDirectory.dir("metadata/${name}")
+        expand(version: project.version, minecraft: minecraft, forge: forge)
+        // (the same bytes from a Windows checkout, whose text files may end lines in CRLF)
+        filter(lfOnly, org.apache.tools.ant.filters.FixCrLfFilter)
+    }
+}
+
+def forgeMetadata = metadata.call('forgeMetadata', minecraftRange, forgeRange)
+def forge1206Metadata = metadata.call('forge1206Metadata', minecraft1206Range, forge1206Range)
+
+// The compiled jar with the forge1.20.2 metadata (Mojang's names) is only the input of reobfJar: kept out
+// of build/libs, where the shipped jars are taken from.
+jar {
+    archiveBaseName = 'craft_conductor_ping-forge1.20.2'
+    destinationDirectory = layout.buildDirectory.dir('devlibs')
+    from(forgeMetadata) { into 'META-INF' }
+}
+
+def reobfJar = tasks.register('reobfJar', JavaExec) {
+    def input = tasks.named('jar').flatMap { it.archiveFile }
+    def output = layout.buildDirectory.file("libs/craft_conductor_ping-forge1.20.2-${project.version}.jar")
+    inputs.files(input, namedToSrg, configurations.compileClasspath)
+    outputs.file(output)
+    javaLauncher = toolJava
+    classpath = configurations.renamingTool
+    mainClass = 'net.neoforged.art.Main'
+    // (as ModDevGradle's own reobfJar: the libraries give it Minecraft's class hierarchy, so a method used
+    // on ServerGamePacketListenerImpl gets the name it has where ServerCommonPacketListenerImpl declares it)
+    argumentProviders.add({
+        ['--input', input.get().asFile.absolutePath, '--output', output.get().asFile.absolutePath,
+         '--names', namedToSrgFile.get().asFile.absolutePath, '--disable-abstract-param'] +
+                configurations.compileClasspath.files.sort { it.absolutePath }.collectMany { ['--lib', it.absolutePath] }
+    } as CommandLineArgumentProvider)
+}
+
+// The tools' own output (ART lists every library) goes to build/tmp/<task>/console.log, not the console.
+// The exit code is checked after the log is closed, so a tool that fails leaves no file open, and says where
+// its output is.
+[obfToSrg, namedToSrgMembers, namedToSrg, reobfJar].each { provider ->
+    provider.configure { task ->
+        def console = layout.buildDirectory.file("tmp/${task.name}/console.log")
+        task.ignoreExitValue = true
+        task.doFirst {
+            def file = console.get().asFile
+            file.parentFile.mkdirs()
+            task.standardOutput = new FileOutputStream(file)
+        }
+        task.doLast {
+            task.standardOutput.close()
+            def exit = task.executionResult.get().exitValue
+            if (exit != 0) {
+                throw new GradleException("${task.name} failed (exit code ${exit}): see ${console.get().asFile}")
+            }
+        }
+    }
+}
+
+def forge1206Jar = tasks.register('forge1206Jar', Jar) {
+    archiveBaseName = 'craft_conductor_ping-forge1.20.6'
+    destinationDirectory = layout.buildDirectory.dir('libs')
+    from sourceSets.main.output.classesDirs
+    from(forge1206Metadata) { into 'META-INF' }
+}
+
+tasks.named('assemble') {
+    dependsOn reobfJar, forge1206Jar
+}
+
+// Reproducible: the same source gives the same bytes on any computer.
+tasks.withType(AbstractArchiveTask).configureEach {
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+    includeEmptyDirs = false
+    filePermissions { unix('rw-r--r--') }
+    dirPermissions { unix('rwxr-xr-x') }
+}

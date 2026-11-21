@@ -595,7 +595,10 @@ def check_folder(folder: Path, *, loader: str, minecraft: str | None, loader_ver
     if loader not in LOADERS or not folder.is_dir():
         return []
     mods, complete = [], True
+    from .pinghelper import is_helper
     for path in sorted(folder.glob("*.jar")):
+        if is_helper(path.name):
+            continue   # (Craft Conductor's own helper: not one of the owner's mods)
         try:
             mods += read_file(path, loader)
         except OSError as e:

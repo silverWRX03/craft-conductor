@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 import time
 
+from . import pinghelper
 from .diagnose import diagnose
 
 # (pattern, id, title, words, action) for problems that aren't one mod's fault
@@ -74,8 +75,12 @@ def explain(lines: list[str], server_dir=None, mods=(), since: float | None = No
     d = diagnose(lines, server_dir, mods, since=since)
     if d.suspects:
         by_file = {m.filename: m for m in mods}
+        for s in d.suspects:
+            if pinghelper.is_helper(s.filename):
+                s.name = pinghelper.NAME
         first = d.suspects[0]
-        players = CLIENT_ONLY.search(text)
+        helper = pinghelper.is_helper(first.filename)
+        players = None if helper else CLIENT_ONLY.search(text)   # (the helper is the server's own, never players')
         if players and first.filename in by_file:  # (players get it instead: Move it to players' mods)
             return {**base, "cause": "players-only", "title": f"{first.name} only runs on players' computers",
                     "words": f"{first.name} reached for parts of Minecraft that only players' computers have, so the server "
@@ -98,12 +103,18 @@ def explain(lines: list[str], server_dir=None, mods=(), since: float | None = No
                                  "label": f"Switch {first.name} off"}]}
         actions = []
         for s in d.suspects[:3]:
+            if pinghelper.is_helper(s.filename):   # (Switch off and Move are refused for it: the ping setting puts it there)
+                if not any(a["kind"] == "ping-off" for a in actions):
+                    actions.append({"kind": "ping-off", "filename": s.filename, "name": s.name, "label": "Stop showing ping"})
+                continue
             managed = s.filename in by_file
             actions.append({"kind": "remove-mod" if managed else "disable-jar", "filename": s.filename, "name": s.name,
                             "label": f"Remove {s.name}" if managed else f"Switch {s.name} off"})
         names = ", ".join(s.name for s in d.suspects[:3])
+        words = (f"{first.name} (Craft Conductor's own helper for players' ping): {first.reason}. Stop showing ping takes "
+                 "it off the server at the next start." if helper else
+                 f"{first.name}: {first.reason}. Removing it (or switching it off) usually gets the server going; "
+                 "check for an update of it later.")
         return {**base, "cause": "mod", "title": f"{names} stopped the server" if len(d.suspects) == 1 else f"These mods look to blame: {names}",
-                "words": f"{first.name}: {first.reason}. Removing it (or switching it off) usually gets the server going; "
-                         "check for an update of it later.",
-                "evidence": first.evidence[:300], "actions": [a for a in actions if a["filename"]]}
+                "words": words, "evidence": first.evidence[:300], "actions": [a for a in actions if a["filename"]]}
     return None
