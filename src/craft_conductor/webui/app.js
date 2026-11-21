@@ -8286,7 +8286,7 @@ const OUTSIDE_TEXT = {
 // `changed`: after Use Tailscale or Stop, the dialog around it reloads (its pairing addresses change too).
 function outsideChooser(strong, changed = null) {
   const box = h("div", { class: "outside" });
-  let ts = null, cf = null, funnelAllowed = false, pick = null, polls = 0, pollTimer = null;
+  let ts = null, cf = null, funnelAllowed = false, pick = null, polls = 0, pollTimer = null, endTimer = null;
   const out = h("div", { class: "mt-s" });
   const load = async () => {
     const [p, c] = await Promise.all([api("/api/hub/phone?tailscale=1").catch(() => null), api("/api/hub/cloudflare").catch(() => null)]);
@@ -8298,6 +8298,9 @@ function outsideChooser(strong, changed = null) {
     clearTimeout(pollTimer);
     // (while cloudflared downloads, or the tunnel opens: a few times, then it stops asking)
     if (cf && (cf.download.state === "downloading" || cf.starting) && polls++ < 150 && box.isConnected) pollTimer = setTimeout(load, 2000);
+    // (and once more just after the tunnel's end: it closes by itself then, and this says so, #323)
+    clearTimeout(endTimer);
+    if (cf && cf.running && cf.ends && box.isConnected) endTimer = setTimeout(() => { if (box.isConnected) load(); }, Math.max(0, cf.ends * 1000 - Date.now()) + 5000);
   };
   const tailscaleUse = async (funnel) => {
     if (funnel && !(await ask("Put the control panel on the internet with Tailscale Funnel?\n\nAnyone who finds the address can reach the sign-in page, and Tailscale can't tell your own devices from strangers there.", { ok: "Put it on the internet", danger: true, safe: true }))) return;
@@ -8381,7 +8384,9 @@ function outsideChooser(strong, changed = null) {
         : h("div", {}, dl.state === "error" ? h("div", { class: "notice bad small" }, dl.error) : null,
           h("button", { class: "btn small", onclick: cfDownload }, "Download cloudflared"));
     } else {
+      const closed = cf.closed ? new Date(cf.closed * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
       action = h("div", {}, cf.error ? h("div", { class: "notice bad small" }, cf.error) : null,
+        closed ? h("div", { class: "notice small", role: "status" }, `Closed at ${closed} after ${cf.hours} hours: the control panel is off the internet again.`) : null,
         h("button", { class: "btn primary small", disabled: !strong, onclick: cfStart }, `Open to the internet for ${cf.hours} hours`));
     }
     return h("div", {}, h("p", { class: "small" }, "Downsides:"), downsides, about, action, out);
