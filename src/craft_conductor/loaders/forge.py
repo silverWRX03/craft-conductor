@@ -43,6 +43,9 @@ INCOMPLETE_LIST = 50
 # What a NeoForge version looks like (21.1.77, 26.3.0.33-beta). Versions go into download
 # addresses and file paths, so anything else in its lists is ignored.
 _VERSION = re.compile(r"\d{1,4}(?:\.\d{1,6}){1,4}(?:-[0-9A-Za-z.]{1,20})?")
+# What a Forge build looks like (49.0.2, 10.12.2.1149-prerelease; every one Forge's site lists). It
+# goes into the download address and into file names, so nothing else is installed.
+_FORGE_BUILD = re.compile(r"\d[0-9A-Za-z.+-]{0,30}")
 
 
 def neoforge_prefix(minecraft: str) -> str:
@@ -125,6 +128,8 @@ class ForgeLoader(Loader):
         return self._safe_latest(fetch)
 
     def install(self, minecraft: str, version: str, dest: Path, java: str) -> Runtime:
+        if not _FORGE_BUILD.fullmatch(version):
+            raise LoaderError(f"{version!r} isn't a Forge version (one looks like 49.0.2)")
         full = f"{minecraft}-{version}"
         jar = dest / "forge-installer.jar"
         self.http.download(f"{FORGE_MAVEN}/{full}/forge-{full}-installer.jar", jar)
