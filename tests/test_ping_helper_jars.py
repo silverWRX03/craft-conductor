@@ -115,3 +115,36 @@ def test_the_two_neoforge_jars_hold_the_same_classes():
     _, _, old = _neoforge_mod("craft_conductor_ping-neoforge-*.jar", "META-INF/mods.toml")
     _, _, new = _neoforge_mod("craft_conductor_ping-neoforge1.20.5-*.jar", "META-INF/neoforge.mods.toml")
     assert old == new
+
+
+def test_the_forge_helper_is_shipped():
+    """Forge 1.20.1 (Forge 47): META-INF/mods.toml, and the classes reobfuscated to the names Forge runs
+    Minecraft on there (SRG: f_8943_ for ServerPlayer.latency), not Mojang's."""
+    import re
+    import tomllib
+    with zipfile.ZipFile(_one("craft_conductor_ping-forge-*.jar")) as z:
+        names = z.namelist()
+        toml = tomllib.loads(z.read("META-INF/mods.toml").decode("utf-8"))
+        classes = {n: z.read(n) for n in names if n.endswith(".class")}
+    assert _only_ours(names) == []
+    assert [n for n in names if n.endswith(("mods.toml", ".json", ".yml"))] == ["META-INF/mods.toml"]
+    assert sorted(classes) == ["craft_conductor/ping/PingFile.class", "craft_conductor/ping/PingForge.class"]
+    assert toml["modLoader"] == "javafml" and toml["loaderVersion"] == "[47,)"
+    [mod] = toml["mods"]
+    assert mod["modId"] == "craft_conductor_ping"
+    assert mod["displayTest"] == "IGNORE_ALL_VERSION"               # (a client without it is never told it's missing)
+    deps = {d["modId"]: d for d in toml["dependencies"]["craft_conductor_ping"]}
+    assert set(deps) == {"minecraft", "forge"}                    # (it pulls in no other mod)
+    assert all(d["mandatory"] is True for d in deps.values())     # (Forge 47 reads "mandatory")
+    assert deps["minecraft"]["versionRange"] == "[1.20.1,1.20.2)"
+    assert deps["forge"]["versionRange"] == "[47,)"               # (any Forge for 1.20.1 a modpack may pin)
+    code = b"".join(classes.values())
+    # Not required on clients: no network channel.
+    assert b"net/minecraftforge/network" not in code and b"SimpleChannel" not in code
+    # SRG names for Minecraft's fields and methods (Forge 1.20.1 runs on them), Mojang's for its classes.
+    assert b"net/minecraft/server/level/ServerPlayer" in code and b"net/minecraft/class_" not in code
+    assert b"f_8943_" in code and re.search(rb"m_\d+_", code)
+    for mojang in (b"latency", b"getPlayerList", b"getPlayers", b"getScoreboardName"):
+        assert mojang not in code, mojang
+    assert b"net/minecraftforge/server/ServerLifecycleHooks" in code
+    assert all(int.from_bytes(c[6:8], "big") == 61 for c in classes.values())   # (Java 17, as 1.20.1 runs on)

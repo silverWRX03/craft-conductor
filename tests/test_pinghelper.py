@@ -21,7 +21,7 @@ def fake_jars(tmp_path, monkeypatch):
     """A helpers folder with a fake jar for each platform (the shipped ones are only read in test_support)."""
     folder = tmp_path / "helpers"
     folder.mkdir()
-    for platform in ("paper", "fabric", "fabric26", "neoforge", "neoforge1.20.5"):
+    for platform in ("paper", "fabric", "fabric26", "neoforge", "neoforge1.20.5", "forge"):
         (folder / f"craft_conductor_ping-{platform}-1.0.0.jar").write_bytes(f"fake {platform}".encode())
     monkeypatch.setattr(pinghelper, "JARS_DIR", folder)
     return folder
@@ -43,11 +43,14 @@ def test_support():
     assert helper_jar("neoforge", "1.20.5").name == "craft_conductor_ping-neoforge1.20.5-1.0.0.jar"
     assert helper_jar("neoforge", "1.21.1").name == "craft_conductor_ping-neoforge1.20.5-1.0.0.jar"
     assert helper_jar("neoforge", "26.1").name == "craft_conductor_ping-neoforge1.20.5-1.0.0.jar"
+    # Forge 1.20.1 (Forge 47), which runs on its own (SRG) names
+    assert helper_jar("forge", "1.20.1").name == "craft_conductor_ping-forge-1.0.0.jar"
     for loader, version in (("fabric", "1.20.2-rc1"), ("fabric", "1.20.2-pre1"), ("fabric", "26-rc1"),
                             ("paper", "1.17-pre1"), ("fabric", "24w14a"), ("fabric", "latest"),
                             ("fabric", "1.20.1"), ("fabric", "1.19.4"), ("paper", "1.16.5"),
                             ("vanilla", "1.21.1"), ("neoforge", "1.20.1"), ("neoforge", "1.20.5-rc1"),
-                            ("forge", "1.20.1")):
+                            ("forge", "1.19.2"), ("forge", "1.20"), ("forge", "1.20.1-rc1"), ("forge", "1.20.2"),
+                            ("forge", "1.21.1")):
         assert helper_jar(loader, version) is None
         assert unsupported_reason(loader, version)
     assert unsupported_reason("paper", "1.21.1") is None and unsupported_reason("fabric", "26.1") is None
@@ -57,7 +60,10 @@ def test_support():
     assert unsupported_reason("vanilla", "1.21.1") == VANILLA
     assert unsupported_reason("neoforge", "1.21.1") is None and unsupported_reason("neoforge", "1.20.2") is None
     assert unsupported_reason("neoforge", "1.20.1") == "Craft Conductor's ping helper needs Minecraft 1.20.2 or newer on this server type."
-    assert unsupported_reason("forge", "1.20.1") == "Craft Conductor's ping helper doesn't run on forge yet."
+    assert unsupported_reason("forge", "1.20.1") is None
+    assert unsupported_reason("forge", "1.19.2") == "Craft Conductor's ping helper needs Minecraft 1.20.1 or newer on this server type."
+    # (newer Forge has no jar yet: not "too old")
+    assert unsupported_reason("forge", "1.21.1") == "Craft Conductor's ping helper doesn't run on forge yet."
     assert is_helper("craft_conductor_ping-fabric-1.0.0.jar") and is_helper("craft_conductor_ping-paper-2.1.jar.disabled")
     assert not is_helper("sodium.jar") and not is_helper("craft_conductor_ping-fabric-1.0.0.zip")
 
@@ -148,6 +154,32 @@ def test_sync_swaps_the_neoforge_jar_across_1_20_5(make_config, http, fake_jars)
     m.lock.minecraft = "1.20.1"                              # (below NeoForge's floor: none)
     pinghelper.sync(m)
     assert helpers() == []
+
+
+def test_sync_swaps_between_forge_and_neoforge(make_config, http, fake_jars):
+    """A server switched from Forge to NeoForge (or to a Minecraft the Forge jar doesn't run on) gets the
+    right jar, never two: Forge's jar on NeoForge (or the other way) would stop the start."""
+    m = manager(make_config(), http, ["1.21.1"])
+    assert update(m).ok
+    m.config.player_ping = True
+    helpers = lambda: sorted(p.name for p in m.mods_dir.iterdir() if is_helper(p.name))  # noqa: E731
+    m.lock.loader, m.lock.minecraft = "forge", "1.20.1"
+    pinghelper.sync(m)
+    assert helpers() == ["craft_conductor_ping-forge-1.0.0.jar"]
+    assert (m.mods_dir / "craft_conductor_ping-forge-1.0.0.jar").read_bytes() == b"fake forge"
+    m.lock.loader, m.lock.minecraft = "neoforge", "1.20.2"
+    pinghelper.sync(m)
+    assert helpers() == ["craft_conductor_ping-neoforge-1.0.0.jar"]
+    m.lock.loader, m.lock.minecraft = "forge", "1.20.1"
+    pinghelper.sync(m)
+    assert helpers() == ["craft_conductor_ping-forge-1.0.0.jar"]
+    for minecraft in ("1.20.2", "1.19.2"):                   # (no Forge jar for these: none)
+        m.lock.minecraft = minecraft
+        pinghelper.sync(m)
+        assert helpers() == []
+        m.lock.minecraft = "1.20.1"
+        pinghelper.sync(m)
+        assert helpers() == ["craft_conductor_ping-forge-1.0.0.jar"]
 
 
 def test_sync_never_stops_a_start(make_config, http, fake_jars, monkeypatch):
@@ -374,7 +406,7 @@ def test_support_matches_the_ranges_the_jars_declare():
             if platform == "paper":
                 yml = z.read("plugin.yml").decode("utf-8").splitlines()
                 assert f'api-version: "{lowest}"' in yml and below is None
-            elif platform.startswith("neoforge"):
+            elif platform.startswith(("neoforge", "forge")):
                 import tomllib
                 toml = "META-INF/mods.toml" if "META-INF/mods.toml" in z.namelist() else "META-INF/neoforge.mods.toml"
                 deps = tomllib.loads(z.read(toml).decode("utf-8"))["dependencies"]["craft_conductor_ping"]

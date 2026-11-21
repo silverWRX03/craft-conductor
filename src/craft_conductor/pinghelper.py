@@ -41,13 +41,14 @@ JARS_DIR = Path(__file__).parent / "helpers"
 #: Which helper jar runs where: (loaders, lowest Minecraft inclusive, below this Minecraft or None,
 #: the jar's platform: ``craft_conductor_ping-<platform>-<version>.jar``). Fabric has two jars, since
 #: Minecraft 26 changed the names the mod uses; NeoForge has two, since from 1.20.5 it reads another
-#: metadata file (neoforge.mods.toml for mods.toml).
+#: metadata file (neoforge.mods.toml for mods.toml); Forge 1.20.1 has its own, on Forge's own (SRG) names.
 SUPPORT: list[tuple[tuple[str, ...], str, str | None, str]] = [
     (("paper", "purpur"), "1.17", None, "paper"),
     (("fabric", "quilt"), "1.20.2", "26", "fabric"),
     (("fabric", "quilt"), "26", None, "fabric26"),
     (("neoforge",), "1.20.2", "1.20.5", "neoforge"),
     (("neoforge",), "1.20.5", None, "neoforge1.20.5"),
+    (("forge",), "1.20.1", "1.20.2", "forge"),
 ]
 
 VANILLA_REASON = "Minecraft doesn't share each player's ping without a mod or plugin, and plain Minecraft runs neither."
@@ -92,10 +93,11 @@ def unsupported_reason(loader: str, minecraft: str) -> str | None:
         return None
     if loader == "vanilla":
         return VANILLA_REASON
-    lowest = [r[1] for r in SUPPORT if loader in r[0]]
-    if not lowest:
+    lowest = min((r[1] for r in SUPPORT if loader in r[0]), key=_version_key, default=None)
+    key = _key(minecraft)
+    if lowest is None or (key is not None and key > _version_key(lowest)):   # (none yet for this one)
         return NOT_YET_REASON.format(loader=loader or "this server type")
-    return TOO_OLD_REASON.format(version=min(lowest, key=_version_key))
+    return TOO_OLD_REASON.format(version=lowest)
 
 
 def is_helper(filename: str) -> bool:

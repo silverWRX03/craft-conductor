@@ -1,8 +1,8 @@
-"""Craft Conductor Ping on real Fabric, Quilt, NeoForge and Paper servers (roadmap 47).
+"""Craft Conductor Ping on real Fabric, Quilt, NeoForge, Forge and Paper servers (roadmap 47).
 
 Optional: skipped unless CRAFT_REAL_SERVERS=1 and CRAFT_MINEFLAYER is the path to the mineflayer
 package (``.../node_modules/mineflayer``), with ``node`` on PATH. Each version downloads Minecraft,
-Fabric (Quilt, NeoForge, Paper) and, where this computer has no fitting Java, Temurin into pytest's
+Fabric (Quilt, NeoForge, Forge, Paper) and, where this computer has no fitting Java, Temurin into pytest's
 temporary folders, so a run takes several minutes and needs the internet.
 
 For each server type and Minecraft version: a server made through Craft Conductor's own setup and
@@ -11,7 +11,11 @@ Manager (``online-mode=false``, only in these throwaway servers, so the bot can 
 helper jar into the mods (or plugins) folder itself (pinghelper.sync); a mineflayer bot joins, and ``.craft-conductor/ping.json``
 must list the bot with a whole number within 20 seconds, and the server's log must hold the helper's
 start line and nothing else from it. The bot is a plain Minecraft client, so its joining also shows
-that players need nothing installed (NeoForge turns away a client missing a mod it needs).
+that players need nothing installed (NeoForge and Forge turn away a client missing a mod they need).
+On Forge 1.20.1 the bot answers the server's keep-alives late, so its ping must come out above 0: the
+value is the player's latency, which only those answers set (a local bot otherwise shows 0); and every
+Minecraft field and method the helper uses must be in the server's Minecraft jar on Forge's own (SRG)
+names, the ones Forge 1.20.1 runs it on.
 mineflayer speaks Minecraft up to 26.1: on a newer version the bot can't join, so the test checks
 that the helper loads and writes the file, and that every Minecraft field and method the helper uses
 is in that version's (unobfuscated) server jar (for NeoForge, the one it patched).
@@ -52,13 +56,25 @@ SERVERS = [("fabric", v) for v in ("1.20.2", "1.20.4", "1.21.1", "1.21.11", "26.
 # metadata differently), 1.21.1, the last 1.x, 26.1 (Minecraft without obfuscation) and the newest.
 NEOFORGE = [("neoforge", v) for v in ("1.20.2", "1.20.4", "1.20.6", "1.21.1", "1.21.11", "26.1", "26.3")]
 
+# Forge 1.20.1: the build Craft Conductor installs (Forge's recommended one), and older 47.x builds a
+# modpack may pin (a pack's server runs the pack's Forge): 47.1.0, the first recommended, and 47.0.0.
+FORGE = [("1.20.1", None), ("1.20.1", "47.1.0"), ("1.20.1", "47.0.0")]
+KEEPALIVE_DELAY_MS = 400   # (how late the bot answers Forge's keep-alives)
+
 BOT = r"""
-// node bot.js <mineflayer> <port> <version> <name>: joins 127.0.0.1 in offline mode and stays.
-const [mineflayerPath, port, version, username] = process.argv.slice(2);
+// node bot.js <mineflayer> <port> <version> <name> [delay]: joins 127.0.0.1 in offline mode and stays;
+// with a delay (ms), it answers the server's keep-alives that late (so its ping isn't 0).
+const [mineflayerPath, port, version, username, delay] = process.argv.slice(2);
 const mineflayer = require(mineflayerPath);
 const minecraftData = require(require.resolve('minecraft-data', { paths: [mineflayerPath] }));
 if (!minecraftData(version)) { console.log('unsupported', version); process.exit(3); }
-const bot = mineflayer.createBot({ host: '127.0.0.1', port: +port, username, auth: 'offline', version });
+const bot = mineflayer.createBot({ host: '127.0.0.1', port: +port, username, auth: 'offline', version,
+                                   keepAlive: !delay });
+if (delay) {
+  bot._client.on('keep_alive', (packet) => setTimeout(() => {
+    bot._client.write('keep_alive', { keepAliveId: packet.keepAliveId });
+  }, +delay));
+}
 bot.once('spawn', () => console.log('spawned'));
 bot.on('kicked', (reason) => console.log('kicked', JSON.stringify(reason).slice(0, 300)));
 bot.on('error', (e) => console.log('error', e.message));
@@ -137,8 +153,9 @@ def _only_the_start_line(server_dir: Path) -> str:
 
 
 def _minecraft_jar(server_dir: Path, loader: str, minecraft: str) -> Path | None:
-    """The jar holding the Minecraft classes the server runs (for NeoForge, the one it patched)."""
-    if loader != "neoforge":
+    """The jar holding the Minecraft classes the server runs (for NeoForge, the one it patched; for
+    Forge 1.20.1, the one on Forge's own names)."""
+    if loader not in ("neoforge", "forge"):
         return server_dir / "versions" / minecraft / f"server-{minecraft}.jar"
     for jar in sorted((server_dir / "libraries").rglob("*.jar")):
         with zipfile.ZipFile(jar) as z:
@@ -197,12 +214,18 @@ def test_neoforge_ping_on_real_servers(loader, minecraft, tmp_path, real_java):
     _ping_on_a_real_server(loader, minecraft, tmp_path)
 
 
+@pytest.mark.parametrize("minecraft, forge", FORGE)
+def test_forge_ping_on_real_servers(minecraft, forge, tmp_path, real_java):
+    _ping_on_a_real_server("forge", minecraft, tmp_path, loader_version=forge, keepalive_delay=KEEPALIVE_DELAY_MS)
+
+
 def test_paper_ping_on_a_real_server(tmp_path, real_java):
     """The Paper plugin, since it shares the file writing (common/PingFile) with the Fabric mod."""
     _ping_on_a_real_server("paper", "1.21.1", tmp_path)
 
 
-def _ping_on_a_real_server(loader: str, minecraft: str, tmp_path: Path) -> None:
+def _ping_on_a_real_server(loader: str, minecraft: str, tmp_path: Path, loader_version: str | None = None,
+                           keepalive_delay: int = 0) -> None:
     root = tmp_path / "server"
     port = _free_port()
     spec = setupmod.SetupSpec(loader=loader, minecraft=minecraft, accept_eula=True, port=port, memory_gb=2,
@@ -210,6 +233,8 @@ def _ping_on_a_real_server(loader: str, minecraft: str, tmp_path: Path) -> None:
     setupmod.configure(root, spec)
     with open(root / "craft-conductor.toml", "a", encoding="utf-8") as f:
         f.write("\n[players]\nping = true\n")       # (Craft Conductor puts the helper in at the start)
+    if loader_version:
+        configmod.hold_loader(root / "craft-conductor.toml", loader_version)   # (as a modpack pins its build)
     cfg = configmod.load(root)
     assert cfg.player_ping
     m = Manager(cfg, http=HttpClient(), echo=False)
@@ -218,6 +243,8 @@ def _ping_on_a_real_server(loader: str, minecraft: str, tmp_path: Path) -> None:
     result = m.apply(decision.plan, verify=False, make_backup=False)
     assert result.ok, result.message
     assert m.lock.minecraft == minecraft
+    if loader_version:
+        assert m.lock.loader_version == loader_version
 
     jar = pinghelper.helper_jar(loader, minecraft)      # (the shipped jar for this server)
     assert jar is not None, (loader, minecraft)
@@ -232,7 +259,8 @@ def _ping_on_a_real_server(loader: str, minecraft: str, tmp_path: Path) -> None:
         log = "\n".join(proc.tail(500))
         assert START in log, log[-3000:]
         (tmp_path / "bot.js").write_text(BOT, encoding="utf-8")
-        bot = subprocess.Popen(["node", str(tmp_path / "bot.js"), MINEFLAYER, str(port), minecraft, BOT_NAME],
+        bot = subprocess.Popen(["node", str(tmp_path / "bot.js"), MINEFLAYER, str(port), minecraft, BOT_NAME]
+                               + ([str(keepalive_delay)] if keepalive_delay else []),
                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         try:
             bot_unsupported = bot.wait(timeout=5) == 3
@@ -258,7 +286,19 @@ def _ping_on_a_real_server(loader: str, minecraft: str, tmp_path: Path) -> None:
         warnings = [line for line in proc.tail(500) if "Craft Conductor Ping: can't write" in line]
         assert warnings == []
         _wait_for(lambda: (_read_ping(ping) or {}).get("time", 0) > seen["time"], 12)   # (another write)
-        print(f"\n{loader} {minecraft}: {seen}\n  {_only_the_start_line(m.server_dir)}")
+        if keepalive_delay:
+            # (the server sends a keep-alive every 15 s; each late answer moves the latency a quarter of the way)
+            late = _wait_for(lambda: (_read_ping(ping) or {}).get("players", {}).get(BOT_NAME, 0) > 0
+                             and _read_ping(ping), 45)
+            assert late, f"{BOT_NAME}'s ping stayed 0 although it answers keep-alives {keepalive_delay} ms late"
+            assert 0 < late["players"][BOT_NAME] <= keepalive_delay + 100, late
+            seen = late
+        if loader == "forge":                            # (the helper's SRG names are the server's)
+            server_jar = _minecraft_jar(m.server_dir, loader, minecraft)
+            assert server_jar is not None and server_jar.is_file(), server_jar
+            assert _missing_in(server_jar, jar) == []
+            print(f"\n  every Minecraft member the helper uses is in {server_jar.name}")
+        print(f"\n{loader} {minecraft} {m.lock.loader_version}: {seen}\n  {_only_the_start_line(m.server_dir)}")
     finally:
         if bot is not None and bot.poll() is None:
             bot.kill()

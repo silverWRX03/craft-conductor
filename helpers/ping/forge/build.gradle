@@ -1,0 +1,72 @@
+plugins {
+    id 'net.neoforged.moddev.legacyforge' version '2.0.141'
+}
+
+// The helper's own version (the jar is craft_conductor_ping-forge-<version>.jar).
+version = '1.0.0'
+
+// Forge 1.20.1 runs Minecraft on its own names for fields and methods (SRG: ServerPlayer.latency is
+// f_8943_), not Mojang's, the names the mod is compiled against: the shipped jar is the compiled one
+// reobfuscated to them (ModDevGradle's reobfJar). It declares Minecraft 1.20.1 only (pinghelper.SUPPORT
+// must say the same) and any Forge 47, the Forge for 1.20.1 (a modpack may pin any 47.x build).
+def minecraftRange = '[1.20.1,1.20.2)'
+def forgeRange = '[47,)'
+def lfOnly = [eol: org.apache.tools.ant.filters.FixCrLfFilter.CrLf.newInstance('lf')]
+
+legacyForge {
+    enable {
+        forgeVersion = '1.20.1-47.1.3'
+        disableRecompilation = true // (only compiled against: no need to decompile Minecraft)
+    }
+}
+
+// ModDevGradle would run its tools for 1.20.1 on a Java 17 it looks for; Java 21 runs them too, so the
+// helpers need only one JDK.
+tasks.named('createMinecraftArtifacts') {
+    toolsJavaExecutable = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(21)
+    }.map { it.executablePath.asFile.absolutePath }
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+    sourceSets.main.java.srcDir '../common/src/main/java'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 17 // (Minecraft 1.20.1 runs on Java 17)
+    options.encoding = 'UTF-8'
+}
+
+def forgeMetadata = tasks.register('forgeMetadata', Copy) {
+    inputs.property('version', project.version)
+    inputs.property('minecraft', minecraftRange)
+    inputs.property('forge', forgeRange)
+    from('src/main/metadata') { include 'mods.toml' }
+    into layout.buildDirectory.dir('metadata/forge')
+    expand(version: project.version, minecraft: minecraftRange, forge: forgeRange)
+    // (the same bytes from a Windows checkout, whose text files may end lines in CRLF)
+    filter(lfOnly, org.apache.tools.ant.filters.FixCrLfFilter)
+}
+
+// The compiled jar (Mojang's names) is only the input of reobfJar: kept out of build/libs, where the
+// shipped jars are taken from.
+jar {
+    archiveBaseName = 'craft_conductor_ping-forge'
+    destinationDirectory = layout.buildDirectory.dir('devlibs')
+    from(forgeMetadata) { into 'META-INF' }
+}
+
+tasks.named('reobfJar') {
+    archiveBaseName = 'craft_conductor_ping-forge'
+    destinationDirectory = layout.buildDirectory.dir('libs')
+}
+
+// Reproducible: the same source gives the same bytes on any computer.
+tasks.withType(AbstractArchiveTask).configureEach {
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+    includeEmptyDirs = false
+    filePermissions { unix('rw-r--r--') }
+    dirPermissions { unix('rwxr-xr-x') }
+}
