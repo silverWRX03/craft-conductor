@@ -268,3 +268,41 @@ def test_roster_reasons(hub_env, fake_jars):
     alpha.m.lock.loader = "vanilla"                            # (switched to vanilla: it says why)
     gone = c.get("/api/servers/alpha/players/online")[1]["ping"]
     assert gone["reason"] == VANILLA and not gone["can_turn_on"] and gone["on"] and not gone["available"]
+
+
+def test_turning_ping_on_needs_mods_manage(hub_env):
+    from test_access import owner_ready
+    from test_remote import invite
+    hub, c = hub_env
+    owner_ready(hub, c)
+    alpha = hub.get("alpha")
+    base = "/api/servers/alpha"
+    assert c.get(base + "/settings")[1]["player_ping"] is False
+    person, _ = invite(hub, c, "Sam", {"alpha": ["status.view", "settings.safe"]})
+    assert person.post(base + "/settings", {"player_ping": True})[0] == 403
+    assert alpha.m.config.player_ping is False
+    assert "\nping = true" not in alpha.m.config.path.read_text()
+    # (the page sends the whole form: ping unchanged needs nothing)
+    assert person.post(base + "/settings", {"player_ping": False, "check_interval": "12h"})[0] == 200
+    assert c.post(base + "/settings", {"player_ping": True})[0] == 200
+    assert alpha.m.config.player_ping is True
+    assert "\nping = true" in alpha.m.config.path.read_text()
+    assert c.get(base + "/settings")[1]["player_ping"] is True
+    allowed, _ = invite(hub, c, "Mia", {"alpha": ["status.view", "mods.manage"]})
+    assert allowed.post(base + "/settings", {"memory": "12G"})[0] == 403      # (mods.manage is for ping only)
+    assert allowed.post(base + "/settings", {"player_ping": False})[0] == 200
+    assert alpha.m.config.player_ping is False
+    assert c.post(base + "/settings", {"player_ping": "yes"})[0] == 400
+
+
+def test_manage_mods_lists_the_helper_on_its_own(hub_env):
+    from test_hub import login
+    hub, c = hub_env
+    login(c)
+    alpha = hub.get("alpha")
+    assert c.get("/api/servers/alpha/mods")[1]["helper"] is None
+    alpha.m.mods_dir.mkdir(parents=True, exist_ok=True)
+    (alpha.m.mods_dir / "craft_conductor_ping-fabric-1.0.0.jar").write_bytes(b"fake")
+    body = c.get("/api/servers/alpha/mods")[1]
+    assert body["helper"] == {"name": "Craft Conductor Ping", "filename": "craft_conductor_ping-fabric-1.0.0.jar"}
+    assert "craft_conductor_ping-fabric-1.0.0.jar" not in body["unmanaged"]

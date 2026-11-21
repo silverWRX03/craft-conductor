@@ -33,6 +33,7 @@ FRESH_SECONDS = 15         # a reading older than this counts as no reading
 MAX_MS = 60000             # a ping above this is nonsense
 MAX_NAME = 32              # characters in a name (Minecraft's are 16; a Floodgate prefix adds one)
 PREFIX = "craft_conductor_ping-"
+NAME = "Craft Conductor Ping"   # (as Manage Mods names it)
 #: where the shipped jars are (a seam for tests)
 JARS_DIR = Path(__file__).parent / "helpers"
 
@@ -95,6 +96,16 @@ def unsupported_reason(loader: str, minecraft: str) -> str | None:
 def is_helper(filename: str) -> bool:
     """Whether a file in the mods folder is Craft Conductor's own helper (any version, on or off)."""
     return filename.startswith(PREFIX) and filename.endswith((".jar", ".jar.disabled"))
+
+
+def in_folder(mods_dir: Path) -> dict | None:
+    """The helper's file in the mods (or plugins) folder, for Manage Mods: ``{"name", "filename"}``, or None."""
+    try:
+        found = sorted(p.name for p in mods_dir.iterdir() if is_helper(p.name) and p.is_file())
+    except OSError:
+        return None
+    found.sort(key=lambda n: n.endswith(".disabled"))   # (a file that is on first)
+    return {"name": NAME, "filename": found[0]} if found else None
 
 
 def _target(m, lock=None) -> tuple[str, str]:

@@ -38,7 +38,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Any, Callable
 
-from . import __version__, access, backup, config as configmod, configs, licenses, limits, notice, passkeys, safearchive, selfupdate, serverprops, setup as setupmod, stats, webauth
+from . import __version__, access, backup, config as configmod, configs, licenses, limits, notice, passkeys, pinghelper, safearchive, selfupdate, serverprops, setup as setupmod, stats, webauth
 from . import peer, private, tunnels
 from . import users as usersmod
 from .config import ConfigError, ModSpec
@@ -3488,6 +3488,8 @@ class Api:
             "players_only": self.m.config.client.only,  # moved to players' mods: never on the server
             "unmanaged": self.m.unmanaged_jars(),
             "disabled": self.m.disabled_jars(),
+            # Craft Conductor's own ping helper, when its file is in the folder (not a mod of the owner's)
+            "helper": pinghelper.in_folder(self.m.mods_dir),
             # combinations other people found don't work (conflicts.py; empty until the list exists)
             "known_conflicts": self.web.hub.known_conflicts.matching(
                 lk.loader or self.m.config.server.loader, lk.minecraft or "", [s.id for s in self.m.config.mods]),
@@ -4013,7 +4015,6 @@ class Api:
     def players_online(self, q, b) -> dict:
         """The Dashboard's Connected Players card (polled): who is online with their role and ping, the
         player limit, whether the whitelist is on (and its names with ?whitelist=1). Reads files only."""
-        from . import pinghelper
         pings, info = pinghelper.card(self.m, self.d.state == "running", time.time())
         out = self._players().roster(set(self.d.players), pings=pings, whitelist=q.get("whitelist") == "1",
                                      why_no_ping=info["reason"])
@@ -5473,6 +5474,7 @@ class Api:
         "memory": ("server", "memory", str),
         "aikar_flags": ("server", "aikar_flags", bool),
         "find_lag": ("server", "find_lag", bool),
+        "player_ping": ("players", "ping", bool),   # (Craft Conductor's ping helper on the server: pinghelper.py)
         "cpu_cores": ("server", "cpu_cores", int),
         "priority": ("server", "priority", str),
         "restart_on_crash": ("server", "restart_on_crash", bool),
@@ -5500,6 +5502,7 @@ class Api:
         interval = c.updates.check_interval
         return {
             "memory": c.server.memory, "aikar_flags": c.server.aikar_flags, "find_lag": c.server.find_lag,
+            "player_ping": c.player_ping,
             "cpu_cores": c.server.cpu_cores, "priority": c.server.priority, "cpu_count": limits.cpu_count(),
             "can_pin_cores": limits.can_pin_cores(),
             "restart_on_crash": c.restart_on_crash,

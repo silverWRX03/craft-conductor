@@ -154,7 +154,7 @@
   };
   c.defaultRules = () => Object.fromEntries((release.gamerules || []).map((r) => [r.id, r.default]));
   c.defaultSettings = () => ({
-    memory: "4G", aikar_flags: false, find_lag: true, cpu_cores: 0, priority: "normal", restart_on_crash: true,
+    memory: "4G", aikar_flags: false, find_lag: true, player_ping: false, cpu_cores: 0, priority: "normal", restart_on_crash: true,
     strategy: "mods-only", mod_channel: "release", auto_upgrade: true, check_interval: "6h", warn_minutes: [10, 5, 1],
     wait_for_empty: false, verify_boot: true, rehearse: false, backups_keep: 10, discord_webhook: "", schedule_restart: "",
     schedule_backup: "", restart_when_empty: false, backup_copy_to: "", backup_copy_keep: 10,
