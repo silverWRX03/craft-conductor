@@ -9237,7 +9237,7 @@
   {
     "id": 1063,
     "section": "Feature: players' ping on a newer Forge server (roadmap 47)",
-    "step": "On a running Forge server for Minecraft 1.21.x (and 1.20.2 to 1.20.5 if available) with a friend online, press Show players' ping… and Turn on, then restart the server: the mods folder has Craft Conductor Ping, the server starts normally and the friend's row shows their ping in ms with the good, fair or poor word and colour. Manage Mods lists the helper as Craft Conductor's own, with no Change version or Remove.",
+    "step": "On a running Forge server for Minecraft 1.21.x (1.20.2 or 1.20.4, and 26.x) with a friend online, press Show players' ping… and Turn on, then restart the server: the mods folder has Craft Conductor Ping, the server starts normally and the friend's row shows their ping in ms with the good, fair or poor word and colour. Manage Mods lists the helper as Craft Conductor's own, with no Change version or Remove.",
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
