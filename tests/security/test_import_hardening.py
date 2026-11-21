@@ -29,6 +29,11 @@ UNSAFE_NAMES = [
     "region/trailing./r.0.0.mca",     # Windows drops the dot: two names become one
     "region/bell\x07.mca",            # control character
     "a//b.dat",                       # empty folder name
+    "data/q?mark.txt",                # Windows forbids ? in names (#314)
+    "data/star*.txt",                 # ... and *
+    "data/a<b>c.dat",                 # ... and < >
+    'data/say"hi".dat',               # ... and "
+    "data/pipe|name.dat",             # ... and |
 ]
 ODD_BUT_FINE = ["region/space (1) [copy] naïve_日本_💾.dat", "data/it's #1 & 100%.dat", "data/ünïcödé/ДАННЫЕ.nbt"]
 
