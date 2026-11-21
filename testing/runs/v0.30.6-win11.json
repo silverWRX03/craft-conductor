@@ -539,18 +539,22 @@
     878,
     879,
     880,
+    883,
     887,
     888,
     892,
     893,
     895,
     896,
+    901,
     903,
     904,
     907,
     908,
     912,
     913,
+    918,
+    919,
     926,
     930,
     933,
@@ -4539,6 +4543,34 @@
       "tested_at": "2026-11-21T00:16:24+00:00",
       "tester": "Owner + Claude Code",
       "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. Computer half checked 2026-11-19 in Chrome on this PC (mod browser and a friend's Resource packs page: dragging the scroll bar to the bottom loaded the next results by themselves, up to That's everything; held for the phone half). Phone half 2026-11-20, the owner's Android phone (S23, Chrome app) over the Tailscale address of the phone test home: Phone mods, Mods, Download mods, flicked straight to the bottom 2-3 times: the next results loaded by themselves, no Load more press. (A friend's page runs on the friend's computer, not on a phone.) Found on the way: on the phone only about an inch is left for the results and the Add selected bar scrolls away with the page: #331.",
+      "evidence": ""
+    },
+    "883": {
+      "status": "pass",
+      "tested_at": "2026-11-21T01:13:56+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, the phone test home (panel 29972). Chrome on this PC, Phone test, Friends, playit.gg (recommended): the panel's downloads folder did not exist before the press (nothing downloaded on choosing playit.gg either). Download and install playit.gg: the log said 'opened playit.gg's installer 2.0.2 (checked: SHA-256 and Developed Methods LLC's signature)', the signed .msi (13.9 MB) was in the panel's own downloads folder, and the installer opened on the owner's screen (cancelled: playit.gg is already installed here).",
+      "evidence": ""
+    },
+    "918": {
+      "status": "fail",
+      "tested_at": "2026-11-21T01:13:56+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, the phone test home (panel 29972). Phone half passes: the owner's Android phone over the Tailscale address (the panel answers local: false there), New server with a CurseForge mod that must be downloaded by hand (Player Animation Library): the section said 'You're using Craft Conductor from another device: what you download here is saved on this device, not on the computer Craft Conductor runs on...' and the file downloaded on the phone and picked in the box loaded. Invited half fails: a test person given only See status + Manage mods on a server whose setup waits for that mod (Hand wait) is sent to the setup page, which needs runtime.configure, so they land on the Dashboard with no way to the drop box (#334). With runtime.configure added, the panel is right: the drop box and no Downloads line or Choose the folder.",
+      "evidence": ""
+    },
+    "919": {
+      "status": "pass",
+      "tested_at": "2026-11-21T01:13:56+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, the phone test home (panel 29972). The owner moved Downloads (Properties, Location) to E:/cc-downloads-919 (the folder's files moved with it). With the waiting server Hand wait needing PlayerAnimationLibMerged-1.2.9-mc.26.2.jar, the file was put in the new Downloads and the setup page opened on this PC: 'Found Player Animation Library in your Downloads folder. All the mods to download by hand are in.', and setup carried on. Downloads was put back to C:/Users/<owner>/Downloads afterwards (the restore went wrong in Windows and was fixed by hand: files moved back, the folder setting reset). The Mac and Linux parts were not done (no Mac; Linux desktop not set up).",
+      "evidence": ""
+    },
+    "901": {
+      "status": "pass",
+      "tested_at": "2026-11-21T01:13:56+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, the phone test home (panel 29972). Craft Conductor settings, Advanced: switched off the safety rule 'You choose the port friends use from outside, even 25565' (confirm asked). Phone test, Friends, Open a port on my router (risks asked first): Craft Conductor picked TCP 39958; Router (UPnP) on: the router forwarded 39958 to this PC. Choose the port yourself, 25565, Use this port: server-port=25565, the router's forward moved to 25565 (39958 gone), Check my setup's firewall check followed to port 25565 (allowed by Windows' rule for Java, any port, so no port rule was needed), and the internet test said 'Reachable from the internet (port 25565)'. Small text slip: the page still says 'Craft Conductor picked this port: not Minecraft's usual 25565' after choosing 25565. Undone afterwards: UPnP off (no Craft Conductor entries left on the router), Only friends at home, safety rule back on.",
       "evidence": ""
     }
   },
