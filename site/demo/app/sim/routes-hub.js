@@ -24,6 +24,9 @@
     minecraft: s.minecraft, loader: s.loader, players: s.state === "running" ? s.players.online.length : 0, max_players: s.max_players,
     port: String(s.port), folder: `${HOME}\\servers\\${s.id}`, update: sim.updateReady(s), crashed_at: s.crashed_at,
     last_job: s.last_job, join_requests: s.players.requests.length,
+    // (Recent in the left panel, and the server's own icon: kept in this page only)
+    icon: s.icon || null, last_started: s.started_at || null,
+    last_played: s.state === "running" ? (s.players.online.length ? sim.now() : s.last_played || null) : null,
   });
   const shareStatus = () => ({ port: hub().share.port, address: hub().share.address, running: st().servers.some((s) => s.client.enabled),
     error: null, lan_ip: LAN });

@@ -12,6 +12,7 @@ from __future__ import annotations
 import collections
 import json
 import logging
+import math
 import os
 import tomllib
 import re
@@ -25,7 +26,7 @@ import unicodedata
 from pathlib import Path
 from typing import Callable
 
-from . import config as configmod, private, rollback, selfupdate, setup as setupmod
+from . import config as configmod, private, rollback, selfupdate, servericon, setup as setupmod
 from .config import ConfigError, WebConfig
 from .daemon import Daemon, SELF_CHECK_INTERVAL, current_server, pid_alive, running_pid, set_current_server
 from .http import HttpClient
@@ -42,9 +43,22 @@ HOME_ID = "main"           # the server kept directly in the home folder (craft-
 START_AFTER_UPDATE = "start_after_update"  # hub.json: the servers to start again after Craft Conductor updates
 # What each part of hub.json is (Hub._hub_file).
 HUB_FILE_KINDS = {"extra": list, "hidden": list, "hand_folders": list, "share": dict, "upnp": dict, "discord": dict,
-                  "web": dict, "self_update": dict, "locations": dict, "guide": dict, START_AFTER_UPDATE: dict}
+                  "web": dict, "self_update": dict, "locations": dict, "guide": dict, START_AFTER_UPDATE: dict,
+                  "started": dict}
 SCAN_EVERY = 5.0
 NOTICES_KEPT, NOTICE_CHARS = 50, 8000  # the servers' messages kept for the bell (the page keeps its own copy)
+
+
+def _when(value) -> float | None:
+    """A time from hub.json, if it's a real one (edited by hand, it could be text, infinity or a huge number,
+    which would break the server list for every page)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        t = float(value)
+    except OverflowError:
+        return None
+    return t if math.isfinite(t) else None
 
 
 def hub_pid_path(home: Path) -> Path:
@@ -211,6 +225,7 @@ class Hub:
         self.share_error: str | None = None
         self._lock = threading.RLock()
         self._hub_lock = threading.RLock()  # hub.json: one change at a time (see _update_hub_file)
+        self._started: dict[str, float] | None = None  # when each server last came up (hub.json "started"; read once)
 
     # --------------------------------------------------------- settings
     @property
@@ -882,12 +897,37 @@ class Hub:
     def after_ready(self, daemon: Daemon) -> None:
         """A server finished starting. Geyser writes its config on its first start, with only the
         new Bedrock connection method: it's set to both now, for the next start, and the owner told."""
+        self._note_started(daemon)
         try:
             if self.bedrock_both_ways(daemon):
                 daemon.m.notifier.send("Bedrock players: Geyser was set up so they can join by address. "
                                        "Restart the server once for it to take effect.")
         except Exception:
             log.exception("couldn't check Geyser's connection methods")
+
+    def last_started(self) -> dict[str, float]:
+        """When each server last came up (for Recent in the left panel), from hub.json once."""
+        if self._started is None:
+            with self._hub_lock:  # (not while a start is being written down)
+                if self._started is None:
+                    self._started = {k: t for k, v in self._hub_file().get("started", {}).items() if (t := _when(v)) is not None}
+        return self._started
+
+    def _note_started(self, daemon: Daemon) -> None:
+        sid = daemon.server_id
+        if not sid:
+            return
+        now = time.time()
+
+        def change(data: dict) -> None:
+            started = data.get("started", {})
+            started[sid] = now
+            data["started"] = started
+        try:
+            self._update_hub_file(change)
+        except Exception as e:
+            log.warning("couldn't note when %s started: %s", sid, e)
+        self.last_started()[sid] = now
 
     def whitelist_when_reachable(self, why: str = "") -> list[str]:
         """Turn the whitelist on for each server made with this rule (reach.py) that can now be
@@ -1592,9 +1632,11 @@ class Hub:
 
             def forget(data: dict) -> None:
                 data["extra"] = [p for p in data.get("extra", []) if p != str(root)]
+                data.get("started", {}).pop(sid, None)
                 if not delete_files:
                     data["hidden"] = sorted(set(data.get("hidden", [])) | {str(root)})
             self._update_hub_file(forget)
+            self.last_started().pop(sid, None)
             if not delete_files:
                 log.info("removed server %s from the list; its files are still in %s", sid, root)
                 return f"removed from the list; its files are still in {root}"
@@ -1823,6 +1865,7 @@ class Hub:
 
     def summary(self) -> list[dict]:
         out = []
+        started = self.last_started()
         for sid, d in list(self.daemons.items()):
             from .properties import number, read_properties, server_name
             props = read_properties(d.m.server_dir / "server.properties")
@@ -1836,6 +1879,9 @@ class Hub:
                 "update": bool(d.last_check and not d.last_check.get("up_to_date") and d.last_check.get("target")),
                 "crashed_at": d.crashed_at, "last_job": d.last_job,
                 "join_requests": len(self.join_requests.get(sid, [])),
+                # (Recent in the left panel: running ones by who last played, the others by when they last started)
+                "icon": servericon.stamp(d.m.server_dir),  # (when it changed: the page asks for the new picture)
+                "last_started": started.get(sid), "last_played": d.activity.last_played() if d.state == "running" else None,
                 # (a mistake typed into its craft-conductor.toml while it runs: said here at once, not after a restart, #283)
                 **({"problem": d.config_problem} if d.config_problem else {}),
             })

@@ -1031,3 +1031,11 @@ ul.people li { align-items: flex-start; gap: 10px; }
   .topbar .bell { position: absolute; top: 16px; inset-inline-end: 16px; }
   .bell-panel { top: 64px; inset-inline-end: 16px; }
 }
+
+/* Recent servers in the left panel (#51) and the server icon (#50) */
+.nav-recent .nav-heading { padding: 10px 12px 2px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.nav-recent a.here { font-weight: 700; }
+.recent-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; border: 1px solid var(--muted); }
+.recent-dot.on { background: var(--ok-strong); border-color: var(--ok-strong); }
+img.server-icon { width: 64px; height: 64px; image-rendering: pixelated; border-radius: 4px; flex: none; }
+img.server-icon.small { width: 32px; height: 32px; }

@@ -1166,5 +1166,19 @@
   "Change…": "Ändern…",
   "Classic": "Klassisch",
   "Modern": "Modern",
-  "Interface style": "Oberflächenstil"
+  "Interface style": "Oberflächenstil",
+  "Recent": "Zuletzt",
+  "Recent servers": "Zuletzt verwendete Server",
+  "Running": "Läuft",
+  "How to make a webhook ↗": "So erstellst du einen Webhook ↗",
+  "Server icon": "Server-Symbol",
+  "The picture players see next to this server in Minecraft's server list. Any picture works: it's made 64 × 64 here (the middle of a picture that isn't square). Minecraft shows a new one from the next restart.": "Das Bild, das Spieler neben diesem Server in Minecrafts Serverliste sehen. Jedes Bild geht: Es wird hier auf 64 × 64 gebracht (die Mitte eines Bildes, das nicht quadratisch ist). Minecraft zeigt ein neues ab dem nächsten Neustart.",
+  "Now: Minecraft's own picture": "Jetzt: Minecrafts eigenes Bild",
+  "Choose a picture…": "Bild auswählen…",
+  "Server icon saved. Minecraft shows it from the next restart.": "Server-Symbol gespeichert. Minecraft zeigt es ab dem nächsten Neustart.",
+  "Server icon removed. Minecraft's own picture is back from the next restart.": "Server-Symbol entfernt. Minecrafts eigenes Bild ist ab dem nächsten Neustart wieder da.",
+  "That file isn't a picture this browser can open.": "Diese Datei ist kein Bild, das dieser Browser öffnen kann.",
+  "This server's icon": "Das Symbol dieses Servers",
+  "Choose a picture for the server icon": "Bild für das Server-Symbol auswählen",
+  "Recent, at the top of the left panel, lists up to three servers to jump between, running ones first. Choosing one opens the same page on that server.": "Zuletzt, oben in der linken Leiste, zeigt bis zu drei Server zum schnellen Wechseln, laufende zuerst. Wählst du einen, öffnet sich dieselbe Seite auf diesem Server."
 }

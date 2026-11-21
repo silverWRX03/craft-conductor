@@ -4,6 +4,13 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.31.0 (not released yet)
+
+**Added**
+- **Recent** at the top of the left panel lists up to three servers to jump between, on every page: running ones first (the one that last had players on first), then by when they last started. Choosing one opens the same page on that server.
+- A server's **Settings** has a **Server icon** card: choose any picture and it becomes the 64 × 64 icon players see next to the server in Minecraft's server list (from the next restart). The server's card on **Your servers** shows it too.
+- **How to make a webhook ↗** next to **Discord webhook URL** in a server's Settings opens Discord's own instructions.
+
 ## 0.30.6 (2026-11-15)
 
 **Added**

@@ -16,6 +16,7 @@ import functools
 import hashlib
 import hmac
 import ipaddress
+import base64
 import json
 import os
 import logging
@@ -39,7 +40,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from . import __version__, access, backup, config as configmod, configs, licenses, limits, notice, passkeys, safearchive, selfupdate, serverprops, setup as setupmod, stats, webauth
-from . import peer, private, tunnels
+from . import peer, private, servericon, tunnels
 from . import users as usersmod
 from .config import ConfigError, ModSpec
 from .daemon import Daemon, set_current_server
@@ -1039,6 +1040,11 @@ class RequestHandler(BaseHTTPRequestHandler):
                 name = f"craft-conductor-report-{time.strftime('%Y%m%d-%H%M%S')}.zip"
                 return self._send(200, api.doctor_report(), "application/zip",
                                   {"Content-Disposition": f'attachment; filename="{name}"'})
+            if path == "/api/server-icon" and method == "GET":  # the picture in Minecraft's server list (servericon.py)
+                icon = servericon.read(api.m.server_dir)
+                if icon is None:
+                    raise ApiError(404, "this server has no icon of its own")
+                return self._send(200, icon, "image/png", {"Cache-Control": "private, max-age=86400"})
             if path == "/api/players/skin":
                 try:
                     png = api.skins.png(q.get("name", ""))
@@ -3193,6 +3199,9 @@ class Api:
         post("/api/java/remove", self.java_remove)
         get("/api/settings", self.settings)
         post("/api/settings", self.save_settings)
+        get("/api/server-icon", lambda q, b: None)    # handled specially (an image)
+        post("/api/server-icon", self.set_server_icon)
+        post("/api/server-icon/remove", self.remove_server_icon)
         get("/api/browse/search", lambda q, b: browse_search(self._browser(), q, self.m))
         get("/api/browse/project", lambda q, b: browse_project(self._browser(), q))
         get("/api/browse/categories", lambda q, b: browse_categories(self._browser(), q))
@@ -3212,6 +3221,29 @@ class Api:
         self.routes = r
         self.sampler = stats.Sampler()
         self._skins: Skins | None = None
+
+    def set_server_icon(self, q, b) -> dict:
+        """The picture players see in Minecraft's server list: a 64 × 64 PNG the page made, as base64."""
+        data = b.get("png")
+        if not isinstance(data, str) or not data:
+            raise ApiError(400, "choose a picture first")
+        if len(data) > servericon.MAX_BYTES * 4 // 3 + 4:  # (refused before it's decoded)
+            raise ApiError(400, f"that picture is too big; a server icon is at most {servericon.MAX_BYTES // 1024} KB")
+        try:
+            png = base64.b64decode(data, validate=True)
+        except ValueError:
+            raise ApiError(400, "that picture couldn't be read") from None
+        try:
+            servericon.save(self.m.server_dir, png)
+        except ValueError as e:
+            raise ApiError(400, str(e)) from None
+        log.info("new server icon (Minecraft shows it from the next restart)")
+        return {"ok": True, "icon": servericon.stamp(self.m.server_dir)}
+
+    def remove_server_icon(self, q, b) -> dict:
+        if servericon.remove(self.m.server_dir):
+            log.info("server icon removed: back to Minecraft's own")
+        return {"ok": True}
 
     @property
     def skins(self) -> Skins:

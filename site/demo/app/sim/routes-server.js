@@ -552,6 +552,16 @@
       return { ok: true, message };
     },
     "GET /api/players/skin": () => { throw new ApiError(400, "a player's face is a picture"); },
+    "GET /api/server-icon": () => { throw new ApiError(400, "a server's icon is a picture"); },
+    "POST /api/server-icon": (r) => {
+      const png = String(r.b.png || "");
+      if (!png) throw new ApiError(400, "choose a picture first");
+      if (png.length > 87384 || !/^[A-Za-z0-9+/]+=*$/.test(png) || !png.startsWith("iVBORw0KGgo")) throw new ApiError(400, "a server icon has to be a PNG picture");
+      r.s.iconData = `data:image/png;base64,${png}`;  // (only in this page: the demo keeps nothing)
+      r.s.icon = Math.round(sim.now() * 1000);
+      return { ok: true, icon: r.s.icon };
+    },
+    "POST /api/server-icon/remove": (r) => { r.s.icon = null; r.s.iconData = null; return { ok: true }; },
     "POST /api/broadcast": (r) => {
       const message = String(r.b.message || "").trim();
       if (!message) throw new ApiError(400, "write something to say");
@@ -813,6 +823,11 @@
     const q = Object.fromEntries(u.searchParams);
     const path = u.pathname.replace(/^\/api\/servers\/[^/]+\//, "/api/");
     if (path === "/api/players/skin") return sim.face(q.name || "Steve");
+    if (path === "/api/server-icon") {
+      const id = (u.pathname.match(/^\/api\/servers\/([^/]+)\//) || [])[1];
+      const s = sim.state.servers.find((x) => x.id === decodeURIComponent(id || ""));
+      if (s && s.iconData) return s.iconData;
+    }
     if (path === "/api/hub/preview/map") { const p = sim.state.hub.previews.find((x) => x.id === q.id); return p ? sim.mapImage(p) : sim.EMPTY_IMAGE; }
     if (path === "/api/hub/map/tile") { const p = sim.state.hub.previews.find((x) => x.id === q.id); return p ? sim.mapTile(p, Number(q.s), Number(q.x), Number(q.z)) : sim.EMPTY_IMAGE; }
     sim.unhandled.push(`GET ${u.pathname} (picture)`);

@@ -1189,5 +1189,19 @@
   "Change…": "변경…",
   "Classic": "클래식",
   "Modern": "모던",
-  "Interface style": "인터페이스 스타일"
+  "Interface style": "인터페이스 스타일",
+  "Recent": "최근",
+  "Recent servers": "최근 서버",
+  "Running": "실행 중",
+  "How to make a webhook ↗": "웹훅 만드는 방법 ↗",
+  "Server icon": "서버 아이콘",
+  "The picture players see next to this server in Minecraft's server list. Any picture works: it's made 64 × 64 here (the middle of a picture that isn't square). Minecraft shows a new one from the next restart.": "플레이어가 Minecraft 서버 목록에서 이 서버 옆에 보는 그림입니다. 어떤 그림이든 됩니다: 여기서 64 × 64로 만들어집니다(정사각형이 아니면 가운데 부분). Minecraft는 다음 재시작부터 새 그림을 보여줍니다.",
+  "Now: Minecraft's own picture": "지금: Minecraft 기본 그림",
+  "Choose a picture…": "그림 선택…",
+  "Server icon saved. Minecraft shows it from the next restart.": "서버 아이콘을 저장했습니다. Minecraft는 다음 재시작부터 보여줍니다.",
+  "Server icon removed. Minecraft's own picture is back from the next restart.": "서버 아이콘을 지웠습니다. 다음 재시작부터 Minecraft 기본 그림으로 돌아갑니다.",
+  "That file isn't a picture this browser can open.": "이 파일은 이 브라우저가 열 수 있는 그림이 아닙니다.",
+  "This server's icon": "이 서버의 아이콘",
+  "Choose a picture for the server icon": "서버 아이콘으로 쓸 그림 선택",
+  "Recent, at the top of the left panel, lists up to three servers to jump between, running ones first. Choosing one opens the same page on that server.": "왼쪽 패널 맨 위의 최근에는 오가며 쓸 서버가 최대 세 개 나오며, 실행 중인 서버가 먼저 나옵니다. 하나를 고르면 그 서버의 같은 페이지가 열립니다."
 }
