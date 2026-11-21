@@ -17,6 +17,11 @@ const assert = require('node:assert/strict');
   const card = page.locator('.server-card', { hasText: 'Alpha' });
   await card.waitFor();
   await card.getByRole('button', { name: 'Delete Alpha', exact: true }).click();
+  // The delete confirmation already says there's a rule, and that it will be asked about (#311).
+  const confirm = page.locator('#delete-server');
+  const note = confirm.getByText('It has a rule in Windows Firewall:');
+  await note.waitFor({ timeout: 20000 });
+  assert.match(await confirm.innerText(), /Craft Conductor: Alpha \(TCP 25599\)\. After it's deleted you'll be asked whether to remove that rule too\./);
   await page.getByRole('button', { name: 'Remove from the list' }).click();
   const question = page.getByRole('alertdialog').filter({ hasText: "Windows Firewall rule" });
   await question.waitFor({ timeout: 20000 });

@@ -7480,14 +7480,26 @@ function deleteServer(s, after) {
   let everything = false;
   const box = h("div", { class: "modal compact" });
   const close = () => { const m = $("#delete-server"); if (m) m.remove(); };
+  // (Windows: the rules Craft Conductor made for this server's port, looked up while the server is still here. Said
+  // before the delete, so the question about them afterwards isn't a surprise, #311.)
+  const firewallNote = h("div");
+  const lookup = hubInfo && hubInfo.local
+    ? api(`/api/hub/firewall-rules?id=${encodeURIComponent(s.id)}`).then((x) => x.rules || []).catch(() => []) : Promise.resolve([]);
+  lookup.then((rules) => {
+    if (!rules.length) return;
+    const one = rules.length === 1;
+    fill(firewallNote, h("div", { class: "notice", role: "status" },
+      h("strong", {}, one ? "It has a rule in Windows Firewall: " : `It has ${rules.length} rules in Windows Firewall: `),
+      rules.map((x) => x.name).join(", "), ". ",
+      `After it's deleted you'll be asked whether to remove ${one ? "that rule" : "them"} too.`));
+  });
   const render = (error) => {
     const typed = h("input", { autocomplete: "off", placeholder: s.name });
     const go = async (e) => {
       e.preventDefault();
       if (everything && typed.value.trim() !== s.name) return render(`Type the server's name, ${s.name}, to delete everything.`);
       try {
-        // (Windows: the rules Craft Conductor made for this server's port, looked up while the server is still here)
-        const rules = hubInfo && hubInfo.local ? await api(`/api/hub/firewall-rules?id=${encodeURIComponent(s.id)}`).then((x) => x.rules || []).catch(() => []) : [];
+        const rules = await lookup;
         const r = await api("/api/hub/delete", { method: "POST", body: { id: s.id, delete_files: everything } });
         close();
         toast(`${s.name}: ${r.message}`);
@@ -7501,6 +7513,7 @@ function deleteServer(s, after) {
       h("h2", { id: "delete-title" }, `Delete ${s.name}?`),
       s.state === "running" || s.state === "starting" ? h("div", { class: "notice warn" }, "Stop the server first.") : null,
       h("p", {}, "Would you also like to delete its world, mods and everything else that belongs to it?"),
+      firewallNote,
       h("div", { class: "choices" },
         choice(false, "Keep the files", `Take it off the list; the world and mods stay in ${s.folder}.`),
         choice(true, "Delete everything", "The world, mods, backups and settings are erased. This can't be undone.")),
