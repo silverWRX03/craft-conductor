@@ -1188,6 +1188,7 @@
   "Minecraft doesn't share each player's ping without a mod or plugin, and plain Minecraft runs neither.": "Minecraft không chia sẻ ping của từng người chơi nếu không có mod hoặc plugin, và Minecraft thuần không chạy cái nào.",
   "Craft Conductor's ping helper needs Minecraft {version} or newer on this server type.": "Trình hỗ trợ ping của Craft Conductor cần Minecraft {version} trở lên trên loại máy chủ này.",
   "Craft Conductor's ping helper doesn't run on {loader} yet.": "Trình hỗ trợ ping của Craft Conductor chưa chạy trên {loader}.",
+  "Craft Conductor's ping helper doesn't run on pre-releases, release candidates or snapshots.": "Trình hỗ trợ ping của Craft Conductor không chạy trên bản pre-release, bản release candidate hay snapshot.",
   "Ping is off for this server.": "Ping đang tắt cho máy chủ này.",
   "Ping shows after the next restart.": "Ping sẽ hiện sau lần khởi động lại tới.",
   "Waiting for the server to report ping…": "Đang chờ máy chủ báo ping…",

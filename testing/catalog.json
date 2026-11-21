@@ -9249,5 +9249,21 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1065,
+    "section": "Feature: a player who just joined shows — until their ping is measured (roadmap 47, #342)",
+    "step": "With players' ping showing on a Paper or Fabric server, a friend joins from another computer: for their first few seconds their row shows — (not '0 ms, good connection'), then their real ping in ms. A player on the server's own computer shows 0 ms after about half a minute.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1066,
+    "section": "Feature: ping on a pre-release server, and the helper's name under Local files (#342)",
+    "step": "Make a Fabric or Paper server on a pre-release or release candidate (Show beta versions): the Connected Players card's reason (hover, or Why no ping?) says Craft Conductor's ping helper doesn't run on pre-releases, release candidates or snapshots, with no Show players' ping… button; switch the page's language and the reason is translated. On New server, Local files refuses a file named craft_conductor_ping-test.jar with 'that file name is kept for Craft Conductor's own ping helper: rename the file'.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]

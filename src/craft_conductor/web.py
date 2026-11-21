@@ -2810,6 +2810,8 @@ class HubApi:
         name = q.get("filename", "")
         if not STAGED_NAME.fullmatch(name):
             raise ApiError(400, "only .jar and .zip files can be added here")
+        if name.startswith(pinghelper.PREFIX):   # (as upload_local: the new server would take it for the helper)
+            raise ApiError(400, "that file name is kept for Craft Conductor's own ping helper: rename the file")
         staged = self.hub.stage_upload(handler, name, MAX_ARCHIVE if name.endswith(".zip") else MAX_UPLOAD)
         if name.endswith(".zip"):  # a world: what's known of it, for the setup page's World card (#234)
             from . import world
@@ -4017,9 +4019,12 @@ class Api:
     def players_online(self, q, b) -> dict:
         """The Dashboard's Connected Players card (polled): who is online with their role and ping, the
         player limit, whether the whitelist is on (and its names with ?whitelist=1). Reads files only."""
-        pings, info = pinghelper.card(self.m, self.d.state == "running", time.time())
+        now = time.time()
+        pings, info = pinghelper.card(self.m, self.d.state == "running", now)
+        with self.d.activity.lock:
+            joined = dict(self.d.activity.online)   # (when each joined: Minecraft's 0 ms before it has measured them)
         out = self._players().roster(set(self.d.players), pings=pings, whitelist=q.get("whitelist") == "1",
-                                     why_no_ping=info["reason"])
+                                     why_no_ping=info["reason"], joined=joined, now=now)
         out["ping"].update(can_turn_on=info["can_turn_on"], on=info["on"])   # (the page asks before turning it on)
         return out
 
@@ -4780,6 +4785,10 @@ class Api:
             shutil.move(str(self.m.mods_dir / name), str(folder / name))
             log.info("moved %s from the server's mods to players' mods", name)
             message = f"{action['name']} is off the server and in your friends' download (Friends → players' mods)"
+        elif kind == "ping-off":   # (Craft Conductor's own ping helper to blame: the player_ping setting off)
+            configmod.set_value(self.m.config.path, "players", "ping", "false")
+            self.m.reload_config()
+            message = "Ping is off: Craft Conductor takes its helper off the server at the next start"
         else:  # backups: the page opens them
             return {"ok": True, "message": ""}
         self.d.problem = {**problem, "fixed": message}

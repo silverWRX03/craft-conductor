@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from craft_conductor.players import (MAX_BROADCAST, MOJANG_PROFILE, PlayerError, Players, broadcast_text,
-                                     offline_uuid, ping_state)
+from craft_conductor.players import (MAX_BROADCAST, MOJANG_PROFILE, PING_SETTLING_SECONDS, PlayerError, Players,
+                                     broadcast_text, offline_uuid, ping_state)
 from craft_conductor.pinghelper import VANILLA_REASON as NO_PING_REASON   # (what a roster says without a reason)
 
 
@@ -256,6 +256,24 @@ def test_ping_is_shown_only_where_there_is_a_source(server, http):
     waiting = p.roster({"Steve"}, pings={})                            # a source that hasn't read anyone yet
     assert waiting["ping"]["available"] and waiting["players"][0]["ping_ms"] is None
     assert [ping_state(ms) for ms in (0, 99, 100, 199, 200, 900)] == ["good", "good", "fair", "fair", "poor", "poor"]
+
+
+def test_zero_ms_just_after_joining_is_not_a_reading_yet(server, http):
+    """Minecraft says 0 until it has measured a player (its first keep-alive, 15 s after joining): a 0 in
+    a player's first PING_SETTLING_SECONDS online is a dash. After that a 0 is real: someone playing on
+    the server's own computer (#342)."""
+    p = Players(server, http, lambda c: None)
+    now = 1_000_000.0
+    joined = {"New": now - 5, "Local": now - PING_SETTLING_SECONDS - 1, "Quick": now - 3}
+    got = p.roster({"New", "Local", "Quick", "Unknown"}, pings={"New": 0, "Local": 0, "Quick": 35, "Unknown": 0},
+                   joined=joined, now=now)
+    by = {x["name"]: (x["ping_ms"], x["ping_state"]) for x in got["players"]}
+    assert by == {"New": (None, None),          # (just joined: not measured yet)
+                  "Local": (0, "good"),         # (on long enough: a real 0, the same computer)
+                  "Quick": (35, "good"),        # (measured already: shown at once)
+                  "Unknown": (0, "good")}       # (no join time known: taken as it is)
+    assert got["ping"]["available"]
+    assert 15 < PING_SETTLING_SECONDS <= 30
 
 
 def test_the_roster_asks_the_server_nothing(server, http):

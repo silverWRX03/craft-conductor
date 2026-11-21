@@ -376,6 +376,13 @@ def test_roster_reasons(hub_env, fake_jars):
     assert body["ping"]["available"] and body["ping"]["on"]
     shown = {p["name"]: (p["ping_ms"], p["ping_state"]) for p in body["players"]}
     assert shown == {"Alex": (42, "good"), ".Steve": (250, "poor")}    # (a Floodgate name keeps its ping)
+    # Minecraft's 0 before it has measured someone who just joined: a dash, not "0 ms" (#342)
+    write_ping(server, {"version": 1, "time": int(time.time() * 1000), "players": {"Alex": 0, ".Steve": 250}})
+    shown = {p["name"]: p["ping_ms"] for p in c.get("/api/servers/alpha/players/online")[1]["players"]}
+    assert shown == {"Alex": None, ".Steve": 250}
+    alpha.activity.online["Alex"] -= 60                                 # (on for a minute: a real 0)
+    shown = {p["name"]: p["ping_ms"] for p in c.get("/api/servers/alpha/players/online")[1]["players"]}
+    assert shown == {"Alex": 0, ".Steve": 250}
 
     write_ping(server, {"version": 1, "time": int(time.time() * 1000) - 60000, "players": {"Alex": 42}})
     stale = c.get("/api/servers/alpha/players/online")[1]
@@ -456,6 +463,35 @@ def test_pre_releases_get_no_helper():
         assert unsupported_reason("fabric", v)
     assert helper_jar("paper", "1.21.4-rc1") is None
     assert helper_jar("fabric", "1.20.2").name == "craft_conductor_ping-fabric-1.0.0.jar"
+
+
+def test_a_pre_release_is_told_so():
+    """A pre-release, release candidate or snapshot gets no helper: the card says that, not "needs Minecraft
+    1.20.2 or newer" for a 1.21.4-rc1 (#342)."""
+    for loader, v in (("paper", "1.21.4-rc1"), ("fabric", "1.20.2-pre1"), ("fabric", "24w14a"), ("neoforge", "1.21.1-rc1"),
+                      ("forge", "1.20.2-pre2"), ("quilt", "26.1-snapshot-3"), ("fabric", "1.21.1-beta")):
+        assert unsupported_reason(loader, v) == pinghelper.PRERELEASE_REASON, (loader, v)
+    assert pinghelper.PRERELEASE_REASON == ("Craft Conductor's ping helper doesn't run on pre-releases, release "
+                                            "candidates or snapshots.")
+    assert unsupported_reason("vanilla", "1.21.4-rc1") == VANILLA                 # (the same as on its release)
+    assert unsupported_reason("bukkit", "1.21.4-rc1") == "Craft Conductor's ping helper doesn't run on bukkit yet."
+    assert unsupported_reason("fabric", "1.20.1").startswith("Craft Conductor's ping helper needs Minecraft 1.20.2")
+    assert unsupported_reason("fabric", "").startswith("Craft Conductor's ping helper needs Minecraft 1.20.2")
+
+
+def test_every_plain_reason_is_in_every_catalog():
+    """The card's reasons that aren't filled in (PING_REASONS) are translated as they are: each is a key of
+    every catalog (#342)."""
+    from pathlib import Path
+    folder = Path(pinghelper.__file__).parent / "webui" / "i18n"
+    plain = [v for k, v in vars(pinghelper).items() if k.endswith("_REASON") and "{" not in v]
+    assert pinghelper.PRERELEASE_REASON in plain and len(plain) >= 5
+    catalogs = sorted(folder.glob("*.json"))
+    assert len(catalogs) == 9
+    for path in catalogs:
+        catalog = json.loads(path.read_text(encoding="utf-8"))
+        assert [r for r in plain if not catalog.get(r)] == [], path.name
+
 
 
 def test_the_page_words_match_the_reasons():

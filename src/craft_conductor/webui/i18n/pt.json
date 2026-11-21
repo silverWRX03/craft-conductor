@@ -1176,6 +1176,7 @@
   "Minecraft doesn't share each player's ping without a mod or plugin, and plain Minecraft runs neither.": "O Minecraft não compartilha o ping de cada jogador sem um mod ou plugin, e o Minecraft puro não executa nenhum dos dois.",
   "Craft Conductor's ping helper needs Minecraft {version} or newer on this server type.": "O auxiliar de ping do Craft Conductor precisa do Minecraft {version} ou mais recente neste tipo de servidor.",
   "Craft Conductor's ping helper doesn't run on {loader} yet.": "O auxiliar de ping do Craft Conductor ainda não funciona no {loader}.",
+  "Craft Conductor's ping helper doesn't run on pre-releases, release candidates or snapshots.": "O auxiliar de ping do Craft Conductor não funciona em pré-lançamentos, versões candidatas ou snapshots.",
   "Ping is off for this server.": "O ping está desativado neste servidor.",
   "Ping shows after the next restart.": "O ping aparece depois do próximo reinício.",
   "Waiting for the server to report ping…": "Aguardando o servidor informar o ping…",

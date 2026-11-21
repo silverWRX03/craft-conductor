@@ -1192,6 +1192,7 @@
   "Minecraft doesn't share each player's ping without a mod or plugin, and plain Minecraft runs neither.": "Minecraft는 모드나 플러그인 없이는 플레이어별 핑을 공유하지 않으며, 순정 Minecraft는 둘 다 실행하지 않습니다.",
   "Craft Conductor's ping helper needs Minecraft {version} or newer on this server type.": "이 서버 유형에서 Craft Conductor의 핑 도우미를 쓰려면 Minecraft {version} 이상이 필요합니다.",
   "Craft Conductor's ping helper doesn't run on {loader} yet.": "Craft Conductor의 핑 도우미는 아직 {loader}에서 실행되지 않습니다.",
+  "Craft Conductor's ping helper doesn't run on pre-releases, release candidates or snapshots.": "Craft Conductor의 핑 도우미는 프리릴리스, 릴리스 후보, 스냅샷에서는 실행되지 않습니다.",
   "Ping is off for this server.": "이 서버는 핑 표시가 꺼져 있습니다.",
   "Ping shows after the next restart.": "핑은 다음 재시작 후에 표시됩니다.",
   "Waiting for the server to report ping…": "서버가 핑을 알려 주기를 기다리는 중…",

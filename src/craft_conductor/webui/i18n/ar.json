@@ -1193,6 +1193,7 @@
   "Minecraft doesn't share each player's ping without a mod or plugin, and plain Minecraft runs neither.": "لا يشارك Minecraft زمن استجابة (ping) كل لاعب من دون تعديل أو إضافة، وMinecraft العادي لا يشغّل أيًّا منهما.",
   "Craft Conductor's ping helper needs Minecraft {version} or newer on this server type.": "تحتاج أداة ping المساعدة في Craft Conductor إلى Minecraft {version} أو أحدث على هذا النوع من الخوادم.",
   "Craft Conductor's ping helper doesn't run on {loader} yet.": "أداة ping المساعدة في Craft Conductor لا تعمل على {loader} بعد.",
+  "Craft Conductor's ping helper doesn't run on pre-releases, release candidates or snapshots.": "أداة ping المساعدة في Craft Conductor لا تعمل على الإصدارات التمهيدية أو المرشّحة للإصدار أو اللقطات (snapshots).",
   "Ping is off for this server.": "زمن الاستجابة (ping) متوقف لهذا الخادم.",
   "Ping shows after the next restart.": "سيظهر زمن الاستجابة (ping) بعد إعادة التشغيل التالية.",
   "Waiting for the server to report ping…": "في انتظار أن يبلّغ الخادم عن زمن الاستجابة (ping)…",

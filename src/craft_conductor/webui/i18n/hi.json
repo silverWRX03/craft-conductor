@@ -1193,6 +1193,7 @@
   "Minecraft doesn't share each player's ping without a mod or plugin, and plain Minecraft runs neither.": "बिना मॉड या प्लगइन के Minecraft हर खिलाड़ी का पिंग साझा नहीं करता, और सामान्य Minecraft इनमें से कुछ नहीं चलाता।",
   "Craft Conductor's ping helper needs Minecraft {version} or newer on this server type.": "Craft Conductor के पिंग सहायक को इस प्रकार के सर्वर पर Minecraft {version} या नया चाहिए।",
   "Craft Conductor's ping helper doesn't run on {loader} yet.": "Craft Conductor का पिंग सहायक अभी {loader} पर नहीं चलता।",
+  "Craft Conductor's ping helper doesn't run on pre-releases, release candidates or snapshots.": "Craft Conductor का पिंग सहायक प्री-रिलीज़, रिलीज़ कैंडिडेट या स्नैपशॉट पर नहीं चलता।",
   "Ping is off for this server.": "इस सर्वर के लिए पिंग बंद है।",
   "Ping shows after the next restart.": "पिंग अगली बार पुनः आरंभ के बाद दिखेगा।",
   "Waiting for the server to report ping…": "सर्वर के पिंग बताने की प्रतीक्षा है…",

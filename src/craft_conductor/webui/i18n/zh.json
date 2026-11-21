@@ -1193,6 +1193,7 @@
   "Minecraft doesn't share each player's ping without a mod or plugin, and plain Minecraft runs neither.": "没有模组或插件，Minecraft 不会共享每位玩家的延迟，而原版 Minecraft 两者都不运行。",
   "Craft Conductor's ping helper needs Minecraft {version} or newer on this server type.": "在这种类型的服务器上，Craft Conductor 的延迟助手需要 Minecraft {version} 或更高版本。",
   "Craft Conductor's ping helper doesn't run on {loader} yet.": "Craft Conductor 的延迟助手暂不支持 {loader}。",
+  "Craft Conductor's ping helper doesn't run on pre-releases, release candidates or snapshots.": "Craft Conductor 的延迟助手不支持预发布版、候选版和快照版。",
   "Ping is off for this server.": "此服务器已关闭延迟显示。",
   "Ping shows after the next restart.": "延迟将在下次重启后显示。",
   "Waiting for the server to report ping…": "正在等待服务器报告延迟…",

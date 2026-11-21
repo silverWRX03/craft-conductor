@@ -305,6 +305,11 @@ def test_new_server_from_a_modpack_and_local_files(hub_env):
     status, staged, _ = c.call("POST", "/api/hub/stage?filename=homemade.jar", raw=b"homemade")
     assert status == 200 and len(staged["id"]) == 16
     assert c.call("POST", "/api/hub/stage?filename=notes.txt", raw=b"x")[0] == 400
+    # ... but not under the name Craft Conductor's own ping helper goes by (the new server would take it for the helper, #342)
+    status, body, _ = c.call("POST", "/api/hub/stage?filename=craft_conductor_ping-fabric-9.9.jar", raw=b"x")
+    assert status == 400 and body["error"] == ("that file name is kept for Craft Conductor's own ping helper: "
+                                               "rename the file"), body
+    assert not list(hub.staging_dir.rglob("craft_conductor_ping-*"))
     friend_file = c.call("POST", "/api/hub/stage?filename=friendmap.jar", raw=b"for players")[1]["id"]
 
     pack = make_pack([{"path": "mods/good.jar", "downloads": ["https://cdn.modrinth.com/data/AAA00000/versions/V1111111/good.jar"],

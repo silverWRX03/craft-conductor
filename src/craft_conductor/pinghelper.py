@@ -58,6 +58,7 @@ SUPPORT: list[tuple[tuple[str, ...], str, str | None, str]] = [
 VANILLA_REASON = "Minecraft doesn't share each player's ping without a mod or plugin, and plain Minecraft runs neither."
 TOO_OLD_REASON = "Craft Conductor's ping helper needs Minecraft {version} or newer on this server type."
 NOT_YET_REASON = "Craft Conductor's ping helper doesn't run on {loader} yet."
+PRERELEASE_REASON = "Craft Conductor's ping helper doesn't run on pre-releases, release candidates or snapshots."
 OFF_REASON = "Ping is off for this server."
 RESTART_REASON = "Ping shows after the next restart."
 WAITING_REASON = "Waiting for the server to report ping…"
@@ -101,6 +102,8 @@ def unsupported_reason(loader: str, minecraft: str) -> str | None:
     key = _key(minecraft)
     if lowest is None or (key is not None and key > _version_key(lowest)):   # (none yet for this one)
         return NOT_YET_REASON.format(loader=loader or "this server type")
+    if key is None and re.match(r"\d", minecraft or ""):   # (1.21.4-rc1, 1.20.2-pre1, 24w14a: not a plain release)
+        return PRERELEASE_REASON
     return TOO_OLD_REASON.format(version=lowest)
 
 
