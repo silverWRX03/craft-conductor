@@ -4620,6 +4620,13 @@
       "tester": "Owner + Claude Code",
       "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-21, the phone test home (panel 29972, Tailscale serve on, tailnet only). The computer was shared from the owner's Tailscale account to a second Tailscale account (the console of the second account lists the computer as Shared in); the owner's iPhone, signed into only that second account, opened the https://<pc>.<tailnet>.ts.net address in Safari, pressed Invited? Sign in with your username and signed in as the test person Test viewer, who was given only See status on the Phone test server. The owner could see the server but could not start or stop it: only what was given. (The first password had O and 0 look-alikes and was hard to type on the phone; it was changed to an easier one through the person's own password change.)",
       "evidence": ""
+    },
+    "817": {
+      "status": "pass",
+      "tested_at": "2026-11-21T16:34:45+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-21, main test home (panel 29970), vanilla 26.3 server A Minecraft server. Two real players at once on the home network: the owner (silverWRX) on this PC and a second real account (Cheekymonkey1151) from another PC on the LAN. Connected Players card showed both (count 2). From the card, done by the owner: private Message (server log: You whisper to Cheekymonkey1151: Hi), Make op then De-op (Made ... a server operator / no longer a server operator), Kick (Kicked by an operator; the list updated without a reload), Ban then Pardon (done on the owner's own account: You are banned from this server, then Unbanned and joined again). The owner reported that everything worked. Small note: the second player's first name given was not a Java account, so the whitelist was turned off for the LAN-only test and back on afterwards.",
+      "evidence": ""
     }
   },
   "notes": "Release 0.30.6 (PR #295, issues #229 #234 #237 #239 #254 #280-#288 #290-#293). Release gate 802-820 is run in full on every release (owner, 2026-11-15). 1034-1048 test this release's fixes; 1031-1033 are Linux-only and go in v0.30.6-linux. Extra: 887, 908, 1009, 1021, 1023 failed in v0.30.5-win11 and are fixed here; 602, 876, 878, 879, 912, 978 failed in v0.30.4 and were fixed in 0.30.5 but their original steps were never rerun; 873, 874, 880 failed in the 0.27 workbook and have never been rerun."
