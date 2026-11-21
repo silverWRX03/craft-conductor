@@ -133,3 +133,31 @@ earlier brief for 47 also said "don't add it to a server without asking".
 - Where in the lock (or beside it) Craft Conductor records its own file, and the exact wording of
   the card's texts.
 - Roadmap 306 (a friend renaming a server) is on this branch too but is designed separately.
+
+## Step two: NeoForge and Forge (2026-11-20)
+
+The owner's decisions: "yes go ahead, 1.20.1 floor for both"; same branch and draft PR (#338);
+NeoForge first, then Forge 1.20.1, then newer Forge (Claude's proposed order, accepted).
+
+- **Floors:** Forge from Minecraft 1.20.1. NeoForge from 1.20.2: NeoForge's 1.20.1 release was a
+  renamed Forge (`net.neoforged:forge`), which Craft Conductor doesn't create, so NeoForge servers
+  start at 1.20.2 anyway. Older servers keep "—" with the existing "needs Minecraft {version} or
+  newer" reason.
+- **Same helper, same file, same behaviour** as step one: a server-only mod, a background timer, the
+  player list read on the server's thread, `.craft-conductor/ping.json` written off it through the
+  shared `PingFile`. No network channel, no command, no config.
+- **Players install nothing:** a vanilla (or Fabric) client must still be able to join a NeoForge or
+  Forge server with the helper. The mod declares itself server-only (Forge's and NeoForge's display
+  test / "ignore server version" setting, no registered payloads). Proven by the real-server test's
+  bot joining.
+- **As many jars as the loaders need,** one per range of Minecraft versions where the game's names
+  or the loader's API differ (for example Forge 1.20.1 with its own runtime names; NeoForge 1.20.5
+  and newer with Mojang's names). Each jar declares its range in its own metadata, `pinghelper.SUPPORT`
+  gets one row per jar, and a test ties the two together (as for Fabric). Exactly one helper jar is
+  ever in a server's folder.
+- **Built and checked like the others:** from `helpers/ping/`, byte-identical on Windows and Linux,
+  checked by the `helpers` workflow. A loader whose build tools can't produce byte-identical jars
+  is a stop-and-report, not a weakened check.
+- **Craft Conductor's side:** new `SUPPORT` rows; the "doesn't run on {loader} yet" reason stays
+  for anything still unsupported. No UI change. Manual, Help, changelog, translations, real-world
+  tests and TODO (47: Forge and NeoForge) follow, as in step one.
