@@ -22,7 +22,7 @@ import time
 import zipfile
 from pathlib import Path, PurePosixPath
 
-from . import safearchive
+from . import pinghelper, safearchive
 from .properties import read_properties
 
 EXTENSIONS = {".toml": "toml", ".json": "json", ".json5": "json", ".jsonc": "json", ".mcmeta": "json",
@@ -52,11 +52,11 @@ def roots(server_dir: Path) -> list[Path]:
 
 
 def jars(server_dir: Path) -> list[Path]:
-    """Mod jars in mods/ and plugin jars in plugins/."""
+    """Mod jars in mods/ and plugin jars in plugins/ (not Craft Conductor's own ping helper: it has no config)."""
     out = []
     for folder in ("mods", "plugins"):
         if (server_dir / folder).is_dir():
-            out += sorted((server_dir / folder).glob("*.jar"))
+            out += [p for p in sorted((server_dir / folder).glob("*.jar")) if not pinghelper.is_helper(p.name)]
     return out
 
 

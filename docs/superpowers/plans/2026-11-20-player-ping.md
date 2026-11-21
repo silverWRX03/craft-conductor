@@ -33,7 +33,7 @@ library; vanilla JS under CSP; pytest; Playwright (node) for browser tests.
   ("Craft Conductor Ping: reporting players' ping to Craft Conductor"), and one the first time the
   file can't be written.
 - Reading: at most 64 KB, never through a link, `players` values whole numbers 0–60000, keys
-  strings of at most 32 characters; a file whose `time` is more than 15 s old counts as no reading.
+  strings of at most 32 characters; a file whose `time` is more than 30 s old counts as no reading.
 - Supported: Paper/Purpur 1.17 and newer; Fabric/Quilt 1.20.2 and newer (Task 2 may narrow or split
   this after checking real servers). Everything else keeps "—".
 - Who: turning it on or off needs `mods.manage`; seeing ping is as today (`status.view`).
@@ -147,7 +147,7 @@ library; vanilla JS under CSP; pytest; Playwright (node) for browser tests.
 **Interfaces:**
 - Produces:
   - `pinghelper.PING_FILE = Path(".craft-conductor") / "ping.json"`, `MAX_BYTES = 65536`,
-    `FRESH_SECONDS = 15`, `MAX_MS = 60000`, `PREFIX = "craft_conductor_ping-"`.
+    `FRESH_SECONDS = 30`, `MAX_MS = 60000`, `PREFIX = "craft_conductor_ping-"`.
   - `pinghelper.SUPPORT: dict[str, tuple[str, str | None, str]]`: loader → (lowest Minecraft,
     highest or None, platform): `paper`/`purpur` → ("1.17", None, "paper"); `fabric`/`quilt` →
     ("1.20.2", <from Task 2>, "fabric").

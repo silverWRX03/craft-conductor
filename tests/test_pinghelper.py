@@ -2,6 +2,7 @@
 taking it out at each start, and reading the file it writes (pinghelper.py)."""
 import json
 import os
+import re
 import shutil
 import time
 
@@ -36,7 +37,9 @@ def test_support():
     assert helper_jar("fabric", "26.1").name == "craft_conductor_ping-fabric26-1.0.0.jar"
     assert helper_jar("quilt", "26.2.1").name == "craft_conductor_ping-fabric26-1.0.0.jar"
     assert helper_jar("paper", "26.1").name == "craft_conductor_ping-paper-1.0.0.jar"
-    for loader, version in (("fabric", "1.20.1"), ("fabric", "1.19.4"), ("paper", "1.16.5"),
+    for loader, version in (("fabric", "1.20.2-rc1"), ("fabric", "1.20.2-pre1"), ("fabric", "26-rc1"),
+                            ("paper", "1.17-pre1"), ("fabric", "24w14a"), ("fabric", "latest"),
+                            ("fabric", "1.20.1"), ("fabric", "1.19.4"), ("paper", "1.16.5"),
                             ("vanilla", "1.21.1"), ("neoforge", "1.21.1"), ("forge", "1.20.1")):
         assert helper_jar(loader, version) is None
         assert unsupported_reason(loader, version)
@@ -121,17 +124,39 @@ def test_sync_never_stops_a_start(make_config, http, fake_jars, monkeypatch):
     m = manager(make_config(), http, ["1.21.1"])
     assert update(m).ok
     m.config.player_ping = True
+    # a helper for another platform is already there (it would stop Fabric from starting)
+    m.mods_dir.mkdir(parents=True, exist_ok=True)
+    wrong = m.mods_dir / "craft_conductor_ping-fabric26-1.0.0.jar"
+    wrong.write_bytes(b"fake fabric26")
 
     def refuse(*a, **kw):
         raise OSError("read-only folder")
     monkeypatch.setattr(shutil, "copyfile", refuse)
     pinghelper.sync(m)                                       # (logs a warning, raises nothing)
+    assert [p.name for p in m.mods_dir.iterdir() if is_helper(p.name)] == []   # (a failed copy leaves no helper)
     proc = m.start_server()
     try:
         assert proc.running
     finally:
         proc.stop(10)
     assert not (m.mods_dir / "craft_conductor_ping-fabric-1.0.0.jar").exists()
+
+
+def test_sync_does_not_write_through_a_link_planted_at_the_part_name(make_config, http, fake_jars, tmp_path):
+    m = manager(make_config(), http, ["1.21.1"])
+    assert update(m).ok
+    m.config.player_ping = True
+    target = tmp_path / "precious.txt"
+    target.write_bytes(b"keep me")
+    part = m.mods_dir / "craft_conductor_ping-fabric-1.0.0.jar.part"
+    try:
+        os.link(target, part)                                # (a hard link works on Windows too; copying onto it would write the target)
+    except (OSError, NotImplementedError):
+        pytest.skip("can't make a link here")
+    pinghelper.sync(m)
+    assert target.read_bytes() == b"keep me"
+    assert (m.mods_dir / "craft_conductor_ping-fabric-1.0.0.jar").read_bytes() == b"fake fabric"
+    assert not part.exists() and not part.is_symlink()
 
 
 def test_start_server_puts_it_in(make_config, http, fake_jars):
@@ -154,6 +179,7 @@ def write_ping(folder, body):
 
 def test_read(tmp_path):
     now = 1_800_000_000.0
+    assert pinghelper.FRESH_SECONDS == 30                    # (Paper's 100-tick timer is slow below ~6.7 TPS)
 
     def doc(**kw):
         return {"version": 1, "time": int(now * 1000) - 2000, "players": {"Alex": 42, ".Steve": 80}, **kw}
@@ -165,7 +191,7 @@ def test_read(tmp_path):
                                       "Float": 1.5, "x" * 40: 10, "Zero": 0, "Max": 60000, "Nul": None}))
     assert pinghelper.read(tmp_path, now) == {"Alex": 42, "Zero": 0, "Max": 60000}
 
-    for bad in (doc(time=int(now * 1000) - 16000),            # 16 s old
+    for bad in (doc(time=int(now * 1000) - 31000),            # 31 s old
                 doc(time=int(now * 1000) + 3_600_000),        # from the future
                 doc(time="soon"), doc(time=True), doc(version=2), doc(version=True),
                 doc(time=10 ** 400), doc(time=-10 ** 400), doc(time=10 ** 15), doc(time=0), doc(time=-5),  # (impossible times)
@@ -306,3 +332,46 @@ def test_manage_mods_lists_the_helper_on_its_own(hub_env):
     body = c.get("/api/servers/alpha/mods")[1]
     assert body["helper"] == {"name": "Craft Conductor Ping", "filename": "craft_conductor_ping-fabric-1.0.0.jar"}
     assert "craft_conductor_ping-fabric-1.0.0.jar" not in body["unmanaged"]
+
+
+def test_support_matches_the_ranges_the_jars_declare():
+    """SUPPORT (which jar goes where) and each shipped jar's own Minecraft range must say the same, or a
+    server could be handed a jar that Fabric refuses to start with."""
+    import zipfile
+    for loaders, lowest, below, platform in pinghelper.SUPPORT:
+        jar = sorted(pinghelper.JARS_DIR.glob(f"{pinghelper.PREFIX}{platform}-*.jar"))[-1]
+        with zipfile.ZipFile(jar) as z:
+            if platform == "paper":
+                yml = z.read("plugin.yml").decode("utf-8").splitlines()
+                assert f'api-version: "{lowest}"' in yml and below is None
+            else:
+                declared = json.loads(z.read("fabric.mod.json"))["depends"]["minecraft"]
+                assert declared == f">={lowest}" + (f" <{below}" if below else "")
+
+
+def test_pre_releases_get_no_helper():
+    """Fabric puts 1.20.2-rc1 below >=1.20.2 and refuses the mod, so only plain releases get a jar."""
+    for v in ("1.20.2-rc1", "1.20.2-pre1", "26-rc1", "26.1-pre2", "1.21.1-beta"):
+        assert helper_jar("fabric", v) is None and helper_jar("quilt", v) is None, v
+        assert unsupported_reason("fabric", v)
+    assert helper_jar("paper", "1.21.4-rc1") is None
+    assert helper_jar("fabric", "1.20.2").name == "craft_conductor_ping-fabric-1.0.0.jar"
+
+
+def test_the_page_words_match_the_reasons():
+    """webui/app.js turns the card's reasons back into their translatable text (PING_REASONS); its patterns
+    and templates must match what pinghelper says."""
+    from pathlib import Path
+    js = (Path(pinghelper.__file__).parent / "webui" / "app.js").read_text(encoding="utf-8")
+    block = js[js.index("const PING_REASONS = ["):]
+    block = block[:block.index("];")]
+    found = re.findall(r'\[/(.+?)/, "(.+?)", "(\{\w+\})"\]', block)
+    assert len(found) == 2, found
+    wanted = {pinghelper.TOO_OLD_REASON: ("1.17", "version"), pinghelper.NOT_YET_REASON: ("neoforge", "loader")}
+    for pattern, template, slot in found:
+        assert template in wanted, template
+        value, name = wanted[template]
+        assert slot == "{" + name + "}"
+        shown = template.format(**{name: value})            # (what the server fills in)
+        match = re.fullmatch(pattern.replace("\S", r"\S"), shown)
+        assert match and match.group(1) == value, (pattern, shown)

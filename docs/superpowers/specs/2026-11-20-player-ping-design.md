@@ -95,7 +95,7 @@ earlier brief for 47 also said "don't add it to a server without asking".
   - read only while the card is polled and the server runs; at most once per poll;
   - opened without following links (like `servericon.read`), at most 64 KB, JSON checked: names are
     Minecraft names (3–16 of `A-Za-z0-9_`), values whole numbers 0–60000, anything else dropped;
-  - a file older than 15 seconds, or from before the server's current start, counts as no reading
+  - a file older than 30 seconds, or from before the server's current start, counts as no reading
     (the card says "waiting for the server" rather than showing old numbers).
 - **The card:** the existing good / fair / poor colours and words. Viewers who can see the card see
   the ping (`status.view`, as today).

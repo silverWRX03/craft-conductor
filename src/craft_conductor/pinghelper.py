@@ -29,7 +29,8 @@ log = logging.getLogger(__name__)
 #: where the helper writes, from the server's folder
 PING_FILE = Path(".craft-conductor") / "ping.json"
 MAX_BYTES = 65536          # the most read of it
-FRESH_SECONDS = 15         # a reading older than this counts as no reading
+FRESH_SECONDS = 30         # a reading older than this counts as no reading (Paper's 100-tick timer takes
+                           # over 15 s below about 6.7 TPS)
 MAX_MS = 60000             # a ping above this is nonsense
 MAX_NAME = 32              # characters in a name (Minecraft's are 16; a Floodgate prefix adds one)
 PREFIX = "craft_conductor_ping-"
@@ -55,9 +56,10 @@ WAITING_REASON = "Waiting for the server to report ping…"
 
 
 def _key(minecraft: str) -> tuple[int, ...] | None:
-    """A release's place in the order of versions (26.1 after 1.21.11); None for a name that isn't one
-    (a snapshot like 24w14a: no helper is chosen by guessing)."""
-    if not re.fullmatch(r"\d+(?:\.\d+)*(?:[-+][\w.+-]*)?", minecraft or ""):
+    """A release's place in the order of versions (26.1 after 1.21.11); None for a name that isn't a plain
+    release: a snapshot (24w14a), a pre-release or release candidate (1.20.2-rc1). Fabric orders those below
+    the release, so a jar picked by guessing could be one Fabric refuses to start with: they get no helper."""
+    if not re.fullmatch(r"\d+(?:\.\d+)*", minecraft or ""):
         return None
     return _version_key(minecraft)
 
@@ -146,11 +148,19 @@ def _sync(m, lock) -> None:
         if not _same(jar, dest):
             part = mods_dir / (jar.name + ".part")
             try:
+                part.unlink(missing_ok=True)               # (a link planted at this name is removed, not written through)
                 shutil.copyfile(jar, part)
                 os.replace(part, dest)
+                log.info("put the ping helper %s into %s", jar.name, mods_dir.name)
+            except OSError as e:
+                # Whatever helper is there may be the wrong one (Fabric refuses to start with it): take every one out.
+                log.warning("couldn't put the ping helper %s into %s: %s", jar.name, mods_dir.name, e)
+                jar = None
             finally:
-                part.unlink(missing_ok=True)
-            log.info("put the ping helper %s into %s", jar.name, mods_dir.name)
+                try:
+                    part.unlink(missing_ok=True)
+                except OSError:
+                    pass
     if not mods_dir.is_dir():
         return
     for path in mods_dir.iterdir():
@@ -165,7 +175,7 @@ def _sync(m, lock) -> None:
 
 def read(server_dir: Path, now: float) -> dict[str, int] | None:
     """Each online player's ping (milliseconds) from the helper's file; None when there is no usable,
-    fresh reading (no file, a link, over 64 KB, not valid, from an unknown version, older than 15 s)."""
+    fresh reading (no file, a link, over 64 KB, not valid, from an unknown version, older than 30 s)."""
     folder, path = server_dir / PING_FILE.parent, server_dir / PING_FILE
     try:
         for p in (folder, path):
@@ -174,7 +184,8 @@ def read(server_dir: Path, now: float) -> dict[str, int] | None:
         before = os.lstat(path)
         if not stat.S_ISREG(before.st_mode) or before.st_size > MAX_BYTES:
             return None
-        fd = os.open(path, os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0))
+        fd = os.open(path, os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+                     | getattr(os, "O_NONBLOCK", 0))   # (a pipe swapped in can't hold a request thread)
     except OSError:
         return None
     try:

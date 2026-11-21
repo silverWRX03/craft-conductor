@@ -46,6 +46,13 @@ def test_files_are_grouped_by_mod(tmp_path):
     assert g["other"] == ["config/jei/jei-server.ini"]  # no JEI jar here; .bin isn't a config
 
 
+def test_the_ping_helper_is_not_a_mod_with_config_files(tmp_path):
+    sd = server(tmp_path)
+    jar(sd / "mods" / "craft_conductor_ping-fabric-1.0.0.jar", fabric_id="craft_conductor_ping")
+    assert [p.name for p in configs.jars(sd)] == ["create.jar", "lithium.jar"]
+    assert "craft_conductor_ping" not in [m["mod_id"] for m in configs.grouped(sd, [])["mods"]]
+
+
 def test_read_and_save_safely(tmp_path):
     sd = server(tmp_path)
     backups = tmp_path / "backups"

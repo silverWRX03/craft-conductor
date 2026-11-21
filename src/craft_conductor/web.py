@@ -3757,6 +3757,8 @@ class Api:
         name = q.get("filename", "")
         if not re.fullmatch(r"[A-Za-z0-9 ()\[\]+_.,'-]{1,120}\.jar", name):
             raise ApiError(400, "only .jar files can be added as mods")
+        if name.startswith(pinghelper.PREFIX):
+            raise ApiError(400, "that file name is kept for Craft Conductor's own ping helper: rename the file")
         mods_dir = self.m.mods_dir
         dest = receive(handler, mods_dir / name, MAX_UPLOAD)
         try:

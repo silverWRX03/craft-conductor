@@ -292,6 +292,10 @@ def test_browse_and_add_from_the_web(hub_env):
     assert (mods_dir / "my-mod+1.0.jar").read_bytes() == b"homemade"
     assert c.call("POST", "/api/servers/alpha/mods/local?filename=evil.exe", raw=b"x")[0] == 400
     assert c.call("POST", "/api/servers/alpha/mods/local?filename=../x.jar", raw=b"x")[0] == 400
+    # The name Craft Conductor's own ping helper goes by is kept for it (it would vanish from the list).
+    status, body, _ = c.call("POST", "/api/servers/alpha/mods/local?filename=craft_conductor_ping-fabric-9.9.jar", raw=b"x")
+    assert status == 400 and "ping helper" in body["error"] and "rename" in body["error"], body
+    assert not (mods_dir / "craft_conductor_ping-fabric-9.9.jar").exists()
 
 
 def test_new_server_from_a_modpack_and_local_files(hub_env):
