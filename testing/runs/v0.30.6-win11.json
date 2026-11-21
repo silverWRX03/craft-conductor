@@ -548,6 +548,7 @@
     888,
     892,
     893,
+    894,
     895,
     896,
     900,
@@ -4611,6 +4612,13 @@
       "tested_at": "2026-11-21T04:55:36+00:00",
       "tester": "Owner + Claude Code",
       "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, the phone test home (panel 29972, Tailscale serve on). Craft Conductor settings, Advanced: switched off 'Tailscale may put the control panel on the internet, for anyone (Funnel)' (confirm asked). Connections, Remote access & phones, Tailscale: Put it on the internet too (Funnel) asked first ('Anyone who finds the address can reach the sign-in page...'), then showed 'On the internet for anyone (Funnel)' and tailscale funnel status said Funnel on. The owner's Android phone with Tailscale off (offline in the tailnet) opened the https://<pc>.<tailnet>.ts.net address and got in (still signed in from earlier at that address). Back to only my devices: tailscale said tailnet only, the panel 'only your own devices', and the phone (Tailscale still off) could no longer load it. Safety rule switched back on afterwards.",
+      "evidence": ""
+    },
+    "894": {
+      "status": "pass",
+      "tested_at": "2026-11-21T15:47:33+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-21, the phone test home (panel 29972, Tailscale serve on, tailnet only). The computer was shared from the owner's Tailscale account to a second Tailscale account (the console of the second account lists the computer as Shared in); the owner's iPhone, signed into only that second account, opened the https://<pc>.<tailnet>.ts.net address in Safari, pressed Invited? Sign in with your username and signed in as the test person Test viewer, who was given only See status on the Phone test server. The owner could see the server but could not start or stop it: only what was given. (The first password had O and 0 look-alikes and was hard to type on the phone; it was changed to an easier one through the person's own password change.)",
       "evidence": ""
     }
   },
