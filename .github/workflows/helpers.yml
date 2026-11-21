@@ -1,7 +1,8 @@
 name: helpers
 
 # Craft Conductor Ping (helpers/ping/): the jars shipped in src/craft_conductor/helpers/ (the
-# Paper/Purpur plugin and the two Fabric/Quilt mod jars) must be exactly what the source builds.
+# Paper/Purpur plugin, the two Fabric/Quilt mod jars and the two NeoForge mod jars) must be exactly
+# what the source builds.
 # The built jars are uploaded, so when a local JDK makes different bytes, the CI jar can be
 # committed instead.
 

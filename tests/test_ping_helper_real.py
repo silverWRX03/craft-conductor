@@ -1,18 +1,20 @@
-"""Craft Conductor Ping on real Fabric, Quilt and Paper servers (roadmap 47).
+"""Craft Conductor Ping on real Fabric, Quilt, NeoForge and Paper servers (roadmap 47).
 
 Optional: skipped unless CRAFT_REAL_SERVERS=1 and CRAFT_MINEFLAYER is the path to the mineflayer
 package (``.../node_modules/mineflayer``), with ``node`` on PATH. Each version downloads Minecraft,
-Fabric (Quilt, Paper) and, where this computer has no fitting Java, Temurin into pytest's temporary
-folders, so a run takes several minutes and needs the internet.
+Fabric (Quilt, NeoForge, Paper) and, where this computer has no fitting Java, Temurin into pytest's
+temporary folders, so a run takes several minutes and needs the internet.
 
 For each server type and Minecraft version: a server made through Craft Conductor's own setup and
 Manager (``online-mode=false``, only in these throwaway servers, so the bot can join) with
 ``[players] ping = true`` in its craft-conductor.toml, started: ``start_server`` puts the right shipped
 helper jar into the mods (or plugins) folder itself (pinghelper.sync); a mineflayer bot joins, and ``.craft-conductor/ping.json``
-must list the bot with a whole number within 20 seconds. mineflayer speaks Minecraft up to 26.1: on
-a newer version the bot can't join, so the test checks that the helper loads and writes the file,
-and that every Minecraft field and method the helper uses is in that version's (unobfuscated)
-server jar.
+must list the bot with a whole number within 20 seconds, and the server's log must hold the helper's
+start line and nothing else from it. The bot is a plain Minecraft client, so its joining also shows
+that players need nothing installed (NeoForge turns away a client missing a mod it needs).
+mineflayer speaks Minecraft up to 26.1: on a newer version the bot can't join, so the test checks
+that the helper loads and writes the file, and that every Minecraft field and method the helper uses
+is in that version's (unobfuscated) server jar (for NeoForge, the one it patched).
 """
 from __future__ import annotations
 
@@ -38,11 +40,17 @@ pytestmark = pytest.mark.skipif(
     reason="real servers: set CRAFT_REAL_SERVERS=1 and CRAFT_MINEFLAYER=<path to the mineflayer package>")
 
 BOT_NAME = "PingBot"
+START = "Craft Conductor Ping: reporting players' ping to Craft Conductor"   # (the helper's one log line)
 
 # Fabric: the oldest supported, two in between, the last 1.x, then every 26.x up to the newest
 # Fabric supports. Quilt (which runs Fabric mods): one version for each jar.
 SERVERS = [("fabric", v) for v in ("1.20.2", "1.20.4", "1.21.1", "1.21.11", "26.1", "26.2", "26.3")] \
     + [("quilt", "1.21.1"), ("quilt", "26.1")]
+
+# NeoForge: the first version of each jar (1.20.2: mods.toml; 1.20.6, as 1.20.5 has only beta NeoForge
+# builds, which Craft Conductor doesn't install: neoforge.mods.toml), 1.20.4 (NeoForge 20.4 reads the
+# metadata differently), 1.21.1, the last 1.x, 26.1 (Minecraft without obfuscation) and the newest.
+NEOFORGE = [("neoforge", v) for v in ("1.20.2", "1.20.4", "1.20.6", "1.21.1", "1.21.11", "26.1", "26.3")]
 
 BOT = r"""
 // node bot.js <mineflayer> <port> <version> <name>: joins 127.0.0.1 in offline mode and stays.
@@ -119,6 +127,26 @@ def _missing_in(server_jar: Path, helper_jar: Path) -> list[tuple]:
     return missing
 
 
+def _only_the_start_line(server_dir: Path) -> str:
+    """The helper logged its start line and nothing else (nothing every 5 seconds): read from the
+    server's whole log (logs/latest.log), as the console keeps only its last lines."""
+    text = (server_dir / "logs" / "latest.log").read_text(encoding="utf-8", errors="replace")
+    ours = [line.rstrip() for line in text.splitlines() if "Craft Conductor Ping:" in line]
+    assert len(ours) == 1 and ours[0].endswith(START), ours
+    return ours[0]
+
+
+def _minecraft_jar(server_dir: Path, loader: str, minecraft: str) -> Path | None:
+    """The jar holding the Minecraft classes the server runs (for NeoForge, the one it patched)."""
+    if loader != "neoforge":
+        return server_dir / "versions" / minecraft / f"server-{minecraft}.jar"
+    for jar in sorted((server_dir / "libraries").rglob("*.jar")):
+        with zipfile.ZipFile(jar) as z:
+            if "net/minecraft/server/level/ServerPlayer.class" in z.namelist():
+                return jar
+    return None
+
+
 def _free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
@@ -164,6 +192,11 @@ def test_fabric_ping_on_real_servers(loader, minecraft, tmp_path, real_java):
     _ping_on_a_real_server(loader, minecraft, tmp_path)
 
 
+@pytest.mark.parametrize("loader, minecraft", NEOFORGE)
+def test_neoforge_ping_on_real_servers(loader, minecraft, tmp_path, real_java):
+    _ping_on_a_real_server(loader, minecraft, tmp_path)
+
+
 def test_paper_ping_on_a_real_server(tmp_path, real_java):
     """The Paper plugin, since it shares the file writing (common/PingFile) with the Fabric mod."""
     _ping_on_a_real_server("paper", "1.21.1", tmp_path)
@@ -197,7 +230,7 @@ def _ping_on_a_real_server(loader: str, minecraft: str, tmp_path: Path) -> None:
         assert (m.mods_dir / jar.name).read_bytes() == jar.read_bytes()   # (put in by start_server)
         assert [p.name for p in m.mods_dir.iterdir() if pinghelper.is_helper(p.name)] == [jar.name]
         log = "\n".join(proc.tail(500))
-        assert "Craft Conductor Ping: reporting players' ping to Craft Conductor" in log, log[-3000:]
+        assert START in log, log[-3000:]
         (tmp_path / "bot.js").write_text(BOT, encoding="utf-8")
         bot = subprocess.Popen(["node", str(tmp_path / "bot.js"), MINEFLAYER, str(port), minecraft, BOT_NAME],
                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
@@ -209,9 +242,10 @@ def _ping_on_a_real_server(loader: str, minecraft: str, tmp_path: Path) -> None:
             # (mineflayer can't speak this Minecraft: the helper still has to load and write the file)
             seen = _wait_for(lambda: (_read_ping(ping) or {}).get("version") == 1 and _read_ping(ping), 20)
             assert seen and seen["players"] == {} and isinstance(seen["time"], int), seen
-            server_jar = m.server_dir / "versions" / minecraft / f"server-{minecraft}.jar"
-            assert server_jar.is_file(), server_jar
+            server_jar = _minecraft_jar(m.server_dir, loader, minecraft)
+            assert server_jar is not None and server_jar.is_file(), server_jar
             assert _missing_in(server_jar, jar) == []
+            _only_the_start_line(m.server_dir)
             print(f"\n{loader} {minecraft}: helper loaded and wrote {seen}; mineflayer can't join this version, "
                   f"and every Minecraft member the helper uses is in {server_jar.name}")
             return
@@ -223,7 +257,8 @@ def _ping_on_a_real_server(loader: str, minecraft: str, tmp_path: Path) -> None:
         assert 0 <= seen["players"][BOT_NAME] <= 60000
         warnings = [line for line in proc.tail(500) if "Craft Conductor Ping: can't write" in line]
         assert warnings == []
-        print(f"\n{loader} {minecraft}: {seen}")
+        _wait_for(lambda: (_read_ping(ping) or {}).get("time", 0) > seen["time"], 12)   # (another write)
+        print(f"\n{loader} {minecraft}: {seen}\n  {_only_the_start_line(m.server_dir)}")
     finally:
         if bot is not None and bot.poll() is None:
             bot.kill()

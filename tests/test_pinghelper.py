@@ -21,7 +21,7 @@ def fake_jars(tmp_path, monkeypatch):
     """A helpers folder with a fake jar for each platform (the shipped ones are only read in test_support)."""
     folder = tmp_path / "helpers"
     folder.mkdir()
-    for platform in ("paper", "fabric", "fabric26"):
+    for platform in ("paper", "fabric", "fabric26", "neoforge", "neoforge1.20.5"):
         (folder / f"craft_conductor_ping-{platform}-1.0.0.jar").write_bytes(f"fake {platform}".encode())
     monkeypatch.setattr(pinghelper, "JARS_DIR", folder)
     return folder
@@ -37,10 +37,17 @@ def test_support():
     assert helper_jar("fabric", "26.1").name == "craft_conductor_ping-fabric26-1.0.0.jar"
     assert helper_jar("quilt", "26.2.1").name == "craft_conductor_ping-fabric26-1.0.0.jar"
     assert helper_jar("paper", "26.1").name == "craft_conductor_ping-paper-1.0.0.jar"
+    # NeoForge from 1.20.2: up to 1.20.4 it reads META-INF/mods.toml, from 1.20.5 neoforge.mods.toml
+    assert helper_jar("neoforge", "1.20.2").name == "craft_conductor_ping-neoforge-1.0.0.jar"
+    assert helper_jar("neoforge", "1.20.4").name == "craft_conductor_ping-neoforge-1.0.0.jar"
+    assert helper_jar("neoforge", "1.20.5").name == "craft_conductor_ping-neoforge1.20.5-1.0.0.jar"
+    assert helper_jar("neoforge", "1.21.1").name == "craft_conductor_ping-neoforge1.20.5-1.0.0.jar"
+    assert helper_jar("neoforge", "26.1").name == "craft_conductor_ping-neoforge1.20.5-1.0.0.jar"
     for loader, version in (("fabric", "1.20.2-rc1"), ("fabric", "1.20.2-pre1"), ("fabric", "26-rc1"),
                             ("paper", "1.17-pre1"), ("fabric", "24w14a"), ("fabric", "latest"),
                             ("fabric", "1.20.1"), ("fabric", "1.19.4"), ("paper", "1.16.5"),
-                            ("vanilla", "1.21.1"), ("neoforge", "1.21.1"), ("forge", "1.20.1")):
+                            ("vanilla", "1.21.1"), ("neoforge", "1.20.1"), ("neoforge", "1.20.5-rc1"),
+                            ("forge", "1.20.1")):
         assert helper_jar(loader, version) is None
         assert unsupported_reason(loader, version)
     assert unsupported_reason("paper", "1.21.1") is None and unsupported_reason("fabric", "26.1") is None
@@ -48,7 +55,8 @@ def test_support():
     assert unsupported_reason("quilt", "1.20.1") == "Craft Conductor's ping helper needs Minecraft 1.20.2 or newer on this server type."
     assert unsupported_reason("paper", "1.16.5") == "Craft Conductor's ping helper needs Minecraft 1.17 or newer on this server type."
     assert unsupported_reason("vanilla", "1.21.1") == VANILLA
-    assert unsupported_reason("neoforge", "1.21.1") == "Craft Conductor's ping helper doesn't run on neoforge yet."
+    assert unsupported_reason("neoforge", "1.21.1") is None and unsupported_reason("neoforge", "1.20.2") is None
+    assert unsupported_reason("neoforge", "1.20.1") == "Craft Conductor's ping helper needs Minecraft 1.20.2 or newer on this server type."
     assert unsupported_reason("forge", "1.20.1") == "Craft Conductor's ping helper doesn't run on forge yet."
     assert is_helper("craft_conductor_ping-fabric-1.0.0.jar") and is_helper("craft_conductor_ping-paper-2.1.jar.disabled")
     assert not is_helper("sodium.jar") and not is_helper("craft_conductor_ping-fabric-1.0.0.zip")
@@ -118,6 +126,28 @@ def test_sync_puts_it_in_and_takes_it_out(make_config, http, modrinth, fake_jars
     m.lock.loader, m.lock.minecraft = "fabric", "1.20.1"     # ... and one on Minecraft 1.20.1
     pinghelper.sync(m)
     assert not helper.exists()
+
+
+def test_sync_swaps_the_neoforge_jar_across_1_20_5(make_config, http, fake_jars):
+    """NeoForge reads mods.toml up to 1.20.4 and neoforge.mods.toml from 1.20.5: a server moved across
+    gets the other jar, and never both."""
+    m = manager(make_config(), http, ["1.21.1"])
+    assert update(m).ok
+    m.config.player_ping = True
+    helpers = lambda: sorted(p.name for p in m.mods_dir.iterdir() if is_helper(p.name))  # noqa: E731
+    m.lock.loader, m.lock.minecraft = "neoforge", "1.20.4"
+    pinghelper.sync(m)
+    assert helpers() == ["craft_conductor_ping-neoforge-1.0.0.jar"]
+    m.lock.minecraft = "1.20.6"
+    pinghelper.sync(m)
+    assert helpers() == ["craft_conductor_ping-neoforge1.20.5-1.0.0.jar"]
+    assert (m.mods_dir / "craft_conductor_ping-neoforge1.20.5-1.0.0.jar").read_bytes() == b"fake neoforge1.20.5"
+    m.lock.minecraft = "1.20.2"
+    pinghelper.sync(m)
+    assert helpers() == ["craft_conductor_ping-neoforge-1.0.0.jar"]
+    m.lock.minecraft = "1.20.1"                              # (below NeoForge's floor: none)
+    pinghelper.sync(m)
+    assert helpers() == []
 
 
 def test_sync_never_stops_a_start(make_config, http, fake_jars, monkeypatch):
@@ -336,7 +366,7 @@ def test_manage_mods_lists_the_helper_on_its_own(hub_env):
 
 def test_support_matches_the_ranges_the_jars_declare():
     """SUPPORT (which jar goes where) and each shipped jar's own Minecraft range must say the same, or a
-    server could be handed a jar that Fabric refuses to start with."""
+    server could be handed a jar that Fabric (or NeoForge) refuses to start with."""
     import zipfile
     for loaders, lowest, below, platform in pinghelper.SUPPORT:
         jar = sorted(pinghelper.JARS_DIR.glob(f"{pinghelper.PREFIX}{platform}-*.jar"))[-1]
@@ -344,6 +374,12 @@ def test_support_matches_the_ranges_the_jars_declare():
             if platform == "paper":
                 yml = z.read("plugin.yml").decode("utf-8").splitlines()
                 assert f'api-version: "{lowest}"' in yml and below is None
+            elif platform.startswith("neoforge"):
+                import tomllib
+                toml = "META-INF/mods.toml" if "META-INF/mods.toml" in z.namelist() else "META-INF/neoforge.mods.toml"
+                deps = tomllib.loads(z.read(toml).decode("utf-8"))["dependencies"]["craft_conductor_ping"]
+                [declared] = [d["versionRange"] for d in deps if d["modId"] == "minecraft"]
+                assert declared == f"[{lowest},{below or ''})"
             else:
                 declared = json.loads(z.read("fabric.mod.json"))["depends"]["minecraft"]
                 assert declared == f">={lowest}" + (f" <{below}" if below else "")

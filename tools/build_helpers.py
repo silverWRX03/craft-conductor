@@ -1,7 +1,8 @@
 """Build the Craft Conductor Ping helper jars (helpers/ping/) and ship them in the package.
 
-Builds every helper: the Paper/Purpur plugin and the Fabric/Quilt mod (Fabric Loom, which downloads
-the Minecraft server jar and its mappings into Gradle's cache the first time).
+Builds every helper: the Paper/Purpur plugin, the Fabric/Quilt mod (Fabric Loom, which downloads
+the Minecraft server jar and its mappings into Gradle's cache the first time) and the NeoForge mod
+(ModDevGradle, which downloads NeoForge and Minecraft 1.20.4 the same way).
 
     python tools/build_helpers.py           build, then copy the jars into src/craft_conductor/helpers/
     python tools/build_helpers.py --check   build into a temporary folder and exit 1 when a shipped
@@ -36,7 +37,8 @@ def find_gradle() -> str:
 
 
 def build() -> list[Path]:
-    """Run Gradle and return the jars it made (``assemble``: the Fabric mod's is Loom's remapped jar)."""
+    """Run Gradle and return the jars it made (``assemble``: the Fabric mod's is Loom's remapped jar;
+    two Fabric jars and two NeoForge jars, see helpers/ping/README.md)."""
     for old in PROJECT.glob("*/build/libs"):
         shutil.rmtree(old, ignore_errors=True)
     cmd = [find_gradle(), "-p", str(PROJECT), "--no-daemon", "--console=plain", "-q", "assemble"]

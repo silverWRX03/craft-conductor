@@ -1,0 +1,26 @@
+# Craft Conductor Ping for NeoForge 20.5 and newer (Minecraft 1.20.5 and newer), which read this file.
+# Only for the server: it registers no network payload, so NeoForge lets clients without it join.
+modLoader="javafml"
+loaderVersion="[1,)"
+license="GPL-3.0-or-later"
+
+[[mods]]
+modId="craft_conductor_ping"
+version="${version}"
+displayName="Craft Conductor Ping"
+authors="Craft Conductor"
+description="Reports each player's ping to Craft Conductor (writes .craft-conductor/ping.json)."
+
+[[dependencies.craft_conductor_ping]]
+modId="neoforge"
+type="required"
+versionRange="${neoforge}"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.craft_conductor_ping]]
+modId="minecraft"
+type="required"
+versionRange="${minecraft}"
+ordering="NONE"
+side="BOTH"

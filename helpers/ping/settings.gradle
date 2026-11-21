@@ -4,10 +4,11 @@
 pluginManagement {
     repositories {
         maven { url = 'https://maven.fabricmc.net/' } // (Fabric Loom, for the Fabric mod)
-        gradlePluginPortal()
+        gradlePluginPortal() // (and ModDevGradle, for the NeoForge mod)
     }
 }
 
 rootProject.name = 'craft-conductor-ping'
 include 'paper'
 include 'fabric'
+include 'neoforge'
