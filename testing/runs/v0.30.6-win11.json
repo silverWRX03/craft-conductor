@@ -233,6 +233,10 @@
     357,
     358,
     359,
+    360,
+    361,
+    362,
+    363,
     364,
     365,
     366,
@@ -546,6 +550,7 @@
     893,
     895,
     896,
+    900,
     901,
     903,
     904,
@@ -4571,6 +4576,41 @@
       "tested_at": "2026-11-21T01:13:56+00:00",
       "tester": "Owner + Claude Code",
       "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, the phone test home (panel 29972). Craft Conductor settings, Advanced: switched off the safety rule 'You choose the port friends use from outside, even 25565' (confirm asked). Phone test, Friends, Open a port on my router (risks asked first): Craft Conductor picked TCP 39958; Router (UPnP) on: the router forwarded 39958 to this PC. Choose the port yourself, 25565, Use this port: server-port=25565, the router's forward moved to 25565 (39958 gone), Check my setup's firewall check followed to port 25565 (allowed by Windows' rule for Java, any port, so no port rule was needed), and the internet test said 'Reachable from the internet (port 25565)'. Small text slip: the page still says 'Craft Conductor picked this port: not Minecraft's usual 25565' after choosing 25565. Undone afterwards: UPnP off (no Craft Conductor entries left on the router), Only friends at home, safety rule back on.",
+      "evidence": ""
+    },
+    "360": {
+      "status": "pass",
+      "tested_at": "2026-11-21T04:47:55+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, the owner's iPhone 13 in Safari on the home Wi-Fi, the phone test home (panel 29972) at its network address, signed in as the owner; Craft Conductor settings, Sounds & notifications, Volume Normal. Button sounds tried on a real iPhone (Classic/Modern switch, Phone test Start and Stop).",
+      "evidence": ""
+    },
+    "361": {
+      "status": "pass",
+      "tested_at": "2026-11-21T04:47:55+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, the owner's iPhone 13 in Safari on the home Wi-Fi, the phone test home (panel 29972) at its network address, signed in as the owner; Craft Conductor settings, Sounds & notifications, Volume Normal. Silent switch off (ringer on): the button sounds played.",
+      "evidence": ""
+    },
+    "362": {
+      "status": "pass",
+      "tested_at": "2026-11-21T04:47:55+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, the owner's iPhone 13 in Safari on the home Wi-Fi, the phone test home (panel 29972) at its network address, signed in as the owner; Craft Conductor settings, Sounds & notifications, Volume Normal. Silent switch on: the same buttons were quiet.",
+      "evidence": ""
+    },
+    "363": {
+      "status": "pass",
+      "tested_at": "2026-11-21T04:47:56+00:00",
+      "tester": "Owner",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, the owner's iPhone 13 in Safari on the home Wi-Fi, the phone test home (panel 29972) at its network address, signed in as the owner; Craft Conductor settings, Sounds & notifications, Volume Normal. Matches the user manual (Sounds): sounds on, the silent switch keeps them quiet, and there is no Vibrate on button presses option on the iPhone (iPhones don't let web apps vibrate; the panel only shows it where the browser can vibrate).",
+      "evidence": ""
+    },
+    "900": {
+      "status": "pass",
+      "tested_at": "2026-11-21T04:55:36+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.6 (sha256 ddfe4ce…), isolated home. 2026-11-20, the phone test home (panel 29972, Tailscale serve on). Craft Conductor settings, Advanced: switched off 'Tailscale may put the control panel on the internet, for anyone (Funnel)' (confirm asked). Connections, Remote access & phones, Tailscale: Put it on the internet too (Funnel) asked first ('Anyone who finds the address can reach the sign-in page...'), then showed 'On the internet for anyone (Funnel)' and tailscale funnel status said Funnel on. The owner's Android phone with Tailscale off (offline in the tailnet) opened the https://<pc>.<tailnet>.ts.net address and got in (still signed in from earlier at that address). Back to only my devices: tailscale said tailnet only, the panel 'only your own devices', and the phone (Tailscale still off) could no longer load it. Safety rule switched back on afterwards.",
       "evidence": ""
     }
   },

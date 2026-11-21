@@ -4979,7 +4979,8 @@
     "step": "Run a real server for several days.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Player Activity: on hold until several real players can use a server for days (owner, 2026-11-20)"
   },
   {
     "id": 560,
@@ -4987,7 +4988,8 @@
     "step": "Have multiple users join at different times.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Player Activity: on hold until several real players can use a server for days (owner, 2026-11-20)"
   },
   {
     "id": 561,
@@ -4995,7 +4997,8 @@
     "step": "Open Player Activity.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Player Activity: on hold until several real players can use a server for days (owner, 2026-11-20)"
   },
   {
     "id": 562,
@@ -5003,7 +5006,8 @@
     "step": "Confirm the players shown match actual usage.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Player Activity: on hold until several real players can use a server for days (owner, 2026-11-20)"
   },
   {
     "id": 563,
@@ -5011,7 +5015,8 @@
     "step": "Confirm approximate activity times are correct.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Player Activity: on hold until several real players can use a server for days (owner, 2026-11-20)"
   },
   {
     "id": 564,
@@ -5019,7 +5024,8 @@
     "step": "Confirm busy-time reporting is believable.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Player Activity: on hold until several real players can use a server for days (owner, 2026-11-20)"
   },
   {
     "id": 565,
@@ -5027,7 +5033,8 @@
     "step": "Confirm suggested restart time corresponds to a period when players are usually offline.",
     "type": "Core",
     "tags": [],
-    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
+    "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx",
+    "on_hold": "Player Activity: on hold until several real players can use a server for days (owner, 2026-11-20)"
   },
   {
     "id": 566,
