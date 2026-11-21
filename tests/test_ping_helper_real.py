@@ -6,8 +6,9 @@ Fabric (Quilt, Paper) and, where this computer has no fitting Java, Temurin into
 folders, so a run takes several minutes and needs the internet.
 
 For each server type and Minecraft version: a server made through Craft Conductor's own setup and
-Manager (``online-mode=false``, only in these throwaway servers, so the bot can join), the shipped
-helper jar in its mods folder, started; a mineflayer bot joins, and ``.craft-conductor/ping.json``
+Manager (``online-mode=false``, only in these throwaway servers, so the bot can join) with
+``[players] ping = true`` in its craft-conductor.toml, started: ``start_server`` puts the right shipped
+helper jar into the mods (or plugins) folder itself (pinghelper.sync); a mineflayer bot joins, and ``.craft-conductor/ping.json``
 must list the bot with a whole number within 20 seconds. mineflayer speaks Minecraft up to 26.1: on
 a newer version the bot can't join, so the test checks that the helper loads and writes the file,
 and that every Minecraft field and method the helper uses is in that version's (unobfuscated)
@@ -17,7 +18,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import socket
 import struct
 import subprocess
@@ -27,7 +27,7 @@ from pathlib import Path
 
 import pytest
 
-from craft_conductor import java as javamod
+from craft_conductor import config as configmod, java as javamod, pinghelper
 from craft_conductor import setup as setupmod
 from craft_conductor.http import HttpClient
 from craft_conductor.manager import Manager
@@ -37,7 +37,6 @@ pytestmark = pytest.mark.skipif(
     os.environ.get("CRAFT_REAL_SERVERS") != "1" or not MINEFLAYER,
     reason="real servers: set CRAFT_REAL_SERVERS=1 and CRAFT_MINEFLAYER=<path to the mineflayer package>")
 
-HELPERS = Path(__file__).resolve().parent.parent / "src" / "craft_conductor" / "helpers"
 BOT_NAME = "PingBot"
 
 # Fabric: the oldest supported, two in between, the last 1.x, then every 26.x up to the newest
@@ -57,15 +56,6 @@ bot.on('kicked', (reason) => console.log('kicked', JSON.stringify(reason).slice(
 bot.on('error', (e) => console.log('error', e.message));
 bot.on('end', (reason) => { console.log('end', reason); process.exit(1); });
 """
-
-
-def _jar_for(minecraft: str) -> Path:
-    """The helper jar for this Minecraft version (Task 3's pinghelper picks it; here, by hand):
-    craft_conductor_ping-fabric up to 1.21.11, craft_conductor_ping-fabric26 from 26.1."""
-    platform = "fabric26" if int(minecraft.split(".")[0]) >= 26 else "fabric"
-    jars = sorted(HELPERS.glob(f"craft_conductor_ping-{platform}-*.jar"))
-    assert len(jars) == 1, jars
-    return jars[0]
 
 
 def _class_file(data: bytes) -> dict:
@@ -171,22 +161,24 @@ def _read_ping(path: Path) -> dict | None:
 
 @pytest.mark.parametrize("loader, minecraft", SERVERS)
 def test_fabric_ping_on_real_servers(loader, minecraft, tmp_path, real_java):
-    _ping_on_a_real_server(loader, minecraft, _jar_for(minecraft), tmp_path)
+    _ping_on_a_real_server(loader, minecraft, tmp_path)
 
 
 def test_paper_ping_on_a_real_server(tmp_path, real_java):
     """The Paper plugin, since it shares the file writing (common/PingFile) with the Fabric mod."""
-    jars = sorted(HELPERS.glob("craft_conductor_ping-paper-*.jar"))
-    assert len(jars) == 1, jars
-    _ping_on_a_real_server("paper", "1.21.1", jars[0], tmp_path)
+    _ping_on_a_real_server("paper", "1.21.1", tmp_path)
 
 
-def _ping_on_a_real_server(loader: str, minecraft: str, jar: Path, tmp_path: Path) -> None:
+def _ping_on_a_real_server(loader: str, minecraft: str, tmp_path: Path) -> None:
     root = tmp_path / "server"
     port = _free_port()
     spec = setupmod.SetupSpec(loader=loader, minecraft=minecraft, accept_eula=True, port=port, memory_gb=2,
                               properties={"online-mode": "false"})  # (the bot has no Microsoft account)
-    cfg = setupmod.configure(root, spec)
+    setupmod.configure(root, spec)
+    with open(root / "craft-conductor.toml", "a", encoding="utf-8") as f:
+        f.write("\n[players]\nping = true\n")       # (Craft Conductor puts the helper in at the start)
+    cfg = configmod.load(root)
+    assert cfg.player_ping
     m = Manager(cfg, http=HttpClient(), echo=False)
     decision, changes = m.check(minecraft)
     assert decision.plan is not None, decision
@@ -194,15 +186,16 @@ def _ping_on_a_real_server(loader: str, minecraft: str, jar: Path, tmp_path: Pat
     assert result.ok, result.message
     assert m.lock.minecraft == minecraft
 
-    # Task 3 turns this on with `[players] ping = true` (Craft Conductor copies the jar itself);
-    # until then the jar is put into the mods (or plugins) folder by hand.
-    m.mods_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(jar, m.mods_dir / jar.name)
+    jar = pinghelper.helper_jar(loader, minecraft)      # (the shipped jar for this server)
+    assert jar is not None, (loader, minecraft)
+    assert not (m.mods_dir / jar.name).exists()
 
     ping = m.server_dir / ".craft-conductor" / "ping.json"
     proc = m.start_server()
     bot = None
     try:
+        assert (m.mods_dir / jar.name).read_bytes() == jar.read_bytes()   # (put in by start_server)
+        assert [p.name for p in m.mods_dir.iterdir() if pinghelper.is_helper(p.name)] == [jar.name]
         log = "\n".join(proc.tail(500))
         assert "Craft Conductor Ping: reporting players' ping to Craft Conductor" in log, log[-3000:]
         (tmp_path / "bot.js").write_text(BOT, encoding="utf-8")

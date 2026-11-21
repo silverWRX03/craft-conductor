@@ -4013,7 +4013,12 @@ class Api:
     def players_online(self, q, b) -> dict:
         """The Dashboard's Connected Players card (polled): who is online with their role and ping, the
         player limit, whether the whitelist is on (and its names with ?whitelist=1). Reads files only."""
-        return self._players().roster(set(self.d.players), whitelist=q.get("whitelist") == "1")
+        from . import pinghelper
+        pings, info = pinghelper.card(self.m, self.d.state == "running", time.time())
+        out = self._players().roster(set(self.d.players), pings=pings, whitelist=q.get("whitelist") == "1",
+                                     why_no_ping=info["reason"])
+        out["ping"].update(can_turn_on=info["can_turn_on"], on=info["on"])   # (the page asks before turning it on)
+        return out
 
     def broadcast(self, q, b) -> dict:
         """A message to everyone online, through the server's ``say``."""

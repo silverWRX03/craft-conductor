@@ -532,7 +532,7 @@
         const op = p.ops.find((o) => o.name === name);
         return { name, op: !!op, op_level: op ? op.level : null, ping_ms: null, ping_state: null };
       }), max: s.max_players, whitelist_enabled: p.whitelist_enabled,
-      ping: { available: false, reason: "Minecraft doesn't share each player's ping with the server console, so Craft Conductor can't show it. (It never adds a mod or plugin only to measure it.)" } };
+      ping: { available: false, reason: "Minecraft doesn't share each player's ping with the server console, so Craft Conductor can't show it. (It never adds a mod or plugin only to measure it.)", can_turn_on: true, on: false } };
       if (r.q.whitelist === "1") out.whitelist = p.whitelist.slice().sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
       return out;
     },

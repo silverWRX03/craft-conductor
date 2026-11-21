@@ -29,7 +29,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from . import backup, lock as lockmod, private
+from . import backup, lock as lockmod, pinghelper, private
 from .config import Config
 from .http import HttpClient, sha1_file
 from .java import JavaManager
@@ -337,12 +337,13 @@ class Manager:
         if not mods_dir.is_dir():
             return []
         managed = {m.filename for m in self.lock.mods}
-        return sorted(p.name for p in mods_dir.glob("*.jar") if p.name not in managed)
+        return sorted(p.name for p in mods_dir.glob("*.jar") if p.name not in managed and not pinghelper.is_helper(p.name))
 
     def disabled_jars(self) -> list[str]:
         """Jars switched off by hand (``.jar.disabled``): the server doesn't load them."""
         mods_dir = self.mods_dir
-        return sorted(p.name[:-len(".disabled")] for p in mods_dir.glob("*.jar.disabled")) if mods_dir.is_dir() else []
+        return sorted(p.name[:-len(".disabled")] for p in mods_dir.glob("*.jar.disabled")
+                      if not pinghelper.is_helper(p.name)) if mods_dir.is_dir() else []
 
     def set_jar(self, name: str, action: str) -> str:
         """Switch a jar added by hand off (renamed to .jar.disabled) or on, or remove it. Only
@@ -397,6 +398,7 @@ class Manager:
                                "run `craft-conductor init --accept-eula` or set eula=true yourself")
         proc = self.new_process(lock)
         started = time.time()
+        pinghelper.sync(self, lock)  # (before the start: mods load only then)
         proc.start()
         if proc.proc is not None:
             self.java.lease(proc.argv[0], proc.proc.pid)  # (its Java isn't removed while it runs)
@@ -694,7 +696,8 @@ class Manager:
 
         modrinth = self.providers.get("modrinth") or ModrinthProvider(self.http)
         mods_dir = self.mods_dir
-        jars = {sha1_file(p): p for p in sorted(mods_dir.glob("*.jar"))} if mods_dir.is_dir() else {}
+        jars = {sha1_file(p): p for p in sorted(mods_dir.glob("*.jar"))
+                if not pinghelper.is_helper(p.name)} if mods_dir.is_dir() else {}
         found = modrinth.identify(list(jars))
         identified, unknown = [], []
         for sha1, path in jars.items():
