@@ -20,6 +20,8 @@ the ping on the Dashboard; it copies the jar into `plugins/` (or `mods/`) when t
 | `craft_conductor_ping-neoforge-<version>.jar` | NeoForge, Minecraft 1.20.2 to 1.20.4 (`[1.20.2,1.20.5)`) |
 | `craft_conductor_ping-neoforge1.20.5-<version>.jar` | NeoForge, Minecraft 1.20.5 and newer (`[1.20.5,)`) |
 | `craft_conductor_ping-forge-<version>.jar` | Forge 47 (any build), Minecraft 1.20.1 (`[1.20.1,1.20.2)`) |
+| `craft_conductor_ping-forge1.20.2-<version>.jar` | Forge 48 and 49, Minecraft 1.20.2 to 1.20.4 (`[1.20.2,1.20.6)`) |
+| `craft_conductor_ping-forge1.20.6-<version>.jar` | Forge 50 and newer, Minecraft 1.20.6 and newer, 26.x too (`[1.20.6,)`) |
 
 - `paper/`: the plugin (`Player#getPing()`), compiled for Java 16 against paper-api 1.17.1.
 - `fabric/`: the mod, server only (`"environment": "server"`), without Fabric API. Fabric Loom
@@ -47,6 +49,27 @@ the ping on the Dashboard; it copies the jar into `plugins/` (or `mods/`) when t
   It declares Minecraft `[1.20.1,1.20.2)` and Forge `[47,)`, so a modpack's server on any Forge 47
   build (packs pin their own) loads it (checked on real servers with 47.0.0, 47.1.0 and the recommended
   build).
+- `forge1.20.2/`: the mod for Forge on Minecraft 1.20.2 and newer, server only as the one for 1.20.1.
+  From 1.20.2 a player's ping is on its connection (`player.connection.latency()`), as on NeoForge.
+  One compile, against plain Minecraft 1.20.2 on Mojang's names (ModDevGradle without a loader, from
+  NeoForm 1.20.2) and Forge 48.1.0's own jars for `@Mod` and `ServerLifecycleHooks`, for Java 17, gives
+  two jars:
+  - `forge1.20.2`: Forge 48 and 49 (Minecraft 1.20.2 to 1.20.4) still run Minecraft on SRG names, the
+    same ones on all three versions (`f_8906_` for `ServerPlayer.connection`, `m_293018_` for its
+    `latency()`). ModDevGradle's legacyforge plugin can't rename to them (the NeoForm runtime under it
+    knows SRG names only up to 1.20.1), so the build does what legacyforge does, with the same tools:
+    NeoForged's installertools 3.0.4 makes the mappings from Forge's MCPConfig for 1.20.2 and Mojang's
+    1.20.2 server mappings (fetched from Mojang by their SHA-1, which the build checks), and
+    AutoRenamingTool 2.0.4 renames the compiled jar with them.
+  - `forge1.20.6`: from Forge 50 (Minecraft 1.20.6; Forge has no 1.20.5) Forge runs Minecraft on
+    Mojang's names, and 26.x isn't obfuscated at all: the compile as it is.
+
+  What the mod uses of Forge and its `mods.toml` (`mandatory`, `displayTest = "IGNORE_ALL_VERSION"`) are
+  the same from Forge 48 to 66 (26.3). Each declares its Minecraft range and the Forge from the first one
+  it runs on (`[48,)`, `[50,)`), and Forge refuses to start a server with a mod outside its Minecraft range.
+  Checked on real servers with Forge 48.0.0 and 48.1.0 (1.20.2), 49.2.13 (1.20.4), 50.1.0 and 50.2.14
+  (1.20.6), and the builds Craft Conductor installs for 1.21.1, 1.21.11, 26.1 and 26.3; the names the jar
+  uses were also checked against the server Forge 49.0.2 (1.20.3) installs.
 - `common/`: the file writing they all share (`PingFile`).
 
 Checked on real servers by `tests/test_ping_helper_real.py` (see its docstring: it needs
@@ -60,8 +83,9 @@ Needed only to build the helpers, not to run Craft Conductor:
 - Gradle 8.10.2 (`gradle` on PATH, or `GRADLE` set to its program). There is no Gradle wrapper in
   the repository. The first build downloads Fabric Loom, and the Minecraft 1.20.2 server and its
   mappings, and ModDevGradle with NeoForge 20.4.253 and Minecraft 1.20.4, and Forge 47.1.3 with
-  Minecraft 1.20.1 and their mappings, into Gradle's cache (ModDevGradle's tools are told to run on
-  the same Java 21, not to look for a Java 17).
+  Minecraft 1.20.1 and their mappings, and Minecraft 1.20.2 with Forge 48.1.0's jars, Forge's MCPConfig
+  and Mojang's mappings for it, into Gradle's cache (ModDevGradle's tools are told to run on the same
+  Java 21, not to look for a Java 17).
 
 ```
 python tools/build_helpers.py           # build and copy the jars into src/craft_conductor/helpers/
@@ -81,8 +105,10 @@ with Temurin 21.0.5 (the `gradle:8.10.2-jdk21` Docker image):
 | `craft_conductor_ping-neoforge-1.0.0.jar` | `b82786a4...14808d3d` |
 | `craft_conductor_ping-neoforge1.20.5-1.0.0.jar` | `f8541039...1ad53602` |
 | `craft_conductor_ping-forge-1.0.0.jar` | `02bad2ea...657a50a4` |
+| `craft_conductor_ping-forge1.20.2-1.0.0.jar` | `2d5e66f4...4e5a61f4` |
+| `craft_conductor_ping-forge1.20.6-1.0.0.jar` | `13f3fb3d...ce0a0dff` |
 
 CI (`.github/workflows/helpers.yml`) runs `--check` and uploads the jars it built; if a local JDK
 ever gives different bytes, commit the CI jar. Raise the version in `paper/build.gradle`,
-`fabric/build.gradle`, `neoforge/build.gradle` or `forge/build.gradle` when that helper changes (the jar
-name carries it), and rebuild.
+`fabric/build.gradle`, `neoforge/build.gradle`, `forge/build.gradle` or `forge1.20.2/build.gradle` when
+that helper changes (the jar name carries it), and rebuild.

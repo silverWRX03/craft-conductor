@@ -117,34 +117,77 @@ def test_the_two_neoforge_jars_hold_the_same_classes():
     assert old == new
 
 
-def test_the_forge_helper_is_shipped():
-    """Forge 1.20.1 (Forge 47): META-INF/mods.toml, and the classes reobfuscated to the names Forge runs
-    Minecraft on there (SRG: f_8943_ for ServerPlayer.latency), not Mojang's."""
-    import re
+def _forge_mod(pattern):
+    """A Forge jar: its META-INF/mods.toml (the one metadata file every Forge reads), its dependencies by mod
+    id, and its classes' bytes."""
     import tomllib
-    with zipfile.ZipFile(_one("craft_conductor_ping-forge-*.jar")) as z:
+    with zipfile.ZipFile(_one(pattern)) as z:
         names = z.namelist()
         toml = tomllib.loads(z.read("META-INF/mods.toml").decode("utf-8"))
         classes = {n: z.read(n) for n in names if n.endswith(".class")}
     assert _only_ours(names) == []
     assert [n for n in names if n.endswith(("mods.toml", ".json", ".yml"))] == ["META-INF/mods.toml"]
     assert sorted(classes) == ["craft_conductor/ping/PingFile.class", "craft_conductor/ping/PingForge.class"]
-    assert toml["modLoader"] == "javafml" and toml["loaderVersion"] == "[47,)"
+    assert toml["modLoader"] == "javafml"
     [mod] = toml["mods"]
     assert mod["modId"] == "craft_conductor_ping"
     assert mod["displayTest"] == "IGNORE_ALL_VERSION"               # (a client without it is never told it's missing)
     deps = {d["modId"]: d for d in toml["dependencies"]["craft_conductor_ping"]}
     assert set(deps) == {"minecraft", "forge"}                    # (it pulls in no other mod)
-    assert all(d["mandatory"] is True for d in deps.values())     # (Forge 47 reads "mandatory")
-    assert deps["minecraft"]["versionRange"] == "[1.20.1,1.20.2)"
-    assert deps["forge"]["versionRange"] == "[47,)"               # (any Forge for 1.20.1 a modpack may pin)
+    assert all(d["mandatory"] is True for d in deps.values())     # (Forge reads "mandatory", from 47 to 66)
+    assert toml["loaderVersion"] == deps["forge"]["versionRange"]  # (javafml's version is Forge's)
     code = b"".join(classes.values())
     # Not required on clients: no network channel.
     assert b"net/minecraftforge/network" not in code and b"SimpleChannel" not in code
-    # SRG names for Minecraft's fields and methods (Forge 1.20.1 runs on them), Mojang's for its classes.
-    assert b"net/minecraft/server/level/ServerPlayer" in code and b"net/minecraft/class_" not in code
-    assert b"f_8943_" in code and re.search(rb"m_\d+_", code)
-    for mojang in (b"latency", b"getPlayerList", b"getPlayers", b"getScoreboardName"):
-        assert mojang not in code, mojang
     assert b"net/minecraftforge/server/ServerLifecycleHooks" in code
-    assert all(int.from_bytes(c[6:8], "big") == 61 for c in classes.values())   # (Java 17, as 1.20.1 runs on)
+    # Mojang's names for Minecraft's classes (every Forge from 1.17), compiled for Java 17 (as 1.20.1 to 1.20.4 run on).
+    assert b"net/minecraft/server/level/ServerPlayer" in code and b"net/minecraft/class_" not in code
+    assert all(int.from_bytes(c[6:8], "big") == 61 for c in classes.values())
+    return deps, classes, code
+
+
+MOJANG_MEMBERS = (b"latency", b"getPlayerList", b"getPlayers", b"getScoreboardName")
+
+
+def test_the_forge_helper_is_shipped():
+    """Forge 1.20.1 (Forge 47): the classes reobfuscated to the names Forge runs Minecraft on there (SRG:
+    f_8943_ for ServerPlayer.latency), not Mojang's."""
+    import re
+    deps, _, code = _forge_mod("craft_conductor_ping-forge-*.jar")
+    assert deps["minecraft"]["versionRange"] == "[1.20.1,1.20.2)"
+    assert deps["forge"]["versionRange"] == "[47,)"               # (any Forge for 1.20.1 a modpack may pin)
+    # SRG names for Minecraft's fields and methods (Forge 1.20.1 runs on them), Mojang's for its classes.
+    assert b"f_8943_" in code and re.search(rb"m_\d+_", code)
+    for mojang in MOJANG_MEMBERS:
+        assert mojang not in code, mojang
+
+
+def test_the_forge1_20_2_helper_is_shipped():
+    """Forge 1.20.2 to 1.20.4 (Forge 48 and 49) still run Minecraft on SRG names, with the same ones on all
+    three: ServerPlayer.connection f_8906_, and the connection's latency() (new in 1.20.2) m_293018_."""
+    deps, _, code = _forge_mod("craft_conductor_ping-forge1.20.2-*.jar")
+    assert deps["minecraft"]["versionRange"] == "[1.20.2,1.20.6)"   # (there is no Forge for 1.20.5)
+    assert deps["forge"]["versionRange"] == "[48,)"
+    for srg in (b"f_8906_", b"m_293018_", b"m_11314_", b"m_6302_"):
+        assert srg in code, srg
+    for mojang in MOJANG_MEMBERS + (b"connection",):
+        assert mojang not in code, mojang
+
+
+def test_the_forge1_20_6_helper_is_shipped():
+    """Forge 1.20.6 and newer (Forge 50 to 66, Minecraft 26.x too) run Minecraft on Mojang's own names."""
+    import re
+    deps, _, code = _forge_mod("craft_conductor_ping-forge1.20.6-*.jar")
+    assert deps["minecraft"]["versionRange"] == "[1.20.6,)"
+    assert deps["forge"]["versionRange"] == "[50,)"
+    for mojang in MOJANG_MEMBERS + (b"connection",):
+        assert mojang in code, mojang
+    assert not re.search(rb"\b[fm]_\d+_", code)
+
+
+def test_the_two_newer_forge_jars_hold_the_same_classes():
+    """One compile: the 1.20.2 jar is it renamed to SRG (the renaming tool writes every class anew), the
+    1.20.6 jar is it as compiled."""
+    _, srg, _ = _forge_mod("craft_conductor_ping-forge1.20.2-*.jar")
+    _, mojang, _ = _forge_mod("craft_conductor_ping-forge1.20.6-*.jar")
+    assert sorted(srg) == sorted(mojang)

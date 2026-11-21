@@ -12,10 +12,10 @@ helper jar into the mods (or plugins) folder itself (pinghelper.sync); a minefla
 must list the bot with a whole number within 20 seconds, and the server's log must hold the helper's
 start line and nothing else from it. The bot is a plain Minecraft client, so its joining also shows
 that players need nothing installed (NeoForge and Forge turn away a client missing a mod they need).
-On Forge 1.20.1 the bot answers the server's keep-alives late, so its ping must come out above 0: the
-value is the player's latency, which only those answers set (a local bot otherwise shows 0); and every
-Minecraft field and method the helper uses must be in the server's Minecraft jar on Forge's own (SRG)
-names, the ones Forge 1.20.1 runs it on.
+On Forge the bot answers the server's keep-alives late, so its ping must come out above 0: the value is
+the player's latency, which only those answers set (a local bot otherwise shows 0); and every Minecraft
+field and method the helper uses must be in the server's Minecraft jar on the names Forge runs it on
+(Forge's own SRG names up to 1.20.4, Mojang's from 1.20.6).
 mineflayer speaks Minecraft up to 26.1: on a newer version the bot can't join, so the test checks
 that the helper loads and writes the file, and that every Minecraft field and method the helper uses
 is in that version's (unobfuscated) server jar (for NeoForge, the one it patched).
@@ -56,9 +56,16 @@ SERVERS = [("fabric", v) for v in ("1.20.2", "1.20.4", "1.21.1", "1.21.11", "26.
 # metadata differently), 1.21.1, the last 1.x, 26.1 (Minecraft without obfuscation) and the newest.
 NEOFORGE = [("neoforge", v) for v in ("1.20.2", "1.20.4", "1.20.6", "1.21.1", "1.21.11", "26.1", "26.3")]
 
-# Forge 1.20.1: the build Craft Conductor installs (Forge's recommended one), and older 47.x builds a
-# modpack may pin (a pack's server runs the pack's Forge): 47.1.0, the first recommended, and 47.0.0.
-FORGE = [("1.20.1", None), ("1.20.1", "47.1.0"), ("1.20.1", "47.0.0")]
+# Forge: for each Minecraft version the build Craft Conductor installs (Forge's recommended one, else its
+# latest), and older builds a modpack may pin (a pack's server runs the pack's Forge). 1.20.1 (the forge
+# jar): 47.1.0, the first recommended, and 47.0.0. 1.20.2 to 1.20.4 (forge1.20.2, SRG names): 1.20.2 and
+# 48.0.0, the first, and 1.20.4 (Forge's only 1.20.3 build, 49.0.2, installs a server Craft Conductor
+# can't start yet). 1.20.6 and newer (forge1.20.6, Mojang's names): 1.20.6 and 50.1.0 (on 50.0.x mineflayer
+# can't read what the server sends, so it can't answer keep-alives), 1.21.1, the last 1.21.x, 26.1
+# (Minecraft without obfuscation) and the newest.
+FORGE = [("1.20.1", None), ("1.20.1", "47.1.0"), ("1.20.1", "47.0.0"),
+         ("1.20.2", None), ("1.20.2", "48.0.0"), ("1.20.4", None),
+         ("1.20.6", None), ("1.20.6", "50.1.0"), ("1.21.1", None), ("1.21.11", None), ("26.1", None), ("26.3", None)]
 KEEPALIVE_DELAY_MS = 400   # (how late the bot answers Forge's keep-alives)
 
 BOT = r"""
@@ -154,7 +161,8 @@ def _only_the_start_line(server_dir: Path) -> str:
 
 def _minecraft_jar(server_dir: Path, loader: str, minecraft: str) -> Path | None:
     """The jar holding the Minecraft classes the server runs (for NeoForge, the one it patched; for
-    Forge 1.20.1, the one on Forge's own names)."""
+    Forge, the first one holding them: up to 1.20.4 the one on Forge's own names, from 1.20.6 the one on
+    Mojang's)."""
     if loader not in ("neoforge", "forge"):
         return server_dir / "versions" / minecraft / f"server-{minecraft}.jar"
     for jar in sorted((server_dir / "libraries").rglob("*.jar")):
@@ -293,7 +301,7 @@ def _ping_on_a_real_server(loader: str, minecraft: str, tmp_path: Path, loader_v
             assert late, f"{BOT_NAME}'s ping stayed 0 although it answers keep-alives {keepalive_delay} ms late"
             assert 0 < late["players"][BOT_NAME] <= keepalive_delay + 100, late
             seen = late
-        if loader == "forge":                            # (the helper's SRG names are the server's)
+        if loader == "forge":                            # (the helper's names are the server's)
             server_jar = _minecraft_jar(m.server_dir, loader, minecraft)
             assert server_jar is not None and server_jar.is_file(), server_jar
             assert _missing_in(server_jar, jar) == []

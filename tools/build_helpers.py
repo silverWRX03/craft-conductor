@@ -2,9 +2,10 @@
 
 Builds every helper: the Paper/Purpur plugin, the Fabric/Quilt mod (Fabric Loom, which downloads
 the Minecraft server jar and its mappings into Gradle's cache the first time), the NeoForge mod
-(ModDevGradle, which downloads NeoForge and Minecraft 1.20.4 the same way) and the Forge 1.20.1 mod
+(ModDevGradle, which downloads NeoForge and Minecraft 1.20.4 the same way), the Forge 1.20.1 mod
 (ModDevGradle's legacyforge plugin, which downloads Forge 47 and Minecraft 1.20.1 and reobfuscates the
-mod to Forge's own names).
+mod to Forge's own names) and the Forge mod for 1.20.2 and newer (ModDevGradle with Minecraft 1.20.2 and
+Forge 48's jars; its 1.20.2 to 1.20.4 jar renamed to Forge's own names with legacyforge's tools).
 
     python tools/build_helpers.py           build, then copy the jars into src/craft_conductor/helpers/
     python tools/build_helpers.py --check   build into a temporary folder and exit 1 when a shipped
@@ -40,8 +41,8 @@ def find_gradle() -> str:
 
 def build() -> list[Path]:
     """Run Gradle and return the jars it made (``assemble``: the Fabric mod's is Loom's remapped jar,
-    the Forge mod's the reobfuscated one; two Fabric jars, two NeoForge jars and one Forge jar, see
-    helpers/ping/README.md)."""
+    the Forge mods' for up to 1.20.4 the reobfuscated ones; two Fabric jars, two NeoForge jars and three
+    Forge jars, see helpers/ping/README.md)."""
     for old in PROJECT.glob("*/build/libs"):
         shutil.rmtree(old, ignore_errors=True)
     cmd = [find_gradle(), "-p", str(PROJECT), "--no-daemon", "--console=plain", "-q", "assemble"]

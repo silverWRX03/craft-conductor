@@ -41,7 +41,9 @@ JARS_DIR = Path(__file__).parent / "helpers"
 #: Which helper jar runs where: (loaders, lowest Minecraft inclusive, below this Minecraft or None,
 #: the jar's platform: ``craft_conductor_ping-<platform>-<version>.jar``). Fabric has two jars, since
 #: Minecraft 26 changed the names the mod uses; NeoForge has two, since from 1.20.5 it reads another
-#: metadata file (neoforge.mods.toml for mods.toml); Forge 1.20.1 has its own, on Forge's own (SRG) names.
+#: metadata file (neoforge.mods.toml for mods.toml); Forge has three: 1.20.1 on Forge's own (SRG) names with
+#: the ping on the player, 1.20.2 to 1.20.4 on SRG names with the ping on the connection, and from 1.20.6
+#: (there is no Forge for 1.20.5) on Mojang's names.
 SUPPORT: list[tuple[tuple[str, ...], str, str | None, str]] = [
     (("paper", "purpur"), "1.17", None, "paper"),
     (("fabric", "quilt"), "1.20.2", "26", "fabric"),
@@ -49,6 +51,8 @@ SUPPORT: list[tuple[tuple[str, ...], str, str | None, str]] = [
     (("neoforge",), "1.20.2", "1.20.5", "neoforge"),
     (("neoforge",), "1.20.5", None, "neoforge1.20.5"),
     (("forge",), "1.20.1", "1.20.2", "forge"),
+    (("forge",), "1.20.2", "1.20.6", "forge1.20.2"),
+    (("forge",), "1.20.6", None, "forge1.20.6"),
 ]
 
 VANILLA_REASON = "Minecraft doesn't share each player's ping without a mod or plugin, and plain Minecraft runs neither."

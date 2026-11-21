@@ -1,0 +1,27 @@
+# Craft Conductor Ping for Forge 48 and newer (Minecraft 1.20.2 and newer): every Forge reads this file.
+modLoader="javafml"
+loaderVersion="${forge}"
+license="GPL-3.0-or-later"
+
+[[mods]]
+modId="craft_conductor_ping"
+version="${version}"
+displayName="Craft Conductor Ping"
+authors="Craft Conductor"
+description="Reports each player's ping to Craft Conductor (writes .craft-conductor/ping.json)."
+# Only for the server: a client without it is never shown as missing it, and can join.
+displayTest="IGNORE_ALL_VERSION"
+
+[[dependencies.craft_conductor_ping]]
+modId="forge"
+mandatory=true
+versionRange="${forge}"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.craft_conductor_ping]]
+modId="minecraft"
+mandatory=true
+versionRange="${minecraft}"
+ordering="NONE"
+side="BOTH"
