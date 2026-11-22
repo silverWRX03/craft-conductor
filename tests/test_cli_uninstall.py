@@ -417,6 +417,46 @@ def test_a_server_of_the_home_run_from_its_own_folder_uninstalls_the_home(home, 
     assert home.state in home.runner.deleted()
 
 
+def _classic(tmp_path) -> Path:
+    classic = _server(tmp_path / "classic")
+    (classic / ".craft-conductor").mkdir()
+    return classic
+
+
+def test_without_c_the_home_is_the_craft_conductor_home_whatever_the_current_folder_holds(home, tmp_path, monkeypatch, capsys):
+    """R20: run from inside a classic server's folder, without -C, it's still the home that goes."""
+    classic = _classic(tmp_path)
+    monkeypatch.chdir(classic)
+    assert cli.main(["uninstall", "--yes"]) == 0
+    deleted = home.runner.deleted()
+    assert home.state in deleted and not home.runner.gone(classic)
+    assert f"Removing Craft Conductor from this computer: {home.home}\n" in capsys.readouterr().out
+
+
+SHARED_LINE = "shared with the Craft Conductor at"
+
+
+def test_with_c_the_computer_wide_parts_stay_while_the_home_is_installed(home, tmp_path, capsys):
+    """R20: `-C DIR` removes only that server's own Craft Conductor; what the whole computer shares
+    (router, firewall, service, invite handler, games, the program) stays for the home's."""
+    classic = _classic(tmp_path)
+    assert cli.main(["-C", str(classic), "uninstall", "--yes"]) == 0
+    out = capsys.readouterr().out
+    assert f"The program: kept: {SHARED_LINE} {home.home}" in out
+    assert "craft-conductor uninstall` without -C" in out
+    assert "pip uninstall" not in out  # (the program part isn't run)
+    assert not [c for c in home.runner.calls if c[0] in ("run", "registry_delete")]  # (no firewall, invite, service...)
+    assert home.runner.gone(classic / ".craft-conductor") and not home.runner.gone(home.state)
+
+
+def test_with_c_and_no_home_installed_everything_goes_as_usual(home, tmp_path, monkeypatch, capsys):
+    classic = _classic(tmp_path)
+    monkeypatch.setenv("CRAFT_CONDUCTOR_HOME", str(tmp_path / "never-installed"))
+    assert cli.main(["-C", str(classic), "uninstall", "--yes"]) == 0
+    out = capsys.readouterr().out
+    assert SHARED_LINE not in out and "pip uninstall craft-conductor" in out
+
+
 # ------------------------------------------------------------------ the daemon's side of the warning
 def test_a_stop_request_with_a_warning_tells_the_players_and_gives_them_a_minute(tmp_path, monkeypatch):
     said, waited = [], []

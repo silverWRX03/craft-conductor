@@ -951,15 +951,32 @@ def uninstall_runner():
 
 def _uninstall_home(args) -> tuple[Path, bool]:
     """The home to remove, and whether it's a server run the classic way: Craft Conductor's home
-    folder, or the folder given with -C (or this one) when it holds a server run with `craft-conductor
-    run` that the home doesn't list, which keeps its state in its own folder (config.state_dir, R11)."""
+    folder (CRAFT_CONDUCTOR_HOME or ~/craft-conductor, whatever the current folder holds), or the
+    folder named with -C when it holds a server run with `craft-conductor run` that the home doesn't
+    list, which keeps its state in its own folder (config.state_dir, R11, R20)."""
     from . import uninstall
     home = default_home()
     root = args.root.resolve()
-    if (root / configmod.CONFIG_NAME).exists() and root != home \
+    if getattr(args, "root_given", False) and (root / configmod.CONFIG_NAME).exists() and root != home \
             and not any(r.resolve() == root for r in uninstall.servers_of(home).values()):
         return root, True
     return home, False
+
+
+UNINSTALL_SHARED = ("router", "firewall", "service", "invite", "games", "program")  # (the whole computer's)
+SHARED_WORDS = "kept: shared with the Craft Conductor at"
+
+
+def _keep_shared(parts: list, home: Path) -> list:
+    """A server run the classic way (-C) while Craft Conductor's home is installed too (its state is
+    there): what the whole computer shares with that home stays, said plainly (R20)."""
+    import dataclasses
+    if not (home / configmod.STATE_DIR).exists():
+        return parts
+    why = (f"{SHARED_WORDS} {home}; to remove it, run `craft-conductor uninstall` "
+           "without -C")
+    return [dataclasses.replace(p, kept=True, action=why, manual=None) if p.key in UNINSTALL_SHARED and p.present
+            else p for p in parts]
 
 
 def _server_status(root: Path) -> dict | None:
@@ -1031,7 +1048,8 @@ def _uninstall_plan_text(home: Path, classic: bool, parts: list, running: dict[P
     for p in parts:
         if not p.present:
             continue
-        hint = f" ({UNINSTALL_FLAGS[p.key]} deletes them)" if p.kept and p.key in UNINSTALL_FLAGS else ""
+        hint = (f" ({UNINSTALL_FLAGS[p.key]} deletes them)" if p.kept and p.key in UNINSTALL_FLAGS
+                and not p.action.startswith(SHARED_WORDS) else "")
         lines.append(f"  - {p.label}: {p.action}{hint}")
         if not p.kept:
             lines += [f"      {path}" for path in p.paths[:UNINSTALL_SHOWN]]
@@ -1095,6 +1113,8 @@ def cmd_uninstall(args) -> int:
                                 games=args.delete_games, keep_lockbox_key=args.keep_lockbox_key)
     runner = uninstall_runner()
     parts = uninstall.plan(home, choices, runner=runner)  # (R14: the real runner, so what's there is asked, not guessed)
+    if classic:
+        parts = _keep_shared(parts, default_home())
     servers = uninstall.servers_of(home)
     running: dict[Path, int | None] = {}
     for root in servers.values():
@@ -1198,11 +1218,21 @@ def _notice_ok(args) -> bool:
 
 
 
+class _RootGiven(argparse.Action):
+    """-C DIR, noting that it was given (``root_given``): `uninstall` only looks at a folder it was told about."""
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        namespace.root = values
+        namespace.root_given = True
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="craft-conductor", description="A forever Minecraft server: runs your modded server "
                                 "and upgrades it to the newest release once your mods support it.")
     p.add_argument("--version", action="version", version=f"Craft Conductor {__version__}")
-    p.add_argument("-C", "--root", type=Path, default=Path("."), help="directory containing craft-conductor.toml")
+    p.add_argument("-C", "--root", type=Path, default=Path("."), action=_RootGiven,
+                   help="directory containing craft-conductor.toml")
+    p.set_defaults(root_given=False)
     p.add_argument("-v", "--verbose", action="store_true")
     p.add_argument("--accept-notice", action="store_true",
                    help="accept the first-run notice without a prompt (for scripts and services)")
