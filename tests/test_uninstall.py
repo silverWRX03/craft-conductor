@@ -1043,3 +1043,321 @@ def test_the_system_runner_reads_only_craft_conductors_firewall_rules(monkeypatc
     assert uninstall.SystemRunner().firewall_rules() == [FIREWALL_RULE]
     monkeypatch.setattr(firewall, "read", lambda timeout=30, fresh=False: None)
     assert uninstall.SystemRunner().firewall_rules() is None
+
+
+# ------------------------------------------------------------------ games in launchers (Task 3)
+from craft_conductor import join as joinmod  # noqa: E402
+from craft_conductor import launchers as launchersmod  # noqa: E402
+
+GAME_MARK = joinmod.MANIFEST  # (what join.sync_mods writes in every game folder it makes)
+
+
+class GameRunner(FakeRunner):
+    """Also answers whether a launcher is open, and writes a launcher's file, only inside ``root``
+    (the test's temporary folder)."""
+
+    def __init__(self, root: Path, running=(), **kw):
+        super().__init__(**kw)
+        self.root, self.running = Path(root), set(running)
+
+    def launcher_running(self, key):
+        self.calls.append(("launcher_running", key))
+        return key in self.running
+
+    def write_text(self, path, text):
+        assert str(Path(path).resolve()).lower().startswith(str(self.root.resolve()).lower()), path
+        self.calls.append(("write_text", Path(path)))
+        Path(path).write_text(text, encoding="utf-8")
+
+
+def _game_folder(folder: Path, worlds=("World",)) -> Path:
+    (folder / "mods").mkdir(parents=True)
+    (folder / "mods" / "sodium.jar").write_bytes(b"jar")
+    (folder / GAME_MARK).write_text('{"mods": ["sodium.jar"]}', encoding="utf-8")
+    for w in worlds:
+        (folder / "saves" / w).mkdir(parents=True)
+        (folder / "saves" / w / "level.dat").write_bytes(b"level")
+    return folder
+
+
+def _version(versions: Path, vid: str) -> Path:
+    (versions / vid).mkdir(parents=True)
+    (versions / vid / f"{vid}.json").write_text(json.dumps({"id": vid, "inheritsFrom": "1.21.1"}), encoding="utf-8")
+    return versions / vid
+
+
+@pytest.fixture
+def games(world, tmp_path, monkeypatch):
+    """The person's launchers, in the temporary folder: the Minecraft Launcher with two installations
+    Craft Conductor made (a friend's server, a single-player game), the person's own, one named like
+    Craft Conductor's that points elsewhere, and one from before the rename (mcsm-); Prism with
+    Craft Conductor's instance, the person's own and an unmarked one; the Modrinth App."""
+    roaming = world["user"] / "AppData" / "Roaming"
+    mc = roaming / ".minecraft"
+    ours = mc / "craft-conductor"
+    alpha = _game_folder(ours / "alpha", worlds=("Survival", "Creative"))
+    sky = _game_folder(ours / "sky")
+    (ours / "servers.json").write_text('{"0123456789abcdef": "alpha"}', encoding="utf-8")
+    (ours / "invites.json").write_text("[]", encoding="utf-8")
+    (ours / "extras").mkdir()
+    (ours / "extras" / "alpha.json").write_text('{"items": []}', encoding="utf-8")
+    (ours / ".craft-conductor" / "java" / "21").mkdir(parents=True)
+    versions = mc / "versions"
+    _version(versions, "craft-conductor-alpha")
+    _version(versions, "craft-conductor-sky")
+    _version(versions, "craft-conductor-moved")
+    _version(versions, "fabric-loader-0.16.9-1.21.1")
+    _version(versions, "mcsm-old")
+    (mc / "mcsm" / "old").mkdir(parents=True)
+    (world["user"] / "mine").mkdir()
+    profiles = {
+        "profiles": {
+            "4f1c0e0a2b": {"name": "My own", "type": "custom", "gameDir": str(world["user"] / "mine"),
+                           "lastVersionId": "fabric-loader-0.16.9-1.21.1", "created": "2026-01-01T00:00:00.000Z"},
+            "craft-conductor-alpha": {"name": "Alpha", "type": "custom", "gameDir": str(alpha),
+                                      "lastVersionId": "craft-conductor-alpha", "javaArgs": "-Xmx4G -XX:+UseG1GC"},
+            "craft-conductor-sky": {"name": "Sky", "type": "custom", "gameDir": str(sky),
+                                    "lastVersionId": "craft-conductor-sky", "icon": "Grass"},
+            "craft-conductor-moved": {"name": "Moved", "type": "custom", "gameDir": str(world["user"] / "elsewhere"),
+                                      "lastVersionId": "craft-conductor-moved"},
+            "mcsm-old": {"name": "Old one", "type": "custom", "gameDir": str(mc / "mcsm" / "old"),
+                         "lastVersionId": "mcsm-old"},
+            "latest-release": {"name": "", "type": "latest-release", "lastVersionId": "latest-release"},
+        },
+        "settings": {"locale": "en-us", "keepLauncherOpen": True, "crashAssistance": False},
+        "version": 3,
+    }
+    (mc / "launcher_profiles.json").write_text(json.dumps(profiles, indent=2), encoding="utf-8")
+    (mc / "launcher_profiles.json.craft-conductor-backup").write_text("{}", encoding="utf-8")
+    prism = roaming / "PrismLauncher"
+    instances = prism / "instances"
+    p_alpha = instances / "craft-conductor-alpha"
+    _game_folder(p_alpha / ".minecraft")
+    (p_alpha / "instance.cfg").write_text("[General]\nname=Alpha\n", encoding="utf-8")
+    (instances / "My Pack" / ".minecraft").mkdir(parents=True)
+    (instances / "My Pack" / "instance.cfg").write_text("[General]\nname=My Pack\n", encoding="utf-8")
+    (instances / "craft-conductor-nomark").mkdir()
+    (instances / "craft-conductor-nomark" / "instance.cfg").write_text("[General]\nname=No mark\n", encoding="utf-8")
+    modrinth = roaming / "ModrinthApp"
+    (modrinth / "profiles" / "Sky").mkdir(parents=True)
+    sp = world["state"] / "singleplayer"
+    sp.mkdir()
+    (sp / "a1b2c3d4e5f6.json").write_text(json.dumps({"id": "a1b2c3d4e5f6", "name": "Sky", "created": 1,
+                                                       "launchers": ["minecraft", "modrinth"]}), encoding="utf-8")
+    # (the launchers are found here, never in this computer's real folders)
+    monkeypatch.setattr(joinmod, "minecraft_dir", lambda *a, **k: mc)
+    monkeypatch.setattr(launchersmod, "prism_dirs", lambda *a, **k: [prism])
+    monkeypatch.setattr(launchersmod, "modrinth_dirs", lambda *a, **k: [modrinth])
+    monkeypatch.setattr(launchersmod, "curseforge_dirs", lambda *a, **k: [world["user"] / "no-curseforge"])
+    return {**world, "mc": mc, "ours": ours, "alpha_game": alpha, "sky_game": sky, "versions": versions,
+            "prism": prism, "instances": instances, "p_alpha": p_alpha, "modrinth": modrinth,
+            "profiles_text": (mc / "launcher_profiles.json").read_text(encoding="utf-8")}
+
+
+def _games_parts(where, **choices) -> list[uninstall.Part]:
+    return [p for p in uninstall.plan(where["home"], Choices(**choices), env=where["env"]) if p.key == "games"]
+
+
+def _profiles(games, name="launcher_profiles.json") -> dict:
+    return json.loads((games["mc"] / name).read_text(encoding="utf-8"))
+
+
+def _under(path: Path, folder: Path) -> bool:
+    """``path`` is ``folder`` or inside it (as written, ignoring case)."""
+    p, f = os.path.normcase(os.path.abspath(path)), os.path.normcase(os.path.abspath(folder))
+    return p == f or p.startswith(f.rstrip("\\/") + os.sep)
+
+
+def test_games_are_kept_unless_ticked(games):
+    parts = _games_parts(games)
+    assert parts and all(p.kept for p in parts if p.present)
+    text = " ".join(p.action for p in parts)
+    assert "Alpha" in text and "Sky" in text
+    runner = GameRunner(games["user"], running=())
+    report = uninstall.run(parts, runner=runner)
+    assert runner.calls == []
+    assert any("Alpha" in line for line in report.kept)
+    assert (games["mc"] / "launcher_profiles.json").read_text(encoding="utf-8") == games["profiles_text"]
+
+
+def test_kept_games_are_never_deleted_with_a_folder_around_them(games):
+    inv = uninstall._inventory(games["home"], Choices(), games["env"], None)
+    uninstall.BUILDERS["games"](inv)
+    assert any(uninstall._same(k, games["alpha_game"]) for k in inv.keep)
+    assert any(uninstall._same(k, games["p_alpha"]) for k in inv.keep)
+
+
+def test_ticked_removes_only_the_recorded_installations(games):
+    runner = GameRunner(games["user"], running=())
+    report = uninstall.run(_games_parts(games, games=True), runner=runner)
+    assert report.failed == []
+    profiles = _profiles(games)["profiles"]
+    before = json.loads(games["profiles_text"])
+    # Craft Conductor's two recorded installations are gone; everything else is exactly as it was
+    assert "craft-conductor-alpha" not in profiles and "craft-conductor-sky" not in profiles
+    for key in ("4f1c0e0a2b", "craft-conductor-moved", "mcsm-old", "latest-release"):
+        assert profiles[key] == before["profiles"][key], key
+    assert list(profiles) == [k for k in before["profiles"] if k in profiles]  # (the order kept too)
+    after = _profiles(games)
+    assert {k: v for k, v in after.items() if k != "profiles"} == {k: v for k, v in before.items() if k != "profiles"}
+    deleted = set(runner.deleted())
+    mc, versions = games["mc"], games["versions"]
+    assert deleted == {
+        games["ours"],  # (it holds nothing but Craft Conductor's games and notes)
+        versions / "craft-conductor-alpha", versions / "craft-conductor-sky",
+        mc / "launcher_profiles.json.craft-conductor-backup",
+        games["p_alpha"],
+    }
+    assert [p.name for p in mc.iterdir() if p.name.endswith(".tmp")] == []
+    lines = " ".join(report.removed)
+    assert "Alpha" in lines and "Sky" in lines
+
+
+def test_an_unrecorded_or_older_install_is_listed_never_guessed(games):
+    runner = GameRunner(games["user"], running=())
+    report = uninstall.run(_games_parts(games, games=True), runner=runner)
+    deleted = runner.deleted()
+    for kept in (games["versions"] / "craft-conductor-moved", games["versions"] / "mcsm-old", games["mc"] / "mcsm",
+                 games["user"] / "elsewhere", games["instances"] / "craft-conductor-nomark",
+                 games["instances"] / "My Pack", games["user"] / "mine",
+                 games["versions"] / "fabric-loader-0.16.9-1.21.1", games["modrinth"]):
+        assert not any(_under(kept, d) or _under(d, kept) for d in deleted), kept
+    manual = " ".join(report.manual)
+    assert "Moved" in manual  # (named like Craft Conductor's, but its folder isn't the one it made)
+    assert "mcsm" in manual and "Old one" in manual  # (from before the rename)
+    assert "craft-conductor-nomark" in manual  # (a Prism instance without Craft Conductor's mark)
+    assert "Modrinth App" in manual and "Sky" in manual  # (the app made that profile itself: no record)
+
+
+def test_the_microsoft_store_launchers_file_is_cleaned_too(games):
+    store = games["mc"] / "launcher_profiles_microsoft_store.json"
+    store.write_text(json.dumps({"profiles": {
+        "craft-conductor-alpha": {"name": "Alpha", "type": "custom", "gameDir": str(games["alpha_game"])},
+        "abc": {"name": "Theirs", "type": "custom"}}}, indent=2), encoding="utf-8")
+    uninstall.run(_games_parts(games, games=True), runner=GameRunner(games["user"], running=()))
+    assert list(_profiles(games, store.name)["profiles"]) == ["abc"]
+
+
+@pytest.mark.parametrize("runner_kind", ["open", "cant-tell"])
+def test_an_open_launcher_is_left_alone_and_listed(games, runner_kind):
+    if runner_kind == "open":
+        runner = GameRunner(games["user"], running={"minecraft", "prism"})
+    else:
+        runner = FakeRunner()  # (it can't tell whether a launcher is open: the cautious answer)
+    report = uninstall.run(_games_parts(games, games=True), runner=runner)
+    assert (games["mc"] / "launcher_profiles.json").read_text(encoding="utf-8") == games["profiles_text"]
+    assert not any(_under(d, games["mc"]) or _under(d, games["prism"]) for d in runner.deleted())
+    manual = " ".join(report.manual)
+    assert "Minecraft Launcher is open" in manual and "Alpha" in manual and "Prism Launcher is open" in manual
+
+
+def test_a_duplicated_installation_keeps_the_folder_it_shares(games):
+    data = json.loads(games["profiles_text"])
+    data["profiles"]["9d9d9d9d"] = {"name": "Alpha copy", "type": "custom", "gameDir": str(games["alpha_game"]),
+                                    "lastVersionId": "craft-conductor-alpha"}
+    (games["mc"] / "launcher_profiles.json").write_text(json.dumps(data, indent=2), encoding="utf-8")
+    runner = GameRunner(games["user"], running=())
+    report = uninstall.run(_games_parts(games, games=True), runner=runner)
+    profiles = _profiles(games)["profiles"]
+    assert "craft-conductor-alpha" not in profiles and "9d9d9d9d" in profiles
+    deleted = runner.deleted()
+    assert not any(_under(games["alpha_game"], d) or _under(d, games["alpha_game"]) for d in deleted)
+    assert games["versions"] / "craft-conductor-alpha" not in deleted
+    assert games["sky_game"] in deleted  # (Sky's folder goes; the shared one stays, so the rest goes one by one)
+    assert "Alpha copy" in " ".join(report.manual)
+
+
+def test_a_change_made_after_the_plan_is_kept(games):
+    parts = _games_parts(games, games=True)
+    data = json.loads(games["profiles_text"])
+    data["profiles"]["craft-conductor-sky"]["gameDir"] = str(games["user"] / "my-sky")  # (the person moved it)
+    data["profiles"]["new1"] = {"name": "Made just now", "type": "custom"}
+    (games["mc"] / "launcher_profiles.json").write_text(json.dumps(data, indent=2), encoding="utf-8")
+    runner = GameRunner(games["user"], running=())
+    report = uninstall.run(parts, runner=runner)
+    profiles = _profiles(games)["profiles"]
+    assert "craft-conductor-alpha" not in profiles
+    assert profiles["craft-conductor-sky"]["gameDir"] == str(games["user"] / "my-sky") and "new1" in profiles
+    deleted = runner.deleted()
+    assert not any(_under(games["sky_game"], d) or _under(d, games["sky_game"]) for d in deleted)
+    assert games["versions"] / "craft-conductor-sky" not in deleted
+    assert "Sky" in " ".join(report.manual)
+
+
+def test_an_unreadable_launchers_file_is_never_rewritten(games):
+    (games["mc"] / "launcher_profiles.json").write_text("{not json", encoding="utf-8")
+    runner = GameRunner(games["user"], running=())
+    report = uninstall.run(_games_parts(games, games=True), runner=runner)
+    assert (games["mc"] / "launcher_profiles.json").read_text(encoding="utf-8") == "{not json"
+    deleted = runner.deleted()
+    for game in (games["alpha_game"], games["sky_game"]):  # (their installations may still be in that file)
+        assert not any(_under(game, d) or _under(d, game) for d in deleted), game
+    assert games["p_alpha"] in deleted  # (Prism is apart)
+    assert "launcher_profiles.json" in " ".join(report.manual)
+
+
+def test_an_unknown_folder_in_craft_conductors_minecraft_folder_stays(games):
+    (games["ours"] / "half-done" / "mods").mkdir(parents=True)  # (a setup that never finished: no mark)
+    runner = GameRunner(games["user"], running=())
+    report = uninstall.run(_games_parts(games, games=True), runner=runner)
+    deleted = runner.deleted()
+    assert games["ours"] not in deleted
+    assert {games["alpha_game"], games["sky_game"], games["ours"] / "servers.json", games["ours"] / "extras"} <= set(deleted)
+    assert not any(_under(d, games["ours"] / "half-done") for d in deleted)
+    assert "half-done" in " ".join(report.manual)
+
+
+@pytest.mark.parametrize("kind", ["junction", "symlink"])
+def test_a_game_folder_reached_through_a_link_isnt_deleted(games, tmp_path, kind):
+    import shutil
+    elsewhere = tmp_path / "other-drive" / "instances"
+    elsewhere.parent.mkdir()
+    shutil.move(str(games["instances"]), str(elsewhere))
+    _link(games["instances"], elsewhere, kind)
+    runner = GameRunner(games["user"], running=())
+    report = uninstall.run(_games_parts(games, games=True), runner=runner)
+    assert not any(_under(d, games["instances"]) or _under(d, elsewhere) for d in runner.deleted())
+    assert any("craft-conductor-alpha" in line for line in report.failed + report.manual)
+
+
+def test_no_launchers_means_no_games(world):
+    parts = _parts(world, games=True)
+    assert not parts["games"].present
+
+
+def test_the_plan_looks_for_launchers_in_the_persons_own_folders(world):
+    """Without the tests' stand-ins, the launchers are looked for from the environment and home folder
+    given to plan() (here: the temporary home), never this process's own."""
+    user = world["user"]
+    env = {**world["env"], "APPDATA": str(user / "AppData" / "Roaming")}
+    mc = joinmod.minecraft_dir(env, user)
+    assert _under(mc, user)
+    for found in (launchersmod.prism_dirs(env, user), launchersmod.modrinth_dirs(env, user),
+                  launchersmod.curseforge_dirs(env, user)):
+        assert found and all(_under(d, user) for d in found)
+    game = _game_folder(mc / "craft-conductor" / "alpha")
+    (mc / "launcher_profiles.json").write_text(json.dumps({"profiles": {
+        "craft-conductor-alpha": {"name": "Alpha", "type": "custom", "gameDir": str(game)}}}), encoding="utf-8")
+    parts = [p for p in uninstall.plan(world["home"], Choices(games=True), env=env) if p.key == "games"]
+    assert any(p.present and "Alpha" in p.action for p in parts)
+
+
+def test_the_system_runner_replaces_a_file_whole(tmp_path):
+    target = tmp_path / "mc" / "launcher_profiles.json"
+    target.parent.mkdir()
+    target.write_text("{}", encoding="utf-8")
+    uninstall.SystemRunner().write_text(target, '{"profiles": {}}\n')
+    assert target.read_text(encoding="utf-8") == '{"profiles": {}}\n'
+    assert [p.name for p in target.parent.iterdir()] == ["launcher_profiles.json"]
+
+
+def test_the_system_runner_tells_whether_a_launcher_is_open(monkeypatch):
+    names = ["explorer.exe", "minecraftlauncher.exe", "javaw.exe"]
+    monkeypatch.setattr(uninstall, "_process_names", lambda: names)
+    runner = uninstall.SystemRunner()
+    assert runner.launcher_running("minecraft") is True
+    assert runner.launcher_running("prism") is False
+    names[:] = ["/applications/prism launcher.app/contents/macos/prismlauncher"]
+    assert runner.launcher_running("prism") is True
+    monkeypatch.setattr(uninstall, "_process_names", lambda: None)  # (the process list can't be read)
+    assert runner.launcher_running("minecraft") is None

@@ -52,8 +52,11 @@ class Found:
         return {"key": self.key, "label": self.label, "found": self.found, "where": self.where, "note": self.note}
 
 
-def _home_dirs(win: list[str], mac: list[str], linux: list[str]) -> list[Path]:
-    """Candidate folders; entries starting with "%NAME%" use that environment variable."""
+def _home_dirs(win: list[str], mac: list[str], linux: list[str], env=None, home: Path | None = None) -> list[Path]:
+    """Candidate folders; entries starting with "%NAME%" use that environment variable. ``env`` and
+    ``home``: another account's environment and home folder (the uninstall's); this process's by default."""
+    env = os.environ if env is None else env
+    home = Path.home() if home is None else Path(home)
     if os.name == "nt":
         names = win
     elif sys.platform == "darwin":
@@ -64,19 +67,20 @@ def _home_dirs(win: list[str], mac: list[str], linux: list[str]) -> list[Path]:
     for n in names:
         if n.startswith("%"):
             var, _, rest = n[1:].partition("%")
-            base = os.environ.get(var)
+            base = env.get(var)
             if not base:
                 continue
             out.append(Path(base) / rest.lstrip("/\\"))
         else:
-            out.append(Path.home() / n)
+            out.append(home / n)
     return out
 
 
-def prism_dirs() -> list[Path]:
+def prism_dirs(env=None, home: Path | None = None) -> list[Path]:
     return _home_dirs(["%APPDATA%/PrismLauncher"],
                       ["Library/Application Support/PrismLauncher"],
-                      [".local/share/PrismLauncher", ".var/app/org.prismlauncher.PrismLauncher/data/PrismLauncher"])
+                      [".local/share/PrismLauncher", ".var/app/org.prismlauncher.PrismLauncher/data/PrismLauncher"],
+                      env, home)
 
 
 def prism_instances(data_dir: Path) -> Path:
@@ -95,15 +99,15 @@ def prism_instances(data_dir: Path) -> Path:
     return data_dir / "instances"
 
 
-def modrinth_dirs() -> list[Path]:
+def modrinth_dirs(env=None, home: Path | None = None) -> list[Path]:
     return _home_dirs(["%APPDATA%/ModrinthApp", "%APPDATA%/com.modrinth.theseus"],
                       ["Library/Application Support/ModrinthApp", "Library/Application Support/com.modrinth.theseus"],
-                      [".local/share/ModrinthApp", ".local/share/com.modrinth.theseus"])
+                      [".local/share/ModrinthApp", ".local/share/com.modrinth.theseus"], env, home)
 
 
-def curseforge_dirs() -> list[Path]:
+def curseforge_dirs(env=None, home: Path | None = None) -> list[Path]:
     return _home_dirs(["curseforge/minecraft", "%USERPROFILE%/curseforge/minecraft"],
-                      ["Documents/curseforge/minecraft"], ["curseforge/minecraft"])
+                      ["Documents/curseforge/minecraft"], ["curseforge/minecraft"], env, home)
 
 
 def detect(mc_dir: Path, prism_dir: Path | None = None) -> list[Found]:

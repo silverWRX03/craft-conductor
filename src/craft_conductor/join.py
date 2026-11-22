@@ -159,12 +159,16 @@ def invite_from_name(path: str | Path) -> Invite | None:
         return None
 
 
-def minecraft_dir() -> Path:
+def minecraft_dir(env=None, home: Path | None = None) -> Path:
+    """The Minecraft Launcher's folder. ``env`` and ``home``: another account's environment and home
+    folder (the uninstall reads the person's, never its own process's); this process's by default."""
+    env = os.environ if env is None else env
+    home = Path.home() if home is None else Path(home)
     if os.name == "nt":
-        return Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming") / ".minecraft"
+        return Path(env.get("APPDATA") or home / "AppData" / "Roaming") / ".minecraft"
     if sys.platform == "darwin":
-        return Path.home() / "Library" / "Application Support" / "minecraft"
-    return Path.home() / ".minecraft"
+        return home / "Library" / "Application Support" / "minecraft"
+    return home / ".minecraft"
 
 
 def slugify(name: str) -> str:

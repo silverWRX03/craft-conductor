@@ -37,12 +37,15 @@ The system parts are read without Craft Conductor running: router port mappings 
 running Cloudflare quick tunnel from ``.craft-conductor/tools/cloudflared.pid``, the Linux services
 from their unit files (``service.plan``: only units for this home's panel and servers), the invite
 link handler from the registry (through the runner) or its desktop entry, and the firewall rules from
-Windows Firewall (through the runner).
+Windows Firewall (through the runner). The games it set up in launchers are read from the launchers'
+own folders, where they were recorded when made (see the notes above ``GAME_PREFIX``); only those are
+removed, and only when ticked.
 """
 
 from __future__ import annotations
 
 import base64
+import json
 import os
 import platform
 import stat
@@ -100,7 +103,11 @@ class Runner(Protocol):
       (UPnP), returning the ones it refused; raises when no router answers (without it: the ports are
       listed for the person);
     * ``stop_process(pid, exe) -> bool``: stop that process if it's still that program (without it:
-      listed for the person).
+      listed for the person);
+    * ``launcher_running(key) -> bool | None``: that launcher ("minecraft", "prism") is open (None:
+      can't be told; without it, or None, it's taken as open, and its games are listed instead);
+    * ``write_text(path, text)``: replace a launcher's file whole (a temporary file, then a swap), to
+      take Craft Conductor's installations out of it (without it: listed for the person).
     """
 
     def run(self, argv: list[str], *, elevated: bool = False, detached: bool = False) -> int: ...
@@ -865,6 +872,438 @@ def _invite_part(inv: Inventory) -> Part:
                 user_home=inv.user_home, remove=remove)
 
 
+# ------------------------------------------------------------------ games in launchers
+# How Craft Conductor records what it sets up in a launcher (join.py, launchers.py). Play on this
+# computer and single-player games go through the same page as a friend joining a server, so they're
+# recorded the same way, in the launchers' own folders:
+# * the Minecraft Launcher: an installation keyed "craft-conductor-<name>" in launcher_profiles.json
+#   (and the Microsoft Store launcher's file), whose game folder is <.minecraft>/craft-conductor/<name>
+#   with Craft Conductor's record of the files it put there (join.MANIFEST), and its own version,
+#   versions/craft-conductor-<name>. Its notes are in that craft-conductor folder too: servers.json,
+#   invites.json, join-running.json, the friend's extras, a Java of its own;
+# * Prism Launcher: the instance "craft-conductor-<name>" in Prism's instances folder, with that
+#   record in its .minecraft folder;
+# * the Modrinth App and CurseForge: only a modpack file to import; the app makes the profile itself,
+#   so there's no record of it, and it's listed for the person.
+# Anything else (named like Craft Conductor's but not as it made it, or from before the rename) is
+# listed for the person, never guessed.
+GAME_PREFIX = "craft-conductor-"
+OLD_PREFIX = "mcsm-"  # (Craft Conductor's name before 2026-10-01: those setups aren't recorded the same way)
+GAME_NOTES = ("servers.json", "invites.json", "join-running.json", "extras", ".craft-conductor")
+PROFILE_BACKUP = ".craft-conductor-backup"  # (join.write_profiles' copy of the launcher's file)
+LAUNCHER_PROCESSES = {  # (a launcher's program, as the process list names it, lower case; a wrong yes only lists)
+    # (minecraft.exe: the Microsoft Store edition may run under that name; Bedrock's is Minecraft.Windows.exe)
+    "minecraft": ("minecraftlauncher.exe", "minecraft.exe", "minecraft-launc", "minecraft.app/contents/macos/"),
+    "prism": ("prismlauncher", "prism launcher.app/contents/macos/"),
+}
+
+
+@dataclass
+class _Games:
+    """What one launcher holds of Craft Conductor's games."""
+    names: list[str] = field(default_factory=list)       # the recorded games, by name
+    paths: list[Path] = field(default_factory=list)      # what's deleted with them
+    known: list[Path] = field(default_factory=list)      # the places those are in
+    keep: list[Path] = field(default_factory=list)       # the recorded games' folders (kept unless ticked)
+    listed: list[str] = field(default_factory=list)      # for the person: unrecorded, unclear, or older
+    worlds: int = 0
+    # the launcher's file -> Craft Conductor's installations in it (key -> (their game folder as written, name))
+    edits: dict[Path, dict[str, tuple[str, str]]] = field(default_factory=dict)
+    held: dict[str, list[Path]] = field(default_factory=dict)  # key -> what goes only once it's out of the file
+    backups: list[Path] = field(default_factory=list)
+
+
+def _in(path: str, folder: Path, exact: bool = False) -> bool:
+    """``path`` (as a launcher's file wrote it) is ``folder`` (``exact``) or inside it; a path that
+    isn't one (a NUL in it, say) is neither."""
+    try:
+        return _lex(path) == _lex(folder) if exact else _lex_inside(path, folder)
+    except (ValueError, OSError):
+        return False
+
+
+def _names(names: Iterable[str]) -> str:
+    quoted = [f'"{n}"' for n in dict.fromkeys(names)]
+    return quoted[0] if len(quoted) == 1 else ", ".join(quoted[:-1]) + " and " + quoted[-1] if quoted else ""
+
+
+def _marked(game: Path) -> bool:
+    """Craft Conductor made this game folder: its record of the files it put there is in it."""
+    from .join import MANIFEST
+    return _plain_dir(game) and (game / MANIFEST).is_file()
+
+
+def _worlds(game: Path) -> int:
+    try:
+        return sum(1 for e in (game / "saves").iterdir() if e.is_dir())
+    except OSError:
+        return 0
+
+
+def _entries(folder: Path) -> list[Path]:
+    try:
+        return sorted(folder.iterdir()) if folder.is_dir() else []
+    except OSError:
+        return []
+
+
+def _our_version(folder: Path) -> bool:
+    """A version Craft Conductor wrote (join.write_version): its json names it."""
+    try:
+        data = json.loads((folder / f"{folder.name}.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return _plain_dir(folder) and isinstance(data, dict) and data.get("id") == folder.name
+
+
+def _not_through_links(found: _Games) -> None:
+    """Nothing is deleted through a link or junction (R10): such a path is listed for the person."""
+    ok = []
+    for p in found.paths:
+        link = link_on_the_way(p, found.known)
+        if link is None:
+            ok.append(p)
+        else:
+            found.listed.append(f"{p} is reached through a link or junction ({link}), so it wasn't deleted; "
+                                "delete it yourself if you don't want it")
+    found.paths = ok
+
+
+def _minecraft_games(mc: Path) -> _Games:
+    """Craft Conductor's installations in the Minecraft Launcher (``mc``: its folder), as recorded."""
+    from .join import PROFILE_FILES, _SLUG
+    found = _Games()
+    ours, versions = mc / "craft-conductor", mc / "versions"
+    files: dict[Path, dict[str, dict]] = {}
+    unreadable = False
+    for name in PROFILE_FILES:
+        f = mc / name
+        if not os.path.lexists(f):
+            continue
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+            profiles = data.get("profiles") if isinstance(data, dict) else None
+            if not isinstance(profiles, dict):
+                raise ValueError("it has no list of installations")
+        except (OSError, ValueError) as e:
+            unreadable = True
+            found.listed.append(f"{f} couldn't be read ({getattr(e, 'strerror', None) or e}), so it wasn't changed and "
+                                f"the games in {ours} stay; delete Craft Conductor's installations (named after its "
+                                "servers and games) in the launcher yourself if you don't want them")
+            continue
+        files[f] = {k: v for k, v in profiles.items() if isinstance(v, dict)}
+        if os.path.lexists(backup := f.with_name(f.name + PROFILE_BACKUP)):
+            found.backups.append(backup)
+    recorded: set[str] = set()
+    staying: list[tuple[str, str]] = []           # (name, game folder) of every installation that stays
+    staying_versions: dict[str, list[str]] = {}   # version -> the installations that stay using it
+    old: list[str] = []
+    for f, profiles in files.items():
+        for key, p in profiles.items():
+            game_dir, name = p.get("gameDir"), str(p.get("name") or key)
+            slug = key[len(GAME_PREFIX):] if key.startswith(GAME_PREFIX) else None
+            if (slug is not None and _SLUG.fullmatch(slug) and isinstance(game_dir, str) and _in(game_dir, ours / slug, exact=True)
+                    and (not os.path.lexists(ours / slug) or _marked(ours / slug))):
+                found.edits.setdefault(f, {})[key] = (game_dir, name)
+                found.held[key] = [ours / slug, versions / key, *found.backups]
+                found.names.append(name)
+                recorded.add(slug)
+                continue
+            if slug is not None:
+                found.listed.append(f'the installation "{name}" ({key}) doesn\'t use the folder Craft Conductor made for it '
+                                    f"({game_dir or 'it uses the launcher folder itself'}), so it stays; delete it in the "
+                                    "launcher yourself if you don't want it")
+            elif key.startswith(OLD_PREFIX):
+                old.append(name)
+            if isinstance(game_dir, str) and game_dir:
+                staying.append((name, game_dir))
+            if isinstance(p.get("lastVersionId"), str):
+                staying_versions.setdefault(p["lastVersionId"], []).append(name)
+    named = {k[len(GAME_PREFIX):] for profiles in files.values() for k in profiles if k.startswith(GAME_PREFIX)}
+
+    def ours_to_delete(slug: str) -> bool:
+        """Recorded, or Craft Conductor's own with no installation left that could be using it."""
+        return slug in recorded or (slug not in named and not unreadable)
+
+    members = []
+    for e in _entries(ours):
+        if e.name in GAME_NOTES:
+            members.append(e)
+        elif not _marked(e):
+            found.listed.append(f"{e} isn't something Craft Conductor has a record of making, so it stays")
+        elif ours_to_delete(e.name):
+            users = [n for n, d in staying if _in(d, e)]
+            if users:
+                found.listed.append(f"{e} is also the game folder of the installation {_names(users)}, so it stays "
+                                    "with its worlds")
+                continue
+            members.append(e)
+            found.keep.append(e)
+            found.worlds += _worlds(e)
+            if e.name not in recorded:
+                found.names.append(e.name)  # (its installation was removed already)
+    found.paths += _whole_or_each(ours, members, empty_too=True)
+    for e in _entries(versions):
+        if e.name.startswith(OLD_PREFIX) and _plain_dir(e):
+            old.append(f"versions/{e.name}")
+        if not e.name.startswith(GAME_PREFIX) or not _our_version(e) or not ours_to_delete(e.name[len(GAME_PREFIX):]):
+            continue
+        if users := staying_versions.get(e.name):
+            if e.name[len(GAME_PREFIX):] in recorded:
+                found.listed.append(f"{e} is also used by the installation {_names(users)}, so it stays")
+            continue
+        found.paths.append(e)
+    found.paths += found.backups
+    if os.path.lexists(mc / "mcsm"):
+        old.append(str(mc / "mcsm"))
+    if old:
+        found.listed.append(f"older setups from before Craft Conductor's rename ({_names(old)}) weren't recorded the way "
+                            "today's are, so they stay; delete them in the launcher (and their folders) yourself if you "
+                            "don't want them")
+    found.known = [ours, versions, *found.backups]
+    _not_through_links(found)
+    return found
+
+
+def _drop_profiles(f: Path, keys: dict[str, tuple[str, str]], runner: Runner) -> tuple[list[str], list[str], list[str], list[str]]:
+    """Take Craft Conductor's installations ``keys`` (key -> (game folder, name) as planned) out of the launcher's
+    file ``f``: only those still as planned; everything else in it stays as it was. Written whole, the way
+    join.py wrote them in (a temporary file, then a swap), through the runner. Returns (the names
+    removed, the keys left in, failure lines, lines for the person)."""
+    by_hand = (f"delete the installations {_names(n for _, n in keys.values())} in the launcher yourself (their "
+               "folders were kept)")
+    try:
+        if folders.link_stat(os.lstat(f)):
+            raise ValueError("it's a link, so what it leads to isn't changed")
+        data = json.loads(f.read_text(encoding="utf-8"))
+        profiles = data.get("profiles") if isinstance(data, dict) else None
+        if not isinstance(profiles, dict):
+            raise ValueError("it has no list of installations")
+    except FileNotFoundError:
+        return [], [], [], []  # (gone, with everything in it)
+    except (OSError, ValueError) as e:
+        why = getattr(e, "strerror", None) or e
+        return [], list(keys), [f"{f} couldn't be read ({why})"], [by_hand]
+    gone, left, later = [], [], []
+    for key, (game_dir, _name) in keys.items():
+        p = profiles.get(key)
+        if p is None:
+            continue  # (removed already)
+        name = str(p.get("name") or key) if isinstance(p, dict) else key
+        if not isinstance(p, dict) or p.get("gameDir") != game_dir:
+            left.append(key)
+            later.append(f'the installation "{name}" changed after the list was made, so it stays; delete it in the '
+                         "launcher yourself if you don't want it")
+            continue
+        gone.append(name)
+        del profiles[key]
+    if not gone:
+        return [], left, [], later
+    write = getattr(runner, "write_text", None)
+    if not callable(write):
+        return [], list(keys), [], [*later, f"{f} can't be changed from here", by_hand]
+    try:
+        write(f, json.dumps(data, indent=2) + "\n")
+    except Exception as e:
+        return [], list(keys), [f"{f} couldn't be written ({getattr(e, 'strerror', None) or e})"], [*later, by_hand]
+    return gone, left, [], later
+
+
+def _launcher_open(runner: Runner, key: str) -> bool | None:
+    """Whether that launcher is open (None: the runner can't tell, which is taken as open)."""
+    fn = getattr(runner, "launcher_running", None)
+    if not callable(fn):
+        return None
+    try:
+        return fn(key)
+    except Exception:
+        return None
+
+
+def _game_words(found: _Games, kind: str) -> str:
+    what = f"the {kind}{'s' if len(found.names) != 1 else ''} {_names(found.names)}" if found.names else ""
+    if found.worlds:
+        what += f" with the {found.worlds} world{'s' if found.worlds != 1 else ''} in {'them' if len(found.names) != 1 else 'it'}"
+    return what
+
+
+def _minecraft_part(inv: Inventory, mc: Path) -> Part | None:
+    label = "Minecraft Launcher games"
+    found = _minecraft_games(mc)
+    ticked = inv.choices.games
+    if not ticked:
+        inv.keep += found.keep
+    if not (found.names or found.paths) and not (ticked and found.listed):
+        return None
+    games = _game_words(found, "installation")
+    if not ticked:
+        return Part(key="games", label=label, present=True, kept=True, user_home=inv.user_home,
+                    action=f"kept: {games or 'what Craft Conductor set up'} in the Minecraft Launcher")
+    ours = mc / "craft-conductor"
+    notes = any(_lex(p) == _lex(ours) or p.name in GAME_NOTES for p in found.paths)
+    pieces = [x for x in (games, f"Craft Conductor's notes in {ours}" if notes else "") if x]
+    action = (f"deleted: {' and '.join(pieces) or 'what Craft Conductor set up'}, from the launcher's list and its "
+              "folders; your other installations stay"
+              if found.names or found.paths else "listed for you: installations Craft Conductor has no record of making")
+    if found.listed and (found.names or found.paths):
+        action += " (some are listed for you: see what's left to do)"
+    part = Part(key="games", label=label, present=True, action=action, paths=list(found.paths), known=found.known,
+                user_home=inv.user_home)
+
+    def remove(runner: Runner) -> Outcome:
+        out = Outcome(manual=[f"{label}: {x}" for x in found.listed])
+        if found.edits and _launcher_open(runner, "minecraft") is not False:
+            where = ", ".join(str(p) for p in found.paths)
+            out.manual.insert(0, f"{label}: the Minecraft Launcher is open (or that couldn't be checked), so nothing was "
+                                 f"changed in it. Close it, then delete the installations {_names(found.names)} in it "
+                                 f"(Installations, the ... button, Delete)" + (f", and these folders: {where}" if where else ""))
+            return out
+        left: list[str] = []
+        for f, keys in found.edits.items():
+            gone, kept, failed, later = _drop_profiles(f, keys, runner)
+            left += kept
+            out.failed += [f"{label}: {x}" for x in failed]
+            out.manual += [f"{label}: {x}" for x in later]
+            if gone:
+                out.removed.append(f"{label}: took the installations {_names(gone)} out of {f.name}")
+        # (what belongs to an installation still in the launcher stays: its folder, its version, the backups)
+        hold = [p for k in left for p in found.held.get(k, [])]
+        paths = found.paths
+        if hold:
+            paths = [p for p in _carve(paths, hold, inv.user_home) if not any(locations.inside(p, k) for k in hold)]
+        done = delete_paths(dataclasses.replace(part, paths=paths), runner)
+        out.removed += done.removed
+        out.failed += done.failed
+        return out
+    part.remove = remove
+    return part
+
+
+def _instance_name(folder: Path) -> str:
+    try:
+        for line in (folder / "instance.cfg").read_text(encoding="utf-8", errors="replace").splitlines():
+            key, sep, value = line.partition("=")
+            if sep and key.strip() == "name" and value.strip():
+                return value.strip()
+    except OSError:
+        pass
+    return folder.name
+
+
+def _prism_games(dirs: Iterable[Path]) -> _Games:
+    """Craft Conductor's instances in Prism (each of its data folders ``dirs``), as recorded."""
+    from . import launchers
+    found = _Games()
+    old: list[str] = []
+    for d in dirs:
+        if not d.is_dir():
+            continue
+        instances = launchers.prism_instances(d)
+        entries = _entries(instances)
+        if entries:
+            found.known.append(instances)
+        for e in entries:
+            if e.name.startswith(OLD_PREFIX):
+                old.append(e.name)
+            elif not e.name.startswith(GAME_PREFIX):
+                continue
+            elif _plain_dir(e) and _marked(e / ".minecraft"):
+                found.paths.append(e)
+                found.keep.append(e)
+                found.names.append(_instance_name(e))
+                found.worlds += _worlds(e / ".minecraft")
+            else:
+                found.listed.append(f"{e} has no record that Craft Conductor made it, so it stays; delete it in Prism "
+                                    "yourself if you don't want it")
+    if old:
+        found.listed.append(f"older instances from before Craft Conductor's rename ({_names(old)}) weren't recorded the "
+                            "way today's are, so they stay; delete them in Prism yourself if you don't want them")
+    _not_through_links(found)
+    return found
+
+
+def _prism_part(inv: Inventory, dirs: list[Path]) -> Part | None:
+    label = "Prism Launcher games"
+    found = _prism_games(dirs)
+    ticked = inv.choices.games
+    if not ticked:
+        inv.keep += found.keep
+    if not found.paths and not (ticked and found.listed):
+        return None
+    games = _game_words(found, "instance")
+    if not ticked:
+        return Part(key="games", label=label, present=True, kept=True, user_home=inv.user_home,
+                    action=f"kept: {games} in Prism Launcher")
+    action = (f"deleted: {games}; your other instances stay" if found.paths
+              else "listed for you: instances Craft Conductor has no record of making")
+    if found.listed and found.paths:
+        action += " (some are listed for you: see what's left to do)"
+    part = Part(key="games", label=label, present=True, action=action, paths=list(found.paths), known=found.known,
+                user_home=inv.user_home)
+
+    def remove(runner: Runner) -> Outcome:
+        out = Outcome(manual=[f"{label}: {x}" for x in found.listed])
+        if found.paths and _launcher_open(runner, "prism") is not False:
+            out.manual.insert(0, f"{label}: Prism Launcher is open (or that couldn't be checked), so nothing was deleted "
+                                 f"in it. Close it, then delete the instances {_names(found.names)} in it (right-click, "
+                                 f"Delete), or these folders: {', '.join(str(p) for p in found.paths)}")
+            return out
+        done = delete_paths(part, runner)
+        out.removed += done.removed
+        out.failed += done.failed
+        return out
+    part.remove = remove
+    return part
+
+
+def _imported_part(inv: Inventory, apps: list[tuple[str, list[str]]]) -> Part | None:
+    """The Modrinth App and CurseForge: Craft Conductor only gave them a modpack file to import, and the
+    app made the profile itself, so there's no record of which profiles came from it: listed."""
+    from . import launchers
+    if not apps:
+        return None
+    label = "Modrinth App and CurseForge games"
+    which = " and ".join(launchers.LABELS[k] for k, _ in apps)
+    if not inv.choices.games:
+        return Part(key="games", label=label, present=True, kept=True, user_home=inv.user_home,
+                    action=f"kept: the profiles in the {which}")
+    lines = []
+    for key, made in apps:
+        app = launchers.LABELS[key]
+        lines.append(f"{app}: Craft Conductor only gave it modpack files to import, and the app made the profiles "
+                     "itself, so Craft Conductor has no record of them and nothing was removed there; delete the ones "
+                     f"you don't want in the {app}" + (f" (single-player games Craft Conductor put there: {_names(made)})"
+                                                         if made else "")
+                     + ". The modpack files it saved are in your Downloads folder unless you moved them.")
+    return Part(key="games", label=label, present=True,
+                action=f"listed for you: the {which} made their profiles themselves, so there's no record of them",
+                user_home=inv.user_home, remove=lambda runner: Outcome(manual=list(lines)))
+
+
+def _games_parts(inv: Inventory) -> list[Part]:
+    """Games Craft Conductor set up in launchers (Play on this computer, single-player games, a friend's
+    joined servers): only what was recorded, and only when ticked (see the notes above GAME_PREFIX)."""
+    from types import SimpleNamespace
+    from . import join, launchers, singleplayer
+    env = {k.upper(): v for k, v in inv.env.items()}  # (the person's own folders, never this process's)
+    home = inv.user_home
+    made: list[dict] = []
+    try:
+        made = singleplayer.games(SimpleNamespace(state_dir=inv.state_dir))
+    except Exception:
+        made = []
+    apps = []
+    for key, dirs in (("modrinth", launchers.modrinth_dirs(env, home)), ("curseforge", launchers.curseforge_dirs(env, home))):
+        names = [str(g.get("name")) for g in made if isinstance(g, dict) and key in (g.get("launchers") or [])]
+        if names or any(d.is_dir() for d in dirs):
+            apps.append((key, names))
+    parts = [_minecraft_part(inv, join.minecraft_dir(env, home)),
+             _prism_part(inv, [d for d in launchers.prism_dirs(env, home) if d.is_dir()]),
+             _imported_part(inv, apps)]
+    parts = [p for p in parts if p is not None]
+    return parts or [_absent("games", "Games in launchers", inv)]
+
+
 LISTED = (
     "Tailscale and playit.gg: Craft Conductor didn't install these apps, so they stay; remove them the usual way "
     "(Windows: Settings > Apps; Mac: the Applications folder; Linux: your package manager) if you don't use them any more",
@@ -894,6 +1333,7 @@ BUILDERS: dict[str, Builder] = {
     "firewall": _firewall_part,
     "service": _service_part,
     "invite": _invite_part,
+    "games": _games_parts,
     "exports": _exports_part,
     "backups": _backups_part,
     "servers": _servers_part,
@@ -1111,6 +1551,49 @@ class SystemRunner:
         """Stop the cloudflared Craft Conductor started, only if that process is still it."""
         from . import tunnels
         return tunnels.stop_cloudflared(pid, exe)
+
+    def launcher_running(self, key: str) -> bool | None:
+        """Whether that launcher ("minecraft", "prism") is open; None when it can't be told."""
+        names = _process_names()
+        if names is None:
+            return None
+        return any(want in name for name in names for want in LAUNCHER_PROCESSES[key])
+
+    def write_text(self, path: Path, text: str) -> None:
+        """Replace a launcher's file whole, the way join.py writes it: a temporary file next to it,
+        then a swap, so the launcher never reads half a file."""
+        path = Path(path)
+        tmp = path.with_name(f".{path.name}.tmp")
+        tmp.write_text(text, encoding="utf-8")
+        os.replace(tmp, path)
+
+
+def _process_names() -> list[str] | None:
+    """The running programs' names (Windows), short names (Linux) or paths (macOS), in lower case;
+    None when they can't be read."""
+    try:
+        if os.name == "nt":
+            from .desktop import NO_WINDOW
+            done = subprocess.run(["tasklist", "/FO", "CSV", "/NH"], capture_output=True, text=True, timeout=15,
+                                  stdin=subprocess.DEVNULL, **NO_WINDOW)
+            if done.returncode != 0:
+                return None
+            return [line.split('","')[0].strip('"').lower() for line in done.stdout.splitlines() if line.startswith('"')]
+        if os.path.isdir("/proc") and sys.platform != "darwin":
+            out = []
+            for pid in os.listdir("/proc"):
+                if pid.isdigit():
+                    try:
+                        with open(f"/proc/{pid}/comm", encoding="utf-8", errors="replace") as f:
+                            out.append(f.read().strip().lower())
+                    except OSError:
+                        continue
+            return out
+        done = subprocess.run(["ps", "-A", "-o", "comm="], capture_output=True, text=True, timeout=15,
+                              stdin=subprocess.DEVNULL)
+        return [line.strip().lower() for line in done.stdout.splitlines()] if done.returncode == 0 else None
+    except (OSError, subprocess.SubprocessError):
+        return None
 
 
 def _command_line(argv: list[str]) -> list[str] | str:
