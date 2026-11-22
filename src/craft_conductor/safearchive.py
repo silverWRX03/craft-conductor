@@ -26,6 +26,8 @@ DISK_RESERVE = 256 << 20
 # Names Windows keeps for devices, in every folder and with any extension ("NUL.txt" is NUL).
 _RESERVED = re.compile(r"(?i)^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³]|conin\$|conout\$)(\..*)?$")
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
+# The other characters Windows doesn't allow in a name (the colon has its own reason, below).
+_NOT_ON_WINDOWS = re.compile(r'[<>"|?*]')
 # Shown escaped in logs: control characters, and the ones that reverse how text reads.
 _UNPRINTABLE = re.compile(r"[\x00-\x1f\x7f\u200e\u200f\u202a-\u202e\u2066-\u2069]")
 _isjunction = getattr(os.path, "isjunction", lambda path: False)  # (Python 3.12+; Windows only)
@@ -65,6 +67,8 @@ def parts(name: str) -> tuple[str, ...]:
             raise UnsafeName("it points outside the folder (..)")
         if ":" in part:
             raise UnsafeName("its name has a colon (a drive letter or a hidden Windows data stream)")
+        if _NOT_ON_WINDOWS.search(part):
+            raise UnsafeName("its name has a character Windows doesn't allow in names (< > \" | ? *)")
         if part != part.rstrip(". "):
             raise UnsafeName("a name in it ends with a dot or a space, which Windows changes")
         if _RESERVED.match(part):

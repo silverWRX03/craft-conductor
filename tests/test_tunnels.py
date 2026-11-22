@@ -383,6 +383,28 @@ def test_the_quick_tunnel_closes_by_itself_after_its_hours(cloudflare_door, tmp_
     assert not q.running()
 
 
+def test_a_tunnel_that_closed_on_time_says_so_on_the_page_and_in_the_bell(cloudflare_door, monkeypatch):
+    """Not only in the command window: the card says when it closed, and the owner's bell has it (#323)."""
+    hub, c = cloudflare_door
+    real = cloudflare.QuickTunnel
+    monkeypatch.setattr(cloudflare, "QuickTunnel", lambda *a, **kw: real(*a, **{**kw, "popen": FakeCloudflared, "hours": 0.5 / 3600}))
+    pushed = []
+    monkeypatch.setattr(type(hub.push), "notify", lambda self, *a, **kw: pushed.append((a, kw)))
+    before = time.time()
+    status, info, _ = c.post("/api/hub/cloudflare/start", {})
+    assert status == 200 and info["running"] and info["closed"] is None
+    wait_for(lambda: c.get("/api/hub/cloudflare")[1]["closed"])
+    info = c.get("/api/hub/cloudflare")[1]
+    assert not info["running"] and before - 1 <= info["closed"] <= time.time() + 1
+    assert not info["error"]
+    notices = [n for n in c.get("/api/hub")[1]["notices"] if "Cloudflare tunnel closed after" in n["message"]]
+    assert len(notices) == 1 and notices[0]["sid"] == ""
+    assert pushed and pushed[0][1]["kind"] == "tunnel" and "off the internet again" in pushed[0][0][1]
+    # Opened again: the old close isn't shown any more.
+    status, info, _ = c.post("/api/hub/cloudflare/start", {})
+    assert info["closed"] is None
+
+
 def test_the_quick_tunnel_needs_a_strong_password(hub_env):
     hub, c = hub_env
     login(c)

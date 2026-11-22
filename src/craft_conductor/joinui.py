@@ -113,9 +113,33 @@ def pack_digest(pack: dict) -> str:
     return hashlib.sha256(json.dumps(key, sort_keys=True).encode()).hexdigest()[:20]
 
 
-def remember(mc_dir: Path, name: str, code: str, digest: str = "") -> None:
-    items = [x for x in remembered(mc_dir) if x["name"] != name and x["code"] != code]
-    items.insert(0, {"name": name[:100], "code": code, "at": time.time(), "digest": digest})
+def _host(code: str) -> str:
+    """The computer an invite points at (to tell two servers of the same name apart)."""
+    from .join import parse_invite
+    try:
+        return parse_invite(code).host
+    except (JoinError, ValueError):
+        return ""
+
+
+def _same_server(x: dict, name: str, code: str, server_id: str | None) -> bool:
+    """Whether a remembered entry is the server being remembered now. By the server's own id when both have
+    one: two servers with the same name (both "A Minecraft Server") are two entries, #305. Without (an older
+    Craft Conductor, or remembered before), by its name on the same computer."""
+    if x["code"] == code:
+        return True
+    theirs = x.get("server_id")
+    if isinstance(theirs, str) and server_id:
+        return theirs == server_id
+    return x["name"] == name and _host(x["code"]) == _host(code)
+
+
+def remember(mc_dir: Path, name: str, code: str, digest: str = "", server_id: str | None = None) -> None:
+    items = [x for x in remembered(mc_dir) if not _same_server(x, name, code, server_id)]
+    entry = {"name": name[:100], "code": code, "at": time.time(), "digest": digest}
+    if isinstance(server_id, str) and server_id:
+        entry["server_id"] = server_id[:100]
+    items.insert(0, entry)
     path = _invites_file(mc_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     private.write_text(path, json.dumps(items[:20], indent=2))  # (the invites hold each server's secret)
@@ -211,7 +235,7 @@ class JoinUI:
             "need_invite": need,
             "running": self.running, "finished": bool(self.results),
             "copied_invite": copied,
-            "remembered": remembered(self.joiner.mc) if need else [],
+            "remembered": [{**x, "host": _host(x["code"])} for x in remembered(self.joiner.mc)] if need else [],
             "pack": None if p is None else {
                 "name": p["name"], "address": p["address"], "minecraft": p["minecraft"], "loader": p["loader"],
                 "loader_version": p.get("loader_version"), "mods": [m["name"] for m in p.get("mods", [])],
@@ -295,7 +319,8 @@ class JoinUI:
                     self._say(note)
                 self.results = self.joiner.run_targets(install_pack, targets, prism_dir=self.prism_dir, out_dir=self.out_dir)
                 if self.invite and self.invite.fp and any(r.get("ok") for r in self.results):
-                    remember(self.joiner.mc, self.pack["name"], self.invite.code, pack_digest(self.pack))  # to update it next time
+                    remember(self.joiner.mc, self.pack["name"], self.invite.code, pack_digest(self.pack),
+                             self.pack.get("server_id"))  # to update it next time
             except HttpError as e:
                 self._say(f"A download failed: {e}. Check your internet connection and try again.")
             except Exception as e:  # keep the page informed whatever happens

@@ -65,6 +65,7 @@ class Doors:
         self.hosts: dict[str, str] = {}      # each door answers only for its tunnel's address
         self.quick: cloudflare.QuickTunnel | None = None
         self.quick_error = ""
+        self.quick_closed: float | None = None  # when it closed by itself after its hours (said on the page, #323)
         self.downloading: dict = {"state": "idle"}
         self.lock = threading.RLock()
 
@@ -198,6 +199,7 @@ class Doors:
                 "download": dict(self.downloading), "hours": cloudflare.HOURS,
                 "downsides": list(cloudflare.DOWNSIDES), "terms": cloudflare.TERMS, "about": cloudflare.ABOUT,
                 "error": self.quick_error, "running": False, "address": "", "ends": None,
+                "closed": int(self.quick_closed) if self.quick_closed else None,
                 "mac": cloudflare.asset_name() is None}
         if q is not None and q.running():
             info.update(running=True, address=q.address, ends=int(q.ends), starting=not q.address)
@@ -230,6 +232,7 @@ class Doors:
             self.leftover()
             port = self.open("cloudflare")
             self.quick_error = ""
+            self.quick_closed = None
             kwargs = {"popen": popen} if popen is not None else {}
             self.quick = cloudflare.QuickTunnel(exe, port, self.tools() / "cloudflared-config.yml",
                                                 on_end=self._quick_ended, **kwargs)
@@ -257,9 +260,19 @@ class Doors:
         self.close("cloudflare")
         self._pid(None)
         if why in ("time", "failed"):
+            if why == "time":
+                self.quick_closed = time.time()
             message = (f"The control panel is off the internet again: the Cloudflare tunnel closed after {cloudflare.HOURS} hours"
                        if why == "time" else f"The Cloudflare tunnel stopped: {q.error}")
             log.warning("%s", message)
+            # Not only in the log: the owner's bell, and their phones (often where the tunnel was used from, #323).
+            hub = getattr(self.ui, "hub", None)
+            try:
+                if hub is not None:
+                    hub.keep_notice("", message)
+                    hub.push.notify("Craft Conductor", message, url="/#craft-conductor", tag="cc_tunnel", kind="tunnel")
+            except Exception:  # (telling about it never stops the tunnel's tidy-up)
+                log.exception("couldn't send the notice that the Cloudflare tunnel closed")
 
     def _pid(self, pid: int | None, exe: str = "") -> None:
         path = self.tools() / "cloudflared.pid"

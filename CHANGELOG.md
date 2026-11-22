@@ -4,6 +4,18 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.30.7 (not released yet)
+
+**Fixed**
+- Importing a world (or a modpack or an exported server) that held a file with `?`, `*`, `<`, `>`, `"` or `|` in its name failed with "[Errno 22] Invalid argument" on Windows, and nothing was imported. Such a file is left out like the other names Windows can't make, and the rest comes in (#314).
+- **Roll back to this** while another program held a server file open (an editor with `server.properties`) said "it couldn't be unpacked ([Errno 13] Permission denied …)". It names the file that's open in another program and asks you to close it and try again; the server is still left as it was (#316).
+- With UPnP switched off on the router, **Craft Conductor settings → Connections → Router** said "Your server is open to the internet" right above "It didn't work: no router answered". It only says the server is open once the router opened a port; until then it says nothing is open on your router now (#326).
+- Deleting a server that had a Windows Firewall rule only brought the rule up after the server was gone. The **Delete** confirmation now says the server has a rule in Windows Firewall, and that you'll be asked whether to remove it (#311).
+- When the Cloudflare quick tunnel closed by itself after 4 hours, only Craft Conductor's command window said so: the **Control panel away from home** card kept showing "On the internet until …". The bell (and phones that get tunnel notifications) now say the control panel is off the internet again, and the card says when it closed (#323).
+- On a friend's computer, setting up a second server with the same name as one set up before (two people who both kept "A Minecraft Server") took the first off **Servers you've joined**, so it could no longer be updated without a new invite. Both are kept, each shown with its computer's address (#305).
+- On Windows, **Browse…** in the folder browser opened Windows' folder picker behind the browser, so nothing seemed to happen (and pressing it again said a picker was already open). The picker now comes up in front (#304).
+- Someone invited with **Manage mods** on a server whose setup waited for a mod downloaded by hand couldn't reach the box to drop it in: every page sent them to the Dashboard, which only said "1 manual download(s) needed". Their **Your servers** card now has **See progress**, which opens the setup's progress with the hand-download panel (#334).
+
 ## 0.30.6 (2026-11-15)
 
 **Added**

@@ -47,7 +47,7 @@ KINDS = {
     "updates": "Updates: available, installed, held back or waiting on mods",
     "lag": "The server keeps lagging",
     "backups": "A backup doesn't look right",
-    "tunnel": "The playit.gg tunnel stopped or works again",
+    "tunnel": "A tunnel stopped or works again (playit.gg, or Cloudflare's for the control panel)",
     "computer": "This computer: low disk space, a busy CPU, low memory",
     "status": "A server started",
     "other": "Everything else",

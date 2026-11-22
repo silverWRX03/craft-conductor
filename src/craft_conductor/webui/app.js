@@ -738,7 +738,7 @@ const VIEW_NEEDS = { dashboard: ["status.view"], console: ["logs.view"], players
   updates: ["updates.check", "updates.apply"], mods: ["mods.view"], friends: ["friends.share"],
   backups: ["backups.make", "server.export"], java: ["runtime.configure"],
   settings: ["settings.safe", "runtime.configure", "updates.apply", "backups.delete", "server.delete", "server.export"],
-  setup: ["runtime.configure"] };
+  setup: ["runtime.configure", "mods.manage"] };  // (Manage mods: the hand-download box while setup waits, #334)
 function canView(view, sid = server) { return isOwner() || canAny(VIEW_NEEDS[view] || [], sid); }
 const USERNAME_KEY = "craft-conductor-sign-in-with-username";
 let lastJobSeen = null;
@@ -7480,14 +7480,26 @@ function deleteServer(s, after) {
   let everything = false;
   const box = h("div", { class: "modal compact" });
   const close = () => { const m = $("#delete-server"); if (m) m.remove(); };
+  // (Windows: the rules Craft Conductor made for this server's port, looked up while the server is still here. Said
+  // before the delete, so the question about them afterwards isn't a surprise, #311.)
+  const firewallNote = h("div");
+  const lookup = hubInfo && hubInfo.local
+    ? api(`/api/hub/firewall-rules?id=${encodeURIComponent(s.id)}`).then((x) => x.rules || []).catch(() => []) : Promise.resolve([]);
+  lookup.then((rules) => {
+    if (!rules.length) return;
+    const one = rules.length === 1;
+    fill(firewallNote, h("div", { class: "notice", role: "status" },
+      h("strong", {}, one ? "It has a rule in Windows Firewall: " : `It has ${rules.length} rules in Windows Firewall: `),
+      rules.map((x) => x.name).join(", "), ". ",
+      `After it's deleted you'll be asked whether to remove ${one ? "that rule" : "them"} too.`));
+  });
   const render = (error) => {
     const typed = h("input", { autocomplete: "off", placeholder: s.name });
     const go = async (e) => {
       e.preventDefault();
       if (everything && typed.value.trim() !== s.name) return render(`Type the server's name, ${s.name}, to delete everything.`);
       try {
-        // (Windows: the rules Craft Conductor made for this server's port, looked up while the server is still here)
-        const rules = hubInfo && hubInfo.local ? await api(`/api/hub/firewall-rules?id=${encodeURIComponent(s.id)}`).then((x) => x.rules || []).catch(() => []) : [];
+        const rules = await lookup;
         const r = await api("/api/hub/delete", { method: "POST", body: { id: s.id, delete_files: everything } });
         close();
         toast(`${s.name}: ${r.message}`);
@@ -7501,6 +7513,7 @@ function deleteServer(s, after) {
       h("h2", { id: "delete-title" }, `Delete ${s.name}?`),
       s.state === "running" || s.state === "starting" ? h("div", { class: "notice warn" }, "Stop the server first.") : null,
       h("p", {}, "Would you also like to delete its world, mods and everything else that belongs to it?"),
+      firewallNote,
       h("div", { class: "choices" },
         choice(false, "Keep the files", `Take it off the list; the world and mods stay in ${s.folder}.`),
         choice(true, "Delete everything", "The world, mods, backups and settings are erased. This can't be undone.")),
@@ -7567,7 +7580,8 @@ views.servers = () => {
           : h("div", { class: "muted small" }, `${s.players} / ${s.max_players} players` + (s.port ? ` · port ${s.port}` : ""), s.update ? " · update ready" : ""),
         s.job ? h("div", { class: "row small" }, h("span", { class: "spinner" }), `${s.job.name}…`) : null,
         s.state === "unavailable" ? null : h("div", { class: "row mt-s" },
-          s.setup_pending ? (can("runtime.configure", s.id) ? h("a", { class: "btn primary", href: `#s/${s.id}/setup`, "data-fkey": `${s.id}:power` }, s.job ? "See progress" : "Finish setup") : null)
+          s.setup_pending ? (can("runtime.configure", s.id) ? h("a", { class: "btn primary", href: `#s/${s.id}/setup`, "data-fkey": `${s.id}:power` }, s.job ? "See progress" : "Finish setup")
+            : s.job && can("mods.manage", s.id) ? h("a", { class: "btn primary", href: `#s/${s.id}/setup`, "data-fkey": `${s.id}:power` }, "See progress") : null)
             : !can("server.power", s.id) ? null
             : s.state === "stopped"
               // (each button names its server for a screen reader: "Start Alpha", not "Start" again and again, #217)
@@ -7990,6 +8004,9 @@ function routerBox() {
       const r = await api("/api/hub/upnp", { method: "POST", body: { enabled: on.checked, accept: on.checked } }).catch((e) => { toast(e.message, true); return null; });
       render(r || st);
     } });
+    // Open only once the router said yes to a port: with UPnP off on the router nothing is (#326).
+    const opened = !!st.enabled && !st.error && (st.ports || []).some((p) => p.ok);
+    const risk = st.exposure || UPNP_WARNING;
     const ports = (st.ports || []).map((p) => h("li", {}, p.ok ? "✓ " : "✗ ", h("strong", {}, `${p.protocol} ${p.port}`),
       h("span", { class: "muted" }, ` · ${p.label}`), p.ok ? null : h("span", { class: "bad-text" }, ` · ${p.error}`)));
     fill(box, h("h3", {}, "Router"),
@@ -7998,7 +8015,9 @@ function routerBox() {
         "and takes them back when you switch this off or quit Craft Conductor. Only Craft Conductor's own ports are opened. Many routers have UPnP switched off: " +
         "then forward the ports by hand (Help → Router setup), or use playit.gg."),
       busy ? h("p", { class: "small" }, busy) : null,
-      !busy && st.enabled ? h("div", { class: "notice warn", role: "status" }, h("strong", {}, "Your server is open to the internet. "), st.exposure || UPNP_WARNING) : null,
+      !busy && opened ? h("div", { class: "notice warn", role: "status" }, h("strong", {}, "Your server is open to the internet. "), risk) : null,
+      !busy && st.enabled && !opened ? h("p", { class: "muted small", role: "status" }, "Nothing is open on your router now. If it works, " +
+        risk[0].toLowerCase() + risk.slice(1)) : null,
       !busy && st.enabled && st.error ? h("div", { class: "notice warn" }, h("strong", {}, "It didn't work: "), st.error, ".") : null,
       !busy && st.enabled && !st.error && st.router ? h("p", { class: "small ok-text" },
         `${st.router}${st.external_ip ? ` (internet address ${st.external_ip})` : ""}`) : null,
@@ -8268,7 +8287,7 @@ const OUTSIDE_TEXT = {
 // `changed`: after Use Tailscale or Stop, the dialog around it reloads (its pairing addresses change too).
 function outsideChooser(strong, changed = null) {
   const box = h("div", { class: "outside" });
-  let ts = null, cf = null, funnelAllowed = false, pick = null, polls = 0, pollTimer = null;
+  let ts = null, cf = null, funnelAllowed = false, pick = null, polls = 0, pollTimer = null, endTimer = null;
   const out = h("div", { class: "mt-s" });
   const load = async () => {
     const [p, c] = await Promise.all([api("/api/hub/phone?tailscale=1").catch(() => null), api("/api/hub/cloudflare").catch(() => null)]);
@@ -8280,6 +8299,9 @@ function outsideChooser(strong, changed = null) {
     clearTimeout(pollTimer);
     // (while cloudflared downloads, or the tunnel opens: a few times, then it stops asking)
     if (cf && (cf.download.state === "downloading" || cf.starting) && polls++ < 150 && box.isConnected) pollTimer = setTimeout(load, 2000);
+    // (and once more just after the tunnel's end: it closes by itself then, and this says so, #323)
+    clearTimeout(endTimer);
+    if (cf && cf.running && cf.ends && box.isConnected) endTimer = setTimeout(() => { if (box.isConnected) load(); }, Math.max(0, cf.ends * 1000 - Date.now()) + 5000);
   };
   const tailscaleUse = async (funnel) => {
     if (funnel && !(await ask("Put the control panel on the internet with Tailscale Funnel?\n\nAnyone who finds the address can reach the sign-in page, and Tailscale can't tell your own devices from strangers there.", { ok: "Put it on the internet", danger: true, safe: true }))) return;
@@ -8363,7 +8385,9 @@ function outsideChooser(strong, changed = null) {
         : h("div", {}, dl.state === "error" ? h("div", { class: "notice bad small" }, dl.error) : null,
           h("button", { class: "btn small", onclick: cfDownload }, "Download cloudflared"));
     } else {
+      const closed = cf.closed ? new Date(cf.closed * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
       action = h("div", {}, cf.error ? h("div", { class: "notice bad small" }, cf.error) : null,
+        closed ? h("div", { class: "notice small", role: "status" }, `Closed at ${closed} after ${cf.hours} hours: the control panel is off the internet again.`) : null,
         h("button", { class: "btn primary small", disabled: !strong, onclick: cfStart }, `Open to the internet for ${cf.hours} hours`));
     }
     return h("div", {}, h("p", { class: "small" }, "Downsides:"), downsides, about, action, out);
@@ -10245,7 +10269,18 @@ views.setup = () => {
     });
   };
 
+  // Someone invited with Manage mods but not the server's settings: setup's progress and its hand-download
+  // box, never the form (#334).
+  const formless = !isNew && !can("runtime.configure");
+  const waitForOwner = (message) => fill(main, h("h1", { class: "view-title" }, "This server isn't set up yet"),
+    message ? h("div", { class: "notice bad" }, h("strong", {}, "Setup didn't finish: "), failureText(message, server)) : null,
+    h("p", { class: "muted" }, "The server's owner chooses how it's set up. When setup waits for mods to be downloaded by hand, they're on this page for you to download."));
   (async () => {
+    if (formless) {
+      const s = status || await api("/api/status").catch(() => ({}));
+      if (s.job && s.job.name === "set up server") { st.submitted = true; renderProgress(); } else { st.submitted = false; waitForOwner(); }
+      return;
+    }
     opts = await api(isNew ? "/api/hub/setup" : "/api/setup").catch((e) => { toast(e.message, true); return null; });
     if (!opts) return;
     if (!st.prefilled && opts.current) {  // an existing craft-conductor.toml: start from its choices
@@ -10272,11 +10307,14 @@ views.setup = () => {
   $("#main").replaceChildren(main);
   return {
     refresh: () => { if (opts && !st.submitted) renderForm(); },
+    // (someone without the form: setup started while they had this page open, so show its progress)
+    onStatus: (s) => { if (formless && !st.submitted && s.job && s.job.name === "set up server") { st.submitted = true; renderProgress(); } },
     onJobDone: () => {
       const last = status && status.last_job;
       if (!last || last.name !== "set up server") return;
       if (modManagerOpen && modManagerOpen.owner === "manual-downloads") closeModManager(true);
       if (last.ok) setupFinished();
+      else if (formless) { st.submitted = false; clearTimers(); every(2000, refreshStatus); waitForOwner(last.message); }
       else { st.submitted = false; st.playersOnlyDone = null; clearTimers(); every(2000, refreshStatus); renderForm(last.message); }
     },
   };

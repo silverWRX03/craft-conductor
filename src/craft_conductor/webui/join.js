@@ -284,7 +284,10 @@ function renderAskInvite(error) {
         const b = h("button", { class: "btn small" }, "Update");
         b.addEventListener("click", () => use(r.code, b));
         const state = h("span", { class: "small muted", "data-code": r.code }, "checking…");
-        return h("li", {}, h("div", { class: "grow" }, h("strong", {}, r.name), " ", state), b);
+        // (two servers with the same name, from two people: told apart by whose computer it is, #305)
+        const twin = r.host && info.remembered.some((o) => o !== r && o.name === r.name);
+        return h("li", {}, h("div", { class: "grow" }, h("strong", {}, r.name), twin ? h("span", { class: "small muted" }, ` (at ${r.host})`) : null,
+          " ", state), b);
       }))) : null,
     h("div", { class: "card" }, h("h2", {}, "Or run a Minecraft server of your own"),
       h("p", { class: "muted small" }, "Craft Conductor sets one up on this computer and keeps it and its mods up to date."),

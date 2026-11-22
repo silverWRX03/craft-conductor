@@ -109,3 +109,32 @@ def test_starting_asks_when_little_memory_is_free_now(hub_env, monkeypatch):
     assert hub.memory_plan("alpha")["fits_free"] is True
     monkeypatch.setattr(health, "memory_available_gb", lambda: None)  # (can't tell: no question)
     assert hub.memory_plan("alpha")["fits_free"] is True
+
+
+def test_a_roll_back_names_a_server_file_another_program_has_open(tmp_path, monkeypatch):
+    """An editor holding server.properties open without sharing: the roll back can't read it.
+    It says which file is open in another program, not "couldn't be unpacked (Permission
+    denied)", and leaves the server as it was (#316)."""
+    from pathlib import Path
+    server = tmp_path / "server"
+    server.mkdir()
+    (server / "server.properties").write_text("motd=Old\n")
+    archive = backup.create(server, tmp_path / "backups", label="test", exclude=[])
+    (server / "server.properties").write_text("motd=Changed\n")
+    real_read = Path.read_bytes
+
+    def read_bytes(self):
+        if self == server / "server.properties":
+            raise PermissionError(13, "Permission denied", str(self))
+        return real_read(self)
+
+    monkeypatch.setattr(Path, "read_bytes", read_bytes)
+    with pytest.raises(backup.RestoreError) as e:
+        backup.restore(archive, server)
+    message = str(e.value)
+    assert "server.properties in the server's folder is open in another program" in message
+    assert "close it and try again" in message and "left as it was" in message
+    assert "couldn't be unpacked" not in message and "Errno" not in message
+    monkeypatch.setattr(Path, "read_bytes", real_read)
+    assert (server / "server.properties").read_text() == "motd=Changed\n"
+    assert not (tmp_path / "server.restoring").exists()

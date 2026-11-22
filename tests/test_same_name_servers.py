@@ -53,3 +53,30 @@ def test_the_servers_id_is_kept_and_moves_with_it(hub_env, tmp_path):
     sid, _ = hub.import_archive(export)  # (a copy on the same computer)
     copy = hub.get(sid)
     assert clientpack.read_friends_id(copy.m.config) is None and clientpack.friends_id(copy.m.config) != fid
+
+
+def test_the_friend_app_remembers_both_servers_of_the_same_name(tmp_path, monkeypatch):
+    """Two hosts, each with "A Minecraft Server": setting up the second kept only it in the list of
+    servers the friend app can update without an invite (#305). Each is kept, and told apart."""
+    from craft_conductor import clipboard, joinui
+    monkeypatch.setattr(clipboard, "invite", lambda: None)  # (not this computer's real clipboard)
+    mc = tmp_path / ".minecraft"
+    fp = "F" * 43
+    a1 = join.Invite("192.168.1.10", 25580, "A" * 24, fp).code
+    b1 = join.Invite("friend-b.example.net", 25580, "B" * 24, fp).code
+    a2 = join.Invite("192.168.1.10", 25580, "C" * 24, fp).code   # (host A's next invite: same server)
+    joinui.remember(mc, "A Minecraft Server", a1, "d1", "a" * 16)
+    joinui.remember(mc, "A Minecraft Server", b1, "d2", "b" * 16)
+    assert [(x["code"], x.get("server_id")) for x in joinui.remembered(mc)] == [(b1, "b" * 16), (a1, "a" * 16)]
+    joinui.remember(mc, "A Minecraft Server", a2, "d3", "a" * 16)   # (the same server again: replaced, not added)
+    assert [x["code"] for x in joinui.remembered(mc)] == [a2, b1]
+    # Remembered before this (no id): the same name on the same computer is the same server, another computer's isn't.
+    old = tmp_path / "old" / ".minecraft"
+    joinui.remember(old, "A Minecraft Server", a1)
+    joinui.remember(old, "A Minecraft Server", b1, server_id="b" * 16)
+    joinui.remember(old, "A Minecraft Server", a2, server_id="a" * 16)
+    assert [x["code"] for x in joinui.remembered(old)] == [a2, b1]
+    # The page shows whose computer each is, to tell them apart.
+    ui = joinui.JoinUI(None, mc_dir=mc)
+    hosts = {x["code"]: x["host"] for x in ui.info()["remembered"]}
+    assert hosts == {a2: "192.168.1.10", b1: "friend-b.example.net"}

@@ -23,8 +23,47 @@ from .desktop import NO_WINDOW, child_env
 TIMEOUT = 15 * 60  # a picker nobody answers is closed after this long
 _busy = threading.Lock()  # one picker at a time
 
+# Windows doesn't let a program in the background (this one: the browser is in front) take the foreground,
+# so the picker opened behind the browser and nothing seemed to happen (#304). Once the picker is up, a
+# timer on its thread puts it above every window and asks for the foreground through the window in front's
+# input; when that works it stops being topmost (an ordinary window, in front), when it doesn't it stays
+# above the others and flashes.
 _WINDOWS = r"""
 Add-Type -AssemblyName System.Windows.Forms
+$script:front = $true
+try { Add-Type -ErrorAction Stop -Namespace CraftConductor -Name Front -MemberDefinition @'
+[DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
+[DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+[DllImport("user32.dll")] static extern bool BringWindowToTop(IntPtr h);
+[DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
+[DllImport("user32.dll")] static extern bool FlashWindow(IntPtr h, bool invert);
+[DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+[DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, IntPtr pid);
+[DllImport("user32.dll")] static extern bool AttachThreadInput(uint a, uint b, bool attach);
+[DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+[DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, System.Text.StringBuilder s, int n);
+delegate bool EnumProc(IntPtr h, IntPtr l);
+[DllImport("user32.dll")] static extern bool EnumThreadWindows(uint tid, EnumProc cb, IntPtr l);
+public static IntPtr Dialog() {
+  IntPtr found = IntPtr.Zero;
+  EnumThreadWindows(GetCurrentThreadId(), (h, l) => {
+    var s = new System.Text.StringBuilder(64); GetClassName(h, s, 64);
+    if (s.ToString() == "#32770" && IsWindowVisible(h)) { found = h; return false; }
+    return true; }, IntPtr.Zero);
+  return found;
+}
+public static bool Bring(IntPtr h) {
+  SetWindowPos(h, new IntPtr(-1), 0, 0, 0, 0, 0x0043);  // above every window (no move, no size, show)
+  uint me = GetCurrentThreadId(), front = GetWindowThreadProcessId(GetForegroundWindow(), IntPtr.Zero);
+  bool attached = front != 0 && front != me && AttachThreadInput(me, front, true);
+  SetForegroundWindow(h); BringWindowToTop(h);
+  if (attached) AttachThreadInput(me, front, false);
+  bool ok = GetForegroundWindow() == h;
+  if (ok) SetWindowPos(h, new IntPtr(-2), 0, 0, 0, 0, 0x0003);  // in front: an ordinary window again
+  else FlashWindow(h, true);
+  return ok;
+}
+'@ } catch { $script:front = $false }  # (PowerShell locked down: the picker still opens, as before)
 [System.Windows.Forms.Application]::EnableVisualStyles()
 $f = New-Object System.Windows.Forms.FolderBrowserDialog
 $f.Description = $env:CC_PICK_TITLE
@@ -32,7 +71,17 @@ $f.ShowNewFolderButton = $true
 if ($env:CC_PICK_START -and (Test-Path -LiteralPath $env:CC_PICK_START -PathType Container)) { $f.SelectedPath = $env:CC_PICK_START }
 $owner = New-Object System.Windows.Forms.Form -Property @{ TopMost = $true; ShowInTaskbar = $false; Opacity = 0 }
 $owner.Show(); $owner.Activate()
+$script:tries = 0
+$timer = New-Object System.Windows.Forms.Timer -Property @{ Interval = 100 }
+$timer.add_Tick({
+  $script:tries++
+  $h = [CraftConductor.Front]::Dialog()
+  if ($h -ne [IntPtr]::Zero) { [void][CraftConductor.Front]::Bring($h); $timer.Stop() }
+  elseif ($script:tries -gt 100) { $timer.Stop() }
+})
+if ($script:front) { $timer.Start() }
 $r = $f.ShowDialog($owner)
+$timer.Stop()
 $owner.Close()
 if ($r -eq [System.Windows.Forms.DialogResult]::OK) {
   [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
