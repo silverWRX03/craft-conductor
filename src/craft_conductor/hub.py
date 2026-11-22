@@ -124,6 +124,42 @@ def _folder_id(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:40] or "server"
 
 
+def read_hub_file(state_dir: Path) -> dict:
+    """hub.json, with any part of the wrong kind left out (as if it weren't there): one damaged or
+    edited by hand stopped Craft Conductor (``"extra": 5``) or every page (``"share": null``).
+    Read without a Hub too (uninstall.py)."""
+    try:
+        data = json.loads((state_dir / HUB_FILE).read_text())
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    for key, kind in HUB_FILE_KINDS.items():
+        if key in data and not isinstance(data[key], kind):
+            del data[key]
+    return data
+
+
+def discover_servers(home: Path, data: dict, servers: Path) -> dict[str, Path]:
+    """The servers Craft Conductor manages, by id: the one kept in the home folder itself, each in the
+    servers folder, and each added from elsewhere (hub.json ``extra``), but not the hidden ones."""
+    found: dict[str, Path] = {}
+    hidden = {Path(p) for p in data.get("hidden", []) if isinstance(p, str)}
+    if (home / configmod.CONFIG_NAME).exists() and home not in hidden:
+        found[HOME_ID] = home
+    if servers.is_dir():
+        for d in sorted(servers.iterdir()):
+            if (d / configmod.CONFIG_NAME).exists() and d.name not in found and d.resolve() not in hidden:
+                found[d.name] = d
+    for root in (Path(p) for p in data.get("extra", []) if isinstance(p, str)):
+        if (root / configmod.CONFIG_NAME).exists() and root not in found.values() and root not in hidden:
+            sid, n = _folder_id(root.name), 2
+            while sid in found:
+                sid, n = f"{_folder_id(root.name)}-{n}", n + 1
+            found[sid] = root
+    return found
+
+
 def rehearsing(d: Daemon) -> bool:
     """An update being tried on a copy of the server (rehearsal.py): not one of its jobs, but its copy
     runs from inside the server's folder."""
@@ -230,18 +266,8 @@ class Hub:
         return self._single.m.config.web if self._single else self._web
 
     def _hub_file(self) -> dict:
-        """hub.json, with any part of the wrong kind left out (as if it weren't there): one damaged or
-        edited by hand stopped Craft Conductor (``"extra": 5``) or every page (``"share": null``)."""
-        try:
-            data = json.loads((self.state_dir / HUB_FILE).read_text())
-        except (OSError, ValueError):
-            return {}
-        if not isinstance(data, dict):
-            return {}
-        for key, kind in HUB_FILE_KINDS.items():
-            if key in data and not isinstance(data[key], kind):
-                del data[key]
-        return data
+        """hub.json, with any part of the wrong kind left out (read_hub_file)."""
+        return read_hub_file(self.state_dir)
 
     def _update_hub_file(self, change: Callable[[dict], object]) -> object:
         """Change hub.json: read it, let ``change`` edit what's in it, write it back, all as one step,
@@ -588,8 +614,6 @@ class Hub:
         return {**self.share_settings(), "running": bool(self.share), "error": self.share_error, "lan_ip": lan_ip()}
 
     # ---------------------------------------------------------- servers
-    def _extra_roots(self) -> list[Path]:
-        return [Path(p) for p in self._hub_file().get("extra", []) if isinstance(p, str)]
 
     def add_folder(self, root: Path) -> None:
         """Also list a server folder that lives somewhere else (e.g. where craft-conductor was started)."""
@@ -604,22 +628,7 @@ class Hub:
         self._update_hub_file(change)
 
     def discover(self) -> dict[str, Path]:
-        found: dict[str, Path] = {}
-        hidden = {Path(p) for p in self._hub_file().get("hidden", []) if isinstance(p, str)}
-        if (self.home / configmod.CONFIG_NAME).exists() and self.home not in hidden:
-            found[HOME_ID] = self.home
-        servers = self.servers_dir
-        if servers.is_dir():
-            for d in sorted(servers.iterdir()):
-                if (d / configmod.CONFIG_NAME).exists() and d.name not in found and d.resolve() not in hidden:
-                    found[d.name] = d
-        for root in self._extra_roots():
-            if (root / configmod.CONFIG_NAME).exists() and root not in found.values() and root not in hidden:
-                sid, n = _folder_id(root.name), 2
-                while sid in found:
-                    sid, n = f"{_folder_id(root.name)}-{n}", n + 1
-                found[sid] = root
-        return found
+        return discover_servers(self.home, self._hub_file(), self.servers_dir)
 
     def scan(self) -> None:
         """Pick up new server folders, and restart the manager of any server whose manager stopped."""

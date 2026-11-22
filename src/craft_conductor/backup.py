@@ -221,13 +221,18 @@ def prune(backups_dir: Path, keep: int) -> list[Path]:
 COPY_OWNER = ".craft-conductor-server"  # in each copy folder: the server whose backups these are (its path, hashed)
 
 
+def copy_owner(root: Path) -> str:
+    """What a copy folder's COPY_OWNER mark says for the server in ``root`` (also read by uninstall.py)."""
+    # (hashed: a folder OneDrive or Google Drive syncs needn't learn where the server is, or the account name)
+    return hashlib.sha256(os.path.normcase(str(root.resolve())).encode("utf-8")).hexdigest()[:32]
+
+
 def _copy_dir(folder: Path, root: Path) -> Path:
     """The server's own folder in ``folder``: named after the server's folder, or "<name>-2" and so on
     when another server of that name (somewhere else on this computer) has it. Two servers in one
     folder pruned each other's copies."""
     safe = re.sub(r"[^A-Za-z0-9._ -]+", "_", root.name).strip() or "server"
-    # (hashed: a folder OneDrive or Google Drive syncs needn't learn where the server is, or the account name)
-    me = hashlib.sha256(os.path.normcase(str(root.resolve())).encode("utf-8")).hexdigest()[:32]
+    me = copy_owner(root)
     for n in range(1, 100):
         dest = folder / (safe if n == 1 else f"{safe}-{n}")
         mark = dest / COPY_OWNER
