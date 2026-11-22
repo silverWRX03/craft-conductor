@@ -421,3 +421,33 @@ def test_dashboard_usage_and_skins(running):
     status, body, headers = c.call("GET", "/api/players/skin?name=Notch")
     assert status == 200 and headers["Content-Type"] == "image/png" and body.startswith(b"\x89PNG")
     assert Client(c.base).get("/api/players/skin?name=Notch")[0] == 401  # signed-in only
+
+
+def test_each_control_panel_has_cookies_of_its_own(hub_env, tmp_path):
+    """Two control panels on one computer (two homes, both at localhost) signed each other out: browsers don't
+    keep cookies apart by port, and both used the same cookie names (#324). Each panel's names are its own;
+    a cookie of the name used before still works, and signing in takes it away."""
+    from craft_conductor import web as webmod
+    from craft_conductor.hub import Hub
+    hub, c = hub_env
+    other = Hub(tmp_path / "another home")
+    assert webmod.WebUI(other).session_cookie != hub.ui.session_cookie
+    assert hub.ui.session_cookie.startswith("craft_conductor_session_")
+    assert hub.ui.device_cookie.startswith("craft_conductor_device_")
+    status, _, headers = c.post("/api/login", {"password": "PASSWORD"})
+    assert status == 200
+    cookies = headers.get_all("Set-Cookie")
+    assert cookies[0].startswith(hub.ui.session_cookie + "=") and "HttpOnly" in cookies[0]
+    assert cookies[1].startswith("craft_conductor_session=;") and "Max-Age=0" in cookies[1]
+    token = c.cookie.split("=", 1)[1]
+    # Signed in before this version (the name every panel used): still signed in.
+    before = Client(c.base)
+    before.cookie = f"craft_conductor_session={token}"
+    assert before.get("/api/hub")[0] == 200
+    # Another panel's cookie doesn't count here.
+    stranger = Client(c.base)
+    stranger.cookie = f"craft_conductor_session_00000000={token}"
+    assert stranger.get("/api/hub")[0] == 401
+    # Signing out takes both away.
+    status, _, headers = c.post("/api/logout", {})
+    assert [x.split(";")[0] for x in headers.get_all("Set-Cookie")] == [f"{hub.ui.session_cookie}=", "craft_conductor_session="]

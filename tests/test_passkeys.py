@@ -142,7 +142,7 @@ def test_the_panel_signs_in_with_a_passkey(hub_env, monkeypatch):
     c.post("/api/logout", {})
     options = c.post("/api/passkey/options", {}, headers=host)[1]
     status, r, headers = c.post("/api/passkey/login", phone.get(options), headers=host)
-    assert status == 200 and "craft_conductor_session=" in headers.get("Set-Cookie", "")
+    assert status == 200 and headers.get("Set-Cookie", "").startswith(hub.ui.session_cookie + "=")
     c.post("/api/auth/change", {"mode": "password", "secret": "Another-Horse-Battery-2"})
     assert hub.ui.passkeys.list() == []  # a new password removes them, like paired phones
 
