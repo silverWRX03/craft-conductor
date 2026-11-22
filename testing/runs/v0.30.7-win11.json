@@ -85,6 +85,210 @@
     1070,
     1071
   ],
-  "results": {},
+  "results": {
+    "802": {
+      "status": "pass",
+      "tested_at": "2026-11-22T14:50:49+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. New home (not a clean VM). Chrome. Started with no setup: the sign-in page said the first-time password is PASSWORD. After signing in: the first-run notice (what it does and does not do, GPL-3.0-or-later, made with AI) -> I understand and accept; Choose your own password (Password or PIN, rules listed) -> Your new password is saved; Where should Craft Conductor keep your files? -> Use these folders -> Saved; then Your servers with New server, Guided setup offered. The sidebar shows v0.30.7 beta.",
+      "evidence": ""
+    },
+    "803": {
+      "status": "pass",
+      "tested_at": "2026-11-22T14:53:00+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Chrome. New server -> Smooth survival quick start, Only friends at home, EULA: Java 25 downloaded, Fabric 0.20.1 on Minecraft 26.3, port 25565; setup ended with your server is ready (Minecraft 26.3); press Start to play. Start: running, Done; Restart came back running (Done); Stop stopped it.",
+      "evidence": ""
+    },
+    "804": {
+      "status": "pass",
+      "tested_at": "2026-11-22T14:53:00+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. The Smooth survival server (Fabric 0.20.1, Minecraft 26.3) with its Modrinth mods Fabric API, Lithium, FerriteCore, Krypton (from the lock file); the log says Loading 46 mods, 0 ERROR lines, Done on the setup test start, the Start and the Restart; lithium.properties written.",
+      "evidence": ""
+    },
+    "810": {
+      "status": "pass",
+      "tested_at": "2026-11-22T14:54:33+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Fabric 26.3 server running: forceload 0 0, setblock a gold block at 0 100 0 (Test passed), Back up now while running: 20261122-085341-with-gold.tar.gz (checked), Check: fine, 128 files, a world with 4 region files. Removed the block (Test failed), stopped, Roll back to this: rolled back to ...-with-gold.tar.gz: Minecraft 26.3, 4 mod(s). Started: the gold block is back (Test passed).",
+      "evidence": ""
+    },
+    "406": {
+      "status": "pass",
+      "tested_at": "2026-11-22T14:54:55+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Smooth survival server (Fabric 26.3), stopped. Another program held server/server.properties open without sharing (CreateFile with share mode 0, like an editor that locks it). Roll back to this on 20261122-085341-with-gold.tar.gz: refused with: the backup ... cannot be restored: server.properties in the server folder is open in another program (or Windows will not let Craft Conductor read it): close it and try again. The server was left as it was. No leftovers next to the server folder. After the other program closed it, the same roll back worked (rolled back ...: Minecraft 26.3, 4 mod(s)).",
+      "evidence": ""
+    },
+    "1050": {
+      "status": "pass",
+      "tested_at": "2026-11-22T14:54:56+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Smooth survival server (Fabric 26.3), stopped. Another program held server/server.properties open without sharing (CreateFile with share mode 0, like an editor that locks it). Roll back to this on 20261122-085341-with-gold.tar.gz: refused with: the backup ... cannot be restored: server.properties in the server folder is open in another program (or Windows will not let Craft Conductor read it): close it and try again. The server was left as it was. No leftovers next to the server folder. After the other program closed it, the same roll back worked (rolled back ...: Minecraft 26.3, 4 mod(s)).",
+      "evidence": ""
+    },
+    "700": {
+      "status": "pass",
+      "tested_at": "2026-11-22T14:56:01+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Driven through the panel API (helpers/t1051.py) on a throwaway vanilla 26.3 server (deleted afterwards). World zip = a normal world plus entries ../../x, C:/x, /x, CON, aux.txt, nul.dat, bad:name.txt, trailing dot and space, q?mark.txt, star*.txt, a<b>c.txt, say\"hi\".txt, pipe|name.txt and data/ok-file.txt. Replace the world: finished (the world is now world; press Start to play it); level.dat and data/ok-file.txt there, 26 files; none of the unsafe names written anywhere (none inside the server, no cc-test-63 files outside it). One log line: left 11 file(s) out of the world ... because they could have been written outside their folder or cannot be made on every computer (device names, colon, trailing dot/space, and the 6 with ? * < > \" |). The server then started on that world (seed command answered) and stopped.",
+      "evidence": ""
+    },
+    "1051": {
+      "status": "pass",
+      "tested_at": "2026-11-22T14:56:01+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Driven through the panel API (helpers/t1051.py) on a throwaway vanilla 26.3 server (deleted afterwards). World zip = a normal world plus entries ../../x, C:/x, /x, CON, aux.txt, nul.dat, bad:name.txt, trailing dot and space, q?mark.txt, star*.txt, a<b>c.txt, say\"hi\".txt, pipe|name.txt and data/ok-file.txt. Replace the world: finished (the world is now world; press Start to play it); level.dat and data/ok-file.txt there, 26 files; none of the unsafe names written anywhere (none inside the server, no cc-test-63 files outside it). One log line: left 11 file(s) out of the world ... because they could have been written outside their folder or cannot be made on every computer (device names, colon, trailing dot/space, and the 6 with ? * < > \" |). The server then started on that world (seed command answered) and stopped.",
+      "evidence": ""
+    },
+    "1057": {
+      "status": "pass",
+      "tested_at": "2026-11-22T14:57:01+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Panel API (helpers/t1057.py). New vanilla 26.3 server named Rückkehr Café (id ruckkehr-cafe). Export: exported to Rückkehr Café 2026-11-22 0856.craft-conductor.zip, in exports/ruckkehr-cafe, listed under that name on the server and in the hub list. Server deleted, then Import a server from that export: imported as Rückkehr Café (ruckkehr-cafe), Minecraft 26.3, left out rcon only (as designed). Deleted afterwards.",
+      "evidence": ""
+    },
+    "1062": {
+      "status": "pass",
+      "tested_at": "2026-11-22T14:58:59+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. With the control panel open, craft-conductor --accept-notice create --loader vanilla --minecraft 26.3 --accept-eula --port 25593 <home>/servers/older-server (14 s, exit 0: Updated: Minecraft (new install) -> 26.3). The panel picked the folder up while create ran (no Minecraft version yet, state stopped); 2 s after create finished its card on Your servers showed vanilla, Minecraft 26.3, stopped, no update ready, without pressing Start. (The CLI asked for the notice on this home: --accept-notice goes before the command.)",
+      "evidence": ""
+    },
+    "1060": {
+      "status": "pass",
+      "tested_at": "2026-11-22T15:01:38+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. A second home (panel 29971). Craft Conductor settings -> Folders -> Backups set to E:/craft-conductor/servers/v0.30.7-home2/chosen-backups (panel API, helpers/t1060.py). A server made elsewhere with craft-conductor create (E:/craft-conductor/servers/v0.30.7-elsewhere/Survival World, [backups] dir = backups) and backed up there once (20261122-090116-manual.tar.gz). craft-conductor -C <that folder> start --no-browser (Craft Conductor is already running): its craft-conductor.toml now says [backups] dir = <chosen-backups>/survival-world, the earlier backup moved there (none left in its own folder), it is listed as survival-world, and Create backup put 20261122-090126-after-adding.tar.gz in the chosen folder too.",
+      "evidence": ""
+    },
+    "1063": {
+      "status": "pass",
+      "tested_at": "2026-11-22T15:03:07+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Main test home. The shared Java 25 is jdk-25.0.5.1+2 (installed this morning, past its 5-minute grace). An older release made beside it (a copy labelled jdk-25.0.4+7, installed a day ago) with a leftover .in-use note naming process 23128, which is chrome.exe (running all along), noted two days before that Chrome started (a Java that ended, its number later given to Chrome). Start of a server (it tidies): jdk-25.0.4+7 was removed, only jdk-25.0.5.1+2 left; Chrome 23128 still running, rt-24h kept running on the new release. Control: with the note dated after Chrome started (it could be that process), the old release was kept, as designed.",
+      "evidence": ""
+    },
+    "814": {
+      "status": "pass",
+      "tested_at": "2026-11-22T15:04:07+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. English Windows 11. Fresh install with Craft Conductor own folder named with Cyrillic and Japanese letters (Сервер サーバー) and the server folder мир ワールド ☕ inside it (helpers/t814win7.py). create --loader vanilla --minecraft 26.3: made it; Java cannot run from a folder named with letters outside the code page, so Craft Conductor put Java 25 in C:/ProgramData/craft-conductor-java-<account id> (none in its own folder). run: Starting minecraft server version 26.3, Done (1.9 s). backup made 20261122-090339-manual.tar.gz in the server own backups folder. stop: the worlds were saved and the server stopped (its Java gone).",
+      "evidence": ""
+    },
+    "811": {
+      "status": "pass",
+      "tested_at": "2026-11-22T15:06:18+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Separate home (h811). CLI server (create --loader fabric --minecraft 1.21.1 --mod fabric-api --mod lithium --rcon); check offered 1.21.1 -> 26.3 (Fabric API 0.116.18 -> 0.166.2, Lithium 0.15.4 -> 0.26.4). Craft Conductor ended with taskkill /T /F (like End task) during update -y three times: twice while it downloaded Java 25, once while it made the backup before the update (half written). Each time the server files were as before (same fingerprint of the jars, mods and lock file) and the next check offered the same update; after the first two, run started Minecraft 1.21.1 with Fabric 0.20.1 (Done) and stop stopped it. A last update -y then finished: Updated: Minecraft 1.21.1 -> 26.3, Fabric API and Lithium updated, a new backup made first. Left behind, as designed: two half-downloaded Java folders (.download-*) and the half-written backup .part files; the Java tidy removes cut-off downloads once stale (an hour) and later backups tidy the .part files (helpers/t811win7.py, t811b7.py).",
+      "evidence": ""
+    },
+    "1048": {
+      "status": "pass",
+      "tested_at": "2026-11-22T15:18:36+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Chrome maximized on the main screen (2560x1440), signed in to the panel on this computer. Craft Conductor settings -> Folders -> Exports -> Change...: the folder list kept the same height (735 px) while opening folders with 1, 2, 4, 16 and 19 entries. Browse...: Windows Browse For Folder picker (Where should Craft Conductor keep exports?) came up at once IN FRONT of Chrome and of the terminal window that was the window in front (it was the foreground window; screen capture taken); OK -> the chosen folder (it opened on the exports folder) opened in the folder browser. Cancel, nothing changed. Only one screen checked here.",
+      "evidence": ""
+    },
+    "1056": {
+      "status": "pass",
+      "tested_at": "2026-11-22T15:18:36+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Chrome maximized on the main screen (2560x1440), signed in to the panel on this computer. Craft Conductor settings -> Folders -> Exports -> Change...: the folder list kept the same height (735 px) while opening folders with 1, 2, 4, 16 and 19 entries. Browse...: Windows Browse For Folder picker (Where should Craft Conductor keep exports?) came up at once IN FRONT of Chrome and of the terminal window that was the window in front (it was the foreground window; screen capture taken); OK -> the chosen folder (it opened on the exports folder) opened in the folder browser. Cancel, nothing changed. Only one screen checked here.",
+      "evidence": ""
+    },
+    "1070": {
+      "status": "pass",
+      "tested_at": "2026-11-22T15:20:28+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Server made from Adrenaline 26.5.0+mc26.3 (Modrinth, beta channel) on Minecraft 26.3 (helpers/t1070.py). Updates -> Look for a new version of the pack (Chrome, a second such server): the list offers only 26.5.1+mc26.3 (Minecraft 26.3), and the card says: 5 newer versions of the pack for an older Minecraft than this server 26.3 are not offered: opening the world in an older Minecraft can damage it. To play one, make a new server from it. Asking for 26.5.1+mc26.2 anyway (API) is refused in See what changes and in Update the pack (Adrenaline 26.5.1+mc26.2 is for Minecraft 26.2, older than this server 26.3 ...), the server stays on 26.3 and the pack on 26.5.0. The same-Minecraft version updates as before: preview adds Fast Surface, 8 mods moved; Update the pack -> Updated the pack to Adrenaline 26.5.1+mc26.3 (1 added, 0 removed, 8 moved).",
+      "evidence": ""
+    },
+    "1061": {
+      "status": "pass",
+      "tested_at": "2026-11-22T15:33:55+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Chrome. New server RT Failsetup 1061: Fabric 26.3, Local files: needy-widgets-1.0.0.jar (needs totally_missing_lib, which does not exist), Friends outside your home -> Only friends at home, EULA, Create my server: Setup did not finish: ... Needy Widgets 1.0.0 needs totally_missing_lib (1.0 or later), which is missing. On the same setup page the Friends card now says: Only friends at home, as chosen when the server was made. You can change it on the server Friends page (name kept, the jar listed). Manage Mods -> Remove, Back to setup, Create my server: your server is ready (Minecraft 26.3); server/mods empty. The server Friends page has Only friends at home pressed (Friends outside your home cannot join), not Not chosen yet; craft-conductor.toml has [reach] way = home.",
+      "evidence": ""
+    },
+    "815": {
+      "status": "pass",
+      "tested_at": "2026-11-22T15:34:47+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Microsoft Defender on (real-time protection and antivirus enabled, signatures updated 2026-11-21 19:13) through this run (downloaded and ran the release exe, made 10 servers including two Modrinth modpack servers, a world import with unsafe names, exports, backups, roll backs, an interrupted update): Defender has no detections for any of Craft Conductor files or folders (its only detections on this PC are older ones of an unrelated download, 2026-11-12), and a custom scan of the release download folder (Start-MpScan) found nothing. (Smart App Control, which blocks the unsigned exe on fresh PCs, is #206.)",
+      "evidence": ""
+    },
+    "1059": {
+      "status": "pass",
+      "tested_at": "2026-11-22T15:37:15+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Second home (panel 29971), Chrome. Vanilla 26.3 server Playit 1059 made with Friends outside your home -> playit.gg, its playit.gg address saved (quiet-otter.gl.joinmc.link:12345; the playit.gg program was not running on this PC). Check my setup -> Test from the internet: Reachable from the internet (port 25601), info: Friends outside your home join through playit.gg (quiet-otter.gl.joinmc.link:12345), not through this home address, so it is not tested here: the playit.gg tunnel line says whether the tunnel works. To be sure, ask a friend outside your home to join with the playit.gg address. No test of the home address was made. (The playit.gg tunnel line itself is listed only while the playit.gg program runs.)",
+      "evidence": ""
+    },
+    "819": {
+      "status": "pass",
+      "tested_at": "2026-11-22T16:00:31+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Fabric 1.21.11 server (Fabric API 0.141.6, Lithium 0.21.4, Dynmap v3.8 optional), strategy latest-compatible with [updates] wait_for_all_mods = false (helpers/t819.py, t819b.py). Rehearse it on a copy first to 26.3: Installing the update on the copy: Minecraft 1.21.11 -> 26.3, Fabric API -> 0.166.2+26.3, Lithium -> mc26.3-0.26.4, - Dynmap; It started (15.1 s including the install), watched 3 minutes: It worked: the copy started and ran without problems (TPS 20, 0 warnings, 0 errors, no lag). The real update then made exactly those changes (updated: Minecraft 1.21.11 -> 26.3; installed mods afterwards: Fabric API 0.166.2+26.3, Lithium 0.26.4+mc26.3, no Dynmap), and the server started and stopped normally on 26.3. (With wait_for_all_mods on, the default, the optional Dynmap held 26.3 back: up to date on 1.21.11; 26.3 waits for 1 mod, as designed.)",
+      "evidence": ""
+    },
+    "807": {
+      "status": "pass",
+      "tested_at": "2026-11-22T17:41:46+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Second home (panel 29971), the 24-hour run untouched; home router: Synology SRM with UPnP on. Vanilla 26.3 server Router test 807 made with Friends outside your home: Open a port on my router; it got port 39518 (not 25565), whitelist on by itself. Check my setup > Test from the internet with Router (UPnP) off: cannot be reached. Chrome: Craft Conductor settings > Connections > Router > Open the ports on my router by itself (UPnP): the warning first (This makes your Minecraft server reachable from the whole internet ... the control panel stays private. Keep the whitelist on ...), then Open the ports: the card says Your server is open to the internet, Synology SRM (internet address shown), TCP 39518 ok. The router UPnP list (GetGenericPortMappingEntry, helpers/igd.py) gained exactly one entry, 39518/TCP labelled Craft Conductor router-test-807 (2 h lease); never the panel port 29971 or RCON. Test from the internet then: Friends outside your home can reach <address>:39518. Switching it off took the mapping back (no Craft Conductor entry left) and the port could not be reached again.",
+      "evidence": ""
+    },
+    "1058": {
+      "status": "pass",
+      "tested_at": "2026-11-22T17:43:13+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Second home (panel 29971), stopped vanilla 26.3 server Playit 1059 (helpers/t1058.py). 60 quick name lookups from this network made api.mojang.com answer 429 Too Many Requests (a direct lookup of Dinnerbone and Notch right after: 429, 429). Players -> add to the whitelist (the panel API, as the page does) while it was limiting: Dinnerbone added after 36 s (added Dinnerbone to the whitelist (applies when the server starts)), then Grumm and Searge at once; the whitelist holds all three with their real ids (Dinnerbone 61699b2e-...). Never there is no Minecraft account named ...",
+      "evidence": ""
+    },
+    "813": {
+      "status": "pass",
+      "tested_at": "2026-11-22T17:47:08+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. A fresh home (panel 29973) whose Servers folder is D:/onedrive/cc-test-0307/Servers (OneDrive, signed in and syncing). Made a vanilla 26.2 server there (setup, Start, Stop, manual backup all fine). Update to 26.3 then Roll back to the before-update backup right after Stop, three times: each worked the first time (rolled back ...: Minecraft 26.2), no leftovers. Free up space (attrib +U -P, as Explorer does) made all 4 backups online-only; restoring one of them worked (OneDrive downloaded it) and the server started after. Settings: Also copy every backup to D:/onedrive/cc-test-0307/backup-copies: the next backup said copied to ...backup-copies/onedrive-test and the copy is there. With OneDrive shut down, a backup still worked and was copied; OneDrive started again after. Restarting Craft Conductor: server listed, stopped on 26.2, no problem, started fine; no leftovers (helpers/onedrive_0307.py, onedrive_0307b.py).",
+      "evidence": ""
+    },
+    "239": {
+      "status": "pass",
+      "tested_at": "2026-11-22T21:05:24+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Second home (panel 29971), home router Synology SRM. Vanilla 26.3 server Router test 807 set to Open a port on my router (port 39518), running. With UPnP OFF on the router (owner switched it off; an SSDP search for the gateway got no answer, helpers/igd.py): Chrome, Craft Conductor settings > Connections > Router > Open the ports on my router by itself (UPnP) > the warning > Open the ports: the card says Nothing is open on your router now. If it works, this makes your Minecraft server reachable from the whole internet ... and It did not work: no router answered: UPnP is probably switched off on it (or this computer firewall blocks the answer); it never says Your server is open to the internet. Check my setup > Test from the internet: <address>:39518 cannot be reached from the internet; the server Friends page makes no claim that it can be reached (only the general Before you open a port warning; whitelist on). Craft Conductor UPnP switched off again afterwards.",
+      "evidence": ""
+    },
+    "1049": {
+      "status": "pass",
+      "tested_at": "2026-11-22T21:05:24+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Second home (panel 29971), home router Synology SRM. Vanilla 26.3 server Router test 807 set to Open a port on my router (port 39518), running. With UPnP OFF on the router (owner switched it off; an SSDP search for the gateway got no answer, helpers/igd.py): Chrome, Craft Conductor settings > Connections > Router > Open the ports on my router by itself (UPnP) > the warning > Open the ports: the card says Nothing is open on your router now. If it works, this makes your Minecraft server reachable from the whole internet ... and It did not work: no router answered: UPnP is probably switched off on it (or this computer firewall blocks the answer); it never says Your server is open to the internet. Check my setup > Test from the internet: <address>:39518 cannot be reached from the internet; the server Friends page makes no claim that it can be reached (only the general Before you open a port warning; whitelist on). Craft Conductor UPnP switched off again afterwards. Earlier, with UPnP ON on the router (see 807): the card said Your server is open to the internet, Synology SRM, TCP 39518 ok, the router listed the mapping and the test from the internet reached the server.",
+      "evidence": ""
+    },
+    "1053": {
+      "status": "pass",
+      "tested_at": "2026-11-22T22:03:46+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Second home (panel 29971). Chrome: Craft Conductor settings > Connections > Remote access & phones > Away from home > Cloudflare quick tunnel: Download cloudflared (checked), Open to the internet for 4 hours (downsides listed, then the confirm): On the internet until 03:39 PM at a trycloudflare.com address. It closed by itself at 15:39:36: the bell got The control panel is off the internet again: the Cloudflare tunnel closed after 4 hours (a new message in Messages; it is also in the log), the address no longer answers, no cloudflared left running, and after a reload the Control panel away from home card says Closed at 03:39 PM after 4 hours: the control panel is off the internet again. (No phone had notifications on for this home, so the phone push was not checked here.)",
+      "evidence": ""
+    },
+    "896": {
+      "status": "pass",
+      "tested_at": "2026-11-22T22:03:46+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Second home (panel 29971). Chrome: Craft Conductor settings > Connections > Remote access & phones > Away from home > Cloudflare quick tunnel: Download cloudflared (checked), Open to the internet for 4 hours (downsides listed, then the confirm): On the internet until 03:39 PM at a trycloudflare.com address. It closed by itself at 15:39:36: the bell got The control panel is off the internet again: the Cloudflare tunnel closed after 4 hours (a new message in Messages; it is also in the log), the address no longer answers, no cloudflared left running, and after a reload the Control panel away from home card says Closed at 03:39 PM after 4 hours: the control panel is off the internet again. (No phone had notifications on for this home, so the phone push was not checked here.) Closing Craft Conductor while a tunnel was open (a second tunnel opened on the same panel, then Quit): cloudflared was running before and none was left after.",
+      "evidence": ""
+    },
+    "816": {
+      "status": "pass",
+      "tested_at": "2026-11-22T22:08:35+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Modrinth mods: Fabric API, Lithium, FerriteCore, Krypton (804). A CurseForge mod by slug: AppleSkin added on Mods (Added AppleSkin), installed by the update check (+ AppleSkin appleskin-fabric-mc26.3-3.0.10.jar), loaded at start (appleskin 3.0.10+mc26.3, 0 errors). A Modrinth modpack: Adrenaline 26.5.0+mc26.3 (ready, then updated to 26.5.1, see 1070). A CurseForge modpack: Vanilla+ Lightweight 3.0.0 (Fabric 26.1.2, 136 mods from CurseForge, 1690 config files); setup waited for 3 mods to be downloaded by hand (Custom Nether Portals, Player Animation Library, ServerCore), downloaded from their CurseForge pages into Downloads and found there by the setup page (found ... downloaded by hand, in Downloads; every mod downloaded by hand is in; carrying on). The first setup stopped at the load check (Emotecraft needs fabric-key-mapping-api-v1 and fabric-rendering-v1, client-only modules of Fabric API: noted as a possible finding, roadmap 53 in PR #337); made again with Emotecraft left out: your server is ready (Minecraft 26.1.2); Start: Loading 230 mods, Done; the 12 ERROR lines are the pack mods own data/resource complaints (a mixin config, a Backpacked add-on, True Ending predicates), not Craft Conductor.",
+      "evidence": ""
+    }
+  },
   "notes": "Release 0.30.7 (PRs #348 and #349: issues #300-#305, #307-#316, #323, #324, #326, #329, #331, #334, #345). Release gate 802-820 is run in full on every release. 1049-1071 test this release's fixes. Extra: 239, 406, 700, 865, 896, 918, 1044, 1048 failed in v0.30.6-win11 and are fixed here (owner: rerun the originally failed test too); 847 needs a release newer than 0.30.6."
 }
