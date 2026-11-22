@@ -9248,5 +9248,125 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1057,
+    "section": "Fix: an export keeps an accented name",
+    "step": "Export a server named Rückkehr Café (Settings or Backups → Export): the file in the exports folder is Rückkehr Café <date>.craft-conductor.zip, and it imports again (#300).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1058,
+    "section": "Fix: a busy Mojang isn't no such account",
+    "step": "Add players on the Players page quickly enough that Mojang says 429 (several whitelist adds from one network): a real account is added through Mojang's other lookup, or the message says Mojang is busy and to try again in a minute, never there is no Minecraft account named … (#307).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1059,
+    "section": "Fix: Check my setup on a playit.gg server",
+    "step": "On a server set to Friends outside your home → playit.gg (its address saved): Check my setup → Test from the internet says friends join through playit.gg and points at the playit.gg tunnel line, instead of testing your home address (#308).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1060,
+    "section": "Fix: an added server folder follows the backups folder",
+    "step": "With Craft Conductor settings → Folders → Backups set to a folder, run craft-conductor start in a server folder elsewhere: its craft-conductor.toml has [backups] dir = <backups folder>/<its id>, its earlier backups are there, and Create backup puts the new one there too (#302).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1061,
+    "section": "Fix: setup tried again keeps Friends outside your home",
+    "step": "New server with Friends outside your home → Only friends at home and a mod that makes setup fail; on the setup page (it names the way chosen), fix it and Create my server: the server's Friends page shows Only friends at home, not Not chosen yet (#301).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1062,
+    "section": "Fix: a server made with craft-conductor create while the panel is open",
+    "step": "With the control panel open, craft-conductor create … <home>/servers/older-server: once create finishes, its card on Your servers shows its Minecraft version (not not installed yet) without pressing Start (#303).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1063,
+    "section": "Fix: an old shared Java release goes when its note is stale",
+    "step": "After Update shared Java and a restart of every server, with a leftover .in-use note whose process number now belongs to another program (Chrome): after the grace time the old release's folder is removed at the next server start (#315).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1064,
+    "section": "Fix: two control panels on one computer keep their sign-ins",
+    "step": "Run two Craft Conductor homes on one computer and open both at http://localhost:<port>/ in the same browser: signing in to the second doesn't sign you out of the first; after the update nobody had to sign in again and a paired phone stays paired (#324).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1065,
+    "section": "Fix: the phone gets notifications after a reinstall",
+    "step": "Phone app with notifications on, then a fresh Craft Conductor on the same Tailscale address and the phone paired again: notifications are turned on again by themselves (the phone is under Devices with notifications on) and a friend asking to join reaches the phone (#309).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1066,
+    "section": "Fix: the Turn on notifications strip goes",
+    "step": "In the installed phone app, the strip at the top → Turn on notifications → Turn on notifications here → allow: the strip goes at once, without reopening the app (#312).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1067,
+    "section": "Fix: notifications follow whoever is signed in on a phone",
+    "step": "Phone app paired as an invited person with notifications on → Sign out → sign in as the owner: the owner's crash notifications reach the phone, and the invited person's no longer do (#313).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1068,
+    "section": "Fix: the iPhone menu's Sign out is above Safari's bar",
+    "step": "On an iPhone in Safari with the address bar at the bottom, open the menu: Sign out is fully visible above the address bar and can be pressed (#345).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1069,
+    "section": "Fix: an update with no room for its backup isn't announced",
+    "step": "A running server on a disk with less free space than its last backup: Updates → update: it says at once that there isn't room for the backup before it; players get no countdown and the server keeps running (#310).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1070,
+    "section": "Fix: a pack update never goes to an older Minecraft",
+    "step": "On a server made from a pack that publishes versions for several Minecraft versions (Adrenaline), Updates → Look for a new version of the pack lists none for an older Minecraft than the server's and says how many it left out; versions for the same Minecraft update as before (#329).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1071,
+    "section": "Fix: the phone's mod browser gives the results the screen",
+    "step": "On a phone (or a window under 760 px), Mods → 🔎 Download mods: the results fill most of the screen, Filters unfolds the other filters, Add selected mods stays at the bottom while the list scrolls, and a mod's page opens over the list with ← Back to the list (#331).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]
