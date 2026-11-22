@@ -568,6 +568,7 @@ def test_a_java_download_that_was_cut_off_is_tidied(tmp_path):
     assert not old.exists() and going.exists()
 
 
+@pytest.mark.skipif(sys.platform == "darwin", reason="start times are read on Windows and Linux; on macOS a note counts while its number is in use")
 def test_a_note_whose_process_number_went_to_another_program_is_stale(tmp_path, http):
     """A server's Java ended long ago and Windows gave its process number to Chrome: its note kept the old
     release forever (#315). A process that started after the note was written isn't the one that wrote it."""
