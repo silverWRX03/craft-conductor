@@ -4610,6 +4610,9 @@ class Api:
         from . import doctor
         from . import reach
         port = number(read_properties(self.m.server_dir / "server.properties"), "server-port", 25565)
+        if self.m.config.reach_way == "playit" or self.m.config.tunnel_address:
+            # (friends join through playit.gg's address: testing this home's address told them nothing, #308)
+            return asdict(doctor.playit_internet_check(self.m.config.tunnel_address, port))
         check = doctor.internet_check(self.m.http, port, self.d.state == "running")
         if check.status == doctor.OK:  # (remembered: it can be reached from the internet, so its whitelist goes on)
             reach.write_state(self.m.config.state_dir, port_test={"port": port, "ok": True, "at": int(time.time())})
