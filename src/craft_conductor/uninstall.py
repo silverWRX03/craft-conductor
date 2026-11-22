@@ -18,10 +18,14 @@ does its own work through ``Part.remove(runner) -> Outcome``.
 
 Safety: a path is deleted only if it comes from the inventory, isn't a link or junction, isn't (and
 doesn't hold) the person's home folder, a drive root or a system folder, and is inside one of the
-part's known places (``safe_to_delete``). ``run`` checks every path again right before deleting it;
-a path refused then is a failure in the report, never a crash. What a kept place holds is never
-deleted with a folder around it: that folder is deleted one entry at a time around it (a server's
-own backups folder survives deleting the server).
+part's known places (``safe_to_delete``), and nothing is deleted through a link or junction between
+that place and the path, the place included (the part lists such a link for the person instead).
+``run`` checks every path again right before deleting it; a path refused then is a failure in the
+report, never a crash. What a kept place holds is never deleted with a folder around it: that folder
+is deleted one entry at a time around it (a server's own backups folder survives deleting the
+server). A chosen place (servers, backups, exports) is deleted whole only when it holds nothing but
+Craft Conductor's own entries: it may be the person's Documents folder. A server that didn't stop
+(``stop_servers``) is kept, with its own backups.
 
 Everything that changes the computer goes through a ``Runner``: tests pass one that only records
 calls; ``SystemRunner`` is the real one.
@@ -35,6 +39,7 @@ import stat
 import subprocess
 import sys
 import tomllib
+import dataclasses
 from dataclasses import dataclass, field
 from pathlib import Path, PureWindowsPath
 from typing import Callable, Iterable, Mapping, Protocol
@@ -89,7 +94,8 @@ class Part:
     exact files and folders deleted (or kept); ``manual``: what the person must do themselves;
     ``known``: the places ``paths`` must stay inside (checked again when deleting); ``user_home``:
     the person's home folder, never deleted (None: this account's); ``remove``: the part's own work,
-    instead of deleting ``paths``."""
+    instead of deleting ``paths``; ``per_server``: each server's folder -> what of that server this
+    part would delete (its folders, its own backups), kept when that server didn't stop (``run``)."""
     key: str
     label: str
     present: bool
@@ -100,6 +106,7 @@ class Part:
     known: list[Path] = field(default_factory=list)
     user_home: Path | None = None
     remove: Callable[[Runner], Outcome] | None = field(default=None, repr=False, compare=False)
+    per_server: dict[Path, list[Path]] = field(default_factory=dict)
 
 
 @dataclass
@@ -135,9 +142,54 @@ def _holds_system(real: Path) -> bool:
     return any(locations.inside(p, real) for p in found)
 
 
+def _lex(path: Path | str) -> str:
+    """``path`` as written (made full, ``..`` worked out), not followed through links."""
+    return os.path.normcase(os.path.abspath(path)).rstrip("\\/") or os.sep
+
+
+def _lex_inside(child: Path | str, parent: Path | str) -> bool:
+    c, p = _lex(child), _lex(parent)
+    return c == p or c.startswith(p.rstrip("\\/") + os.sep)
+
+
+def link_on_the_way(path: Path, known: Iterable[Path]) -> Path | None:
+    """The first link or junction from a known place that holds ``path`` (as written) down to
+    ``path`` itself, the place included: nothing is deleted through one (ruling R10). Folders above
+    the place may be links (a home folder on another drive)."""
+    p = Path(os.path.abspath(path))
+    for k in known:
+        if not _lex_inside(p, k):
+            continue
+        n = len(p.parts) - len(Path(os.path.abspath(k)).parts)
+        for step in (*reversed(list(p.parents)[:n]), p):
+            try:
+                if folders.link_stat(os.lstat(step)):
+                    return step
+            except OSError:
+                continue
+    return None
+
+
+def _dangerous(path: Path, home: Path) -> str | None:
+    """Why ``path`` is never deleted wherever it came from: a drive root, the person's home folder or
+    one holding it, a system folder (None: none of those)."""
+    try:
+        is_dir = stat.S_ISDIR(os.lstat(path).st_mode)
+    except OSError:
+        is_dir = True
+    real = Path(os.path.realpath(path))
+    if real.parent == real or not os.path.splitdrive(str(real))[1].strip("\\/"):
+        return "it's the top of a drive"
+    if locations.inside(home, real):
+        return "it's your home folder, or holds it"
+    if is_dir and (locations.is_system(real) or _holds_system(real)):
+        return "it's a system folder"
+    return None
+
+
 def refusal(path: Path, home: Path, known: Iterable[Path]) -> str | None:
     """Why ``path`` mustn't be deleted (None: it may be). ``home``: the person's home folder."""
-    path = Path(path)
+    path, known = Path(path), list(known)
     if not path.is_absolute():
         return "it isn't a full path"
     try:
@@ -148,15 +200,14 @@ def refusal(path: Path, home: Path, known: Iterable[Path]) -> str | None:
         return f"it can't be looked at ({e.strerror or e})"
     if st is not None and folders.link_stat(st):
         return "it's a link or junction, so what it leads to isn't Craft Conductor's"
-    real = Path(os.path.realpath(path))
-    if real.parent == real or not os.path.splitdrive(str(real))[1].strip("\\/"):
-        return "it's the top of a drive"
-    if locations.inside(home, real):
-        return "it's your home folder, or holds it"
-    if (st is None or stat.S_ISDIR(st.st_mode)) and (locations.is_system(real) or _holds_system(real)):
-        return "it's a system folder"
-    if not any(locations.inside(real, k) for k in known):
+    if why := _dangerous(path, home):
+        return why
+    holding = [k for k in known if _lex_inside(path, k)]
+    real = os.path.realpath(path)
+    if not any(locations.inside(real, k) for k in holding):
         return "it isn't one of Craft Conductor's places"
+    if link := link_on_the_way(path, holding):
+        return f"it's reached through a link or junction ({link})"
     return None
 
 
@@ -238,43 +289,55 @@ class Inventory:
     configs: dict[str, dict]           # each server's craft-conductor.toml ({} when it can't be read)
     keep: list[Path] = field(default_factory=list)  # what nothing deleted may take with it
 
+    def pieces_of(self, sid: str) -> list[Path]:
+        """What makes up one server: its folder (the one kept in the home folder itself: its server
+        folder and craft-conductor.toml), and its server folder when that's kept outside it."""
+        root = self.servers[sid]
+        game = _table_dir(root, self.configs[sid], "server", "server")
+        if _same(root, self.home):
+            return _existing([game, root / configmod.CONFIG_NAME])
+        return _existing([root, *([] if _lex_inside(game, root) else [game])])
+
     def server_pieces(self) -> list[Path]:
-        """What makes up the servers: each server's folder (the one kept in the home folder itself:
-        its server folder and craft-conductor.toml), and a server folder kept outside it."""
-        out: list[Path] = []
-        for sid, root in self.servers.items():
-            game = _table_dir(root, self.configs[sid], "server", "server")
-            if _same(root, self.home):
-                out += [game, root / configmod.CONFIG_NAME]
+        return _existing(p for sid in self.servers for p in self.pieces_of(sid))
+
+    def backup_dir_of(self, sid: str) -> list[Path]:
+        return _existing([_table_dir(self.servers[sid], self.configs[sid], "backups", "backups")])
+
+    def copy_folder_of(self, sid: str) -> Path | None:
+        """The server's backup copy folder (``[backups] copy_to``), if it has one."""
+        b = self.configs[sid].get("backups")
+        text = str(b.get("copy_to") or "").strip() if isinstance(b, dict) else ""
+        folder = Path(text).expanduser() if text else None
+        return folder if folder is not None and folder.is_absolute() else None
+
+    def copies_of(self, sid: str) -> list[Path]:
+        """The server's own folders in its backup copy folder: only those whose mark says they're that
+        server's (backup.copy_out), never the copy folder itself. (Found through a link too: what's
+        behind one is then listed for the person, not deleted.)"""
+        from . import backup
+        folder = self.copy_folder_of(sid)
+        try:
+            entries = sorted(folder.iterdir()) if folder is not None and folder.is_dir() else []
+        except OSError:
+            entries = []
+        me, out = backup.copy_owner(self.servers[sid]), []
+        for entry in entries:
+            try:
+                if entry.is_dir() and (entry / backup.COPY_OWNER).read_text(encoding="utf-8").strip() == me:
+                    out.append(entry)
+            except (OSError, UnicodeDecodeError):
                 continue
-            out.append(root)
-            if not locations.inside(game, root):
-                out.append(game)
         return _existing(out)
+
+    def backups_of(self, sid: str) -> list[Path]:
+        return _existing([*self.backup_dir_of(sid), *self.copies_of(sid)])
 
     def backup_dirs(self) -> list[Path]:
-        return _existing(_table_dir(root, self.configs[sid], "backups", "backups") for sid, root in self.servers.items())
+        return _existing(p for sid in self.servers for p in self.backup_dir_of(sid))
 
     def copy_dirs(self) -> list[Path]:
-        """Each server's own folder in its backup copy folder (``[backups] copy_to``): only those whose
-        mark says they're that server's (backup.copy_out), never the copy folder itself."""
-        from . import backup
-        out: list[Path] = []
-        for sid, root in self.servers.items():
-            b = self.configs[sid].get("backups")
-            text = str(b.get("copy_to") or "").strip() if isinstance(b, dict) else ""
-            folder = Path(text).expanduser() if text else None
-            if folder is None or not folder.is_absolute() or not _plain_dir(folder):
-                continue
-            me = backup.copy_owner(root)
-            for entry in sorted(folder.iterdir()):
-                try:
-                    mine = _plain_dir(entry) and (entry / backup.COPY_OWNER).read_text(encoding="utf-8").strip() == me
-                except (OSError, UnicodeDecodeError):
-                    mine = False
-                if mine:
-                    out.append(entry)
-        return _existing(out)
+        return _existing(p for sid in self.servers for p in self.copies_of(sid))
 
     def key_file(self) -> Path:
         return self.state_dir / lockbox.KEY_FILE
@@ -284,36 +347,45 @@ def _existing(paths: Iterable[Path]) -> list[Path]:
     """The ones that are there, each once."""
     out: list[Path] = []
     for p in paths:
-        if os.path.lexists(p) and not any(_same(p, q) for q in out):
+        if os.path.lexists(p) and not any(_lex(p) == _lex(q) for q in out):
             out.append(p)
     return out
 
 
-def _whole_or_each(folder: Path | None, members: list[Path]) -> list[Path]:
-    """``[folder]`` when it holds only ``members`` (and its README), else ``members`` themselves: a
-    folder the person chose may hold things of theirs too."""
+def _whole_or_each(folder: Path | None, members: list[Path], empty_too: bool = False) -> list[Path]:
+    """``[folder]`` when it holds only ``members`` and its README (an empty one only when
+    ``empty_too``: Craft Conductor's own default place), else ``members`` themselves: a folder the
+    person chose may hold things of theirs too (their Documents folder, say)."""
     if folder is None or not _plain_dir(folder):
         return members
     try:
         entries = list(folder.iterdir())
     except OSError:
         return members
-    if all(e.name == README or any(_same(e, m) for m in members) for e in entries):
-        return [folder, *(m for m in members if not locations.inside(m, folder))]
+    if not entries and not empty_too:
+        return members
+    if all(e.name == README or any(_lex(e) == _lex(m) for m in members) for e in entries):
+        return [folder, *(m for m in members if not _lex_inside(m, folder))]
     return members
 
 
-def _carve(paths: Iterable[Path], keep: list[Path]) -> list[Path]:
+def _carve(paths: Iterable[Path], keep: list[Path], home: Path) -> list[Path]:
     """``paths`` without what's kept: a path holding a kept one is replaced by its entries (again
-    around the kept one), and a kept path itself is left out."""
+    around the kept one), and a kept path itself is left out. A path that's never deleted (a drive
+    root, the home folder, a system folder) is never opened up either: it stays as it is, and is
+    refused when its turn comes."""
     out: list[Path] = []
     for p in paths:
         if any(_same(p, k) for k in keep):
             continue
-        if not any(locations.inside(k, p) for k in keep):
+        if _dangerous(p, home) or not any(locations.inside(k, p) for k in keep):
             out.append(p)
         elif _plain_dir(p):
-            out += _carve(sorted(p.iterdir()), keep)
+            try:
+                entries = sorted(p.iterdir())
+            except OSError:
+                continue  # (can't be opened up: kept whole)
+            out += _carve(entries, keep, home)
     return out
 
 
@@ -338,18 +410,60 @@ def _inventory(home: Path, choices: Choices, env: Mapping[str, str], runner: Run
 
 # ------------------------------------------------------------------ the parts
 def _place_part(inv: Inventory, key: str, label: str, ticked: bool, paths: list[Path], known: list[Path],
-                deleted: str, kept: str) -> Part:
+                deleted: str, kept: str, per_server: dict[Path, list[Path]] | None = None) -> Part:
+    """A part made of folders in places (servers, backups, exports). Ticked: what's kept is carved
+    out, and nothing is deleted through a link or junction (R10): it's listed for the person."""
     present = bool(paths)
+    known = [k for k in known if k is not None]
+    manual = None
+    if ticked:
+        carved, paths, links = _carve(paths, inv.keep, inv.user_home), [], []
+        for p in carved:
+            link = link_on_the_way(p, known)
+            if link is None:
+                paths.append(p)
+            elif not any(_lex(link) == _lex(x) for x in links):
+                links.append(link)
+        if links:
+            these = ", ".join(str(x) for x in links)
+            one = len(links) == 1
+            manual = (f"{label}: {these} {'is a link or junction' if one else 'are links or junctions'}, so nothing was "
+                      f"deleted through {'it' if one else 'them'}; delete what's in {'it' if one else 'them'} yourself "
+                      "if you don't want it any more")
+            deleted += " (not what's behind a link or junction: see what's left for you to do)"
+    home = inv.user_home
+    guards = {root: [p for p in pieces if not _dangerous(p, home)] for root, pieces in (per_server or {}).items()}
     return Part(key=key, label=label, present=present, action=(deleted if ticked else kept) if present else "nothing here",
-                paths=_carve(paths, inv.keep) if ticked else paths, kept=present and not ticked,
-                known=known, user_home=inv.user_home)
+                paths=paths, manual=manual, kept=present and not ticked,
+                known=[k for k in known if not _dangerous(k, home)], user_home=home, per_server=guards)
+
+
+def _export_members(folder: Path) -> list[Path]:
+    """What in the exports folder is Craft Conductor's (as hub._exports_plan moves them): each
+    server's folder of exports, and exports kept at the top."""
+    try:
+        entries = sorted(folder.iterdir()) if folder.is_dir() else []
+    except OSError:
+        return []
+    out = []
+    for x in entries:
+        try:
+            if (x.is_dir() and any(x.glob("*.craft-conductor.zip"))) or (
+                    x.name.endswith(".craft-conductor.zip") and not x.is_dir()):
+                out.append(x)
+        except OSError:
+            continue
+    return out
 
 
 def _exports_part(inv: Inventory) -> Part:
     folder = inv.places["exports"]
-    paths = _existing([folder])
+    members = _export_members(folder)
+    paths = _existing(_whole_or_each(folder, members, empty_too=_lex(folder) == _lex(locations.defaults(inv.home)["exports"])))
+    whole = len(paths) == 1 and _lex(paths[0]) == _lex(folder)
     return _place_part(inv, "exports", "Exports", inv.choices.exports, paths, [folder],
-                       "deleted: the exports folder and every export in it",
+                       "deleted: the exports folder and every export in it" if whole
+                       else f"deleted: every export in {folder} (your other files there stay)",
                        f"kept in {folder}")
 
 
@@ -358,17 +472,20 @@ def _backups_part(inv: Inventory) -> Part:
     paths = _existing(_whole_or_each(folder, dirs) + copies)
     where = ", ".join(str(p) for p in paths) or "-"
     copies_too = " (and their copies in the backup copy folder)" if copies else ""
-    return _place_part(inv, "backups", "Backups", inv.choices.backups, paths, [*dirs, *copies, *([folder] if folder else [])],
-                       f"deleted: every server's backups{copies_too}", f"kept in {where}")
+    copy_folders = [f for sid in inv.servers if (f := inv.copy_folder_of(sid)) is not None]
+    return _place_part(inv, "backups", "Backups", inv.choices.backups, paths, [*dirs, *copies, *copy_folders, folder],
+                       f"deleted: every server's backups{copies_too}", f"kept in {where}",
+                       {root: inv.backups_of(sid) for sid, root in inv.servers.items()})
 
 
 def _servers_part(inv: Inventory) -> Part:
     folder, pieces = inv.places["servers"], inv.server_pieces()
-    paths = _existing(_whole_or_each(folder, pieces))
+    paths = _existing(_whole_or_each(folder, pieces, empty_too=_lex(folder) == _lex(locations.defaults(inv.home)["servers"])))
     n = len(inv.servers)
     return _place_part(inv, "servers", "Servers and worlds", inv.choices.servers, paths, [folder, *pieces],
                        f"deleted: {n} server{'s' if n != 1 else ''} and their worlds",
-                       f"kept in {', '.join(str(p) for p in paths) or '-'}")
+                       f"kept in {', '.join(str(p) for p in paths) or '-'}",
+                       {root: inv.pieces_of(sid) for sid, root in inv.servers.items()})
 
 
 def _lockbox_part(inv: Inventory) -> Part:
@@ -385,7 +502,7 @@ def _lockbox_part(inv: Inventory) -> Part:
 
 def _state_part(inv: Inventory) -> Part:
     state = inv.state_dir
-    present = _plain_dir(state) or os.path.lexists(state)
+    present = os.path.lexists(state)
     extras = []
     if (state / "java").is_dir():
         extras.append("the shared Java")
@@ -398,7 +515,7 @@ def _state_part(inv: Inventory) -> Part:
         what += " (not the backup lock key)"
     return Part(key="state", label="Settings and state", present=present,
                 action=f"deleted: {what}" if present else "nothing here",
-                paths=_carve([state], inv.keep) if present else [], known=[state], user_home=inv.user_home)
+                paths=_carve([state], inv.keep, inv.user_home) if present else [], known=[state], user_home=inv.user_home)
 
 
 def _windows_delete_later(exe: Path, env: Mapping[str, str]) -> list[str] | None:
@@ -507,22 +624,50 @@ def delete_paths(part: Part, runner: Runner) -> Outcome:
 Progress = Callable[[str, str, str], None]  # (part key, label, "working" | "done" | "failed" | "kept")
 
 
+StopServers = Callable[[], "Iterable[Path | str] | None"]
+
+
+def _hold_running(part: Part, running: list[Path], everyone: bool, report: Report) -> Part:
+    """``part`` without what belongs to a server that's still running (R13): that server's folders and
+    its own backups are kept, and the report says why."""
+    held = {root: pieces for root, pieces in part.per_server.items()
+            if pieces and (everyone or any(_same(root, r) for r in running))}
+    if not held:
+        return part
+    hold = [p for pieces in held.values() for p in pieces]
+    paths = [p for p in _carve(part.paths, hold, part.user_home or Path.home())
+             if not any(locations.inside(p, k) for k in hold)]
+    for root, pieces in held.items():
+        report.kept.append(f"{part.label}: {', '.join(str(p) for p in pieces)} kept, because the server in {root} "
+                           "may still be running")
+    return dataclasses.replace(part, paths=paths)
+
+
 def run(parts: list[Part], *, runner: Runner | None = None, progress: Progress | None = None,
-        stop_servers: Callable[[], Iterable[str] | None] | None = None) -> Report:
-    """Do the plan, in its order: first ``stop_servers`` (it returns lines saying what didn't stop,
-    or raises), then each part that's here and not kept. A part that fails goes in the report and the
-    rest goes on."""
+        stop_servers: StopServers | None = None) -> Report:
+    """Do the plan, in its order: first ``stop_servers``, then each part that's here and not kept. A
+    part that fails goes in the report and the rest goes on.
+
+    ``stop_servers()`` stops every server cleanly and returns the folders (roots) of the servers that
+    are still running (empty or None: all stopped). If it raises, which servers stopped isn't known,
+    so every server is treated as still running. A server still running is never deleted: its
+    folders and its own backups are kept, and the report says so."""
     runner = runner if runner is not None else SystemRunner()
     tell = progress or (lambda key, label, status: None)
     report = Report()
+    running: list[Path] = []
+    everyone = False
     if stop_servers is not None:
         tell("stop", "Stopping the servers", "working")
         try:
-            problems = list(stop_servers() or [])
+            running = [Path(p) for p in (stop_servers() or [])]
         except Exception as e:
-            problems = [f"Stopping the servers: {e}"]
-        report.failed += problems
-        tell("stop", "Stopping the servers", "failed" if problems else "done")
+            everyone = True
+            report.failed.append(f"Stopping the servers: {e} (so every server and its backups are kept)")
+        for root in running:
+            report.failed.append(f"Stopping the servers: the server in {root} is still running, so it's kept with its "
+                                 "own backups")
+        tell("stop", "Stopping the servers", "failed" if everyone or running else "done")
     for part in parts:
         if part.kept:
             report.kept.append(f"{part.label}: {part.action}")
@@ -530,6 +675,8 @@ def run(parts: list[Part], *, runner: Runner | None = None, progress: Progress |
             continue
         if not part.present:
             continue
+        if part.per_server and (everyone or running):
+            part = _hold_running(part, running, everyone, report)
         tell(part.key, part.label, "working")
         try:
             out = part.remove(runner) if part.remove is not None else delete_paths(part, runner)

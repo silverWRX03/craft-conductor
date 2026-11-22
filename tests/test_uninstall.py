@@ -73,7 +73,7 @@ def world(tmp_path, monkeypatch):
     (alpha / "backups" / "alpha-1.tar.gz").write_bytes(b"backup")
     beta = _server(home / "servers" / "beta")
     (home / "exports").mkdir()
-    (home / "exports" / "alpha.zip").write_bytes(b"zip")
+    (home / "exports" / "alpha.craft-conductor.zip").write_bytes(b"zip")
     env = {"HOME": str(user), "USERPROFILE": str(user)}
     # (the program part: a pip install, unless a test says otherwise)
     monkeypatch.setattr(uninstall, "_frozen", lambda: False)
@@ -151,6 +151,7 @@ def test_places_from_hub_json_and_a_backup_copy_folder(world, tmp_path):
         encoding="utf-8")
     exports = tmp_path / "exports-folder"
     exports.mkdir()
+    (exports / "gamma.craft-conductor.zip").write_bytes(b"zip")
     (world["state"] / "hub.json").write_text(json.dumps({
         "locations": {"servers": str(elsewhere), "backups": str(chosen_backups), "exports": str(exports), "chosen": True},
         "extra": [str(extra)]}), encoding="utf-8")
@@ -368,3 +369,199 @@ def test_docker_is_listed_for_the_person(world):
     env = {**world["env"], "CRAFT_CONDUCTOR_CONTAINER": "1"}
     program = {p.key: p for p in uninstall.plan(world["home"], Choices(), env=env)}["program"]
     assert program.paths == [] and "docker rm" in program.manual and "docker rmi" in program.manual
+
+
+# ------------------------------------------------------------------ fix round 1 (review findings, rulings R10, R12, R13)
+def _link(link: Path, target: Path, kind: str) -> None:
+    """A junction (Windows) or a symlink, as ``kind`` says; skips when this computer can't make one."""
+    target.mkdir(parents=True, exist_ok=True)
+    try:
+        if kind == "junction":
+            if os.name != "nt":
+                pytest.skip("Windows junctions")
+            import _winapi
+            _winapi.CreateJunction(str(target), str(link))
+        else:
+            link.symlink_to(target, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("this computer doesn't let the tests make links")
+
+
+def _any_link_kind() -> str:
+    return "junction" if os.name == "nt" else "symlink"
+
+
+def _hub(world, **places) -> None:
+    (world["state"] / "hub.json").write_text(json.dumps({"locations": {k: str(v) for k, v in places.items()}}),
+                                             encoding="utf-8")
+
+
+def _held(runner: FakeRunner, path: Path) -> bool:
+    """The runner was told to delete ``path``, something inside it, or something holding it."""
+    p = os.path.normcase(str(path))
+    for d in runner.deleted():
+        d = os.path.normcase(str(d))
+        if d == p or d.startswith(p + os.sep) or p.startswith(d.rstrip(os.sep) + os.sep):
+            return True
+    return False
+
+
+def test_a_chosen_exports_folder_keeps_the_persons_own_files(world):
+    documents = world["user"] / "Documents"
+    (documents / "alpha").mkdir(parents=True)
+    (documents / "alpha" / "alpha-1.craft-conductor.zip").write_bytes(b"zip")
+    (documents / "beta.craft-conductor.zip").write_bytes(b"zip")
+    (documents / "taxes.pdf").write_bytes(b"%PDF")
+    _hub(world, exports=documents)
+    parts = _parts(world, exports=True)
+    assert sorted(parts["exports"].paths) == sorted([documents / "alpha", documents / "beta.craft-conductor.zip"])
+    runner = FakeRunner()
+    uninstall.run(list(parts.values()), runner=runner)
+    assert documents not in runner.deleted() and documents / "taxes.pdf" not in runner.deleted()
+    assert documents / "alpha" in runner.deleted()
+
+
+def test_an_empty_chosen_exports_folder_isnt_deleted(world):
+    documents = world["user"] / "Documents"
+    documents.mkdir()
+    _hub(world, exports=documents)
+    assert documents not in _parts(world, exports=True)["exports"].paths
+
+
+@pytest.mark.parametrize("kind", ["junction", "symlink"])
+def test_nothing_is_deleted_through_a_linked_backups_place(world, tmp_path, kind):
+    link = tmp_path / "backups-link"
+    _link(link, tmp_path / "real-backups", kind)
+    (tmp_path / "real-backups" / "alpha").mkdir()
+    (tmp_path / "real-backups" / "alpha" / "alpha-1.tar.gz").write_bytes(b"backup")
+    (world["alpha"] / "craft-conductor.toml").write_text(
+        TOML + f'[backups]\ndir = {json.dumps(str(link / "alpha"))}\n', encoding="utf-8")
+    _hub(world, backups=link)
+    part = _parts(world, backups=True)["backups"]
+    assert not any(str(p).startswith(str(link)) for p in part.paths)
+    assert part.manual and str(link) in part.manual
+    runner = FakeRunner()
+    report = uninstall.run([part], runner=runner)
+    assert not _held(runner, link) and not _held(runner, tmp_path / "real-backups")
+    assert any(str(link) in line for line in report.manual)
+
+
+@pytest.mark.parametrize("kind", ["junction", "symlink"])
+def test_the_run_check_refuses_a_path_reached_through_a_link(world, tmp_path, kind):
+    link = world["home"] / "servers" / "linked"
+    _link(link, tmp_path / "elsewhere", kind)
+    (tmp_path / "elsewhere" / "world").mkdir()
+    assert not uninstall.safe_to_delete(link / "world", world["user"], [world["home"] / "servers"])
+    assert not uninstall.safe_to_delete(link / "world", world["user"], [link])
+
+
+def test_nothing_is_deleted_through_a_linked_copy_folder(world, tmp_path):
+    from craft_conductor import backup
+    link = tmp_path / "usb-link"
+    _link(link, tmp_path / "usb", _any_link_kind())
+    (tmp_path / "usb" / "alpha").mkdir()
+    (tmp_path / "usb" / "alpha" / backup.COPY_OWNER).write_text(backup.copy_owner(world["alpha"]), encoding="utf-8")
+    (world["alpha"] / "craft-conductor.toml").write_text(
+        TOML + f'[backups]\ncopy_to = {json.dumps(str(link))}\n', encoding="utf-8")
+    part = _parts(world, backups=True)["backups"]
+    runner = FakeRunner()
+    uninstall.run([part], runner=runner)
+    assert not _held(runner, link) and not _held(runner, tmp_path / "usb")
+    assert part.manual and str(link) in part.manual
+
+
+def test_a_home_that_is_the_persons_own_home_folder_loses_only_craft_conductors_folders(tmp_path, monkeypatch):
+    monkeypatch.setattr(uninstall, "_frozen", lambda: False)
+    user = tmp_path / "user"
+    (user / ".craft-conductor").mkdir(parents=True)
+    (user / ".craft-conductor" / "hub.json").write_text("{}", encoding="utf-8")
+    alpha = _server(user / "servers" / "alpha")
+    (alpha / "backups").mkdir()
+    (user / "exports").mkdir()
+    (user / "exports" / "alpha.craft-conductor.zip").write_bytes(b"zip")
+    (user / "Documents").mkdir()
+    (user / "Documents" / "taxes.pdf").write_bytes(b"%PDF")
+    (user / "notes.txt").write_text("mine", encoding="utf-8")
+    env = {"HOME": str(user), "USERPROFILE": str(user)}
+    parts = uninstall.plan(user, Choices(servers=True, backups=True, exports=True, games=True), env=env)
+    runner = FakeRunner()
+    report = uninstall.run(parts, runner=runner)
+    assert not report.failed
+    ours = [user / ".craft-conductor", user / "servers", user / "exports"]
+    assert runner.deleted()
+    for path in runner.deleted():
+        assert any(path == p or p in path.parents for p in ours), path
+    assert not _held(runner, user / "Documents") and not _held(runner, user / "notes.txt")
+    assert user not in runner.deleted()
+
+
+def test_a_server_folder_at_a_drive_root_is_refused_and_the_rest_goes_on(world):
+    root = Path(world["user"].anchor) if os.name == "nt" else Path("/")
+    (world["alpha"] / "craft-conductor.toml").write_text(
+        TOML.replace("[server]\n", f"[server]\ndir = {json.dumps(str(root))}\n"), encoding="utf-8")
+    parts = uninstall.plan(world["home"], Choices(servers=True), env=world["env"])
+    runner = FakeRunner()
+    report = uninstall.run(parts, runner=runner)
+    assert root not in runner.deleted()
+    for path in runner.deleted():  # (nothing on the drive but Craft Conductor's own)
+        assert world["home"] in path.parents or path == world["home"], path
+    assert any(str(root) in line and "top of a drive" in line for line in report.failed)
+    assert world["beta"] in runner.deleted() and world["state"] in runner.deleted()
+
+
+@pytest.mark.parametrize("servers_ticked", [True, False])
+def test_a_server_inside_the_backups_folder(world, tmp_path, servers_ticked):
+    chosen = tmp_path / "backups-folder"
+    (chosen / "alpha").mkdir(parents=True)
+    (chosen / "alpha" / "alpha-1.tar.gz").write_bytes(b"backup")
+    inside = _server(chosen / "inside")
+    (world["alpha"] / "craft-conductor.toml").write_text(
+        TOML + f'[backups]\ndir = {json.dumps(str(chosen / "alpha"))}\n', encoding="utf-8")
+    (world["state"] / "hub.json").write_text(
+        json.dumps({"locations": {"backups": str(chosen)}, "extra": [str(inside)]}), encoding="utf-8")
+    runner = FakeRunner()
+    uninstall.run(uninstall.plan(world["home"], Choices(servers=servers_ticked, backups=True), env=world["env"]),
+                  runner=runner)
+    deleted = [os.path.normcase(str(p)) for p in runner.deleted()]
+    assert len(deleted) == len(set(deleted))  # (nothing deleted twice)
+    assert chosen not in runner.deleted()  # (it holds a server, not only backups)
+    assert chosen / "alpha" in runner.deleted()
+    assert (inside in runner.deleted()) is servers_ticked
+    if not servers_ticked:
+        assert not _held(runner, inside)
+
+
+def test_a_server_that_didnt_stop_is_kept_with_its_backups(world):
+    runner = FakeRunner()
+    parts = uninstall.plan(world["home"], Choices(servers=True, backups=True), env=world["env"])
+    report = uninstall.run(parts, runner=runner, stop_servers=lambda: [world["alpha"]])
+    assert not _held(runner, world["alpha"])  # (its folder and its own backups in it)
+    assert world["home"] / "servers" not in runner.deleted()
+    assert world["beta"] in runner.deleted() and world["state"] in runner.deleted()
+    assert any(str(world["alpha"]) in line and "running" in line for line in report.failed + report.kept)
+
+
+def test_a_server_that_didnt_stop_keeps_its_backups_kept_elsewhere(world, tmp_path):
+    chosen = tmp_path / "backups-folder"
+    for sid in ("alpha", "beta"):
+        (chosen / sid).mkdir(parents=True)
+        (world[sid] / "craft-conductor.toml").write_text(
+            TOML + f'[backups]\ndir = {json.dumps(str(chosen / sid))}\n', encoding="utf-8")
+    _hub(world, backups=chosen)
+    runner = FakeRunner()
+    uninstall.run(uninstall.plan(world["home"], Choices(servers=True, backups=True), env=world["env"]), runner=runner,
+                  stop_servers=lambda: [world["alpha"]])
+    assert not _held(runner, chosen / "alpha") and not _held(runner, world["alpha"])
+    assert chosen / "beta" in runner.deleted() and world["beta"] in runner.deleted()
+
+
+def test_when_stopping_the_servers_fails_outright_every_server_is_kept(world):
+    runner = FakeRunner()
+
+    def stop():
+        raise RuntimeError("couldn't reach the servers")
+    parts = uninstall.plan(world["home"], Choices(servers=True, backups=True, exports=True), env=world["env"])
+    report = uninstall.run(parts, runner=runner, stop_servers=stop)
+    assert not _held(runner, world["home"] / "servers")
+    assert world["home"] / "exports" in runner.deleted() and world["state"] in runner.deleted()
+    assert any("couldn't reach the servers" in line for line in report.failed)
