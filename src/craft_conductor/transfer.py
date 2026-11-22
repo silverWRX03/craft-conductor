@@ -67,7 +67,11 @@ def _walk(base: Path):
 
 
 def export_name(name: str) -> str:
-    safe = re.sub(r"[^A-Za-z0-9 _'.()-]+", "", name).strip(" .")[:50] or "server"
+    """The export's file name: the server's name with its letters in any language ("Rückkehr Café", #300),
+    without what a file name can't hold (slashes, colons, control and direction characters)."""
+    import unicodedata
+    name = unicodedata.normalize("NFC", name)  # (é as one letter, not e and an accent that would be dropped)
+    safe = re.sub(r"[^\w '.()-]+", "", name).strip(" .")[:50].strip(" .") or "server"
     return f"{safe} {datetime.now().strftime('%Y-%m-%d %H%M')}.craft-conductor.zip"
 
 

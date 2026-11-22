@@ -15,6 +15,7 @@ its fix will say which version it's in.
 - On a friend's computer, setting up a second server with the same name as one set up before (two people who both kept "A Minecraft Server") took the first off **Servers you've joined**, so it could no longer be updated without a new invite. Both are kept, each shown with its computer's address (#305).
 - On Windows, **Browse…** in the folder browser opened Windows' folder picker behind the browser, so nothing seemed to happen (and pressing it again said a picker was already open). The picker now comes up in front (#304).
 - Someone invited with **Manage mods** on a server whose setup waited for a mod downloaded by hand couldn't reach the box to drop it in: every page sent them to the Dashboard, which only said "1 manual download(s) needed". Their **Your servers** card now has **See progress**, which opens the setup's progress with the hand-download panel (#334).
+- An export of a server with an accented name ("Rückkehr Café") dropped those letters from the file name ("Rckkehr Caf …"). The export keeps the server's name as it is written, in any language (#300).
 
 ## 0.30.6 (2026-11-15)
 
