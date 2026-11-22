@@ -16,6 +16,7 @@ its fix will say which version it's in.
 - On Windows, **Browse…** in the folder browser opened Windows' folder picker behind the browser, so nothing seemed to happen (and pressing it again said a picker was already open). The picker now comes up in front (#304).
 - Someone invited with **Manage mods** on a server whose setup waited for a mod downloaded by hand couldn't reach the box to drop it in: every page sent them to the Dashboard, which only said "1 manual download(s) needed". Their **Your servers** card now has **See progress**, which opens the setup's progress with the hand-download panel (#334).
 - An export of a server with an accented name ("Rückkehr Café") dropped those letters from the file name ("Rckkehr Caf …"). The export keeps the server's name as it is written, in any language (#300).
+- Adding a player while Mojang was busy (it limits how many names one network can look up) said "there is no Minecraft account named …". Craft Conductor asks Mojang's other lookup, and when both are busy it says Mojang is busy and to try again in a minute; a running server's "That player does not exist" is checked the same way (#307).
 
 ## 0.30.6 (2026-11-15)
 
