@@ -243,6 +243,28 @@ def test_disk_full_during_the_backup_before_an_update_keeps_the_old_server_runni
     assert _files(m.server_dir) == before
 
 
+def test_no_room_for_the_backup_is_said_before_players_are_warned(installed, http, modrinth, monkeypatch, quick_daemon):
+    """A nearly full disk (smaller than the server's backups): the players got the 10-minute countdown and the
+    server stopped, and only then did the backup fail (#310). It's said at once: no countdown, no restart."""
+    from craft_conductor import backup, safearchive
+    m = installed
+    backup.create(m.server_dir, m.config.backups.dir, "earlier", [])   # (what the backup will be about)
+    d = _playable(m)
+    _next_version(m, http, modrinth)
+    proc = d.proc
+    warned = []
+    monkeypatch.setattr(m, "countdown", lambda server, reason: warned.append(reason))
+    monkeypatch.setattr(safearchive, "free_bytes", lambda path: 1 << 20)   # (1 MB free)
+    try:
+        with pytest.raises(RuntimeError, match="isn't room for the backup before it.*Nothing was changed, and the server kept running"):
+            d.check_for_updates(force=True)
+        assert warned == [] and d.proc is proc and proc.running, "players must not be warned or kicked"
+        assert m.lock.minecraft == OLD
+        _no_leftovers(m)
+    finally:
+        d.proc.stop(10)
+
+
 def test_disk_full_while_rolling_back_is_finished_by_the_next_start(installed, http, modrinth, monkeypatch, quick_daemon):
     m = installed
     before = _files(m.server_dir)
