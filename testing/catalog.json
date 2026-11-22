@@ -9184,5 +9184,69 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1049,
+    "section": "Fix: the Router card doesn't claim the server is open",
+    "step": "With UPnP off on the router, switch on Craft Conductor settings → Connections → Router → Open the ports on my router by itself (UPnP): the card says It didn't work and Nothing is open on your router now, never Your server is open to the internet; with UPnP on and a port opened, it does say so (#326, retest 239).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1050,
+    "section": "Fix: a roll back names a file open in another program",
+    "step": "With another program holding the server's server.properties open without sharing, Backups → Roll back to this says server.properties in the server's folder is open in another program and to close it and try again (no Errno or couldn't be unpacked), leaves the server as it was, and works once the program closes it (#316, retest 406).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1051,
+    "section": "Fix: archive names with ? or * are left out",
+    "step": "Import a world .zip that also holds files named with ? or * (and < > \" |): the import finishes, those files are left out and named once in the log, and the rest of the world is there (#314, retest 700).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1052,
+    "section": "Fix: the delete confirmation mentions the firewall rule",
+    "step": "Delete a server that has a Craft Conductor rule in Windows Firewall, in a browser on this computer: the Delete confirmation says It has a rule in Windows Firewall, names it, and says you'll be asked whether to remove it; after Remove from the list the Remove/Keep question still comes (#311, retest 865).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1053,
+    "section": "Fix: the panel says when the Cloudflare tunnel closed",
+    "step": "Open the Cloudflare quick tunnel and leave the panel open past its 4 hours: the bell (and a phone with tunnel notifications on) says the control panel is off the internet again, and the Control panel away from home card says Closed at HH:MM after 4 hours, also after a reload (#323, retest 896).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1054,
+    "section": "Fix: Manage mods reaches the hand-download box during setup",
+    "step": "Signed in as someone invited with only See status + Manage mods on a server whose setup waits for a hand download: the server's card has See progress, which opens the setup's progress with the drop box (no Downloads line or Choose the folder…); dropping the file lets setup carry on (#334, retest 918).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1055,
+    "section": "Fix: the friend app keeps both servers of the same name",
+    "step": "On one friend's computer, set up host A's and then host B's server, both named A Minecraft Server: the friend app opened without an invite lists both under Servers you've joined, each with its computer's address, and Update works for each (#305, retest 1044).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1056,
+    "section": "Fix: Browse… opens the folder picker in front",
+    "step": "Windows, Chrome maximized (two monitors too): Craft Conductor settings → Folders → Change… → Browse… brings Windows' folder picker in front of Chrome at once, and the chosen folder opens in the folder browser (#304, retest 1048).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]
