@@ -2768,7 +2768,10 @@ function modpackCard() {
       fill(out, h("p", { class: "muted small" }, "Looking for newer versions of the pack…"));
       const v = await api("/api/modpack/check", { method: "POST", body: {} }).catch((e) => { fill(out, h("div", { class: "notice warn small" }, e.message)); return null; });
       if (!v) return;
-      if (!v.newer.length) { fill(out, h("p", { class: "ok-text small" }, `✓ ${v.current ? v.current.name : r.pack.name} is the newest version of the pack.`)); return; }
+      // (versions only for an older Minecraft aren't offered: the world can be damaged going back, #329)
+      const older = v.older ? h("p", { class: "muted small mt-s" }, `${v.older} newer version${v.older === 1 ? "" : "s"} of the pack for an older Minecraft than this server's ` +
+        `${v.world} ${v.older === 1 ? "isn't" : "aren't"} offered: opening the world in an older Minecraft can damage it. To play one, make a new server from it.`) : null;
+      if (!v.newer.length) { fill(out, h("p", { class: "ok-text small" }, `✓ ${v.current ? v.current.name : r.pack.name} is the newest version of the pack for this server's Minecraft.`), older); return; }
       const pick = h("select", { "aria-label": "Version of the pack" }, v.newer.map((x) => h("option", { value: x.id },
         `${x.name}${x.minecraft.length ? ` (Minecraft ${x.minecraft[x.minecraft.length - 1]})` : ""}${x.channel !== "release" ? ` · ${x.channel}` : ""}`)));
       const see = async () => {
@@ -2778,7 +2781,7 @@ function modpackCard() {
         if (d) changes(x, d, more);
       };
       const more = h("div");
-      fill(out, h("div", { class: "row wrap" }, pick, h("button", { class: "btn", onclick: see }, "See what changes")), more);
+      fill(out, h("div", { class: "row wrap" }, pick, h("button", { class: "btn", onclick: see }, "See what changes")), older, more);
     };
     const loader = r.pack.loader_version ? ` and ${LOADER_LABELS[r.pack.loader] || r.pack.loader} at ${r.pack.loader_version}` : "";
     fill(box, card("Modpack", h("p", { class: "muted small" }, `This server was made from ${r.pack.name || "a modpack"}. Its mods are held at the pack's files${loader}, ` +

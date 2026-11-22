@@ -28,6 +28,7 @@ its fix will say which version it's in.
 - The phone's "Turn on notifications" strip stayed after notifications were turned on from it, until the app was opened again. It goes as soon as they're on (#312).
 - On an iPhone, the bottom of the menu (**Sign out**) was hidden behind Safari's address bar. The menu fits the part of the screen that's visible (#345).
 - An update on a disk too full for its backup still warned the players for 10 minutes and stopped the server, and only then said the backup couldn't be made. Once its files are downloaded, the update checks that the backup will fit (by the size of the last one) and says so straight away; the server keeps running (#310).
+- **Updates → Look for a new version of the pack** offered the pack's versions for older Minecraft versions too, and updating to one moved the world back to an older Minecraft without a warning, which can damage it. They aren't offered any more (the card says how many were left out), and such a version is refused (#329).
 
 ## 0.30.6 (2026-11-15)
 
