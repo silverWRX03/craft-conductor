@@ -988,7 +988,11 @@ $("#login-form").addEventListener("submit", async (e) => {
   } catch (err) { $("#login-error").textContent = err.message; }
 });
 
-$("#logout").addEventListener("click", async () => { await api("/api/logout", { method: "POST" }).catch(() => {}); bellSignedOut(true); showLogin(); });
+$("#logout").addEventListener("click", async () => {
+  await pushForget();
+  await api("/api/logout", { method: "POST" }).catch(() => {});
+  bellSignedOut(true); showLogin();
+});
 // There's no command window to close, so Craft Conductor is quit from here.
 $("#quit").addEventListener("click", async () => {
   const running = ((hubInfo && hubInfo.servers) || []).filter((s) => s.state === "running" || s.state === "starting");
@@ -2764,7 +2768,10 @@ function modpackCard() {
       fill(out, h("p", { class: "muted small" }, "Looking for newer versions of the pack…"));
       const v = await api("/api/modpack/check", { method: "POST", body: {} }).catch((e) => { fill(out, h("div", { class: "notice warn small" }, e.message)); return null; });
       if (!v) return;
-      if (!v.newer.length) { fill(out, h("p", { class: "ok-text small" }, `✓ ${v.current ? v.current.name : r.pack.name} is the newest version of the pack.`)); return; }
+      // (versions only for an older Minecraft aren't offered: the world can be damaged going back, #329)
+      const older = v.older ? h("p", { class: "muted small mt-s" }, `${v.older} newer version${v.older === 1 ? "" : "s"} of the pack for an older Minecraft than this server's ` +
+        `${v.world} ${v.older === 1 ? "isn't" : "aren't"} offered: opening the world in an older Minecraft can damage it. To play one, make a new server from it.`) : null;
+      if (!v.newer.length) { fill(out, h("p", { class: "ok-text small" }, `✓ ${v.current ? v.current.name : r.pack.name} is the newest version of the pack for this server's Minecraft.`), older); return; }
       const pick = h("select", { "aria-label": "Version of the pack" }, v.newer.map((x) => h("option", { value: x.id },
         `${x.name}${x.minecraft.length ? ` (Minecraft ${x.minecraft[x.minecraft.length - 1]})` : ""}${x.channel !== "release" ? ` · ${x.channel}` : ""}`)));
       const see = async () => {
@@ -2774,7 +2781,7 @@ function modpackCard() {
         if (d) changes(x, d, more);
       };
       const more = h("div");
-      fill(out, h("div", { class: "row wrap" }, pick, h("button", { class: "btn", onclick: see }, "See what changes")), more);
+      fill(out, h("div", { class: "row wrap" }, pick, h("button", { class: "btn", onclick: see }, "See what changes")), older, more);
     };
     const loader = r.pack.loader_version ? ` and ${LOADER_LABELS[r.pack.loader] || r.pack.loader} at ${r.pack.loader_version}` : "";
     fill(box, card("Modpack", h("p", { class: "muted small" }, `This server was made from ${r.pack.name || "a modpack"}. Its mods are held at the pack's files${loader}, ` +
@@ -6006,7 +6013,8 @@ function browserPanel(params, host) {
   const showDetails = async (m) => {
     st.active = `${m.source}:${m.id}`;
     highlight(st.active);
-    fill(details, h("p", { class: "empty" }, `Loading ${m.name}…`));
+    el.classList.add("showing");  // (a phone: the mod's page over the list)
+    fill(details, toList(), h("p", { class: "empty" }, `Loading ${m.name}…`));
     const p = await api(`${base}/project?source=${m.source}&id=${encodeURIComponent(m.id)}`).catch((e) => { toast(e.message, true); return null; });
     if (!p || st.active !== `${m.source}:${m.id}`) return;
     const key = `${p.source}:${p.id}`;
@@ -6044,7 +6052,7 @@ function browserPanel(params, host) {
         location.hash = "#new";
       }
     } }, "Use this modpack") : null;
-    fill(details,
+    fill(details, toList(),
       h("div", { class: "browse-head" },
         p.icon ? h("img", { src: p.icon, alt: "", referrerpolicy: "no-referrer" }) : h("div", { class: "noicon" }),
         h("div", { class: "grow" }, h("h2", {}, p.name), h("div", { class: "muted" }, p.summary),
@@ -6133,20 +6141,32 @@ function browserPanel(params, host) {
     fill(category, h("option", { value: "" }, "All categories"), r ? r.categories.map((c) => h("option", { value: c.id }, c.name)) : []);
   };
 
-  const el = h("div", { class: "browse" },
+  // On a phone the results get the screen (#331): the filters other than the search fold into Filters, the
+  // Add selected bar stays at the bottom, and a mod's page opens over the list (Back to the list).
+  const phoneWide = window.matchMedia("(max-width: 760px)");
+  const filters = h("details", { class: "browse-more", open: !phoneWide.matches }, h("summary", {}, "Filters"),
+    h("div", { class: "browse-more-rows" },
+      h("div", { class: "row" }, source, sort),
+      envSel ? h("div", { class: "row" }, envSel) : null,
+      h("div", { class: "row" }, category, version),
+      earlyRow));
+  phoneWide.addEventListener("change", () => { if (filters.isConnected && !phoneWide.matches) filters.open = true; });
+  const el = h("div", { class: "browse mod-browser" },
     h("div", { class: "browse-left" },
       h("div", { class: "browse-filters" },
         h("div", { class: "row" }, h("strong", { class: "grow" }, forPlayers ? "Mods for players" : { modpack: "Modpacks", plugin: "Plugins", mod: "Mods" }[noun]),
           loader ? h("span", { class: "tag" }, loader) : null,
           host ? null : h("a", { class: "btn ghost small", href: target === "setup" ? "#new" : `#s/${target}/mods` }, "Back")),  // (in a side pane: its "Back to …" bar)
         q,
-        h("div", { class: "row" }, source, sort),
-        envSel ? h("div", { class: "row" }, envSel) : null,
-        h("div", { class: "row" }, category, version),
-        earlyRow),
+        filters),
       list,
       h("div", { class: "browse-footer" }, count, addBtn)),
     details);
+  const toList = () => h("button", { type: "button", class: "btn small browse-back", onclick: () => {
+    el.classList.remove("showing");
+    const active = list.querySelector(".result.active");
+    if (active) active.focus();
+  } }, "← Back to the list");
   return { el, start: () => { q.focus(); loadCategories(); loadAdded().then(search); }, stop: () => pager.stop() };
 }
 
@@ -8214,6 +8234,50 @@ function b64uBytes(text) {
   const s = atob(text.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - text.length % 4) % 4));
   return Uint8Array.from(s, (c) => c.charCodeAt(0));
 }
+const PUSH_OK = () => window.isSecureContext && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+// This device's notifications for whoever is signed in, with this Craft Conductor's key: a subscription the
+// browser kept from an earlier install (another key) is made again (#309).
+async function pushSubscribe(reg) {
+  const key = b64uBytes((await api("/api/hub/phone")).public_key);
+  let sub = await reg.pushManager.getSubscription();
+  const had = sub && sub.options && sub.options.applicationServerKey ? new Uint8Array(sub.options.applicationServerKey) : null;
+  if (sub && had && (had.length !== key.length || had.some((b, i) => b !== key[i]))) { await sub.unsubscribe(); sub = null; }
+  if (!sub) {
+    sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key }).catch(async (e) => {
+      const old = await reg.pushManager.getSubscription();  // (another key the browser didn't name: start again)
+      if (!old) throw e;
+      await old.unsubscribe();
+      return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+    });
+  }
+  const j = sub.toJSON();
+  return api("/api/hub/phone/subscribe", { method: "POST", body: { endpoint: j.endpoint, keys: j.keys, name: deviceName() } });
+}
+// After signing in: notifications allowed on this device go to the person signed in now. Craft Conductor not
+// knowing this device (a fresh install, #309), or it being the person's before (#313), is put right by
+// itself. True when this device gets notifications.
+let pushSynced = null;  // (once per sign-in: start() begins it, the phone banner waits for the same one)
+function pushSync(fresh = false) {
+  if (fresh || !pushSynced) pushSynced = pushSyncNow().catch(() => false);
+  return pushSynced;
+}
+async function pushSyncNow() {
+  if (!PUSH_OK() || Notification.permission !== "granted") return false;
+  const reg = await navigator.serviceWorker.getRegistration().catch(() => null);
+  const sub = reg && await reg.pushManager.getSubscription().catch(() => null);
+  if (!sub) return false;
+  const prefs = await api("/api/hub/phone/prefs", { method: "POST", body: { endpoint: sub.endpoint } }).catch(() => null);
+  if (prefs && prefs.yours) return true;
+  return !!(await pushSubscribe(reg).catch(() => null));
+}
+// Signing out: this device stops getting the signed-out person's notifications (the browser keeps its
+// permission, so the next person to sign in gets them, #313).
+async function pushForget() {
+  if (!PUSH_OK()) return;
+  const reg = await navigator.serviceWorker.getRegistration().catch(() => null);
+  const sub = reg && await reg.pushManager.getSubscription().catch(() => null);
+  if (sub) await api("/api/hub/phone/unsubscribe", { method: "POST", body: { endpoint: sub.endpoint } }).catch(() => null);
+}
 function deviceName() {
   const ua = navigator.userAgent;
   return /iPhone/.test(ua) ? "iPhone" : /iPad/.test(ua) ? "iPad" : /Android/.test(ua) ? (/Mobile/.test(ua) ? "Android phone" : "Android tablet")
@@ -8232,8 +8296,7 @@ async function phoneBanner() {
   const pushOk = secure && "PushManager" in window && "Notification" in window;
   let subscribed = false;
   if (standalone && pushOk) {
-    const reg = await navigator.serviceWorker.getRegistration().catch(() => null);
-    subscribed = !!(reg && await reg.pushManager.getSubscription().catch(() => null));
+    subscribed = await pushSync();
     if (subscribed) return;
   }
   if (standalone && !pushOk) return;  // (an older phone that can't get notifications from web apps)
@@ -8465,8 +8528,10 @@ function phoneCard({ deviceOnly = false } = {}) {  // deviceOnly: just this phon
   const load = async (checkTailscale = false) => {
     info = await api(`/api/hub/phone${checkTailscale ? "?tailscale=1" : ""}`).catch(() => null);
     if (info && info.tailscale) ts = info.tailscale;
+    await pushSync();  // (this device turned on again for whoever is signed in, when it was someone else's: first)
     mine = await subscription().catch(() => null);
     prefs = mine ? await api("/api/hub/phone/prefs", { method: "POST", body: { endpoint: mine.endpoint } }).catch(() => null) : null;
+    if (mine && !(prefs && prefs.yours)) { mine = null; prefs = null; }  // (not this Craft Conductor's, or someone else's: off, #309 #313)
     render();
   };
   const choices = () => {  // what this device hears about
@@ -8486,13 +8551,12 @@ function phoneCard({ deviceOnly = false } = {}) {  // deviceOnly: just this phon
     if (perm !== "granted") { toast("Notifications are blocked for this site: allow them in the browser's settings, then try again.", true); return; }
     const reg = await navigator.serviceWorker.register("/sw.js");
     await navigator.serviceWorker.ready;
-    const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uBytes(info.public_key) })
-      .catch((e) => { toast(e.message, true); return null; });
-    if (!sub) return;
-    const j = sub.toJSON();
-    const r = await api("/api/hub/phone/subscribe", { method: "POST", body: { endpoint: j.endpoint, keys: j.keys, name: deviceName() } })
-      .catch((e) => { toast(e.message, true); return null; });
-    if (r) toast("Notifications are on for this device");
+    const r = await pushSubscribe(reg).catch((e) => { toast(e.message, true); return null; });
+    if (r) {
+      toast("Notifications are on for this device");
+      const banner = $("#phone-banner");  // (its "Turn on notifications" is done: it goes, #312)
+      if (banner) banner.remove();
+    }
     load();
   };
   const disable = async () => {
@@ -10139,7 +10203,11 @@ views.setup = () => {
         st.reach !== "home" ? h("label", { class: "mt-s" }, "Your Minecraft name (added to the whitelist, so you can join)",
           h("input", { value: st.ownerName || "", maxlength: 16, autocomplete: "off", placeholder: "optional", "aria-describedby": "owner-name-note",
             oninput: (e) => { st.ownerName = e.target.value.trim(); } }),
-          h("span", { class: "muted small", id: "owner-name-note" }, "1 to 16 letters, numbers or _. Leave it empty to add yourself later on the Players page.")) : null] : null;
+          h("span", { class: "muted small", id: "owner-name-note" }, "1 to 16 letters, numbers or _. Leave it empty to add yourself later on the Players page.")) : null]
+        // Setup tried again (after it failed): the way chosen when the server was made is kept (#301).
+        : opts.reach && REACH_WAYS.some(([w]) => w === opts.reach) ? [h("h3", { class: "mt" }, "Friends outside your home"),
+          h("p", { class: "small" }, h("strong", {}, REACH_WAYS.find(([w]) => w === opts.reach)[1]),
+            ", as chosen when the server was made. You can change it on the server's Friends page.")] : null;
       return card("Friends (optional)",
         outside,
         h("h3", { class: "mt" }, "Friends' download"),
@@ -10485,6 +10553,7 @@ async function start() {
   registerWorker();
   route();
   resumeSetupFollowup();
+  pushSync(true);
   phoneBanner();
 }
 start();

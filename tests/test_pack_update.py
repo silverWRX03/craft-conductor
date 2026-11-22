@@ -36,20 +36,21 @@ def build(http, modrinth, pid: str, vid: str, name: str) -> dict:
             "env": {"server": "required", "client": "required"}}
 
 
-def publish(http, vid: str, name: str, date: str, files: list[dict], overrides: dict[str, str], loader: str = "0.16.0") -> None:
+def publish(http, vid: str, name: str, date: str, files: list[dict], overrides: dict[str, str], loader: str = "0.16.0",
+            minecraft: str = "1.21.1") -> None:
     """A version of the pack on Modrinth."""
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
         z.writestr("modrinth.index.json", json.dumps({
             "formatVersion": 1, "game": "minecraft", "name": "Test Pack", "versionId": name,
-            "dependencies": {"minecraft": "1.21.1", "fabric-loader": loader}, "files": files}))
+            "dependencies": {"minecraft": minecraft, "fabric-loader": loader}, "files": files}))
         for path, text in overrides.items():
             z.writestr(path, text)
     data = buf.getvalue()
     url = f"https://cdn.modrinth.com/data/{PROJECT}/versions/{vid}/pack.mrpack"
     http.files[url] = data
     version = {"id": vid, "project_id": PROJECT, "name": name, "version_number": name, "version_type": "release",
-               "date_published": date, "game_versions": ["1.21.1"], "loaders": ["fabric"],
+               "date_published": date, "game_versions": [minecraft], "loaders": ["fabric"],
                "files": [{"filename": "pack.mrpack", "url": url, "primary": True, "hashes": {"sha1": sha1(data)}}]}
     http.json[f"{MODRINTH}/version/{vid}"] = version
     listed = [v for v in http.json.get(f"{MODRINTH}/project/{PROJECT}/version", []) if v["id"] != vid]
@@ -229,3 +230,23 @@ def test_a_modrinth_pack_is_named_by_the_pack_and_its_version_number(http):
                                              "version_number": "1.0.3+26.2", "files": [{"filename": "vp.mrpack", "url": "u", "primary": True}]}
     http.json[f"{API}/project/VanPerf1"] = {"id": "VanPerf1", "title": "Vanilla Perfected"}
     assert modpack.version_info(http, "VPv10300")["name"] == "Vanilla Perfected 1.0.3+26.2 (Chaos Cubed Hotfix 3.0)"
+
+
+def test_a_pack_version_for_an_older_minecraft_is_never_offered_or_used(make_config, http, modrinth):
+    """Packs publish the same version for several Minecraft versions. One for an older Minecraft than the world's
+    was offered, and updating to it opened the world in that older Minecraft without a word (#329)."""
+    good = build(http, modrinth, "GOODMODA", "GOODV001", "Good Mod")
+    publish(http, "PACKV001", "Test Pack 1.0", "2026-01-01T00:00:00Z", [good], {})
+    cfg = make_config()
+    modpack.apply(cfg.root, "PACKV001", http)
+    m = manager(configmod.load(cfg.root), http, ["1.21.1"])
+    assert update(m).ok and m.lock.minecraft == "1.21.1"
+    publish(http, "PACKOLD1", "Test Pack 1.1+mc1.20.1", "2026-02-01T00:00:00Z", [good], {}, minecraft="1.20.1")
+    publish(http, "PACKV002", "Test Pack 1.1", "2026-02-01T00:00:01Z", [good], {})
+    found = packupdate.versions(m)
+    assert [v["id"] for v in found["newer"]] == ["PACKV002"] and found["older"] == 1 and found["world"] == "1.21.1"
+    with pytest.raises(modpack.ModpackError, match="for Minecraft 1.20.1, older than this server's 1.21.1: opening the world"):
+        packupdate.preview(m, "PACKOLD1")
+    with pytest.raises(modpack.ModpackError, match="older than this server's"):
+        packupdate.run(SimpleNamespace(m=m, proc=None, want_running=False, last_check=None), "PACKOLD1")
+    assert m.lock.minecraft == "1.21.1" and m.config.modpack.version == "PACKV001"   # (nothing changed)

@@ -469,3 +469,22 @@ def test_a_damaged_lock_file_lists_the_server_with_its_problem(hub_env):
     hub.scan()
     servers = {s["id"]: s for s in c.get("/api/hub")[1]["servers"]}
     assert lockmod.LOCK_NAME in servers["damaged"]["problem"] and "toml" not in servers["damaged"]["problem"]
+
+
+def test_a_server_installed_from_outside_while_listed_shows_its_minecraft(hub_env, http):
+    """`craft-conductor create` into the servers folder while the control panel is open: the panel picked the
+    folder up before create finished, and its card said "not installed yet" until Start (#303)."""
+    from craft_conductor import config as configmod, setup as setupmod
+    from test_manager import manager, update
+    hub, c = hub_env
+    root = hub.servers_dir / "older-server"
+    setupmod.configure(root, setupmod.SetupSpec.from_dict({"loader": "fabric", "minecraft": "1.21.1",
+                                                           "motd": "Older", "accept_eula": True}))
+    hub.scan()   # (picked up while create is still installing it)
+    d = hub.get("older-server")
+    assert d is not None and not d.m.lock.installed
+    assert update(manager(configmod.load(root), http, ["1.21.1"])).ok   # (create finishes, outside the panel)
+    wait_for(lambda: d.m.lock.installed, timeout=20)
+    assert d.m.lock.minecraft == "1.21.1"
+    login(c)
+    wait_for(lambda: c.get("/api/servers/older-server/status")[1]["minecraft"] == "1.21.1", timeout=20)

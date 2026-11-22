@@ -254,3 +254,13 @@ def test_the_new_files_are_served(running):  # noqa: F811
         status, _, headers = client.get(path)
         assert status == 200 and headers["Content-Type"].startswith(kind), path
     assert client.get("/fonts/../web.py")[0] == 404
+
+
+def test_the_phone_menu_fits_above_the_browsers_own_bars():
+    """On an iPhone the menu ran behind Safari's address bar at the bottom: 100vh is the screen with the bar
+    hidden, so Sign out was hidden (#345). The menu takes the height that's visible (dvh) where the browser
+    knows it, and leaves room above the home bar."""
+    text = re.sub(r"/\*.*?\*/", "", (WEBUI / "craft-conductor-theme.css").read_text(encoding="utf-8"), flags=re.S)
+    phone = text[text.index("@media(max-width:1023px)"):]
+    assert re.search(r"@supports\s*\(height:\s*100dvh\)\s*\{\s*\.sidebar\s*\{[^}]*height:\s*calc\(100dvh", phone)
+    assert re.search(r"\.sidebar\s*\{[^}]*padding-bottom:\s*calc\(16px \+ env\(safe-area-inset-bottom", phone)

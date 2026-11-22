@@ -63,6 +63,13 @@ log = logging.getLogger(__name__)
 SESSION_COOKIE = "craft_conductor_session"
 SESSION_TTL = 7 * 86400
 DEVICE_COOKIE = "craft_conductor_device"
+
+
+def _gone(name: str) -> str:
+    """A Set-Cookie that takes cookie ``name`` away."""
+    return f"{name}=; Max-Age=0; Path=/; SameSite=Strict"
+
+
 # Who may do what (the owner, invited people and their phones) is decided in one place: access.py.
 MAX_JSON = 1 << 20
 MAX_UPLOAD = 512 << 20
@@ -203,6 +210,11 @@ class WebUI:
         self.first_sign_in: set[str] = set()   # sessions that may only choose a password
         self.failures: dict[str, list[float]] = {}
         self.devices = webauth.Devices(hub.state_dir)
+        # Cookies named for this control panel's home: browsers don't keep cookies apart by port, so two
+        # panels on one computer (both at localhost) signed each other out (#324). The names used before
+        # are still read, so nobody is signed out and paired phones stay paired.
+        tag = hashlib.sha256(str(Path(hub.state_dir).resolve()).encode()).hexdigest()[:8]
+        self.session_cookie, self.device_cookie = f"{SESSION_COOKIE}_{tag}", f"{DEVICE_COOKIE}_{tag}"
         self.passkeys = passkeys.Passkeys(hub.state_dir)
         self.users = usersmod.Users(hub.state_dir)
         gone = self.devices.drop_unowned()
@@ -685,7 +697,8 @@ class RequestHandler(BaseHTTPRequestHandler):
         if self.web.tls:
             headers["Strict-Transport-Security"] = "max-age=31536000"
         for k, v in headers.items():
-            self.send_header(k, v)
+            for one in (v if isinstance(v, list) else [v]):  # (two Set-Cookie headers: a list)
+                self.send_header(k, one)
         self.end_headers()
         self.wfile.write(body)
 
@@ -708,8 +721,10 @@ class RequestHandler(BaseHTTPRequestHandler):
         self._send(status, json.dumps(obj).encode(), "application/json", headers)
 
     def _token(self) -> str | None:
-        cookie = SimpleCookie(self.headers.get("Cookie", ""))
-        return cookie[SESSION_COOKIE].value if SESSION_COOKIE in cookie else None
+        return self._cookie_value(self.web.session_cookie) or self._cookie_value(SESSION_COOKIE)
+
+    def _device_token(self) -> str | None:
+        return self._cookie_value(self.web.device_cookie) or self._cookie_value(DEVICE_COOKIE)
 
     def _body(self) -> dict:
         try:
@@ -730,9 +745,11 @@ class RequestHandler(BaseHTTPRequestHandler):
             raise ApiError(400, "expected a JSON object")
         return data
 
-    def _cookie(self, token: str, name: str = SESSION_COOKIE, ttl: int = SESSION_TTL) -> str:
+    def _cookie(self, token: str, device: bool = False, ttl: int = SESSION_TTL) -> list[str]:
+        """This panel's cookie, and the one of the name every panel used before taken away (#324)."""
         secure = "; Secure" if self.web.tls or self._door() else ""  # (a tunnel's address is HTTPS)
-        return f"{name}={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age={ttl}{secure}"
+        name, old = (self.web.device_cookie, DEVICE_COOKIE) if device else (self.web.session_cookie, SESSION_COOKIE)
+        return [f"{name}={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age={ttl}{secure}", _gone(old)]
 
     def _cookie_value(self, name: str) -> str | None:
         cookie = SimpleCookie(self.headers.get("Cookie", ""))
@@ -759,7 +776,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         person = self.web.users.get(device["user_id"]) or {}
         log.info("paired %s for %s (from %s)", device["name"], person.get("name", "?"), client)
         return self._json(200, {"ok": True, "name": device["name"]},
-                          {"Set-Cookie": self._cookie(token, DEVICE_COOKIE, webauth.DEVICE_DAYS * 86400)})
+                          {"Set-Cookie": self._cookie(token, device=True, ttl=webauth.DEVICE_DAYS * 86400)})
 
     def _refuse(self, subject, method: str, path: str, sid: str = "") -> None:
         log.info("refused %s %s%s for %s%s", method, path, f" on {sid}" if sid else "", subject.name,
@@ -932,13 +949,13 @@ class RequestHandler(BaseHTTPRequestHandler):
                 self.web.reset_to_default()
                 return self._json(200, {"ok": True, **self.web.auth.info()})
             # Who's asking: the owner, an invited person, or a person's paired phone (access.py).
-            subject = self.web.subject(self._token(), self._cookie_value(DEVICE_COOKIE), visitor)
+            subject = self.web.subject(self._token(), self._device_token(), visitor)
             if subject is None:
                 raise ApiError(401, "login required")
             if subject.device and path == "/api/logout":  # a phone signing out forgets its key
                 self.web.devices.remove(subject.device)
                 log.info("paired phone %s (%s) signed out", subject.device_name, subject.name)
-                return self._json(200, {"ok": True}, {"Set-Cookie": f"{DEVICE_COOKIE}=; Max-Age=0; Path=/; SameSite=Strict"})
+                return self._json(200, {"ok": True}, {"Set-Cookie": [_gone(self.web.device_cookie), _gone(DEVICE_COOKIE)]})
             if path == "/api/auth/change" and not subject.is_owner:
                 raise ApiError(403, "only the owner can change Craft Conductor's password; change yours in Your account")
             if subject.is_owner and self._token() in self.web.first_sign_in and path not in FIRST_SIGN_IN_OK:
@@ -950,7 +967,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             if path == "/api/logout":
                 self.web.logout(self._token())
                 return self._json(200, {"ok": True},
-                                  {"Set-Cookie": f"{SESSION_COOKIE}=; Max-Age=0; Path=/; SameSite=Strict"})
+                                  {"Set-Cookie": [_gone(self.web.session_cookie), _gone(SESSION_COOKIE)]})
             if path == "/api/account/password" and method == "POST":  # an invited person's own password
                 token = self.web.hub_api.account_password(subject, self._body())
                 return self._json(200, {"ok": True}, {"Set-Cookie": self._cookie(token)})
@@ -1945,7 +1962,10 @@ class HubApi:
             raise ApiError(404, str(e)) from None
         if kinds is None:
             raise ApiError(404, "notifications aren't on for this device")
-        return {"kinds": kinds, "all": KINDS}
+        # (whether it's the signed-in person's: a device the person before signed in on stays theirs until it's
+        # turned on again, and the page does that by itself, #313)
+        mine = (b.get("__subject") or access.OWNER_SUBJECT).key
+        return {"kinds": kinds, "all": KINDS, "yours": self.hub.push.who_of(endpoint) == mine}
 
     def phone_remove(self, q, b) -> dict:
         n = self.hub.push.unsubscribe(sub_id=str(b.get("id", "")))
@@ -4610,6 +4630,9 @@ class Api:
         from . import doctor
         from . import reach
         port = number(read_properties(self.m.server_dir / "server.properties"), "server-port", 25565)
+        if self.m.config.reach_way == "playit" or self.m.config.tunnel_address:
+            # (friends join through playit.gg's address: testing this home's address told them nothing, #308)
+            return asdict(doctor.playit_internet_check(self.m.config.tunnel_address, port))
         check = doctor.internet_check(self.m.http, port, self.d.state == "running")
         if check.status == doctor.OK:  # (remembered: it can be reached from the internet, so its whitelist goes on)
             reach.write_state(self.m.config.state_dir, port_test={"port": port, "ok": True, "at": int(time.time())})

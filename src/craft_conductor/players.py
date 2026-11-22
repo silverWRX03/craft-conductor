@@ -25,6 +25,9 @@ from .http import HttpClient, HttpError
 from .properties import read_properties, write_properties
 
 MOJANG_PROFILE = "https://api.mojang.com/users/profiles/minecraft"
+# The same lookup at Mojang's other address: asked when the first is busy (it limits how often it's asked, #307).
+MOJANG_PROFILE_2 = "https://api.minecraftservices.com/minecraft/profile/lookup/name"
+MOJANG_BUSY = "Mojang is busy right now (it limits how often names are looked up): try again in a minute"
 NAME_RE = re.compile(r"^[A-Za-z0-9_]{1,16}$")
 #: Bedrock players (through Geyser) on a server with Floodgate: their name is the prefix Floodgate puts
 #: before it ("." unless its config.yml says otherwise) and their Xbox gamertag, spaces made _ (#212).
@@ -313,18 +316,29 @@ class Players:
             return self._bedrock_lookup(gamertag)
         if self.properties.get("online-mode", "true") == "false":
             return offline_uuid(name), name
-        missing = f"there is no Minecraft account named {name!r}" + self._bedrock_hint()
-        try:
-            profile = self.http.get_json(f"{MOJANG_PROFILE}/{name}")
-        except HttpError as e:
-            if e.status in (204, 404):
-                raise PlayerError(missing) from e
-            raise PlayerError(f"couldn't look up {name!r} with Mojang: {e}") from e
-        except ValueError:  # an empty 204 response
-            raise PlayerError(missing) from None
-        if not profile or "id" not in profile:
-            raise PlayerError(missing)
+        profile = self._mojang(name)
+        if profile is None:
+            raise PlayerError(f"there is no Minecraft account named {name!r}" + self._bedrock_hint())
         return str(uuid.UUID(profile["id"])), profile.get("name", name)
+
+    def _mojang(self, name: str) -> dict | None:
+        """The account's profile from Mojang, or None when there's no account of that name. Mojang being
+        busy (or out of reach) is never "no such account": the other lookup is asked, then PlayerError."""
+        failure: HttpError | None = None
+        for base in (MOJANG_PROFILE, MOJANG_PROFILE_2):
+            try:
+                profile = self.http.get_json(f"{base}/{name}")
+            except HttpError as e:
+                if e.status in (204, 404):
+                    return None
+                failure = e
+                continue
+            except ValueError:  # an empty 204 response
+                return None
+            return profile if isinstance(profile, dict) and isinstance(profile.get("id"), str) else None
+        if failure is not None and failure.status == 429:
+            raise PlayerError(f"couldn't look up {name!r}: {MOJANG_BUSY}") from failure
+        raise PlayerError(f"couldn't look up {name!r} with Mojang: {failure.friendly if failure else 'no answer'}") from failure
 
     def _bedrock_lookup(self, gamertag: str) -> tuple[str, str]:
         """(Floodgate's uuid, its name for the player) for an Xbox gamertag, from Geyser's lookup."""
@@ -385,13 +399,24 @@ class Players:
                 if said is not None:
                     kind, text = said
                     if kind == "missing":
-                        raise PlayerError(f"there is no Minecraft account named {name!r}" + self._bedrock_hint()
-                                          if action != "kick" else f"{name} isn't online")
+                        if action == "kick":
+                            raise PlayerError(f"{name} isn't online")
+                        self._really_missing(name, gamertag)
+                        raise PlayerError(f"there is no Minecraft account named {name!r}" + self._bedrock_hint())
                     return text
                 return f"sent: {command}"
             self.send(command)
             return f"sent: {command}"
         return self._offline(action, name, clean_reason(reason))
+
+    def _really_missing(self, name: str, gamertag: str | None) -> None:
+        """The server said "That player does not exist", which it also says when Mojang was only busy
+        answering its lookup (#307): asked again here, and a busy Mojang or an account that is there
+        says so instead (raises PlayerError). Returns when there really is no such account."""
+        if gamertag is not None or self.properties.get("online-mode", "true") == "false":
+            return  # (Xbox accounts and offline servers: the server's word stands)
+        if self._mojang(name) is not None:  # (raises when Mojang is busy for us too)
+            raise PlayerError(f"the server couldn't find {name!r} because {MOJANG_BUSY[0].lower()}{MOJANG_BUSY[1:]}")
 
     def _offline(self, action: str, name: str, reason: str) -> str:
         if action in ("whitelist-on", "whitelist-off"):

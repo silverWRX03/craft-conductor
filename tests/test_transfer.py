@@ -268,3 +268,16 @@ def test_new_server_ids_keep_accented_letters():
     assert hubmod.slugify("Überwelt ☕ ñ") == "uberwelt-n"
     assert hubmod.slugify("☕☕") == "server"
     assert hubmod._folder_id("Rückkehr Café") == "r-ckkehr-caf"
+
+
+@pytest.mark.parametrize("server, expected", [
+    ("Rückkehr Café", "Rückkehr Café"),                 # (letters in any language are kept, #300)
+    ("Rückéhr", "Rückéhr"),                        # (an accent typed as its own character stays on its letter)
+    ("Ελληνικά 日本 сервер", "Ελληνικά 日本 сервер"),
+    ("a/b\c:d*e?f\"g<h>i|j", "abcdefghij"),             # (nothing a file name can't hold)
+    ("evil‮gpj.exe\x07", "evilgpj.exe"),           # (no direction or control characters)
+    ("...", "server"),
+])
+def test_an_export_keeps_the_servers_name_in_any_language(server, expected):
+    name = transfer.export_name(server)
+    assert name.startswith(expected + " ") and name.endswith(".craft-conductor.zip"), name

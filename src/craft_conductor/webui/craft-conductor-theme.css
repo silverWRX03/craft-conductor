@@ -111,6 +111,10 @@ input,select,textarea { background:var(--console-bg); color:var(--text); font-fa
 @media(max-width:1023px) {
   .app { grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,1fr); }
   .sidebar { position:fixed; inset-block:0; inset-inline-start:0; width:260px; height:calc(100 * var(--vh)); z-index:80; display:flex; flex-direction:column; align-items:stretch; padding:64px 0 16px; transform:translateX(-100%); visibility:hidden; }
+  /* On an iPhone, 100vh is the screen with Safari's address bar hidden, so the bottom of the menu (Sign out) sat
+     behind the bar (#345): the height that's visible where the browser knows it, and room above the home bar. */
+  @supports (height:100dvh) { .sidebar { height:calc(100dvh / var(--zoom)); } }
+  .sidebar { padding-bottom:calc(16px + env(safe-area-inset-bottom, 0px)); }
   [dir="rtl"] .sidebar { transform:translateX(100%); }
   .sidebar.open { transform:none; visibility:visible; }
   /* Room for the menu button above everything (the light theme's own .sidebar rule above would take it away), and only

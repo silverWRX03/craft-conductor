@@ -152,6 +152,12 @@ class Push:
             sub = next((s for s in self._load().get("subscriptions", []) if self._mine(s, endpoint, who)), None)
         return sub.get("kinds", DEFAULT_KINDS) if sub else None
 
+    def who_of(self, endpoint: str) -> str | None:
+        """Whose device this push address is ("owner", "user:<id>"; None when it isn't one here)."""
+        with self.lock:
+            sub = next((s for s in self._load().get("subscriptions", []) if s["endpoint"] == endpoint), None)
+        return sub.get("who") if sub else None
+
     def set_kinds(self, endpoint: str, kinds: list, who: str | None = None) -> list[str]:
         """What this device wants to hear about (its own push address names it)."""
         chosen = [k for k in KINDS if k in {str(x) for x in kinds or []}]

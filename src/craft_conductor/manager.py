@@ -532,6 +532,26 @@ class Manager:
         return new
 
     # --------------------------------------------------------------- upgrade
+    def _no_room_for_backup(self) -> str | None:
+        """Why the backup before an update won't fit on the disk (None: it will, or there's nothing to go by).
+        Its size is about the newest backup's, with some to spare (the world grows, and Minecraft still has to
+        save it). Asked after the update's files are downloaded, so they count too."""
+        from .safearchive import free_bytes, size_words
+        try:
+            backups = backup.list_backups(self.config.backups.dir)
+            newest = backups[-1].stat().st_size if backups else 0
+            empty = not (self.server_dir.exists() and any(self.server_dir.iterdir()))
+        except OSError:
+            return None
+        if not newest or empty:
+            return None
+        needed = int(newest * 1.1) + (64 << 20)
+        free = free_bytes(self.config.backups.dir)
+        if free is None or free >= needed:
+            return None
+        return (f"there isn't room for the backup before it: it needs about {size_words(needed)} and the disk has "
+                f"{size_words(free)} free. Free some space, or keep fewer backups")
+
     def apply(self, plan: Plan, server: ServerProcess | None = None, restart: bool = False,
               verify: bool | None = None, make_backup: bool = True, prepare=None) -> Result:
         """Apply ``plan``. If ``server`` is running it is stopped first.
@@ -578,6 +598,13 @@ class Manager:
             return Result(False, f"could not prepare update ({title}): the mods wouldn't start together. "
                           + " ".join(p.text for p in problems[:3]) + more
                           + " Change the version of a mod, or remove it, in Manage Mods.", server)
+
+        no_room = self._no_room_for_backup() if make_backup else None
+        if no_room:  # (before players are warned: an update that can't be made doesn't kick them, #310)
+            rmtree(self.staging_dir, ignore_errors=True)
+            message = f"Update not done ({title}): {no_room}. Nothing was changed, and the server kept running."
+            log.error("%s", message)
+            return Result(False, message, server)
 
         was_running = server is not None and server.running
         if was_running:

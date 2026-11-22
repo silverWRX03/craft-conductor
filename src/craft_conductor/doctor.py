@@ -267,6 +267,15 @@ def internet_check(http, port: int, running: bool) -> Check:
                  "Some internet providers don't allow it at all (CGNAT); Tailscale or a VPN works then.")
 
 
+def playit_internet_check(address: str, port: int) -> Check:
+    """For a server friends join through playit.gg: the test of this home's address doesn't apply (#308)."""
+    where = f" ({address})" if address else ""
+    return Check("internet", f"Reachable from the internet (port {port})", INFO,
+                 f"Friends outside your home join through playit.gg{where}, not through this home's address, so it isn't "
+                 "tested here: the playit.gg tunnel line says whether the tunnel works.",
+                 "To be sure, ask a friend outside your home to join with the playit.gg address.")
+
+
 # --------------------------------------------------------------- the report
 _SECRET_KEY = re.compile(r"(token|secret|password|passwd|webhook|api[_-]?key|key)\b", re.I)
 _SECRET_TEXT = [

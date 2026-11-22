@@ -625,3 +625,40 @@ def test_reach_changes_at_the_same_time_are_all_kept(tmp_path):
     [t.start() for t in threads]
     [t.join(30) for t in threads]
     assert errors == [] and len(reach.read_state(tmp_path)) == 50
+
+
+@pytest.mark.parametrize("set_up", ["way", "address"])
+def test_check_my_setup_doesnt_test_the_home_address_of_a_playit_server(hub_env, monkeypatch, set_up):
+    """A server friends join through playit.gg: Test from the internet tested <home address>:25565 and said it
+    can't be reached, which friends never use (#308). It says the test doesn't apply, and asks nothing outside."""
+    from craft_conductor import doctor
+    hub, c = hub_env
+    login(c)
+    d = hub.get("alpha")
+    if set_up == "way":
+        configmod.set_value(d.m.config.path, "reach", "way", json.dumps("playit"))
+    else:  # (an older server with only its playit.gg address saved)
+        configmod.set_value(d.m.config.path, "tunnel", "address", json.dumps("fun-cats.gl.joinmc.link"))
+    d.m.reload_config()
+    asked = []
+    monkeypatch.setattr(doctor, "internet_check", lambda *a, **k: asked.append(a) or doctor.Check("internet", "t", doctor.BAD, "unreachable"))
+    status, r, _ = c.post("/api/servers/alpha/doctor/internet")
+    assert status == 200 and asked == []
+    assert r["status"] == doctor.INFO and "join through playit.gg" in r["detail"]
+    if set_up == "address":
+        assert "fun-cats.gl.joinmc.link" in r["detail"]
+    assert "port_test" not in reach.read_state(d.m.config.state_dir)
+
+
+@pytest.mark.parametrize("way", ["home", "playit", "forward"])
+def test_setup_tried_again_keeps_how_friends_outside_join(tmp_path, way):
+    """A new server's setup failed; the retry (the setup page of the server, which has no Friends outside
+    your home choice) wrote craft-conductor.toml again without [reach] way (#301). It keeps the way chosen."""
+    from craft_conductor import setup as setupmod
+    root = tmp_path / "srv"
+    setupmod.configure(root, setupmod.SetupSpec.from_dict({"loader": "vanilla", "accept_eula": True, "reach": way}))
+    assert configmod.load(root).reach_way == way
+    again = setupmod.configure(root, setupmod.SetupSpec.from_dict({"loader": "vanilla", "accept_eula": True}))
+    assert again.reach_way == way
+    other = next(w for w in ("home", "playit") if w != way)   # (a way sent with the retry still wins)
+    assert setupmod.configure(root, setupmod.SetupSpec.from_dict({"loader": "vanilla", "accept_eula": True, "reach": other})).reach_way == other

@@ -368,3 +368,30 @@ def test_bedrock_players_show_as_online():
     assert LEFT.search("[12:00:01] [Server thread/INFO]: System chat: .SilverWRX03 left the game").group(1) == ".SilverWRX03"
     assert JOINED.search("[12:00:01] [Server thread/INFO]: Steve joined the game").group(1) == "Steve"
     assert JOINED.search("[12:00:01] [Server thread/INFO]: <Steve> Bob joined the game") is None
+
+
+def test_a_busy_mojang_is_never_no_such_account(server, http):
+    """Mojang answering a name lookup with 429 (too many lookups from one network) said "there is no
+    Minecraft account named …" (#307). The other lookup is asked; when both are busy it says so."""
+    from craft_conductor.http import HttpError
+    from craft_conductor.players import MOJANG_PROFILE_2
+    busy = lambda url: HttpError(url, 429, "HTTP 429")  # noqa: E731
+    http.json[f"{MOJANG_PROFILE}/Steve"] = busy(f"{MOJANG_PROFILE}/Steve")
+    http.json[f"{MOJANG_PROFILE_2}/Steve"] = {"id": "8667ba71b85a4004af54457a9734eed7", "name": "Steve"}
+    p = Players(server, http)
+    assert "Steve" in p.act("whitelist-add", "Steve")   # (stopped server: found through the other lookup)
+    assert read(server, "whitelist.json")[0]["uuid"] == "8667ba71-b85a-4004-af54-457a9734eed7"
+    http.json[f"{MOJANG_PROFILE}/Alex"] = busy(f"{MOJANG_PROFILE}/Alex")
+    http.json[f"{MOJANG_PROFILE_2}/Alex"] = busy(f"{MOJANG_PROFILE_2}/Alex")
+    with pytest.raises(PlayerError, match="Mojang is busy right now") as e:
+        p.act("whitelist-add", "Alex")
+    assert "no Minecraft account" not in str(e.value)
+    # A running server's "That player does not exist" while Mojang was busy for it.
+    said = ["[12:00:00] [Server thread/INFO]: That player does not exist"]
+    running = Players(server, http, lambda c: None, lambda command, parse, timeout: parse(said))
+    with pytest.raises(PlayerError, match="the server couldn't find 'Steve' because mojang is busy"):
+        running.act("whitelist-add", "Steve")    # (the account is there: Mojang was only busy)
+    with pytest.raises(PlayerError, match="Mojang is busy right now"):
+        running.act("whitelist-add", "Alex")     # (busy for us too)
+    with pytest.raises(PlayerError, match="no Minecraft account named 'Ghost'"):
+        running.act("whitelist-add", "Ghost")    # (really not there: 404)

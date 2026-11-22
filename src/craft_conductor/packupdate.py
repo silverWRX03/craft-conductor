@@ -155,6 +155,18 @@ CHANNELS = {1: "release", 2: "beta", 3: "alpha"}
 RANK = {"release": 0, "beta": 1, "alpha": 2}
 
 
+def _older(minecraft: str, than: str | None) -> bool:
+    """Whether Minecraft ``minecraft`` is older than ``than`` (releases only: snapshots and unknowns aren't)."""
+    from .setup import RELEASE, release_key
+    return bool(than and RELEASE.fullmatch(minecraft or "") and RELEASE.fullmatch(than)
+                and release_key(minecraft) < release_key(than))
+
+
+def _world_minecraft(m) -> str | None:
+    lk = m.lock
+    return lk.minecraft if lk.installed else (m.config.server.minecraft if m.config.server.minecraft != "latest" else None)
+
+
 def versions(m) -> dict:
     """The pack's version this server is on, and the newer ones (newest first, as stable as the one
     it's on or more): {"pack": {...}, "current": {...}, "newer": [{id, name, date, minecraft, channel}]}."""
@@ -183,7 +195,12 @@ def versions(m) -> dict:
     allowed = max(RANK.get(current["channel"], 0), 0)
     newer = sorted((v for v in listed if v["date"] > current["date"] and RANK.get(v["channel"], 2) <= allowed),
                    key=lambda v: v["date"], reverse=True)
-    return {"pack": rec.name, "current": current, "newer": newer[:NEWER]}
+    # Not offered: a version only for an older Minecraft than the world's (opening a world in an older Minecraft
+    # can damage it, #329). Packs publish the same version for several Minecraft versions.
+    world = _world_minecraft(m)
+    older = [v for v in newer if v["minecraft"] and all(_older(mc, world) for mc in v["minecraft"])]
+    newer = [v for v in newer if v not in older]
+    return {"pack": rec.name, "current": current, "newer": newer[:NEWER], "older": len(older), "world": world}
 
 
 # --------------------------------------------------------------- what changes
@@ -220,6 +237,10 @@ def plan(m, new: Pack) -> Plan:
     old, old_friends = state["mods"], state["friends"]
     listed = {f"{s.source}:{s.id}": s for s in cfg.mods}
     gone = set(state["removed"]) | {k for k in old if k not in listed}  # removed when it was set up, or since
+    world = _world_minecraft(m)
+    if _older(new.minecraft, world):  # (never: opening the world in an older Minecraft can damage it, #329)
+        raise ModpackError(f"{new.name} is for Minecraft {new.minecraft}, older than this server's {world}: opening the "
+                           "world in an older Minecraft can damage it. To play that version, make a new server from it")
     p = Plan(new, minecraft=new.minecraft if new.minecraft != (lk.minecraft or cfg.server.minecraft) else None)
     if new.loader_version and new.loader_version != (lk.loader_version if lk.installed else cfg.server.loader_version):
         p.loader_version = new.loader_version

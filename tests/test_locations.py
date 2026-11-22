@@ -399,3 +399,28 @@ def test_a_damaged_move_note_that_isnt_one_is_removed(tmp_path):
     (tmp_path / locmod.JOURNAL).write_text("[1, 2]", encoding="utf-8")
     assert "damaged" in locmod.recover(tmp_path, lambda extra: None)
     assert not (tmp_path / locmod.JOURNAL).exists()
+
+
+def test_a_server_folder_added_later_follows_the_chosen_backups_folder(tmp_path, monkeypatch):
+    """With a backups folder chosen, a server folder from elsewhere added to the list (`craft-conductor start` in
+    it) kept its backups in its own folder (#302). It follows the chosen folder, its earlier backups too; a
+    folder named in its craft-conductor.toml by hand stays."""
+    from craft_conductor import config as configmod, setup as setupmod
+    from craft_conductor.hub import Hub
+    home, B = tmp_path / "home", tmp_path / "My backups"
+    hub = Hub(home)
+    monkeypatch.setattr(type(hub), "backups_location", property(lambda self: B))
+    elsewhere = tmp_path / "games" / "Survival World"
+    setupmod.configure(elsewhere, setupmod.SetupSpec.from_dict({"loader": "vanilla", "motd": "Survival", "accept_eula": True}))
+    (elsewhere / "backups").mkdir()
+    (elsewhere / "backups" / "20260101-040000-scheduled.tar.gz").write_bytes(b"an earlier backup")
+    hub.add_folder(elsewhere)
+    assert configmod.load(elsewhere).backups.dir == B / "survival-world"
+    assert (B / "survival-world" / "20260101-040000-scheduled.tar.gz").read_bytes() == b"an earlier backup"
+    assert hub.discover()["survival-world"] == elsewhere.resolve()
+    # Its own choice of folder is kept.
+    mine = tmp_path / "games" / "Creative"
+    setupmod.configure(mine, setupmod.SetupSpec.from_dict({"loader": "vanilla", "motd": "Creative", "accept_eula": True}))
+    configmod.set_value(mine / configmod.CONFIG_NAME, "backups", "dir", configmod.toml_string(str(tmp_path / "Elsewhere")))
+    hub.add_folder(mine)
+    assert configmod.load(mine).backups.dir == tmp_path / "Elsewhere"
