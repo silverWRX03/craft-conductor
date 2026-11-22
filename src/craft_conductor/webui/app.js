@@ -988,7 +988,11 @@ $("#login-form").addEventListener("submit", async (e) => {
   } catch (err) { $("#login-error").textContent = err.message; }
 });
 
-$("#logout").addEventListener("click", async () => { await api("/api/logout", { method: "POST" }).catch(() => {}); bellSignedOut(true); showLogin(); });
+$("#logout").addEventListener("click", async () => {
+  await pushForget();
+  await api("/api/logout", { method: "POST" }).catch(() => {});
+  bellSignedOut(true); showLogin();
+});
 // There's no command window to close, so Craft Conductor is quit from here.
 $("#quit").addEventListener("click", async () => {
   const running = ((hubInfo && hubInfo.servers) || []).filter((s) => s.state === "running" || s.state === "starting");
@@ -8214,6 +8218,50 @@ function b64uBytes(text) {
   const s = atob(text.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - text.length % 4) % 4));
   return Uint8Array.from(s, (c) => c.charCodeAt(0));
 }
+const PUSH_OK = () => window.isSecureContext && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+// This device's notifications for whoever is signed in, with this Craft Conductor's key: a subscription the
+// browser kept from an earlier install (another key) is made again (#309).
+async function pushSubscribe(reg) {
+  const key = b64uBytes((await api("/api/hub/phone")).public_key);
+  let sub = await reg.pushManager.getSubscription();
+  const had = sub && sub.options && sub.options.applicationServerKey ? new Uint8Array(sub.options.applicationServerKey) : null;
+  if (sub && had && (had.length !== key.length || had.some((b, i) => b !== key[i]))) { await sub.unsubscribe(); sub = null; }
+  if (!sub) {
+    sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key }).catch(async (e) => {
+      const old = await reg.pushManager.getSubscription();  // (another key the browser didn't name: start again)
+      if (!old) throw e;
+      await old.unsubscribe();
+      return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+    });
+  }
+  const j = sub.toJSON();
+  return api("/api/hub/phone/subscribe", { method: "POST", body: { endpoint: j.endpoint, keys: j.keys, name: deviceName() } });
+}
+// After signing in: notifications allowed on this device go to the person signed in now. Craft Conductor not
+// knowing this device (a fresh install, #309), or it being the person's before (#313), is put right by
+// itself. True when this device gets notifications.
+let pushSynced = null;  // (once per sign-in: start() begins it, the phone banner waits for the same one)
+function pushSync(fresh = false) {
+  if (fresh || !pushSynced) pushSynced = pushSyncNow().catch(() => false);
+  return pushSynced;
+}
+async function pushSyncNow() {
+  if (!PUSH_OK() || Notification.permission !== "granted") return false;
+  const reg = await navigator.serviceWorker.getRegistration().catch(() => null);
+  const sub = reg && await reg.pushManager.getSubscription().catch(() => null);
+  if (!sub) return false;
+  const prefs = await api("/api/hub/phone/prefs", { method: "POST", body: { endpoint: sub.endpoint } }).catch(() => null);
+  if (prefs && prefs.yours) return true;
+  return !!(await pushSubscribe(reg).catch(() => null));
+}
+// Signing out: this device stops getting the signed-out person's notifications (the browser keeps its
+// permission, so the next person to sign in gets them, #313).
+async function pushForget() {
+  if (!PUSH_OK()) return;
+  const reg = await navigator.serviceWorker.getRegistration().catch(() => null);
+  const sub = reg && await reg.pushManager.getSubscription().catch(() => null);
+  if (sub) await api("/api/hub/phone/unsubscribe", { method: "POST", body: { endpoint: sub.endpoint } }).catch(() => null);
+}
 function deviceName() {
   const ua = navigator.userAgent;
   return /iPhone/.test(ua) ? "iPhone" : /iPad/.test(ua) ? "iPad" : /Android/.test(ua) ? (/Mobile/.test(ua) ? "Android phone" : "Android tablet")
@@ -8232,8 +8280,7 @@ async function phoneBanner() {
   const pushOk = secure && "PushManager" in window && "Notification" in window;
   let subscribed = false;
   if (standalone && pushOk) {
-    const reg = await navigator.serviceWorker.getRegistration().catch(() => null);
-    subscribed = !!(reg && await reg.pushManager.getSubscription().catch(() => null));
+    subscribed = await pushSync();
     if (subscribed) return;
   }
   if (standalone && !pushOk) return;  // (an older phone that can't get notifications from web apps)
@@ -8465,8 +8512,10 @@ function phoneCard({ deviceOnly = false } = {}) {  // deviceOnly: just this phon
   const load = async (checkTailscale = false) => {
     info = await api(`/api/hub/phone${checkTailscale ? "?tailscale=1" : ""}`).catch(() => null);
     if (info && info.tailscale) ts = info.tailscale;
+    await pushSync();  // (this device turned on again for whoever is signed in, when it was someone else's: first)
     mine = await subscription().catch(() => null);
     prefs = mine ? await api("/api/hub/phone/prefs", { method: "POST", body: { endpoint: mine.endpoint } }).catch(() => null) : null;
+    if (mine && !(prefs && prefs.yours)) { mine = null; prefs = null; }  // (not this Craft Conductor's, or someone else's: off, #309 #313)
     render();
   };
   const choices = () => {  // what this device hears about
@@ -8486,13 +8535,12 @@ function phoneCard({ deviceOnly = false } = {}) {  // deviceOnly: just this phon
     if (perm !== "granted") { toast("Notifications are blocked for this site: allow them in the browser's settings, then try again.", true); return; }
     const reg = await navigator.serviceWorker.register("/sw.js");
     await navigator.serviceWorker.ready;
-    const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uBytes(info.public_key) })
-      .catch((e) => { toast(e.message, true); return null; });
-    if (!sub) return;
-    const j = sub.toJSON();
-    const r = await api("/api/hub/phone/subscribe", { method: "POST", body: { endpoint: j.endpoint, keys: j.keys, name: deviceName() } })
-      .catch((e) => { toast(e.message, true); return null; });
-    if (r) toast("Notifications are on for this device");
+    const r = await pushSubscribe(reg).catch((e) => { toast(e.message, true); return null; });
+    if (r) {
+      toast("Notifications are on for this device");
+      const banner = $("#phone-banner");  // (its "Turn on notifications" is done: it goes, #312)
+      if (banner) banner.remove();
+    }
     load();
   };
   const disable = async () => {
@@ -10489,6 +10537,7 @@ async function start() {
   registerWorker();
   route();
   resumeSetupFollowup();
+  pushSync(true);
   phoneBanner();
 }
 start();

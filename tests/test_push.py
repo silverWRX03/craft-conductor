@@ -171,3 +171,32 @@ def test_a_damaged_list_of_phones_is_read_as_none(tmp_path):
     for subs in (5, None, [{"id": "a"}, 7, {"id": 3, "endpoint": "https://fcm.googleapis.com/x", "name": "Phone"}]):
         p.path.write_text(json.dumps({"subscriptions": subs}))
         assert p.send_now({"title": "t", "body": "b"}) == []  # (nobody to send to, and nothing raised)
+
+
+def test_a_device_another_person_signed_in_on_says_its_not_yours(hub_env):
+    """A phone turned on as an invited person, then signed in on as the owner: the page said "Notifications are
+    on" though the server still had it as the invited person's (#313). The page asks whose it is (yours), and
+    turns it on again for whoever is signed in; signing out takes it away from the person leaving."""
+    import time
+    from test_hub import login
+    from test_web import Client
+    hub, owner = hub_env
+    hub.ui.host = "0.0.0.0"   # (people can be invited)
+    token, _ = hub.ui.users.invite("Sam", {"alpha": ["status.view"]}, time.time())
+    hub.ui.users.accept(token, "sam", "Sam-Strong-Pass-4", time.time())
+    sam = Client(owner.base)
+    assert sam.post("/api/login", {"username": "sam", "password": "Sam-Strong-Pass-4"})[0] == 200
+    _, key, auth = phone()
+    device = {"endpoint": FCM, "keys": {"p256dh": key, "auth": auth}, "name": "Phone"}
+    assert sam.post("/api/hub/phone/subscribe", device)[0] == 200
+    assert sam.post("/api/hub/phone/prefs", {"endpoint": FCM})[1]["yours"] is True
+    login(owner)   # (the owner signs in on the same phone)
+    prefs = owner.post("/api/hub/phone/prefs", {"endpoint": FCM})[1]
+    assert prefs["yours"] is False   # (the page shows Turn on notifications here, or turns them on again itself)
+    assert owner.post("/api/hub/phone/subscribe", device)[0] == 200
+    assert owner.post("/api/hub/phone/prefs", {"endpoint": FCM})[1]["yours"] is True
+    assert [d["who"] for d in hub.push.subscriptions()] == ["owner"]
+    assert sam.post("/api/hub/phone/prefs", {"endpoint": FCM})[0] == 404   # (no longer Sam's)
+    # Signing out: the page takes the device away from the person signing out.
+    assert owner.post("/api/hub/phone/unsubscribe", {"endpoint": FCM})[1]["removed"] == 1
+    assert hub.push.subscriptions() == []

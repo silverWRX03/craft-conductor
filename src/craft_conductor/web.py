@@ -1962,7 +1962,10 @@ class HubApi:
             raise ApiError(404, str(e)) from None
         if kinds is None:
             raise ApiError(404, "notifications aren't on for this device")
-        return {"kinds": kinds, "all": KINDS}
+        # (whether it's the signed-in person's: a device the person before signed in on stays theirs until it's
+        # turned on again, and the page does that by itself, #313)
+        mine = (b.get("__subject") or access.OWNER_SUBJECT).key
+        return {"kinds": kinds, "all": KINDS, "yours": self.hub.push.who_of(endpoint) == mine}
 
     def phone_remove(self, q, b) -> dict:
         n = self.hub.push.unsubscribe(sub_id=str(b.get("id", "")))
