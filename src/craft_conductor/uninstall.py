@@ -420,12 +420,28 @@ def _carve(paths: Iterable[Path], keep: list[Path], home: Path) -> list[Path]:
     return out
 
 
-def _inventory(home: Path, choices: Choices, env: Mapping[str, str], runner: Runner | None) -> Inventory:
+def _found(home: Path) -> tuple[dict, dict, dict[str, Path]]:
+    """hub.json, the places, and the servers Craft Conductor manages in this home (by id)."""
     from . import hub as hubmod  # (heavy: only when planning)
-    state_dir = home / configmod.STATE_DIR
-    data = hubmod.read_hub_file(state_dir)
+    data = hubmod.read_hub_file(home / configmod.STATE_DIR)
     places = locations.read(data, home)
-    servers = hubmod.discover_servers(home, data, places["servers"])
+    return data, places, hubmod.discover_servers(home, data, places["servers"])
+
+
+def servers_of(home: Path) -> dict[str, Path]:
+    """The servers ``plan(home, ...)`` sees, by id: their folders are what ``stop_servers`` returns
+    for the ones still running."""
+    return _found(Path(home))[2]
+
+
+def game_dir(root: Path) -> Path:
+    """A server's own server folder (``[server] dir`` in its craft-conductor.toml, read only)."""
+    return _table_dir(root, _server_toml(root), "server", "server")
+
+
+def _inventory(home: Path, choices: Choices, env: Mapping[str, str], runner: Runner | None) -> Inventory:
+    state_dir = home / configmod.STATE_DIR
+    data, places, servers = _found(home)
     inv = Inventory(home=home, state_dir=state_dir, user_home=_user_home(env), choices=choices, env=env, runner=runner,
                     hub=data, places=places, servers=servers, configs={sid: _server_toml(r) for sid, r in servers.items()})
     if not choices.servers:

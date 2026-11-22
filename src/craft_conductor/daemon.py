@@ -34,6 +34,9 @@ SELF_CHECK_INTERVAL = 24 * 3600
 MANUAL_WAIT = 12 * 3600  # how long setup waits for mods to be downloaded by hand
 MANUAL_POLL = 10         # seconds between looks in the manual-downloads folder while it waits
 RESTART_WARNING = 60     # seconds players are given when Restart is pressed with them on (and the owner agrees)
+STOP_WARNING = 60        # seconds players are given when a stop request asks for a warning (the uninstall)
+STOP_REQUEST = "stop-requested"
+PID_FILE = "daemon.pid"
 
 
 # Which server the current thread is working for, so that with several servers in one
@@ -50,7 +53,7 @@ def set_current_server(server_id: str | None) -> None:
 
 
 def pid_path(manager: Manager) -> Path:
-    return manager.config.state_dir / "daemon.pid"
+    return manager.config.state_dir / PID_FILE
 
 
 def request_path(manager: Manager) -> Path:
@@ -62,7 +65,7 @@ def self_update_request_path(manager: Manager) -> Path:
 
 
 def stop_request_path(manager: Manager) -> Path:
-    return manager.config.state_dir / "stop-requested"
+    return manager.config.state_dir / STOP_REQUEST
 
 
 def pid_alive(pid: int) -> bool:
@@ -88,18 +91,29 @@ def pid_alive(pid: int) -> bool:
 
 
 def running_pid(manager: Manager) -> int | None:
+    return running_pid_in(manager.config.state_dir)
+
+
+def running_pid_in(state_dir: Path) -> int | None:
+    """The `craft-conductor run` looking after the server whose state folder this is, if one runs
+    (read without loading its craft-conductor.toml: the uninstall)."""
     try:
-        pid = int(pid_path(manager).read_text().strip())
-    except (FileNotFoundError, ValueError):
+        pid = int((state_dir / PID_FILE).read_text().strip())
+    except (OSError, ValueError):
         return None
     return pid if pid_alive(pid) else None
 
 
-def request_stop(manager: Manager) -> None:
+def request_stop(manager: Manager, warning: str = "") -> None:
     """Ask a running daemon to stop the server cleanly and exit (works on every OS)."""
-    path = stop_request_path(manager)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("stop")
+    request_stop_in(manager.config.state_dir, warning)
+
+
+def request_stop_in(state_dir: Path, warning: str = "") -> None:
+    """``request_stop`` by the server's state folder. ``warning``: why, told in game to the players on
+    it, who are given a minute first (STOP_WARNING); without one it stops straight away."""
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / STOP_REQUEST).write_text("stop" + (f"\n{warning}" if warning else ""), encoding="utf-8")
 
 
 class LogBuffer:
@@ -575,7 +589,7 @@ class Daemon:
         while not self.stop_requested.is_set():
             try:  # (one step going wrong is logged, and the next tick tries again: never the server left without a manager)
                 if stop_request_path(self.m).exists():
-                    stop_request_path(self.m).unlink(missing_ok=True)
+                    self._take_stop_request()
                     log.info("stop requested")
                     self.stop_requested.set()
                     break
@@ -616,6 +630,22 @@ class Daemon:
                 last_error = str(e)
             self.stop_requested.wait(self.tick)
         return self.exit_code
+
+    def _take_stop_request(self) -> None:
+        """A stop asked for from outside (request_stop): with a warning and players on, they're told
+        in game and given a minute first (STOP_WARNING; Craft Conductor closing meanwhile cuts it short)."""
+        path = stop_request_path(self.m)
+        try:
+            words = path.read_text(encoding="utf-8").partition("\n")[2]
+        except (OSError, UnicodeDecodeError):
+            words = ""
+        path.unlink(missing_ok=True)
+        words = "".join(c for c in words if c.isprintable()).strip()[:120]
+        if words and self.proc and self.proc.running and self.players:
+            self.proc.say(f"Server stopping in 1 minute: {words}")
+            self.stop_requested.wait(STOP_WARNING)
+            if self.proc and self.proc.running:
+                self.proc.say("Stopping now!")
 
     def _watch_config(self) -> None:
         """craft-conductor.toml edited by hand while this runs: read it again, so a schedule turned off in

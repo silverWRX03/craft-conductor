@@ -932,8 +932,221 @@ def cmd_restore(args) -> int:
     return 0
 
 
+# ---------------------------------------------------------------- uninstall
+UNINSTALL_REPORT = "Craft Conductor uninstall report.txt"
+UNINSTALL_WARNING = "Craft Conductor is being removed from this computer"  # (told in game to players on a server)
+UNINSTALL_STOP_UNANSWERED = 20.0  # seconds: a stop request nothing has taken by then has nobody to take it
+UNINSTALL_POLL = 0.2
+UNINSTALL_FLAGS = {"servers": "--delete-servers", "backups": "--delete-backups", "exports": "--delete-exports",
+                   "games": "--delete-games"}
+UNINSTALL_SHOWN = 8  # paths listed for each part in the plan
+NOTHING_CHANGED = "Nothing was changed."
+
+
+def uninstall_runner():
+    """What changes the computer (uninstall.SystemRunner); the tests put one in that only records."""
+    from . import uninstall
+    return uninstall.SystemRunner()
+
+
+def _uninstall_home(args) -> tuple[Path, bool]:
+    """The home to remove, and whether it's a server run the classic way: Craft Conductor's home
+    folder, or the folder given with -C (or this one) when it holds a server run with `craft-conductor
+    run` that the home doesn't list, which keeps its state in its own folder (config.state_dir, R11)."""
+    from . import uninstall
+    home = default_home()
+    root = args.root.resolve()
+    if (root / configmod.CONFIG_NAME).exists() and root != home \
+            and not any(r.resolve() == root for r in uninstall.servers_of(home).values()):
+        return root, True
+    return home, False
+
+
+def _server_status(root: Path) -> dict | None:
+    """What the server in ``root`` answers on its port on this computer (``online``: players on), or
+    None when nothing answers there like a Minecraft server."""
+    from . import tunnel, uninstall
+    port = number(read_properties(uninstall.game_dir(root) / "server.properties"), "server-port", 25565)
+    try:
+        return tunnel.ping("127.0.0.1", port, timeout=2)
+    except (OSError, ValueError):
+        return None
+
+
+def _stop_timeout(root: Path) -> int:
+    """How long the server in ``root`` is given to stop (``[server] stop_timeout``, read only)."""
+    import tomllib
+    try:
+        data = tomllib.loads(configmod.read_text(root / configmod.CONFIG_NAME))
+        return configmod.parse_duration(data["server"]["stop_timeout"])
+    except (OSError, ValueError, KeyError, TypeError, ConfigError):
+        return 120
+
+
+def _stop_for_uninstall(roots: list[Path], check_ports: bool = True, unanswered: float | None = None) -> list[Path]:
+    """Stop every server in ``roots`` that a `craft-conductor run` looks after, the usual way (its stop
+    request, as `craft-conductor stop`): cleanly, with players on told in game and given a minute.
+    Returns the folders of those still running: one that didn't stop in time, one whose request
+    nothing took, and (``check_ports``) one answering on its port with nothing looking after it."""
+    import time
+    from .daemon import STOP_REQUEST, STOP_WARNING, request_stop_in, running_pid_in
+    unanswered = UNINSTALL_STOP_UNANSWERED if unanswered is None else unanswered
+    started = time.monotonic()
+    asked: dict[Path, float] = {}
+    for root in roots:
+        state = root / configmod.STATE_DIR
+        if running_pid_in(state):
+            print(f"  Stopping the server in {root}...", flush=True)
+            request_stop_in(state, UNINSTALL_WARNING)
+            asked[root] = started + STOP_WARNING + _stop_timeout(root) + 30
+    still: list[Path] = []
+    while asked:
+        time.sleep(UNINSTALL_POLL)
+        now = time.monotonic()
+        for root, deadline in list(asked.items()):
+            state = root / configmod.STATE_DIR
+            if not running_pid_in(state):
+                del asked[root]
+            elif (state / STOP_REQUEST).exists() and now - started > unanswered:
+                (state / STOP_REQUEST).unlink(missing_ok=True)  # (whatever runs there isn't looking after the server)
+                still.append(root)
+                del asked[root]
+            elif now > deadline:
+                still.append(root)
+                del asked[root]
+    if check_ports:
+        still += [root for root in roots if root not in still and _server_status(root) is not None]
+    return still
+
+
+def _uninstall_plan_text(home: Path, classic: bool, parts: list, running: dict[Path, int | None]) -> str:
+    lines = [f"Removing Craft Conductor from this computer: {home}"
+             + (" (a server run with `craft-conductor run`)" if classic else ""), ""]
+    if running:
+        lines.append("First, the running servers are stopped cleanly (players on them are told in game and given a minute):")
+        for root, online in running.items():
+            lines.append(f"  - {root}" + (f" ({online} player{'s' if online != 1 else ''} on)" if online else ""))
+        lines.append("")
+    lines.append("What happens:")
+    for p in parts:
+        if not p.present:
+            continue
+        hint = f" ({UNINSTALL_FLAGS[p.key]} deletes them)" if p.kept and p.key in UNINSTALL_FLAGS else ""
+        lines.append(f"  - {p.label}: {p.action}{hint}")
+        if not p.kept:
+            lines += [f"      {path}" for path in p.paths[:UNINSTALL_SHOWN]]
+            if len(p.paths) > UNINSTALL_SHOWN:
+                lines.append(f"      ... and {len(p.paths) - UNINSTALL_SHOWN} more")
+        if p.manual:
+            lines.append(f"      for you: {p.manual}")
+    absent = list(dict.fromkeys(p.label for p in parts if not p.present))
+    if absent:
+        lines += ["", "Not here, nothing to do: " + ", ".join(absent)]
+    if any(p.key == "lockbox" and p.present and not p.kept for p in parts):
+        lines += ["", "Warning: the backup lock key is deleted, so the locked parts of the backups you keep (passwords, "
+                      "keys, IP bans, logs) won't open anywhere afterwards; the rest of each backup still restores. "
+                      "To keep the key, add --keep-lockbox-key."]
+    return "\n".join(lines)
+
+
+def _worlds(roots) -> int:
+    from . import uninstall, world
+    n = 0
+    for root in roots:
+        try:
+            n += world.level_dir(uninstall.game_dir(root)).is_dir()
+        except (world.WorldError, OSError):
+            continue
+    return n
+
+
+def _remove_empty_home(home: Path) -> str | None:
+    """Craft Conductor's own folder (~/craft-conductor), when everything in it went: a report line."""
+    if home != (Path.home() / "craft-conductor").resolve():
+        return None  # (a home set with CRAFT_CONDUCTOR_HOME may be a folder that's there for more than this)
+    from . import folders
+    try:
+        if folders.link_stat(os.lstat(home)) or any(home.iterdir()):
+            return None
+        os.rmdir(home)  # (only ever an empty folder)
+    except OSError:
+        return None
+    return f"The Craft Conductor folder: deleted the empty folder {home}"
+
+
+def cmd_uninstall(args) -> int:
+    """Remove Craft Conductor from this computer (roadmap 38): the plan first; --yes (or yes at the
+    question) does it. What's kept and what goes is uninstall.py's; this asks, stops the servers and
+    reports."""
+    from . import folders, uninstall
+    from .daemon import running_pid_in
+    from .hub import running_hub, running_panel
+    home, classic = _uninstall_home(args)
+    if pid := running_hub(home):
+        url = running_panel(home)
+        print(f"Craft Conductor is running on this home ({home}): pid {pid}" + (f", control panel {url}" if url else "") + ".")
+        print("Stop it first, then run `craft-conductor uninstall` again: Quit in the control panel, Ctrl+C in its "
+              "window, or `craft-conductor stop`.")
+        if sys.platform.startswith("linux"):
+            print("If it runs as a background service: systemctl --user stop craft_conductor.service "
+                  "(sudo systemctl stop craft_conductor.service for one set up for the whole computer).")
+        return 1
+    choices = uninstall.Choices(servers=args.delete_servers, backups=args.delete_backups, exports=args.delete_exports,
+                                games=args.delete_games, keep_lockbox_key=args.keep_lockbox_key)
+    runner = uninstall_runner()
+    parts = uninstall.plan(home, choices, runner=runner)  # (R14: the real runner, so what's there is asked, not guessed)
+    servers = uninstall.servers_of(home)
+    running: dict[Path, int | None] = {}
+    for root in servers.values():
+        if running_pid_in(root / configmod.STATE_DIR):
+            status = _server_status(root)
+            running[root] = status.get("online") if status else None
+    print(_uninstall_plan_text(home, classic, parts, running))
+    if not args.yes:
+        if not interactive():
+            print(f"\n{NOTHING_CHANGED} To do it, run it again with --yes (and the same options).")
+            return 0
+        if _ask("\nRemove Craft Conductor now? (y/n)", "n", ("y", "n")) != "y":
+            print(NOTHING_CHANGED)
+            return 1
+        if choices.servers and servers and any(p.key == "servers" and p.present and not p.kept for p in parts):
+            n, w = len(servers), _worlds(servers.values())
+            answer = input(f"This deletes {n} server{'s' if n != 1 else ''} and {w} world{'s' if w != 1 else ''} for good "
+                           f"({', '.join(servers)}). Type {n} to delete them: ")
+            if answer.strip() != str(n):
+                print(NOTHING_CHANGED)
+                return 1
+        for root, online in running.items():
+            if online and _ask(f"{online} player{' is' if online == 1 else 's are'} on the server in {root}. Stop it? "
+                               "They're told in game and given a minute first (y/n)", "n", ("y", "n")) != "y":
+                print(f"{NOTHING_CHANGED} Run `craft-conductor uninstall` again when they've left.")
+                return 1
+    print()
+
+    def progress(key: str, label: str, status: str) -> None:
+        if status == "working":
+            print(f"  {label}...", flush=True)
+    report = uninstall.run(parts, runner=runner, progress=progress, stop_servers=lambda: _stop_for_uninstall(
+        list(servers.values()), check_ports=choices.servers or choices.backups))
+    if not classic and (line := _remove_empty_home(home)):
+        report.removed.append(line)
+    text = report.as_text()
+    print("\n" + text)
+    if report.manual:
+        folder = folders.downloads_dir()
+        try:
+            if folder is None:
+                raise OSError("there's no Downloads folder here")
+            saved = folder / UNINSTALL_REPORT
+            saved.write_text(text, encoding="utf-8")
+            print(f"This report is saved in {saved}")
+        except OSError as e:
+            print(f"This report couldn't be saved ({getattr(e, 'strerror', None) or e}): copy it from here.")
+    return 1 if report.failed else 0
+
+
 # ------------------------------------------------------------------- main
-NOTICE_EXEMPT = {"notice", "licenses", "stop", "status", "web-password", "join"}  # never blocked by the notice
+NOTICE_EXEMPT = {"notice", "licenses", "stop", "status", "web-password", "join", "uninstall"}  # never blocked by the notice
 
 
 def interactive() -> bool:
@@ -1159,6 +1372,19 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("archive", nargs="?")
     s.add_argument("-y", "--yes", action="store_true")
     s.set_defaults(fn=cmd_restore)
+
+    s = sub.add_parser("uninstall", help="remove Craft Conductor from this computer: shows what would happen; "
+                                         "--yes does it (servers, backups, exports and games are kept unless chosen)")
+    s.add_argument("-y", "--yes", action="store_true", help="do it, without asking (the options below are the confirmation)")
+    s.add_argument("--delete-servers", action="store_true", help="also delete the servers and their worlds")
+    s.add_argument("--delete-backups", action="store_true", help="also delete the backups")
+    s.add_argument("--delete-exports", action="store_true", help="also delete the exports")
+    s.add_argument("--delete-games", action="store_true",
+                   help="also remove the games Craft Conductor set up in Minecraft launchers")
+    s.add_argument("--keep-lockbox-key", action="store_true",
+                   help="keep the backup lock key, so Craft Conductor installed here again can open kept backups' "
+                        "locked parts (passwords, keys, IP bans, logs)")
+    s.set_defaults(fn=cmd_uninstall)
     return p
 
 
