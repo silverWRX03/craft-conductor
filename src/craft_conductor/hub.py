@@ -594,8 +594,20 @@ class Hub:
     def add_folder(self, root: Path) -> None:
         """Also list a server folder that lives somewhere else (e.g. where craft-conductor was started)."""
         root = root.resolve()
-        if root == self.home or root.parent == self.servers_dir:
+        if root == self.home or root.parent == self.servers_dir or root in self._extra_roots():
             return
+        # It joins the list: its backups go where the others' do, when a backups folder was chosen (#302).
+        # Done before it's listed, so an open control panel never picks it up with its own folder.
+        if self.backups_location is not None and (root / configmod.CONFIG_NAME).exists():
+            try:
+                if self._backups_literal(configmod.load(root)) in (None, "backups"):
+                    found = self.discover()
+                    sid, n = _folder_id(root.name), 2
+                    while sid in found:
+                        sid, n = f"{_folder_id(root.name)}-{n}", n + 1
+                    self._imported_backups(root, sid)
+            except (ConfigError, OSError, ValueError) as e:
+                log.warning("%s keeps its backups in its own folder: %s", root, e)
 
         def change(data: dict) -> None:
             extra = [p for p in data.get("extra", []) if isinstance(p, str)]
