@@ -20,6 +20,7 @@ its fix will say which version it's in.
 - For a server friends join through playit.gg, **Check my setup → Test from the internet** tested your home's address and said the server "can't be reached from the internet", an address friends never use. It says friends join through playit.gg and points to the playit.gg tunnel line instead (#308).
 - With a folder chosen for backups (**Craft Conductor settings → Folders**), a server folder from elsewhere added to the list (with `craft-conductor start` in it) kept its backups in its own folder. It follows the chosen folder, with the backups it had; a backups folder set by hand in its `craft-conductor.toml` stays (#302).
 - After a new server's setup failed, trying again forgot how friends outside your home join: the server's Friends page said "Not chosen yet". The way chosen when the server was made is kept, and the setup page says which it is (#301).
+- A server made with `craft-conductor create` in the servers folder while the control panel was open said "not installed yet" until it was started. The panel sees the Minecraft version as soon as create finishes (#303).
 
 ## 0.30.6 (2026-11-15)
 

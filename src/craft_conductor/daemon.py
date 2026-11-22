@@ -594,6 +594,7 @@ class Daemon:
                     self.submit("update check", self.check_for_updates, requested, target)
                 if idle:
                     self._watch_config()
+                    self._watch_lock()
                 self._run_schedules(idle)  # (busy too: a time that comes meanwhile waits, it isn't skipped)
                 if idle:
                     self._watch_lag()
@@ -616,6 +617,29 @@ class Daemon:
                 last_error = str(e)
             self.stop_requested.wait(self.tick)
         return self.exit_code
+
+    def _watch_lock(self) -> None:
+        """A server installed from outside while it's listed here: `craft-conductor create` into the servers
+        folder, picked up before it finished, showed "not installed yet" until a Start (#303). While it isn't
+        installed, its lock file is looked at again when it changes (one stat a tick, only then)."""
+        if self.m.lock.installed or (self.proc is not None and self.proc.running):
+            return
+        from . import lock as lockmod
+        try:
+            stamp = (self.m.config.root / lockmod.LOCK_NAME).stat().st_mtime_ns
+        except OSError:
+            return
+        if stamp == getattr(self, "_lock_stamp", None):
+            return
+        try:
+            newer = lockmod.load(self.m.config.root)
+        except ValueError:
+            return  # (still being written: looked at again next tick)
+        self._lock_stamp = stamp
+        if newer.installed:
+            self.m.lock = newer
+            self.next_check = time.monotonic()  # (what it says about updates was worked out for an empty server)
+            log.info("found Minecraft %s installed in %s", newer.minecraft, self.m.config.root)
 
     def _watch_config(self) -> None:
         """craft-conductor.toml edited by hand while this runs: read it again, so a schedule turned off in
