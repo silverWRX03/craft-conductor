@@ -8,6 +8,7 @@ import os
 import subprocess
 import sys
 import tarfile
+import time
 import urllib.parse
 from pathlib import Path
 
@@ -565,3 +566,27 @@ def test_a_java_download_that_was_cut_off_is_tidied(tmp_path):
         os.utime(p, (past, past))
     Store(root).tidy()
     assert not old.exists() and going.exists()
+
+
+def test_a_note_whose_process_number_went_to_another_program_is_stale(tmp_path, http):
+    """A server's Java ended long ago and Windows gave its process number to Chrome: its note kept the old
+    release forever (#315). A process that started after the note was written isn't the one that wrote it."""
+    cfg = server(tmp_path, "S")
+    jm = JavaManager(cfg, http, platform_fn=LINUX_X64)
+    publish(http, 21, "jdk-21.0.4+7")
+    old = jm.install(21)
+    other = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])   # (the other program)
+    try:
+        jm.lease(str(old.binary), other.pid)
+        (old.dir / LEASES / str(other.pid)).write_text(str(int(time.time()) - 3600))   # (noted an hour ago)
+        assert jm.store.running(old) == []                      # (not the process that wrote the note)
+        assert not (old.dir / LEASES / str(other.pid)).exists()  # (and the stale note is gone)
+        jm.lease(str(old.binary), other.pid)                     # (noted now: it counts)
+        assert jm.store.running(old) == [other.pid]
+        (old.dir / LEASES / str(other.pid)).write_text(str(int(time.time()) - 3600))
+        publish(http, 21, "jdk-21.0.5+11")
+        jm.update()                                              # (tidies: the old release goes)
+        assert not old.dir.exists()
+    finally:
+        other.kill()
+        other.wait()

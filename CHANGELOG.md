@@ -21,6 +21,7 @@ its fix will say which version it's in.
 - With a folder chosen for backups (**Craft Conductor settings → Folders**), a server folder from elsewhere added to the list (with `craft-conductor start` in it) kept its backups in its own folder. It follows the chosen folder, with the backups it had; a backups folder set by hand in its `craft-conductor.toml` stays (#302).
 - After a new server's setup failed, trying again forgot how friends outside your home join: the server's Friends page said "Not chosen yet". The way chosen when the server was made is kept, and the setup page says which it is (#301).
 - A server made with `craft-conductor create` in the servers folder while the control panel was open said "not installed yet" until it was started. The panel sees the Minecraft version as soon as create finishes (#303).
+- After **Update shared Java**, the old release (about 190 MB) could stay forever: a note left by a server's Java that had ended named a process number Windows later gave to another program (Chrome, say), so it counted as still in use. A note only counts while its process is the one that wrote it (#315).
 
 ## 0.30.6 (2026-11-15)
 

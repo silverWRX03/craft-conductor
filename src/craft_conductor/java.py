@@ -27,6 +27,7 @@ import platform
 import re
 import shutil
 import subprocess
+import sys
 import tarfile
 import threading
 import time
@@ -393,6 +394,48 @@ def _alive(pid: int) -> bool:
         return True  # (can't tell: count it as running)
 
 
+def _started(pid: int) -> float | None:
+    """When process ``pid`` started (seconds since 1970), or None when that can't be read."""
+    try:
+        if os.name == "nt":
+            import ctypes
+            from ctypes import wintypes
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel32.OpenProcess.restype = wintypes.HANDLE
+            kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+            kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+            handle = kernel32.OpenProcess(0x1000, False, int(pid))  # (QUERY_LIMITED_INFORMATION)
+            if not handle:
+                return None
+            try:
+                created, exited, kernel, user = (wintypes.FILETIME() for _ in range(4))
+                if not kernel32.GetProcessTimes(handle, ctypes.byref(created), ctypes.byref(exited),
+                                                ctypes.byref(kernel), ctypes.byref(user)):
+                    return None
+                return ((created.dwHighDateTime << 32) | created.dwLowDateTime) / 1e7 - 11644473600
+            finally:
+                kernel32.CloseHandle(handle)
+        if sys.platform.startswith("linux"):
+            with open(f"/proc/{int(pid)}/stat") as f:
+                ticks = int(f.read().rsplit(")", 1)[1].split()[19])  # (field 22: started, in ticks after boot)
+            with open("/proc/stat") as f:
+                boot = next(int(line.split()[1]) for line in f if line.startswith("btime "))
+            return boot + ticks / os.sysconf("SC_CLK_TCK")
+    except (OSError, ValueError, IndexError, StopIteration, AttributeError):
+        return None
+    return None  # (macOS: not read; the note counts as long as the process number is in use)
+
+
+def _same_process(pid: int, noted: float | None) -> bool:
+    """Whether process ``pid`` is still the one that wrote its note (at ``noted``). A note left by a Java that
+    ended can name a process number Windows has since given to another program (Chrome): that program
+    started after the note was written, and the note is stale (#315). When it can't be told, it counts."""
+    if noted is None:
+        return True
+    started = _started(pid)
+    return started is None or started <= noted + 5  # (the note is written just after the process starts)
+
+
 class Store:
     """The folder of downloaded runtimes every server on this computer shares."""
 
@@ -472,7 +515,11 @@ class Store:
         for note in notes:
             if not note.name.isdigit():
                 continue
-            if _alive(int(note.name)):
+            try:
+                noted = float(note.read_text().strip())
+            except (OSError, ValueError):
+                noted = None
+            if _alive(int(note.name)) and _same_process(int(note.name), noted):
                 pids.append(int(note.name))
             else:
                 note.unlink(missing_ok=True)
