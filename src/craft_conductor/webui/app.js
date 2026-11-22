@@ -6013,7 +6013,8 @@ function browserPanel(params, host) {
   const showDetails = async (m) => {
     st.active = `${m.source}:${m.id}`;
     highlight(st.active);
-    fill(details, h("p", { class: "empty" }, `Loading ${m.name}…`));
+    el.classList.add("showing");  // (a phone: the mod's page over the list)
+    fill(details, toList(), h("p", { class: "empty" }, `Loading ${m.name}…`));
     const p = await api(`${base}/project?source=${m.source}&id=${encodeURIComponent(m.id)}`).catch((e) => { toast(e.message, true); return null; });
     if (!p || st.active !== `${m.source}:${m.id}`) return;
     const key = `${p.source}:${p.id}`;
@@ -6051,7 +6052,7 @@ function browserPanel(params, host) {
         location.hash = "#new";
       }
     } }, "Use this modpack") : null;
-    fill(details,
+    fill(details, toList(),
       h("div", { class: "browse-head" },
         p.icon ? h("img", { src: p.icon, alt: "", referrerpolicy: "no-referrer" }) : h("div", { class: "noicon" }),
         h("div", { class: "grow" }, h("h2", {}, p.name), h("div", { class: "muted" }, p.summary),
@@ -6140,20 +6141,32 @@ function browserPanel(params, host) {
     fill(category, h("option", { value: "" }, "All categories"), r ? r.categories.map((c) => h("option", { value: c.id }, c.name)) : []);
   };
 
-  const el = h("div", { class: "browse" },
+  // On a phone the results get the screen (#331): the filters other than the search fold into Filters, the
+  // Add selected bar stays at the bottom, and a mod's page opens over the list (Back to the list).
+  const phoneWide = window.matchMedia("(max-width: 760px)");
+  const filters = h("details", { class: "browse-more", open: !phoneWide.matches }, h("summary", {}, "Filters"),
+    h("div", { class: "browse-more-rows" },
+      h("div", { class: "row" }, source, sort),
+      envSel ? h("div", { class: "row" }, envSel) : null,
+      h("div", { class: "row" }, category, version),
+      earlyRow));
+  phoneWide.addEventListener("change", () => { if (filters.isConnected && !phoneWide.matches) filters.open = true; });
+  const el = h("div", { class: "browse mod-browser" },
     h("div", { class: "browse-left" },
       h("div", { class: "browse-filters" },
         h("div", { class: "row" }, h("strong", { class: "grow" }, forPlayers ? "Mods for players" : { modpack: "Modpacks", plugin: "Plugins", mod: "Mods" }[noun]),
           loader ? h("span", { class: "tag" }, loader) : null,
           host ? null : h("a", { class: "btn ghost small", href: target === "setup" ? "#new" : `#s/${target}/mods` }, "Back")),  // (in a side pane: its "Back to …" bar)
         q,
-        h("div", { class: "row" }, source, sort),
-        envSel ? h("div", { class: "row" }, envSel) : null,
-        h("div", { class: "row" }, category, version),
-        earlyRow),
+        filters),
       list,
       h("div", { class: "browse-footer" }, count, addBtn)),
     details);
+  const toList = () => h("button", { type: "button", class: "btn small browse-back", onclick: () => {
+    el.classList.remove("showing");
+    const active = list.querySelector(".result.active");
+    if (active) active.focus();
+  } }, "← Back to the list");
   return { el, start: () => { q.focus(); loadCategories(); loadAdded().then(search); }, stop: () => pager.stop() };
 }
 

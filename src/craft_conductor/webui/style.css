@@ -542,6 +542,10 @@ body.browse-mode main { padding: 0; overflow: hidden; }
   :root:not([data-motion="normal"]) .stage > main, :root:not([data-motion="normal"]) .browse-rail,
   :root:not([data-motion="normal"]) .inpage-browser { transition: none; animation: none; }
 }
+/* (on a wide screen the filters are always out, and the mod's page is beside the list) */
+.browse-more > summary { display: none; }
+.browse-more-rows { display: grid; gap: 8px; }
+.browse-back { display: none; }
 @media (max-width: 760px) {
   .browse-rail { inset-block-end: auto; width: 100%; height: 48px; flex-direction: row; justify-content: center; padding: 10px; border-inline-end: 0; border-bottom: 1px solid var(--border); }
   .inpage-browser { inset-block-start: 48px; inset-inline-start: 0; overflow: auto; }
@@ -550,6 +554,22 @@ body.browse-mode main { padding: 0; overflow: hidden; }
   .browse { grid-template-columns: 1fr; grid-template-rows: calc(60 * var(--vh)) auto; height: auto; }
   body.browse-mode main { overflow: auto; }
   .browse-right { padding: 16px; }
+  /* The mod browser on a phone (#331): the list gets the screen (the filters fold into Filters), the Add selected
+     bar stays at its bottom, and a mod's page opens over the list instead of below it. */
+  .browse.mod-browser { display: flex; flex-direction: column; height: calc(100 * var(--vh)); }
+  @supports (height: 100dvh) { .browse.mod-browser { height: calc(100dvh / var(--zoom)); } }
+  .inpage-browser > .browse.mod-browser { height: 100%; }  /* (beside the page: as tall as its pane) */
+  /* (and that pane is the whole screen, under its Back to … bar: the page's own top bar takes too much of it) */
+  .stage:has(> .inpage-browser > .browse.mod-browser) > .browse-rail { position: fixed; inset-block-start: 0; z-index: 85; }
+  .inpage-browser:has(> .browse.mod-browser) { position: fixed; inset: 48px 0 0 0; z-index: 85; overflow: hidden; }
+  .browse.mod-browser .browse-left { flex: 1; min-height: 0; border-inline-end: 0; }
+  .browse.mod-browser .browse-filters { padding: 10px 12px; gap: 6px; }
+  .browse.mod-browser .browse-footer { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+  .browse.mod-browser .browse-right { display: none; }
+  .browse.mod-browser.showing .browse-left { display: none; }
+  .browse.mod-browser.showing .browse-right { display: block; flex: 1; min-height: 0; overflow: auto; }
+  .browse-more > summary { display: list-item; cursor: pointer; padding: 6px 0; min-height: 32px; }
+  .browse-back { display: inline-flex; margin-bottom: 12px; }
 }
 
 /* the friend's page (craft-conductor join) */
