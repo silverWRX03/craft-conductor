@@ -738,7 +738,7 @@ const VIEW_NEEDS = { dashboard: ["status.view"], console: ["logs.view"], players
   updates: ["updates.check", "updates.apply"], mods: ["mods.view"], friends: ["friends.share"],
   backups: ["backups.make", "server.export"], java: ["runtime.configure"],
   settings: ["settings.safe", "runtime.configure", "updates.apply", "backups.delete", "server.delete", "server.export"],
-  setup: ["runtime.configure"] };
+  setup: ["runtime.configure", "mods.manage"] };  // (Manage mods: the hand-download box while setup waits, #334)
 function canView(view, sid = server) { return isOwner() || canAny(VIEW_NEEDS[view] || [], sid); }
 const USERNAME_KEY = "craft-conductor-sign-in-with-username";
 let lastJobSeen = null;
@@ -7580,7 +7580,8 @@ views.servers = () => {
           : h("div", { class: "muted small" }, `${s.players} / ${s.max_players} players` + (s.port ? ` · port ${s.port}` : ""), s.update ? " · update ready" : ""),
         s.job ? h("div", { class: "row small" }, h("span", { class: "spinner" }), `${s.job.name}…`) : null,
         s.state === "unavailable" ? null : h("div", { class: "row mt-s" },
-          s.setup_pending ? (can("runtime.configure", s.id) ? h("a", { class: "btn primary", href: `#s/${s.id}/setup`, "data-fkey": `${s.id}:power` }, s.job ? "See progress" : "Finish setup") : null)
+          s.setup_pending ? (can("runtime.configure", s.id) ? h("a", { class: "btn primary", href: `#s/${s.id}/setup`, "data-fkey": `${s.id}:power` }, s.job ? "See progress" : "Finish setup")
+            : s.job && can("mods.manage", s.id) ? h("a", { class: "btn primary", href: `#s/${s.id}/setup`, "data-fkey": `${s.id}:power` }, "See progress") : null)
             : !can("server.power", s.id) ? null
             : s.state === "stopped"
               // (each button names its server for a screen reader: "Start Alpha", not "Start" again and again, #217)
@@ -10268,7 +10269,18 @@ views.setup = () => {
     });
   };
 
+  // Someone invited with Manage mods but not the server's settings: setup's progress and its hand-download
+  // box, never the form (#334).
+  const formless = !isNew && !can("runtime.configure");
+  const waitForOwner = (message) => fill(main, h("h1", { class: "view-title" }, "This server isn't set up yet"),
+    message ? h("div", { class: "notice bad" }, h("strong", {}, "Setup didn't finish: "), failureText(message, server)) : null,
+    h("p", { class: "muted" }, "The server's owner chooses how it's set up. When setup waits for mods to be downloaded by hand, they're on this page for you to download."));
   (async () => {
+    if (formless) {
+      const s = status || await api("/api/status").catch(() => ({}));
+      if (s.job && s.job.name === "set up server") { st.submitted = true; renderProgress(); } else { st.submitted = false; waitForOwner(); }
+      return;
+    }
     opts = await api(isNew ? "/api/hub/setup" : "/api/setup").catch((e) => { toast(e.message, true); return null; });
     if (!opts) return;
     if (!st.prefilled && opts.current) {  // an existing craft-conductor.toml: start from its choices
@@ -10295,11 +10307,14 @@ views.setup = () => {
   $("#main").replaceChildren(main);
   return {
     refresh: () => { if (opts && !st.submitted) renderForm(); },
+    // (someone without the form: setup started while they had this page open, so show its progress)
+    onStatus: (s) => { if (formless && !st.submitted && s.job && s.job.name === "set up server") { st.submitted = true; renderProgress(); } },
     onJobDone: () => {
       const last = status && status.last_job;
       if (!last || last.name !== "set up server") return;
       if (modManagerOpen && modManagerOpen.owner === "manual-downloads") closeModManager(true);
       if (last.ok) setupFinished();
+      else if (formless) { st.submitted = false; clearTimers(); every(2000, refreshStatus); waitForOwner(last.message); }
       else { st.submitted = false; st.playersOnlyDone = null; clearTimers(); every(2000, refreshStatus); renderForm(last.message); }
     },
   };
