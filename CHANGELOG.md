@@ -4,7 +4,7 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
-## 0.30.7 (not released yet)
+## 0.30.7 (2026-11-22)
 
 **Fixed**
 - Importing a world (or a modpack or an exported server) that held a file with `?`, `*`, `<`, `>`, `"` or `|` in its name failed with "[Errno 22] Invalid argument" on Windows, and nothing was imported. Such a file is left out like the other names Windows can't make, and the rest comes in (#314).

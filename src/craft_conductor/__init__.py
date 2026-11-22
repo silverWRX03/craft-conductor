@@ -1,3 +1,3 @@
 """craft-conductor - a forever Minecraft server manager."""
 
-__version__ = "0.30.6"
+__version__ = "0.30.7"
