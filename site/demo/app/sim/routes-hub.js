@@ -552,7 +552,7 @@
     "POST /api/hub/playit/install": () => { throw sim.explain("Craft Conductor would download and check playit.gg's program, then install it. The demo can't install programs."); },
     "GET /api/hub/cloudflare": () => ({ installed: false, version: "", download: { state: "idle" }, hours: (rel().cloudflare || {}).hours || 4,
       downsides: (rel().cloudflare || {}).downsides || [], terms: "https://www.cloudflare.com/website-terms/", about: (rel().cloudflare || {}).about || "",
-      error: "", running: false, address: "", ends: null, mac: false, strong: hub().auth.strong }),
+      error: "", running: false, address: "", ends: null, closed: null, mac: false, strong: hub().auth.strong }),
     "POST /api/hub/cloudflare/download": () => { throw sim.explain("Craft Conductor would download Cloudflare's program. The demo can't download programs."); },
     "POST /api/hub/cloudflare/start": () => { throw sim.explain("Craft Conductor would put the control panel on the internet for a few hours through Cloudflare. The demo stays in your browser."); },
     "POST /api/hub/cloudflare/stop": () => ({ installed: false, running: false, address: "", download: { state: "idle" }, downsides: [], strong: true }),
