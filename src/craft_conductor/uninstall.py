@@ -28,11 +28,21 @@ Craft Conductor's own entries: it may be the person's Documents folder. A server
 (``stop_servers``) is kept, with its own backups.
 
 Everything that changes the computer goes through a ``Runner``: tests pass one that only records
-calls; ``SystemRunner`` is the real one.
+calls; ``SystemRunner`` is the real one. So does everything only the computer itself can tell (Windows
+Firewall's rules, the registry) and the router: a runner without those methods gets the cautious
+answer (see ``Runner``), never the real thing.
+
+The system parts are read without Craft Conductor running: router port mappings from hub.json
+(``upnp.mapped``, the ports it forwarded), Tailscale Serve from hub.json (``tunnels.tailscale``), a
+running Cloudflare quick tunnel from ``.craft-conductor/tools/cloudflared.pid``, the Linux services
+from their unit files (``service.plan``: only units for this home's panel and servers), the invite
+link handler from the registry (through the runner) or its desktop entry, and the firewall rules from
+Windows Firewall (through the runner).
 """
 
 from __future__ import annotations
 
+import base64
 import os
 import platform
 import stat
@@ -50,7 +60,8 @@ README = locations.README
 DECLINED = 1223  # (Windows' ERROR_CANCELLED: the administrator prompt was answered No)
 # The fixed order (servers are stopped before all of these, by run()'s stop_servers).
 ORDER = ("tunnels", "router", "firewall", "service", "invite", "games", "exports", "backups", "servers",
-         "lockbox", "state", "program")
+         "lockbox", "state", "program", "listed")
+LINGER = Path("/var/lib/systemd/linger")  # (systemd's record of each account with lingering on)
 
 
 # ------------------------------------------------------------------ what's chosen, what's planned
@@ -77,7 +88,20 @@ class Outcome:
 class Runner(Protocol):
     """Everything that changes the computer. ``run`` returns the exit code (``elevated``: with
     administrator rights, DECLINED when the prompt is answered No; ``detached``: started and left
-    running, 0 once it has started)."""
+    running, 0 once it has started).
+
+    A runner may also have these (``SystemRunner`` does; a runner without one gets the cautious
+    answer noted, never the real computer):
+
+    * ``firewall_rules() -> list[str] | None``: the names of Craft Conductor's own Windows Firewall
+      rules (None: they couldn't be read; without it, as None);
+    * ``registry_has(key) -> bool``: an ``HKCU\\...`` key is there (without it: taken as there);
+    * ``router_remove(ports) -> [(port, protocol, why)]``: take these port mappings back on the router
+      (UPnP), returning the ones it refused; raises when no router answers (without it: the ports are
+      listed for the person);
+    * ``stop_process(pid, exe) -> bool``: stop that process if it's still that program (without it:
+      listed for the person).
+    """
 
     def run(self, argv: list[str], *, elevated: bool = False, detached: bool = False) -> int: ...
 
@@ -568,14 +592,315 @@ def _program_part(inv: Inventory) -> Part:
                 remove=remove)
 
 
+# ------------------------------------------------------------------ the system parts
+def _ask(inv: Inventory, question: str, *args, default=None):
+    """The runner's answer to something only the computer can tell (it changes nothing); ``default``
+    when there's no runner, it can't answer, or answering failed."""
+    fn = getattr(inv.runner, question, None)
+    if not callable(fn):
+        return default
+    try:
+        return fn(*args)
+    except Exception:  # (can't tell: the cautious default)
+        return default
+
+
+def _absent(key: str, label: str, inv: Inventory) -> Part:
+    return Part(key=key, label=label, present=False, action="nothing here", user_home=inv.user_home)
+
+
+def _tailscale_part(inv: Inventory) -> Part:
+    from . import tailscale
+    label = "Tailscale Serve"
+    tunnels = inv.hub.get("tunnels")
+    saved = tunnels.get("tailscale") if isinstance(tunnels, dict) else None
+    exe = tailscale.exe() if isinstance(saved, dict) else None
+    if not exe:
+        return _absent("tunnels", label, inv)  # (never set up, or Tailscale isn't installed any more)
+    funnel = bool(saved.get("funnel"))
+    *first, last = tailscale.unserve_commands(funnel)
+    by_hand = "; ".join("tailscale " + " ".join(args) for args in (*first, last))
+    where = "your devices and the internet (Funnel)" if funnel else "your devices on Tailscale"
+
+    def remove(runner: Runner) -> Outcome:
+        for args in first:
+            runner.run([exe, *args])
+        code = runner.run([exe, *last])
+        if code != 0:
+            return Outcome(failed=[f"{label}: Tailscale didn't switch it off (error {code})"],
+                           manual=[f"Switch off Tailscale Serve: {by_hand}"])
+        return Outcome(removed=[f"{label}: switched off the control panel's address for {where}"])
+    return Part(key="tunnels", label=label, present=True,
+                action=f"switched off: the control panel's address for {where} (the Tailscale app itself stays)",
+                user_home=inv.user_home, remove=remove)
+
+
+def _cloudflare_part(inv: Inventory) -> Part:
+    from . import tunnels
+    label = "Cloudflare quick tunnel"
+    found = tunnels.recorded_cloudflared(inv.state_dir / "tools")
+    if found is None:
+        return _absent("tunnels", label, inv)
+    pid, exe = found
+    by_hand = f"If cloudflared (process {pid}) is still running, end it (Windows: Task Manager; elsewhere: kill {pid})"
+
+    def remove(runner: Runner) -> Outcome:
+        stop = getattr(runner, "stop_process", None)
+        if not callable(stop):
+            return Outcome(manual=[by_hand])
+        if stop(pid, exe):
+            return Outcome(removed=[f"{label}: stopped (the control panel is off the internet)"])
+        return Outcome()  # (it had closed already)
+    return Part(key="tunnels", label=label, present=True,
+                action="stopped, if it's still running (the downloaded cloudflared goes with the settings)",
+                user_home=inv.user_home, remove=remove)
+
+
+def _tunnels_parts(inv: Inventory) -> list[Part]:
+    return [_tailscale_part(inv), _cloudflare_part(inv)]
+
+
+def _recorded_mappings(inv: Inventory) -> list[tuple[int, str]]:
+    """The port mappings Craft Conductor made on the router, as hub.json recorded them (``upnp.mapped``)."""
+    u = inv.hub.get("upnp")
+    mapped = u.get("mapped") if isinstance(u, dict) else None
+    out: list[tuple[int, str]] = []
+    for x in mapped if isinstance(mapped, list) else []:
+        if (isinstance(x, list) and len(x) == 2 and type(x[0]) is int and 1 <= x[0] <= 65535
+                and x[1] in ("TCP", "UDP") and (x[0], x[1]) not in out):
+            out.append((x[0], x[1]))
+    return out
+
+
+def _ports(ports: Iterable[tuple]) -> str:
+    return ", ".join(f"{p[1]} {p[0]}" for p in ports)
+
+
+def _router_part(inv: Inventory) -> Part:
+    label = "Router port forwarding"
+    mapped = _recorded_mappings(inv)
+    if not mapped:
+        return _absent("router", label, inv)
+
+    def left(ports: list[tuple], why: str) -> str:
+        return (f"{label}: your router may still forward {_ports(ports)} to this computer ({why}); remove "
+                f"{'it' if len(ports) == 1 else 'them'} in the router's settings (port forwarding, or UPnP)")
+
+    def remove(runner: Runner) -> Outcome:
+        ask = getattr(runner, "router_remove", None)
+        if not callable(ask):
+            return Outcome(manual=[left(mapped, "the router wasn't asked")])
+        try:
+            refused = list(ask(mapped))
+        except Exception as e:  # (no router answered, or the network failed)
+            return Outcome(manual=[left(mapped, str(e) or "no router answered")])
+        no = {(r[0], r[1]) for r in refused}
+        out = Outcome()
+        done = [m for m in mapped if m not in no]
+        if done:
+            out.removed.append(f"{label}: took back {_ports(done)}")
+        if refused:
+            why = "; ".join(sorted({str(r[2]) for r in refused if len(r) > 2 and r[2]})) or "the router refused"
+            out.manual.append(left(refused, why))
+        return out
+    return Part(key="router", label=label, present=True,
+                action=f"taken back through the router (UPnP): {_ports(mapped)}", user_home=inv.user_home, remove=remove)
+
+
+FIREWALL_BY_HAND = ("run `craft-conductor firewall remove` while Craft Conductor is still installed, or later, in "
+                    "PowerShell as administrator: Remove-NetFirewallRule -Group 'Craft Conductor'")
+
+
+def _firewall_part(inv: Inventory) -> Part:
+    from . import firewall
+    label = "Windows Firewall rules"
+    if _system() != "windows":
+        return _absent("firewall", label, inv)
+    rules = _ask(inv, "firewall_rules")
+    if isinstance(rules, list) and not rules:
+        return _absent("firewall", label, inv)
+    names = [str(r) for r in rules] if isinstance(rules, list) else None
+    script = firewall.remove_script(names) if names else firewall.remove_group_script()
+    argv = ["powershell.exe", "-NoProfile", "-NonInteractive", "-EncodedCommand",
+            base64.b64encode(script.encode("utf-16-le")).decode("ascii")]
+    what = ", ".join(names) if names else 'Craft Conductor\'s rules (the group "Craft Conductor"), if there are any'
+
+    def remove(runner: Runner) -> Outcome:
+        try:
+            code = runner.run(argv, elevated=True)
+        except Exception as e:
+            return Outcome(failed=[f"{label}: {e}"], manual=[f"{label}: {FIREWALL_BY_HAND}"])
+        if code == DECLINED:
+            return Outcome(manual=[f"{label}: still there (Windows' administrator prompt was answered No): "
+                                   f"{FIREWALL_BY_HAND}"])
+        if code != 0:
+            return Outcome(failed=[f"{label}: Windows couldn't remove them (error {code})"],
+                           manual=[f"{label}: {FIREWALL_BY_HAND}"])
+        return Outcome(removed=[f"{label}: removed {what}"])
+    return Part(key="firewall", label=label, present=True,
+                action=f"removed, with one Windows administrator prompt: {what}", user_home=inv.user_home, remove=remove)
+
+
+def _euid() -> int:
+    return getattr(os, "geteuid", lambda: -1)()
+
+
+def subprocess_runner(runner: Runner) -> Callable[..., subprocess.CompletedProcess]:
+    """``runner`` shaped like ``subprocess.run``, for service.py (ruling R1): the exit code only."""
+    def run(args, **_ignored) -> subprocess.CompletedProcess:
+        return subprocess.CompletedProcess(list(args), runner.run(list(args)), "", "")
+    return run
+
+
+def _our_unit(p) -> bool:
+    """The unit file is there and is this home's (its folder, and for the panel its home): a unit of the
+    same name for another folder is someone else's."""
+    try:
+        if not p.path.is_file():
+            return False
+        have = set(p.path.read_text(encoding="utf-8").splitlines())
+    except (OSError, UnicodeDecodeError):
+        return False
+    need = [x for x in p.text.splitlines() if x.startswith(("WorkingDirectory=", "Environment=CRAFT_CONDUCTOR_HOME="))]
+    return bool(need) and all(x in have for x in need)
+
+
+def _other_units(folder: Path, ours: set[str]) -> bool:
+    """Another unit is in the person's systemd user folder (or it can't be told), so lingering stays."""
+    try:
+        for entry in folder.iterdir():
+            if entry.name in ours:
+                continue
+            if entry.is_dir():
+                if entry.name.endswith((".wants", ".requires")) and any(x.name not in ours for x in entry.iterdir()):
+                    return True
+            elif entry.suffix in (".service", ".timer", ".socket", ".path", ".target", ".mount"):
+                return True
+    except OSError:
+        return True
+    return False
+
+
+def _service_part(inv: Inventory) -> Part:
+    from . import service
+    label = "Background service"
+    if _system() != "linux":
+        return _absent("service", label, inv)
+    units, seen = [], set()
+    for root, panel in [*((r, False) for r in inv.servers.values()), (inv.home, True)]:  # (the panel last)
+        for system in (False, True):
+            try:
+                p = service.plan(root, system, panel=panel)
+            except Exception:
+                continue
+            if _lex(p.path) not in seen and _our_unit(p):
+                seen.add(_lex(p.path))
+                units.append((root, panel, p))
+    if not units:
+        return _absent("service", label, inv)
+    root_now = _euid() == 0
+    user = _env(inv.env, "USER") or _env(inv.env, "LOGNAME")
+    if not user:
+        import getpass
+        user = getpass.getuser()
+
+    def by_hand(p) -> str:
+        return (f"{label}: {p.name} is a system service, which only root can remove: sudo systemctl disable --now "
+                f"{p.name} && sudo rm {p.path} && sudo systemctl daemon-reload")
+
+    def remove(runner: Runner) -> Outcome:
+        out, gone = Outcome(), []
+        for root, panel, p in units:
+            if p.system and not root_now:
+                out.manual.append(by_hand(p))
+                continue
+            try:
+                service.uninstall(root, subprocess_runner(runner), system=p.system, panel=panel)
+            except Exception as e:
+                out.failed.append(f"{label}: {p.name} couldn't be removed ({getattr(e, 'strerror', None) or e})")
+                if p.system:
+                    out.manual.append(by_hand(p))
+                continue
+            out.removed.append(f"{label}: removed {p.name} ({p.path})")
+            if not p.system:
+                gone.append(p)
+        if gone and (LINGER / user).exists() and not _other_units(gone[0].path.parent, {p.name for p in gone}):
+            if runner.run(["loginctl", "disable-linger", user]) == 0:
+                out.removed.append(f"{label}: switched off lingering for {user} (nothing else of yours needed it)")
+            else:
+                out.manual.append(f"{label}: lingering is still on for {user}; if nothing else needs it: "
+                                  f"sudo loginctl disable-linger {user}")
+        return out
+    names = ", ".join(p.name for _, _, p in units)
+    needs_root = [p.name for _, _, p in units if p.system and not root_now]
+    action = f"removed: {names}; lingering is switched off too unless other services of yours use it"
+    if needs_root:
+        action += f" (listed for you: {', '.join(needs_root)} needs root)"
+    return Part(key="service", label=label, present=True, action=action, user_home=inv.user_home, remove=remove)
+
+
+def _invite_part(inv: Inventory) -> Part:
+    from . import urlhandler
+    label = "Invite link handler"
+    system = _system()
+    if system == "windows":
+        present = bool(_ask(inv, "registry_has", urlhandler.REGISTRY_KEY, default=True))
+        where = urlhandler.REGISTRY_KEY
+    elif system == "linux":
+        entry = urlhandler.desktop_file(inv.env)
+        present = os.path.lexists(entry)
+        where = str(entry)
+    else:
+        present = False  # (macOS: there isn't one)
+    if not present:
+        return _absent("invite", label, inv)
+
+    def remove(runner: Runner) -> Outcome:
+        if system == "linux" and (why := refusal(entry, inv.user_home, [entry])):
+            return Outcome(failed=[f"{label}: {entry} wasn't deleted ({why})"])
+        done = urlhandler.unregister(runner, system=system, env=inv.env)
+        return Outcome(removed=[f"{label}: {done}"] if done else [])
+    return Part(key="invite", label=label, present=True,
+                action=f"removed: craft-conductor:// links stop opening Craft Conductor ({where})",
+                user_home=inv.user_home, remove=remove)
+
+
+LISTED = (
+    "Tailscale and playit.gg: Craft Conductor didn't install these apps, so they stay; remove them the usual way "
+    "(Windows: Settings > Apps; Mac: the Applications folder; Linux: your package manager) if you don't use them any more",
+    "Paired phones: remove the control panel app from the home screen, and delete Craft Conductor's passkey in the "
+    "phone's password manager",
+    "Browsers: uninstall the control panel app if you installed it (the browser's apps page), and clear the control "
+    "panel's site data in the browser's settings",
+    "Friends' computers and computers you set up over SSH have their own Craft Conductor: uninstall it on each of them "
+    "(craft-conductor uninstall)",
+    "Docker: remove containers running Craft Conductor with docker rm -f, and its image with docker rmi, on the "
+    "computer running Docker",
+)
+
+
+def _listed_part(inv: Inventory) -> Part:
+    """What Craft Conductor can't reach from here: listed for the person, never touched."""
+    return Part(key="listed", label="Left for you", present=True,
+                action="listed for you: the Tailscale and playit.gg apps, phones, browsers, friends' and SSH "
+                       "computers, Docker",
+                user_home=inv.user_home, remove=lambda runner: Outcome(manual=list(LISTED)))
+
+
 Builder = Callable[[Inventory], "Part | list[Part] | None"]
 BUILDERS: dict[str, Builder] = {
+    "tunnels": _tunnels_parts,
+    "router": _router_part,
+    "firewall": _firewall_part,
+    "service": _service_part,
+    "invite": _invite_part,
     "exports": _exports_part,
     "backups": _backups_part,
     "servers": _servers_part,
     "lockbox": _lockbox_part,
     "state": _state_part,
     "program": _program_part,
+    "listed": _listed_part,
 }
 
 
@@ -711,7 +1036,9 @@ class SystemRunner:
                 subprocess.Popen(command, start_new_session=True, close_fds=True, stdin=subprocess.DEVNULL,
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             return 0
-        return subprocess.run(command, stdin=subprocess.DEVNULL, capture_output=True, timeout=self.timeout).returncode
+        from .desktop import NO_WINDOW
+        return subprocess.run(command, stdin=subprocess.DEVNULL, capture_output=True, timeout=self.timeout,
+                              **NO_WINDOW).returncode
 
     def delete_tree(self, path: Path) -> None:
         from . import removal
@@ -744,6 +1071,46 @@ class SystemRunner:
             except FileNotFoundError:
                 pass
         delete(sub.strip("\\"))
+
+    # (the optional questions and jobs a Runner may have: see Runner)
+    def firewall_rules(self) -> list[str] | None:
+        """The names of Craft Conductor's own Windows Firewall rules (one PowerShell read, no
+        administrator rights); None when they couldn't be read."""
+        from . import firewall
+        if not firewall.available():
+            return []
+        state = firewall.read(fresh=True)
+        return None if state is None else [r["name"] for r in firewall.own_rules(state)]
+
+    def registry_has(self, key: str) -> bool:
+        """An ``HKCU\\...`` key of this account's is there."""
+        import winreg
+        top, _, sub = key.partition("\\")
+        if top.upper() not in ("HKCU", "HKEY_CURRENT_USER") or not sub.strip("\\"):
+            raise ValueError(f"only this account's own keys are looked at, not {key}")
+        try:
+            winreg.OpenKey(winreg.HKEY_CURRENT_USER, sub.strip("\\")).Close()
+        except FileNotFoundError:
+            return False
+        return True
+
+    def router_remove(self, ports: list[tuple[int, str]]) -> list[tuple[int, str, str]]:
+        """Take these mappings back on the router (UPnP); the ones it refused, with why. Raises
+        upnp.UpnpError (or OSError) when no router answers."""
+        from . import upnp
+        gw = upnp.find(timeout=3.0)
+        refused = []
+        for port, proto in ports:
+            try:
+                upnp.remove(gw, port, proto)
+            except upnp.UpnpError as e:
+                refused.append((port, proto, str(e)))
+        return refused
+
+    def stop_process(self, pid: int, exe: str) -> bool:
+        """Stop the cloudflared Craft Conductor started, only if that process is still it."""
+        from . import tunnels
+        return tunnels.stop_cloudflared(pid, exe)
 
 
 def _command_line(argv: list[str]) -> list[str] | str:

@@ -99,8 +99,9 @@ def test_nothing_ticked_removes_the_state_and_keeps_servers_backups_and_exports(
 
 def test_the_plan_is_in_the_fixed_order(world):
     keys = [p.key for p in uninstall.plan(world["home"], Choices(), env=world["env"])]
-    known = [k for k in uninstall.ORDER if k in keys]
-    assert keys == known
+    once = list(dict.fromkeys(keys))  # (a builder may give several parts: the tunnels do)
+    assert once == [k for k in uninstall.ORDER if k in keys]
+    assert keys == sorted(keys, key=once.index)  # (each key's parts together)
     assert keys.index("exports") < keys.index("backups") < keys.index("servers") < keys.index("state") < keys.index("program")
 
 
@@ -565,3 +566,480 @@ def test_when_stopping_the_servers_fails_outright_every_server_is_kept(world):
     assert not _held(runner, world["home"] / "servers")
     assert world["home"] / "exports" in runner.deleted() and world["state"] in runner.deleted()
     assert any("couldn't reach the servers" in line for line in report.failed)
+
+
+# ------------------------------------------------------------------ Task 2: the system parts
+# Nothing here reaches the real router, Windows Firewall, registry, Tailscale or systemd: the fake
+# runner answers every question about the computer, and the modules' own lookups are monkeypatched.
+import base64
+import dataclasses
+
+from craft_conductor import service, tailscale, tunnels, upnp, urlhandler
+
+
+class SystemFake(FakeRunner):
+    """A fake runner that also answers what only the computer can tell (firewall rules, the registry,
+    the router, a running cloudflared). ``codes``: exit code by program name (or "elevated")."""
+
+    def __init__(self, *, rules=None, registry=(), router=(), processes=(), codes=None, raise_on=None):
+        super().__init__()
+        self.rules, self.registry, self.processes = rules, set(registry), set(processes)
+        self.router = router  # None: no router answers; else the ports the router refuses to remove
+        self.codes = codes or {}
+        self.raise_on = raise_on
+
+    def run(self, argv, *, elevated=False, detached=False):
+        super().run(argv, elevated=elevated, detached=detached)
+        name = argv[0].replace("\\", "/").rsplit("/", 1)[-1].lower()  # (a Windows path, on Linux too)
+        if self.raise_on and self.raise_on in (name, "elevated" if elevated else None):
+            raise OSError("the program couldn't be started")
+        return self.codes.get("elevated" if elevated else name, 0)
+
+    def firewall_rules(self):
+        self.calls.append(("firewall_rules",))
+        return self.rules
+
+    def registry_has(self, key):
+        self.calls.append(("registry_has", key))
+        return key in self.registry
+
+    def router_remove(self, ports):
+        self.calls.append(("router_remove", list(ports)))
+        if self.router is None:
+            raise upnp.UpnpError("no router answered")
+        return [(port, proto, "the router said no") for port, proto in ports if (port, proto) in self.router]
+
+    def stop_process(self, pid, exe):
+        self.calls.append(("stop_process", pid, exe))
+        return pid in self.processes
+
+    def ran(self) -> list[list[str]]:
+        return [c[1] for c in self.calls if c[0] == "run"]
+
+
+def _hub_data(world, data: dict) -> None:
+    (world["state"] / "hub.json").write_text(json.dumps(data), encoding="utf-8")
+
+
+def _system_parts(world, runner, system="windows", monkeypatch=None, env=None) -> dict[str, list[uninstall.Part]]:
+    if monkeypatch is not None:
+        monkeypatch.setattr(uninstall, "_system", lambda: system)
+    out: dict[str, list[uninstall.Part]] = {}
+    for p in uninstall.plan(world["home"], Choices(), env=env or world["env"], runner=runner):
+        out.setdefault(p.key, []).append(p)
+    return out
+
+
+def _one(parts, key, label_has="") -> uninstall.Part:
+    [part] = [p for p in parts[key] if label_has.lower() in p.label.lower()]
+    return part
+
+
+def test_the_system_parts_come_first_in_the_fixed_order(world, monkeypatch):
+    keys = [p.key for p in uninstall.plan(world["home"], Choices(), env=world["env"], runner=SystemFake())]
+    for key in ("tunnels", "router", "firewall", "service", "invite"):
+        assert key in keys, key
+    first = [k for k in keys if k in ("tunnels", "router", "firewall", "service", "invite")]
+    assert keys[:len(first)] == first
+    assert keys.index("invite") < keys.index("exports")
+
+
+# --- the router
+def test_router_mappings_recorded_in_hub_json_are_removed_through_the_router(world, monkeypatch):
+    _hub_data(world, {"upnp": {"enabled": True, "mapped": [[25565, "TCP"], [19132, "UDP"]]}})
+    runner = SystemFake()
+    router = _one(_system_parts(world, runner, monkeypatch=monkeypatch), "router")
+    assert router.present and "25565" in router.action and "19132" in router.action
+    report = uninstall.run([router], runner=runner)
+    assert ("router_remove", [(25565, "TCP"), (19132, "UDP")]) in runner.calls
+    assert not report.failed and not report.manual
+    assert any("25565" in line for line in report.removed)
+
+
+def test_no_router_found_lists_the_ports_for_the_person(world, monkeypatch):
+    _hub_data(world, {"upnp": {"enabled": False, "mapped": [[25565, "TCP"], [8767, "TCP"]]}})
+    runner = SystemFake(router=None)
+    report = uninstall.run([_one(_system_parts(world, runner, monkeypatch=monkeypatch), "router")], runner=runner)
+    [line] = report.manual
+    assert "TCP 25565" in line and "TCP 8767" in line and "router" in line.lower()
+
+
+def test_ports_the_router_refused_are_listed_and_the_others_removed(world, monkeypatch):
+    _hub_data(world, {"upnp": {"mapped": [[25565, "TCP"], [8767, "TCP"]]}})
+    runner = SystemFake(router={(8767, "TCP")})
+    report = uninstall.run([_one(_system_parts(world, runner, monkeypatch=monkeypatch), "router")], runner=runner)
+    assert any("TCP 25565" in line for line in report.removed)
+    [line] = report.manual
+    assert "TCP 8767" in line and "25565" not in line
+
+
+def test_a_runner_that_cant_reach_the_router_lists_the_ports(world, monkeypatch):
+    _hub_data(world, {"upnp": {"mapped": [[25565, "TCP"]]}})
+    runner = FakeRunner()  # (no router_remove: the router is never asked)
+    report = uninstall.run([_one(_system_parts(world, runner, monkeypatch=monkeypatch), "router")], runner=runner)
+    assert any("TCP 25565" in line for line in report.manual)
+
+
+@pytest.mark.parametrize("hub", [{}, {"upnp": {"enabled": True, "mapped": []}}, {"upnp": {"mapped": "junk"}},
+                                 {"upnp": {"mapped": [[0, "TCP"], [25565, "SCTP"], ["x", "TCP"]]}}])
+def test_no_recorded_mappings_means_no_router_part(world, monkeypatch, hub):
+    _hub_data(world, hub)
+    runner = SystemFake()
+    router = _one(_system_parts(world, runner, monkeypatch=monkeypatch), "router")
+    assert not router.present
+    runner.calls.clear()  # (what planning asked)
+    uninstall.run([router], runner=runner)
+    assert runner.calls == []
+
+
+# --- Windows Firewall
+FIREWALL_RULE = "Craft Conductor: alpha (TCP 25565)"
+
+
+def _script(argv: list[str]) -> str:
+    return base64.b64decode(argv[argv.index("-EncodedCommand") + 1]).decode("utf-16-le")
+
+
+def test_the_firewall_rules_are_removed_with_one_administrator_prompt(world, monkeypatch):
+    runner = SystemFake(rules=[FIREWALL_RULE])
+    fw = _one(_system_parts(world, runner, monkeypatch=monkeypatch), "firewall")
+    assert fw.present and "administrator" in fw.action
+    report = uninstall.run([fw], runner=runner)
+    [call] = [c for c in runner.calls if c[0] == "run"]
+    _, argv, elevated, detached = call
+    assert elevated and not detached and argv[0].lower() == "powershell.exe"
+    script = _script(argv)
+    assert FIREWALL_RULE in script and "'Craft Conductor'" in script
+    assert not report.failed and not report.manual and report.removed
+
+
+def test_the_firewall_prompt_answered_no_lists_the_command(world, monkeypatch):
+    runner = SystemFake(rules=[FIREWALL_RULE], codes={"elevated": uninstall.DECLINED})
+    report = uninstall.run([_one(_system_parts(world, runner, monkeypatch=monkeypatch), "firewall")], runner=runner)
+    assert not report.removed
+    assert any("craft-conductor firewall remove" in line for line in report.manual)
+
+
+def test_the_firewall_removal_failing_is_reported_with_the_command(world, monkeypatch):
+    runner = SystemFake(rules=[FIREWALL_RULE], codes={"elevated": 1})
+    report = uninstall.run([_one(_system_parts(world, runner, monkeypatch=monkeypatch), "firewall")], runner=runner)
+    assert report.failed and any("craft-conductor firewall remove" in line for line in report.manual)
+
+
+def test_no_firewall_rules_means_no_prompt(world, monkeypatch):
+    runner = SystemFake(rules=[])
+    fw = _one(_system_parts(world, runner, monkeypatch=monkeypatch), "firewall")
+    assert not fw.present
+    uninstall.run([fw], runner=runner)
+    assert runner.ran() == []
+
+
+def test_firewall_rules_that_cant_be_read_are_removed_by_their_group(world, monkeypatch):
+    runner = SystemFake(rules=None)  # (Windows couldn't say)
+    fw = _one(_system_parts(world, runner, monkeypatch=monkeypatch), "firewall")
+    assert fw.present
+    uninstall.run([fw], runner=runner)
+    [argv] = runner.ran()
+    script = _script(argv)
+    assert "-Group 'Craft Conductor'" in script and "Remove-NetFirewallRule" in script
+
+
+@pytest.mark.parametrize("system", ["linux", "darwin"])
+def test_there_is_no_firewall_part_off_windows(world, monkeypatch, system):
+    runner = SystemFake(rules=[FIREWALL_RULE])
+    fw = _one(_system_parts(world, runner, system=system, monkeypatch=monkeypatch), "firewall")
+    assert not fw.present and ("firewall_rules",) not in runner.calls
+
+
+# --- Tailscale and the Cloudflare quick tunnel
+TS = r"C:\Program Files\Tailscale\tailscale.exe"
+
+
+@pytest.mark.parametrize("funnel", [False, True])
+def test_tailscale_serve_set_by_craft_conductor_is_switched_off(world, monkeypatch, funnel):
+    _hub_data(world, {"tunnels": {"tailscale": {"port": 20001, "name": "pc.example.ts.net", "funnel": funnel}}})
+    monkeypatch.setattr(tailscale, "exe", lambda: TS)
+    runner = SystemFake()
+    part = _one(_system_parts(world, runner, monkeypatch=monkeypatch), "tunnels", "tailscale")
+    assert part.present
+    report = uninstall.run([part], runner=runner)
+    expected = ([[TS, "funnel", "--https=443", "off"]] if funnel else []) + [[TS, "serve", "--https=443", "off"]]
+    assert runner.ran() == expected
+    assert report.removed and not report.failed
+
+
+def test_tailscale_not_installed_means_no_tailscale_part(world, monkeypatch):
+    _hub_data(world, {"tunnels": {"tailscale": {"port": 20001, "name": "pc.example.ts.net", "funnel": False}}})
+    monkeypatch.setattr(tailscale, "exe", lambda: None)
+    runner = SystemFake()
+    part = _one(_system_parts(world, runner, monkeypatch=monkeypatch), "tunnels", "tailscale")
+    assert not part.present
+    runner.calls.clear()  # (what planning asked)
+    uninstall.run([part], runner=runner)
+    assert runner.calls == []
+
+
+def test_tailscale_never_set_up_means_no_tailscale_part(world, monkeypatch):
+    seen = []
+    monkeypatch.setattr(tailscale, "exe", lambda: seen.append(1) or TS)
+    part = _one(_system_parts(world, SystemFake(), monkeypatch=monkeypatch), "tunnels", "tailscale")
+    assert not part.present and not seen
+
+
+def test_tailscale_failing_to_switch_off_says_what_to_run(world, monkeypatch):
+    _hub_data(world, {"tunnels": {"tailscale": {"port": 20001, "name": "pc.example.ts.net", "funnel": False}}})
+    monkeypatch.setattr(tailscale, "exe", lambda: TS)
+    runner = SystemFake(codes={"tailscale.exe": 1})
+    report = uninstall.run([_one(_system_parts(world, runner, monkeypatch=monkeypatch), "tunnels", "tailscale")],
+                           runner=runner)
+    assert report.failed and any("tailscale serve --https=443 off" in line for line in report.manual)
+
+
+def test_a_running_cloudflare_tunnel_is_stopped(world, monkeypatch):
+    exe = str(world["state"] / "tools" / "cloudflared.exe")
+    (world["state"] / "tools" / "cloudflared.pid").write_text(json.dumps({"pid": 4242, "exe": exe}))
+    runner = SystemFake(processes={4242})
+    part = _one(_system_parts(world, runner, monkeypatch=monkeypatch), "tunnels", "cloudflare")
+    assert part.present
+    report = uninstall.run([part], runner=runner)
+    assert ("stop_process", 4242, exe) in runner.calls
+    assert report.removed and not report.failed
+
+
+@pytest.mark.parametrize("pid_file", [None, "not json", json.dumps({"pid": "x"})])
+def test_no_recorded_cloudflare_tunnel_means_no_cloudflare_part(world, monkeypatch, pid_file):
+    if pid_file is not None:
+        (world["state"] / "tools" / "cloudflared.pid").write_text(pid_file)
+    part = _one(_system_parts(world, SystemFake(), monkeypatch=monkeypatch), "tunnels", "cloudflare")
+    assert not part.present
+
+
+def test_tunnels_recorded_cloudflared_reads_the_pid_file(tmp_path):
+    assert tunnels.recorded_cloudflared(tmp_path) is None
+    (tmp_path / "cloudflared.pid").write_text(json.dumps({"pid": 7, "exe": "/x/cloudflared"}))
+    assert tunnels.recorded_cloudflared(tmp_path) == (7, "/x/cloudflared")
+
+
+def test_tailscale_unserve_commands_switch_off_funnel_first():
+    assert tailscale.unserve_commands(False) == [["serve", "--https=443", "off"]]
+    assert tailscale.unserve_commands(True) == [["funnel", "--https=443", "off"], ["serve", "--https=443", "off"]]
+
+
+# --- the background service (Linux)
+def _units(world, tmp_path, monkeypatch, user="steve"):
+    """Linux, with the person's systemd user folder and the lingering folder in the temporary home."""
+    config = tmp_path / "config"
+    linger = tmp_path / "linger"
+    linger.mkdir()
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
+    monkeypatch.setattr(uninstall, "LINGER", linger)
+    monkeypatch.setattr(uninstall, "_euid", lambda: 1000)
+    _system_units(monkeypatch, tmp_path / "etc")
+    env = {**world["env"], "USER": user}
+    return config / "systemd" / "user", linger, env
+
+
+def _system_units(monkeypatch, where: Path):
+    """service.plan with its system folder (/etc/systemd/system) moved into the temporary home."""
+    real = service.plan
+
+    def plan(root, system=None, home=None, panel=False):
+        p = real(root, system, home, panel)
+        return dataclasses.replace(p, path=where / p.name) if p.system else p
+    monkeypatch.setattr(service, "plan", plan)
+
+
+def _install_unit(root: Path, panel=False, system=False) -> Path:
+    p = service.plan(root, system, panel=panel)
+    p.path.parent.mkdir(parents=True, exist_ok=True)
+    p.path.write_text(p.text)
+    return p.path
+
+
+def test_the_panel_and_server_services_are_removed_and_lingering_switched_off(world, tmp_path, monkeypatch):
+    folder, linger, env = _units(world, tmp_path, monkeypatch)
+    panel = _install_unit(world["home"], panel=True)
+    alpha = _install_unit(world["alpha"])
+    (linger / "steve").write_text("")
+    runner = SystemFake()
+    part = _one(_system_parts(world, runner, system="linux", monkeypatch=monkeypatch, env=env), "service")
+    assert part.present and "craft_conductor.service" in part.action and alpha.name in part.action
+    report = uninstall.run([part], runner=runner)
+    ran = runner.ran()
+    assert ["systemctl", "--user", "disable", "--now", "craft_conductor.service"] in ran
+    assert ["systemctl", "--user", "disable", "--now", alpha.name] in ran
+    assert ["loginctl", "disable-linger", "steve"] in ran
+    assert not panel.exists() and not alpha.exists()
+    assert not report.failed and len(report.removed) >= 2
+
+
+def test_lingering_is_left_on_when_other_units_use_it(world, tmp_path, monkeypatch):
+    folder, linger, env = _units(world, tmp_path, monkeypatch)
+    _install_unit(world["home"], panel=True)
+    (folder / "syncthing.service").write_text("[Service]\n")
+    (linger / "steve").write_text("")
+    runner = SystemFake()
+    uninstall.run([_one(_system_parts(world, runner, system="linux", monkeypatch=monkeypatch, env=env), "service")],
+                  runner=runner)
+    assert not any(argv[0] == "loginctl" for argv in runner.ran())
+
+
+def test_a_unit_of_the_same_name_for_another_folder_is_not_touched(world, tmp_path, monkeypatch):
+    folder, linger, env = _units(world, tmp_path, monkeypatch)
+    other = _install_unit(tmp_path / "elsewhere" / "alpha")  # (same file name: craft-conductor-alpha.service)
+    assert other.name == service.unit_name(world["alpha"])
+    runner = SystemFake()
+    part = _one(_system_parts(world, runner, system="linux", monkeypatch=monkeypatch, env=env), "service")
+    assert not part.present
+    uninstall.run([part], runner=runner)
+    assert other.exists() and runner.calls == []
+
+
+def test_a_system_service_needs_root_so_it_is_listed_with_the_commands(world, tmp_path, monkeypatch):
+    folder, linger, env = _units(world, tmp_path, monkeypatch)
+    unit = _install_unit(world["home"], panel=True, system=True)
+    runner = SystemFake()
+    part = _one(_system_parts(world, runner, system="linux", monkeypatch=monkeypatch, env=env), "service")
+    assert part.present
+    report = uninstall.run([part], runner=runner)
+    assert unit.exists() and runner.ran() == []
+    [line] = report.manual
+    assert "sudo systemctl disable --now craft_conductor.service" in line and str(unit) in line
+
+
+def test_a_system_service_is_removed_when_running_as_root(world, tmp_path, monkeypatch):
+    folder, linger, env = _units(world, tmp_path, monkeypatch)
+    monkeypatch.setattr(uninstall, "_euid", lambda: 0)
+    unit = _install_unit(world["home"], panel=True, system=True)
+    runner = SystemFake()
+    report = uninstall.run([_one(_system_parts(world, runner, system="linux", monkeypatch=monkeypatch, env=env),
+                                 "service")], runner=runner)
+    assert not unit.exists()
+    assert ["systemctl", "disable", "--now", "craft_conductor.service"] in runner.ran()
+    assert not report.failed and not report.manual
+
+
+@pytest.mark.parametrize("system", ["windows", "darwin"])
+def test_there_is_no_service_part_off_linux(world, tmp_path, monkeypatch, system):
+    folder, linger, env = _units(world, tmp_path, monkeypatch)
+    _install_unit(world["home"], panel=True)
+    part = _one(_system_parts(world, SystemFake(), system=system, monkeypatch=monkeypatch, env=env), "service")
+    assert not part.present
+
+
+def test_the_service_runner_adapter_is_shaped_like_subprocess_run():
+    runner = SystemFake(codes={"systemctl": 5})
+    proc = uninstall.subprocess_runner(runner)(["systemctl", "--user", "daemon-reload"], capture_output=True, text=True)
+    assert proc.returncode == 5 and proc.stdout == "" and proc.stderr == ""
+    assert runner.ran() == [["systemctl", "--user", "daemon-reload"]]
+
+
+# --- the invite link handler
+def test_unregister_removes_exactly_the_windows_key():
+    runner = SystemFake()
+    urlhandler.unregister(runner, system="windows")
+    assert runner.calls == [("registry_delete", "HKCU\\Software\\Classes\\craft-conductor")]
+
+
+def test_unregister_removes_exactly_the_linux_desktop_file(tmp_path):
+    entry = tmp_path / "data" / "applications" / "craft-conductor-invite.desktop"
+    entry.parent.mkdir(parents=True)
+    entry.write_text("[Desktop Entry]\n")
+    (entry.parent / "other.desktop").write_text("[Desktop Entry]\n")
+    runner = SystemFake()
+    urlhandler.unregister(runner, system="linux", env={"XDG_DATA_HOME": str(tmp_path / "data")})
+    assert runner.calls == [("delete_file", entry)]
+
+
+def test_unregister_does_nothing_on_a_mac():
+    runner = SystemFake()
+    assert urlhandler.unregister(runner, system="darwin") is None
+    assert runner.calls == []
+
+
+def test_the_invite_handler_part_on_windows(world, monkeypatch):
+    key = "HKCU\\Software\\Classes\\craft-conductor"
+    runner = SystemFake(registry={key})
+    part = _one(_system_parts(world, runner, monkeypatch=monkeypatch), "invite")
+    assert part.present
+    report = uninstall.run([part], runner=runner)
+    assert ("registry_delete", key) in runner.calls and report.removed
+    absent = _one(_system_parts(world, SystemFake(), monkeypatch=monkeypatch), "invite")
+    assert not absent.present
+
+
+def test_the_invite_handler_part_on_linux(world, tmp_path, monkeypatch):
+    entry = world["user"] / ".local" / "share" / "applications" / "craft-conductor-invite.desktop"
+    runner = SystemFake()
+    assert not _one(_system_parts(world, runner, system="linux", monkeypatch=monkeypatch), "invite").present
+    entry.parent.mkdir(parents=True)
+    entry.write_text("[Desktop Entry]\n")
+    part = _one(_system_parts(world, runner, system="linux", monkeypatch=monkeypatch), "invite")
+    assert part.present
+    uninstall.run([part], runner=runner)
+    assert ("delete_file", entry) in runner.calls
+
+
+def test_there_is_no_invite_handler_on_a_mac(world, monkeypatch):
+    assert not _one(_system_parts(world, SystemFake(), system="darwin", monkeypatch=monkeypatch), "invite").present
+
+
+# --- what's listed for the person, and one part failing
+def test_what_craft_conductor_cant_reach_is_listed_for_the_person(world, monkeypatch):
+    runner = SystemFake()
+    listed = _one(_system_parts(world, runner, monkeypatch=monkeypatch), "listed")
+    assert listed.present
+    report = uninstall.run([listed], runner=runner)
+    text = " ".join(report.manual)
+    for word in ("Tailscale", "playit.gg", "phone", "browser", "SSH", "Docker"):
+        assert word in text, word
+    assert [c for c in runner.calls if c[0] not in ("firewall_rules", "registry_has")] == []
+
+
+def test_a_system_part_failing_doesnt_stop_the_rest(world, monkeypatch):
+    _hub_data(world, {"upnp": {"mapped": [[25565, "TCP"]]}})
+    runner = SystemFake(rules=[FIREWALL_RULE], raise_on="elevated", registry={"HKCU\\Software\\Classes\\craft-conductor"})
+    monkeypatch.setattr(uninstall, "_system", lambda: "windows")
+    report = uninstall.run(uninstall.plan(world["home"], Choices(), env=world["env"], runner=runner), runner=runner)
+    assert any("Firewall" in line for line in report.failed)
+    assert ("router_remove", [(25565, "TCP")]) in runner.calls
+    assert ("registry_delete", "HKCU\\Software\\Classes\\craft-conductor") in runner.calls
+    assert world["state"] in runner.deleted()
+
+
+# --- the real runner's own questions, with the modules monkeypatched (no router, no processes)
+def test_the_system_runner_removes_router_ports_through_upnp(monkeypatch):
+    removed = []
+    gw = upnp.Gateway("http://192.168.1.1/ctl", upnp.SERVICES[0], "192.168.1.5")
+
+    def remove(g, port, proto="TCP"):
+        if port == 8767:
+            raise upnp.UpnpError("the router said no")
+        removed.append((g, port, proto))
+    monkeypatch.setattr(upnp, "find", lambda timeout=3.0: gw)
+    monkeypatch.setattr(upnp, "remove", remove)
+    failed = uninstall.SystemRunner().router_remove([(25565, "TCP"), (8767, "TCP")])
+    assert removed == [(gw, 25565, "TCP")]
+    assert failed == [(8767, "TCP", "the router said no")]
+
+
+def test_the_system_runner_stops_only_that_cloudflared(monkeypatch):
+    killed = []
+    monkeypatch.setattr(tunnels.peer, "program_file", lambda pid: r"C:\cc\tools\cloudflared.exe" if pid == 7 else "")
+    monkeypatch.setattr(tunnels.os, "kill", lambda pid, sig: killed.append(pid))
+    runner = uninstall.SystemRunner()
+    assert runner.stop_process(7, r"c:\CC\tools\cloudflared.exe") is True
+    assert runner.stop_process(8, r"C:\cc\tools\cloudflared.exe") is False
+    assert killed == [7]
+
+
+def test_the_system_runner_reads_only_craft_conductors_firewall_rules(monkeypatch):
+    from craft_conductor import firewall
+    state = {"rules": [
+        {"name": FIREWALL_RULE, "group": "Craft Conductor", "action": 2, "protocol": "TCP", "ports": ["25565"]},
+        {"name": "Someone else's", "group": "Other", "action": 2, "protocol": "TCP", "ports": ["80"]}]}
+    monkeypatch.setattr(firewall, "available", lambda: True)
+    monkeypatch.setattr(firewall, "read", lambda timeout=30, fresh=False: state)
+    assert uninstall.SystemRunner().firewall_rules() == [FIREWALL_RULE]
+    monkeypatch.setattr(firewall, "read", lambda timeout=30, fresh=False: None)
+    assert uninstall.SystemRunner().firewall_rules() is None

@@ -21,7 +21,9 @@ from __future__ import annotations
 import ipaddress
 import json
 import logging
+import os
 import random
+import signal
 import threading
 import time
 from pathlib import Path
@@ -262,7 +264,7 @@ class Doors:
             log.warning("%s", message)
 
     def _pid(self, pid: int | None, exe: str = "") -> None:
-        path = self.tools() / "cloudflared.pid"
+        path = self.tools() / PID_FILE
         if pid is None:
             path.unlink(missing_ok=True)
         else:
@@ -270,18 +272,34 @@ class Doors:
 
     def leftover(self) -> None:
         """A cloudflared Craft Conductor started and couldn't stop (it closed suddenly): stopped now."""
-        path = self.tools() / "cloudflared.pid"
-        try:
-            saved = json.loads(path.read_text())
-            pid, exe = int(saved["pid"]), str(saved["exe"])
-        except (OSError, ValueError, KeyError, TypeError):
+        found = recorded_cloudflared(self.tools())
+        if found is None:
             return
-        path.unlink(missing_ok=True)
-        if exe and peer.program_file(pid).lower() == exe.lower():
-            import os
-            import signal
-            try:
-                os.kill(pid, signal.SIGTERM)
-                log.info("stopped the Cloudflare tunnel left from before Craft Conductor closed")
-            except OSError:
-                pass
+        (self.tools() / PID_FILE).unlink(missing_ok=True)
+        if stop_cloudflared(*found):
+            log.info("stopped the Cloudflare tunnel left from before Craft Conductor closed")
+
+
+PID_FILE = "cloudflared.pid"   # in the tools folder, while a quick tunnel runs: {"pid", "exe"}
+
+
+def recorded_cloudflared(tools: Path) -> tuple[int, str] | None:
+    """(process id, program file) of the cloudflared Craft Conductor started, as written down when it
+    started (None: none is). Read without a control panel too (uninstall.py)."""
+    try:
+        saved = json.loads((Path(tools) / PID_FILE).read_text())
+        return int(saved["pid"]), str(saved["exe"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def stop_cloudflared(pid: int, exe: str) -> bool:
+    """Stop that process, only if it's still that cloudflared (a process id is used again once its
+    process has gone). Returns whether it was stopped."""
+    if not exe or peer.program_file(pid).lower() != exe.lower():
+        return False
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except OSError:
+        return False
+    return True

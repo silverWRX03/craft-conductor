@@ -21,6 +21,15 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 SCHEME = "craft-conductor"
 DESKTOP_FILE = "craft-conductor-invite.desktop"
+REGISTRY_KEY = rf"HKCU\Software\Classes\{SCHEME}"   # (Windows: where register() writes)
+
+
+def desktop_file(env=None) -> Path:
+    """Where the Linux desktop entry is written (``env``: the environment to read, os.environ by default)."""
+    env = os.environ if env is None else env
+    home = env.get("HOME")
+    share = env.get("XDG_DATA_HOME") or (Path(home) if home else Path.home()) / ".local" / "share"
+    return Path(share) / "applications" / DESKTOP_FILE
 
 
 def register(exe: str | None = None) -> bool:
@@ -56,12 +65,32 @@ def _windows(exe: str) -> bool:
 def _linux(exe: str) -> bool:
     if any(c in exe for c in '"\n\r%`$\\'):
         return False  # keep the desktop entry's Exec line simple and unambiguous
-    folder = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share") / "applications"
-    folder.mkdir(parents=True, exist_ok=True)
-    (folder / DESKTOP_FILE).write_text(
+    entry = desktop_file()
+    entry.parent.mkdir(parents=True, exist_ok=True)
+    entry.write_text(
         "[Desktop Entry]\nType=Application\nName=Craft Conductor (join a Minecraft server)\n"
         f'Exec="{exe}" join -- %u\nMimeType=x-scheme-handler/{SCHEME};\nNoDisplay=true\nTerminal=false\n', encoding="utf-8")
     if shutil.which("xdg-mime"):
         subprocess.run(["xdg-mime", "default", DESKTOP_FILE, f"x-scheme-handler/{SCHEME}"],
                        capture_output=True, timeout=10)
     return True
+
+
+def unregister(runner, system: str | None = None, env=None) -> str | None:
+    """Undo :func:`register` (the uninstall): exactly the key in this account's registry
+    (REGISTRY_KEY) on Windows, or exactly the desktop entry on Linux, through the uninstall's
+    ``runner`` (``registry_delete`` / ``delete_file``). ``system``: "windows", "linux" or "darwin"
+    (this computer's by default). Returns what was removed, in plain words (None: nothing to remove).
+    (Linux: the default set with xdg-mime then names an entry that isn't there, which nothing opens.)"""
+    if system is None:
+        system = "windows" if os.name == "nt" else "linux" if sys.platform.startswith("linux") else "darwin"
+    if system == "windows":
+        runner.registry_delete(REGISTRY_KEY)
+        return f"removed {REGISTRY_KEY}"
+    if system == "linux":
+        entry = desktop_file(env)
+        if not os.path.lexists(entry):
+            return None
+        runner.delete_file(entry)
+        return f"deleted {entry}"
+    return None

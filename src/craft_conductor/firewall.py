@@ -205,6 +205,15 @@ def remove_script(names: list[str]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def remove_group_script() -> str:
+    """The PowerShell run with administrator rights to delete every rule in Craft Conductor's own group (the
+    uninstall's, when the rules couldn't be read first). Only that group: no other program's rule is in it."""
+    lines = ["$ErrorActionPreference = 'Stop'", "try {",
+             f"  Get-NetFirewallRule -Group {_ps_string(GROUP)} -ErrorAction SilentlyContinue | Remove-NetFirewallRule",
+             "  exit 0", "} catch { Write-Output $_.Exception.Message; exit 1 }"]
+    return "\n".join(lines) + "\n"
+
+
 def remove(names: list[str], timeout: float = 300) -> None:
     """Delete these rules of Craft Conductor's, asking Windows for administrator rights (the person at this
     computer answers its prompt). Raises FirewallError when that's declined or fails."""

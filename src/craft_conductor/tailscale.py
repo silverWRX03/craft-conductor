@@ -112,8 +112,15 @@ def serve(port: int, funnel: bool = False, timeout: float = 25) -> dict:
     return {"ok": True, "message": "", "enable_url": None}
 
 
+def unserve_commands(funnel: bool = False) -> list[list[str]]:
+    """What switches off what :func:`serve` set up (Funnel first): tailscale's arguments. The last one
+    is the one whose result counts. (The uninstall runs these through its own runner.)"""
+    return ([["funnel", "--https=443", "off"]] if funnel else []) + [["serve", "--https=443", "off"]]
+
+
 def unserve(funnel: bool = False) -> bool:
-    if funnel:
-        _run(["funnel", "--https=443", "off"], timeout=15)
-    r = _run(["serve", "--https=443", "off"], timeout=15)
+    *first, last = unserve_commands(funnel)
+    for args in first:
+        _run(args, timeout=15)
+    r = _run(last, timeout=15)
     return r is not None and r.returncode == 0
