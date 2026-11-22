@@ -26,6 +26,7 @@ its fix will say which version it's in.
 - A phone said "Notifications are on for this device" but got none when Craft Conductor no longer knew it (installed again, or another home at the same Tailscale address). It's turned on again by itself, with this Craft Conductor's key (#309).
 - Signing in as someone else on a phone kept its notifications going to the person before, while it said they were on. A device's notifications follow whoever is signed in, and **Sign out** stops them for the person leaving (#313).
 - The phone's "Turn on notifications" strip stayed after notifications were turned on from it, until the app was opened again. It goes as soon as they're on (#312).
+- On an iPhone, the bottom of the menu (**Sign out**) was hidden behind Safari's address bar. The menu fits the part of the screen that's visible (#345).
 
 ## 0.30.6 (2026-11-15)
 
