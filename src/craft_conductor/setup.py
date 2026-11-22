@@ -318,11 +318,23 @@ def _kept_backups_dir(path: Path) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
+def _kept_reach(path: Path) -> str:
+    """How friends outside join, as an existing craft-conductor.toml says ("" for none). Chosen when the
+    server was made; setup tried again after a failure writes the file without it (#301)."""
+    from .reach import WAYS
+    try:
+        value = tomllib.loads(path.read_text(encoding="utf-8")).get("reach", {}).get("way")
+    except (OSError, ValueError, AttributeError):
+        return ""
+    return value if value in WAYS else ""
+
+
 def configure(root: Path, spec: SetupSpec) -> configmod.Config:
     """Write craft-conductor.toml, server.properties and eula.txt for a new server (downloads nothing)."""
     path = root / configmod.CONFIG_NAME
     web_password = configmod.load(root).web.password if path.exists() else ""
     backups_dir = _kept_backups_dir(path)
+    reach_way = spec.reach or _kept_reach(path)
     root.mkdir(parents=True, exist_ok=True)
     path.write_text(configmod.render_template(spec.loader, spec.minecraft))
     if backups_dir is not None:  # (the folder chosen for backups, set when the server was made: #282)
@@ -351,8 +363,8 @@ def configure(root: Path, spec: SetupSpec) -> configmod.Config:
                                              datapack=slug in spec.datapacks))
     for key, pin in spec.pins.items():
         configmod.set_pin(path, key, configmod.Pin(pin.version, pin.minecraft or (spec.minecraft if spec.minecraft != "latest" else "")))
-    if spec.reach:
-        configmod.set_value(path, "reach", "way", json.dumps(spec.reach))
+    if reach_way:
+        configmod.set_value(path, "reach", "way", json.dumps(reach_way))
     whitelist = whitelist_defaults(spec)
     cfg = configmod.load(root)
     cfg.server.dir.mkdir(parents=True, exist_ok=True)

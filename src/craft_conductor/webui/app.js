@@ -10139,7 +10139,11 @@ views.setup = () => {
         st.reach !== "home" ? h("label", { class: "mt-s" }, "Your Minecraft name (added to the whitelist, so you can join)",
           h("input", { value: st.ownerName || "", maxlength: 16, autocomplete: "off", placeholder: "optional", "aria-describedby": "owner-name-note",
             oninput: (e) => { st.ownerName = e.target.value.trim(); } }),
-          h("span", { class: "muted small", id: "owner-name-note" }, "1 to 16 letters, numbers or _. Leave it empty to add yourself later on the Players page.")) : null] : null;
+          h("span", { class: "muted small", id: "owner-name-note" }, "1 to 16 letters, numbers or _. Leave it empty to add yourself later on the Players page.")) : null]
+        // Setup tried again (after it failed): the way chosen when the server was made is kept (#301).
+        : opts.reach && REACH_WAYS.some(([w]) => w === opts.reach) ? [h("h3", { class: "mt" }, "Friends outside your home"),
+          h("p", { class: "small" }, h("strong", {}, REACH_WAYS.find(([w]) => w === opts.reach)[1]),
+            ", as chosen when the server was made. You can change it on the server's Friends page.")] : null;
       return card("Friends (optional)",
         outside,
         h("h3", { class: "mt" }, "Friends' download"),

@@ -648,3 +648,17 @@ def test_check_my_setup_doesnt_test_the_home_address_of_a_playit_server(hub_env,
     if set_up == "address":
         assert "fun-cats.gl.joinmc.link" in r["detail"]
     assert "port_test" not in reach.read_state(d.m.config.state_dir)
+
+
+@pytest.mark.parametrize("way", ["home", "playit", "forward"])
+def test_setup_tried_again_keeps_how_friends_outside_join(tmp_path, way):
+    """A new server's setup failed; the retry (the setup page of the server, which has no Friends outside
+    your home choice) wrote craft-conductor.toml again without [reach] way (#301). It keeps the way chosen."""
+    from craft_conductor import setup as setupmod
+    root = tmp_path / "srv"
+    setupmod.configure(root, setupmod.SetupSpec.from_dict({"loader": "vanilla", "accept_eula": True, "reach": way}))
+    assert configmod.load(root).reach_way == way
+    again = setupmod.configure(root, setupmod.SetupSpec.from_dict({"loader": "vanilla", "accept_eula": True}))
+    assert again.reach_way == way
+    other = next(w for w in ("home", "playit") if w != way)   # (a way sent with the retry still wins)
+    assert setupmod.configure(root, setupmod.SetupSpec.from_dict({"loader": "vanilla", "accept_eula": True, "reach": other})).reach_way == other
