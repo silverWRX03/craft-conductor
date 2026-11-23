@@ -1673,3 +1673,53 @@ def test_a_running_server_that_matches_no_server_keeps_every_server(world, tmp_p
     assert world["home"] / "exports" in runner.deleted() and world["state"] in runner.deleted()
     assert any(str(world["alpha"]) in line and "running" in line for line in report.kept)
     assert any(str(world["beta"]) in line and "running" in line for line in report.kept)
+
+
+# ------------------------------------------------------------------ final review: leftover games and versions (Important 6)
+def _orphan(games) -> Path:
+    """A game folder Craft Conductor made whose installation was already removed from the launcher,
+    and its version; plus an unmarked folder, so the folders are deleted one by one."""
+    orphan = _game_folder(games["ours"] / "orphan")
+    _version(games["versions"], "craft-conductor-orphan")
+    (games["ours"] / "half-done" / "mods").mkdir(parents=True)  # (no mark: never deleted)
+    return orphan
+
+
+def test_a_marked_leftover_game_folder_goes_only_when_ticked(games):
+    orphan = _orphan(games)
+    runner = GameRunner(games["user"], running=())
+    uninstall.run(_games_parts(games), runner=runner)
+    assert not any(_under(d, orphan) or _under(orphan, d) for d in runner.deleted())
+    runner = GameRunner(games["user"], running=())
+    uninstall.run(_games_parts(games, games=True), runner=runner)
+    deleted = runner.deleted()
+    assert orphan in deleted and games["versions"] / "craft-conductor-orphan" in deleted
+    assert not any(_under(d, games["ours"] / "half-done") for d in deleted)
+
+
+def test_an_unreadable_launchers_file_keeps_the_leftover_game_folders(games):
+    orphan = _orphan(games)
+    (games["mc"] / "launcher_profiles.json").write_text("{not json", encoding="utf-8")
+    runner = GameRunner(games["user"], running=())
+    uninstall.run(_games_parts(games, games=True), runner=runner)
+    deleted = runner.deleted()
+    assert not any(_under(d, orphan) or _under(orphan, d) for d in deleted)  # (an installation may still use it)
+    assert games["versions"] / "craft-conductor-orphan" not in deleted
+
+
+def test_a_leftover_version_still_used_by_a_staying_installation_stays(games):
+    _orphan(games)
+    data = json.loads(games["profiles_text"])
+    data["profiles"]["5e5e5e5e"] = {"name": "Mine on it", "type": "custom", "gameDir": str(games["user"] / "mine"),
+                                    "lastVersionId": "craft-conductor-orphan"}
+    (games["mc"] / "launcher_profiles.json").write_text(json.dumps(data, indent=2), encoding="utf-8")
+    runner = GameRunner(games["user"], running=())
+    uninstall.run(_games_parts(games, games=True), runner=runner)
+    assert games["versions"] / "craft-conductor-orphan" not in runner.deleted()
+
+
+def test_a_leftover_version_not_named_as_craft_conductor_names_them_stays(games):
+    odd = _version(games["versions"], "craft-conductor-Not A Slug!")
+    runner = GameRunner(games["user"], running=())
+    uninstall.run(_games_parts(games, games=True), runner=runner)
+    assert odd not in runner.deleted()

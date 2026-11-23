@@ -1235,8 +1235,10 @@ def _minecraft_games(mc: Path) -> _Games:
     for e in _entries(versions):
         if e.name.startswith(OLD_PREFIX) and _plain_dir(e):
             old.append(f"versions/{e.name}")
-        if not e.name.startswith(GAME_PREFIX) or not _our_version(e) or not ours_to_delete(e.name[len(GAME_PREFIX):]):
-            continue
+        slug = e.name[len(GAME_PREFIX):]
+        if (not e.name.startswith(GAME_PREFIX) or not _SLUG.fullmatch(slug) or not _our_version(e)
+                or not ours_to_delete(slug)):
+            continue  # (only a version named as join.py names them, that it wrote)
         if users := staying_versions.get(e.name):
             if e.name[len(GAME_PREFIX):] in recorded:
                 found.listed.append(f"{e} is also used by the installation {_names(users)}, so it stays")
