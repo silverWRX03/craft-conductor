@@ -96,10 +96,11 @@ def running_pid(manager: Manager) -> int | None:
 
 def running_pid_in(state_dir: Path) -> int | None:
     """The `craft-conductor run` looking after the server whose state folder this is, if one runs
-    (read without loading its craft-conductor.toml: the uninstall)."""
+    (read without loading its craft-conductor.toml: the uninstall). Raises OSError when the pid file
+    is there but can't be read (in use, no permission): that isn't "not running"."""
     try:
         pid = int((state_dir / PID_FILE).read_text().strip())
-    except (OSError, ValueError):
+    except (FileNotFoundError, ValueError):
         return None
     return pid if pid_alive(pid) else None
 

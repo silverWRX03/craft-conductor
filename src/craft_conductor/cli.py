@@ -1029,7 +1029,6 @@ def cmd_uninstall(args) -> int:
     question) does it. What's kept and what goes is uninstall.py's; this asks, stops the servers and
     reports."""
     from . import uninstall
-    from .daemon import running_pid_in
     from .hub import running_hub, running_panel
     home, classic = _uninstall_home(args)
     if pid := running_hub(home):
@@ -1050,7 +1049,7 @@ def cmd_uninstall(args) -> int:
     servers = uninstall.servers_of(home)
     running: dict[Path, int | None] = {}
     for root in servers.values():
-        if running_pid_in(root / configmod.STATE_DIR):
+        if uninstall.run_elsewhere(root):  # (a pid file that can't be read counts as running)
             status = _server_status(root)
             running[root] = status.get("online") if status else None
     print(_uninstall_plan_text(home, classic, parts, running))

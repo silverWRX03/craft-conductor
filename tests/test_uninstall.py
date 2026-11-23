@@ -1615,3 +1615,26 @@ def test_the_system_folder_rule_is_relaxed_only_for_that_exact_folder(world, pro
     runner = FakeRunner()
     report = uninstall.run([part], runner=runner)
     assert runner.deleted() == [mine] and not report.failed
+
+
+# ------------------------------------------------------------------ final review: an unreadable daemon.pid (Important 3)
+def _unreadable_pid(root: Path) -> Path:
+    state = root / ".craft-conductor"
+    (state / "daemon.pid").mkdir(parents=True)  # (reading it fails, not with FileNotFoundError: as a locked file)
+    return state
+
+
+def test_an_unreadable_pid_file_isnt_taken_as_not_running(tmp_path):
+    from craft_conductor import daemon
+    state = _unreadable_pid(tmp_path / "server")
+    with pytest.raises(OSError):
+        daemon.running_pid_in(state)  # (the duplicate-daemon guard and "stop the server first" don't read it as stopped)
+    assert daemon.running_pid_in(tmp_path / "nothing") is None  # (no pid file: not running)
+
+
+def test_the_uninstall_takes_an_unreadable_pid_file_as_running(tmp_path):
+    root = _server(tmp_path / "server")
+    _unreadable_pid(root)
+    assert uninstall.run_elsewhere(root, own_pid=os.getpid()) is True
+    still = uninstall.stop_others([root], check_ports=False, unanswered=0.05, poll=0.01, own_pid=os.getpid())
+    assert still == [root]  # (kept, never deleted as if it had stopped)

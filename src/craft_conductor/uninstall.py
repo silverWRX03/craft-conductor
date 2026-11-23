@@ -1685,18 +1685,25 @@ def stop_others(roots: Iterable[Path], *, check_ports: bool = True, unanswered: 
     roots = list(roots)
 
     def other(state: Path) -> bool:
-        pid = running_pid_in(state)
+        try:
+            pid = running_pid_in(state)
+        except OSError:
+            return True  # (its pid file can't be read: taken as running, so it's kept, never deleted)
         return bool(pid) and pid != own_pid
     started = time.monotonic()
     asked: dict[Path, float] = {}
+    still: list[Path] = []
     for root in roots:
         state = root / configmod.STATE_DIR
         if other(state):
             if say:
                 say(f"  Stopping the server in {root}...")
-            request_stop_in(state, PLAYERS_TOLD)
+            try:
+                request_stop_in(state, PLAYERS_TOLD)
+            except OSError:
+                still.append(root)  # (it couldn't be asked to stop: kept)
+                continue
             asked[root] = started + STOP_WARNING + stop_timeout(root) + 30
-    still: list[Path] = []
     while asked:
         time.sleep(poll)
         now = time.monotonic()
@@ -1705,7 +1712,10 @@ def stop_others(roots: Iterable[Path], *, check_ports: bool = True, unanswered: 
             if not other(state):
                 del asked[root]
             elif (state / STOP_REQUEST).exists() and now - started > unanswered:
-                (state / STOP_REQUEST).unlink(missing_ok=True)  # (whatever runs there isn't looking after the server)
+                try:
+                    (state / STOP_REQUEST).unlink(missing_ok=True)  # (whatever runs there isn't looking after the server)
+                except OSError:
+                    pass
                 still.append(root)
                 del asked[root]
             elif now > deadline:
@@ -1718,9 +1728,13 @@ def stop_others(roots: Iterable[Path], *, check_ports: bool = True, unanswered: 
 
 def run_elsewhere(root: Path, own_pid: int | None = None) -> bool:
     """The server in ``root`` is looked after by another process (`craft-conductor run`, another Craft
-    Conductor window): a live pid other than ``own_pid`` in its state folder."""
+    Conductor window): a live pid other than ``own_pid`` in its state folder, or a pid file that's
+    there but can't be read (taken as running: such a server is kept)."""
     from .daemon import running_pid_in
-    pid = running_pid_in(root / configmod.STATE_DIR)
+    try:
+        pid = running_pid_in(root / configmod.STATE_DIR)
+    except OSError:
+        return True
     return bool(pid) and pid != own_pid
 
 
