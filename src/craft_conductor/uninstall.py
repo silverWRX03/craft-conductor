@@ -709,19 +709,25 @@ def _java_part(inv: Inventory) -> Part:
 
 
 def _windows_delete_later(exe: Path, env: Mapping[str, str]) -> list[str] | None:
-    """The command that deletes the Windows program once this process has exited (a running
-    program can't delete itself): a detached cmd waits for this process id to go, then deletes the
-    file (and leftovers of an update). None when cmd would change the paths (a % in them)."""
+    """The command that deletes the Windows program once it has closed (a running program can't delete
+    itself, and Windows refuses to delete a program file while any process runs it): a cmd started
+    without a window tries to delete it every 2 seconds for up to 10 minutes, and stops as soon as it's
+    gone. Trying the file, not waiting for a process id: a one-file build's file is held by its
+    bootloader (this process's parent), and the control panel's exit can take minutes (a server that
+    doesn't stop is given its stop time). Then the leftovers of an update. None when cmd would change
+    the paths (a % in them)."""
     from . import selfupdate
     system32 = PureWindowsPath(_env(env, "SystemRoot") or r"C:\Windows") / "System32"
     files = [exe, *(p for p in (selfupdate.old_binary(exe), selfupdate.failed_binary(exe)) if p.is_file())]
     if any(c in str(p) for p in (system32, *files) for c in '%"') or " " in str(system32):
         return None
-    pid = os.getpid()
-    wait = (f"(for /l %i in (1,1,60) do @({system32}\\tasklist.exe /nh /fi \"PID eq {pid}\" | {system32}\\find.exe "
-            f"\"{pid}\" >nul && {system32}\\PING.EXE -n 2 127.0.0.1 >nul))")
+    tries = (f'(for /l %i in (1,1,{DELETE_TRIES}) do @if exist "{exe}" (del /f /q "{exe}" >nul 2>&1 & '
+             f'if exist "{exe}" {system32}\\PING.EXE -n 3 127.0.0.1 >nul))')
     targets = " ".join(f'"{p}"' for p in files)
-    return [str(system32 / "cmd.exe"), "/d", "/s", "/c", f'"{wait} & del /f /q {targets}"']
+    return [str(system32 / "cmd.exe"), "/d", "/s", "/c", f'"{tries} & del /f /q {targets} >nul 2>&1"']
+
+
+DELETE_TRIES = 300  # (every 2 seconds: 10 minutes)
 
 
 def _program_part(inv: Inventory) -> Part:
@@ -753,8 +759,10 @@ def _program_part(inv: Inventory) -> Part:
         if code != 0:
             return Outcome(failed=[f"{label}: the command to delete {exe} didn't start (error {code})"],
                            manual=[f"Delete {exe} once Craft Conductor has closed"])
-        return Outcome(removed=[f"{label}: {exe} is deleted a few seconds after Craft Conductor closes"])
-    return Part(**base, action=f"deleted a few seconds after Craft Conductor closes: {exe}", paths=[exe], known=[exe],
+        return Outcome(removed=[f"{label}: {exe} is deleted once Craft Conductor has closed"],
+                       manual=[f"{label}: if {exe} is still there 10 minutes after Craft Conductor has closed, "
+                               "delete it yourself"])
+    return Part(**base, action=f"deleted once Craft Conductor has closed: {exe}", paths=[exe], known=[exe],
                 remove=remove)
 
 
@@ -1789,7 +1797,9 @@ class SystemRunner:
         command = _command_line(argv)
         if detached:
             if os.name == "nt":
-                flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+                # (a console of its own with no window, so what it runs opens none either; not
+                # DETACHED_PROCESS: a console-less cmd gives every command it starts a window)
+                flags = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
                 subprocess.Popen(command, creationflags=flags, close_fds=True, stdin=subprocess.DEVNULL,
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             else:

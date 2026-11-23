@@ -324,7 +324,31 @@ def test_the_windows_program_is_deleted_after_it_exits(world, tmp_path, monkeypa
     assert kind == "run" and detached and not elevated
     assert argv[0].lower() == r"c:\windows\system32\cmd.exe"
     script = argv[-1]
-    assert str(os.getpid()) in script and f'del /f /q "{exe}"' in script
+    assert f'del /f /q "{exe}"' in script
+    # (final review, Important 4) It tries again until the file is gone, whichever process holds it (a
+    # one-file build's is the bootloader, not this one), for about ten minutes (the hub's exit may take
+    # minutes), and stops as soon as it's gone; no tasklist or find to flash windows.
+    assert f'if exist "{exe}"' in script and "(1,1,300)" in script and "PING.EXE -n 3 " in script
+    assert "tasklist" not in script.lower() and str(os.getpid()) not in script
+    # ...and the report always says what to do if it's still there
+    assert any(str(exe) in line and "still there" in line for line in report.manual)
+    assert not any("a few seconds" in line for line in report.removed)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows' process flags")
+def test_the_windows_delete_later_command_starts_without_a_window(monkeypatch):
+    import subprocess
+    started = []
+
+    class Popen:
+        def __init__(self, command, **kw):
+            started.append((command, kw))
+    monkeypatch.setattr(subprocess, "Popen", Popen)  # (no real process)
+    assert uninstall.SystemRunner().run([r"C:\Windows\System32\cmd.exe", "/d", "/s", "/c", '"echo"'], detached=True) == 0
+    [(command, kw)] = started
+    flags = kw["creationflags"]
+    assert flags & subprocess.CREATE_NO_WINDOW and flags & subprocess.CREATE_NEW_PROCESS_GROUP
+    assert not flags & subprocess.DETACHED_PROCESS  # (a console-less cmd gives every command it runs a new window)
 
 
 def test_a_windows_program_path_cmd_would_change_is_left_for_the_person(world, tmp_path, monkeypatch):
