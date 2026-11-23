@@ -873,6 +873,50 @@ def test_the_panel_and_server_services_are_removed_and_lingering_switched_off(wo
     assert not report.failed and len(report.removed) >= 2
 
 
+class InsideUnit(SystemFake):
+    """Craft Conductor running as its own service (the panel's unit): what systemd says this process is in."""
+
+    def own_unit(self):
+        self.calls.append(("own_unit",))
+        return "craft_conductor.service"
+
+
+def test_the_panels_own_service_is_disabled_without_stopping_the_uninstall(world, tmp_path, monkeypatch):
+    """R15: run from the control panel running as the service, `disable --now` would stop the panel
+    half-way through: its own unit is disabled and removed without stopping it (it ends when Craft
+    Conductor closes, at the end), and lingering, which would end it too, is left for the person."""
+    folder, linger, env = _units(world, tmp_path, monkeypatch)
+    panel = _install_unit(world["home"], panel=True)
+    alpha = _install_unit(world["alpha"])
+    (linger / "steve").write_text("")
+    runner = InsideUnit()
+    part = _one(_system_parts(world, runner, system="linux", monkeypatch=monkeypatch, env=env), "service")
+    report = uninstall.run([part], runner=runner)
+    ran = runner.ran()
+    assert ["systemctl", "--user", "disable", "craft_conductor.service"] in ran
+    assert ["systemctl", "--user", "disable", "--now", "craft_conductor.service"] not in ran
+    assert ["systemctl", "--user", "disable", "--now", alpha.name] in ran  # (a server's own unit still stops)
+    assert ran[-1] == ["systemctl", "--user", "daemon-reload"]  # (nothing after the panel's own unit)
+    assert not any(argv[0] == "loginctl" for argv in ran)
+    assert not panel.exists() and not alpha.exists()
+    assert any("craft_conductor.service" in line and "closes" in line for line in report.removed)
+    assert any("loginctl disable-linger steve" in line for line in report.manual)
+    assert not report.failed
+
+
+def test_the_worlds_count_and_the_empty_home_are_the_modules_own(world, tmp_path, monkeypatch):
+    """Shared by the command and the page (the second confirmation, and the folder left empty)."""
+    assert uninstall.count_worlds([world["alpha"], world["beta"], tmp_path / "nothing"]) == 2
+    empty = tmp_path / "me" / "craft-conductor"
+    empty.mkdir(parents=True)
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path / "me"))
+    assert "deleted the empty folder" in uninstall.remove_empty_home(empty.resolve())
+    assert not empty.exists()
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+    assert uninstall.remove_empty_home(other) is None and other.exists()
+
+
 def test_lingering_is_left_on_when_other_units_use_it(world, tmp_path, monkeypatch):
     folder, linger, env = _units(world, tmp_path, monkeypatch)
     _install_unit(world["home"], panel=True)

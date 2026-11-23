@@ -496,6 +496,16 @@ body.browse-mode main { padding: 0; overflow: hidden; }
 .place-row code { overflow-wrap: anywhere; }
 .place-row .grow { min-width: min(260px, 100%); }
 #locations .modal { width: min(720px, 100%); }
+/* Uninstall Craft Conductor…: the plan, the tick boxes, then each step and the report */
+.modal.uninstall { width: min(720px, 100%); max-width: none; }
+.modal.uninstall h3 { margin: 16px 0 6px; font-size: 15px; }
+.uninstall-plan, .uninstall-report { margin: 0; padding-inline-start: 20px; display: grid; gap: 6px; overflow-wrap: anywhere; }
+.uninstall-paths { margin: 4px 0 0; padding-inline-start: 16px; color: var(--muted); }
+.uninstall-paths code { overflow-wrap: anywhere; }
+.uninstall-boxes { display: grid; gap: 6px; }
+.uninstall-steps li.failed { color: var(--bad-fg); }
+.uninstall-steps li.kept { color: var(--muted); }
+#uninstall-password { width: min(320px, 100%); }
 /* the folder browser: the folders in a folder on the computer Craft Conductor runs on */
 .modal.folder-browser { width: min(640px, 100%); }
 /* (a fixed height: the window doesn't jump as folders with more or fewer folders are opened, #229) */

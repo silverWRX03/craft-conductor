@@ -39,7 +39,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from . import __version__, access, backup, config as configmod, configs, licenses, limits, notice, passkeys, safearchive, selfupdate, serverprops, setup as setupmod, stats, webauth
-from . import peer, private, tunnels
+from . import peer, private, tunnels, uninstall
 from . import users as usersmod
 from .config import ConfigError, ModSpec
 from .daemon import Daemon, set_current_server
@@ -68,8 +68,10 @@ MAX_JSON = 1 << 20
 MAX_UPLOAD = 512 << 20
 MAX_ARCHIVE = 64 << 30
 LANGUAGES = ("es", "pt", "fr", "de", "hi", "zh", "vi", "ar", "ko")  # besides English: src/craft_conductor/webui/i18n/<code>.json
+UNINSTALL, UNINSTALL_PROGRESS = "/api/hub/uninstall", "/api/hub/uninstall/progress"  # (Uninstall Craft Conductor…)
 LOCAL_ONLY = {"/api/open", "/api/hub/open", "/api/hub/remote-install/open", "/api/play-here", "/api/hub/singleplayer/install",
-              "/api/hub/firewall/remove", "/api/hub/playit/install", "/api/hub/folders/pick"}  # they act on this computer's screen  # a whole server (worlds and all), for importing
+              "/api/hub/firewall/remove", "/api/hub/playit/install", "/api/hub/folders/pick",  # they act on this computer's screen
+              UNINSTALL, UNINSTALL_PROGRESS}  # (removing Craft Conductor from this computer: only at it)
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
           "/app.js": ("app.js", "text/javascript; charset=utf-8"),
           "/rich.js": ("rich.js", "text/javascript; charset=utf-8"),
@@ -111,7 +113,8 @@ SECURITY_HEADERS = {
 # A sign-in with craft-conductor's one-time password (headless first run) can only replace it.
 STAGED_NAME = re.compile(r"[A-Za-z0-9 ()\[\]+_.,'-]{1,120}\.(jar|zip)")  # a file added on the setup page
 FIRST_SIGN_IN_OK = {"/api/auth/change", "/api/logout", "/api/hub", "/api/notice", "/api/notice/accept", "/api/licenses"}
-NOTICE_EXEMPT = {"/api/notice", "/api/notice/accept", "/api/status", "/api/licenses", "/api/auth/change", "/api/hub"}
+NOTICE_EXEMPT = {"/api/notice", "/api/notice/accept", "/api/status", "/api/licenses", "/api/auth/change", "/api/hub",
+                 UNINSTALL_PROGRESS}  # (the uninstall's progress: its record of the notice may be gone by then)
 # Routes whose request body is a file, streamed to disk rather than parsed as JSON.
 RAW_UPLOADS = {"/api/hub/stage", "/api/hub/manual/stage", "/api/mods/local", "/api/client/local"}
 # Headers a reverse proxy or tunnel adds: a request carrying any of them didn't come straight
@@ -871,6 +874,9 @@ class RequestHandler(BaseHTTPRequestHandler):
                 raise ApiError(404, "not found")
             if method == "POST" and self.headers.get("X-CRAFT-CONDUCTOR") != "1":
                 raise ApiError(403, "missing X-CRAFT-CONDUCTOR header")
+            if getattr(self.web.hub, "uninstalling", False) and path != UNINSTALL_PROGRESS:
+                # (Craft Conductor is being removed: nothing answers that might write its files again)
+                raise ApiError(503, "Craft Conductor is being removed from this computer")
             local = self._here()
             visitor = self._visitor()
             if path == "/api/auth" and method == "GET":
@@ -1534,6 +1540,40 @@ def chosen_folder(value) -> Path | None:
         raise ApiError(400, str(e)) from None
 
 
+class UninstallJob:
+    """Uninstall Craft Conductor… under way: each step as it goes (two parts may share a key, so a
+    step is its key and its label), then the report."""
+
+    def __init__(self):
+        self.id = secrets.token_hex(8)
+        self.state = "running"
+        self.steps: list[dict] = []
+        self.report: dict | None = None
+        self.error = ""
+        self._lock = threading.Lock()
+
+    def progress(self, key: str, label: str, status: str) -> None:
+        with self._lock:
+            last = next((s for s in reversed(self.steps) if s["key"] == key and s["label"] == label), None)
+            if last is not None and last["status"] == "working":
+                last["status"] = status
+            else:
+                self.steps.append({"key": key, "label": label, "status": status})
+
+    def finish(self, report: dict) -> None:
+        with self._lock:
+            self.report, self.state = report, "done"
+
+    def fail(self, error: str) -> None:
+        with self._lock:
+            self.error, self.state = error, "failed"
+
+    def to_dict(self) -> dict:
+        with self._lock:
+            return {"id": self.id, "state": self.state, "steps": [dict(s) for s in self.steps], "report": self.report,
+                    "error": self.error}
+
+
 class HubApi:
     """The parts of the API that aren't about one server: the server list, new servers,
     the first-run notice, licenses and craft-conductor's own updates."""
@@ -1636,6 +1676,9 @@ class HubApi:
         r[("GET", "/api/hub/firewall-rules")] = self.firewall_rules
         r[("POST", "/api/hub/firewall/remove")] = self.firewall_remove
         r[("POST", "/api/hub/delete")] = self.delete_server
+        r[("GET", UNINSTALL)] = self.uninstall_plan
+        r[("POST", UNINSTALL)] = self.uninstall_start
+        r[("GET", UNINSTALL_PROGRESS)] = self.uninstall_progress
         r[("GET", "/api/notice")] = lambda q, b: {"accepted": notice.accepted(self.hub.root), "version": notice.NOTICE_VERSION,
                                                   "title": notice.TITLE, "points": notice.POINTS}
         r[("POST", "/api/notice/accept")] = self.accept_notice
@@ -1670,6 +1713,10 @@ class HubApi:
         r[("POST", "/api/self-update/later")] = self.defer_self_update
         r[("POST", "/api/self-update/channel")] = self.set_update_channel
         self.routes = r
+        self.uninstall_runner: uninstall.Runner | None = None  # (None: uninstall.SystemRunner; tests: one that only records)
+        self.uninstall_env: dict[str, str] | None = None       # (None: os.environ; tests: folders in a temporary one)
+        self.uninstall_job: UninstallJob | None = None
+        self._uninstall_lock = threading.Lock()
 
     def overview(self, q, b) -> dict:
         hub = self.hub
@@ -2753,6 +2800,167 @@ class HubApi:
         log.info("quitting (asked from the web UI)")
         threading.Timer(0.5, self.hub.stop_requested.set).start()  # after this reply is sent
         return {"ok": True}
+
+    # ------------------------------------------- Uninstall Craft Conductor… (roadmap 38)
+    # Owner only, only from a browser on this computer (LOCAL_ONLY), the password typed again; the
+    # request carries only the tick boxes: every path comes from uninstall.py's inventory.
+    UNINSTALL_TICKS = ("servers", "backups", "exports", "games", "keep_lockbox_key")
+    UNINSTALL_SHOWN = 8           # paths listed for each part
+    UNINSTALL_STOP_GRACE = 30.0   # seconds a server is given to stop, besides the minute's warning and its stop_timeout
+    UNINSTALL_EXIT_AFTER = 30.0   # seconds Craft Conductor waits for the page to take the report before it closes anyway
+    #   (the Windows program file is deleted by a command that waits a minute or so for Craft Conductor to close)
+
+    def _uninstall_choices(self, given: dict, query: bool) -> uninstall.Choices:
+        """The tick boxes, and nothing else: a box is on only when it says so plainly."""
+        ticks = {}
+        for key in self.UNINSTALL_TICKS:
+            value = given.get(key, False)
+            if query and value in ("1", "true", "0", "false", ""):
+                value = value in ("1", "true")
+            if not isinstance(value, bool):
+                raise ApiError(400, f"{key} is a tick box: true or false")
+            ticks[key] = value
+        return uninstall.Choices(**ticks)
+
+    def _uninstall_runner(self) -> uninstall.Runner:
+        return self.uninstall_runner if self.uninstall_runner is not None else uninstall.SystemRunner()
+
+    def _uninstall_parts(self, choices: uninstall.Choices, runner: uninstall.Runner) -> list[uninstall.Part]:
+        return uninstall.plan(self.hub.home, choices, env=self.uninstall_env, runner=runner)
+
+    def _running_servers(self) -> list[dict]:
+        """The servers running now, and how many players are on each (asked about first)."""
+        out = []
+        for sid, d in list(self.hub.daemons.items()):
+            if d.proc is not None and d.proc.running:
+                out.append({"id": sid, "name": server_name(read_properties(d.m.server_dir / "server.properties"), sid),
+                            "players": len(d.players)})
+        return out
+
+    def uninstall_plan(self, q, b) -> dict:
+        """What Uninstall would do with these tick boxes (?servers=1...): uninstall.plan, as the command shows it."""
+        if self.hub.is_single:
+            raise ApiError(400, "this Craft Conductor was started with `craft-conductor run`: remove it with "
+                                "`craft-conductor uninstall` where it runs")
+        if set(q) - set(self.UNINSTALL_TICKS):
+            raise ApiError(400, "only the tick boxes can be sent")
+        choices = self._uninstall_choices(q, query=True)
+        parts = self._uninstall_parts(choices, self._uninstall_runner())
+        servers = uninstall.servers_of(self.hub.home)
+        shown = self.UNINSTALL_SHOWN
+        return {
+            "choices": dataclasses.asdict(choices),
+            "parts": [{"key": p.key, "label": p.label, "present": p.present, "kept": p.kept, "action": p.action,
+                       "manual": p.manual, "paths": [] if p.kept else [str(x) for x in p.paths[:shown]],
+                       "more": 0 if p.kept else max(0, len(p.paths) - shown)} for p in parts],
+            "servers": len(servers), "server_ids": list(servers), "worlds": uninstall.count_worlds(servers.values()),
+            "running": self._running_servers(),
+            "lockbox_warning": any(p.key == "lockbox" and p.present and not p.kept for p in parts),
+        }
+
+    def uninstall_start(self, q, b) -> dict:
+        """Uninstall: the tick boxes and the password typed again. Runs in the background (follow it
+        with GET /api/hub/uninstall/progress?id=...); Craft Conductor closes once the page has the report."""
+        if self.hub.is_single:
+            raise ApiError(400, "this Craft Conductor was started with `craft-conductor run`: remove it with "
+                                "`craft-conductor uninstall` where it runs")
+        if set(b) - {"password", "stop_players", *self.UNINSTALL_TICKS}:
+            raise ApiError(400, "only the tick boxes and the password can be sent")
+        choices = self._uninstall_choices(b, query=False)
+        if not isinstance(b.get("stop_players", False), bool):
+            raise ApiError(400, "stop_players is a tick box: true or false")
+        auth = self.web.auth
+        self.web._attempt(["uninstall"], time.time())
+        if not isinstance(b.get("password"), str) or not auth.check(b["password"]):
+            raise ApiError(403, "wrong PIN" if auth.mode == "pin" else "wrong password")
+        with self._uninstall_lock:  # (one at a time)
+            if self.uninstall_job is not None:
+                raise ApiError(409, "Craft Conductor is already being removed")
+            if (m := self.hub.moving()) and m.get("running"):
+                raise ApiError(409, "Craft Conductor is moving its files to another folder: uninstall when it's done")
+            on = [s for s in self._running_servers() if s["players"]]
+            if on and b.get("stop_players") is not True:
+                raise ApiError(409, "Players are on " + ", ".join(f"{s['name']} ({s['players']})" for s in on) +
+                               ". They're told in game and given a minute before the server stops.", confirm="players")
+            runner = self._uninstall_runner()
+            parts = self._uninstall_parts(choices, runner)
+            job = self.uninstall_job = UninstallJob()
+            self.hub.uninstalling = True  # (from now on the rest of the control panel answers nothing)
+        log.info("removing Craft Conductor from this computer (asked from the control panel)")
+        threading.Thread(target=self._uninstall_run, args=(job, parts, runner), daemon=True, name="uninstall").start()
+        return {"ok": True, "id": job.id}
+
+    def _uninstall_run(self, job: UninstallJob, parts: list, runner) -> None:
+        from . import desktop
+        set_current_server(None)
+        state_dir = self.hub.state_dir
+
+        def progress(key: str, label: str, status: str) -> None:
+            if key == "state" and status == "working":
+                desktop.let_go_of_logs(state_dir)  # (R7: Windows can't delete a log file held open)
+            job.progress(key, label, status)
+        try:
+            report = uninstall.run(parts, runner=runner, progress=progress, stop_servers=self._stop_servers_for_uninstall)
+            if line := uninstall.remove_empty_home(self.hub.home.resolve()):
+                report.removed.append(line)
+            text = report.as_text()
+            saved = error = None
+            if report.manual:
+                try:
+                    saved = str(uninstall.save_report(text))
+                except OSError as e:
+                    error = f"This report couldn't be saved ({getattr(e, 'strerror', None) or e}): copy it from here."
+            job.finish({"removed": report.removed, "kept": report.kept, "failed": report.failed, "manual": report.manual,
+                        "text": text, "saved": saved, "save_error": error})
+        except Exception as e:  # (run() carries on past each part: this is the unexpected)
+            log.exception("the uninstall stopped")
+            job.fail(f"The uninstall stopped: {e}. Run `craft-conductor uninstall` to finish it.")
+        self._close_soon(self.UNINSTALL_EXIT_AFTER)  # (when the page doesn't come for the report)
+
+    def _close_soon(self, seconds: float) -> None:
+        timer = threading.Timer(seconds, self.hub.stop_requested.set)
+        timer.daemon = True  # (never what keeps the program running: the Windows program file waits for it to end)
+        timer.start()
+
+    def _stop_servers_for_uninstall(self) -> list[Path]:
+        """Stop every server the usual way (its manager asked to stop: players on it are told in game and
+        given a minute), and the throwaway servers (a map's, a mod test's). Returns the folders, as the
+        inventory has them, of the servers still running; a server still running that the inventory
+        doesn't know raises, so every server is kept (never a guess that lets one be deleted)."""
+        from . import daemon as daemonmod
+        self.hub.stop_throwaway_servers()
+        roots = uninstall.servers_of(self.hub.home)
+        started, asked = time.monotonic(), {}
+        for sid, d in list(self.hub.daemons.items()):
+            thread = self.hub._threads.get(sid)
+            if thread is None or not thread.is_alive():
+                continue
+            daemonmod.request_stop_in(d.m.config.state_dir, uninstall.PLAYERS_TOLD)
+            asked[sid] = (thread, started + daemonmod.STOP_WARNING + d.m.config.server.stop_timeout + self.UNINSTALL_STOP_GRACE)
+        still: list[str] = []
+        while asked:
+            time.sleep(0.2)
+            for sid, (thread, deadline) in list(asked.items()):
+                if not thread.is_alive():
+                    del asked[sid]
+                elif time.monotonic() > deadline:
+                    still.append(sid)
+                    del asked[sid]
+        unknown = [sid for sid in still if sid not in roots]
+        if unknown:
+            raise RuntimeError(f"{', '.join(unknown)} may still be running, and isn't among the servers found")
+        return [roots[sid] for sid in still]
+
+    def uninstall_progress(self, q, b) -> dict:
+        """Where the uninstall is: the steps so far, then the report. Once the page has the report,
+        Craft Conductor closes (the page keeps showing it)."""
+        job = self.uninstall_job
+        if job is None or q.get("id") != job.id:
+            raise ApiError(404, "no uninstall is under way")
+        answer = job.to_dict()
+        if answer["state"] != "running":
+            self._close_soon(0.5)  # (after this answer is sent)
+        return answer
 
     def saves(self, q, b) -> dict:
         """Singleplayer worlds on this computer, to start a server from (or put on one)."""

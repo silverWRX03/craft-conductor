@@ -240,6 +240,7 @@ class Hub:
         self._notice_lock = threading.Lock()  # (its own: _lock is held through a whole server create)
         self.stop_requested = threading.Event()
         self.restart_requested = False
+        self.uninstalling = False  # (Uninstall Craft Conductor… under way: the loop does nothing more, web.py)
         self.updater = selfupdate.Updater()  # where this copy stands with its own update (one source for everything)
         self.open_browser = False
         self.ui = None
@@ -2066,6 +2067,9 @@ class Hub:
                     hub_stop_path(self.home).unlink(missing_ok=True)
                     log.info("stop requested")
                     break
+                if self.uninstalling:  # (Craft Conductor is being removed: nothing is started or written again)
+                    self.stop_requested.wait(self.tick)
+                    continue
                 try:  # (one step going wrong is logged, and the next go round tries again: never Craft Conductor stopping)
                     now = time.monotonic()
                     if now >= next_scan:
@@ -2104,21 +2108,7 @@ class Hub:
                 self.discord_status(off=True)  # say craft-conductor is closed, rather than leave "online" up
             if self.discord_bot is not None:
                 self.discord_bot.close()
-            if self.map_session is not None:  # (a map's private server)
-                self.map_session.close()
-            if self.gallery is not None:
-                self.gallery.cancel.set()
-            # A mod test's or a map's throwaway server still being made: a process of its own, stopped
-            # too (it would keep running, holding its port and memory, after Craft Conductor).
-            for job in [*self.trials.values(), *self.previews.values()]:
-                if job.state == "running":
-                    try:
-                        job.stop()
-                    except Exception:
-                        log.exception("couldn't stop a mod test's or map's server")
-            for d in list(self.daemons.values()):  # (an update rehearsal's copy of a server)
-                if d.rehearsal is not None:
-                    d.rehearsal.close()
+            self.stop_throwaway_servers()
             if self.upnp_settings()["mapped"]:  # the servers stop: close the ports on the router too
                 try:
                     self._upnp_close()
@@ -2127,6 +2117,24 @@ class Hub:
             self._stop_all()
             hub_panel_path(self.home).unlink(missing_ok=True)
             hub_pid_path(self.home).unlink(missing_ok=True)
+
+    def stop_throwaway_servers(self) -> None:
+        """Stop the servers Craft Conductor makes for a while: a map's private server, a mod test's or
+        a map's server still being made, an update rehearsal's copy of a server (each a process of its
+        own: it would keep running, holding its port, memory and files, after Craft Conductor)."""
+        if self.map_session is not None:  # (a map's private server)
+            self.map_session.close()
+        if self.gallery is not None:
+            self.gallery.cancel.set()
+        for job in [*self.trials.values(), *self.previews.values()]:
+            if job.state == "running":
+                try:
+                    job.stop()
+                except Exception:
+                    log.exception("couldn't stop a mod test's or map's server")
+        for d in list(self.daemons.values()):  # (an update rehearsal's copy of a server)
+            if d.rehearsal is not None:
+                d.rehearsal.close()
 
     def _stop_all(self) -> None:
         for d in self.daemons.values():

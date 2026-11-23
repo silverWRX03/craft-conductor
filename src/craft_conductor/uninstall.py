@@ -60,6 +60,8 @@ from typing import Callable, Iterable, Mapping, Protocol
 from . import config as configmod, folders, locations, lockbox
 
 README = locations.README
+PLAYERS_TOLD = "Craft Conductor is being removed from this computer"  # (told in game to players on a server)
+REPORT_FILE = "Craft Conductor uninstall report.txt"  # (saved in Downloads when something is left to do)
 DECLINED = 1223  # (Windows' ERROR_CANCELLED: the administrator prompt was answered No)
 # The fixed order (servers are stopped before all of these, by run()'s stop_servers).
 ORDER = ("tunnels", "router", "firewall", "service", "invite", "games", "exports", "backups", "servers",
@@ -107,7 +109,10 @@ class Runner(Protocol):
     * ``launcher_running(key) -> bool | None``: that launcher ("minecraft", "prism") is open (None:
       can't be told; without it, or None, it's taken as open, and its games are listed instead);
     * ``write_text(path, text)``: replace a launcher's file whole (a temporary file, then a swap), to
-      take Craft Conductor's installations out of it (without it: listed for the person).
+      take Craft Conductor's installations out of it (without it: listed for the person);
+    * ``own_unit() -> str | None``: the systemd unit this process runs in ("craft_conductor.service"
+      when the control panel runs as its background service; without it, None): that unit is
+      disabled without being stopped, so the uninstall isn't stopped half-way (R15).
     """
 
     def run(self, argv: list[str], *, elevated: bool = False, detached: bool = False) -> int: ...
@@ -822,6 +827,7 @@ def _service_part(inv: Inventory) -> Part:
     if not units:
         return _absent("service", label, inv)
     root_now = _euid() == 0
+    own = _ask(inv, "own_unit", default=None)  # (R15: this process runs as one of them)
     user = _env(inv.env, "USER") or _env(inv.env, "LOGNAME")
     if not user:
         import getpass
@@ -832,23 +838,30 @@ def _service_part(inv: Inventory) -> Part:
                 f"{p.name} && sudo rm {p.path} && sudo systemctl daemon-reload")
 
     def remove(runner: Runner) -> Outcome:
-        out, gone = Outcome(), []
+        out, gone, inside = Outcome(), [], False
         for root, panel, p in units:
             if p.system and not root_now:
                 out.manual.append(by_hand(p))
                 continue
+            itself = panel and own == p.name  # (stopping it now would stop this uninstall half-way)
             try:
-                service.uninstall(root, subprocess_runner(runner), system=p.system, panel=panel)
+                service.uninstall(root, subprocess_runner(_without_stopping(runner) if itself else runner),
+                                  system=p.system, panel=panel)
             except Exception as e:
                 out.failed.append(f"{label}: {p.name} couldn't be removed ({getattr(e, 'strerror', None) or e})")
                 if p.system:
                     out.manual.append(by_hand(p))
                 continue
-            out.removed.append(f"{label}: removed {p.name} ({p.path})")
+            out.removed.append(f"{label}: removed {p.name} ({p.path})" + (
+                "; it stops when Craft Conductor closes, at the end of this" if itself else ""))
+            inside = inside or (itself and not p.system)
             if not p.system:
                 gone.append(p)
         if gone and (LINGER / user).exists() and not _other_units(gone[0].path.parent, {p.name for p in gone}):
-            if runner.run(["loginctl", "disable-linger", user]) == 0:
+            if inside:  # (switching lingering off can end this account's services at once: this one too)
+                out.manual.append(f"{label}: lingering is still on for {user}; nothing of Craft Conductor's needs it any "
+                                  f"more: loginctl disable-linger {user}")
+            elif runner.run(["loginctl", "disable-linger", user]) == 0:
                 out.removed.append(f"{label}: switched off lingering for {user} (nothing else of yours needed it)")
             else:
                 out.manual.append(f"{label}: lingering is still on for {user}; if nothing else needs it: "
@@ -860,6 +873,20 @@ def _service_part(inv: Inventory) -> Part:
     if needs_root:
         action += f" (listed for you: {', '.join(needs_root)} needs root)"
     return Part(key="service", label=label, present=True, action=action, user_home=inv.user_home, remove=remove)
+
+
+def _without_stopping(runner: Runner) -> Runner:
+    """``runner``, with `systemctl disable --now` made a plain `disable` (R15): for the control panel's
+    own unit while it runs this uninstall. The rest goes through as it is."""
+    class Disable:
+        def __getattr__(self, name):
+            return getattr(runner, name)
+
+        def run(self, argv, **kw):
+            if "disable" in argv and "--now" in argv:
+                argv = [a for a in argv if a != "--now"]
+            return runner.run(argv, **kw)
+    return Disable()  # type: ignore[return-value]
 
 
 def _invite_part(inv: Inventory) -> Part:
@@ -1470,6 +1497,42 @@ def run(parts: list[Part], *, runner: Runner | None = None, progress: Progress |
     return report
 
 
+def count_worlds(roots: Iterable[Path]) -> int:
+    """How many of these servers have a world: said in the second confirmation before deleting them."""
+    from . import world
+    n = 0
+    for root in roots:
+        try:
+            n += world.level_dir(game_dir(Path(root))).is_dir()
+        except (world.WorldError, OSError):
+            continue
+    return n
+
+
+def remove_empty_home(home: Path) -> str | None:
+    """Craft Conductor's own folder (~/craft-conductor), when everything in it went: a report line."""
+    if home != (Path.home() / "craft-conductor").resolve():
+        return None  # (a home set with CRAFT_CONDUCTOR_HOME may be a folder that's there for more than this)
+    try:
+        if folders.link_stat(os.lstat(home)) or any(home.iterdir()):
+            return None
+        os.rmdir(home)  # (only ever an empty folder)
+    except OSError:
+        return None
+    return f"The Craft Conductor folder: deleted the empty folder {home}"
+
+
+def save_report(text: str) -> Path:
+    """Keep the report in the person's Downloads folder (the home folder may be gone): where it went.
+    Raises OSError when it can't be saved."""
+    folder = folders.downloads_dir()
+    if folder is None:
+        raise OSError("there's no Downloads folder here")
+    saved = folder / REPORT_FILE
+    saved.write_text(text, encoding="utf-8")
+    return saved
+
+
 # ------------------------------------------------------------------ the real runner
 class SystemRunner:
     """The Runner that changes this computer. Never used by the tests."""
@@ -1582,6 +1645,21 @@ class SystemRunner:
         tmp = path.with_name(f".{path.name}.tmp")
         tmp.write_text(text, encoding="utf-8")
         os.replace(tmp, path)
+
+    def own_unit(self) -> str | None:
+        """The systemd unit this process runs in (Linux: the last part of its cgroup), or None."""
+        if _system() != "linux":
+            return None
+        try:
+            lines = Path("/proc/self/cgroup").read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return None
+        # (systemd's own line: "0::/..." with cgroup v2, ":name=systemd:/..." with v1)
+        for line in [x for x in lines if x.startswith("0::")] or [x for x in lines if ":name=systemd:" in x]:
+            last = line.rpartition(":")[2].rstrip("/").rpartition("/")[2]
+            if last.endswith(".service"):
+                return last
+        return None
 
 
 def _process_names() -> list[str] | None:

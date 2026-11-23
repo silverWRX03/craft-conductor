@@ -85,6 +85,38 @@ def _log_file():
         return io.StringIO()
 
 
+def let_go_of_logs(folder: Path) -> int:
+    """Close every log file this process holds open inside ``folder`` (the uninstall, before it
+    deletes the state folder: Windows can't delete a file that's open, R7). What was written there
+    goes nowhere from then on. Returns how many were closed."""
+    import logging
+    inside = os.path.normcase(os.path.abspath(folder)).rstrip("\\/") + os.sep
+
+    def ours(stream) -> bool:
+        name = getattr(stream, "name", None)
+        return isinstance(name, str) and os.path.normcase(os.path.abspath(name)).startswith(inside)
+    held = {}
+    loggers = [logging.getLogger(), *(x for x in logging.Logger.manager.loggerDict.values() if isinstance(x, logging.Logger))]
+    nowhere = open(os.devnull, "w", encoding="utf-8")  # (written to, never kept)
+    for logger in loggers:
+        for handler in list(logger.handlers):
+            stream = getattr(handler, "stream", None)
+            if isinstance(handler, logging.StreamHandler) and ours(stream):
+                held[id(stream)] = stream
+                handler.setStream(nowhere)
+    for attr in ("stdout", "stderr"):
+        stream = getattr(sys, attr)
+        if ours(stream):
+            held[id(stream)] = stream
+            setattr(sys, attr, nowhere)
+    for stream in held.values():
+        try:
+            stream.close()
+        except OSError:
+            pass
+    return len(held)
+
+
 def setup() -> None:
     """Give a console-less process somewhere to write. Call before anything prints."""
     global _windowless

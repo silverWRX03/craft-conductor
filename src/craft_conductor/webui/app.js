@@ -184,7 +184,11 @@ const scoped = (path) => server && path.startsWith("/api/") && !GLOBAL_API.test(
   ? `/api/servers/${server}/${path.slice(5)}` : path;
 const link = (view) => `#s/${server}/${view}`;
 
+// Uninstall Craft Conductor… under way (see openUninstall): the page asks nothing else any more, so the
+// report stays once Craft Conductor has closed (no sign-in page, no error, no reload in its place).
+let uninstalling = false;
 async function api(path, { method = "GET", body, raw } = {}) {
+  if (uninstalling) return new Promise(() => {});
   const headers = { "X-CRAFT-CONDUCTOR": "1" };
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (raw !== undefined) uploading++;  // (a file on its way: closing the tab would cut it off)
@@ -1241,7 +1245,7 @@ function announceUpdateFailed(last) {
   osNotify("The Craft Conductor update didn't work", updateFailedText(last), "cc-update-failed");
 }
 async function versionWatch() {  // (also while signed out: this is public and small)
-  if (updateWatch) return;
+  if (updateWatch || uninstalling) return;
   try {
     const a = await (await fetch("/api/auth", { credentials: "same-origin", cache: "no-store" })).json();
     noteServer(a.version, a.last_update);
@@ -7914,6 +7918,7 @@ function notifyPrefs() { try { return JSON.parse(localStorage.getItem(NOTIFY_KEY
 function saveNotifyPrefs(p) { try { localStorage.setItem(NOTIFY_KEY, JSON.stringify(p)); } catch (_) { /* private mode */ } }
 let notifySeen = null;
 async function notifyWatch() {
+  if (uninstalling) return;
   const prefs = notifyPrefs();
   if (!prefs || !prefs.on || !("Notification" in window) || Notification.permission !== "granted") return;
   // (while the page shows, the status refresh has just fetched this; it pauses when hidden)
@@ -8718,6 +8723,10 @@ views["craft-conductor"] = () => {
   renderDc();
   const phone = hubInfo && !hubInfo.single ? phoneCard() : null;
   const owner = !(hubInfo && hubInfo.role && hubInfo.role !== "owner");
+  // Removing Craft Conductor: the owner's, in a browser on this computer (the server checks both, and the password).
+  const uninstallCard = owner && hubInfo && hubInfo.local && !hubInfo.single ? h("div", { class: "mb" }, card("Removing Craft Conductor",
+    h("p", { class: "muted small" }, "Remove Craft Conductor from this computer: the program, its settings, and what it changed on this computer and your router. Your servers, backups, exports and games stay unless you tick them, and you see everything before anything is removed."),
+    h("div", { class: "row" }, h("button", { class: "btn danger", onclick: openUninstall }, "Uninstall Craft Conductor…")))) : null;
   const sections = [
     ["Appearance", "Language, size, contrast and motion on this device.", languageCard(), displayCard()],
     ["Sounds & notifications", "Choose what you hear and which alerts you see.", soundsCard(), notificationsCard(), warningsCard()],
@@ -8727,7 +8736,7 @@ views["craft-conductor"] = () => {
     ["Connections", "Phones, sharing with friends and connected services.", network, phone, sharing, cf, dc,
       owner && hubInfo && !hubInfo.single ? conflictsCard() : null],
     ...(owner ? [["Folders", "Where Craft Conductor keeps your files, and the folders it looks in for you.", locationsCard(), handFoldersCard()]] : []),
-    ["About & updates", "Craft Conductor version, updates and licenses.", about, firewallCard],
+    ["About & updates", "Craft Conductor version, updates and licenses.", about, firewallCard, uninstallCard],
     ...(owner && hubInfo && !hubInfo.single ? [["Advanced", "Safety rules you may switch off, if you know the risk.", risksCard()]] : []),
   ];
   const panels = sections.map(([title, description, ...cards], i) => h("section", {
@@ -8748,6 +8757,160 @@ views["craft-conductor"] = () => {
   renderUpdateStatus();
   return { onHub: (hb) => { renderSecurity(hb); renderSharing(hb); renderUpdateStatus(); } };
 };
+
+// ------------------------------------------------------------------- Uninstall Craft Conductor… (roadmap 38)
+// Craft Conductor settings → About & updates. The plan (uninstall.py's: what goes, what stays, what's left
+// for you) with every box off; Delete my servers and worlds asks again, naming how many; Uninstall, with the
+// password typed again, shows each step and then the report, which stays on the page after Craft Conductor
+// has closed. The request carries only the tick boxes: every path comes from Craft Conductor itself.
+const UNINSTALL_BOXES = [["servers", "Delete my servers and worlds"], ["backups", "Delete my backups"],
+  ["exports", "Delete my exports"], ["games", "Delete the games it set up in launchers"], ["keep_lockbox_key", "Keep the backup lock key"]];
+const UNINSTALL_MARK = { working: "› ", done: "✓ ", failed: "⚠ ", kept: "– " };
+const howMany = (n, one, many) => (n === 1 ? t(one) : t(many)).replace("{n}", n);
+
+function openUninstall() {
+  if ($("#uninstall")) return;
+  const ticks = Object.fromEntries(UNINSTALL_BOXES.map(([key]) => [key, false]));
+  let plan = null, error = "", busy = false, stopPlayers = false;
+  const pin = !!(hubInfo && hubInfo.auth && hubInfo.auth.mode === "pin");
+  const box = h("div", { class: "modal uninstall" });
+  const close = () => { const m = $("#uninstall"); if (m) m.remove(); };
+  const password = h("input", { type: "password", id: "uninstall-password", autocomplete: "current-password", inputmode: pin ? "numeric" : null });
+  password.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); start(); } });
+  const load = async () => {
+    const q = UNINSTALL_BOXES.filter(([key]) => ticks[key]).map(([key]) => `${key}=1`).join("&");
+    try { plan = await api("/api/hub/uninstall" + (q ? `?${q}` : "")); error = ""; } catch (e) {
+      if (e instanceof Unauthorized) { close(); return; }
+      error = e.message;
+    }
+    render();
+  };
+  const tick = async (key, input) => {
+    if (key === "servers" && input.checked && plan && plan.servers) {
+      const yes = await ask(t("Delete {servers} and {worlds} for good?")
+        .replace("{servers}", howMany(plan.servers, "1 server", "{n} servers")).replace("{worlds}", howMany(plan.worlds, "1 world", "{n} worlds"))
+        + "\n\n" + t("That's {names}, with everything in their folders. Their backups stay unless you tick Delete my backups too.").replace("{names}", plan.server_ids.join(", ")),
+      { ok: "Delete them", cancel: "Keep them", danger: true, safe: true });
+      if (!yes) { input.checked = false; return; }
+    }
+    ticks[key] = input.checked;
+    await load();
+  };
+  const start = async () => {
+    if (busy || !plan) return;
+    if (!password.value) { error = pin ? "Type your PIN again" : "Type your password again"; render(); password.focus(); return; }
+    busy = true;
+    render();
+    let started = null;
+    try {
+      started = await api("/api/hub/uninstall", { method: "POST", body: { ...ticks, stop_players: stopPlayers, password: password.value } });
+    } catch (e) {
+      busy = false;
+      if (e instanceof Unauthorized) { close(); return; }
+      if (e.confirm === "players") await load();  // (someone joined: the list says who, and the box to stop them anyway)
+      error = e.message;
+      render();
+      return;
+    }
+    uninstallProgress(box, started.id);
+  };
+  const part = (p) => h("li", {}, h("strong", {}, p.label), ": ", p.action,
+    p.paths.length ? h("ul", { class: "uninstall-paths small" }, p.paths.map((x) => h("li", {}, h("code", {}, x))),
+      p.more ? h("li", { class: "muted" }, t("…and {n} more").replace("{n}", p.more)) : null) : null,
+    p.manual ? h("p", { class: "small" }, h("strong", {}, "For you: "), p.manual) : null);
+  const render = () => {
+    if (!plan) {
+      fill(box, h("h2", { id: "uninstall-title" }, "Uninstall Craft Conductor"),
+        error ? h("p", { class: "bad-text", role: "alert" }, error) : h("p", { class: "muted" }, "Looking at what Craft Conductor added to this computer…"),
+        h("div", { class: "row mt-s" }, h("button", { class: "btn ghost", onclick: close }, "Cancel")));
+      return;
+    }
+    const absent = [...new Set(plan.parts.filter((p) => !p.present).map((p) => t(p.label)))];
+    const players = plan.running.filter((s) => s.players);
+    const boxes = UNINSTALL_BOXES.map(([key, label]) => {
+      const input = h("input", { type: "checkbox", checked: ticks[key], disabled: busy });
+      input.addEventListener("change", () => tick(key, input));
+      return h("label", { class: "row check-row small" }, input, h("span", {}, label));
+    });
+    const stop = h("input", { type: "checkbox", checked: stopPlayers, disabled: busy });
+    stop.addEventListener("change", () => { stopPlayers = stop.checked; });
+    fill(box,
+      h("h2", { id: "uninstall-title" }, "Uninstall Craft Conductor"),
+      h("p", {}, "This removes Craft Conductor from this computer: the program, its settings, and what it changed on this computer and your router. Nothing is removed until you press Uninstall."),
+      plan.running.length ? h("div", { class: "notice warn" },
+        h("p", { class: "small" }, "First, the running servers are stopped cleanly (players on them are told in game and given a minute):"),
+        h("ul", { class: "small" }, plan.running.map((s) => h("li", {}, s.name, s.players ? ` (${howMany(s.players, "1 player on", "{n} players on")})` : ""))),
+        players.length ? h("label", { class: "row check-row small" }, stop, h("span", {}, "Stop them anyway: the players are told in game and given a minute")) : null) : null,
+      h("h3", {}, "What happens"),
+      h("ul", { class: "uninstall-plan small" }, plan.parts.filter((p) => p.present).map(part)),
+      absent.length ? h("p", { class: "muted small" }, t("Not here, nothing to do: ") + absent.join(", ")) : null,
+      h("h3", {}, "What goes too"),
+      h("div", { class: "uninstall-boxes" }, boxes),
+      plan.lockbox_warning ? h("p", { class: "small warn-text" }, "The backup lock key is deleted, so the locked parts of the backups you keep (passwords, keys, IP bans, logs) won't open anywhere afterwards; the rest of each backup still restores. To keep it, tick Keep the backup lock key.") : null,
+      h("label", { for: "uninstall-password", class: "mt" }, pin ? "Type your PIN again" : "Type your password again"), password,
+      error ? h("p", { class: "bad-text", role: "alert" }, error) : null,
+      h("div", { class: "row mt-s" },
+        h("button", { class: "btn danger", disabled: busy, onclick: start }, busy ? "Uninstalling…" : "Uninstall"),
+        h("button", { class: "btn ghost", disabled: busy, onclick: close }, "Cancel")));
+  };
+  document.body.append(h("div", { class: "modal-backdrop", id: "uninstall", role: "dialog", "aria-modal": "true", "aria-labelledby": "uninstall-title" }, box));
+  render();
+  load();
+}
+
+// Uninstall pressed: from here on the page asks Craft Conductor only how it's going (uninstalling), and
+// keeps what it was told: the report is drawn from the last answer, never asked for again.
+function uninstallProgress(box, id) {
+  uninstalling = true;
+  clearTimers();
+  hideGuide();
+  const steps = h("ul", { class: "update-steps uninstall-steps small", role: "status", "aria-live": "polite" });
+  const drawSteps = (list) => fill(steps, (list || []).map((s) => h("li", { class: s.status }, UNINSTALL_MARK[s.status] || "· ", t(s.label))));
+  fill(box, h("h2", { id: "uninstall-title" }, "Uninstalling Craft Conductor…"),
+    h("progress", { "aria-label": "Uninstalling Craft Conductor" }), steps,
+    h("p", { class: "small muted" }, "Keep this page open: the report shows here when it's done, and stays after Craft Conductor has closed."));
+  let misses = 0;
+  const tick = async () => {
+    let d = null;
+    try {
+      const res = await fetch(`/api/hub/uninstall/progress?id=${encodeURIComponent(id)}`,
+        { credentials: "same-origin", cache: "no-store", headers: { "X-CRAFT-CONDUCTOR": "1" } });
+      if (res.ok) d = await res.json();
+    } catch (_) { /* not answering */ }
+    if (!d) {
+      if (++misses >= 10) {
+        fill(box, h("h2", { id: "uninstall-title" }, "Craft Conductor closed before this page got the report"),
+          h("p", {}, "If anything was left for you to do, the report is in your Downloads folder: Craft Conductor uninstall report.txt."), steps);
+        return;
+      }
+      setTimeout(tick, 1000);
+      return;
+    }
+    misses = 0;
+    drawSteps(d.steps);
+    if (d.state === "running") { setTimeout(tick, 1000); return; }
+    uninstallReport(box, d, steps);
+  };
+  tick();
+}
+
+function uninstallReport(box, d, steps) {
+  const r = d.report;
+  if (!r) {
+    fill(box, h("h2", { id: "uninstall-title" }, "The uninstall stopped"), h("p", { class: "bad-text" }, d.error), steps);
+    return;
+  }
+  const section = (title, items) => items.length ? [h("h3", {}, title), h("ul", { class: "uninstall-report small" }, items.map((x) => h("li", {}, x)))] : [];
+  fill(box,
+    h("h2", { id: "uninstall-title" }, r.failed.length ? "Craft Conductor has been removed, but not everything could be" : "Craft Conductor has been removed from this computer"),
+    h("p", { class: "small muted" }, "Craft Conductor closes now. This report stays here: close the page when you're done with it."),
+    steps,
+    ...section("Removed", r.removed), ...section("Kept", r.kept), ...section("Couldn't be removed", r.failed),
+    ...section("Left for you to do", r.manual),
+    r.removed.length ? null : h("p", {}, "Nothing was removed."),
+    r.saved ? h("p", { class: "small" }, t("This report is saved in {path}").replace("{path}", r.saved))
+      : r.save_error ? h("p", { class: "small bad-text" }, r.save_error) : null);
+}
 
 // ------------------------------------------------------------------- setup
 // Kept outside the view so choices survive re-renders and a failed attempt.

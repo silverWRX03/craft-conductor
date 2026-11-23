@@ -25,6 +25,7 @@ from .java import JavaManager
 from .players import ACTIONS, PlayerError, Players
 from .properties import number, read_properties, write_properties
 from .rcon import Rcon, RconError
+from .uninstall import PLAYERS_TOLD as UNINSTALL_WARNING  # (told in game to players on a server)
 
 log = logging.getLogger("craft_conductor")
 
@@ -933,8 +934,6 @@ def cmd_restore(args) -> int:
 
 
 # ---------------------------------------------------------------- uninstall
-UNINSTALL_REPORT = "Craft Conductor uninstall report.txt"
-UNINSTALL_WARNING = "Craft Conductor is being removed from this computer"  # (told in game to players on a server)
 UNINSTALL_STOP_UNANSWERED = 20.0  # seconds: a stop request nothing has taken by then has nobody to take it
 UNINSTALL_POLL = 0.2
 UNINSTALL_FLAGS = {"servers": "--delete-servers", "backups": "--delete-backups", "exports": "--delete-exports",
@@ -1067,36 +1066,11 @@ def _uninstall_plan_text(home: Path, classic: bool, parts: list, running: dict[P
     return "\n".join(lines)
 
 
-def _worlds(roots) -> int:
-    from . import uninstall, world
-    n = 0
-    for root in roots:
-        try:
-            n += world.level_dir(uninstall.game_dir(root)).is_dir()
-        except (world.WorldError, OSError):
-            continue
-    return n
-
-
-def _remove_empty_home(home: Path) -> str | None:
-    """Craft Conductor's own folder (~/craft-conductor), when everything in it went: a report line."""
-    if home != (Path.home() / "craft-conductor").resolve():
-        return None  # (a home set with CRAFT_CONDUCTOR_HOME may be a folder that's there for more than this)
-    from . import folders
-    try:
-        if folders.link_stat(os.lstat(home)) or any(home.iterdir()):
-            return None
-        os.rmdir(home)  # (only ever an empty folder)
-    except OSError:
-        return None
-    return f"The Craft Conductor folder: deleted the empty folder {home}"
-
-
 def cmd_uninstall(args) -> int:
     """Remove Craft Conductor from this computer (roadmap 38): the plan first; --yes (or yes at the
     question) does it. What's kept and what goes is uninstall.py's; this asks, stops the servers and
     reports."""
-    from . import folders, uninstall
+    from . import uninstall
     from .daemon import running_pid_in
     from .hub import running_hub, running_panel
     home, classic = _uninstall_home(args)
@@ -1130,7 +1104,7 @@ def cmd_uninstall(args) -> int:
             print(NOTHING_CHANGED)
             return 1
         if choices.servers and servers and any(p.key == "servers" and p.present and not p.kept for p in parts):
-            n, w = len(servers), _worlds(servers.values())
+            n, w = len(servers), uninstall.count_worlds(servers.values())
             answer = input(f"This deletes {n} server{'s' if n != 1 else ''} and {w} world{'s' if w != 1 else ''} for good "
                            f"({', '.join(servers)}). Type {n} to delete them: ")
             if answer.strip() != str(n):
@@ -1148,18 +1122,13 @@ def cmd_uninstall(args) -> int:
             print(f"  {label}...", flush=True)
     report = uninstall.run(parts, runner=runner, progress=progress, stop_servers=lambda: _stop_for_uninstall(
         list(servers.values()), check_ports=choices.servers or choices.backups))
-    if not classic and (line := _remove_empty_home(home)):
+    if not classic and (line := uninstall.remove_empty_home(home)):
         report.removed.append(line)
     text = report.as_text()
     print("\n" + text)
     if report.manual:
-        folder = folders.downloads_dir()
         try:
-            if folder is None:
-                raise OSError("there's no Downloads folder here")
-            saved = folder / UNINSTALL_REPORT
-            saved.write_text(text, encoding="utf-8")
-            print(f"This report is saved in {saved}")
+            print(f"This report is saved in {uninstall.save_report(text)}")
         except OSError as e:
             print(f"This report couldn't be saved ({getattr(e, 'strerror', None) or e}): copy it from here.")
     return 1 if report.failed else 0
