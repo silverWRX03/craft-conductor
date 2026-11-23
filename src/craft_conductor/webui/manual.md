@@ -596,7 +596,7 @@ Type your password (or PIN) again and press **Uninstall**. Each step shows as it
 
 **What goes, in this order** (one that fails doesn't stop the rest; it goes in the report):
 
-1. The running servers are stopped, including the ones another Craft Conductor looks after (`craft-conductor run`). A server that doesn't stop is kept with its backups, whatever you ticked.
+1. The running servers are stopped, including the ones another Craft Conductor looks after (`craft-conductor run`). A server that doesn't stop (or whose pid file can't be read) is kept with its backups, whatever you ticked; when it can't be told which server is still running, every server is kept.
 2. The control panel's Tailscale Serve address, when Craft Conductor set it up, is switched off, and a Cloudflare quick tunnel is stopped. The Tailscale and playit.gg apps stay: you installed them.
 3. The ports Craft Conductor opened on your router (UPnP) are taken back. Ports the router doesn't answer for are listed, to remove in the router's settings.
 4. Its Windows Firewall rules, with one Windows administrator prompt. Answer No and they're listed, with the command to remove them later.

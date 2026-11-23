@@ -24,8 +24,11 @@ that place and the path, the place included (the part lists such a link for the 
 report, never a crash. What a kept place holds is never deleted with a folder around it: that folder
 is deleted one entry at a time around it (a server's own backups folder survives deleting the
 server). A chosen place (servers, backups, exports) is deleted whole only when it holds nothing but
-Craft Conductor's own entries: it may be the person's Documents folder. A server that didn't stop
-(``stop_servers``) is kept, with its own backups.
+Craft Conductor's own entries: it may be the person's Documents folder. Likewise a server's folder
+is deleted whole only when it's in the servers place (Hub.delete_server's rule): from any other only
+the server's own pieces go, a ``[server] dir`` outside it is listed, never deleted, and a backups
+folder the person pointed a server at loses only its backups. A server that didn't stop
+(``stop_servers``), or any server when that can't be told, is kept, with its own backups.
 
 Everything that changes the computer goes through a ``Runner``: tests pass one that only records
 calls; ``SystemRunner`` is the real one. So does everything only the computer itself can tell (Windows

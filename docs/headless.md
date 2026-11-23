@@ -85,7 +85,7 @@ sudo ufw allow 8798/tcp      # friends' downloads, if you use them
 | Logs | `ssh minecraft@192.168.1.50 journalctl --user -u craft-conductor -f` |
 | Update Craft Conductor | from the control panel (Craft Conductor settings → About & updates → Check for updates), or run the install command again |
 | Remove the service | `ssh minecraft@192.168.1.50 craft-conductor service uninstall --panel` (your servers stay in `~/craft-conductor`) |
-| Remove Craft Conductor | `ssh minecraft@192.168.1.50`, stop the panel (`systemctl --user stop craft_conductor.service`), then `craft-conductor uninstall`: it lists what goes, and `--yes` removes the service, its settings and the program (servers, backups and exports stay unless you add `--delete-servers`, `--delete-backups`, `--delete-exports`); see [Removing Craft Conductor](https://github.com/silverWRX03/craft-conductor/wiki/Removing-Craft-Conductor) |
+| Remove Craft Conductor | `ssh minecraft@192.168.1.50`, stop the panel (`systemctl --user stop craft_conductor.service`), then `craft-conductor uninstall`: it lists what goes, and `--yes` removes the service, its settings and the program (servers, backups and exports stay unless you add `--delete-servers`, `--delete-backups`, `--delete-exports`; the backup lock key is deleted too, so kept backups' locked parts won't open afterwards, unless you add `--keep-lockbox-key`); see [Removing Craft Conductor](https://github.com/silverWRX03/craft-conductor/wiki/Removing-Craft-Conductor) |
 | Forgot the password | `ssh` in, delete `~/craft-conductor/.craft-conductor/web-auth.json`, then `systemctl --user restart craft-conductor` for a new one-time password |
 
 The service runs as your user and keeps running after you log out ("lingering"). If Craft Conductor
