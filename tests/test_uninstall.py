@@ -1523,3 +1523,95 @@ def test_the_system_runner_tells_whether_a_launcher_is_open(monkeypatch):
     assert runner.launcher_running("prism") is True
     monkeypatch.setattr(uninstall, "_process_names", lambda: None)  # (the process list can't be read)
     assert runner.launcher_running("minecraft") is None
+
+
+# ------------------------------------------------------------------ final review: the Windows shared Java in ProgramData (Important 2)
+ME = "S-1-5-21-1000000000-2000000000-3000000000-1001"
+SOMEONE = "S-1-5-21-1000000000-2000000000-3000000000-1002"
+
+
+@pytest.fixture
+def program_data(world, tmp_path, monkeypatch):
+    """A ProgramData in the temporary folder, this account's Java folder in it and another account's;
+    the SID and owner lookups answer from a table (never the real computer's)."""
+    from craft_conductor import private
+    data = tmp_path / "ProgramData"
+    mine, theirs = data / f"craft-conductor-java-{ME}", data / f"craft-conductor-java-{SOMEONE}"
+    for folder in (mine, theirs):
+        (folder / "21" / "bin").mkdir(parents=True)
+        (folder / "21" / "bin" / "java.exe").write_bytes(b"MZ")
+    owners = {os.path.normcase(str(mine)): ME, os.path.normcase(str(theirs)): SOMEONE}
+    monkeypatch.setattr(private, "account_sid", lambda: ME)
+    monkeypatch.setattr(private, "_owner_sid", lambda path: owners[os.path.normcase(str(path))])
+
+    def never(path):
+        raise AssertionError("planning must never make or change the Java folder (private.own_folder)")
+    monkeypatch.setattr(private, "own_folder", never)
+    monkeypatch.setattr(uninstall, "_system", lambda: "windows")
+    env = {**world["env"], "ProgramData": str(data)}
+    return {"data": data, "mine": mine, "theirs": theirs, "owners": owners, "env": env}
+
+
+def _java(world, program_data, **choices) -> uninstall.Part:
+    [part] = [p for p in uninstall.plan(world["home"], Choices(**choices), env=program_data["env"]) if p.key == "java"]
+    return part
+
+
+def test_this_accounts_shared_java_in_programdata_is_removed(world, program_data):
+    part = _java(world, program_data)
+    assert part.present and not part.kept and part.paths == [program_data["mine"]]
+    assert "the Java Craft Conductor downloaded for this account" in part.action
+    keys = [p.key for p in uninstall.plan(world["home"], Choices(), env=program_data["env"])]
+    assert keys.index("state") < keys.index("java") < keys.index("program")
+    runner = FakeRunner()
+    report = uninstall.run([part], runner=runner)
+    assert runner.deleted() == [program_data["mine"]] and not report.failed
+
+
+def test_another_accounts_java_folder_is_never_touched(world, program_data):
+    import shutil
+    shutil.rmtree(program_data["mine"])
+    assert not _java(world, program_data).present
+    program_data["mine"].mkdir()
+    program_data["owners"][os.path.normcase(str(program_data["mine"]))] = SOMEONE  # (another account made it)
+    assert not _java(world, program_data).present
+    runner = FakeRunner()
+    uninstall.run(uninstall.plan(world["home"], Choices(), env=program_data["env"]), runner=runner)
+    assert not _held(runner, program_data["data"])
+
+
+def test_no_sid_means_no_java_part(world, program_data, monkeypatch):
+    from craft_conductor import private
+
+    def fails():
+        raise OSError("can't tell")
+    monkeypatch.setattr(private, "account_sid", fails)
+    assert not _java(world, program_data).present
+
+
+def test_there_is_no_programdata_java_part_off_windows(world, program_data, monkeypatch):
+    monkeypatch.setattr(uninstall, "_system", lambda: "linux")
+    assert not _java(world, program_data).present
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows junctions")
+def test_a_junction_named_like_the_java_folder_is_refused(world, program_data, tmp_path):
+    import shutil
+    shutil.rmtree(program_data["mine"])
+    _link(program_data["mine"], tmp_path / "elsewhere", "junction")
+    assert not _java(world, program_data).present
+
+
+@pytest.mark.skipif(os.name != "nt", reason="the system-folder rule reads Windows' ProgramData")
+def test_the_system_folder_rule_is_relaxed_only_for_that_exact_folder(world, program_data, monkeypatch):
+    monkeypatch.setenv("ProgramData", str(program_data["data"]))  # (the system folder, for this test)
+    mine, theirs, user = program_data["mine"], program_data["theirs"], world["user"]
+    assert "system folder" in (uninstall.refusal(mine, user, [mine]) or "")  # (without the exemption)
+    assert uninstall.refusal(mine, user, [mine], system_ok=[mine]) is None
+    assert "system folder" in (uninstall.refusal(mine / "21", user, [mine], system_ok=[mine]) or "")
+    assert "system folder" in (uninstall.refusal(theirs, user, [theirs], system_ok=[mine]) or "")
+    assert uninstall.refusal(program_data["data"], user, [program_data["data"]], system_ok=[program_data["data"]])
+    part = _java(world, program_data)
+    runner = FakeRunner()
+    report = uninstall.run([part], runner=runner)
+    assert runner.deleted() == [mine] and not report.failed

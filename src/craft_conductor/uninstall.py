@@ -65,7 +65,7 @@ REPORT_FILE = "Craft Conductor uninstall report.txt"  # (saved in Downloads when
 DECLINED = 1223  # (Windows' ERROR_CANCELLED: the administrator prompt was answered No)
 # The fixed order (servers are stopped before all of these, by run()'s stop_servers).
 ORDER = ("tunnels", "router", "firewall", "service", "invite", "games", "exports", "backups", "servers",
-         "lockbox", "state", "program", "listed")
+         "lockbox", "state", "java", "program", "listed")
 LINGER = Path("/var/lib/systemd/linger")  # (systemd's record of each account with lingering on)
 
 
@@ -135,7 +135,8 @@ class Part:
     instead of deleting ``paths``; ``per_server``: each server's folder -> what of that server this
     part would delete (its folders, its own backups), kept when that server didn't stop (``run``);
     ``emptied``: folders removed after ``paths`` only if that left them empty (a server folder added
-    from elsewhere: never deleted whole)."""
+    from elsewhere: never deleted whole); ``system_ok``: paths exempt from the system-folder rule (only
+    this account's Java folder in ProgramData: see ``refusal``)."""
     key: str
     label: str
     present: bool
@@ -148,6 +149,7 @@ class Part:
     remove: Callable[[Runner], Outcome] | None = field(default=None, repr=False, compare=False)
     per_server: dict[Path, list[Path]] = field(default_factory=dict)
     emptied: list[Path] = field(default_factory=list)
+    system_ok: list[Path] = field(default_factory=list)
 
 
 @dataclass
@@ -211,9 +213,28 @@ def link_on_the_way(path: Path, known: Iterable[Path]) -> Path | None:
     return None
 
 
-def _dangerous(path: Path, home: Path) -> str | None:
+PROGRAM_DATA = r"C:\ProgramData"  # (Windows' ProgramData when the environment doesn't say: tests set their own)
+
+
+def _program_data() -> Path:
+    """Windows' ProgramData folder (every account's), as this process sees it."""
+    return Path(os.environ.get("ProgramData") or PROGRAM_DATA)
+
+
+def _system_exempt(path: Path, system_ok: Iterable[Path]) -> bool:
+    """``path`` is exactly one of ``system_ok`` and sits right in the real ProgramData (as written and
+    as it really is): this account's own Java folder there (``_java_part``), the only folder in a
+    system folder that's ever deleted."""
+    if not any(_lex(path) == _lex(ok) for ok in system_ok):
+        return False
+    data, parent = _program_data(), Path(os.path.abspath(path)).parent
+    return _lex(parent) == _lex(data) and locations._norm(parent) == locations._norm(data)
+
+
+def _dangerous(path: Path, home: Path, system_ok: Iterable[Path] = ()) -> str | None:
     """Why ``path`` is never deleted wherever it came from: a drive root, the person's home folder or
-    one holding it, a system folder (None: none of those)."""
+    one holding it, a system folder (None: none of those). ``system_ok``: the one folder in ProgramData
+    that may be (``_system_exempt``); it still mustn't hold a system folder."""
     try:
         is_dir = stat.S_ISDIR(os.lstat(path).st_mode)
     except OSError:
@@ -223,14 +244,15 @@ def _dangerous(path: Path, home: Path) -> str | None:
         return "it's the top of a drive"
     if locations.inside(home, real):
         return "it's your home folder, or holds it"
-    if is_dir and (locations.is_system(real) or _holds_system(real)):
+    if is_dir and ((locations.is_system(real) and not _system_exempt(path, system_ok)) or _holds_system(real)):
         return "it's a system folder"
     return None
 
 
-def refusal(path: Path, home: Path, known: Iterable[Path]) -> str | None:
-    """Why ``path`` mustn't be deleted (None: it may be). ``home``: the person's home folder."""
-    path, known = Path(path), list(known)
+def refusal(path: Path, home: Path, known: Iterable[Path], system_ok: Iterable[Path] = ()) -> str | None:
+    """Why ``path`` mustn't be deleted (None: it may be). ``home``: the person's home folder;
+    ``system_ok``: see ``_dangerous`` (only the system-folder rule is relaxed, only for that exact path)."""
+    path, known, system_ok = Path(path), list(known), list(system_ok)
     if not path.is_absolute():
         return "it isn't a full path"
     try:
@@ -241,7 +263,7 @@ def refusal(path: Path, home: Path, known: Iterable[Path]) -> str | None:
         return f"it can't be looked at ({e.strerror or e})"
     if st is not None and folders.link_stat(st):
         return "it's a link or junction, so what it leads to isn't Craft Conductor's"
-    if why := _dangerous(path, home):
+    if why := _dangerous(path, home, system_ok):
         return why
     holding = [k for k in known if _lex_inside(path, k)]
     real = os.path.realpath(path)
@@ -661,6 +683,29 @@ def _state_part(inv: Inventory) -> Part:
     return Part(key="state", label="Settings and state", present=present,
                 action=f"deleted: {what}" if present else "nothing here",
                 paths=_carve([state], inv.keep, inv.user_home) if present else [], known=[state], user_home=inv.user_home)
+
+
+def _java_part(inv: Inventory) -> Part:
+    """Windows: the shared Java Craft Conductor downloaded into ProgramData for this account (java.py's
+    ``_plain_store``, when its own folder's name had letters Java can't use). Only that exact folder, and
+    only when it's a plain folder this account owns: never another account's of that name, never one
+    found by a pattern. Read only (private.own_folder would make it, and change its permissions)."""
+    label = "Shared Java"
+    if _system() != "windows":
+        return _absent("java", label, inv)
+    from . import private
+    try:
+        me = private.account_sid()
+        folder = Path(_env(inv.env, "ProgramData") or PROGRAM_DATA) / f"craft-conductor-java-{me}"
+        mine = bool(me) and _plain_dir(folder) and private._owner_sid(str(folder)) == me
+    except Exception:  # (this account or the folder's owner can't be told: it isn't taken as this account's)
+        mine = False
+    if not mine:
+        return _absent("java", label, inv)
+    return Part(key="java", label=label, present=True,
+                action=f"deleted: the Java Craft Conductor downloaded for this account ({folder})", paths=[folder],
+                known=[folder], user_home=inv.user_home, system_ok=[folder],
+                per_server={root: [folder] for root in inv.servers.values()})  # (a server still running may use it)
 
 
 def _windows_delete_later(exe: Path, env: Mapping[str, str]) -> list[str] | None:
@@ -1475,6 +1520,7 @@ BUILDERS: dict[str, Builder] = {
     "servers": _servers_part,
     "lockbox": _lockbox_part,
     "state": _state_part,
+    "java": _java_part,
     "program": _program_part,
     "listed": _listed_part,
 }
@@ -1506,7 +1552,7 @@ def delete_paths(part: Part, runner: Runner) -> Outcome:
         except OSError as e:
             out.failed.append(f"{part.label}: {path} couldn't be looked at ({e.strerror or e})")
             continue
-        why = refusal(path, home, part.known)
+        why = refusal(path, home, part.known, part.system_ok)
         if why:
             out.failed.append(f"{part.label}: {path} wasn't deleted ({why})")
             continue

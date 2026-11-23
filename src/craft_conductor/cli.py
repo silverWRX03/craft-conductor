@@ -962,7 +962,7 @@ def _uninstall_home(args) -> tuple[Path, bool]:
     return home, False
 
 
-UNINSTALL_SHARED = ("router", "firewall", "service", "invite", "games", "program")  # (the whole computer's)
+UNINSTALL_SHARED = ("router", "firewall", "service", "invite", "games", "java", "program")  # (the whole computer's, and this account's Java in ProgramData)
 SHARED_WORDS = "kept: shared with the Craft Conductor at"
 
 

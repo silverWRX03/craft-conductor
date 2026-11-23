@@ -237,6 +237,15 @@ def own_home(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def no_real_programdata(tmp_path, monkeypatch):
+    """ProgramData is the test's own: the uninstall never plans (or deletes) this computer's real
+    shared Java in C:\\ProgramData (test_java sets its own too)."""
+    from craft_conductor import uninstall
+    monkeypatch.setenv("ProgramData", str(tmp_path / "ProgramData"))
+    monkeypatch.setattr(uninstall, "PROGRAM_DATA", str(tmp_path / "ProgramData"))
+
+
+@pytest.fixture(autouse=True)
 def no_real_relay(monkeypatch):
     """Tests never report to, or read from, the real mod-conflict relay (test_conflicts sets its own)."""
     monkeypatch.setenv("CRAFT_CONDUCTOR_CONFLICTS_URL", "off")
