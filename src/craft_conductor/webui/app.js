@@ -8793,7 +8793,7 @@ function openUninstall() {
     if (key === "servers" && input.checked && plan && plan.servers) {
       const yes = await ask(t("Delete {servers} and {worlds} for good?")
         .replace("{servers}", howMany(plan.servers, "1 server", "{n} servers")).replace("{worlds}", howMany(plan.worlds, "1 world", "{n} worlds"))
-        + "\n\n" + t("That's {names}, with everything in their folders. Their backups stay unless you tick Delete my backups too.").replace("{names}", plan.server_ids.join(", ")),
+        + "\n\n" + t("That's {names}, with their worlds and everything Craft Conductor put in their folders. Their backups stay unless you tick Delete my backups too.").replace("{names}", plan.server_ids.join(", ")),
       { ok: "Delete them", cancel: "Keep them", danger: true, safe: true });
       if (!yes) { input.checked = false; return; }
     }

@@ -157,7 +157,9 @@ def test_places_from_hub_json_and_a_backup_copy_folder(world, tmp_path):
         "locations": {"servers": str(elsewhere), "backups": str(chosen_backups), "exports": str(exports), "chosen": True},
         "extra": [str(extra)]}), encoding="utf-8")
     parts = _parts(world, servers=True, backups=True, exports=True)
-    assert sorted(parts["servers"].paths) == sorted([elsewhere, extra])
+    # (a server added from elsewhere: only its own files, never its folder whole)
+    assert sorted(parts["servers"].paths) == sorted([elsewhere, extra / "server", extra / "craft-conductor.toml"])
+    assert parts["servers"].emptied == [extra]
     assert sorted(parts["backups"].paths) == sorted([chosen_backups, usb / "gamma"])  # (not the USB folder, nor another's copies)
     assert parts["exports"].paths == [exports]
     assert world["alpha"] not in parts["servers"].paths  # (the old default folder isn't the servers folder any more)
@@ -496,7 +498,7 @@ def test_a_home_that_is_the_persons_own_home_folder_loses_only_craft_conductors_
     assert user not in runner.deleted()
 
 
-def test_a_server_folder_at_a_drive_root_is_refused_and_the_rest_goes_on(world):
+def test_a_server_folder_at_a_drive_root_is_never_deleted_and_the_rest_goes_on(world):
     root = Path(world["user"].anchor) if os.name == "nt" else Path("/")
     (world["alpha"] / "craft-conductor.toml").write_text(
         TOML.replace("[server]\n", f"[server]\ndir = {json.dumps(str(root))}\n"), encoding="utf-8")
@@ -506,7 +508,7 @@ def test_a_server_folder_at_a_drive_root_is_refused_and_the_rest_goes_on(world):
     assert root not in runner.deleted()
     for path in runner.deleted():  # (nothing on the drive but Craft Conductor's own)
         assert world["home"] in path.parents or path == world["home"], path
-    assert any(str(root) in line and "top of a drive" in line for line in report.failed)
+    assert any(str(root) in line for line in report.manual)  # (outside the server's folder: listed for the person)
     assert world["beta"] in runner.deleted() and world["state"] in runner.deleted()
 
 
@@ -527,7 +529,10 @@ def test_a_server_inside_the_backups_folder(world, tmp_path, servers_ticked):
     assert len(deleted) == len(set(deleted))  # (nothing deleted twice)
     assert chosen not in runner.deleted()  # (it holds a server, not only backups)
     assert chosen / "alpha" in runner.deleted()
-    assert (inside in runner.deleted()) is servers_ticked
+    # (a server added from elsewhere: never deleted whole, only Craft Conductor's own files in it)
+    assert inside not in runner.deleted()
+    assert ((inside / "server") in runner.deleted()) is servers_ticked
+    assert ((inside / "craft-conductor.toml") in runner.deleted()) is servers_ticked
     if not servers_ticked:
         assert not _held(runner, inside)
 
@@ -566,6 +571,119 @@ def test_when_stopping_the_servers_fails_outright_every_server_is_kept(world):
     assert not _held(runner, world["home"] / "servers")
     assert world["home"] / "exports" in runner.deleted() and world["state"] in runner.deleted()
     assert any("couldn't reach the servers" in line for line in report.failed)
+
+
+# ------------------------------------------------------------------ final review: only what Craft Conductor made (Critical 1)
+class DeletingRunner(FakeRunner):
+    """Really deletes, but only inside ``root`` (the test's temporary folder): for what's left after."""
+
+    def __init__(self, root: Path, **kw):
+        super().__init__(**kw)
+        self.root = Path(root)
+
+    def _mine(self, path) -> Path:
+        assert _under(path, self.root), path
+        return Path(path)
+
+    def delete_tree(self, path):
+        import shutil
+        super().delete_tree(path)
+        shutil.rmtree(self._mine(path))
+
+    def delete_file(self, path):
+        super().delete_file(path)
+        os.unlink(self._mine(path))
+
+    def remove_empty_folder(self, path):
+        self.calls.append(("remove_empty_folder", Path(path)))
+        os.rmdir(self._mine(path))
+
+
+def test_a_server_dir_outside_its_server_folder_is_listed_never_deleted(world):
+    documents = world["user"] / "Documents"
+    (documents / "world").mkdir(parents=True)
+    (documents / "taxes.pdf").write_bytes(b"%PDF")
+    (world["alpha"] / "craft-conductor.toml").write_text(
+        TOML.replace("[server]\n", f"[server]\ndir = {json.dumps(str(documents))}\n"), encoding="utf-8")
+    parts = _parts(world, servers=True, backups=True)
+    assert not any(_under(p, documents) or _under(documents, p) for p in parts["servers"].paths)
+    assert str(documents) in (parts["servers"].manual or "")
+    runner = FakeRunner()
+    report = uninstall.run(list(parts.values()), runner=runner)
+    assert not _held(runner, documents)
+    assert any(str(documents) in line for line in report.manual)
+    assert world["beta"] in runner.deleted() or world["home"] / "servers" in runner.deleted()
+
+
+def test_a_shared_backups_folder_loses_only_the_backup_files(world, tmp_path):
+    shared = tmp_path / "D_Backups"
+    (shared / "holidays").mkdir(parents=True)
+    (shared / "holiday.mov").write_bytes(b"mov")
+    ours = [shared / "20260101-000000-alpha.tar.gz", shared / "20260101-000000-alpha.tar.gz.json",
+            shared / "20260102-000000-alpha.tar.gz.part", shared / ".checks.json"]
+    for p in ours:
+        p.write_bytes(b"x")
+    (world["alpha"] / "craft-conductor.toml").write_text(
+        TOML + f'[backups]\ndir = {json.dumps(str(shared))}\n', encoding="utf-8")
+    parts = _parts(world, backups=True)
+    runner = FakeRunner()
+    uninstall.run(list(parts.values()), runner=runner)
+    assert shared not in runner.deleted()
+    assert not _held(runner, shared / "holiday.mov") and not _held(runner, shared / "holidays")
+    assert {p for p in runner.deleted() if _under(p, shared)} == set(ours)
+
+
+def test_a_backups_folder_holding_only_backups_still_goes_whole(world, tmp_path):
+    chosen = tmp_path / "backups-folder"
+    (chosen / "alpha").mkdir(parents=True)
+    (chosen / "alpha" / "alpha-1.tar.gz").write_bytes(b"backup")
+    (chosen / "alpha" / "my-notes.txt").write_text("mine", encoding="utf-8")  # (its own folder there: whole)
+    (world["alpha"] / "craft-conductor.toml").write_text(
+        TOML + f'[backups]\ndir = {json.dumps(str(chosen / "alpha"))}\n', encoding="utf-8")
+    _hub(world, backups=chosen)
+    assert _parts(world, backups=True)["backups"].paths == [chosen]
+
+
+def _added_server(world, folder: Path, photos: bool) -> Path:
+    root = _server(folder)
+    (root / "craft-conductor.lock.json").write_text("{}", encoding="utf-8")
+    (root / "manual-downloads").mkdir()
+    (root / ".craft-conductor").mkdir()
+    (root / ".craft-conductor" / "daemon.log").write_text("log", encoding="utf-8")
+    if photos:
+        (root / "family-photos").mkdir()
+        (root / "family-photos" / "beach.jpg").write_bytes(b"jpg")
+    (world["state"] / "hub.json").write_text(json.dumps({"extra": [str(root)]}), encoding="utf-8")
+    return root
+
+
+def test_a_server_added_from_elsewhere_loses_only_its_own_files(world):
+    added = _added_server(world, world["user"] / "Downloads" / "myserver", photos=True)
+    parts = _parts(world, servers=True)
+    runner = DeletingRunner(world["user"])
+    uninstall.run(list(parts.values()), runner=runner)
+    assert added not in runner.deleted()
+    assert {p for p in runner.deleted() if _under(p, added)} == {
+        added / "server", added / "craft-conductor.toml", added / "craft-conductor.lock.json",
+        added / "manual-downloads", added / ".craft-conductor"}
+    assert (added / "family-photos" / "beach.jpg").read_bytes() == b"jpg"
+    assert sorted(p.name for p in added.iterdir()) == ["family-photos"]
+
+
+def test_a_server_added_from_elsewhere_with_nothing_else_in_it_goes(world):
+    added = _added_server(world, world["user"] / "Downloads" / "myserver", photos=False)
+    runner = DeletingRunner(world["user"])
+    report = uninstall.run(list(_parts(world, servers=True).values()), runner=runner)
+    assert not added.exists() and (world["user"] / "Downloads").is_dir()
+    assert ("remove_empty_folder", added) in runner.calls
+    assert not report.failed
+
+
+def test_a_server_added_from_elsewhere_is_kept_whole_unless_ticked(world):
+    added = _added_server(world, world["user"] / "Downloads" / "myserver", photos=True)
+    runner = FakeRunner()
+    uninstall.run(list(_parts(world, backups=True, exports=True).values()), runner=runner)
+    assert not _held(runner, added)
 
 
 # ------------------------------------------------------------------ Task 2: the system parts

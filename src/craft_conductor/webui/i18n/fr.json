@@ -1192,7 +1192,7 @@
   "{n} servers": "{n} serveurs",
   "1 world": "1 monde",
   "{n} worlds": "{n} mondes",
-  "That's {names}, with everything in their folders. Their backups stay unless you tick Delete my backups too.": "Il s'agit de {names}, avec tout ce que contiennent leurs dossiers. Leurs sauvegardes restent sauf si vous cochez aussi Supprimer mes sauvegardes.",
+  "That's {names}, with their worlds and everything Craft Conductor put in their folders. Their backups stay unless you tick Delete my backups too.": "Il s'agit de {names}, avec leurs mondes et tout ce que Craft Conductor a mis dans leurs dossiers. Leurs sauvegardes restent sauf si vous cochez aussi Supprimer mes sauvegardes.",
   "Delete them": "Les supprimer",
   "Keep them": "Les garder",
   "Uninstalling Craft Conductor…": "Désinstallation de Craft Conductor…",

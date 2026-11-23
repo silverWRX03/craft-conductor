@@ -1221,7 +1221,7 @@
   "{n} servers": "{n} 个服务器",
   "1 world": "1 个世界",
   "{n} worlds": "{n} 个世界",
-  "That's {names}, with everything in their folders. Their backups stay unless you tick Delete my backups too.": "它们是 {names}，连同其文件夹中的所有内容。除非你同时勾选“删除我的备份”，它们的备份会保留。",
+  "That's {names}, with their worlds and everything Craft Conductor put in their folders. Their backups stay unless you tick Delete my backups too.": "它们是 {names}，连同其世界以及 Craft Conductor 放在其文件夹中的所有内容。除非你同时勾选“删除我的备份”，它们的备份会保留。",
   "Delete them": "删除它们",
   "Keep them": "保留它们",
   "Uninstalling Craft Conductor…": "正在卸载 Craft Conductor…",

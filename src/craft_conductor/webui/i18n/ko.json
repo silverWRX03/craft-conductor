@@ -1220,7 +1220,7 @@
   "{n} servers": "서버 {n}개",
   "1 world": "월드 1개",
   "{n} worlds": "월드 {n}개",
-  "That's {names}, with everything in their folders. Their backups stay unless you tick Delete my backups too.": "{names}이며, 폴더 안의 모든 것이 함께 삭제됩니다. 내 백업 삭제도 체크하지 않으면 백업은 남습니다.",
+  "That's {names}, with their worlds and everything Craft Conductor put in their folders. Their backups stay unless you tick Delete my backups too.": "{names}이며, 월드와 Craft Conductor가 폴더에 넣은 모든 것이 함께 삭제됩니다. 내 백업 삭제도 체크하지 않으면 백업은 남습니다.",
   "Delete them": "삭제하기",
   "Keep them": "유지하기",
   "Uninstalling Craft Conductor…": "Craft Conductor 제거하는 중…",

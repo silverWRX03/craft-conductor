@@ -1221,7 +1221,7 @@
   "{n} servers": "{n} خوادم",
   "1 world": "عالم واحد",
   "{n} worlds": "{n} عوالم",
-  "That's {names}, with everything in their folders. Their backups stay unless you tick Delete my backups too.": "إنها {names}، مع كل ما في مجلداتها. تبقى نسخها الاحتياطية ما لم تحدد احذف نسخي الاحتياطية أيضًا.",
+  "That's {names}, with their worlds and everything Craft Conductor put in their folders. Their backups stay unless you tick Delete my backups too.": "إنها {names}، مع عوالمها وكل ما وضعه Craft Conductor في مجلداتها. تبقى نسخها الاحتياطية ما لم تحدد احذف نسخي الاحتياطية أيضًا.",
   "Delete them": "احذفها",
   "Keep them": "احتفظ بها",
   "Uninstalling Craft Conductor…": "جارٍ إلغاء تثبيت Craft Conductor…",

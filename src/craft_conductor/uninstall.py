@@ -112,7 +112,9 @@ class Runner(Protocol):
       take Craft Conductor's installations out of it (without it: listed for the person);
     * ``own_unit() -> str | None``: the systemd unit this process runs in ("craft_conductor.service"
       when the control panel runs as its background service; without it, None): that unit is
-      disabled without being stopped, so the uninstall isn't stopped half-way (R15).
+      disabled without being stopped, so the uninstall isn't stopped half-way (R15);
+    * ``remove_empty_folder(path)``: remove a folder only if it's empty (without it: the empty folder
+      stays).
     """
 
     def run(self, argv: list[str], *, elevated: bool = False, detached: bool = False) -> int: ...
@@ -131,7 +133,9 @@ class Part:
     ``known``: the places ``paths`` must stay inside (checked again when deleting); ``user_home``:
     the person's home folder, never deleted (None: this account's); ``remove``: the part's own work,
     instead of deleting ``paths``; ``per_server``: each server's folder -> what of that server this
-    part would delete (its folders, its own backups), kept when that server didn't stop (``run``)."""
+    part would delete (its folders, its own backups), kept when that server didn't stop (``run``);
+    ``emptied``: folders removed after ``paths`` only if that left them empty (a server folder added
+    from elsewhere: never deleted whole)."""
     key: str
     label: str
     present: bool
@@ -143,6 +147,7 @@ class Part:
     user_home: Path | None = None
     remove: Callable[[Runner], Outcome] | None = field(default=None, repr=False, compare=False)
     per_server: dict[Path, list[Path]] = field(default_factory=dict)
+    emptied: list[Path] = field(default_factory=list)
 
 
 @dataclass
@@ -294,12 +299,38 @@ def _server_toml(root: Path) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def _table_dir(root: Path, data: dict, table: str, default: str) -> Path:
-    """A folder a server's craft-conductor.toml names (``[server] dir``, ``[backups] dir``), as
-    written (not followed through links: a link isn't deleted)."""
+def _table_dir(root: Path, data: dict, table: str, default: str, key: str = "dir") -> Path:
+    """A folder a server's craft-conductor.toml names (``[server] dir``, ``[backups] dir``,
+    ``[downloads] manual_dir``), as written (not followed through links: a link isn't deleted)."""
     t = data.get(table)
-    value = t.get("dir", default) if isinstance(t, dict) else default
+    value = t.get(key, default) if isinstance(t, dict) else default
     return Path(os.path.abspath(root / (value if isinstance(value, str) and value else default)))
+
+
+def _strictly_inside(child: Path, parent: Path) -> bool:
+    """``child`` is inside ``parent`` (as written), and isn't ``parent`` itself."""
+    return _lex_inside(child, parent) and _lex(child) != _lex(parent)
+
+
+def _backup_files(folder: Path) -> list[Path]:
+    """What Craft Conductor writes in a backups folder (backup.py, snapshots.py, areas.py): its backups,
+    their notes, unfinished ones and its record of their checks. Nothing else there is its own."""
+    from . import areas, backup
+    try:
+        entries = sorted(folder.iterdir()) if _plain_dir(folder) else []
+    except OSError:
+        return []
+    out = []
+    for e in entries:
+        n = e.name
+        try:
+            is_dir = stat.S_ISDIR(os.lstat(e).st_mode)
+        except OSError:
+            continue
+        if not is_dir and (n.endswith((backup.SUFFIX, backup.SUFFIX + ".json", ".part"))
+                           or n in (areas.CHECKS, areas.CHECKS + ".tmp")):
+            out.append(e)
+    return out
 
 
 def _plain_dir(path: Path) -> bool:
@@ -325,20 +356,64 @@ class Inventory:
     configs: dict[str, dict]           # each server's craft-conductor.toml ({} when it can't be read)
     keep: list[Path] = field(default_factory=list)  # what nothing deleted may take with it
 
-    def pieces_of(self, sid: str) -> list[Path]:
-        """What makes up one server: its folder (the one kept in the home folder itself: its server
-        folder and craft-conductor.toml), and its server folder when that's kept outside it."""
+    def own_folder(self, sid: str) -> bool:
+        """The server's folder is Craft Conductor's own: it's in the servers place (Hub.delete_server's
+        rule), so it's deleted whole. Any other (the home folder, a folder added from elsewhere) may hold
+        the person's own files too."""
         root = self.servers[sid]
-        game = _table_dir(root, self.configs[sid], "server", "server")
-        if _same(root, self.home):
-            return _existing([game, root / configmod.CONFIG_NAME])
-        return _existing([root, *([] if _lex_inside(game, root) else [game])])
+        return _lex(root.parent) == _lex(self.places["servers"]) and not _same(root, self.home)
+
+    def game_of(self, sid: str) -> Path:
+        """The server's server folder (``[server] dir``), as written."""
+        return _table_dir(self.servers[sid], self.configs[sid], "server", "server")
+
+    def pieces_of(self, sid: str) -> list[Path]:
+        """What the servers part deletes of one server (Hub.delete_server's rule): its folder when it's
+        Craft Conductor's own (``own_folder``); otherwise only the server's own pieces inside its folder
+        (its server folder, manual downloads folder, craft-conductor.toml, lock file and state folder,
+        not the home's), and the folder itself afterwards only if that left it empty. Its backups are
+        the backups part's. A server folder outside the server's folder is never deleted (``outside_of``)."""
+        root = self.servers[sid]
+        if self.own_folder(sid):
+            return _existing([root])
+        inside = [self.game_of(sid), _table_dir(root, self.configs[sid], "downloads", "manual-downloads", "manual_dir"),
+                  root / configmod.CONFIG_NAME, root / "craft-conductor.lock.json"]
+        if not _same(root, self.home):
+            inside.append(root / configmod.STATE_DIR)
+        return _existing(p for p in inside if _strictly_inside(p, root))
+
+    def outside_of(self, sid: str) -> list[Path]:
+        """The server's server folder when it isn't inside the server's own folder: listed for the
+        person, never deleted (it may be their Documents folder)."""
+        root, game = self.servers[sid], self.game_of(sid)
+        inside = _lex_inside(game, root) if self.own_folder(sid) else _strictly_inside(game, root)
+        return [] if inside else _existing([game])
+
+    def added_roots(self) -> list[Path]:
+        """The server folders that aren't Craft Conductor's own, nor the home: never deleted whole (only
+        removed once empty), and kept from every other part."""
+        return [r for sid, r in self.servers.items() if not self.own_folder(sid) and not _same(r, self.home)]
 
     def server_pieces(self) -> list[Path]:
         return _existing(p for sid in self.servers for p in self.pieces_of(sid))
 
+    def raw_backup_dir(self, sid: str) -> Path:
+        """The server's backups folder (``[backups] dir``), as written."""
+        return _table_dir(self.servers[sid], self.configs[sid], "backups", "backups")
+
     def backup_dir_of(self, sid: str) -> list[Path]:
-        return _existing([_table_dir(self.servers[sid], self.configs[sid], "backups", "backups")])
+        """What the backups part deletes of one server's backups folder: the folder whole when it's
+        inside the server's folder (and doesn't hold its server folder) or is ``<backups place>/<id>``;
+        otherwise only the backups in it (``_backup_files``), as the folder may be one the person
+        pointed it at with their own files in it."""
+        root, folder, place = self.servers[sid], self.raw_backup_dir(sid), self.places["backups"]
+        if ((_strictly_inside(folder, root) and not _lex_inside(self.game_of(sid), folder))
+                or (place is not None and _lex(folder) == _lex(Path(place) / sid))):
+            return _existing([folder])
+        return _existing(_whole_or_each(folder, _backup_files(folder)))
+
+    def raw_backup_dirs(self) -> list[Path]:
+        return _existing(self.raw_backup_dir(sid) for sid in self.servers)
 
     def copy_folder_of(self, sid: str) -> Path | None:
         """The server's backup copy folder (``[backups] copy_to``), if it has one."""
@@ -449,10 +524,14 @@ def _inventory(home: Path, choices: Choices, env: Mapping[str, str], runner: Run
     data, places, servers = _found(home)
     inv = Inventory(home=home, state_dir=state_dir, user_home=_user_home(env), choices=choices, env=env, runner=runner,
                     hub=data, places=places, servers=servers, configs={sid: _server_toml(r) for sid, r in servers.items()})
+    # (never taken with a folder around them: a server folder added from elsewhere, which may hold the
+    # person's own files, and a server's server folder outside its folder, which may be their Documents)
+    inv.keep += [*inv.added_roots(), *(p for sid in servers for p in inv.outside_of(sid))]
     if not choices.servers:
         inv.keep += [places["servers"], *inv.server_pieces()]
     if not choices.backups:
-        inv.keep += [*([places["backups"]] if places["backups"] else []), *inv.backup_dirs(), *inv.copy_dirs()]
+        inv.keep += [*([places["backups"]] if places["backups"] else []), *inv.raw_backup_dirs(), *inv.backup_dirs(),
+                     *inv.copy_dirs()]
     if not choices.exports:
         inv.keep.append(places["exports"])
     if choices.keep_lockbox_key:
@@ -462,9 +541,11 @@ def _inventory(home: Path, choices: Choices, env: Mapping[str, str], runner: Run
 
 # ------------------------------------------------------------------ the parts
 def _place_part(inv: Inventory, key: str, label: str, ticked: bool, paths: list[Path], known: list[Path],
-                deleted: str, kept: str, per_server: dict[Path, list[Path]] | None = None) -> Part:
+                deleted: str, kept: str, per_server: dict[Path, list[Path]] | None = None,
+                notes: list[str] | None = None, emptied: list[Path] | None = None) -> Part:
     """A part made of folders in places (servers, backups, exports). Ticked: what's kept is carved
-    out, and nothing is deleted through a link or junction (R10): it's listed for the person."""
+    out, and nothing is deleted through a link or junction (R10): it's listed for the person, with
+    ``notes`` (what else is left for them); ``emptied``: folders removed afterwards if that left them empty."""
     present = bool(paths)
     known = [k for k in known if k is not None]
     manual = None
@@ -483,11 +564,14 @@ def _place_part(inv: Inventory, key: str, label: str, ticked: bool, paths: list[
                       f"deleted through {'it' if one else 'them'}; delete what's in {'it' if one else 'them'} yourself "
                       "if you don't want it any more")
             deleted += " (not what's behind a link or junction: see what's left for you to do)"
+        if present and notes:
+            manual = "; ".join([manual, *notes] if manual else [f"{label}: {notes[0]}", *notes[1:]])
     home = inv.user_home
     guards = {root: [p for p in pieces if not _dangerous(p, home)] for root, pieces in (per_server or {}).items()}
     return Part(key=key, label=label, present=present, action=(deleted if ticked else kept) if present else "nothing here",
                 paths=paths, manual=manual, kept=present and not ticked,
-                known=[k for k in known if not _dangerous(k, home)], user_home=home, per_server=guards)
+                known=[k for k in known if not _dangerous(k, home)], user_home=home, per_server=guards,
+                emptied=[e for e in (emptied or []) if ticked and present and not _dangerous(e, home)])
 
 
 def _export_members(folder: Path) -> list[Path]:
@@ -525,19 +609,28 @@ def _backups_part(inv: Inventory) -> Part:
     where = ", ".join(str(p) for p in paths) or "-"
     copies_too = " (and their copies in the backup copy folder)" if copies else ""
     copy_folders = [f for sid in inv.servers if (f := inv.copy_folder_of(sid)) is not None]
-    return _place_part(inv, "backups", "Backups", inv.choices.backups, paths, [*dirs, *copies, *copy_folders, folder],
-                       f"deleted: every server's backups{copies_too}", f"kept in {where}",
-                       {root: inv.backups_of(sid) for sid, root in inv.servers.items()})
+    return _place_part(inv, "backups", "Backups", inv.choices.backups, paths,
+                       [*inv.raw_backup_dirs(), *dirs, *copies, *copy_folders, folder],
+                       f"deleted: every server's backups{copies_too} (your other files in a backups folder stay)",
+                       f"kept in {where}", {root: inv.backups_of(sid) for sid, root in inv.servers.items()})
 
 
 def _servers_part(inv: Inventory) -> Part:
     folder, pieces = inv.places["servers"], inv.server_pieces()
     paths = _existing(_whole_or_each(folder, pieces, empty_too=_lex(folder) == _lex(locations.defaults(inv.home)["servers"])))
     n = len(inv.servers)
-    return _place_part(inv, "servers", "Servers and worlds", inv.choices.servers, paths, [folder, *pieces],
-                       f"deleted: {n} server{'s' if n != 1 else ''} and their worlds",
+    added = inv.added_roots()
+    notes = [f"{game} is the server folder of the server in {root} but isn't inside that server's own folder, so it "
+             "wasn't deleted (it may hold your own files); delete it yourself if you don't want it"
+             for sid, root in inv.servers.items() for game in inv.outside_of(sid)]
+    deleted = f"deleted: {n} server{'s' if n != 1 else ''} and their worlds"
+    if added or any(_same(r, inv.home) for r in inv.servers.values()):
+        deleted += (" (in a server folder Craft Conductor didn't make, only its own files: your other files there "
+                    "stay)")
+    return _place_part(inv, "servers", "Servers and worlds", inv.choices.servers, paths,
+                       [folder, *inv.servers.values(), *pieces], deleted,
                        f"kept in {', '.join(str(p) for p in paths) or '-'}",
-                       {root: inv.pieces_of(sid) for sid, root in inv.servers.items()})
+                       {root: inv.pieces_of(sid) for sid, root in inv.servers.items()}, notes=notes, emptied=added)
 
 
 def _lockbox_part(inv: Inventory) -> Part:
@@ -1426,6 +1519,15 @@ def delete_paths(part: Part, runner: Runner) -> Outcome:
             out.failed.append(f"{part.label}: {path} couldn't be deleted ({getattr(e, 'strerror', None) or e})")
             continue
         out.removed.append(f"{part.label}: deleted {path}")
+    remove_empty = getattr(runner, "remove_empty_folder", None)
+    for folder in part.emptied if callable(remove_empty) else []:
+        try:
+            if not _plain_dir(folder) or any(folder.iterdir()) or refusal(folder, home, part.known):
+                continue  # (something is left in it, or it's not one to remove: it stays)
+            remove_empty(folder)
+        except Exception:  # (it stays, which is fine: only an empty folder)
+            continue
+        out.removed.append(f"{part.label}: deleted the empty folder {folder}")
     return out
 
 
@@ -1448,7 +1550,7 @@ def _hold_running(part: Part, running: list[Path], everyone: bool, report: Repor
     for root, pieces in held.items():
         report.kept.append(f"{part.label}: {', '.join(str(p) for p in pieces)} kept, because the server in {root} "
                            "may still be running")
-    return dataclasses.replace(part, paths=paths)
+    return dataclasses.replace(part, paths=paths, emptied=[e for e in part.emptied if not any(_same(e, r) for r in held)])
 
 
 def run(parts: list[Part], *, runner: Runner | None = None, progress: Progress | None = None,
@@ -1641,6 +1743,9 @@ class SystemRunner:
     def delete_tree(self, path: Path) -> None:
         from . import removal
         removal.rmtree(path)  # (read-only files and folders too: #216)
+
+    def remove_empty_folder(self, path: Path) -> None:
+        os.rmdir(path)  # (only ever an empty folder: fails otherwise)
 
     def delete_file(self, path: Path) -> None:
         try:

@@ -1216,7 +1216,7 @@
   "{n} servers": "{n} máy chủ",
   "1 world": "1 thế giới",
   "{n} worlds": "{n} thế giới",
-  "That's {names}, with everything in their folders. Their backups stay unless you tick Delete my backups too.": "Đó là {names}, cùng mọi thứ trong thư mục của chúng. Bản sao lưu của chúng được giữ lại trừ khi bạn cũng đánh dấu Xóa bản sao lưu của tôi.",
+  "That's {names}, with their worlds and everything Craft Conductor put in their folders. Their backups stay unless you tick Delete my backups too.": "Đó là {names}, cùng các thế giới của chúng và mọi thứ Craft Conductor đã đặt trong thư mục của chúng. Bản sao lưu của chúng được giữ lại trừ khi bạn cũng đánh dấu Xóa bản sao lưu của tôi.",
   "Delete them": "Xóa chúng",
   "Keep them": "Giữ chúng",
   "Uninstalling Craft Conductor…": "Đang gỡ cài đặt Craft Conductor…",

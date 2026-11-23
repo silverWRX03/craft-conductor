@@ -1221,7 +1221,7 @@
   "{n} servers": "{n} सर्वर",
   "1 world": "1 वर्ल्ड",
   "{n} worlds": "{n} वर्ल्ड",
-  "That's {names}, with everything in their folders. Their backups stay unless you tick Delete my backups too.": "ये {names} हैं, उनके फ़ोल्डरों में मौजूद सब कुछ के साथ। उनके बैकअप तब तक रहते हैं जब तक आप मेरे बैकअप मिटाएँ भी टिक न करें।",
+  "That's {names}, with their worlds and everything Craft Conductor put in their folders. Their backups stay unless you tick Delete my backups too.": "ये {names} हैं, उनकी दुनियाओं और उनके फ़ोल्डरों में Craft Conductor की रखी हर चीज़ के साथ। उनके बैकअप तब तक रहते हैं जब तक आप मेरे बैकअप मिटाएँ भी टिक न करें।",
   "Delete them": "इन्हें मिटाएँ",
   "Keep them": "इन्हें रखें",
   "Uninstalling Craft Conductor…": "Craft Conductor अनइंस्टॉल हो रहा है…",
