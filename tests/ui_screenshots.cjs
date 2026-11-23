@@ -275,6 +275,18 @@ const HEADERS = {'X-CRAFT-CONDUCTOR': '1'};
   await page.locator('.card', {hasText: 'Where files are kept'}).locator('.place-row').first().waitFor();
   await page.waitForTimeout(400);
   await shot('folders');
+  // Removing Craft Conductor: the plan with every box off and the backup lock key's warning, the whole
+  // window in the picture (test_screenshots.py's runner only answers; Uninstall is never pressed).
+  await page.getByRole('button', {name: 'About & updates'}).click();
+  await page.getByRole('button', {name: 'Uninstall Craft Conductor…', exact: true}).click();
+  await page.locator('#uninstall .uninstall-plan').waitFor();
+  const tall = await page.locator('#uninstall .modal').evaluate(el => el.scrollHeight);
+  await page.setViewportSize({width: DESKTOP.width, height: Math.max(DESKTOP.height, tall + 64)});
+  await page.waitForTimeout(500);
+  await shot('uninstall');
+  await page.locator('#uninstall').getByRole('button', {name: 'Cancel', exact: true}).click();
+  await page.setViewportSize(DESKTOP);
+  await page.waitForTimeout(300);
   await page.evaluate(() => openRemoteAccess());
   await page.locator('.remote-step').first().waitFor();
   await page.waitForTimeout(500);

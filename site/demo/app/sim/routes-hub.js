@@ -18,6 +18,63 @@
   const DEMO_HOST = "craft-conductor.demo.invalid";
   sim.DEMO_HOST = DEMO_HOST;
 
+  // Uninstall Craft Conductor… (web.py's uninstall_plan and the progress report, for the made-up computer).
+  const UNINSTALL_TICKS = ["servers", "backups", "exports", "games", "keep_lockbox_key"];
+  let uninstallJob = null;  // (not kept: reloading the demo starts without one)
+  const ticksOf = (from, on) => Object.fromEntries(UNINSTALL_TICKS.map((k) => [k, on(k)]));
+  const EXE = "C:\\Users\\you\\Downloads\\craft-conductor.exe";
+  const uninstallPlan = (on) => {
+    const ids = st().servers.map((s) => s.id);
+    const part = (key, label, present, kept, action, paths = [], manual = null) =>
+      ({ key, label, present, kept, action, manual, paths: kept ? [] : paths, more: 0 });
+    const place = (key, label, ticked, folder, what) => part(key, label, true, !ticked,
+      ticked ? `deleted: ${what}` : `kept in ${folder}`, [folder]);
+    return {
+      choices: { ...on },
+      parts: [
+        part("tunnels", "Tailscale Serve", false, false, "nothing here"),
+        part("tunnels", "Cloudflare quick tunnel", false, false, "nothing here"),
+        part("router", "Router port forwarding", false, false, "nothing here"),
+        part("firewall", "Windows Firewall rules", true, false,
+          "removed, with one Windows administrator prompt: Craft Conductor: Family Survival (TCP 25565), Craft Conductor: friends' download (TCP 8766)"),
+        part("service", "Background service", false, false, "nothing here"),
+        part("invite", "Invite link handler", true, false,
+          "removed: craft-conductor:// links stop opening Craft Conductor (HKCU\\Software\\Classes\\craft-conductor)"),
+        part("games", "Games in launchers", false, false, "nothing here"),
+        place("exports", "Exports", on.exports, `${HOME}\\exports`, "every export"),
+        place("backups", "Backups", on.backups, `${HOME}\\backups`, "every server's backups"),
+        place("servers", "Servers and worlds", on.servers, `${HOME}\\servers`, `${ids.length} servers and their worlds`),
+        part("lockbox", "Backup lock key", true, on.keep_lockbox_key, on.keep_lockbox_key
+          ? `kept in ${HOME}\\.craft-conductor\\backup.key, so Craft Conductor installed here again can open your kept backups' locked parts`
+          : "deleted: the locked parts of backups you keep (passwords, keys, IP bans, logs) won't open anywhere afterwards; the rest of each backup still restores",
+        [`${HOME}\\.craft-conductor\\backup.key`]),
+        part("state", "Settings and state", true, false, "deleted: Craft Conductor's settings (hub.json), passwords and sessions, phones, passkeys, people, logs and caches, the shared Java"
+          + (on.keep_lockbox_key ? " (not the backup lock key)" : ""), [`${HOME}\\.craft-conductor`]),
+        part("program", "The program", true, false, `deleted a few seconds after Craft Conductor closes: ${EXE}`, [EXE]),
+        part("listed", "Left for you", true, false, "listed for you: the Tailscale and playit.gg apps, phones, browsers, friends' and SSH computers, Docker"),
+      ],
+      servers: ids.length, server_ids: ids, worlds: ids.length,
+      running: st().servers.filter((s) => s.state === "running").map((s) => ({ id: s.id, name: s.name, players: s.players.online.length })),
+      lockbox_warning: !on.keep_lockbox_key,
+    };
+  };
+  const uninstallReport = (plan) => {
+    const removed = [], kept = [];
+    for (const p of plan.parts) {
+      if (!p.present || p.key === "listed") continue;
+      if (p.kept) kept.push(`${p.label}: ${p.action}`);
+      else removed.push(`${p.label}: ${p.action.replace(/^(deleted|removed)(, with one Windows administrator prompt)?: /, "")}`);
+    }
+    const manual = [
+      "Tailscale and playit.gg: Craft Conductor didn't install these apps, so they stay; remove them the usual way (Windows: Settings > Apps) if you don't use them any more",
+      "Paired phones: remove the control panel app from the home screen, and delete Craft Conductor's passkey in the phone's password manager",
+      "Browsers: uninstall the control panel app if you installed it (the browser's apps page), and clear the control panel's site data in the browser's settings",
+    ];
+    const text = ["Removed:", ...removed, "", "Kept:", ...kept, "", "Left for you to do:", ...manual].join("\\n");
+    return { removed, kept, failed: [], manual, text, saved: null,
+      save_error: "Demo: nothing was removed or saved: this report is made up. Press Reset to start the demo again." };
+  };
+
   const auth = () => ({ mode: hub().auth.mode, default: false, managed: false, strong: hub().auth.strong, temporary: false });
   sim.serverSummary = (s) => ({
     id: s.id, name: s.name, state: s.state, setup_pending: !!s.setup_pending, job: s.job ? { name: s.job.name, started: s.job.started } : null,
@@ -487,42 +544,38 @@
     },
     "GET /api/hub/firewall-rules": () => ({ rules: [] }),  // (rules Craft Conductor made in Windows Firewall: none in the demo)
     "POST /api/hub/firewall/remove": () => { throw sim.explain("Craft Conductor would remove the Windows Firewall rules it made. The demo never changes your computer's firewall."); },
-    // Uninstall Craft Conductor…: the plan for the made-up computer (the ticks change it); Uninstall removes nothing.
-    "GET /api/hub/uninstall": (r) => {
-      const on = (k) => r.q[k] === "1" || r.q[k] === "true";
-      const ids = st().servers.map((s) => s.id);
-      const part = (key, label, present, kept, action, paths = [], manual = null) =>
-        ({ key, label, present, kept, action, manual, paths: kept ? [] : paths, more: 0 });
-      const place = (key, label, ticked, folder, what) => part(key, label, true, !ticked,
-        ticked ? `deleted: ${what}` : `kept in ${folder}`, [folder]);
-      return {
-        choices: { servers: on("servers"), backups: on("backups"), exports: on("exports"), games: on("games"), keep_lockbox_key: on("keep_lockbox_key") },
-        parts: [
-          part("tunnels", "Tailscale Serve", false, false, "nothing here"),
-          part("router", "Router port mappings", false, false, "nothing here"),
-          part("firewall", "Windows Firewall rules", false, false, "nothing here"),
-          part("invite", "Invite link handler", true, false, "removed: the craft-conductor:// link handler"),
-          part("games", "Games in launchers", false, false, "nothing here"),
-          place("exports", "Exports", on("exports"), `${HOME}\\exports`, "every export"),
-          place("backups", "Backups", on("backups"), `${HOME}\\backups`, "every server's backups"),
-          place("servers", "Servers and worlds", on("servers"), `${HOME}\\servers`, `${ids.length} servers and their worlds`),
-          part("lockbox", "Backup lock key", true, on("keep_lockbox_key"), on("keep_lockbox_key")
-            ? `kept in ${HOME}\\.craft-conductor\\backup.key, so Craft Conductor installed here again can open your kept backups' locked parts`
-            : "deleted: the locked parts of backups you keep (passwords, keys, IP bans, logs) won't open anywhere afterwards; the rest of each backup still restores",
-          [`${HOME}\\.craft-conductor\\backup.key`]),
-          part("state", "Settings and state", true, false, "deleted: Craft Conductor's settings (hub.json), passwords and sessions, phones, passkeys, people, logs and caches",
-            [`${HOME}\\.craft-conductor`]),
-          part("program", "The program", true, false, "deleted a few seconds after Craft Conductor closes: C:\\Users\\you\\Downloads\\craft-conductor.exe",
-            ["C:\\Users\\you\\Downloads\\craft-conductor.exe"]),
-          part("listed", "Left for you", true, false, "listed for you: the Tailscale and playit.gg apps, phones, browsers, friends' and SSH computers, Docker"),
-        ],
-        servers: ids.length, server_ids: ids, worlds: ids.length,
-        running: st().servers.filter((s) => s.state === "running").map((s) => ({ id: s.id, name: s.name, players: s.players.online.length })),
-        lockbox_warning: !on("keep_lockbox_key"),
-      };
+    // Uninstall Craft Conductor…: the plan for the made-up computer (the ticks change it); Uninstall plays
+    // the steps and shows a made-up report, as Craft Conductor would. Nothing is removed (there's nothing
+    // to remove: the demo never touches the visitor's computer); Reset starts the demo again.
+    "GET /api/hub/uninstall": (r) => uninstallPlan(ticksOf(r.q, (k) => r.q[k] === "1" || r.q[k] === "true")),
+    "POST /api/hub/uninstall": (r) => {
+      if (Object.keys(r.b).some((k) => !["password", "stop_players", ...UNINSTALL_TICKS].includes(k))) {
+        throw new ApiError(400, "only the tick boxes and the password can be sent");
+      }
+      if (typeof r.b.password !== "string" || !r.b.password) throw new ApiError(403, hub().auth.mode === "pin" ? "wrong PIN" : "wrong password");
+      if (uninstallJob) throw new ApiError(409, "Craft Conductor is already being removed");
+      const plan = uninstallPlan(ticksOf(r.b, (k) => r.b[k] === true));
+      const on = plan.running.filter((s) => s.players);
+      if (on.length && r.b.stop_players !== true) {
+        throw new ApiError(409, "Players are on " + on.map((s) => `${s.name} (${s.players})`).join(", ") +
+          ". They're told in game and given a minute before the server stops.", "players");
+      }
+      uninstallJob = { id: sim.id(8), plan, polls: 0 };
+      sim.emit("note", { text: "Demo: nothing is removed. The steps and the report are made up, as Craft Conductor would show them." });
+      return { ok: true, id: uninstallJob.id };
     },
-    "POST /api/hub/uninstall": () => { throw sim.explain("Craft Conductor would stop the servers and remove itself from this computer, keeping what you didn't tick. The demo never removes anything."); },
-    "GET /api/hub/uninstall/progress": () => { throw new ApiError(404, "no uninstall is under way"); },
+    "GET /api/hub/uninstall/progress": (r) => {
+      const job = uninstallJob;
+      if (!job || r.q.id !== job.id) throw new ApiError(404, "no uninstall is under way");
+      const work = [{ key: "stop", label: "Stopping the servers" }, ...job.plan.parts.filter((p) => p.present && p.key !== "listed")];
+      const done = Math.min(work.length, ++job.polls * 2);  // (two steps a second: the page asks every second)
+      const steps = work.slice(0, done).map((p) => ({ key: p.key, label: p.label, status: p.kept ? "kept" : "done" }));
+      if (done < work.length) {
+        steps.push({ key: work[done].key, label: work[done].label, status: "working" });
+        return { state: "running", steps, report: null, error: null };
+      }
+      return { state: "done", steps, report: uninstallReport(job.plan), error: null };
+    },
     "POST /api/hub/stage": (r) => {
       const f = r.b.__file || { name: "server.zip", size: 0 };
       return { ok: true, id: sim.id(6), name: f.name, size: f.size, kind: /\.zip$/i.test(f.name) ? "zip" : "unknown",

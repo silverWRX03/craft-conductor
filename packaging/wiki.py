@@ -88,6 +88,7 @@ IMAGES = {
                                  ("update-restarting.png", "Restarting Craft Conductor while the control panel is away"),
                                  ("update-failed.png", "An update that didn't work"),
                                  ("update-launch.png", "Another browser is offered the new version")],
+    "Removing Craft Conductor": [("uninstall.png", "Uninstall Craft Conductor: what happens to each part, and what goes too")],
     "Troubleshooting": [("help.png", "Help, with its contents on the left")],
 }
 

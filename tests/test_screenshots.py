@@ -41,6 +41,21 @@ def test_documentation_screenshots(tmp_path, http, modrinth, fake_java, monkeypa
     from craft_conductor import join, joinui
 
     with example_hub(tmp_path, http, modrinth, fake_java, monkeypatch) as hub:
+        # Uninstall Craft Conductor… (uninstall.png): the plan for the Windows program, with its firewall
+        # rules and invite link handler, from a runner that only answers and records. Uninstall is never
+        # pressed, and nothing on this computer is asked or removed.
+        from craft_conductor import uninstall, urlhandler
+        from test_uninstall import SystemFake
+        you = tmp_path / "you"
+        monkeypatch.setattr(uninstall, "_system", lambda: "windows")
+        monkeypatch.setattr(uninstall, "_frozen", lambda: True)
+        monkeypatch.setattr(uninstall, "_executable", lambda: str(you / "Downloads" / "craft-conductor.exe"))
+        hub.ui.hub_api.uninstall_runner = SystemFake(
+            rules=["Craft Conductor: Survival with friends (TCP 25565)", "Craft Conductor: friends' download (TCP 8766)"],
+            registry={urlhandler.REGISTRY_KEY})
+        (hub.home / ".craft-conductor" / "backup.key").write_bytes(b"not a real key")  # (so the window warns about it)
+        hub.ui.hub_api.uninstall_env = {"USERPROFILE": str(you), "HOME": str(you), "APPDATA": str(you / "AppData" / "Roaming"),
+                                        "LOCALAPPDATA": str(you / "AppData" / "Local"), "SystemRoot": r"C:\Windows"}
         # A friend's side: the invite page as GitHub Pages has it (.github/workflows/pages.yml), and
         # their Craft Conductor's page for setting up Minecraft.
         site = tmp_path / "_site"

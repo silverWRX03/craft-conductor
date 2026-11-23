@@ -4,6 +4,14 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## 0.31.0 (not released yet)
+
+**Added**
+- **Uninstall Craft Conductor…** in Craft Conductor settings → About & updates, and `craft-conductor uninstall`, remove Craft Conductor from this computer in one go: the program, its settings, and what it changed on this computer and the router (Windows Firewall rules, ports opened on the router, Tailscale Serve and a Cloudflare tunnel, Linux background services, the invite link handler). Everything is listed before anything is removed; servers and worlds, backups, exports and the games it set up in launchers are kept unless ticked, and deleting servers asks again, naming them. The backup lock key goes too unless **Keep the backup lock key** is ticked (the window warns that kept backups' locked parts won't open afterwards). The running servers are stopped first, with players told in game. The report lists what was removed and what's left to do by hand (the Tailscale and playit.gg apps, phones, browsers, other computers), and is saved in Downloads when something is left. On the page it's for the owner only, in a browser on this computer, with the password typed again.
+
+**Changed**
+- The Windows Firewall card in About & updates no longer says its rules stay when Craft Conductor is deleted: Uninstall removes them too.
+
 ## 0.30.6 (2026-11-15)
 
 **Added**

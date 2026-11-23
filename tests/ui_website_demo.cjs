@@ -444,6 +444,32 @@ async function open(browser, scenario, problems, label, viewport = { width: 1440
       await f.evaluate(() => { const a = document.createElement('a'); a.href = '/api/servers/family-survival/doctor/report'; a.download = ''; a.textContent = 'x'; document.body.append(a); a.click(); a.remove(); });
       await until(async () => /has no files to download/.test(await text(f, 'body')), 'the download is explained');
     });
+
+    // Last: after Uninstall the page asks Craft Conductor nothing more (as the real one, which has closed).
+    await t.step(`${name}: Uninstall Craft Conductor… shows the plan and a made-up report, removing nothing`, async () => {
+      await settle(f);
+      const servers = await f.evaluate(() => window.CCSim.state.servers.map((s) => s.id));
+      await go(f, '#craft-conductor');
+      await f.getByRole('button', { name: 'About & updates' }).click();
+      const button = f.getByRole('button', { name: 'Uninstall Craft Conductor…', exact: true });
+      await f.waitForTimeout(400);
+      if (!await button.count()) return;  // (a demo made from a release before Uninstall: CRAFT_WEBSITE_SOURCE)
+      await button.click();
+      await f.locator('#uninstall .uninstall-plan').waitFor();
+      assert.match(await text(f, '#uninstall'), /The backup lock key is deleted/);
+      await f.locator('#uninstall').getByLabel('Keep the backup lock key').check();
+      await until(async () => !/The backup lock key is deleted/.test(await text(f, '#uninstall')), 'ticking it updates the plan');
+      const anyway = f.locator('#uninstall label', { hasText: 'Stop them anyway' }).locator('input');
+      if (await anyway.count()) await anyway.check();
+      await f.locator('#uninstall-password').fill('anything');
+      await f.locator('#uninstall').getByRole('button', { name: 'Uninstall', exact: true }).click();
+      await until(async () => /Craft Conductor has been removed from this computer/.test(await text(f, '#uninstall')), 'the made-up report');
+      const report = await text(f, '#uninstall');
+      assert.match(report, /Windows Firewall rules/);
+      assert.match(report, /Demo: nothing was removed/);
+      assert.deepEqual(await f.evaluate(() => window.CCSim.state.servers.map((s) => s.id)), servers, 'every server is still there');
+      await shot(page, `${name}-uninstall`);
+    });
     await existing.ctx.close();
     await browser.close();
   }

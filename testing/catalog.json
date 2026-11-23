@@ -9184,5 +9184,137 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1066,
+    "section": "Feature: Removing Craft Conductor",
+    "step": "On a disposable Windows PC or VM (never your own) with the portable .exe: make a server, press Let them through Windows Firewall, and open the ports by UPnP on a test router. Craft Conductor settings → About & updates → Uninstall Craft Conductor… with every box off lists the firewall rules, the router ports and the invite link handler; after Uninstall (one administrator prompt, Yes) Windows Firewall has no Craft Conductor rules, the router's UPnP list has no craft-conductor mappings, a craft-conductor:// link opens nothing, and the Craft Conductor folder holds only servers, backups and exports.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1067,
+    "section": "Feature: Removing Craft Conductor",
+    "step": "Windows, from the page: when the report shows, Craft Conductor's window and tray icon close by themselves, its process is gone from Task Manager, and within about two minutes the .exe (and any old or failed-update copy beside it) is deleted; the report stays on the page with no error or sign-in page.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1068,
+    "section": "Feature: Removing Craft Conductor",
+    "step": "Windows, from the command: quit Craft Conductor, run the .exe with uninstall --yes in a terminal: it prints the report and exits, and within about two minutes the .exe it ran from is deleted. Without --yes and with Craft Conductor still open, it refuses and says how to stop it; nothing changes.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1069,
+    "section": "Feature: Removing Craft Conductor",
+    "step": "Windows: answer No at the administrator prompt during Uninstall: the rest is removed, the report shows the firewall rules under Left for you to do with craft-conductor firewall remove and Remove-NetFirewallRule, and Craft Conductor uninstall report.txt is in Downloads.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1070,
+    "section": "Feature: Removing Craft Conductor",
+    "step": "On a disposable Linux computer with craft-conductor service install --panel (a user service with lingering) and a server's own service: stop the panel (systemctl --user stop craft_conductor.service), run craft-conductor uninstall and answer y: both units are gone (systemctl --user list-unit-files), lingering is switched off when nothing else of that user needs it, the program file is deleted, and servers, backups and exports stay.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1071,
+    "section": "Feature: Removing Craft Conductor",
+    "step": "Linux user service, from the page: Uninstall in a browser on that Linux computer while the panel runs as its own user unit: the unit is removed, the panel closes at the end and isn't started again by systemd, the report lists loginctl disable-linger for the user, and the report stays on the page.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1072,
+    "section": "Feature: Removing Craft Conductor",
+    "step": "Linux system service (set up as root): craft-conductor uninstall as a normal user lists the unit with the sudo commands under Left for you to do; run as root with the same Craft Conductor home, it removes the unit from /etc/systemd/system and reloads systemd.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1073,
+    "section": "Feature: Removing Craft Conductor",
+    "step": "Installed with pipx: Uninstall (page or command) removes the settings and state, keeps servers, backups and exports, and the report says to run pipx uninstall craft-conductor; that command then removes the program.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1074,
+    "section": "Feature: Removing Craft Conductor",
+    "step": "Docker (docker compose): stop the container, then run the image once more with uninstall --yes on the same /data volume: /data keeps servers, backups and exports, /data/.craft-conductor is gone, the report lists docker rm, docker rmi and the volume, says it couldn't be saved (no Downloads folder) and is printed in full; nothing outside the volume is touched.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1075,
+    "section": "Feature: Removing Craft Conductor",
+    "step": "Keep everything vs delete everything, on two disposable installs: with every box off, the servers, worlds, backups (and the backups copy folder), exports and launcher games are all still there afterwards and Craft Conductor installed again finds the servers. With every delete box ticked, ticking Delete my servers and worlds asks again naming the servers and worlds (Keep them unticks it); afterwards those folders and Craft Conductor's Minecraft Launcher installations and Prism instances are gone, while other launcher installations, other files in Downloads and the home folder are untouched.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1076,
+    "section": "Feature: Removing Craft Conductor",
+    "step": "The backup lock key: the window and the command warn that it is deleted. With Keep the backup lock key off, restoring a kept backup after installing Craft Conductor again on the same computer brings back the world but says its locked parts (passwords, keys, IP bans, logs) couldn't be opened. On another run with the box ticked (--keep-lockbox-key), .craft-conductor/backup.key stays and the same restore brings the locked parts back too.",
+    "type": "Extra",
+    "tags": [
+      "security"
+    ],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1077,
+    "section": "Feature: Removing Craft Conductor",
+    "step": "Tailscale Serve: with Away from home set up through Tailscale, Uninstall switches Serve off (tailscale serve status shows nothing) and the Tailscale app stays installed and signed in. With Serve already switched off by hand before Uninstall, the uninstall finishes without a failure for it.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1078,
+    "section": "Feature: Removing Craft Conductor",
+    "step": "Launchers left alone while open: with Delete the games it set up in launchers ticked and the Minecraft Launcher open (also the Microsoft Store / Xbox app edition), and on Linux Prism Launcher open (also the Flatpak): nothing is deleted in them and the report says to close the launcher and how to delete the games by hand. With them closed, only Craft Conductor's installations and instances go.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1079,
+    "section": "Feature: Removing Craft Conductor",
+    "step": "A server of the home that a craft-conductor run in a terminal looks after (with a player on) while the page uninstalls with Delete my servers and worlds and Delete my backups ticked: the window lists it as running; it's asked to stop (the player is told in game and given a minute); if it doesn't stop, it is kept with its backups and the report says it is still running; nothing in its folder is deleted.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1080,
+    "section": "Feature: Removing Craft Conductor",
+    "step": "A classic craft-conductor run server folder on a computer that also has the control panel's Craft Conductor: craft-conductor -C <folder> uninstall --yes removes only that folder's .craft-conductor settings; the firewall rules, router ports, services, invite link handler, launcher games and the program stay, marked as shared with the other Craft Conductor.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1081,
+    "section": "Feature: Removing Craft Conductor",
+    "step": "Uninstall Craft Conductor… is not offered, and its requests are refused, from a paired phone, another computer on the network, an invited person's sign-in and through a tunnel (Tailscale Serve, Cloudflare); in a browser on the computer itself a wrong password or PIN is refused, counts like a wrong sign-in, and changes nothing.",
+    "type": "Extra",
+    "tags": [
+      "security"
+    ],
+    "source": "added-in-git"
   }
 ]

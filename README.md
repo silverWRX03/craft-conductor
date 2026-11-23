@@ -77,6 +77,10 @@ Get the file for your computer. It's a single file: no installer, no Python, and
 **Joining a friend's server?** Open the invite link they sent you: it offers the right download and
 sets up your game. See [Joining a friend's server](https://github.com/silverWRX03/craft-conductor/wiki/Joining-a-friends-server).
 
+**Done with it?** Craft Conductor settings → About & updates → **Uninstall Craft Conductor…** (or
+`craft-conductor uninstall`) removes it and everything it changed, keeping your worlds unless you
+choose otherwise. See [Removing Craft Conductor](https://github.com/silverWRX03/craft-conductor/wiki/Removing-Craft-Conductor).
+
 ## Help
 
 - **[User manual](https://github.com/silverWRX03/craft-conductor/wiki/Craft-Conductor-Manual)**: every page of the app, with pictures.

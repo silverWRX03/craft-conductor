@@ -6236,6 +6236,9 @@ const HELP = [
   ["navigation", "Finding your way", () => [
     h("p", {}, "Help and User manual keep your current page open underneath. Use the contents on the left, then Close Help or Escape to return to the same place, with your unsaved entries intact."),
     h("p", {}, "Craft Conductor settings are grouped into Appearance, Sounds & notifications, Sign-in & security, Connections, and About & updates. A small red dot on Craft Conductor settings and About & updates means a Craft Conductor update is waiting: press Check for Craft Conductor updates to install it (Later only stops the message from appearing by itself until Craft Conductor restarts)."),
+    h("p", {}, "To remove Craft Conductor from this computer, use ", h("strong", {}, "Uninstall Craft Conductor…"),
+      " under About & updates (in a browser on this computer), or ", h("code", {}, "craft-conductor uninstall"),
+      ". It shows what goes first; your servers, backups, exports and games stay unless you tick them. The backup lock key goes too unless you keep it, and without it the locked parts of your backups (passwords, keys, IP bans, logs) won't open."),
     screenshot("craft-conductor-settings", "Craft Conductor settings: pick a section on the left."),
     h("p", {}, "Update readiness uses green for releases, yellow for early builds, red for missing builds and gray when compatibility could not be checked. Check Minecraft … prepares an update for the selected version, even when Settings says to stay on the current version; Check now follows that setting. A Minecraft upgrade waits for unverified local files. World-generation mods bring their required mods; if one only has an early build, adding it asks you first. A web map you added (BlueMap or Dynmap) counts like any other mod, and Add BlueMap / Add Dynmap on the World page only appear for a map that has a build for the server's Minecraft."),
     h("p", {}, "Bedrock setup checks both Geyser and Floodgate, and offers compatible early builds with a confirmation when releases are unavailable.")]],
@@ -6372,6 +6375,7 @@ const MANUAL_PICTURES = {
     ["update-available", "A Craft Conductor update is available"], ["update-dots", "About & updates: the red dots, and the update waiting"],
     ["updating", "Updating Craft Conductor, with the step it's on"], ["update-restarting", "Restarting Craft Conductor while the control panel is away"],
     ["update-failed", "An update that didn't work"], ["update-launch", "Another browser is offered the new version"]],
+  "Removing Craft Conductor": [["uninstall", "Uninstall Craft Conductor: what happens to each part, and what goes too"]],
   "Troubleshooting": [["help", "Help, with its contents on the left"]],
 };
 views.manual = (target = $("#main")) => {
@@ -8627,8 +8631,8 @@ views["craft-conductor"] = () => {
       await offerRemoveFirewallRules(null, found.rules);
     };
     fill(firewallCard, card("Windows Firewall",
-      h("p", { class: "muted small" }, "Craft Conductor adds a rule to Windows Firewall for each server's port and for the friends' download (Check my setup → Let them through Windows Firewall). " +
-        "They stay when you delete Craft Conductor: remove them here first if you're getting rid of it."),
+      h("p", { class: "muted small" },
+        "Craft Conductor adds a rule to Windows Firewall for each server's port and for the friends' download (Check my setup → Let them through Windows Firewall). Uninstall Craft Conductor… removes them along with everything else; this removes only the rules."),
       h("div", { class: "row" }, h("button", { class: "btn", onclick: remove }, "Remove all Craft Conductor's firewall rules…"))));
   }).catch(() => null);
   const about = h("div", { class: "mt" });
