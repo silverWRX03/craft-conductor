@@ -20,7 +20,7 @@ import pytest
 from craft_conductor import access, folders, uninstall
 from craft_conductor.uninstall import Choices
 
-from test_cli_uninstall import FakeRunner
+from test_cli_uninstall import TOML, FakeRunner, running  # noqa: F401  (running: the fixture)
 from test_hub import login
 from test_remote import PERSON_PASSWORD, STRONG, as_other_device, pair_phone, ready_for_links
 from test_web import Client, wait_for
@@ -285,3 +285,33 @@ def test_stop_servers_answers_with_the_inventorys_own_folders(uhub, monkeypatch)
             api._stop_servers_for_uninstall()
     finally:
         hub._threads["alpha"] = thread
+
+
+def test_a_server_another_craft_conductor_runs_is_kept_and_shown_as_running(uhub, running, monkeypatch):
+    """A server the hub doesn't look after because another Craft Conductor window (or `craft-conductor
+    run`) runs it is never deleted: it's asked to stop the usual way, and kept while it still runs (as
+    the command does), and the dialog lists it with the running servers."""
+    hub, c, runner, env, _ = uhub
+    login(c)
+    gamma = hub.home / "servers" / "gamma"
+    gamma.mkdir(parents=True)
+    (gamma / "craft-conductor.toml").write_text(TOML, encoding="utf-8")
+    running(gamma, "ignore")  # (another Craft Conductor's, which doesn't stop when asked)
+    hub.scan()
+    assert "gamma" in hub.problems and "gamma" not in hub.daemons
+    monkeypatch.setattr(hub.ui.hub_api, "UNINSTALL_STOP_UNANSWERED", 0.5)
+    from craft_conductor import daemon
+    asked, real = [], daemon.request_stop_in
+    monkeypatch.setattr(daemon, "request_stop_in", lambda state, words="": (asked.append((Path(state), words)),
+                                                                            real(state, words))[1])
+    plan = c.get(PLAN)[1]
+    assert {"id": "gamma", "name": "gamma", "players": 0} in plan["running"]
+    status, started, _ = c.post(PLAN, {"password": "PASSWORD", "servers": True, "backups": True})
+    assert status == 200, started
+    done = _finish(c, started["id"])
+    assert done["state"] == "done", done
+    assert (gamma / ".craft-conductor", uninstall.PLAYERS_TOLD) in asked  # (asked to stop, the usual way)
+    assert not (gamma / ".craft-conductor" / "stop-requested").exists()  # (the unanswered request isn't left behind)
+    root = uninstall.servers_of(hub.home)["gamma"]
+    assert not runner.gone(root) and not any(runner.gone(x) for x in root.rglob("*"))
+    assert any(f"the server in {root} is still running" in line for line in done["report"]["failed"])

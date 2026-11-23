@@ -1497,6 +1497,85 @@ def run(parts: list[Part], *, runner: Runner | None = None, progress: Progress |
     return report
 
 
+STOP_UNANSWERED = 20.0  # seconds: a stop request nothing has taken by then has nobody to take it
+STOP_POLL = 0.2
+
+
+def server_status(root: Path) -> dict | None:
+    """What the server in ``root`` answers on its port on this computer (``online``: players on), or
+    None when nothing answers there like a Minecraft server."""
+    from . import tunnel
+    from .properties import number, read_properties
+    port = number(read_properties(game_dir(root) / "server.properties"), "server-port", 25565)
+    try:
+        return tunnel.ping("127.0.0.1", port, timeout=2)
+    except (OSError, ValueError):
+        return None
+
+
+def stop_timeout(root: Path) -> int:
+    """How long the server in ``root`` is given to stop (``[server] stop_timeout``, read only)."""
+    try:
+        data = tomllib.loads(configmod.read_text(root / configmod.CONFIG_NAME))
+        return configmod.parse_duration(data["server"]["stop_timeout"])
+    except (OSError, ValueError, KeyError, TypeError, configmod.ConfigError):
+        return 120
+
+
+def stop_others(roots: Iterable[Path], *, check_ports: bool = True, unanswered: float = STOP_UNANSWERED,
+                poll: float = STOP_POLL, status: Callable[[Path], dict | None] | None = None,
+                say: Callable[[str], None] | None = None, own_pid: int | None = None) -> list[Path]:
+    """Stop every server in ``roots`` that a `craft-conductor run` or another Craft Conductor looks after
+    (a pid other than ``own_pid`` in its state folder), the usual way (its stop request, as
+    `craft-conductor stop`): cleanly, with players on told in game and given a minute. Returns the
+    folders (as given) of those still running: one that didn't stop in time, one whose request nothing
+    took, and (``check_ports``) one answering on its port (``status``) with nothing looking after it.
+    Used by the command and by the control panel (after it has stopped its own servers)."""
+    import time
+    from .daemon import STOP_REQUEST, STOP_WARNING, request_stop_in, running_pid_in
+    status = status or server_status
+    roots = list(roots)
+
+    def other(state: Path) -> bool:
+        pid = running_pid_in(state)
+        return bool(pid) and pid != own_pid
+    started = time.monotonic()
+    asked: dict[Path, float] = {}
+    for root in roots:
+        state = root / configmod.STATE_DIR
+        if other(state):
+            if say:
+                say(f"  Stopping the server in {root}...")
+            request_stop_in(state, PLAYERS_TOLD)
+            asked[root] = started + STOP_WARNING + stop_timeout(root) + 30
+    still: list[Path] = []
+    while asked:
+        time.sleep(poll)
+        now = time.monotonic()
+        for root, deadline in list(asked.items()):
+            state = root / configmod.STATE_DIR
+            if not other(state):
+                del asked[root]
+            elif (state / STOP_REQUEST).exists() and now - started > unanswered:
+                (state / STOP_REQUEST).unlink(missing_ok=True)  # (whatever runs there isn't looking after the server)
+                still.append(root)
+                del asked[root]
+            elif now > deadline:
+                still.append(root)
+                del asked[root]
+    if check_ports:
+        still += [root for root in roots if root not in still and status(root) is not None]
+    return still
+
+
+def run_elsewhere(root: Path, own_pid: int | None = None) -> bool:
+    """The server in ``root`` is looked after by another process (`craft-conductor run`, another Craft
+    Conductor window): a live pid other than ``own_pid`` in its state folder."""
+    from .daemon import running_pid_in
+    pid = running_pid_in(root / configmod.STATE_DIR)
+    return bool(pid) and pid != own_pid
+
+
 def count_worlds(roots: Iterable[Path]) -> int:
     """How many of these servers have a world: said in the second confirmation before deleting them."""
     from . import world

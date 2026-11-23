@@ -979,60 +979,18 @@ def _keep_shared(parts: list, home: Path) -> list:
 
 
 def _server_status(root: Path) -> dict | None:
-    """What the server in ``root`` answers on its port on this computer (``online``: players on), or
-    None when nothing answers there like a Minecraft server."""
-    from . import tunnel, uninstall
-    port = number(read_properties(uninstall.game_dir(root) / "server.properties"), "server-port", 25565)
-    try:
-        return tunnel.ping("127.0.0.1", port, timeout=2)
-    except (OSError, ValueError):
-        return None
-
-
-def _stop_timeout(root: Path) -> int:
-    """How long the server in ``root`` is given to stop (``[server] stop_timeout``, read only)."""
-    import tomllib
-    try:
-        data = tomllib.loads(configmod.read_text(root / configmod.CONFIG_NAME))
-        return configmod.parse_duration(data["server"]["stop_timeout"])
-    except (OSError, ValueError, KeyError, TypeError, ConfigError):
-        return 120
+    """What the server in ``root`` answers on its port on this computer (uninstall.server_status)."""
+    from . import uninstall
+    return uninstall.server_status(root)
 
 
 def _stop_for_uninstall(roots: list[Path], check_ports: bool = True, unanswered: float | None = None) -> list[Path]:
-    """Stop every server in ``roots`` that a `craft-conductor run` looks after, the usual way (its stop
-    request, as `craft-conductor stop`): cleanly, with players on told in game and given a minute.
-    Returns the folders of those still running: one that didn't stop in time, one whose request
-    nothing took, and (``check_ports``) one answering on its port with nothing looking after it."""
-    import time
-    from .daemon import STOP_REQUEST, STOP_WARNING, request_stop_in, running_pid_in
-    unanswered = UNINSTALL_STOP_UNANSWERED if unanswered is None else unanswered
-    started = time.monotonic()
-    asked: dict[Path, float] = {}
-    for root in roots:
-        state = root / configmod.STATE_DIR
-        if running_pid_in(state):
-            print(f"  Stopping the server in {root}...", flush=True)
-            request_stop_in(state, UNINSTALL_WARNING)
-            asked[root] = started + STOP_WARNING + _stop_timeout(root) + 30
-    still: list[Path] = []
-    while asked:
-        time.sleep(UNINSTALL_POLL)
-        now = time.monotonic()
-        for root, deadline in list(asked.items()):
-            state = root / configmod.STATE_DIR
-            if not running_pid_in(state):
-                del asked[root]
-            elif (state / STOP_REQUEST).exists() and now - started > unanswered:
-                (state / STOP_REQUEST).unlink(missing_ok=True)  # (whatever runs there isn't looking after the server)
-                still.append(root)
-                del asked[root]
-            elif now > deadline:
-                still.append(root)
-                del asked[root]
-    if check_ports:
-        still += [root for root in roots if root not in still and _server_status(root) is not None]
-    return still
+    """Stop every server in ``roots`` that a `craft-conductor run` looks after, the usual way, and return
+    the folders of those still running (uninstall.stop_others, shared with the control panel)."""
+    from . import uninstall
+    return uninstall.stop_others(roots, check_ports=check_ports, poll=UNINSTALL_POLL,
+                                 unanswered=UNINSTALL_STOP_UNANSWERED if unanswered is None else unanswered,
+                                 status=lambda root: _server_status(root), say=lambda line: print(line, flush=True))
 
 
 def _uninstall_plan_text(home: Path, classic: bool, parts: list, running: dict[Path, int | None]) -> str:

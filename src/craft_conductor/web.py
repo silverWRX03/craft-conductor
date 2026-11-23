@@ -1544,8 +1544,9 @@ class UninstallJob:
     """Uninstall Craft Conductor… under way: each step as it goes (two parts may share a key, so a
     step is its key and its label), then the report."""
 
-    def __init__(self):
+    def __init__(self, check_ports: bool = True):
         self.id = secrets.token_hex(8)
+        self.check_ports = check_ports  # (servers or backups ticked: a server answering on its port is kept too)
         self.state = "running"
         self.steps: list[dict] = []
         self.report: dict | None = None
@@ -2807,6 +2808,7 @@ class HubApi:
     UNINSTALL_TICKS = ("servers", "backups", "exports", "games", "keep_lockbox_key")
     UNINSTALL_SHOWN = 8           # paths listed for each part
     UNINSTALL_STOP_GRACE = 30.0   # seconds a server is given to stop, besides the minute's warning and its stop_timeout
+    UNINSTALL_STOP_UNANSWERED = uninstall.STOP_UNANSWERED  # (a server elsewhere whose stop request nothing takes)
     UNINSTALL_EXIT_AFTER = 30.0   # seconds Craft Conductor waits for the page to take the report before it closes anyway
     #   (the Windows program file is deleted by a command that waits a minute or so for Craft Conductor to close)
 
@@ -2835,6 +2837,13 @@ class HubApi:
             if d.proc is not None and d.proc.running:
                 out.append({"id": sid, "name": server_name(read_properties(d.m.server_dir / "server.properties"), sid),
                             "players": len(d.players)})
+        # (and the ones another Craft Conductor window or `craft-conductor run` looks after: stopped too, or kept)
+        seen = {s["id"] for s in out}
+        for sid, root in uninstall.servers_of(self.hub.home).items():
+            if sid not in seen and uninstall.run_elsewhere(root, os.getpid()):
+                answer = uninstall.server_status(root) or {}
+                out.append({"id": sid, "name": server_name(read_properties(uninstall.game_dir(root) / "server.properties"), sid),
+                            "players": int(answer.get("online") or 0)})
         return out
 
     def uninstall_plan(self, q, b) -> dict:
@@ -2884,7 +2893,7 @@ class HubApi:
                                ". They're told in game and given a minute before the server stops.", confirm="players")
             runner = self._uninstall_runner()
             parts = self._uninstall_parts(choices, runner)
-            job = self.uninstall_job = UninstallJob()
+            job = self.uninstall_job = UninstallJob(check_ports=choices.servers or choices.backups)
             self.hub.uninstalling = True  # (from now on the rest of the control panel answers nothing)
         log.info("removing Craft Conductor from this computer (asked from the control panel)")
         threading.Thread(target=self._uninstall_run, args=(job, parts, runner), daemon=True, name="uninstall").start()
@@ -2924,9 +2933,11 @@ class HubApi:
 
     def _stop_servers_for_uninstall(self) -> list[Path]:
         """Stop every server the usual way (its manager asked to stop: players on it are told in game and
-        given a minute), and the throwaway servers (a map's, a mod test's). Returns the folders, as the
-        inventory has them, of the servers still running; a server still running that the inventory
-        doesn't know raises, so every server is kept (never a guess that lets one be deleted)."""
+        given a minute), and the throwaway servers (a map's, a mod test's); then, as the command does,
+        the servers another Craft Conductor window or `craft-conductor run` looks after (and, with
+        servers or backups ticked, any answering on its port). Returns the folders, as the inventory
+        has them, of the servers still running; a server still running that the inventory doesn't
+        know raises, so every server is kept (never a guess that lets one be deleted)."""
         from . import daemon as daemonmod
         self.hub.stop_throwaway_servers()
         roots = uninstall.servers_of(self.hub.home)
@@ -2949,7 +2960,11 @@ class HubApi:
         unknown = [sid for sid in still if sid not in roots]
         if unknown:
             raise RuntimeError(f"{', '.join(unknown)} may still be running, and isn't among the servers found")
-        return [roots[sid] for sid in still]
+        job = self.uninstall_job
+        held = [roots[sid] for sid in still]
+        elsewhere = uninstall.stop_others(list(roots.values()), check_ports=job.check_ports if job else True,
+                                          unanswered=self.UNINSTALL_STOP_UNANSWERED, own_pid=os.getpid())
+        return held + [root for root in elsewhere if root not in held]
 
     def uninstall_progress(self, q, b) -> dict:
         """Where the uninstall is: the steps so far, then the report. Once the page has the report,
