@@ -1662,3 +1662,14 @@ def test_the_uninstall_takes_an_unreadable_pid_file_as_running(tmp_path):
     assert uninstall.run_elsewhere(root, own_pid=os.getpid()) is True
     still = uninstall.stop_others([root], check_ports=False, unanswered=0.05, poll=0.01, own_pid=os.getpid())
     assert still == [root]  # (kept, never deleted as if it had stopped)
+
+
+# ------------------------------------------------------------------ final review: a running server that matches none (Important 5)
+def test_a_running_server_that_matches_no_server_keeps_every_server(world, tmp_path):
+    runner = FakeRunner()
+    parts = uninstall.plan(world["home"], Choices(servers=True, backups=True, exports=True), env=world["env"])
+    report = uninstall.run(parts, runner=runner, stop_servers=lambda: [tmp_path / "somewhere-else"])
+    assert not _held(runner, world["home"] / "servers")  # (which server it is can't be told: all kept)
+    assert world["home"] / "exports" in runner.deleted() and world["state"] in runner.deleted()
+    assert any(str(world["alpha"]) in line and "running" in line for line in report.kept)
+    assert any(str(world["beta"]) in line and "running" in line for line in report.kept)

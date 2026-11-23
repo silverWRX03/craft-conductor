@@ -1593,7 +1593,10 @@ StopServers = Callable[[], "Iterable[Path | str] | None"]
 
 def _hold_running(part: Part, running: list[Path], everyone: bool, report: Report) -> Part:
     """``part`` without what belongs to a server that's still running (R13): that server's folders and
-    its own backups are kept, and the report says why."""
+    its own backups are kept, and the report says why. A running server that's none of the part's
+    servers can't be told apart, so every server is kept (fail closed)."""
+    if part.per_server and any(not any(_same(root, r) for root in part.per_server) for r in running):
+        everyone = True
     held = {root: pieces for root, pieces in part.per_server.items()
             if pieces and (everyone or any(_same(root, r) for r in running))}
     if not held:
