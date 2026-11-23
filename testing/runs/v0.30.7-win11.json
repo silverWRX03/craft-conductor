@@ -288,6 +288,48 @@
       "tester": "Claude Code",
       "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Modrinth mods: Fabric API, Lithium, FerriteCore, Krypton (804). A CurseForge mod by slug: AppleSkin added on Mods (Added AppleSkin), installed by the update check (+ AppleSkin appleskin-fabric-mc26.3-3.0.10.jar), loaded at start (appleskin 3.0.10+mc26.3, 0 errors). A Modrinth modpack: Adrenaline 26.5.0+mc26.3 (ready, then updated to 26.5.1, see 1070). A CurseForge modpack: Vanilla+ Lightweight 3.0.0 (Fabric 26.1.2, 136 mods from CurseForge, 1690 config files); setup waited for 3 mods to be downloaded by hand (Custom Nether Portals, Player Animation Library, ServerCore), downloaded from their CurseForge pages into Downloads and found there by the setup page (found ... downloaded by hand, in Downloads; every mod downloaded by hand is in; carrying on). The first setup stopped at the load check (Emotecraft needs fabric-key-mapping-api-v1 and fabric-rendering-v1, client-only modules of Fabric API: noted as a possible finding, roadmap 53 in PR #337); made again with Emotecraft left out: your server is ready (Minecraft 26.1.2); Start: Loading 230 mods, Done; the 12 ERROR lines are the pack mods own data/resource complaints (a mixin config, a Backpacked add-on, True Ending predicates), not Craft Conductor.",
       "evidence": ""
+    },
+    "812": {
+      "status": "pass",
+      "tested_at": "2026-11-22T23:21:48+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. A 1 GB NTFS virtual disk (VHDX as drive S:, made by the owner with diskpart) with a fresh Craft Conductor home on it (panel 29974). Vanilla 26.2 server small-disk made and running from it; one backup made (117 MB); then the disk filled to 30 MB free (helpers/t812.py, t812b.py). Check my setup: Disk space (bad) Only 30 MB free where the server is, with how to free space and a Delete old backups button; the Dashboard Disk card said 30 MB free; the strip at the top of the page said Only 30 MB of disk space left (it showed the earlier reading until the next disk check). A backup failed cleanly: Activity says couldn t make the backup ...: the disk is full (31 MB free). The unfinished file was removed; free some space, or keep fewer backups; no half-made file in the backups folder, only the earlier backup listed (the raw backup failed: [Errno 28] line follows it, as before). save-all still saved (Minecraft warns Low disk space!). Stop and Start worked with the disk full. After freeing space a backup worked again (created ...-after-free.tar.gz (checked)).",
+      "evidence": ""
+    },
+    "1069": {
+      "status": "pass",
+      "tested_at": "2026-11-22T23:21:48+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Same 1 GB disk (S:), vanilla 26.2 server small-disk running, last backup about 117 MB; the disk filled so that 70 MB stayed free (less than the backup). Updates: check offered Minecraft 26.3; update: 3 s later, before any countdown: Update not done (Minecraft 26.2 -> 26.3): there is not room for the backup before it: it needs about 202 MB and the disk has 11 MB free (the 26.3 download counted). Free some space, or keep fewer backups. Nothing was changed, and the server kept running. The players got no countdown (nothing said in the console), the server stayed running on 26.2 without a restart (uptime kept counting).",
+      "evidence": ""
+    },
+    "1052": {
+      "status": "pass",
+      "tested_at": "2026-11-23T00:29:17+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Second home (panel 29971), Chrome on this computer. Server Playit 1059 (vanilla 26.3, port 25601) with a Craft Conductor rule in Windows Firewall, Craft Conductor: Playit 1059 (Minecraft) (TCP 25601) (added by the owner with Craft Conductor own rule script, one administrator prompt). Delete Playit 1059: the confirmation said It has a rule in Windows Firewall: Craft Conductor: Playit 1059 (Minecraft) (TCP 25601). After it is deleted you will be asked whether to remove that rule too. Remove from the list (files kept): then the question Remove the Windows Firewall rule for Playit 1059? Craft Conductor made this rule to let friends reach port 25601, and nothing here uses that port any more ... Windows asks for permission once. Remove / Keep. The owner pressed Remove and Yes on Windows prompt: the rule is gone (Get-NetFirewallRule -Group Craft Conductor: none; log: Windows Firewall: removed ...).",
+      "evidence": ""
+    },
+    "1054": {
+      "status": "pass",
+      "tested_at": "2026-11-23T04:02:40+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Second home (panel 29971), access from other devices on. Server Hand download 1054 (Fabric 26.1.2 with Player Animation Library from CurseForge, whose author does not let other apps download it): setup waits for PlayerAnimationLibMerged-1.2.9-mc.26.1.jar. Sam Tester invited with only See status + Manage mods on that server (invite link opened in Chrome at the LAN address, own username and password). Signed in as Sam Tester: Your servers shows the server Not set up with See progress; See progress opened the setup progress with the panel Download these mods by hand (the file, waiting for the file, Download link) and the Drag mods that were downloaded here box; no Downloads line and no Choose the folder... (those are the owner s). Dropping the downloaded jar on the box: setup carried on by itself (installing Fabric, Fabric API, the test start) and finished: your server is ready (Minecraft 26.1.2); server/mods has the jar. (Small finding noted: in the invited person s Activity the Java folder jdk-25.0.5.1+2 shows as jdk-[address hidden]+2.)",
+      "evidence": ""
+    },
+    "865": {
+      "status": "pass",
+      "tested_at": "2026-11-23T04:06:21+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Second home (panel 29971), Chrome on this computer, Windows Firewall rules added by the owner with Craft Conductor own rule script (one administrator prompt each). Remove: see 1052 (Playit 1059: the Delete confirmation named the rule and said it would be asked about; after Remove from the list the question Remove the Windows Firewall rule for Playit 1059? ... Remove / Keep; Remove showed Windows administrator prompt and the rule was gone, Get-NetFirewallRule -Group Craft Conductor empty). Keep: Router test 807 with Craft Conductor: Router test 807 (Minecraft) (TCP 39518): the Delete confirmation said It has a rule in Windows Firewall: Craft Conductor: Router test 807 (Minecraft) (TCP 39518). After it is deleted you will be asked whether to remove that rule too; Remove from the list, then Remove the Windows Firewall rule for Router test 807? ... Remove / Keep; Keep: no prompt, the rule is still there.",
+      "evidence": ""
+    },
+    "818": {
+      "status": "pass",
+      "tested_at": "2026-11-23T04:09:44+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Main test panel (29970) in Chrome on this computer. The owner went through it with Windows Narrator (Tab through Your servers, a server Dashboard, Players and Backups, and Craft Conductor settings) and said everything was read with sensible names: pass. Accessibility check of the same five pages (Claude Code, in the page): no button, link, field or switch without a name, each page has its own heading.",
+      "evidence": ""
     }
   },
   "notes": "Release 0.30.7 (PRs #348 and #349: issues #300-#305, #307-#316, #323, #324, #326, #329, #331, #334, #345). Release gate 802-820 is run in full on every release. 1049-1071 test this release's fixes. Extra: 239, 406, 700, 865, 896, 918, 1044, 1048 failed in v0.30.6-win11 and are fixed here (owner: rerun the originally failed test too); 847 needs a release newer than 0.30.6."
