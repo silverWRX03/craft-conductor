@@ -400,6 +400,48 @@
       "tester": "Owner + Claude Code",
       "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. The owner iPhone in Safari with the address bar at the bottom (Safari default), over Tailscale on the 0.30.7 second test home (panel 29971), signed in as the owner: the menu (hamburger, top left) shows Sign out fully visible above Safari address bar, and it can be pressed (owner).",
       "evidence": ""
+    },
+    "817": {
+      "status": "pass",
+      "tested_at": "2026-11-24T01:25:52+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Main test home (panel 29970), vanilla 26.3 server rt-24h (port 25600, whitelist off for the LAN test). Two real players at once on the home network: the owner (silverWRX) on this PC and a second real account (Cheekymonkey1151) from another PC on the LAN; the Connected Players card showed both. From the card, done by the owner (server log): private Message (You whisper to Cheekymonkey1151: Hi), Make op then De-op (Made Cheekymonkey1151 a server operator / no longer a server operator), Kick (Kicked by an operator; rejoined), Ban then Pardon on the owner own account (You are banned from this server, then Unbanned silverWRX and joined again); both online at the end. Owner: everything worked correctly.",
+      "evidence": ""
+    },
+    "805": {
+      "status": "pass",
+      "tested_at": "2026-11-24T02:09:42+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Host: the second test home (panel 29971), vanilla 26.3 server A Minecraft Server (port 25610) with the friends download on (port 8767, HTTPS). Friend: the owner second Windows laptop on the home network. It opened the server invite link (the GitHub Pages invite page), downloaded Craft Conductor for friends from it (Windows SmartScreen warning, expected for the unsigned exe: Run anyway), which set up Minecraft for the server in the owner launcher; the owner then joined from the laptop (server log: silverWRX[/192.168.1.112] logged in ... joined the game). Owner: in the server.",
+      "evidence": ""
+    },
+    "1044": {
+      "status": "pass",
+      "tested_at": "2026-11-24T02:38:53+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Friend: the owner second Windows laptop (192.168.1.112). Two hosts, each a vanilla 26.3 server named A Minecraft Server with the friends download on: the second test home (panel 29971, game port 25610, download 8767) and the third test home (panel 29975, game port 25611, download 8766). The laptop set up host A from its invite link (805), then host B from its own invite link; each got its own launcher profile and game folder (server_slug: the second gets <name>-<id>). Switching between the two profiles with no new setup in between joined each its own server (server logs: silverWRX from 192.168.1.112 on 25611 at 20:37:47, then on 25610 at 20:38:25). Finding (not a fail): both profiles are labelled A Minecraft Server in the launcher, so the friend cannot tell which is which.",
+      "evidence": ""
+    },
+    "1055": {
+      "status": "pass",
+      "tested_at": "2026-11-24T03:56:51+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Friend: the owner second Windows laptop, cleaned first (old friend downloads, test Prism instances/launcher installations and %APPDATA%/.minecraft/craft-conductor deleted), restarted. Fresh friend downloads from the two invite pages set up host A (second test home, panel 29971, game 25610, download 8767) and then host B (third test home, panel 29975, game 25611, download 8766), both vanilla 26.3 servers named A Minecraft Server. The friend app opened without an invite (a renamed copy, craft-conductor.exe) listed both under Servers you have joined, both up to date (each reached over its own pinned invite), and Update worked for each (owner). Both hosts run on one PC, so both show the same computer address (192.168.1.69); two real hosts would differ. Findings: (1) after one Update, opening the friend app again without an invite shows that server page again instead of the list (it hands over to the copy still running); only restarting the laptop got back to the list; (2) the two entries and the two launcher profiles are labelled alike, nothing tells which is which.",
+      "evidence": ""
+    },
+    "808": {
+      "status": "pass",
+      "tested_at": "2026-11-24T04:25:07+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. The third test home (panel 29975); router UPnP off; playit.gg installed on this PC but its agent stopped. Vanilla 26.3 server playit-test, port 25565, Friends outside your home: playit.gg (whitelist on by itself). The Friends page offered Download and install playit.gg (agent not running; finding: it could say installed but not running); instead the owner started the installed playit.gg; the owner existing Minecraft Java tunnel (a *.tun.ply.gg name -> 127.0.0.1:25565) address pasted and saved (playit.gg address saved). The owner laptop on the phone hotspot (outside the home) joined that address: first refused (You are not white-listed; the connection came in through the playit agent, a 127.x address), then silverWRX added to the whitelist, joined (logged in through the tunnel, Connected Players listed them).",
+      "evidence": ""
+    },
+    "806": {
+      "status": "pass",
+      "tested_at": "2026-11-24T04:28:42+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. The second test home (panel 29971); home router Synology SRM with UPnP turned back on by the owner. Vanilla 26.3 server router-test made with Friends outside your home: Open a port on my router; it got port 38643 (not 25565); the home automatic port forwarding switched on (after the exposure warning): Synology SRM forwards 38643 (and the friends download 8767) to this computer; Windows Firewall lets it through; whitelist on by itself, the owner Minecraft name added. External join: the owner laptop on the phone hotspot (mobile network, outside the home) joined <public address>:38643 through the router UPnP forward (server log: logged in from the mobile network address); Connected Players listed them.",
+      "evidence": ""
     }
   },
   "notes": "Release 0.30.7 (PRs #348 and #349: issues #300-#305, #307-#316, #323, #324, #326, #329, #331, #334, #345). Release gate 802-820 is run in full on every release. 1049-1071 test this release's fixes. Extra: 239, 406, 700, 865, 896, 918, 1044, 1048 failed in v0.30.6-win11 and are fixed here (owner: rerun the originally failed test too); 847 needs a release newer than 0.30.6."
