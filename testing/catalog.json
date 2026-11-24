@@ -9308,7 +9308,7 @@
   {
     "id": 1064,
     "section": "Fix: two control panels on one computer keep their sign-ins",
-    "step": "Run two Craft Conductor homes on one computer and open both at http://localhost:<port>/ in the same browser: signing in to the second doesn't sign you out of the first; after the update nobody had to sign in again and a paired phone stays paired (#324).",
+    "step": "Run two Craft Conductor homes on one computer and open both at http://localhost:<port>/ in the same browser: signing in to the second doesn't sign you out of the first; a paired phone stays paired through the update (#324). (Browser sign-ins end at any restart, an update too.)",
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
