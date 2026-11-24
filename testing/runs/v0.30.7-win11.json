@@ -330,6 +330,76 @@
       "tester": "Owner + Claude Code",
       "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Main test panel (29970) in Chrome on this computer. The owner went through it with Windows Narrator (Tab through Your servers, a server Dashboard, Players and Backups, and Craft Conductor settings) and said everything was read with sensible names: pass. Accessibility check of the same five pages (Claude Code, in the page): no button, link, field or switch without a name, each page has its own heading.",
       "evidence": ""
+    },
+    "820": {
+      "status": "pass",
+      "tested_at": "2026-11-23T18:28:36+00:00",
+      "tester": "Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. The main test home (panel 29970). Vanilla 26.3 server rt-24h ran from 2026-11-22 08:57 to past 2026-11-23 12:28 (27.5 hours): the server Activity has 0 warnings and 0 errors, no crash restarts; the PC did not sleep or restart (last boot 11-17). Checked every 10 minutes until 21:58 (run24.csv, 79 samples: running in every one; the monitor process ended with the earlier Claude Code session), then from the server Activity and status. Hourly backups ran every hour on the hour (29 backups from 08:57 to 12:00, never more than 60 minutes apart); the count rose to 10 and stayed at 10 (backups_keep 10). Scheduled restart (every day at 3:30): stopped and up again at 03:40 (after its countdown). Panel memory 45-80 MB while sampled and 42 MB at the end, no growth; Java working set 1.2 GB after start, then Windows trimmed it while the server stood idle with no players (59 MB at the end).",
+      "evidence": ""
+    },
+    "809": {
+      "status": "pass",
+      "tested_at": "2026-11-23T20:32:58+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Second test home (panel 29971) with a strong test password, access from other devices on (applied without a restart), Tailscale signed in on this PC and on the owner Android phone (S23). Use Tailscale for the phone app: https://<pc>.<tailnet>.ts.net (tailnet only). The owner opened it in Chrome on the phone, signed in, installed the app (Install app) and opened it from the home screen. From the app: Turn on notifications here (the device is listed as Android phone, the owner s; log: phone notifications turned on for Android phone), Send a test arrived on the phone, and the server Hand download 1054 was started (Server is up) and stopped from the phone (twice). Owner: everything worked as expected.",
+      "evidence": ""
+    },
+    "1066": {
+      "status": "pass",
+      "tested_at": "2026-11-23T20:32:58+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Owner Android phone (S23, Chrome, the app installed from the Tailscale address of the second test home, panel 29971). The strip at the top (Get a notification when a server needs you) -> Turn on notifications -> Turn on notifications here -> allow: notifications on (the device listed as the owner s Android phone) and the strip went away at once, without reopening the app (owner: everything worked as expected).",
+      "evidence": ""
+    },
+    "1071": {
+      "status": "pass",
+      "tested_at": "2026-11-23T20:55:42+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Owner Android phone (S23), the Craft Conductor app over Tailscale (second test home, panel 29971): Hand download 1054 -> Mods -> Download mods: the results fill most of the screen, Filters folds the other filters away (search kept), Add selected mods stays at the bottom while the list scrolls, and a mod page opens over the list with Back to the list (owner: everything worked).",
+      "evidence": ""
+    },
+    "918": {
+      "status": "pass",
+      "tested_at": "2026-11-24T00:03:53+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Phone half: the owner Android phone (S23), the Craft Conductor app over Tailscale (second test home, panel 29971, the panel answers local: false there), signed in as the owner, server Phone drop 918b (Fabric 26.1.2 with ServerCore from CurseForge, which must be downloaded by hand; nothing for it on the PC): See progress -> Download these mods by hand: the section said You are using Craft Conductor from another device: what you download here is saved on this device, not on the computer Craft Conductor runs on. Press Load downloaded mods or drag the files here...; a wrong file (ServerCore for 26.3, from CurseForge page s first Download button) was refused as not one of the mods waiting; the right file downloaded on the phone and picked in the drop box: received servercore-fabric-1.5.19+26.1.2.jar, downloaded by hand; carrying on -> your server is ready (Minecraft 26.1.2). Invited half: see 1054 (Manage mods: the drop box, no Downloads line or Choose the folder...; dropping lets setup carry on). Findings noted, not failures of this step: on the phone the panel also shows the computer-only Downloads lines and Choose the folder..., the Download link lets a phone pick CurseForge s latest file, and the list of mods gets about a quarter of the screen.",
+      "evidence": ""
+    },
+    "1067": {
+      "status": "pass",
+      "tested_at": "2026-11-24T00:08:52+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Owner Android phone (S23), the installed app over Tailscale (second test home, panel 29971), notifications on as the owner. Signed out, then Invited? Sign in with your username as the test person Sam Tester (sam1054, only See status + Manage mods on Hand download 1054): Sam saw only that server, and the phone notifications were turned on again for Sam by themselves (log: Sam Tester signed in, then phone notifications turned on for Android phone). Signed out, signed in as the owner: turned on again for the owner by themselves (the device is listed as the owner s Android phone). Then Hand download 1054 was started and its Java ended (Server stopped unexpectedly (exit code 1); not restarting): the crash notification reached the phone (owner: arrived).",
+      "evidence": ""
+    },
+    "1065": {
+      "status": "pass",
+      "tested_at": "2026-11-24T00:14:02+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. Owner Android phone (S23) with the app installed at the Tailscale address https://<pc>.<tailnet>.ts.net and notifications on (second test home, panel 29971). Then a fresh Craft Conductor (third home, panel 29975, a new key) took over the same Tailscale address; the owner opened the installed app, signed in there (paired again) and pressed nothing: Craft Conductor settings > Connections > Phone app said notifications are on, and the fresh panel lists the phone as the owner s Android phone (turned on again by itself, with this Craft Conductor key). A friend asked to be let in on its server Join ask 1065 (whitelist on; the request sent with the server invite through Craft Conductor own friend code, as the friend app Ask to be let in does): the notification reached the phone (owner: it did).",
+      "evidence": ""
+    },
+    "1064": {
+      "status": "pass",
+      "tested_at": "2026-11-24T01:06:48+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. (1) Two panels on one computer (29970 home v0.30.7-win11, 29971 home v0.30.7-home2), both opened at http://localhost:<port>/ in the same Chrome: signing in to 29971 after 29970 left 29970 signed in; both side by side (2026-11-22). (2) A paired phone stays paired through the update: fourth home on 0.30.6 (panel 29976, Tailscale address), the owner iPhone paired as the test person Iris Phone (Pair with a code, its device cookie of the old name); Craft Conductor then updated itself 0.30.6 -> 0.30.7 (Craft Conductor was updated to 0.30.7); after a reload the iPhone was still signed in as Iris Phone with its server, no sign-in asked (owner: yes). Note: browser sign-ins (not paired devices) are not kept across any restart, an update too, in any version: the step text and the 0.30.7 changelog line for #324 say nobody had to sign in again, which is wrong; to be reworded.",
+      "evidence": ""
+    },
+    "847": {
+      "status": "pass",
+      "tested_at": "2026-11-24T01:09:05+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. A fourth home on the 0.30.6 release (panel 29976 at the Tailscale address), the owner Android phone (S23) with the installed app signed in as the owner and notifications on (Send a test arrived; the phone first needed its notification permission reset, an effect of the old 0.30.6 #309 bug, not 0.30.7). (1) Available: when the 0.30.6 panel started and checked, the phone got Craft Conductor 0.30.7 is available (you have 0.30.6). (2) Updated: the panel updated itself 0.30.6 -> 0.30.7 (downloaded from the release, verified, installed, restarted: Craft Conductor was updated to 0.30.7) and the phone was told so. (3) Failed: back on 0.30.6, the update started again and the new version was ended right after it started (helpers/kill_update_847.py): The update to 0.30.7 did not work (the new version stopped right after starting); Craft Conductor 0.30.6 is back, and the phone got that notification. Owner confirmed all three.",
+      "evidence": ""
+    },
+    "1068": {
+      "status": "pass",
+      "tested_at": "2026-11-24T01:10:50+00:00",
+      "tester": "Owner + Claude Code",
+      "notes": "Release exe v0.30.7 (sha256 50e63e5…), isolated home. The owner iPhone in Safari with the address bar at the bottom (Safari default), over Tailscale on the 0.30.7 second test home (panel 29971), signed in as the owner: the menu (hamburger, top left) shows Sign out fully visible above Safari address bar, and it can be pressed (owner).",
+      "evidence": ""
     }
   },
   "notes": "Release 0.30.7 (PRs #348 and #349: issues #300-#305, #307-#316, #323, #324, #326, #329, #331, #334, #345). Release gate 802-820 is run in full on every release. 1049-1071 test this release's fixes. Extra: 239, 406, 700, 865, 896, 918, 1044, 1048 failed in v0.30.6-win11 and are fixed here (owner: rerun the originally failed test too); 847 needs a release newer than 0.30.6."
