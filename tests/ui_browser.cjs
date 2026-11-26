@@ -106,10 +106,65 @@ const assert = require('node:assert/strict');
   });
   assert.equal(await closeShown(), true);
   await page.locator('#remote').getByRole('button', {name:'Close',exact:true}).click();
-  for (const view of ['servers', 's/alpha/dashboard', 's/alpha/console', 's/alpha/players', 's/alpha/updates', 's/alpha/mods', 's/alpha/friends', 's/alpha/backups', 's/alpha/java', 'new']) {
+  for (const view of ['servers', 's/alpha/dashboard', 's/alpha/players', 's/alpha/updates', 's/alpha/mods', 's/alpha/friends', 's/alpha/backups', 's/alpha/java', 'new']) {
     await go(view);
     assert.deepEqual(await misplacedCheckboxes(), [], view);
   }
+  // The sidebar: the pages used every day first, then Maintenance, folded until opened (remembered in this browser),
+  // and open by itself while one of its pages is on show.
+  await go('s/alpha/dashboard');
+  const order = await page.locator('#nav a[href^="#s/alpha/"]').evaluateAll((as) => as.map((a) => a.getAttribute('href').split('/').pop()));
+  assert.deepEqual(order, ['dashboard', 'friends', 'players', 'mods', 'updates', 'backups', 'java', 'settings']);
+  const upkeep = page.locator('#nav .nav-group');
+  const backupsLink = page.locator('#nav a[href="#s/alpha/backups"]');
+  assert.equal(await upkeep.getAttribute('aria-expanded'), 'false', 'Maintenance starts folded');
+  assert.ok(!(await backupsLink.isVisible()), 'Backups is folded away');
+  await upkeep.click();
+  assert.equal(await upkeep.getAttribute('aria-expanded'), 'true');
+  await backupsLink.waitFor();
+  await page.reload();
+  await page.locator('#nav .nav-group').waitFor();
+  assert.equal(await upkeep.getAttribute('aria-expanded'), 'true', 'kept open after a reload');
+  await upkeep.click();
+  assert.ok(!(await backupsLink.isVisible()), 'folded again');
+  await go('s/alpha/backups');
+  assert.equal(await upkeep.getAttribute('aria-expanded'), 'true', 'open while on Backups');
+  assert.equal(await backupsLink.getAttribute('aria-current'), 'page');
+  await go('s/alpha/dashboard');
+  assert.equal(await upkeep.getAttribute('aria-expanded'), 'false', 'folded again on the Dashboard: as it was left');
+  // There's no Console page: the console is the Dashboard's, with the logs and crash reports folders at its top right,
+  // and an old Console link opens the Dashboard with the command box ready.
+  assert.equal(await page.locator('#nav a[href="#s/alpha/console"]').count(), 0);
+  const head = page.locator('.cc-console-widget .console-head');
+  assert.deepEqual(await head.locator('.console-tools button').allInnerTexts().then((t) => t.map((x) => x.replace(/^\W+/, '').trim())), ['Logs folder', 'Crash reports']);
+  const sides = await head.evaluate((el) => { const h = el.querySelector('h3').getBoundingClientRect(), t = el.querySelector('.console-tools').getBoundingClientRect(), r = el.getBoundingClientRect();
+    return { titleLeft: Math.round(h.left - r.left), toolsRight: Math.round(r.right - t.right), sameRow: Math.abs(h.top + h.height / 2 - (t.top + t.height / 2)) < 12 }; });
+  assert.ok(sides.titleLeft <= 2 && sides.toolsRight <= 2 && sides.sameRow, 'title on the left, folders on the right: ' + JSON.stringify(sides));
+  assert.ok(await page.locator('.cc-dashboard-rail .players-card').isVisible(), 'Connected Players beside the console');
+  await go('s/alpha/console');
+  assert.ok((await page.title()).startsWith('Dashboard'), 'an old Console link opens the Dashboard');
+  await page.waitForFunction(() => document.activeElement && document.activeElement.getAttribute('aria-label') === 'Server command');
+  // The top row: CPU, RAM, Disk, Players and Performance. The console's Activity / Console switch (remembered, with the
+  // command box in both); under it Check my setup and Why am I lagging?; no Updates card; no state in Runtime Parameters.
+  await go('s/alpha/dashboard');
+  assert.deepEqual(await page.locator('.cc-telemetry-grid .meter-head span').allInnerTexts(), ['CPU', 'RAM', 'Disk', 'Players', 'Performance']);
+  const minecraft = page.locator('.cc-console-widget .console:not(.activity-log)'), activityBox = page.locator('.activity-log');
+  assert.ok(await minecraft.isVisible() && !(await activityBox.isVisible()), 'the console at first');
+  await page.getByRole('group', { name: 'What the box shows' }).getByRole('radio', { name: 'Activity' }).check();
+  assert.ok(await activityBox.isVisible() && !(await minecraft.isVisible()), 'Activity instead');
+  assert.equal(await page.locator('.cc-console-widget h3').innerText(), 'Activity');
+  assert.ok(await page.locator('.console-input input').isVisible(), 'the command box in Activity too');
+  await page.reload();
+  await activityBox.waitFor();
+  assert.ok(await activityBox.isVisible(), 'Activity kept after a reload');
+  await page.getByRole('group', { name: 'What the box shows' }).getByRole('radio', { name: 'Console' }).check();
+  assert.ok(await minecraft.isVisible());
+  assert.match(await page.locator('.dash-tools').innerText(), /Check my setup[\s\S]*Why am I lagging\?/);
+  assert.equal(await page.getByRole('heading', { name: 'Updates', level: 3 }).count(), 0, 'no Updates card on the Dashboard');
+  assert.ok(!(await page.locator('.cc-dashboard-rail dl.kv').innerText()).includes('State'), 'the state is in the top bar');
+  assert.ok(!(await page.locator('.console-input button').getAttribute('class')).includes('primary'), 'Send is an ordinary button');
+  assert.ok(await page.getByRole('heading', { level: 1, name: 'Dashboard' }).count() === 1 && !(await page.locator('h1.view-title').evaluate((e) => e.getBoundingClientRect().width > 1)),
+    'the page heading is there for screen readers, not drawn');
   await go('s/alpha/dashboard');
   await page.evaluate(() => openDoctor());
   await page.waitForFunction(() => document.querySelectorAll('.doctor-list li').length > 1);

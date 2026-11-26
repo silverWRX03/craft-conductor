@@ -101,9 +101,9 @@ const assert = require('node:assert/strict');
   await morgan.locator('#login-password').fill('Morgan-Strong-Pass-3');
   await morgan.getByRole('button', { name: 'Sign in', exact: true }).click();
   await morgan.locator('.server-card', { hasText: 'Alpha' }).getByRole('link', { name: 'Open Alpha' }).click();
-  await morgan.locator('#nav').getByText('Settings', { exact: true }).waitFor();
+  await morgan.locator('#nav').getByText('Settings', { exact: true }).waitFor({ state: 'attached' });  // (under Maintenance, folded)
   const pages = await morgan.locator('#nav a[href^="#s/alpha/"]').evaluateAll((as) => as.map((a) => a.getAttribute('href')));
-  assert.deepEqual(pages.map((x) => x.split('/').pop()).sort(), ['console', 'dashboard', 'mods', 'players', 'settings', 'updates', 'backups'].sort());
+  assert.deepEqual(pages.map((x) => x.split('/').pop()).sort(), ['dashboard', 'mods', 'players', 'settings', 'updates', 'backups'].sort());
   for (const href of pages) {
     await morgan.goto(base + '/' + href);
     await morgan.waitForTimeout(1500);

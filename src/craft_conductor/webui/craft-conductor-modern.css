@@ -103,7 +103,7 @@
 /* (a panel inside a panel is a raised surface, without its own shadow) */
 :root[data-style="modern"] :is(.props fieldset, .cfg-body) { background-color:var(--panel-2); border-radius:var(--cc-inner-radius); box-shadow:none; }
 /* The Dashboard: its cards sit straight on the page, apart by their own tone. */
-:root[data-style="modern"] .cc-dashboard { padding:0; background:transparent; border:0; box-shadow:none; }
+:root[data-style="modern"] .cc-panel.cc-dashboard { padding:0; background:transparent; border:0; box-shadow:none; }
 :root[data-style="modern"] :is(.login-card, .modal, .guide, .bell-panel) {
   background-color:var(--panel); background-image:none; border:1px solid var(--cc-hairline); border-radius:var(--radius); box-shadow:var(--shadow-pop); }
 :root[data-style="modern"] .guide.min { background:none; border:0; box-shadow:none; }
@@ -122,6 +122,11 @@
 :root[data-style="modern"] .bar { height:6px; border-radius:4px; background:#343E4C; }
 :root[data-style="modern"]:is([data-theme="day"],[data-theme="light"]):not([data-contrast="high"]) .bar { background:#CDD7DF; }
 :root[data-style="modern"] .bar-fill { border-radius:4px; }
+/* (Dark: the CPU, RAM, Disk and Players bars are the panel's silver, 5.6:1 on their track; cyan is kept for what can be
+   pressed or is active. Busy (orange) and full (red) keep their colours; Light keeps its deep cyan.) */
+:root[data-style="modern"]:not([data-contrast="high"]):not([data-theme="day"],[data-theme="light"]) .cc-metric-card .bar-fill:not(.warn, .bad) {
+  background:var(--silver-basalt); }
+:root[data-style="modern"]:not([data-contrast="high"]):not([data-theme="day"],[data-theme="light"]) .cc-perf-card .tps-line { stroke:var(--silver-basalt); }
 :root[data-style="modern"] .tag { border-radius:6px; }
 :root[data-style="modern"] .guide-steps li.done .guide-tick { color:var(--on-accent); }
 /* Narrow screens (a phone, or a window zoomed to 400%): nothing is wider than the screen. A column of the settings grid
@@ -136,6 +141,9 @@
 :root[data-style="modern"] .sidebar nav a { min-height:46px; padding:10px 12px; border-inline-start:0; border-radius:var(--cc-control-radius); color:var(--text);
   text-transform:none; letter-spacing:normal; font-size:15px; font-weight:500; }
 :root[data-style="modern"] .sidebar nav a:hover { background:var(--hover-bg); }
+:root[data-style="modern"] .nav-chevron { flex-basis:18px; width:18px; }
+:root[data-style="modern"] .sidebar nav .nav-group { min-height:46px; padding:10px 12px; border-radius:var(--cc-control-radius); font-size:13px;
+  text-transform:none; letter-spacing:.02em; }
 :root[data-style="modern"] .sidebar nav a.active { background:var(--selected-bg); color:var(--accent); font-weight:600;
   box-shadow:inset 3px 0 0 var(--accent); }
 :root[data-style="modern"] .sidebar nav a:focus-visible:not(.active) { background:var(--hover-bg); color:var(--text); box-shadow:none; font-weight:500; }
@@ -153,6 +161,9 @@
 :root[data-style="modern"] .cc-style-switch label { min-height:44px; min-width:44px; text-transform:none; letter-spacing:normal; font-size:14px; font-weight:500;
   border-radius:7px; color:var(--muted); }
 :root[data-style="modern"] .cc-style-switch label:has(input:checked) { color:var(--text); font-weight:600; }
+:root[data-style="modern"] .cc-style-switch.console-view { padding:0; border:0; background:transparent; }
+:root[data-style="modern"] .cc-style-switch.console-view label { border-radius:var(--cc-control-radius); }
+:root[data-style="modern"] .cc-style-switch.console-view label:has(input:checked) { background:var(--panel-2); border-color:var(--field-border); color:var(--text); }
 :root[data-style="modern"] .bell { width:44px; height:44px; background:transparent; border-color:var(--field-border); border-radius:var(--cc-control-radius);
   box-shadow:none; }
 :root[data-style="modern"] .bell-dot { box-shadow:0 0 0 2px var(--panel); }
@@ -217,12 +228,12 @@
 }
 
 /* ------------------------------------------------------------------ telemetry, console and editor */
-:root[data-style="modern"] .cc-telemetry-grid { gap:12px; margin-bottom:18px; }
-:root[data-style="modern"] .cc-dashboard-layout { gap:18px; }
-:root[data-style="modern"] .cc-dashboard-rail { gap:18px; }
-:root[data-style="modern"] .cc-telemetry-grid .card { padding:19px 17px 17px; }
+:root[data-style="modern"] .cc-telemetry-grid { gap:20px; margin-bottom:20px; }
+:root[data-style="modern"] .cc-dashboard-layout { gap:20px; }
+:root[data-style="modern"] .cc-dashboard-rail { gap:20px; }
+:root[data-style="modern"] .cc-telemetry-grid .card { padding:22px 20px; }
 :root[data-style="modern"] .cc-metric-card .meter-head span { font-size:14px; font-weight:500; color:var(--muted); }
-:root[data-style="modern"] .cc-metric-card .meter-head strong { font-size:30px; font-weight:500; line-height:1.25; letter-spacing:-.03em; font-variant-numeric:tabular-nums; }
+:root[data-style="modern"] .cc-metric-card .meter-head strong { font-size:24px; font-weight:500; line-height:1.25; letter-spacing:-.03em; font-variant-numeric:tabular-nums; }
 :root[data-style="modern"] .meter-head span { font-size:14px; }
 :root[data-style="modern"] .console { background:var(--console-bg); color:var(--text); border:1px solid var(--console-border); border-radius:var(--cc-control-radius);
   font-size:14px; line-height:1.6; box-shadow:none; }

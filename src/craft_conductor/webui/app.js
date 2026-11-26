@@ -1711,8 +1711,9 @@ $("#btn-restart").addEventListener("click", pressOnce(async () => {
 // -------------------------------------------------------------------- views
 const views = {};
 
-// A live server console: output plus a command box. Used on the Console page and the dashboard.
-function consolePanel({ compact = false } = {}) {
+// A live server console: output plus a command box, on the Dashboard (`tools`: buttons at the top right of its card).
+const CONSOLE_VIEW_KEY = "craft-conductor-console-view";
+function consolePanel({ compact = false, tools = null, activity = null } = {}) {
   const out = h("div", { class: "console cc-terminal-box" + (compact ? " compact" : ""), role: "log", "aria-label": "Server console", "aria-live": "off", tabindex: "0" });  // (read on purpose, not aloud by itself: #238)
   const input = h("input", { placeholder: "Type a server command, e.g. say hello  (↑/↓ for history)", autocomplete: "off",
     "aria-label": "Server command" });
@@ -1749,8 +1750,30 @@ function consolePanel({ compact = false } = {}) {
     else if (e.key === "ArrowUp" && hi > 0) { input.value = history[--hi]; e.preventDefault(); }
     else if (e.key === "ArrowDown") { hi = Math.min(history.length, hi + 1); input.value = history[hi] || ""; }
   });
+  // `activity`: Craft Conductor's own log for this server, the other side of the Activity / Console switch (only it,
+  // for someone who may not read the console).
+  const reads = can("logs.view");
+  let view = reads ? "console" : "activity";
+  if (activity && reads) { try { if (localStorage.getItem(CONSOLE_VIEW_KEY) === "activity") view = "activity"; } catch (_) { /* private mode */ } }
+  const title = h("h3", {});
+  const actBox = activity ? h("div", { class: "console activity-log" + (compact ? " compact" : ""), role: "log", "aria-label": "Activity", tabindex: "0" }, activity) : null;
+  const show = () => {
+    title.textContent = t(view === "activity" ? "Activity" : "Live console");
+    out.hidden = view !== "console";
+    if (actBox) actBox.hidden = view !== "activity";
+  };
+  const viewSwitch = activity && reads ? h("fieldset", { class: "cc-style-switch console-view" },
+    h("legend", { class: "sr-only" }, "What the box shows"),
+    [["activity", "Activity"], ["console", "Console"]].map(([v, label]) => h("label", {},
+      h("input", { type: "radio", name: "console-view", value: v, checked: view === v, "data-fkey": "console-view-" + v, onchange: () => {
+        view = v; show();
+        try { localStorage.setItem(CONSOLE_VIEW_KEY, v); } catch (_) { /* private mode */ }
+      } }), h("span", {}, label)))) : null;
+  show();
+  const toolsShown = [...(tools || []), viewSwitch].filter(Boolean);
   const el = h("section", { class: "card cc-panel cc-console-widget " + (compact ? "console-panel" : "console-wrap"), "aria-label": "Live console" },
-    h("h3", {}, "Live console"), out, can("console.execute") ? h("div", { class: "console-input" }, input, h("button", { class: "btn primary", onclick: send }, "Send"))
+    toolsShown.length ? h("div", { class: "console-head" }, title, h("div", { class: "row console-tools" }, toolsShown)) : title,
+    reads ? out : null, actBox, can("console.execute") ? h("div", { class: "console-input" }, input, h("button", { class: "btn", onclick: send }, "Send"))
       : isOwner() ? null : h("p", { class: "muted small" }, "Typing commands is the owner's (addresses and folders are hidden here)."));
   return { el, input, poll };
 }
@@ -1785,7 +1808,7 @@ function playerHead(name, size = 32) {
 function meter(label) {
   const value = h("strong", {});
   const fillBar = h("div", { class: "bar-fill" });
-  const note = h("div", { class: "muted small" });
+  const note = h("div", { class: "sr-only" });  // (the details: read by screen readers, and the card's tooltip)
   const el = h("div", { class: "card meter cc-metric-card" },
     h("div", { class: "meter-head" }, h("span", {}, label), value), h("div", { class: "bar", "aria-hidden": "true" }, fillBar), note);
   return {
@@ -1793,6 +1816,7 @@ function meter(label) {
     set(pct, text, sub) {
       value.textContent = t(text);
       note.textContent = t(sub || "");
+      if (sub) el.title = t(sub); else el.removeAttribute("title");
       const p = pct === null || pct === undefined ? 0 : Math.max(0, Math.min(100, pct));
       fillBar.style.width = p + "%";  // CSSOM, allowed by the CSP (unlike style attributes)
       fillBar.className = "bar-fill" + (p >= 90 ? " bad" : p >= 75 ? " warn" : "");
@@ -1974,21 +1998,13 @@ function reachCard(sid, { compact = false } = {}) {
   return box;
 }
 
-// A friend asked to be let in: say so on the Dashboard, with the way to the Players page.
-function askingNotice() {
-  const me = hubInfo && hubInfo.servers ? hubInfo.servers.find((x) => x.id === server) : null;
-  const n = me ? me.join_requests || 0 : 0;
-  return n ? h("div", { class: "notice mt row" }, h("span", { class: "grow" }, `${n} friend${n === 1 ? " asks" : "s ask"} to be let in.`),
-    h("a", { class: "btn small primary", href: link("players") }, "See who")) : null;
-}
-
 // Performance: ticks per second (20 = smooth), measured now and then while the Dashboard is
 // open, with a small graph of the last hour, what to try when it's behind, and (with the spark
 // mod) a 30-second profile for power users.
 // The lag finder: 30 seconds of Minecraft's profiler plus the world's files, in plain words.
 function lagBox() {
-  const el = h("div", { class: "lag-box mt-s" });
-  let timer = null, running = false, up = true, lastState = null;
+  const el = h("div", { class: "lag-box" });
+  let timer = null, running = false, up = true, lastState = null, spark = null;
   const findings = (r) => h("ul", { class: "list" }, r.findings.map((f) => h("li", {}, h("div", { class: "grow" },
     h("strong", {}, f.title),
     f.detail ? h("div", { class: "small" }, f.detail) : null,
@@ -2004,15 +2020,18 @@ function lagBox() {
     fill(el,
       job ? h("div", {}, h("div", { class: "row small" }, h("span", { class: "spinner" }), h("span", { class: "grow" }, t(job.step || "Getting ready…")),
         h("button", { class: "link-btn", onclick: () => api("/api/performance/lag/stop", { method: "POST" }).catch(() => null) }, "Stop")))
-        : h("div", { class: "row small" },
-          h("button", { class: "btn small", onclick: start, disabled: !up, title: up ? "" : "Start the server first" }, "Find what's causing lag"),
-          h("span", { class: "muted" }, "Watches the server for 30 seconds, then looks through the world.")),
+        : h("button", { class: "btn", onclick: start, disabled: !up, "data-fkey": "find-lag",
+            title: up ? "Watches the server for 30 seconds, then looks through the world, and says what's slowing it down." : "Start the server first" }, "🐢 Why am I lagging?"),
       failed ? h("div", { class: "notice bad mt-s small" }, failed.error) : null,
       r && !job ? h("details", { class: "mt-s", open: Date.now() / 1000 - r.finished < 3600 },
         h("summary", {}, (r.automatic ? t("Looked by itself") : t("Last look")) + ` · ${ago(r.finished)}` + (r.tps ? ` · ${r.tps} TPS` : "")),
         h("p", { class: "small" }, t(r.summary)),
         r.findings.length ? findings(r) : null,
-        r.note ? h("p", { class: "muted small" }, r.note) : null) : null);
+        r.note ? h("p", { class: "muted small" }, r.note) : null,
+        // (more detail, for power users: a profile with the spark mod, on spark's website)
+        spark && spark.on ? h("div", { class: "row mt-s small" }, h("span", { class: "muted" }, "More detail:"),
+          h("button", { class: "btn small", onclick: () => act(() => api("/api/performance/spark", { method: "POST", body: {} })).then((x) => x && toast(x.message)) }, "Profile 30 s with spark"),
+          spark.url ? h("a", { href: spark.url, target: "_blank", rel: "noopener noreferrer" }, "Latest spark report ↗") : null) : null) : null);
     if (job && !timer) timer = setInterval(poll, 2000);
     if (!job && timer) { clearInterval(timer); timer = null; }
   };
@@ -2027,56 +2046,67 @@ function lagBox() {
   }
   poll();
   const setUp = (v) => { if (v !== up) { up = v; if (lastState) render(lastState); } };
-  return { el, poll, setUp, get running() { return running; } };
+  const setSpark = (on, url) => {
+    if (spark && spark.on === on && spark.url === url) return;
+    spark = { on, url }; if (lastState) render(lastState);
+  };
+  return { el, poll, setUp, setSpark, get running() { return running; } };
 }
 
-function perfCard() {
-  const body = h("div", {}, h("p", { class: "muted small" }, "Measuring…"));
-  const lag = lagBox();
-  const el = card("Performance", body, lag.el);
-  const spark = (samples) => {
-    const pts = samples.filter((x) => x.tps !== null).slice(-60);
-    if (pts.length < 2) return null;
-    const NS = "http://www.w3.org/2000/svg", W = 240, H = 40;
-    const svg = document.createElementNS(NS, "svg");
-    svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("class", "tps-graph"); svg.setAttribute("role", "img");
-    const low = Math.min(...pts.map((x) => x.tps));
-    svg.setAttribute("aria-label", t("Speed over the last hour: lowest {low} TPS").replace("{low}", low.toFixed(1)));
-    const t0 = pts[0].time, span = Math.max(1, pts[pts.length - 1].time - t0);
-    const d = pts.map((x, i) => `${i ? "L" : "M"}${(W * (x.time - t0) / span).toFixed(1)},${(H - 2 - (H - 4) * Math.max(0, Math.min(20, x.tps)) / 20).toFixed(1)}`).join(" ");
-    const line = document.createElementNS(NS, "path");
-    line.setAttribute("d", d); line.setAttribute("fill", "none"); line.setAttribute("class", "tps-line");
-    const ref = document.createElementNS(NS, "line");
-    for (const [k, v] of [["x1", 0], ["x2", W], ["y1", 2], ["y2", 2]]) ref.setAttribute(k, v);
-    ref.setAttribute("class", "tps-ref");
-    svg.append(ref, line);
-    return svg;
+// The last hour's speed, as a small line graph (20 TPS at the top).
+function tpsGraph(samples) {
+  const pts = samples.filter((x) => x.tps !== null).slice(-60);
+  if (pts.length < 2) return null;
+  const NS = "http://www.w3.org/2000/svg", W = 240, H = 40;
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("preserveAspectRatio", "none");
+  svg.setAttribute("class", "tps-graph"); svg.setAttribute("role", "img");
+  const low = Math.min(...pts.map((x) => x.tps));
+  svg.setAttribute("aria-label", t("Speed over the last hour: lowest {low} TPS").replace("{low}", low.toFixed(1)));
+  const t0 = pts[0].time, span = Math.max(1, pts[pts.length - 1].time - t0);
+  const d = pts.map((x, i) => `${i ? "L" : "M"}${(W * (x.time - t0) / span).toFixed(1)},${(H - 2 - (H - 4) * Math.max(0, Math.min(20, x.tps)) / 20).toFixed(1)}`).join(" ");
+  const line = document.createElementNS(NS, "path");
+  line.setAttribute("d", d); line.setAttribute("fill", "none"); line.setAttribute("class", "tps-line");
+  line.setAttribute("vector-effect", "non-scaling-stroke");
+  const ref = document.createElementNS(NS, "line");
+  for (const [k, v] of [["x1", 0], ["x2", W], ["y1", 2], ["y2", 2]]) ref.setAttribute(k, v);
+  ref.setAttribute("class", "tps-ref"); ref.setAttribute("vector-effect", "non-scaling-stroke");
+  svg.append(ref, line);
+  return svg;
+}
+// The Performance card in the Dashboard's top row: TPS now, and the graph where the others have their bar. What it
+// means is the card's tooltip (and read by screen readers).
+function perfMeter() {
+  const value = h("strong", {}, "…");
+  const graph = h("div", { class: "perf-graph" });
+  const note = h("div", { class: "sr-only" });
+  const el = h("div", { class: "card meter cc-metric-card cc-perf-card" }, h("div", { class: "meter-head" }, h("span", {}, "Performance"), value), graph, note);
+  let last = null;
+  const say = (text, sub, status) => {
+    value.textContent = t(text);
+    value.className = status === "warn" || status === "bad" ? `tps-value ${status}` : "";
+    note.textContent = t(sub); el.title = t(sub);
   };
   const load = async () => {
     const r = await api("/api/performance").catch(() => null);
-    if (!r) return;
-    lag.setUp(!!r.running);
-    if (!r.supported) { fill(body, h("p", { class: "muted small" }, "This Minecraft version can't report its speed (it needs Minecraft 1.20.3 or newer, or Paper, Purpur, Forge or NeoForge).")); return; }
-    if (!r.running) { fill(body, h("p", { class: "muted small" }, "Start the server to see how well it keeps up.")); return; }
+    if (!r) return null;
+    last = r;
+    if (!r.supported) { say("—", "This Minecraft version can't report its speed (it needs Minecraft 1.20.3 or newer, or Paper, Purpur, Forge or NeoForge)."); fill(graph); return r; }
+    if (!r.running) { say("—", "Start the server to see how well it keeps up."); fill(graph); return r; }
     const c = r.current;
-    const tips = r.status === "bad" || r.status === "warn" ? h("details", { class: "small mt-s" }, h("summary", {}, "What slows a server down"),
-      h("ul", {},
-        h("li", {}, "Exploring new terrain: pre-generate the world (the Chunky mod) so it's ready before people get there."),
-        h("li", {}, "Lots of mobs, item farms or redstone clocks in loaded areas."),
-        h("li", {}, "Too little memory: see Check my setup; or too much, without Aikar's flags (Settings)."),
-        h("li", {}, "A heavy mod: Find what's causing lag names it, and a profile with spark shows more."))) : null;
-    fill(body,
-      h("div", { class: "row" },
-        h("strong", { class: `tps-value ${r.status}` }, c ? `${c.tps.toFixed(1)} TPS` : "…"),
-        h("span", { class: "grow small" }, r.words, c && c.mspt !== null ? ` · ${c.mspt.toFixed(1)} ms per tick (under 50 keeps up)` : ""),
-        spark(r.samples)),
-      tips,
-      r.spark ? h("div", { class: "row mt-s small" },
-        h("button", { class: "btn small", onclick: () => act(() => api("/api/performance/spark", { method: "POST", body: {} })).then((x) => x && toast(x.message)) }, "Profile 30 s with spark"),
-        r.spark_url ? h("a", { href: r.spark_url, target: "_blank", rel: "noopener noreferrer" }, "Latest spark report ↗") : null) : null);
+    say(c ? `${c.tps.toFixed(1)} TPS` : "…", r.words + (c && c.mspt !== null ? ` · ${c.mspt.toFixed(1)} ms per tick (under 50 keeps up)` : ""), r.status);
+    fill(graph, tpsGraph(r.samples));
+    return r;
   };
-  return { el, load };
+  return { el, load, get last() { return last; } };
 }
+// What slows a server down: shown under the console while it's behind.
+const slowTips = () => h("details", { class: "small slow-tips" }, h("summary", {}, "What slows a server down"),
+  h("ul", {},
+    h("li", {}, "Exploring new terrain: pre-generate the world (the Chunky mod) so it's ready before people get there."),
+    h("li", {}, "Lots of mobs, item farms or redstone clocks in loaded areas."),
+    h("li", {}, "Too little memory: see Check my setup; or too much, without Aikar's flags (Settings)."),
+    h("li", {}, "A heavy mod: Why am I lagging? names it, and a profile with spark shows more.")));
 
 // Check my setup: what most often stops a server or friends, each with what to do. Testing from
 // the internet asks an outside service, so it only runs when asked; the report (for a bug
@@ -2156,13 +2186,6 @@ Windows asks for permission once. If another Craft Conductor on this computer us
 // Playing on this computer too (offered in a browser on the server's own computer): Craft Conductor sets
 // up this computer's Minecraft for the server, the way it does for friends, after saying what
 // running both on one computer costs.
-function playHereCard() {
-  const btn = h("button", { class: "btn primary", onclick: () => playHere(btn) }, "🎮 Play on this computer");
-  return card("Play on this computer",
-    h("p", { class: "muted small" }, "Set up Minecraft on this computer with this server's version and mods, and add the server to your launcher. " +
-      "Fine for a small server with a few friends: the game and the server share this computer's memory and CPU."),
-    btn);
-}
 async function playHere(btn) {
   btn.disabled = true;
   try {
@@ -2448,12 +2471,28 @@ function playersCard(con) {
 
 views.dashboard = () => {
   const statusBody = h("dl", { class: "kv" });
-  const update = delegate(h("div"), { check: () => act(() => api("/api/updates/check", { method: "POST", body: {} }), "Checking for updates…") });
-  const events = h("div", { class: "events" });
+  const events = h("div", { class: "events" },
+    h("p", { class: "muted small activity-empty" }, "Nothing yet. What Craft Conductor does for this server shows here: starting and stopping it, backups, updates and problems."));
   const cpu = meter("CPU"), mem = meter("RAM"), disk = meter("Disk"), players = meter("Players");
-  const perf = perfCard();
+  const perf = perfMeter();
+  const lag = lagBox();
   const tun = tunnelCard();
-  const con = consolePanel({ compact: true });
+  // The console lives here (there's no Console page any more), with the logs and crash reports folders at the top right
+  // of its card (on this computer), and the switch between Activity (Craft Conductor's own log) and the console.
+  const con = consolePanel({ compact: true, tools: [folderBtn("logs", "Logs folder"), folderBtn("crash", "Crash reports")], activity: events });
+  // Under the console: Check my setup, Why am I lagging? and Play on this computer.
+  const tools = h("div", { class: "row dash-tools" });
+  const play = h("button", { class: "btn", "data-fkey": "play-here", onclick: () => playHere(play) }, "🎮 Play on this computer");
+  const renderTools = () => {
+    const r = perf.last;
+    if (r) lag.setSpark(!!r.spark, r.spark_url || null);
+    refill(tools, JSON.stringify([r && r.running && r.status]),
+      isOwner() ? h("button", { class: "btn", "data-fkey": "doctor", onclick: openDoctor }, "🩺 Check my setup") : null,
+      lag.el,
+      hubInfo && hubInfo.local ? play : null,
+      r && r.running && (r.status === "bad" || r.status === "warn") ? slowTips() : null);
+  };
+  const loadPerf = async () => { const r = await perf.load(); if (r) lag.setUp(!!r.running); renderTools(); };
   const pc = playersCard(con);
   const lagBanner = h("div");
   const problemBox = h("div");
@@ -2464,7 +2503,8 @@ views.dashboard = () => {
   const renderMeters = (s) => {
     players.set(s.max_players ? 100 * s.players.length / s.max_players : 0, `${s.players.length} / ${s.max_players}`, "Connected players");
     disk.set(s.disk && s.disk.total_bytes ? 100 * s.disk.used_bytes / s.disk.total_bytes : null,
-      s.disk ? gb(s.disk.used_bytes) : "—", s.disk ? `used of ${gb(s.disk.total_bytes)} · ${gb(s.disk.free_bytes)} free on server volume` : "Disk usage unavailable");
+      s.disk ? `${gb(s.disk.used_bytes)} / ${gb(s.disk.free_bytes)}` : "—",
+      s.disk ? `used / free on the server volume (of ${gb(s.disk.total_bytes)})` : "Disk usage unavailable");
     const r = s.resources;
     if (!r) {
       const idle = s.state === "starting" ? "starting…" : "server stopped";
@@ -2509,8 +2549,7 @@ views.dashboard = () => {
     renderProblem(s.problem);
     renderMeters(s);
     pc.set(s.players, s.max_players, s.state);
-    fill(statusBody,
-      h("dt", {}, "State"), h("dd", {}, h("span", { class: "pill " + s.state }, s.state)),
+    fill(statusBody,  // (the state: in the top bar)
       h("dt", {}, "Uptime"), h("dd", {}, s.uptime ? fmtDuration(s.uptime) : "—"),
       h("dt", {}, "Minecraft"), h("dd", {}, s.minecraft || "not installed"),
       h("dt", {}, "Loader"), h("dd", {}, `${s.loader} ${s.loader_version || ""}`),
@@ -2520,25 +2559,13 @@ views.dashboard = () => {
     );
     const u = s.update;
     refill(lagBanner, JSON.stringify([u && u.lagging, s.minecraft]), u ? laggingNotice(u.lagging, s.minecraft) : null);
-    refill(update, JSON.stringify([u, s.minecraft, s.strategy, s.auto_upgrade, u && ago(u.checked_at)]),
-      !u ? h("p", { class: "empty" }, "Not checked yet.")
-        : u.up_to_date && u.latest !== s.minecraft
-          ? h("div", { class: "notice warn" }, `On the newest version your mods support. Minecraft ${u.latest} is out; waiting on mods (see Updates).`)
-        : u.up_to_date ? h("div", { class: "notice ok" }, `Up to date on the latest release (${u.latest}).`)
-        : u.target ? h("div", { class: "notice warn" }, `Update ready: Minecraft ${u.target}`,
-            u.manual ? h("div", { class: "small" }, `${u.manual} manual download(s) needed`) : null)
-        : h("div", { class: "notice bad" }, `Minecraft ${u.latest} is out but nothing installable yet.`),
-      u ? h("p", { class: "muted small" }, `Checked ${ago(u.checked_at)} · strategy ${s.strategy} · auto-upgrade ${s.auto_upgrade ? "on" : "off"}`) : null,
-      h("div", { class: "row" },
-        can("updates.check") ? h("button", { class: "btn", "data-act": "check", "data-fkey": "check" }, "Check now") : null,
-        canView("updates") ? h("a", { href: link("updates"), class: "btn ghost", "data-fkey": "details" }, "Details →") : null),
-    );
   };
 
   const pollEvents = async () => {
     const r = await api(`/api/events?since=${evSeq}`).catch(() => null);
     if (!r) return;
     evSeq = r.last;
+    if (r.events.length) { const none = events.querySelector(".activity-empty"); if (none) none.remove(); }
     for (const e of r.events) {
       events.prepend(h("div", { class: "ev " + e.level }, h("time", {}, fmtClock(e.time)), h("span", {}, e.message)));
     }
@@ -2550,36 +2577,27 @@ views.dashboard = () => {
     problemBox,
     lagBanner,
     h("section", { class: "cc-panel cc-dashboard", "aria-label": "Server dashboard" },
-      h("div", { class: "cc-telemetry-grid", "aria-label": "Server telemetry" }, cpu.el, mem.el, disk.el, players.el),
-      h("div", { class: "cc-dashboard-layout" }, can("logs.view") ? con.el : null,
+      h("div", { class: "cc-telemetry-grid", "aria-label": "Server telemetry" }, cpu.el, mem.el, disk.el, players.el, perf.el),
+      h("div", { class: "cc-dashboard-layout" },
+        h("div", { class: "cc-dashboard-main" }, con.el, tools),
         h("aside", { class: "cc-dashboard-rail", "aria-label": "Server details" }, pc.el,
           card("Runtime Parameters", statusBody,
-            h("div", { class: "row mt-s" }, isOwner() ? h("button", { class: "btn small", onclick: openDoctor }, "🩺 Check my setup") : null,
-              folderBtn("server", "Server folder"), folderBtn("world", "World folder")))))),
-    h("div", { class: "mt" }, perf.el),
+            h("div", { class: "row mt-s" }, folderBtn("server", "Server folder"), folderBtn("world", "World folder")))))),
     tun.el,
-    askingNotice(),
-    hubInfo && hubInfo.local ? h("div", { class: "mt" }, playHereCard()) : null,
-    card("Updates", update),
-    h("div", { class: "card mt" }, h("h3", {}, "Activity"), events),
   );
+  renderTools();
   if (status) render(status);
   every(3000, pollEvents);
-  every(30000, perf.load);
+  every(30000, loadPerf);
   every(60000, () => tun.load());
   every(1000, con.poll);
   every(5000, pc.poll);
+  // (an old Console link: the command box, once the page is up; route() puts the focus on the page first)
+  if (consoleWanted) { consoleWanted = false; setTimeout(() => { if (con.input.isConnected) con.input.focus(); }, 0); }
   return { onStatus: render };
 };
 
-views.console = () => {
-  const con = consolePanel();
-  const folders = hubInfo && hubInfo.local ? h("div", { class: "row mb" }, folderBtn("logs", "Logs folder"), folderBtn("crash", "Crash reports")) : null;
-  fill($("#main"), h("h1", { class: "view-title" }, "Console"), folders, con.el);  // (a page heading, like the other pages, #217)
-  con.input.focus();
-  every(1000, con.poll);
-  return {};
-};
+let consoleWanted = false;  // (an old #s/<id>/console link: the Dashboard, with the console's box ready to type in)
 
 // Mods holding back a newer Minecraft. After a month (and every month after) the admin is
 // asked whether to remove them and update; "Keep waiting" hides it until the next reminder.
@@ -6368,7 +6386,7 @@ const MANUAL_PICTURES = {
   "Connected Players": [["connected-players", "Connected Players: a row's actions open, and the Whitelist panel"]],
   "Performance": [["performance", "Performance, with the last hour's graph"]],
   "Check my setup": [["check-my-setup", "Check my setup"]],
-  "Console": [["console", "The Console"]],
+  "Console": [["console", "The Live console on the Dashboard"]],
   "Players": [["players", "The Players page"], ["player-activity", "Player activity"]],
   "Mods": [["mods", "Installed mods"], ["mod-versions", "A players' mod that wouldn't start: the version that works, and Change version"]],
   "Updates": [["updates", "The Updates page, waiting for two mods"], ["update-readiness", "Show why: each mod, ready or not"]],
@@ -10324,7 +10342,7 @@ views.setup = () => {
       if (first) open();
     };
     const panel = h("div", { class: "progress-panel" },
-      h("h1", { class: "view-title" }, "Creating your server…"),
+      h("h1", { class: "view-title says" }, "Creating your server…"),
       h("div", { class: "notice" }, h("div", { class: "row" }, h("span", { class: "spinner" }),
         h("span", { class: "grow" }, "Downloading Java, the mod loader, Minecraft and your mods, then checking that the server starts. This usually takes a few minutes.")),
         h("div", { class: "small muted mt-s" }, "You can close this page: Craft Conductor keeps going. Open Craft Conductor again and choose See progress on the server.")),
@@ -10361,7 +10379,7 @@ views.setup = () => {
   // Someone invited with Manage mods but not the server's settings: setup's progress and its hand-download
   // box, never the form (#334).
   const formless = !isNew && !can("runtime.configure");
-  const waitForOwner = (message) => fill(main, h("h1", { class: "view-title" }, "This server isn't set up yet"),
+  const waitForOwner = (message) => fill(main, h("h1", { class: "view-title says" }, "This server isn't set up yet"),
     message ? h("div", { class: "notice bad" }, h("strong", {}, "Setup didn't finish: "), failureText(message, server)) : null,
     h("p", { class: "muted" }, "The server's owner chooses how it's set up. When setup waits for mods to be downloaded by hand, they're on this page for you to download."));
   (async () => {
@@ -10410,8 +10428,14 @@ views.setup = () => {
 };
 
 // ------------------------------------------------------------------- router
-const SERVER_VIEWS = [["dashboard", "Dashboard"], ["console", "Console"], ["players", "Players"], ["updates", "Updates"],
-  ["mods", "Mods"], ["friends", "Friends"], ["backups", "Backups"], ["java", "Java"], ["settings", "Settings"]];
+const SERVER_VIEWS = [["dashboard", "Dashboard"], ["friends", "Friends"], ["players", "Players"], ["mods", "Mods"], ["updates", "Updates"],
+  ["backups", "Backups"], ["java", "Java"], ["settings", "Settings"]];
+// The sidebar: the pages used every day, then these under Maintenance, folded until opened (kept in this browser), and
+// open while one of them is on show.
+const MAINTENANCE_VIEWS = ["backups", "java", "settings"], MAINTENANCE_KEY = "craft-conductor-nav-maintenance";
+function maintenanceOpen() {
+  try { return localStorage.getItem(MAINTENANCE_KEY) === "open"; } catch (_) { return false; }  // (private mode: folded)
+}
 let currentName = null;
 // A page that's no use to this server: Mods on a Vanilla server, which can't run mods (#237). It's back once
 // the server is switched to a type that runs mods.
@@ -10438,15 +10462,30 @@ function renderNav() {
   const me = server && hb.servers ? hb.servers.find((x) => x.id === server) : null;
   const pending = me ? me.setup_pending : false;
   const asking = me ? me.join_requests || 0 : 0;  // (only for whoever may answer them: the owner, and moderators)
+  const page = ([v, label]) => a(link(v), label, currentName === v,
+    v === "updates" ? h("span", { id: "nav-update-dot", class: "dot" + (me && me.update ? "" : " hidden"), role: "img", "aria-label": "An update is ready" })
+    : v === "players" && asking ? joinDot(asking) : null);
+  const shown = SERVER_VIEWS.filter(([v]) => canView(v) && !viewUnused(v));
+  const daily = shown.filter(([v]) => !MAINTENANCE_VIEWS.includes(v)), upkeep = shown.filter(([v]) => MAINTENANCE_VIEWS.includes(v));
+  const upkeepOpen = maintenanceOpen() || MAINTENANCE_VIEWS.includes(currentName);
+  const maintenance = () => {
+    const items = h("div", { id: "nav-maintenance", class: "nav-group-items", hidden: !upkeepOpen }, upkeep.map(page));
+    const head = h("button", { type: "button", class: "nav-group", "aria-expanded": String(upkeepOpen), "aria-controls": "nav-maintenance", "data-fkey": "maintenance",
+      onclick: () => {
+        const open = head.getAttribute("aria-expanded") !== "true";
+        head.setAttribute("aria-expanded", String(open));
+        items.hidden = !open;
+        try { localStorage.setItem(MAINTENANCE_KEY, open ? "open" : "folded"); } catch (_) { /* private mode */ }
+      } }, h("span", { class: "nav-chevron", "aria-hidden": "true" }, "›"), h("span", {}, "Maintenance"));
+    return [head, items];
+  };
   refill($("#nav"), JSON.stringify([server, me && me.name, pending, !!(me && me.update), currentName, !!hb.single, hb.device || null, !!hb.self_update,
     hb.role || null, hb.access || null, me && me.loader, asking]),
     server ? [
       hb.single ? null : a("#servers", "← All servers", false),
       h("div", { class: "nav-server" }, me ? me.name : server),
       pending ? a(link("setup"), "Setup", currentName === "setup")
-        : SERVER_VIEWS.filter(([v]) => canView(v) && !viewUnused(v)).map(([v, label]) => a(link(v), label, currentName === v,
-            v === "updates" ? h("span", { id: "nav-update-dot", class: "dot" + (me && me.update ? "" : " hidden"), role: "img", "aria-label": "An update is ready" })
-            : v === "players" && asking ? joinDot(asking) : null)),
+        : [daily.map(page), upkeep.length ? maintenance() : null],
     ] : [
       a("#servers", "Servers", currentName === "servers"),
       hb.single || !isOwner() ? null : a("#new", "New server", currentName === "new"),
@@ -10494,6 +10533,7 @@ function route() {
   if (m) {
     server = m[1];
     view = m[2] === "setup" || SERVER_VIEWS.some(([v]) => v === m[2]) ? m[2] : "dashboard";
+    consoleWanted = m[2] === "console";
     if (!canView(view) || viewUnused(view)) view = "dashboard";
   } else {
     server = null;

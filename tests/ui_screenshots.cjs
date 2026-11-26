@@ -149,9 +149,9 @@ const HEADERS = {'X-CRAFT-CONDUCTOR': '1'};
   await shot('phone');
   await page.setViewportSize(DESKTOP);
   await page.waitForTimeout(800);
-  await scrollTo('Performance');
-  await shot('performance');
-  await page.locator('#main').evaluate(el => el.scrollTop = 0);
+  // Performance: its card in the Dashboard's top row
+  await page.locator('.cc-perf-card').screenshot({path: path.join(out, 'performance.png')});
+  console.log('took', 'performance');
   await page.locator('#btn-stop').click();
   await page.locator('.toast-dialog').waitFor();
   await page.waitForTimeout(400);
@@ -179,8 +179,8 @@ const HEADERS = {'X-CRAFT-CONDUCTOR': '1'};
   await page.waitForTimeout(500);
   await shot('check-my-setup');
   await close();
-  await go('s/survival/console');
-  await page.locator('#main input').last().fill('list');
+  await go('s/survival/dashboard');  // (the console is the Dashboard's Live console)
+  await page.locator('.console-input input').fill('list');
   await page.keyboard.press('Enter');
   await page.waitForTimeout(1500);
   await shot('console');

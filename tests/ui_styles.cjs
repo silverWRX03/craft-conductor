@@ -181,7 +181,7 @@ const path = require('node:path');
   if (shots) {
     for (const [s, th] of [['classic', 'day'], ['classic', 'night'], ['modern', 'day'], ['modern', 'night']]) {
       await page.evaluate(([s, th]) => { localStorage.setItem('craft-conductor-style:owner', s); localStorage.setItem('craft-conductor-style', s); localStorage.setItem('craft-conductor-theme', th); }, [s, th]);
-      for (const view of ['#servers', '#s/alpha/dashboard', '#s/alpha/console', '#s/alpha/settings']) {
+      for (const view of ['#servers', '#s/alpha/dashboard', '#s/alpha/settings']) {
         await page.goto(base + '/' + view);
         await page.reload();
         await page.locator('#nav a').first().waitFor();
@@ -224,7 +224,7 @@ const path = require('node:path');
     // the menu: its links
     await phone.locator('#cc-app-menu').click();
     const menu = await phone.evaluate(() => {
-      const links = [...document.querySelectorAll('#nav a')].map((a) => a.getBoundingClientRect().height);
+      const links = [...document.querySelectorAll('#nav a, #nav .nav-group')].map((a) => a.getBoundingClientRect().height).filter((x) => x > 0);  // (not what Maintenance folds away)
       // nothing in the menu shows (or answers a tap) beside or under the close button, scrolled or not
       const button = document.querySelector('#cc-app-menu').getBoundingClientRect();
       const under = () => [...document.querySelectorAll('.sidebar a, .sidebar button, .sidebar .brand')].filter((el) => {

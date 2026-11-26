@@ -147,7 +147,7 @@ def test_the_keyboard_ring_is_one_rule_for_everything():
 def test_touch_targets_are_at_least_44px():
     theme = (WEBUI / "craft-conductor-theme.css").read_text(encoding="utf-8")
     coarse = theme.split("@media (pointer: coarse) {", 1)[1]
-    for what in (".btn,", ".sidebar nav a { min-height:44px; }", ".bell, .cc-menu-trigger { width:44px; height:44px; }",
+    for what in (".btn,", ".sidebar nav a, .sidebar nav .nav-group { min-height:44px; }", ".bell, .cc-menu-trigger { width:44px; height:44px; }",
                  ".cc-style-switch label { min-height:44px; min-width:44px; }", ".cc-theme-switch::after"):
         assert what in coarse, what
 
@@ -252,6 +252,11 @@ def test_page_titles_are_the_one_h1():
     page = (WEBUI / "index.html").read_text(encoding="utf-8")
     assert '<h1 id="page-title" class="page-title hidden"></h1>' in page
     assert 'h("h2", { class: "view-title' not in app and app.count('h("h1", { class: "view-title') >= 14
+    # not drawn (the sidebar and the top bar say where you are), still there for screen readers; the two that say
+    # something new ("isn't set up yet", "Creating…") stay on screen
+    theme = (WEBUI / "craft-conductor-theme.css").read_text(encoding="utf-8")
+    assert "h1.view-title:not(.says) { position:absolute; width:1px; height:1px;" in theme and "display:none" not in theme.split("h1.view-title:not(.says)", 1)[1].split("}", 1)[0]
+    assert app.count('class: "view-title says"') == 2
     # (and the top bar's copy of the title is a heading only on Your servers, which has no title of its own)
     assert 'if (currentName === "servers") $("#page-title").removeAttribute("role");' in app
 

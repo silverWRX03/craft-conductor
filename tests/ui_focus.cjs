@@ -41,10 +41,10 @@ const assert = require('node:assert/strict');
   // the sidebar on a server's page
   await page.goto(base + '/#s/alpha/dashboard');
   await page.locator('#btn-start').waitFor();
-  const link = page.locator('#nav a', { hasText: 'Console' });
+  const link = page.locator('#nav a', { hasText: 'Friends' });
   await link.focus();
   const nav = await focused();
-  assert.match(nav, /Console\|#s\/alpha\/console/);
+  assert.match(nav, /Friends\|#s\/alpha\/friends/);
   await page.waitForTimeout(7000);
   assert.equal(await focused(), nav, 'the sidebar keeps the focus');
   // a control in the server's own page bar too

@@ -56,17 +56,58 @@ input,select,textarea { background:var(--console-bg); color:var(--text); font-fa
 /* (only what floats above the page casts a shadow) */
 .login-card,.modal,.guide { box-shadow:0 12px 36px var(--shadow-strong); }
 .card h3 { color:var(--bright); border-bottom:1px solid var(--border); padding-bottom:12px; }
-.cc-dashboard { padding:20px; box-shadow:none; }
-.cc-telemetry-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-bottom:12px; }
-.cc-telemetry-grid .card { margin:0; padding:16px; }
+.cc-dashboard, .cc-panel.cc-dashboard { padding:0; background:none; border:0; box-shadow:none; }
+.cc-telemetry-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:20px; margin-bottom:20px; }
+/* Performance in the top row: its graph where the others have their bar */
+.cc-perf-card .perf-graph { margin-top:14px; height:40px; }
+.cc-perf-card .tps-graph { display:block; width:100%; height:40px; }
+/* the Dashboard's left column: the console, then Check my setup, Find what's causing lag and Play on this computer */
+.cc-dashboard-main { display:flex; flex-direction:column; gap:16px; min-width:0; }
+.dash-tools { gap:10px; align-items:flex-start; justify-content:center; }
+.dash-tools .lag-box { display:contents; }
+.dash-tools > :is(.notice, details, div) { flex-basis:100%; order:10; }
+/* the console card's Activity side: Craft Conductor's own log, in the console's box */
+.activity-log { font-family:var(--sans); }
+.cc-console-widget .console[hidden] { display:none; }
+.activity-log .events { max-height:none; overflow:visible; }
+/* (the side on show looks like the card's other buttons (Kick, Play on this computer); the other is plain words) */
+.cc-style-switch.console-view { gap:2px; background:transparent; }
+.cc-style-switch.console-view::before { display:none; }
+.cc-style-switch.console-view label { white-space:nowrap; border:1px solid transparent; }
+.cc-style-switch.console-view label:has(input:checked) { background:var(--panel); color:var(--bright); border-color:var(--field-border); }
+/* Page headings: read by screen readers (and jumped to), not drawn: the sidebar and the top bar say where you are. */
+h1.view-title:not(.says) { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
+.cc-telemetry-grid .card { margin:0; padding:20px; }
+.cc-metric-card .bar { margin-top:14px; }
+.cc-metric-card { align-content:start; }  /* (the five cards' numbers and bars line up, whatever is under them) */
 .cc-metric-card .meter-head { flex-direction:column; align-items:stretch; }
 .cc-metric-card .meter-head span { font-size:13px; }
-.cc-metric-card .meter-head strong { color:var(--bright); font-size:26px; }
-.cc-dashboard-layout { display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:12px; align-items:start; }
-.cc-dashboard-rail { display:flex; flex-direction:column; gap:12px; }
+.cc-metric-card .meter-head strong { color:var(--bright); font-size:22px; overflow-wrap:anywhere; }
+.cc-dashboard-layout { display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:20px; align-items:start; }
+.cc-dashboard-rail { display:flex; flex-direction:column; gap:20px; }
 .cc-dashboard-rail .card { margin:0; }
-.cc-console-widget { padding:16px; min-width:0; }
+.cc-console-widget { padding:20px; min-width:0; }
 .cc-console-widget h3 { margin:0 0 12px; }
+/* (the Dashboard's console: the logs and crash reports folders at the top right of its card) */
+.console-head { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 12px; margin:0 0 12px; padding-bottom:8px; border-bottom:1px solid var(--border); }
+.card .console-head h3 { margin:0; padding:0; border-bottom:0; }
+.console-tools { gap:6px; margin-inline-start:auto; justify-content:flex-end; }
+/* The sidebar's Maintenance group: a header that folds Backups, Java and Settings away */
+.sidebar nav .nav-group { display:flex; align-items:center; gap:8px; width:100%; min-height:34px; margin-top:8px; padding:8px 12px 8px 13px;
+  background:none; border:0; color:var(--muted); font:inherit; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.08em;
+  text-align:start; cursor:pointer; }
+.sidebar nav .nav-group:hover { color:var(--text); background:var(--hover-bg); }
+.nav-chevron { display:inline-flex; justify-content:center; flex:0 0 14px; width:14px; font-size:18px; line-height:1; transition:transform .15s ease; }
+.nav-group[aria-expanded="true"] .nav-chevron { transform:rotate(90deg); }
+[dir="rtl"] .nav-group[aria-expanded="false"] .nav-chevron { transform:scaleX(-1); }
+.nav-group-items { display:grid; gap:inherit; }
+/* The sidebar: the server's pages at the top; Help, User manual and Craft Conductor settings at the bottom, then a line,
+   then Sign out, Quit and the version. (#nav: over the narrow screens' own rule; the links scroll when they don't fit.) */
+#nav { display:flex; flex-direction:column; flex:1 1 auto; min-height:0; }
+#nav .nav-sep { margin-top:auto; padding-top:16px; border-top:0; }
+.sidebar-foot { border-top:1px solid var(--border); padding-top:12px; }
+.nav-group-items[hidden] { display:none; }
+@media (prefers-reduced-motion: reduce) { :root:not([data-motion="normal"]) .nav-chevron { transition:none; } }
 .console { color:var(--text); background:var(--console-bg); box-shadow:none; }
 .console.compact { height:450px; }
 .console-wrap { height:calc(calc(100 * var(--vh)) - 180px); }
@@ -132,9 +173,10 @@ input,select,textarea { background:var(--console-bg); color:var(--text); font-fa
   .topbar .actions { margin:0; flex-wrap:wrap; justify-content:center; }
   .page-title { text-align:center; }
   .cc-telemetry-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .cc-telemetry-grid .cc-perf-card { grid-column:span 2; }
   .cc-dashboard-layout { grid-template-columns:minmax(0,1fr); }
 }
-@media(max-width:767px) { main { padding:16px; } .cc-dashboard { padding:12px; } .cc-telemetry-grid .card { padding:12px; } .cc-metric-card .meter-head strong { font-size:20px; overflow-wrap:anywhere; } .console.compact { height:360px; } }
+@media(max-width:767px) { main { padding:16px; } .cc-telemetry-grid, .cc-dashboard-layout, .cc-dashboard-rail { gap:12px; } .cc-telemetry-grid .card { padding:12px; } .cc-metric-card .meter-head strong { font-size:20px; overflow-wrap:anywhere; } .console.compact { height:360px; } }
 @media(max-width:1023px) { .view-title { text-align:center; } }
 @media print { .cc-menu-trigger,.cc-nav-overlay { display:none!important; } }
 
@@ -178,7 +220,7 @@ input,select,textarea { background:var(--console-bg); color:var(--text); font-fa
   .cfg-files button, summary, select, input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]) { min-height:44px; }
   .btn.small, .switch { min-width:44px; }
   a.btn { display:inline-flex; align-items:center; justify-content:center; }
-  .sidebar nav a { min-height:44px; }
+  .sidebar nav a, .sidebar nav .nav-group { min-height:44px; }
   .bell, .cc-menu-trigger { width:44px; height:44px; }
   .eye { width:44px; height:44px; inset-inline-end:0; }
   .pw-field input { padding-inline-end:48px; }

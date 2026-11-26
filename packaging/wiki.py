@@ -63,7 +63,7 @@ IMAGES = {
     "Connected Players": [("connected-players.png", "Connected Players: a row's actions open, and the Whitelist panel")],
     "Performance": [("performance.png", "Performance, with the last hour's graph")],
     "Check my setup": [("check-my-setup.png", "Check my setup")],
-    "Console": [("console.png", "The Console")],
+    "Console": [("console.png", "The Live console on the Dashboard")],
     "Players": [("players.png", "The Players page"), ("player-activity.png", "Player activity")],
     "Mods": [("mods.png", "Installed mods"),
              ("mod-versions.png", "A players' mod that wouldn't start: the version that works, and Change version")],

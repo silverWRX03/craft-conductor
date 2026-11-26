@@ -4856,7 +4856,7 @@
   {
     "id": 544,
     "section": "48. Lag finder",
-    "step": "Run Find what's causing lag while players are online.",
+    "step": "Run Why am I lagging? (under the Dashboard's console) while players are online.",
     "type": "Core",
     "tags": [],
     "source": "Craft_Conductor_Real_World_Test_Plan.handoff-tab.xlsx"
@@ -8746,7 +8746,7 @@
   {
     "id": 994,
     "section": "Fix: screen reader basics (#217)",
-    "step": "Windows Narrator in Chrome: Your servers card buttons say 'Start <server>', 'Open <server>', 'Delete <server>', '<server>'s folder'; a running server's 'running' isn't repeated every few seconds; Players name/reason boxes and the Java version box are named; Console starts with a 'Console' heading.",
+    "step": "Windows Narrator in Chrome: Your servers card buttons say 'Start <server>', 'Open <server>', 'Delete <server>', '<server>'s folder'; a running server's 'running' isn't repeated every few seconds; Players name/reason boxes and the Java version box are named; the Dashboard's Live console is a section named 'Live console'.",
     "type": "Core",
     "tags": [],
     "source": "added-in-git"
@@ -8947,7 +8947,7 @@
   {
     "id": 1019,
     "section": "Fix: slow answers show console and log lines once",
-    "step": "From a phone on a slow mobile connection (or with the server's computer very busy), open a server's Console and send a command: each line of output appears once. Then on its Mods page choose Test these mods and Start a test boot: each line of the test's log appears once, and when it ends, the result and the Mod test finished message appear once.",
+    "step": "From a phone on a slow mobile connection (or with the server's computer very busy), open a server's Dashboard and send a command from its Live console: each line of output appears once. Then on its Mods page choose Test these mods and Start a test boot: each line of the test's log appears once, and when it ends, the result and the Mod test finished message appear once.",
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"

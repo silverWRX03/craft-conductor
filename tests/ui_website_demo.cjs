@@ -97,11 +97,10 @@ async function open(browser, scenario, problems, label, viewport = { width: 1440
       await until(async () => (await statusOf(f, 'family-survival')).players.includes('Alex'), 'a friend joins', 20000);
       await until(async () => (await hub(f)).servers[0].join_requests === 1, 'a friend asks to join', 25000);
       await until(async () => (await f.locator('.cc-demo-note.push').count()) > 0, 'the phone notification (simulated)');
-      await go(f, '#s/family-survival/console');
-      await go(f, '#s/family-survival/dashboard');  // (the Dashboard says so when it opens, as in the real app)
-      await until(async () => /friend asks to be let in/.test(await text(f)), 'the Dashboard says a friend asks');
+      // (the Players page has them: its red dot in the sidebar says so)
+      await go(f, '#s/family-survival/players');
+      await until(async () => (await f.locator('button', { hasText: 'Allow' }).count()) > 0, 'the Players page has the friend asking');
       await shot(page, `${name}-join-request`);
-      await f.locator('a', { hasText: 'See who' }).click();
       await f.locator('button', { hasText: 'Allow' }).first().click();
       await until(async () => (await statusOf(f, 'family-survival')).players.includes('Sam_Builds'), 'Sam_Builds joins', 15000);
       const h = await hub(f);

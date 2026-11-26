@@ -130,7 +130,7 @@ class Health:
             self.cpu.append(busy)
         if len(self.cpu) == self.cpu.maxlen and sum(self.cpu) / len(self.cpu) >= CPU_BUSY:
             found.append({"id": "cpu", "level": "warn", "title": f"The computer's CPU has been {round(100 * sum(self.cpu) / len(self.cpu))}% busy for {CPU_MINUTES} minutes",
-                          "detail": "Servers may lag. See each server's Performance (Dashboard) and Find what's causing lag, "
+                          "detail": "Servers may lag. See each server's Performance (Dashboard) and Why am I lagging?, "
                                     "limit a server's CPU cores or lower its priority (Settings), or stop a server."})
         free_mem = memory_available_gb()
         if free_mem is not None and free_mem < MEMORY_LOW_GB and any(d.proc and d.proc.running for d in daemons):
