@@ -51,8 +51,9 @@ const HEADERS = {'X-CRAFT-CONDUCTOR': '1'};
     await page.waitForTimeout(800);
   };
   const scrollTo = async text => {
-    await page.getByRole('heading', {name: text, exact: true}).first().scrollIntoViewIfNeeded();
-    await page.getByRole('heading', {name: text, exact: true}).first().evaluate(el => el.scrollIntoView({block: 'start'}));
+    const h = page.getByRole('heading', {name: new RegExp('^' + text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))}).first();
+    await h.scrollIntoViewIfNeeded();
+    await h.evaluate(el => el.scrollIntoView({block: 'start'}));
     await page.waitForTimeout(400);
   };
   const close = async () => { await page.keyboard.press('Escape'); await page.waitForTimeout(400); };

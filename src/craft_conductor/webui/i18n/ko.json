@@ -275,7 +275,6 @@
   "Found the invite you copied.": "복사한 초대를 찾았습니다.",
   "Friday": "금요일",
   "Friends": "친구",
-  "Friends outside your home need the map's port forwarded on the router, like the game's. Anyone with the address can see the map.": "집 밖의 친구들은 게임 포트처럼 지도 포트도 공유기에서 포워딩해야 합니다. 주소가 있으면 누구나 지도를 볼 수 있습니다.",
   "Friends type": "친구들이 입력:",
   "From Craft Conductor's shared list of mod conflicts. If the server starts fine, you can ignore this.": "Craft Conductor의 공유 모드 충돌 목록에서 가져왔습니다. 서버가 잘 시작되면 무시해도 됩니다.",
   "From mods:": "모드:",
@@ -1024,7 +1023,6 @@
   "now": "지금",
   "on average": "평균",
   "players on average": "명 (평균)",
-  "playit.gg is an outside service.": "playit.gg는 외부 서비스입니다.",
   "playit.gg status ↗": "playit.gg 상태 ↗",
   "playit.gg tunnel": "playit.gg 터널",
   "poor connection": "연결 불량",
@@ -1195,5 +1193,11 @@
   "Connect it to a playit.gg account.": "playit.gg 계정에 연결하세요.",
   "Friends on phones, tablets and consoles can join too, through Geyser.": "휴대폰, 태블릿, 콘솔을 쓰는 친구도 Geyser로 함께할 수 있습니다.",
   "Making friends' invite links…": "친구 초대 링크를 만드는 중…",
-  "Send one of these links by Discord, text or email.": "이 링크 중 하나를 Discord, 문자 또는 이메일로 보내세요."
+  "Send one of these links by Discord, text or email.": "이 링크 중 하나를 Discord, 문자 또는 이메일로 보내세요.",
+  "playit.gg is a separate company: friends can't join while it's down, and Craft Conductor can't fix that.": "playit.gg는 별도 회사입니다: 장애 시 친구가 접속할 수 없으며 Craft Conductor가 해결할 수 없습니다.",
+  "Try the next Minecraft on a separate copy of this server.": "이 서버의 별도 사본에서 다음 Minecraft 버전을 시험해 보세요.",
+  "Backups are for this computer; use Export to move the server to another PC.": "백업은 이 컴퓨터용입니다. 다른 PC로 서버를 옮기려면 내보내기를 사용하세요.",
+  "Anyone with the address can see the map.": "주소를 아는 누구나 지도를 볼 수 있습니다.",
+  "Export saves this server in one .zip to move to another computer.": "내보내기는 다른 컴퓨터로 옮길 수 있도록 이 서버를 하나의 .zip 파일로 저장합니다.",
+  "Put a different world on this server: a singleplayer world or a world .zip.": "이 서버에 다른 월드를 넣습니다: 싱글플레이 월드 또는 월드 .zip 파일."
 }

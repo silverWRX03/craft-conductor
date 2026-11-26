@@ -275,7 +275,6 @@
   "Found the invite you copied.": "Đã tìm thấy lời mời bạn sao chép.",
   "Friday": "Thứ Sáu",
   "Friends": "Bạn bè",
-  "Friends outside your home need the map's port forwarded on the router, like the game's. Anyone with the address can see the map.": "Bạn bè ở ngoài nhà cần chuyển tiếp cổng của bản đồ trên router, giống cổng game. Ai có địa chỉ đều xem được bản đồ.",
   "Friends type": "Bạn bè gõ",
   "From Craft Conductor's shared list of mod conflicts. If the server starts fine, you can ignore this.": "Từ danh sách xung đột mod chung của Craft Conductor. Nếu máy chủ khởi động bình thường, bạn có thể bỏ qua.",
   "From mods:": "Từ mod:",
@@ -1020,7 +1019,6 @@
   "now": "bây giờ",
   "on average": "trung bình",
   "players on average": "người chơi trung bình",
-  "playit.gg is an outside service.": "playit.gg là dịch vụ bên ngoài.",
   "playit.gg status ↗": "Trạng thái playit.gg ↗",
   "playit.gg tunnel": "Đường hầm playit.gg",
   "poor connection": "kết nối kém",
@@ -1191,5 +1189,11 @@
   "Connect it to a playit.gg account.": "Kết nối với tài khoản playit.gg.",
   "Friends on phones, tablets and consoles can join too, through Geyser.": "Bạn bè dùng điện thoại, máy tính bảng và máy chơi game cũng có thể tham gia qua Geyser.",
   "Making friends' invite links…": "Đang tạo liên kết mời cho bạn bè…",
-  "Send one of these links by Discord, text or email.": "Gửi một trong các liên kết này qua Discord, tin nhắn hoặc email."
+  "Send one of these links by Discord, text or email.": "Gửi một trong các liên kết này qua Discord, tin nhắn hoặc email.",
+  "playit.gg is a separate company: friends can't join while it's down, and Craft Conductor can't fix that.": "playit.gg là một công ty riêng: bạn bè không thể vào khi dịch vụ gặp sự cố và Craft Conductor không thể khắc phục.",
+  "Try the next Minecraft on a separate copy of this server.": "Thử phiên bản Minecraft tiếp theo trên một bản sao riêng của máy chủ này.",
+  "Backups are for this computer; use Export to move the server to another PC.": "Bản sao lưu dành cho máy tính này; dùng Xuất để chuyển máy chủ sang PC khác.",
+  "Anyone with the address can see the map.": "Bất kỳ ai có địa chỉ đều có thể xem bản đồ.",
+  "Export saves this server in one .zip to move to another computer.": "Xuất lưu máy chủ này vào một tệp .zip để chuyển sang máy tính khác.",
+  "Put a different world on this server: a singleplayer world or a world .zip.": "Đặt một thế giới khác lên máy chủ này: thế giới chơi đơn hoặc tệp .zip thế giới."
 }

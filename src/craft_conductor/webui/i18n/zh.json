@@ -275,7 +275,6 @@
   "Found the invite you copied.": "找到了你复制的邀请。",
   "Friday": "星期五",
   "Friends": "好友",
-  "Friends outside your home need the map's port forwarded on the router, like the game's. Anyone with the address can see the map.": "家外的朋友需要在路由器上转发地图的端口，就像游戏端口一样。任何有地址的人都能看到地图。",
   "Friends type": "朋友输入",
   "From Craft Conductor's shared list of mod conflicts. If the server starts fine, you can ignore this.": "来自 Craft Conductor 的共享模组冲突列表。如果服务器能正常启动，可以忽略。",
   "From mods:": "来自模组：",
@@ -1025,7 +1024,6 @@
   "now": "现在",
   "on average": "平均",
   "players on average": "名玩家（平均）",
-  "playit.gg is an outside service.": "playit.gg 是外部服务。",
   "playit.gg status ↗": "playit.gg 状态 ↗",
   "playit.gg tunnel": "playit.gg 隧道",
   "poor connection": "连接较差",
@@ -1196,5 +1194,11 @@
   "Connect it to a playit.gg account.": "连接到 playit.gg 账号。",
   "Friends on phones, tablets and consoles can join too, through Geyser.": "使用手机、平板和主机的朋友也可以通过 Geyser 加入。",
   "Making friends' invite links…": "正在生成好友邀请链接…",
-  "Send one of these links by Discord, text or email.": "通过 Discord、短信或电子邮件发送其中一个链接。"
+  "Send one of these links by Discord, text or email.": "通过 Discord、短信或电子邮件发送其中一个链接。",
+  "playit.gg is a separate company: friends can't join while it's down, and Craft Conductor can't fix that.": "playit.gg 是一家独立公司：服务故障时朋友无法加入，Craft Conductor 也无法修复。",
+  "Try the next Minecraft on a separate copy of this server.": "在此服务器的单独副本上试用下一个 Minecraft 版本。",
+  "Backups are for this computer; use Export to move the server to another PC.": "备份仅适用于此电脑；要将服务器移至其他电脑，请使用导出。",
+  "Anyone with the address can see the map.": "知道地址的任何人都可以看到地图。",
+  "Export saves this server in one .zip to move to another computer.": "导出会将此服务器保存为一个 .zip 文件，以便移至其他电脑。",
+  "Put a different world on this server: a singleplayer world or a world .zip.": "在此服务器上放入其他世界：单人世界或世界 .zip 文件。"
 }

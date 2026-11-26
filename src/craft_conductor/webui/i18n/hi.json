@@ -275,7 +275,6 @@
   "Found the invite you copied.": "आपका कॉपी किया निमंत्रण मिल गया।",
   "Friday": "शुक्रवार",
   "Friends": "दोस्त",
-  "Friends outside your home need the map's port forwarded on the router, like the game's. Anyone with the address can see the map.": "घर के बाहर के दोस्तों के लिए राउटर पर मैप का पोर्ट फ़ॉरवर्ड करना होगा, खेल वाले की तरह। जिसके पास पता है वह नक्शा देख सकता है।",
   "Friends type": "दोस्त टाइप करते हैं",
   "From Craft Conductor's shared list of mod conflicts. If the server starts fine, you can ignore this.": "Craft Conductor की मॉड टकरावों की साझा सूची से। अगर सर्वर ठीक से शुरू होता है, तो इसे अनदेखा कर सकते हैं।",
   "From mods:": "मॉड से:",
@@ -1025,7 +1024,6 @@
   "now": "अभी",
   "on average": "औसतन",
   "players on average": "खिलाड़ी औसतन",
-  "playit.gg is an outside service.": "playit.gg एक बाहरी सेवा है।",
   "playit.gg status ↗": "playit.gg की स्थिति ↗",
   "playit.gg tunnel": "playit.gg टनल",
   "poor connection": "खराब कनेक्शन",
@@ -1196,5 +1194,11 @@
   "Connect it to a playit.gg account.": "इसे playit.gg खाते से जोड़ें।",
   "Friends on phones, tablets and consoles can join too, through Geyser.": "फ़ोन, टैबलेट और कंसोल वाले दोस्त भी Geyser के ज़रिए जुड़ सकते हैं।",
   "Making friends' invite links…": "दोस्तों के लिए आमंत्रण लिंक बनाए जा रहे हैं…",
-  "Send one of these links by Discord, text or email.": "इनमें से कोई एक लिंक Discord, टेक्स्ट या ईमेल से भेजें।"
+  "Send one of these links by Discord, text or email.": "इनमें से कोई एक लिंक Discord, टेक्स्ट या ईमेल से भेजें।",
+  "playit.gg is a separate company: friends can't join while it's down, and Craft Conductor can't fix that.": "playit.gg एक अलग कंपनी है: इसके बंद होने पर दोस्त जुड़ नहीं सकते, और Craft Conductor इसे ठीक नहीं कर सकता।",
+  "Try the next Minecraft on a separate copy of this server.": "इस सर्वर की एक अलग कॉपी पर अगला Minecraft आज़माएँ।",
+  "Backups are for this computer; use Export to move the server to another PC.": "बैकअप इस कंप्यूटर के लिए हैं; सर्वर को दूसरे PC पर ले जाने के लिए एक्सपोर्ट का उपयोग करें।",
+  "Anyone with the address can see the map.": "पते वाला कोई भी व्यक्ति मैप देख सकता है।",
+  "Export saves this server in one .zip to move to another computer.": "एक्सपोर्ट इस सर्वर को दूसरे कंप्यूटर पर ले जाने के लिए एक .zip में सहेजता है।",
+  "Put a different world on this server: a singleplayer world or a world .zip.": "इस सर्वर पर एक अलग दुनिया रखें: एक सिंगलप्लेयर दुनिया या एक दुनिया .zip।"
 }

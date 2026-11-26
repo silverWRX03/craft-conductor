@@ -273,7 +273,6 @@
   "Found the invite you copied.": "Encontramos la invitación que copiaste.",
   "Friday": "Viernes",
   "Friends": "Amigos",
-  "Friends outside your home need the map's port forwarded on the router, like the game's. Anyone with the address can see the map.": "Los amigos de fuera de casa necesitan que el puerto del mapa esté redirigido en el router, como el del juego. Cualquiera con la dirección puede ver el mapa.",
   "Friends type": "Los amigos escriben",
   "From Craft Conductor's shared list of mod conflicts. If the server starts fine, you can ignore this.": "De la lista compartida de conflictos de mods de Craft Conductor. Si el servidor arranca bien, puedes ignorarlo.",
   "From mods:": "De mods:",
@@ -1012,7 +1011,6 @@
   "now": "ahora",
   "on average": "de media",
   "players on average": "jugadores de media",
-  "playit.gg is an outside service.": "playit.gg es un servicio externo.",
   "playit.gg status ↗": "Estado de playit.gg ↗",
   "playit.gg tunnel": "Túnel de playit.gg",
   "poor connection": "mala conexión",
@@ -1182,5 +1180,11 @@
   "Connect it to a playit.gg account.": "Conéctalo a una cuenta de playit.gg.",
   "Friends on phones, tablets and consoles can join too, through Geyser.": "Tus amigos en móviles, tabletas y consolas también pueden entrar, mediante Geyser.",
   "Making friends' invite links…": "Creando enlaces de invitación para amigos…",
-  "Send one of these links by Discord, text or email.": "Envía uno de estos enlaces por Discord, mensaje o correo."
+  "Send one of these links by Discord, text or email.": "Envía uno de estos enlaces por Discord, mensaje o correo.",
+  "playit.gg is a separate company: friends can't join while it's down, and Craft Conductor can't fix that.": "playit.gg es una empresa aparte: tus amigos no pueden entrar si falla y Craft Conductor no puede arreglarlo.",
+  "Try the next Minecraft on a separate copy of this server.": "Prueba el próximo Minecraft en una copia aparte de este servidor.",
+  "Backups are for this computer; use Export to move the server to another PC.": "Las copias de seguridad son para este ordenador; usa Exportar para mover el servidor a otro PC.",
+  "Anyone with the address can see the map.": "Cualquiera con la dirección puede ver el mapa.",
+  "Export saves this server in one .zip to move to another computer.": "Exportar guarda este servidor en un archivo .zip para moverlo a otro ordenador.",
+  "Put a different world on this server: a singleplayer world or a world .zip.": "Pon un mundo distinto en este servidor: un mundo de un jugador o un archivo .zip."
 }

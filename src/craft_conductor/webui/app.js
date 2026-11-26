@@ -1855,11 +1855,12 @@ function meter(label) {
 // playit.gg: friends join through its tunnels instead of port forwarding. It's an outside
 // service, so say so wherever it's set up, and check it's working (on the Dashboard).
 function playitNote() {
-  return h("div", { class: "notice warn small" }, h("strong", {}, "playit.gg is an outside service. "),
-    "It's run by its own company, not by Craft Conductor: when it has problems, or its program isn't running on this computer, friends can't connect through it, and Craft Conductor can't fix that. ",
-    "Craft Conductor checks the tunnel and shows on the Dashboard whether it's working. ",
-    h("a", { href: "https://playit.gg/download", target: "_blank", rel: "noopener noreferrer" }, "Get playit ↗"), " · ",
-    h("a", { href: "https://status.playit.gg", target: "_blank", rel: "noopener noreferrer" }, "playit.gg status ↗"));
+  return h("div", { class: "notice warn small" }, "⚠ ",
+    "playit.gg is a separate company: friends can't join while it's down, and Craft Conductor can't fix that.",
+    infoTip("It's run by its own company, not by Craft Conductor: when it has problems, or its program isn't running on this computer, friends can't connect through it, and Craft Conductor can't fix that. ",
+      "Craft Conductor checks the tunnel and shows on the Dashboard whether it's working. ",
+      h("a", { href: "https://playit.gg/download", target: "_blank", rel: "noopener noreferrer" }, "Get playit ↗"), " · ",
+      h("a", { href: "https://status.playit.gg", target: "_blank", rel: "noopener noreferrer" }, "playit.gg status ↗")));
 }
 const TUNNEL_ICON = { ok: "✓", wrong: "⚠", down: "✗", stopped: "•", off: "•" };
 function tunnelCard() {
@@ -2854,10 +2855,8 @@ views.updates = () => {
     api("/api/beta").then((r) => {
       if (!r.betas.length || !r.copies) return;
       const pick = h("select", { "aria-label": "Beta version" }, r.betas.map((v) => h("option", { value: v }, `Minecraft ${v}`)));
-      fill(betaCard, card("Test a beta version",
-        h("p", { class: "muted small" }, "Try the next Minecraft before it's released. Craft Conductor makes a separate copy of this server " +
-          "(world, mods and settings) on the beta, so this server and its world aren't touched. In the copy, mods that don't support " +
-          "the beta yet are left out. Delete the copy when you're done."),
+      fill(betaCard, card(["Test a beta version", infoTip("Craft Conductor makes a separate copy of this server (world, mods and settings) on the beta, so this server and its world aren't touched. In the copy, mods that don't support the beta yet are left out. Delete the copy when you're done.")],
+        h("p", { class: "muted small" }, "Try the next Minecraft on a separate copy of this server."),
         h("div", { class: "row" }, pick, h("button", { class: "btn", onclick: async () => {
           if (!(await ask(`Make a copy of this server on Minecraft ${pick.value}? It appears in your server list as a separate server.`, { ok: "Make a copy" }))) return;
           act(() => api("/api/beta/test", { method: "POST", body: { version: pick.value } }), "Copying the server…");
@@ -3399,8 +3398,8 @@ views.mods = () => {
     const groupFor = (key) => { const x = r.installed.find((m) => m.key === key); return x ? groupByJar.get(x.filename) : null; };
     const cfgBtn = (g) => g ? h("button", { class: "btn small", title: g.files.join("\n"), onclick: () => openConfigEditor(`${g.name} config`, g.files) },
       `⚙ Config${g.files.length > 1 ? ` (${g.files.length})` : ""}`) : null;
-    fill(configsCard, cfg && (cfg.mods.length || cfg.other.length) ? card("Mod config files",
-      h("p", { class: "muted small" }, "Change how mods behave. Most changes apply when the server restarts; the previous version of a file is kept each time you save."),
+    fill(configsCard, cfg && (cfg.mods.length || cfg.other.length) ? card(["Mod config files",
+      infoTip("Change how mods behave. Most changes apply when the server restarts; the previous version of a file is kept each time you save.")],
       h("ul", { class: "list" }, cfg.mods.map((g) => h("li", {},
         h("div", { class: "grow" }, h("strong", {}, g.name), h("div", { class: "small muted" }, g.files.join(", "))), cfgBtn(g))),
         cfg.other.length ? h("li", {}, h("div", { class: "grow" }, h("strong", {}, "Other config files"),
@@ -3537,8 +3536,8 @@ function modSetsCard(after) {
     const r = await act(() => api("/api/modsets/import", { method: "POST", body: { set } }));
     if (r) { toast(r.message); load(); }
   });
-  const el = card("Saved mod lists",
-    h("p", { class: "muted small" }, "Save the mods you have now under a name, switch to another list, and switch back. Switching saves the current mods first."),
+  const el = card(["Saved mod lists",
+    infoTip("Save the mods you have now under a name, switch to another list, and switch back. Switching saves the current mods first.")],
     h("div", { class: "row" }, name, h("button", { class: "btn", onclick: async () => {
       if (!name.value.trim()) { toast("Give the list a name.", true); return; }
       const r = await act(() => api("/api/modsets/save", { method: "POST", body: { name: name.value.trim() } }));
@@ -3755,14 +3754,11 @@ views.backups = () => {
       "aria-label": t("Also copy every backup to") });
     const copyKeep = h("input", { type: "number", min: 1, value: s.backup_copy_keep });
     fill(settingsBody,
-      h("p", { class: "muted small" }, "What the backups you make, and the scheduled ones, hold. Backups made before an update or a new world always hold everything a roll back needs. Restoring a backup that left something out keeps the server's own copy of it."),
       h("div", {}, boxes.map(([, box, text]) => h("label", { class: "row check-row small" }, box, h("span", {}, text)))),
       h("div", { class: "grid mt-s" },
         h("label", {}, "Backups to keep", keep),
-        h("label", {}, "Also copy every backup to", copyTo,
-          h("span", { class: s.backup_copy_ok ? "muted small" : "small bad-text" }, s.backup_copy_ok
-            ? "A USB drive or a folder that syncs to the cloud, so a broken disk doesn't take the backups with it. Empty: no copies."
-            : "That folder isn't there right now (is the drive plugged in?). Copies are skipped until it is.")),
+        h("label", {}, h("span", {}, "Also copy every backup to", infoTip("A USB drive or a folder that syncs to the cloud, so a broken disk doesn't take the backups with it. Empty: no copies.")), copyTo,
+          s.backup_copy_ok ? null : h("span", { class: "small bad-text" }, "That folder isn't there right now (is the drive plugged in?). Copies are skipped until it is.")),
         h("label", { class: "self-start" }, "Copies to keep there", copyKeep)),
       h("p", { class: "muted small" }, "Scheduled backups: Settings → Schedule."),
       h("div", { class: "row mt-s" }, h("button", { class: "btn primary", onclick: () => act(() => api("/api/settings", { method: "POST", body: {
@@ -3772,13 +3768,12 @@ views.backups = () => {
   };
   fill($("#main"),
     h("h1", { class: "view-title" }, "Backups"),
-    card("Create backup", h("p", { class: "muted" }, "Each backup is a snapshot of the whole server: the world, the mods, their settings and Craft Conductor's settings for it. One is also made automatically before every update."),
-      h("p", { class: "muted small" }, "What backups hold: Backup settings, below."),
+    card(["Create backup", infoTip("Each backup is a snapshot of the whole server: the world, the mods, their settings and Craft Conductor's settings for it. One is also made automatically before every update. What backups hold: Backup settings, below.")],
       h("div", { class: "row" }, label, h("button", { class: "btn primary", onclick: () => act(() => api("/api/backups/create", { method: "POST", body: { label: label.value } }), "Backing up…") }, "Back up now"))),
     card("Backups", h("div", { class: "row" }, h("p", { class: "muted small grow" }, "Restoring needs the server to be stopped."), folderBtn("backups", "Backups folder")), list),
-    isOwner() ? card("Backup settings", settingsBody) : null,
-    card("Moving the server to a different PC",
-      h("p", { class: "muted small" }, "Backups are for this computer: what's locked in them only opens here, for your account. To move the server to a different PC, use Export: it puts the server in one file, and you pick what goes in."),
+    isOwner() ? card(["Backup settings", infoTip("What the backups you make, and the scheduled ones, hold. Backups made before an update or a new world always hold everything a roll back needs. Restoring a backup that left something out keeps the server's own copy of it.")], settingsBody) : null,
+    card(["Moving the server to a different PC", infoTip("Backups are for this computer: what's locked in them only opens here, for your account. Export puts the server in one file, and you pick what goes in.")],
+      h("p", { class: "muted small" }, "Backups are for this computer; use Export to move the server to another PC."),
       h("div", { class: "row" }, h("button", { class: "btn", onclick: startExport }, "Export server…"))),
   );
   load();
@@ -3835,19 +3830,17 @@ views.java = () => {
         if (await ask(`Remove the shared Java ${s.major}?`, { ok: "Remove", danger: true })) act(() => api("/api/java/remove", { method: "POST", body: { major: s.major } }), "Removed").then(load);
       } }, "Remove") : null))));
     const savedBytes = r.shared.reduce((sum, s) => sum + (s.releases[0].bytes || 0) * Math.max(0, s.used_by.length - 1), 0);
-    const shared = card("Shared Java",
-      h("p", { class: "muted small" }, "One copy of each Java version for every server on this computer, in ", h("code", {}, r.store), ". ", folderBtn("java", "Open it")),
+    const shared = card(["Shared Java", infoTip("One copy of each Java version for every server on this computer. A running server keeps its Java until it restarts; an older release is removed once no server runs on it.")],
+      h("p", { class: "muted small" }, h("code", {}, r.store), " ", folderBtn("java", "Open it")),
       r.shared.length ? h("table", {},
         h("thead", {}, h("tr", {}, h("th", {}, "Java"), h("th", {}, "Release"), h("th", {}, "Size"), h("th", {}, "Used by"), h("th", {}, ""))),
         h("tbody", {}, releases)) : h("p", { class: "muted" }, "Nothing downloaded yet."),
       savedBytes ? h("p", { class: "small" }, `Shared instead of one copy per server: ${fmtBytes(savedBytes)} saved.`) : null,
       h("div", { class: "row mt-s" },
         h("button", { class: "btn small", onclick: () => act(() => api("/api/java/update", { method: "POST" }), "Checking for new Java releases…") }, "Update shared Java"),
-        major, h("button", { class: "btn small", onclick: () => act(() => api("/api/java/install", { method: "POST", body: { major: Number(major.value) } }), "Downloading…") }, "Install")),
-      h("p", { class: "small muted" }, "A running server keeps its Java until it restarts; an older release is removed once no server runs on it."));
+        major, h("button", { class: "btn small", onclick: () => act(() => api("/api/java/install", { method: "POST", body: { major: Number(major.value) } }), "Downloading…") }, "Install")));
     const usable = (f) => !f.problem && f.major && r.required && f.major >= r.required && !(c && c.binary === f.path);
-    const found = card("Found on this computer",
-      h("p", { class: "muted small" }, "Java you installed yourself, from your settings, java on the PATH, JAVA_HOME and the usual install folders. Each is only asked its version until a server is set to use it."),
+    const found = card(["Found on this computer", infoTip("Java you installed yourself, from your settings, java on the PATH, JAVA_HOME and the usual install folders. Each is only asked its version until a server is set to use it.")],
       r.found.length ? h("table", {},
         h("thead", {}, h("tr", {}, h("th", {}, "Java"), h("th", {}, "Kind"), h("th", {}, "Where"), h("th", {}, ""))),
         h("tbody", {}, r.found.map((f) => h("tr", {},
@@ -3949,20 +3942,18 @@ function worldTools() {
       h("details", { class: "small mt-s" }, h("summary", {}, "Another game rule (power users)"),
         h("div", { class: "row mt-s" }, otherName, otherValue, h("button", { class: "btn small", onclick: () => otherName.value.trim() &&
           act(() => api("/api/world/rule", { method: "POST", body: { rule: otherName.value.trim(), value: otherValue.value.trim().toLowerCase() } }), "Game rule changed") }, "Set"))),
-      h("h4", { class: "mt" }, "World border"),
-      h("p", { class: "muted small" }, r.border && r.border < 59999968 ? `The world is ${Math.round(r.border).toLocaleString()} blocks wide.` : "No border: the world goes on (almost) for ever.",
-        " A border keeps the world a size this computer can handle and players can find each other in."),
+      h("h4", { class: "mt" }, "World border", infoTip("A border keeps the world a size this computer can handle and players can find each other in.")),
+      h("p", { class: "muted small" }, r.border && r.border < 59999968 ? `The world is ${Math.round(r.border).toLocaleString()} blocks wide.` : "No border: the world goes on (almost) for ever."),
       h("div", { class: "row" }, h("label", {}, "Width (blocks)", size), h("label", {}, "Centre X", bx), h("label", {}, "Centre Z", bz),
         h("button", { class: "btn", onclick: () => size.value && act(() => api("/api/world/border", { method: "POST", body: { diameter: Number(size.value), x: Number(bx.value), z: Number(bz.value) } }), "World border set").then(load) }, "Set border")),
-      h("h4", { class: "mt" }, "Pre-generate terrain"),
-      h("p", { class: "muted small" }, "Making new terrain is the heaviest thing a server does. Generating it ahead of time, while nobody's playing, means no lag spikes when people explore."),
+      h("h4", { class: "mt" }, "Pre-generate terrain", infoTip("Making new terrain is the heaviest thing a server does. Generating it ahead of time, while nobody's playing, means no lag spikes when people explore.")),
       r.chunky ? [
         pg ? h("div", { class: "mt-s" }, h("div", { class: "bar" }, h("span", { class: "bar-fill", "data-pct": String(pg.percent || 0) })),
           h("div", { class: "muted small" }, pg.running ? `${(pg.percent || 0).toFixed(1)}% done` : "Finished (or stopped).")) : null,
         h("div", { class: "row mt-s" }, radius, h("button", { class: "btn primary", onclick: () => chunkyAct("start", { radius: Number(radius.value), x: Number(bx.value), z: Number(bz.value) }) }, "Start"),
           h("button", { class: "btn small", onclick: () => chunkyAct("pause") }, "Pause"), h("button", { class: "btn small", onclick: () => chunkyAct("continue") }, "Continue"),
           h("button", { class: "btn small ghost", onclick: () => chunkyAct("cancel") }, "Cancel"))]
-        : h("div", { class: "row" }, h("button", { class: "btn", onclick: addChunky }, "Add Chunky"), h("span", { class: "muted small" }, "A free mod (from Modrinth) that pre-generates the world.")));
+        : h("div", { class: "row" }, h("button", { class: "btn", onclick: addChunky }, "Add Chunky"), infoTip("A free mod (from Modrinth) that pre-generates the world.")));
     body.querySelectorAll(".bar-fill[data-pct]").forEach((b) => { b.style.width = `${b.dataset.pct}%`; });
     if (pg && pg.running) poll = setTimeout(load, 10000);
   };
@@ -3972,7 +3963,7 @@ function worldTools() {
 // The web map (webmap.py): BlueMap (3D) or Dynmap, a live map of the world in a browser tab.
 function webMapCard() {
   const body = h("div", {}, h("p", { class: "muted small" }, "Loading…"));
-  const el = h("div", { class: "card mt" }, h("h3", {}, "Web map"), body);
+  const el = h("div", { class: "card mt" }, h("h3", {}, "Web map", infoTip("A live map of the world that you and your friends open in a browser: see the terrain, builds and who is where.")), body);
   const add = async (kind, name) => {
     const r = await act(() => api("/api/webmap/add", { method: "POST", body: { kind } }));
     if (!r) return;
@@ -3990,13 +3981,11 @@ function webMapCard() {
       const offered = [["bluemap", "BlueMap", "3D, looks like the game. Needs more disk space and a while to draw the first time."],
         ["dynmap", "Dynmap", "Flat, like a road map. Lighter."]].filter(([kind]) => (r.available || {})[kind] !== false);
       fill(body,
-        h("p", { class: "muted small" }, "A live map of the world that you and your friends open in a browser: see the terrain, builds and who is where."),
         r.listed ? h("p", { class: "small" }, `${r.maps[r.listed]} is added and is installed with the next update.`)
           : !r.runs_mods ? h("p", { class: "muted small" }, "A web map needs a server that runs mods or plugins; this one runs plain Minecraft.")
           : !offered.length ? h("p", { class: "muted small" }, `BlueMap and Dynmap don't support Minecraft ${r.minecraft || "this version"} yet.`)
-          : h("div", { class: "row" }, offered.map(([kind, name, about]) => [
-            h("button", { class: "btn", onclick: () => add(kind, name) }, `Add ${name}`),
-            h("span", { class: "muted small grow" }, about)])));
+          : h("div", { class: "row wrap" }, offered.map(([kind, name, about]) =>
+            h("span", { class: "row" }, h("button", { class: "btn", onclick: () => add(kind, name) }, `Add ${name}`), infoTip(about)))));
       return;
     }
     const portIn = h("input", { type: "number", min: 1024, max: 65535, value: r.port, class: "narrow", "aria-label": "Map port" });
@@ -4009,10 +3998,9 @@ function webMapCard() {
           h("a", { class: "btn small primary", href: hubInfo && hubInfo.local ? r.local_url : r.lan_url || r.local_url, target: "_blank", rel: "noopener noreferrer" }, "Open the map ↗"))
           : h("p", { class: "muted small" }, r.running ? `${r.name} isn't answering on port ${r.port} yet (it can take a minute after the server starts).` : "Start the server to see the map."),
       r.lan_url ? h("p", { class: "small" }, "On your network: ", h("code", {}, r.lan_url)) : null,
-      h("p", { class: "muted small" }, "Friends outside your home need the map's port forwarded on the router, like the game's. Anyone with the address can see the map."),
+      h("p", { class: "muted small" }, "Anyone with the address can see the map.", infoTip(`Friends outside your home need the map's port forwarded on the router, like the game's. Remove ${r.name} on the Mods page to stop it.`)),
       r.configured ? h("div", { class: "row" }, h("label", {}, "Port", portIn),
-        h("button", { class: "btn small", onclick: () => act(() => api("/api/webmap/port", { method: "POST", body: { port: Number(portIn.value) } })).then((x) => { if (x) toast(x.message); load(); }) }, "Change port")) : null,
-      h("p", { class: "muted small" }, `Remove ${r.name} on the Mods page to stop it.`));
+        h("button", { class: "btn small", onclick: () => act(() => api("/api/webmap/port", { method: "POST", body: { port: Number(portIn.value) } })).then((x) => { if (x) toast(x.message); load(); }) }, "Change port")) : null);
   };
   return { el, load };
 }
@@ -4073,25 +4061,23 @@ views.settings = () => {
         h("label", {}, "Port players connect to", txt("port", { type: "number", min: 1024, max: 65535 })),
         h("label", {}, "Discord webhook URL", txt("discord_webhook", { type: "url", placeholder: "https://discord.com/api/webhooks/…" })),
         // Limits (limits.py): CPU cores where the computer allows it, and a lower priority everywhere.
-        s.can_pin_cores ? h("label", {}, "CPU cores it may use",
+        s.can_pin_cores ? h("label", {}, h("span", {}, "CPU cores it may use", infoTip("Leaves the other cores to the rest of this computer (and other servers). Applies at the next start.")),
           (f.cpu_cores = h("select", {}, h("option", { value: "0" }, t("All ({n})").replace("{n}", s.cpu_count)),
-            Array.from({ length: Math.max(0, s.cpu_count - 1) }, (_, i) => h("option", { value: String(i + 1), selected: s.cpu_cores === i + 1 }, String(i + 1))))),
-          h("span", { class: "muted small" }, "Leaves the other cores to the rest of this computer (and other servers). Applies at the next start.")) : null),
+            Array.from({ length: Math.max(0, s.cpu_count - 1) }, (_, i) => h("option", { value: String(i + 1), selected: s.cpu_cores === i + 1 }, String(i + 1)))))) : null),
       h("div", { class: "checks mt" },
         chk("restart_on_crash", "Restart after crashes"),
         chk("aikar_flags", "Use Aikar's flags (smoother with 16 GB+)", "Garbage-collection settings that avoid lag spikes with lots of memory"),
         h("label", { class: "row check-row", title: "Other programs on this computer, and other servers, come first when the CPU is busy" },
           (f.priority = h("input", { type: "checkbox", checked: s.priority === "low" })), h("span", {}, "Lower priority (the rest of this computer comes first)"))),
-      h("h3", { class: "mt-l" }, "Schedule"),
-      h("p", { class: "muted small" }, "Times are this computer's. A scheduled restart gives players the in-game countdown first."),
+      h("h3", { class: "mt-l" }, "Schedule", infoTip("Times are this computer's. A scheduled restart gives players the in-game countdown first.")),
       h("div", { class: "grid" },
         (sched.restart = schedulePicker("Restart the server", s.schedule_restart, "restart", s.schedule_restart_next)).el,
         (sched.backup = schedulePicker("Make a backup", s.schedule_backup, "backup", s.schedule_backup_next)).el),
       h("div", { class: "checks mt" }, chk("restart_when_empty", "Skip a scheduled restart while players are online")),
       h("h3", { class: "mt-l" }, "playit.gg tunnel"),
       h("div", { class: "grid" },
-        h("label", {}, "This server's playit.gg address (a Minecraft Java tunnel)", txt("tunnel_address", { placeholder: "e.g. name.gl.joinmc.link (optional)", class: "mono" }),
-          h("span", { class: "muted small" }, "For friends outside your home when you can't forward ports: their game joins through this address. Leave empty to use your own address."))),
+        h("label", {}, h("span", {}, "This server's playit.gg address (a Minecraft Java tunnel)", infoTip("For friends outside your home when you can't forward ports: their game joins through this address. Leave empty to use your own address.")),
+          txt("tunnel_address", { placeholder: "e.g. name.gl.joinmc.link (optional)", class: "mono" }))),
       playitNote(),
       h("p", { class: "muted small mt-l" }, "What backups hold, how many are kept and a copy somewhere else: on the Backups page."),
       advancedEl,
@@ -4149,12 +4135,12 @@ views.settings = () => {
   const loadExports = async () => {
     const r = can("server.export") ? await api("/api/export").catch(() => null) : null;
     if (!r) { exportCard.classList.add("hidden"); return; }
-    fill(exportCard, h("h3", {}, "Move to another computer"),
-      h("p", { class: "muted small" }, "Export saves this server in one .zip, and you pick what goes in: the world, mods, settings, player lists, backups. " +
+    fill(exportCard, h("h3", {}, "Move to another computer", infoTip("Export saves this server in one .zip, and you pick what goes in: the world, mods, settings, player lists, backups. " +
         "On the other computer, install Craft Conductor, then choose Import a server on the server list. The world is saved first, " +
         "so this works while the server runs. Passwords, keys and IP addresses stay behind unless you pick them: then they're locked " +
         "with a password Craft Conductor makes. To carry the export, copy it or press Download (moving the file itself can keep it " +
-        "readable by this computer's account only)."),
+        "readable by this computer's account only).")),
+      h("p", { class: "muted small" }, "Export saves this server in one .zip to move to another computer."),
       h("div", { class: "row" },
         h("button", { class: "btn primary", disabled: !!(status && status.job), onclick: startExport }, "Export server…")),
       r.exports.length ? h("table", { class: "mt-s" },
@@ -4168,9 +4154,8 @@ views.settings = () => {
       h("div", { class: "row mt-s" }, h("p", { class: "muted small grow" }, "Exports are kept in ", h("code", {}, r.folder)),
         folderBtn("exports", "Exports folder"), folderBtn("server", "Server folder")));
   };
-  const worldCard = card("World",
-    h("p", { class: "muted small" }, "Put a different world on this server: a singleplayer world or a world .zip. " +
-      "The current world is backed up first (see Backups), so you can go back."),
+  const worldCard = card(["World", infoTip("The current world is backed up first (see Backups), so you can go back.")],
+    h("p", { class: "muted small" }, "Put a different world on this server: a singleplayer world or a world .zip."),
     h("div", { class: "row" },
       h("button", { class: "btn", onclick: () => pickWorld(async (w) => {
         if (!(await ask(`Replace this server's world with ${w.name}? The current world is backed up first.`, { ok: "Replace", danger: true }))) return;

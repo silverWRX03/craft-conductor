@@ -275,7 +275,6 @@
   "Found the invite you copied.": "تم العثور على الدعوة التي نسختها.",
   "Friday": "الجمعة",
   "Friends": "الأصدقاء",
-  "Friends outside your home need the map's port forwarded on the router, like the game's. Anyone with the address can see the map.": "يحتاج الأصدقاء خارج منزلك إلى توجيه منفذ الخريطة في الراوتر، مثل منفذ اللعبة. يمكن لأي شخص لديه العنوان رؤية الخريطة.",
   "Friends type": "يكتب الأصدقاء",
   "From Craft Conductor's shared list of mod conflicts. If the server starts fine, you can ignore this.": "من قائمة Craft Conductor المشتركة لتعارضات الإضافات. إذا بدأ الخادم بشكل طبيعي فيمكنك تجاهل هذا.",
   "From mods:": "من الإضافات:",
@@ -1025,7 +1024,6 @@
   "now": "الآن",
   "on average": "في المتوسط",
   "players on average": "لاعبين في المتوسط",
-  "playit.gg is an outside service.": "playit.gg خدمة خارجية.",
   "playit.gg status ↗": "حالة playit.gg ↗",
   "playit.gg tunnel": "نفق playit.gg",
   "poor connection": "اتصال ضعيف",
@@ -1196,5 +1194,11 @@
   "Connect it to a playit.gg account.": "اربطه بحساب playit.gg.",
   "Friends on phones, tablets and consoles can join too, through Geyser.": "يمكن للأصدقاء على الهواتف والأجهزة اللوحية وأجهزة الألعاب الانضمام أيضًا عبر Geyser.",
   "Making friends' invite links…": "جارٍ إنشاء روابط دعوة الأصدقاء…",
-  "Send one of these links by Discord, text or email.": "أرسل أحد هذه الروابط عبر Discord أو رسالة نصية أو بريد إلكتروني."
+  "Send one of these links by Discord, text or email.": "أرسل أحد هذه الروابط عبر Discord أو رسالة نصية أو بريد إلكتروني.",
+  "playit.gg is a separate company: friends can't join while it's down, and Craft Conductor can't fix that.": "playit.gg شركة منفصلة: لا يمكن للأصدقاء الانضمام أثناء تعطلها، ولا يمكن لـ Craft Conductor إصلاح ذلك.",
+  "Try the next Minecraft on a separate copy of this server.": "جرّب إصدار Minecraft القادم على نسخة منفصلة من هذا الخادم.",
+  "Backups are for this computer; use Export to move the server to another PC.": "النسخ الاحتياطية لهذا الكمبيوتر؛ استخدم التصدير لنقل الخادم إلى كمبيوتر آخر.",
+  "Anyone with the address can see the map.": "يمكن لأي شخص لديه العنوان رؤية الخريطة.",
+  "Export saves this server in one .zip to move to another computer.": "يحفظ التصدير هذا الخادم في ملف .zip واحد لنقله إلى كمبيوتر آخر.",
+  "Put a different world on this server: a singleplayer world or a world .zip.": "ضع عالمًا مختلفًا على هذا الخادم: عالم لعب فردي أو ملف عالم .zip."
 }
