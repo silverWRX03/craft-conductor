@@ -4,6 +4,11 @@ What changed in each version of craft-conductor, newest first. Bugs are listed t
 them. Found a new one? [Report it](https://github.com/silverWRX03/craft-conductor/issues/new/choose);
 its fix will say which version it's in.
 
+## Upcoming (not released yet)
+
+**Changed**
+- A calmer look, in both Classic and Modern: cards, rows, buttons, the top bar and the sidebar are flat, set apart by a thin edge instead of shadows. Nothing glows any more (the orange **Mod manager** alert, when it needs you, still does), the Running light no longer pulses, and only what floats above the page (dialogs, menus, the bell, messages) casts a shadow. Under a mouse, buttons and cards change colour instead of rising. In Classic's Light theme, card and table edges are soft grey instead of black; buttons and boxes you type in keep a clear grey edge.
+
 ## 0.30.7 (2026-11-22)
 
 **Fixed**

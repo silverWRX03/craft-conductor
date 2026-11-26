@@ -1,19 +1,18 @@
-/* The Modern style: electric cyan on deep slate (dark) or deep cyan on cool grey-white (light), tonal panels with a fine
-   top-edge reflection, soft ambient shadows and a restrained cyan glow on what is active. Built on
+/* The Modern style: electric cyan on deep slate (dark) or deep cyan on cool grey-white (light), flat tonal panels set apart
+   by a 1px hairline, no glow, and a soft shadow only under what floats above the page (modals, menus, the bell, toasts). Built on
    craft-conductor-theme.css (Classic); every rule here starts with :root[data-style="modern"], so none of it reaches Classic
    (tests/test_styles.py checks). Text is at least 7:1 against what's behind it (WCAG AAA), and everything that can be
    pressed is at least 44 by 44 pixels, with a mouse too. High contrast, forced colours, less motion and the invite page's
    automatic light or dark all keep working. */
 
 /* ------------------------------------------------------------------ colours, shapes and light */
-/* What both themes share. The light (reflection, shadows, glow) is off unless a theme below turns it on: high contrast
-   keeps none of it, and its own colours come from style.css. */
+/* What both themes share. The floating shadow is off unless a theme below turns it on: high contrast keeps none of it,
+   and its own colours come from style.css. */
 :root[data-style="modern"] {
   --radius:16px; --cc-control-radius:8px; --cc-inner-radius:12px;
   --field-bg:var(--bg); --field-border:var(--border); --console-fg:var(--text); --console-border:var(--border);
-  --accent-hover:var(--accent-2); --cc-panel-stroke:var(--border); --cc-disabled-border:var(--border);
-  --cc-reflection:transparent; --cc-primary-reflection:transparent; --cc-ambient:transparent; --cc-low-shadow:transparent;
-  --cc-glow:transparent; --cc-glow-inner:transparent; --cc-ring:var(--accent);
+  --accent-hover:var(--accent-2); --cc-disabled-border:var(--border);
+  --cc-low-shadow:transparent; --cc-ring:var(--accent); --cc-hairline:var(--border);
   --shadow-1:none; --shadow-pop:0 12px 32px var(--shadow-strong);
 }
 /* Dark: base #0B0E11, panels #13171C, raised surfaces and the console #1A2026, electric cyan. */
@@ -29,11 +28,9 @@
   --console-bg:#1A2026; --console-fg:#F5F7FA; --console-border:#1A2026; --field-bg:#1A2026; --field-border:#8390A3;
   --hover-border:#9AA6B8; --hover-bg:#252D36; --selected-bg:#123139; --selected-bad-bg:#2E1519;
   --focus:#00E5FF66; --faint:#ffffff12; --depth-grid:transparent; --silver-basalt:#AEBBD0; --backdrop:#000000b3;
-  --shadow:rgba(0,0,0,.3); --shadow-strong:rgba(0,0,0,.5); --cc-panel-stroke:transparent; --cc-disabled-border:#52647C;
-  --cc-reflection:rgb(255 255 255 / .1); --cc-primary-reflection:rgb(255 255 255 / .38);
-  --cc-ambient:rgb(0 0 0 / .3); --cc-low-shadow:rgb(0 0 0 / .24);
-  --cc-glow:rgb(0 229 255 / .18); --cc-glow-inner:rgb(0 229 255 / .06);
-  --shadow-pop:inset 0 1px 0 var(--cc-reflection),0 16px 40px rgb(0 0 0 / .45),0 2px 8px var(--cc-low-shadow);
+  --shadow:rgba(0,0,0,.3); --shadow-strong:rgba(0,0,0,.5); --cc-disabled-border:#52647C;
+  --cc-low-shadow:rgb(0 0 0 / .24); --cc-hairline:rgb(255 255 255 / .08);
+  --shadow-pop:0 16px 40px rgb(0 0 0 / .45),0 2px 8px var(--cc-low-shadow);
 }
 /* Light: base #EDF2F5, panels white, secondary surfaces #F6F8FA, deep cyan; the console stays dark (below). */
 :root[data-style="modern"]:not([data-contrast="high"]):is([data-theme="day"],[data-theme="light"]) {
@@ -48,10 +45,8 @@
   --console-bg:#1A2026; --console-fg:#F5F7FA; --console-border:#1A2026; --field-bg:#FFFFFF; --field-border:#6A7C89;
   --hover-border:#4F6270; --hover-bg:#E7F0F3; --selected-bg:#DDF3F7; --selected-bad-bg:#FBE8ED;
   --focus:#00536455; --faint:#1425300f; --depth-grid:transparent; --silver-basalt:#354C5C; --backdrop:#14253080;
-  --shadow:rgb(28 49 64 / .16); --shadow-strong:rgb(28 49 64 / .26); --cc-panel-stroke:transparent; --cc-disabled-border:#7B8A95;
-  --cc-reflection:rgb(255 255 255 / .1); --cc-primary-reflection:rgb(255 255 255 / .38);
-  --cc-ambient:rgb(28 49 64 / .3); --cc-low-shadow:rgb(28 49 64 / .24);
-  --cc-glow:rgb(0 229 255 / .18); --cc-glow-inner:rgb(0 229 255 / .06);
+  --shadow:rgb(28 49 64 / .16); --shadow-strong:rgb(28 49 64 / .26); --cc-disabled-border:#7B8A95;
+  --cc-low-shadow:rgb(28 49 64 / .24); --cc-hairline:rgb(20 37 48 / .1);
   --shadow-pop:0 16px 40px rgb(28 49 64 / .22),0 2px 8px rgb(28 49 64 / .12);
 }
 /* The invite page has no saved setting: it follows the computer's light or dark. */
@@ -68,10 +63,8 @@
     --console-bg:#1A2026; --console-fg:#F5F7FA; --console-border:#1A2026; --field-bg:#FFFFFF; --field-border:#6A7C89;
     --hover-border:#4F6270; --hover-bg:#E7F0F3; --selected-bg:#DDF3F7; --selected-bad-bg:#FBE8ED;
     --focus:#00536455; --faint:#1425300f; --depth-grid:transparent; --silver-basalt:#354C5C; --backdrop:#14253080;
-    --shadow:rgb(28 49 64 / .16); --shadow-strong:rgb(28 49 64 / .26); --cc-panel-stroke:transparent; --cc-disabled-border:#7B8A95;
-    --cc-reflection:rgb(255 255 255 / .1); --cc-primary-reflection:rgb(255 255 255 / .38);
-    --cc-ambient:rgb(28 49 64 / .3); --cc-low-shadow:rgb(28 49 64 / .24);
-    --cc-glow:rgb(0 229 255 / .18); --cc-glow-inner:rgb(0 229 255 / .06);
+    --shadow:rgb(28 49 64 / .16); --shadow-strong:rgb(28 49 64 / .26); --cc-disabled-border:#7B8A95;
+    --cc-low-shadow:rgb(28 49 64 / .24); --cc-hairline:rgb(20 37 48 / .1);
     --shadow-pop:0 16px 40px rgb(28 49 64 / .22),0 2px 8px rgb(28 49 64 / .12);
   }
 }
@@ -88,8 +81,6 @@
   --accent:#00E5FF; --accent-2:#00E5FF; --accent-hover:#00E5FF; --on-accent:#071C20; --focus:#00E5FF59;
   --field-bg:#1A2026; --field-border:#8390A3; --hover-bg:#252D36; --hover-border:#9AA6B8; --silver-basalt:#AEBBD0;
   --ok-fg:#86EFAC; --warn-fg:#FFD580; --bad-fg:#FFB8BF; --info-fg:#79F1FF;
-  --cc-reflection:rgb(255 255 255 / .1); --cc-primary-reflection:rgb(255 255 255 / .38);
-  --cc-ambient:rgb(0 0 0 / .3); --cc-low-shadow:rgb(0 0 0 / .24);
 }
 
 /* ------------------------------------------------------------------ words: 16px Roboto, sentence case */
@@ -107,20 +98,20 @@
 
 /* ------------------------------------------------------------------ surfaces: tonal panels, 16px corners */
 :root[data-style="modern"] :is(.card, .cc-panel, .props fieldset, .cfg-body) {
-  background-color:var(--panel); background-image:none; border:1px solid var(--cc-panel-stroke); border-radius:var(--radius);
-  box-shadow:inset 0 1px 0 var(--cc-reflection),0 7px 22px var(--cc-low-shadow); }
+  background-color:var(--panel); background-image:none; border:1px solid var(--cc-hairline); border-radius:var(--radius);
+  box-shadow:none; }
 /* (a panel inside a panel is a raised surface, without its own shadow) */
-:root[data-style="modern"] :is(.props fieldset, .cfg-body) { background-color:var(--panel-2); border-radius:var(--cc-inner-radius); box-shadow:inset 0 1px 0 var(--cc-reflection); }
+:root[data-style="modern"] :is(.props fieldset, .cfg-body) { background-color:var(--panel-2); border-radius:var(--cc-inner-radius); box-shadow:none; }
 /* The Dashboard: its cards sit straight on the page, apart by their own tone. */
 :root[data-style="modern"] .cc-dashboard { padding:0; background:transparent; border:0; box-shadow:none; }
 :root[data-style="modern"] :is(.login-card, .modal, .guide, .bell-panel) {
-  background-color:var(--panel); background-image:none; border:1px solid var(--cc-panel-stroke); border-radius:var(--radius); box-shadow:var(--shadow-pop); }
+  background-color:var(--panel); background-image:none; border:1px solid var(--cc-hairline); border-radius:var(--radius); box-shadow:var(--shadow-pop); }
 :root[data-style="modern"] .guide.min { background:none; border:0; box-shadow:none; }
 :root[data-style="modern"] .toast { border-radius:var(--cc-inner-radius); box-shadow:var(--shadow-pop); }  /* (its coloured edge stays) */
 :root[data-style="modern"] .danger-zone { border-color:var(--bad-border); }
 :root[data-style="modern"] .browse { background-image:none; border:0; border-radius:0; box-shadow:none; }
 :root[data-style="modern"] :is(.notice, .player-actions, .foot-panel, .rehearsal-stat, .update-log) {
-  background:var(--panel-2); border-color:var(--cc-panel-stroke); border-radius:var(--cc-inner-radius); box-shadow:inset 0 1px 0 var(--cc-reflection); }
+  background:var(--panel-2); border-color:var(--cc-hairline); border-radius:var(--cc-inner-radius); box-shadow:none; }
 :root[data-style="modern"] .notice { border-inline-start:4px solid var(--info); }
 :root[data-style="modern"] .notice.warn { border-inline-start-color:var(--warn); }
 :root[data-style="modern"] .notice.ok { border-inline-start-color:var(--ok-border); }
@@ -146,44 +137,44 @@
   text-transform:none; letter-spacing:normal; font-size:15px; font-weight:500; }
 :root[data-style="modern"] .sidebar nav a:hover { background:var(--hover-bg); }
 :root[data-style="modern"] .sidebar nav a.active { background:var(--selected-bg); color:var(--accent); font-weight:600;
-  box-shadow:inset 3px 0 0 var(--accent),inset 0 1px 0 var(--cc-reflection),0 3px 12px var(--cc-low-shadow),0 0 20px var(--cc-glow); }
+  box-shadow:inset 3px 0 0 var(--accent); }
 :root[data-style="modern"] .sidebar nav a:focus-visible:not(.active) { background:var(--hover-bg); color:var(--text); box-shadow:none; font-weight:500; }
 :root[data-style="modern"] .cc-nav-icon { width:18px; height:18px; flex-basis:18px; }
 :root[data-style="modern"] .nav-server { font-size:14px; color:var(--muted); }
-:root[data-style="modern"] .topbar { background:var(--panel); border-bottom:1px solid var(--border); box-shadow:inset 0 1px 0 var(--cc-reflection),0 5px 20px var(--cc-low-shadow); }
-:root[data-style="modern"] .cc-menu-trigger { border-radius:var(--cc-control-radius); border-color:var(--field-border); box-shadow:inset 0 1px 0 var(--cc-reflection),0 2px 5px var(--cc-low-shadow); }
+:root[data-style="modern"] .topbar { background:var(--panel); border-bottom:1px solid var(--border); box-shadow:none; }
+:root[data-style="modern"] .cc-menu-trigger { border-radius:var(--cc-control-radius); border-color:var(--field-border); box-shadow:none; }
 :root[data-style="modern"] .cc-theme-switch { border-radius:999px; border-color:var(--field-border); background:var(--selected-bg); }
 :root[data-style="modern"] .cc-theme-switch .cc-thumb { border-radius:50%; }
 /* (the day / night switch keeps its look; its button reaches 44 pixels around it) */
 :root[data-style="modern"] .cc-theme-switch::after { content:""; position:absolute; inset:-9px -2px; }
 :root[data-style="modern"] .cc-style-switch { padding:1px; border-color:var(--border); border-radius:var(--cc-control-radius); background:var(--panel-2); }
 :root[data-style="modern"] .cc-style-switch::before { inset-block:1px; inset-inline-start:1px; width:calc(50% - 1px); border-radius:7px; background:var(--selected-bg);
-  box-shadow:inset 0 0 0 1px var(--accent),inset 0 1px 0 var(--cc-reflection); }
+  box-shadow:inset 0 0 0 1px var(--accent); }
 :root[data-style="modern"] .cc-style-switch label { min-height:44px; min-width:44px; text-transform:none; letter-spacing:normal; font-size:14px; font-weight:500;
   border-radius:7px; color:var(--muted); }
 :root[data-style="modern"] .cc-style-switch label:has(input:checked) { color:var(--text); font-weight:600; }
 :root[data-style="modern"] .bell { width:44px; height:44px; background:transparent; border-color:var(--field-border); border-radius:var(--cc-control-radius);
-  box-shadow:inset 0 1px 0 var(--cc-reflection),0 2px 5px var(--cc-low-shadow); }
+  box-shadow:none; }
 :root[data-style="modern"] .bell-dot { box-shadow:0 0 0 2px var(--panel); }
 
 /* ------------------------------------------------------------------ status */
 :root[data-style="modern"] .pill { display:inline-block; border-radius:999px; text-transform:none; letter-spacing:.01em; font-size:13px; }
 :root[data-style="modern"] .pill::first-letter { text-transform:uppercase; }
-:root[data-style="modern"] .pill.running { color:var(--accent); background:var(--selected-bg); border-color:var(--accent);
-  box-shadow:inset 0 1px 0 var(--cc-reflection),0 0 20px var(--cc-glow),inset 0 0 10px var(--cc-glow-inner); }
-:root[data-style="modern"] .pill.running::before { background:var(--accent); animation:none; box-shadow:0 0 6px var(--cc-glow); }
+:root[data-style="modern"] .pill.running { color:var(--accent); background:var(--selected-bg); border-color:transparent;
+  box-shadow:none; }
+:root[data-style="modern"] .pill.running::before { background:var(--accent); animation:none; box-shadow:none; }
 :root[data-style="modern"] .pill.stopped { color:var(--muted); background:var(--panel-2); border-color:var(--field-border); }
 
-/* ------------------------------------------------------------------ controls: 44px, 8px corners, lit from above */
+/* ------------------------------------------------------------------ controls: 44px, 8px corners, flat */
 :root[data-style="modern"] .btn { min-height:44px; padding:9px 14px; border:1px solid var(--field-border); border-radius:var(--cc-control-radius);
   background:var(--panel-2); color:var(--text); font-size:14px; font-weight:500; line-height:1.4; text-transform:none; letter-spacing:normal;
-  box-shadow:inset 0 1px 0 var(--cc-reflection),0 2px 5px var(--cc-low-shadow); }
+  box-shadow:none; }
 :root[data-style="modern"] a.btn { display:inline-flex; align-items:center; justify-content:center; }
 :root[data-style="modern"] .btn:hover:not(:disabled) { background:var(--hover-bg); border-color:var(--hover-border); color:var(--text); }
 :root[data-style="modern"] .btn.small { min-width:44px; padding:6px 12px; font-size:14px; }
 :root[data-style="modern"] .btn.big { padding:12px 22px; font-size:16px; }
 :root[data-style="modern"] .btn.primary { background:var(--accent); border-color:var(--accent); color:var(--on-accent); font-weight:600;
-  box-shadow:inset 0 1px 0 var(--cc-primary-reflection),0 3px 8px var(--cc-ambient),0 0 22px var(--cc-glow); }
+  box-shadow:none; }
 :root[data-style="modern"] .btn.primary:hover:not(:disabled) { background:var(--accent-hover); border-color:var(--accent-hover); color:var(--on-accent); }
 :root[data-style="modern"] .btn.danger { background:transparent; border-color:var(--bad-border); color:var(--bad-fg); }
 :root[data-style="modern"] .btn.danger:hover:not(:disabled) { background:var(--bad-bg); border-color:var(--danger); color:var(--bad-fg); }
@@ -192,11 +183,11 @@
 :root[data-style="modern"] .btn.chip { border-radius:999px; }
 /* (unavailable: no colour, no light and no lift, but still readable) */
 :root[data-style="modern"] .btn:disabled { opacity:1; background:var(--panel-2); border-color:var(--cc-disabled-border); color:var(--muted);
-  box-shadow:inset 0 1px 0 var(--cc-reflection); }
-:root[data-style="modern"] .btn:active:not(:disabled) { transform:translateY(0); box-shadow:inset 0 1px 3px var(--cc-ambient),0 1px 2px var(--cc-low-shadow); }
+  box-shadow:none; }
+:root[data-style="modern"] .btn:active:not(:disabled) { transform:translateY(0); }
 :root[data-style="modern"] :is(input:not([type=checkbox], [type=radio], [type=range], [type=file]), select, textarea:not(.code-input)) {
   min-height:44px; background:var(--field-bg); color:var(--text); border:1px solid var(--field-border); border-radius:var(--cc-control-radius);
-  box-shadow:inset 0 1px 0 var(--cc-reflection); }
+  box-shadow:none; }
 :root[data-style="modern"] :is(input, select, textarea):focus { border-color:var(--accent); }
 :root[data-style="modern"] :is(input[type=checkbox], input[type=radio]) { accent-color:var(--accent); }
 :root[data-style="modern"] :is(.switch, .link-btn, .guide-pill, .choice, .preferences-button, .map-thumb, button.prow-open, .folder-row, .cfg-files button, summary, .skip-link) { min-height:44px; }
@@ -208,32 +199,22 @@
 :root[data-style="modern"] .pw-field input { padding-inline-end:48px; }
 :root[data-style="modern"] :is(label:has(> input[type=checkbox]:first-child), label:has(> input[type=radio]:first-child)) { min-height:44px; align-items:center; }
 :root[data-style="modern"] .choice { border:1px solid var(--border); border-radius:var(--radius); background:var(--panel); background-image:none;
-  box-shadow:inset 0 1px 0 var(--cc-reflection),0 2px 5px var(--cc-low-shadow); }
+  box-shadow:none; }
 :root[data-style="modern"] .choice.selected { border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); background:var(--selected-bg); }
 :root[data-style="modern"] .choice.selected.danger { border-color:var(--danger); box-shadow:inset 0 0 0 1px var(--danger); background:var(--selected-bad-bg); }
 :root[data-style="modern"] .preferences-button[aria-pressed="true"] { background:var(--selected-bg); border-color:var(--accent); color:var(--text); box-shadow:inset 3px 0 var(--accent); }
 :root[data-style="modern"] a.server-card.new { border:1px dashed var(--field-border); }
 
-/* What can be pressed lifts a little under a mouse, its shadow grows and its top edge stays lit; the cards that only show
-   something stay still. (Fingers and the keyboard get the press and the ring instead: nothing depends on the lift.) */
+/* Under a mouse, what can be pressed changes its background and edge: nothing moves or casts a shadow, and the cards that
+   only show something stay as they are. (Fingers and the keyboard get the press and the ring.) */
 :root[data-style="modern"] :is(.btn:not(:disabled), .sidebar nav a, a.server-card.new, .choice:not(:disabled), .bell, .cc-menu-trigger) {
-  transition:transform 160ms ease,box-shadow 160ms ease,background-color 160ms ease,border-color 160ms ease; }
-:root[data-style="modern"] .server-card:not(a):hover { transform:none; box-shadow:inset 0 1px 0 var(--cc-reflection),0 7px 22px var(--cc-low-shadow); }
-@media (hover: hover) and (pointer: fine) {
-  :root[data-style="modern"] :is(.btn:not(:disabled, .ghost), .sidebar nav a, a.server-card.new, .choice:not(:disabled), .bell):hover {
-    transform:translateY(-2px); box-shadow:inset 0 1px 0 var(--cc-reflection),0 8px 18px var(--cc-ambient); }
-  :root[data-style="modern"] .btn.ghost:hover:not(:disabled) { transform:translateY(-2px); }
-  :root[data-style="modern"] .btn.primary:hover:not(:disabled) { box-shadow:inset 0 1px 0 var(--cc-primary-reflection),0 8px 18px var(--cc-ambient),0 0 27px var(--cc-glow); }
-  :root[data-style="modern"] .sidebar nav a.active:hover {
-    box-shadow:inset 3px 0 0 var(--accent),inset 0 1px 0 var(--cc-reflection),0 8px 18px var(--cc-ambient),0 0 22px var(--cc-glow); }
-  :root[data-style="modern"] .choice.selected:hover:not(:disabled) { box-shadow:inset 0 0 0 1px var(--accent),0 8px 18px var(--cc-ambient); }
-}
-/* Less motion (the computer's setting, or Display → Less): nothing moves. */
+  transition:background-color 160ms ease,border-color 160ms ease; }
+:root[data-style="modern"] :is(a.server-card.new, .choice:not(:disabled, .selected), .bell, .cc-menu-trigger):hover { background-color:var(--hover-bg); border-color:var(--hover-border); }
+:root[data-style="modern"] .server-card:not(a):hover { transform:none; box-shadow:none; }
+/* Less motion (the computer's setting, or Display → Less): no fades either. */
 @media (prefers-reduced-motion: reduce) {
   :root[data-style="modern"]:not([data-motion="normal"]) :is(.btn, .sidebar nav a, a.server-card.new, .choice, .bell, .cc-menu-trigger, .card) { transition:none; }
-  :root[data-style="modern"]:not([data-motion="normal"]) :is(.btn, .sidebar nav a, a.server-card.new, .choice, .bell, .cc-menu-trigger, .card):is(:hover, :active) { transform:none; }
 }
-:root[data-style="modern"][data-motion="less"] :is(.btn, .sidebar nav a, a.server-card.new, .choice, .bell, .cc-menu-trigger, .card):is(:hover, :active) { transform:none; }
 
 /* ------------------------------------------------------------------ telemetry, console and editor */
 :root[data-style="modern"] .cc-telemetry-grid { gap:12px; margin-bottom:18px; }
@@ -244,11 +225,11 @@
 :root[data-style="modern"] .cc-metric-card .meter-head strong { font-size:30px; font-weight:500; line-height:1.25; letter-spacing:-.03em; font-variant-numeric:tabular-nums; }
 :root[data-style="modern"] .meter-head span { font-size:14px; }
 :root[data-style="modern"] .console { background:var(--console-bg); color:var(--text); border:1px solid var(--console-border); border-radius:var(--cc-control-radius);
-  font-size:14px; line-height:1.6; box-shadow:inset 0 1px 0 var(--cc-reflection),0 3px 9px var(--cc-low-shadow); }
+  font-size:14px; line-height:1.6; box-shadow:none; }
 :root[data-style="modern"] .console:has(+ .console-input) { border-end-start-radius:0; border-end-end-radius:0; }
 /* (room round the box and Send, so their keyboard rings stay on the dark surface) */
 :root[data-style="modern"] .console-input { gap:8px; padding:8px; background:var(--console-bg); border:1px solid var(--console-border);
-  border-top-color:var(--border); border-radius:0 0 var(--cc-control-radius) var(--cc-control-radius); box-shadow:0 3px 9px var(--cc-low-shadow); }
+  border-top-color:var(--border); border-radius:0 0 var(--cc-control-radius) var(--cc-control-radius); box-shadow:none; }
 :root[data-style="modern"] .console-input input { min-height:44px; background:var(--field-bg); color:var(--text); border:1px solid var(--field-border); border-radius:6px; }
 :root[data-style="modern"] .console-input .btn { flex:none; }
 :root[data-style="modern"] .code-editor { background:var(--console-bg); border-color:var(--console-border); border-radius:var(--cc-control-radius); }

@@ -124,15 +124,14 @@ const path = require('node:path');
   await modern.check();
   assert.deepEqual(await look(), { caps: 'none', button: '8px', card: '16px', paper: false, tall: true });
   assert.ok(await page.evaluate(() => document.getElementById('skip-link').getBoundingClientRect().height >= 44), 'Skip to main content is 44 pixels too');
-  // under a mouse a button lifts, and stays still when the computer asks for less motion
-  const lift = () => page.locator('main .btn:visible').first().evaluate((b) => getComputedStyle(b).transform);
+  // under a mouse a button changes its background and stays where it is
+  const hovered = () => page.locator('main .btn:visible').first().evaluate((b) => [getComputedStyle(b).transform, getComputedStyle(b).backgroundColor]);
+  const [, rest] = await hovered();
   await page.locator('main .btn:visible').first().hover();
   await page.waitForTimeout(250);
-  assert.equal(await lift(), 'matrix(1, 0, 0, 1, 0, -2)');
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.waitForTimeout(50);
-  assert.equal(await lift(), 'none');
-  await page.emulateMedia({ reducedMotion: null });
+  const [moved, bg] = await hovered();
+  assert.equal(moved, 'none');
+  assert.notEqual(bg, rest, 'the background changes under a mouse');
   await page.mouse.move(1, 1);
 
   // Remembered: Classic after a reload, and on the sign-in page.

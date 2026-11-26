@@ -197,8 +197,8 @@ def test_colours_stay_readable():
 
 
 def test_modern_targets_light_and_motion():
-    """Modern: 44-pixel targets with a mouse too, light only on what can be pressed, nothing moves with less motion, and
-    forced colours keep edges."""
+    """Modern: 44-pixel targets with a mouse too, flat (no glow, shadows only on what floats), hover changes only the
+    background, and forced colours keep edges."""
     modern = (WEBUI / "craft-conductor-modern.css").read_text(encoding="utf-8")
     flat = re.sub(r"@media[^{]*\{", "", modern)  # (not only for fingers: outside any media query)
     for what in ('.btn { min-height:44px;', '.btn.small { min-width:44px;', '.sidebar nav a { min-height:46px;',
@@ -206,18 +206,21 @@ def test_modern_targets_light_and_motion():
                  '.cc-theme-switch::after { content:""; position:absolute; inset:-9px -2px; }', '.help-toc a {'):
         assert what in flat, what
     assert re.search(r'input:not\(\[type=checkbox\], \[type=radio\], \[type=range\], \[type=file\]\), select, textarea:not\(\.code-input\)\) \{\s*min-height:44px', modern)
-    # the lift: only under a mouse, never on a card that only shows something, and never with less motion
-    hover = modern.split("@media (hover: hover) and (pointer: fine) {", 1)[1].split("\n}", 1)[0]
-    assert "translateY(-2px)" in hover and ".card:hover" not in hover and ".server-card:hover" not in hover
+    # under a mouse only the background and edge change: nothing lifts, and nothing fades with less motion
+    assert "translateY(-2px)" not in modern and "@media (hover: hover)" not in modern
     assert ':root[data-style="modern"] .server-card:not(a):hover { transform:none;' in modern
     reduced = modern.split("@media (prefers-reduced-motion: reduce) {", 1)[1].split("\n}", 1)[0]
-    assert "transition:none" in reduced and "transform:none" in reduced
-    assert ':root[data-style="modern"][data-motion="less"]' in modern
-    # the glow is the approved 69% (alpha .18) and high contrast has none of the light
-    assert modern.count("--cc-glow:rgb(0 229 255 / .18)") == 3
+    assert "transition:none" in reduced
+    # flat: no glow and no reflection anywhere; only what floats above the page casts a shadow
+    for token in ("--cc-glow", "--cc-reflection", "--cc-ambient", "0 0 22px", "0 0 20px"):
+        assert token not in modern, token
     base = re.search(r':root\[data-style="modern"\] \{([^}]*)\}', modern).group(1)
-    for token in ("--cc-reflection", "--cc-ambient", "--cc-low-shadow", "--cc-glow"):
-        assert f"{token}:transparent" in base, token
+    assert "--cc-low-shadow:transparent" in base and "--cc-hairline:var(--border)" in base
+    for selector, body in css_rules(modern):
+        if "box-shadow:" in body and "shadow-pop" not in body:
+            shadow = body.split("box-shadow:", 1)[1].split(";", 1)[0].strip()
+            assert shadow == "none" or shadow.startswith(("inset 0 0 0 1px", "inset 3px 0")) \
+                or shadow == "0 0 0 2px var(--panel)", (selector, shadow)
     forced = modern.split("@media (forced-colors: active) {", 1)[1]
     assert "CanvasText" in forced and "Highlight" in forced
     # the grid paper is Classic's: Modern's background is plain
