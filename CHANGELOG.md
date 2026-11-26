@@ -8,6 +8,7 @@ its fix will say which version it's in.
 
 **Changed**
 - A calmer look, in both Classic and Modern: cards, rows, buttons, the top bar and the sidebar are flat, set apart by a thin edge instead of shadows. Nothing glows any more (the orange **Mod manager** alert, when it needs you, still does), the Running light no longer pulses, and only what floats above the page (dialogs, menus, the bell, messages) casts a shadow. Under a mouse, buttons and cards change colour instead of rising. In Classic's Light theme, card and table edges are soft grey instead of black; buttons and boxes you type in keep a clear grey edge.
+- The top bar only shows the server, **Start**, **Restart**, **Stop** and the bell. **Light / Dark** and **Classic / Modern** have moved to **Craft Conductor settings → Appearance → Look**, on phones too (they're no longer in the menu). The sign-in page keeps its Light / Dark switch.
 
 ## 0.30.7 (2026-11-22)
 

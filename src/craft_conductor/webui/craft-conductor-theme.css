@@ -103,8 +103,6 @@ input,select,textarea { background:var(--console-bg); color:var(--text); font-fa
 .cc-theme-switch[aria-checked="true"] .cc-thumb { transform:translateX(24px); background:var(--accent); }
 [dir="rtl"] .cc-theme-switch[aria-checked="true"] .cc-thumb { transform:translateX(-24px); }
 .cc-login-theme { position:fixed; top:16px; inset-inline-end:16px; z-index:5; }
-#cc-app-theme { margin-inline-start:auto; }
-#cc-theme-mobile:empty { display:none; }
 .cc-menu-trigger,.cc-nav-overlay { display:none; }
 .heat-cell.lvl1 { background:color-mix(in srgb,var(--accent) 25%,var(--panel)); } .heat-cell.lvl2 { background:color-mix(in srgb,var(--accent) 50%,var(--panel)); } .heat-cell.lvl3 { background:color-mix(in srgb,var(--accent) 75%,var(--panel)); }
 :root[data-contrast="high"] { --border:var(--text); --field-border:var(--text); --muted:var(--text); --depth-highlight:transparent; --depth-shadow:transparent; }
@@ -129,8 +127,6 @@ input,select,textarea { background:var(--console-bg); color:var(--text); font-fa
   .cc-menu-trigger span { width:20px; height:2px; background:var(--bright); }
   .cc-menu-trigger[aria-expanded="true"] span:nth-child(1) { transform:translateY(7px) rotate(45deg); } .cc-menu-trigger[aria-expanded="true"] span:nth-child(2) { opacity:0; } .cc-menu-trigger[aria-expanded="true"] span:nth-child(3) { transform:translateY(-7px) rotate(-45deg); }
   .cc-nav-overlay.open { display:block; position:fixed; inset:0; background:#000b; z-index:79; }
-  #cc-theme-mobile { margin:16px 12px; padding-top:16px; border-top:1px solid var(--border); }
-  #cc-app-theme { margin:0; }
   .topbar { padding:16px 64px; justify-content:center; min-height:72px; }
   .topbar .server-id { justify-content:center; flex-wrap:wrap; }
   .topbar .actions { margin:0; flex-wrap:wrap; justify-content:center; }
@@ -159,14 +155,20 @@ input,select,textarea { background:var(--console-bg); color:var(--text); font-fa
 .cc-style-switch label:has(input:focus-visible) { outline:3px solid var(--accent); outline-offset:2px; }
 @media (prefers-reduced-motion: reduce) { :root:not([data-motion="normal"]) .cc-style-switch::before { transition:none; } }
 @media (forced-colors: active) { .cc-style-switch label:has(input:checked) { outline:2px solid Highlight; outline-offset:-2px; } }
-#cc-style { margin-inline-start:8px; }
+/* (in Craft Conductor settings → Appearance → Look, beside Light / Dark) */
+.look-rows { display:flex; flex-wrap:wrap; gap:16px 40px; align-items:flex-start; }
+.look-row .cc-theme-control { min-height:44px; }
+.look-row { display:flex; flex-direction:column; gap:8px; min-width:0; }
+.look-label { font-weight:600; color:var(--bright); }
+/* The top bar: the server, Start / Restart / Stop and the bell. With no server (or during setup) the bell goes to the end. */
+.topbar .bell { margin-inline-start:8px; }
+.topbar .actions.hidden ~ .bell, body.setup-mode .topbar .bell { margin-inline-start:auto; }
 @media(max-width:1023px) {
-  /* beside the bell, top right; the bar's words and buttons keep clear of both */
-  #cc-style { position:absolute; top:16px; inset-inline-end:64px; margin:0; }
-  .topbar { padding-inline-end:252px; }
+  /* the bell is top right; the bar's words and buttons keep clear of it */
+  .topbar { padding-inline-end:64px; }
 }
 @media(max-width:767px) {
-  /* a phone: the menu, the switch and the bell have the top row to themselves */
+  /* a phone: the menu and the bell have the top row to themselves */
   .topbar { padding:72px 16px 12px; }
 }
 
@@ -181,7 +183,6 @@ input,select,textarea { background:var(--console-bg); color:var(--text); font-fa
   .eye { width:44px; height:44px; inset-inline-end:0; }
   .pw-field input { padding-inline-end:48px; }
   .cc-style-switch label { min-height:44px; min-width:44px; }
-  #cc-style { top:12px; }
   /* the day / night switch keeps its look; its button reaches 44 pixels around it (nothing else is that close) */
   .cc-theme-switch::after { content:""; position:absolute; inset:-9px -2px; }  /* (from inside its 1px border: 26 + 18 = 44) */
   input[type=checkbox], input[type=radio] { width:22px; height:22px; }

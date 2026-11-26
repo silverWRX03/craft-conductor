@@ -6329,7 +6329,7 @@ const HELP = [
       h("a", { href: "https://github.com/silverWRX03/craft-conductor/blob/main/docs/headless.md", target: "_blank", rel: "noopener noreferrer" }, "Step-by-step guide ↗"),
       " · ", h("a", { href: "https://github.com/silverWRX03/craft-conductor/blob/main/docs/docker.md", target: "_blank", rel: "noopener noreferrer" }, "Docker ↗"))]],
   ["remote", "Using Craft Conductor from your phone", () => [
-    h("p", {}, "The hamburger menu at the top left opens navigation. The Light / Dark slider inside it remembers your theme. On desktop the slider is in the top bar. The Classic / Modern switch at the top right (beside the bell, on phones too) changes how Craft Conductor looks: Modern at first, and each person's own choice is remembered in this browser, apart from Light / Dark. The Dashboard shows CPU, RAM, server-volume Disk usage and Players in four cards, above the boxed Live console."),
+    h("p", {}, "The hamburger menu at the top left opens navigation. Light / Dark and Classic / Modern are in Craft Conductor settings → Appearance → Look: Modern at first, and each person's own choice of Classic or Modern is remembered in this browser, apart from Light / Dark. The Dashboard shows CPU, RAM, server-volume Disk usage and Players in four cards, above the boxed Live console."),
     screenshot("phone", "The Dashboard on a phone."),
     h("p", {}, "Open ", h("button", { type: "button", class: "link-btn", onclick: openRemoteAccess }, "Remote access & phones"),
       ": set a strong password, allow other devices, and pair your phone by scanning a QR code (it works once, for five minutes). Until then, only this computer can open the control panel. Away from home (step 3): Tailscale keeps it private to your own devices and the people you share this computer with; Cloudflare's quick tunnel puts it on the internet for 4 hours. Both are free. Never forward the control panel's port on your router."),
@@ -8063,6 +8063,27 @@ function applySize() {
 }
 applySize();
 // Display: size, contrast and motion, each kept in this browser (see style.css).
+// Light or Dark, and Classic or Modern (Craft Conductor settings → Appearance; the sign-in page keeps its own Light / Dark).
+// Both switches work wherever they are drawn (the listeners on [data-theme-toggle] and input[data-style-choice] above), so
+// switching here changes the whole page at once and keeps what's on it.
+function lookCard() {
+  const root = document.documentElement;
+  const themeSwitch = h("div", { class: "cc-theme-control" }, h("span", {}, "Light"),
+    h("button", { type: "button", class: "cc-theme-switch", "data-theme-toggle": true, role: "switch", "aria-label": "Switch between day and night",
+      "aria-checked": String(root.dataset.theme !== "day"), title: root.dataset.theme === "day" ? "Switch to night" : "Switch to day" },
+      h("span", { class: "cc-thumb", "aria-hidden": "true" })),
+    h("span", {}, "Dark"));
+  const styleSwitch = h("fieldset", { class: "cc-style-switch", "aria-describedby": "look-style-note" },
+    h("legend", { class: "sr-only" }, "Interface style"),
+    STYLES.map((v) => h("label", {}, h("input", { type: "radio", name: "cc-style", value: v, "data-style-choice": true, checked: root.dataset.style === v }),
+      h("span", {}, v === "classic" ? "Classic" : "Modern"))));
+  return card("Look",
+    h("div", { class: "look-rows" },
+      h("div", { class: "look-row" }, h("span", { class: "look-label" }, "Light or dark"), themeSwitch),
+      h("div", { class: "look-row" }, h("span", { class: "look-label" }, "Style"), styleSwitch)),
+    h("p", { id: "look-style-note", class: "muted small" }, "Modern: rounded and calm, cyan on slate. Classic: square, capital letters, orange. Light or dark is kept in this browser; Classic or Modern is kept for each person who signs in here."));
+}
+
 function displayCard() {
   const pick = (label, key, options, apply) => {
     const sel = h("select", {}, options.map(([v, l]) => h("option", { value: v }, l)));
@@ -8646,7 +8667,7 @@ views["craft-conductor"] = () => {
   if (!isOwner()) {
     const sections = [
       ["Your account", "Your username, password and fingerprint sign-in.", accountCard()],
-      ["Appearance", "Language, size, contrast and motion on this device.", languageCard(), displayCard()],
+      ["Appearance", "Light or dark, Classic or Modern, language, size, contrast and motion on this device.", lookCard(), languageCard(), displayCard()],
       ["Sounds & notifications", "Choose what you hear and which alerts you see.", soundsCard(), notificationsCard(),
         hubInfo && !hubInfo.single ? phoneCard({ deviceOnly: true }) : null],
     ];
@@ -8807,7 +8828,7 @@ views["craft-conductor"] = () => {
   const phone = hubInfo && !hubInfo.single ? phoneCard() : null;
   const owner = !(hubInfo && hubInfo.role && hubInfo.role !== "owner");
   const sections = [
-    ["Appearance", "Language, size, contrast and motion on this device.", languageCard(), displayCard()],
+    ["Appearance", "Light or dark, Classic or Modern, language, size, contrast and motion on this device.", lookCard(), languageCard(), displayCard()],
     ["Sounds & notifications", "Choose what you hear and which alerts you see.", soundsCard(), notificationsCard(), warningsCard()],
     ["Sign-in & security", "Manage how you and your devices sign in, and who else may help.", security, owner ? passkeyCard() : null,
       owner && hubInfo && !hubInfo.single ? card("People", h("p", { class: "muted small" }, "Invite people to help: each signs in with their own username and password and only sees the servers you give them, with what you choose they may do there."),
@@ -10515,7 +10536,6 @@ function closeAppNavigation(returnFocus = false) {
 }
 function syncAppNavigation() {
   closeAppNavigation();
-  (appNavigation.matches ? $("#cc-theme-mobile") : $("#cc-theme-desktop")).append($("#cc-app-theme"));
 }
 menuTrigger.addEventListener("click", () => {
   if (appSidebar.classList.contains("open")) { closeAppNavigation(true); return; }

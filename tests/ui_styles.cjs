@@ -46,8 +46,24 @@ const path = require('node:path');
   await page.goto(base + '/#servers');
   await page.locator('.server-card', { hasText: 'Alpha' }).waitFor();
   assert.equal(await style(page), 'modern', 'Modern is the default');
+  // The top bar is the server, Start / Restart / Stop and the bell: the switches are in Craft Conductor settings → Appearance.
+  assert.equal(await page.locator('.topbar [data-theme-toggle], .topbar input[data-style-choice], .sidebar [data-theme-toggle]').count(), 0,
+    'no Light / Dark or Classic / Modern in the top bar or the menu');
+  const appearance = async () => {
+    await page.goto(base + '/#craft-conductor');
+    await page.getByRole('button', { name: 'Appearance', exact: true }).click();
+    await page.locator('.look-rows').waitFor();
+  };
   const group = page.getByRole('group', { name: 'Interface style' });
   const classic = group.getByRole('radio', { name: 'Classic' }), modern = group.getByRole('radio', { name: 'Modern' });
+  const themeSwitch = page.locator('main [data-theme-toggle]');
+  // (choose a style in Appearance, then go to a page to look at it)
+  const choose = async (radio, view) => {
+    await appearance();
+    await radio.check();
+    if (view) { await page.goto(base + '/' + view); await page.locator('#nav a').first().waitFor(); }
+  };
+  await appearance();
   assert.ok(await modern.isChecked() && !(await classic.isChecked()), 'the switch says Modern');
 
   // The font comes from Craft Conductor itself, and is what the page's words are drawn in.
@@ -57,59 +73,30 @@ const path = require('node:path');
   assert.match(await page.evaluate(() => getComputedStyle(document.body).fontFamily), /^Roboto,/);
   assert.equal(await page.evaluate(() => getComputedStyle(document.body).fontSize), '16px');
 
-  // A server's console: some text in it, something typed in its box, the page scrolled.
-  await page.goto(base + '/#s/alpha/console');
-  const consoleBox = page.locator('.console').first();
-  await consoleBox.waitFor();
-  const input = page.locator('.console-input input');
-  await input.fill('say typed but not sent');
-  const kept = await page.evaluate(() => {
-    const c = document.querySelector('.console');
-    c.append(Object.assign(document.createElement('div'), { textContent: 'a line already in the console' }));
-    window.__console = c; window.__input = document.querySelector('.console-input input');
-    return c.textContent.length;
-  });
-  assert.match(await consoleBox.evaluate((c) => getComputedStyle(c).fontFamily), /monospace|Consolas|Menlo/);
-
-  // Switching by keyboard: Tab to the switch, an arrow key to Classic. Nothing is drawn again.
+  // Switching by keyboard: Tab to the switch, an arrow key to Classic. Nothing is drawn again: the page stays.
+  await page.evaluate(() => { window.__card = document.querySelector('.look-rows'); });
   await modern.focus();
   await page.keyboard.press('ArrowLeft');
   assert.equal(await style(page), 'classic');
   assert.ok(await classic.isChecked());
-  assert.ok(await page.evaluate(() => window.__console === document.querySelector('.console') && window.__input === document.querySelector('.console-input input')),
-    'the console and its box are the same ones');
-  assert.equal(await input.inputValue(), 'say typed but not sent');
-  assert.equal(await page.evaluate(() => document.querySelector('.console').textContent.length), kept);
-  assert.equal(page.url().split('#')[1], 's/alpha/console', 'still on the same page');
+  assert.ok(await page.evaluate(() => window.__card === document.querySelector('.look-rows')), 'the Look card is the same one');
+  assert.equal(page.url().split('#')[1], 'craft-conductor', 'still on the same page');
   // the ring where the keyboard is: on the chosen choice's label
   const ring = await page.evaluate(() => { const l = document.activeElement.closest('label'); const s = getComputedStyle(l); return [s.outlineStyle, s.outlineWidth]; });
   assert.deepEqual(ring, ['solid', '3px']);
   await page.keyboard.press('ArrowRight');
   assert.equal(await style(page), 'modern');
 
-  // Settings: an unsaved change and the page's scroll survive a switch.
-  await page.goto(base + '/#s/alpha/settings');
-  const motd = page.locator('input').filter({ hasNot: page.locator('[type=checkbox]') }).nth(2);
-  await page.locator('.save-bar, .card').first().waitFor();
-  await page.waitForTimeout(1200);
-  const field = page.locator('main input:not([type=checkbox]):not([type=radio])').first();
-  await field.fill('Changed but not saved');
-  await page.evaluate(() => { document.querySelector('main').scrollTop = 300; });
-  const scrolled = await page.evaluate(() => document.querySelector('main').scrollTop);
+  // Day / night is its own setting, beside it.
   await classic.check();
-  assert.equal(await field.inputValue(), 'Changed but not saved', 'an unsaved change stays');
-  const after = await page.evaluate(() => document.querySelector('main').scrollTop);
-  assert.ok(Math.abs(after - scrolled) <= 40, `the page stays scrolled (${scrolled} -> ${after})`);
-  void motd;
-
-  // Day / night is its own setting.
   const night = await theme(page);
-  await page.locator('#cc-app-theme [data-theme-toggle]').click();
+  await themeSwitch.click();
   assert.notEqual(await theme(page), night);
+  assert.equal(await themeSwitch.getAttribute('aria-checked'), String(night !== 'night'), 'the switch says which');
   assert.equal(await style(page), 'classic', 'day / night leaves the style');
   await modern.check();
   assert.notEqual(await theme(page), night, 'the style leaves day / night');
-  await page.locator('#cc-app-theme [data-theme-toggle]').click();
+  await themeSwitch.click();
   assert.equal(await theme(page), night);
 
   // Classic stays Classic: square, capital letters, graph paper; Modern has 16px panels, 8px controls, ordinary words,
@@ -119,9 +106,11 @@ const path = require('node:path');
     return { caps: getComputedStyle(b).textTransform, button: getComputedStyle(b).borderTopLeftRadius, card: getComputedStyle(c).borderTopLeftRadius,
       paper: getComputedStyle(document.body).backgroundImage !== 'none', tall: b.getBoundingClientRect().height >= 44 };
   });
-  await classic.check();
+  await choose(classic, '#s/alpha/settings');
+  await page.locator('main .card').first().waitFor();
   assert.deepEqual(await look(), { caps: 'uppercase', button: '0px', card: '0px', paper: true, tall: false });
-  await modern.check();
+  await choose(modern, '#s/alpha/settings');
+  await page.locator('main .card').first().waitFor();
   assert.deepEqual(await look(), { caps: 'none', button: '8px', card: '16px', paper: false, tall: true });
   assert.ok(await page.evaluate(() => document.getElementById('skip-link').getBoundingClientRect().height >= 44), 'Skip to main content is 44 pixels too');
   // under a mouse a button changes its background and stays where it is
@@ -135,7 +124,7 @@ const path = require('node:path');
   await page.mouse.move(1, 1);
 
   // Remembered: Classic after a reload, and on the sign-in page.
-  await classic.check();
+  await choose(classic, '#servers');
   await page.reload();
   await page.locator('#nav a').first().waitFor();
   assert.equal(await style(page), 'classic', 'kept after a reload');
@@ -169,7 +158,8 @@ const path = require('node:path');
 
   // Live updates: the server list is rebuilt when Alpha starts and stops, without giving its buttons listeners,
   // and one press of Start starts it once.
-  await modern.check();
+  await choose(modern, '#servers');
+  await page.locator('.server-card', { hasText: 'Alpha' }).waitFor();
   const starts = [];
   page.on('request', (r) => { if (/\/server\/start$/.test(r.url())) starts.push(r.url()); });
   const card = page.locator('.server-card', { hasText: 'Alpha' });
@@ -215,25 +205,23 @@ const path = require('node:path');
     const sizes = await phone.evaluate(() => {
       const box = (el) => el.getBoundingClientRect();
       const small = [];
-      for (const el of document.querySelectorAll('#cc-app-menu, #bell, .cc-style-switch label, .topbar .btn')) {
+      for (const el of document.querySelectorAll('#cc-app-menu, #bell, .topbar .btn')) {
         const r = box(el);
         if (r.width && (r.width < 44 || r.height < 44)) small.push([el.id || el.className || el.textContent, Math.round(r.width), Math.round(r.height)]);
       }
-      // the day / night switch (in the menu) answers 44 pixels around it
-      const sw = document.querySelector('#cc-app-theme .cc-theme-switch');
       const sr = box(document.querySelector('#cc-app-menu'));
       const overlaps = [];
-      const top = ['#cc-app-menu', '#cc-style', '#bell', '.topbar .server-id', '.topbar .actions'].map((q) => [q, box(document.querySelector(q))]);
+      const top = ['#cc-app-menu', '#bell', '.topbar .server-id', '.topbar .actions'].map((q) => [q, box(document.querySelector(q))]);
       for (let i = 0; i < top.length; i++) for (let j = i + 1; j < top.length; j++) {
         const [a, ra] = top[i], [b, rb] = top[j];
         if (ra.width && rb.width && ra.left < rb.right && rb.left < ra.right && ra.top < rb.bottom && rb.top < ra.bottom) overlaps.push([a, b]);
       }
-      return { small, overlaps, scrollsSideways: document.documentElement.scrollWidth > innerWidth, menu: Math.round(sr.width), switchAfter: getComputedStyle(sw, '::after').inset };
+      return { small, overlaps, scrollsSideways: document.documentElement.scrollWidth > innerWidth, menu: Math.round(sr.width) };
     });
     assert.deepEqual(sizes.small, [], `${s}: big enough for a finger`);
     assert.deepEqual(sizes.overlaps, [], `${s}: nothing at the top overlaps`);
     assert.ok(!sizes.scrollsSideways, `${s}: no sideways scrolling`);
-    // the menu: links and the day / night switch
+    // the menu: its links
     await phone.locator('#cc-app-menu').click();
     const menu = await phone.evaluate(() => {
       const links = [...document.querySelectorAll('#nav a')].map((a) => a.getBoundingClientRect().height);
@@ -245,18 +233,13 @@ const path = require('node:path');
         return false;
       }).map((el) => el.textContent.trim());
       const coveredAtTop = under();
-      document.querySelector('#cc-app-theme').scrollIntoView({ block: 'center' });
+      document.querySelector('.sidebar-foot').scrollIntoView({ block: 'center' });
       const coveredScrolled = under();
       if (coveredAtTop.length || coveredScrolled.length) return { coveredAtTop, coveredScrolled };
-      const sw = document.querySelector('#cc-app-theme .cc-theme-switch').getBoundingClientRect();
-      const at = (x, y) => document.elementFromPoint(x, y);
-      const hit = (x, y) => !!at(x, y)?.closest('.cc-theme-switch') || (at(x, y)?.className || at(x, y)?.tagName || 'nothing');
-      const cx = sw.left + sw.width / 2, cy = sw.top + sw.height / 2;
-      return { shortest: Math.min(...links), hitTop: hit(cx, cy - 21), hitBottom: hit(cx, cy + 21), hitLeft: hit(sw.left, cy), hitRight: hit(sw.right - 1, cy) };
+      return { shortest: Math.min(...links) };
     });
     assert.ok(!menu.coveredAtTop, `${s}: in the menu, beside the close button: ${JSON.stringify(menu)}`);
     assert.ok(menu.shortest >= 44, `${s}: menu links ${menu.shortest}px`);
-    assert.ok(menu.hitTop === true && menu.hitBottom === true && menu.hitLeft === true && menu.hitRight === true, `${s}: the day / night switch answers 44 pixels: ${JSON.stringify(menu)}`);
     if (shots) await phone.screenshot({ path: path.join(shots, `${s}-phone-menu.png`) });
     await phone.keyboard.press('Escape');
     if (shots) await phone.screenshot({ path: path.join(shots, `${s}-phone-dashboard.png`) });

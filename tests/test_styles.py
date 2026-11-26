@@ -76,11 +76,18 @@ def test_classic_keeps_its_square_corners_and_modern_does_not_get_them():
 def test_the_switch_is_two_labelled_choices_and_modern_is_the_default():
     page = (WEBUI / "index.html").read_text(encoding="utf-8")
     assert '<html lang="en" data-style="modern">' in page
-    switch = re.search(r'<fieldset id="cc-style".*?</fieldset>', page, re.S).group(0)
-    assert "<legend" in switch and "Interface style" in switch
-    radios = re.findall(r'<input type="radio" name="cc-style" value="(\w+)" data-style-choice( checked)?>', switch)
-    assert radios == [("classic", ""), ("modern", " checked")]
-    assert ">Classic<" in switch and ">Modern<" in switch
+    # the top bar keeps to the server, Start / Restart / Stop and the bell; the switches are in Settings → Appearance → Look
+    topbar = re.search(r'<header class="topbar">.*?</header>', page, re.S).group(0)
+    assert "data-theme-toggle" not in topbar and "data-style-choice" not in topbar and 'id="bell"' in topbar
+    assert "data-style-choice" not in page and "cc-theme-mobile" not in page
+    assert page.count("data-theme-toggle") == 1 and "cc-login-theme" in page  # (the sign-in page keeps its Light / Dark)
+    app = (WEBUI / "app.js").read_text(encoding="utf-8")
+    look = app.split("function lookCard() {", 1)[1].split("\n}\n", 1)[0]
+    assert 'h("legend", { class: "sr-only" }, "Interface style")' in look
+    assert 'STYLES.map((v) => h("label", {}, h("input", { type: "radio", name: "cc-style", value: v, "data-style-choice": true' in look
+    assert '"data-theme-toggle": true, role: "switch"' in look
+    assert app.count("lookCard(), languageCard(), displayCard()") == 2  # (the owner's settings and an invited person's)
+    assert 'const STYLE_KEY = "craft-conductor-style", STYLES = ["classic", "modern"];' in app
     # applied in <head>, before the page is drawn, after the stylesheets
     head = page.split("</head>")[0]
     assert head.index("craft-conductor-modern.css") < head.index('<script src="/appearance.js"></script>')

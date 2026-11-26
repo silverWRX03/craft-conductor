@@ -377,11 +377,18 @@ async function open(browser, scenario, problems, label, viewport = { width: 1440
 
     await t.step(`${name}: settings are kept, in the demo's own storage`, async () => {
       await settle(f);
+      // Light / Dark: in Craft Conductor settings → Appearance → Look (a release before the redesign: in the top bar)
+      if (await f.locator('#cc-app-theme [data-theme-toggle]').count()) await f.locator('#cc-app-theme [data-theme-toggle]').click();
+      else {
+        await go(f, '#craft-conductor');
+        const tab = f.getByRole('button', { name: 'Appearance', exact: true });
+        if (await tab.count()) await tab.click();
+        await f.locator('.look-rows [data-theme-toggle]').click();
+      }
       await go(f, `#s/${S}/settings`);
       await f.getByLabel('Check every (e.g. 6h, 30m)').fill('12h');
       await f.getByRole('button', { name: 'Save settings' }).first().click();
       await until(async () => (await api('/api/servers/family-survival/settings')).body.check_interval === '12h', 'saved');
-      await f.locator('#cc-app-theme [data-theme-toggle]').click();
       const theme = await f.evaluate(() => document.documentElement.dataset.theme);
       await page.waitForTimeout(1200);  // (the demo is saved by the page a moment after a change)
       await page.reload();
