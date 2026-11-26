@@ -67,6 +67,7 @@ const path = require('node:path');
   const chooser = page.locator('#folder-browser');
   await chooser.waitFor();
   await chooser.getByText('Where did you save the mods?').waitFor();
+  await chooser.locator('.folder-list').getByText('There are no folders in here.').waitFor();
   assert.equal(await chooser.locator('input').inputValue(), fs.realpathSync(downloads));  // (it starts in Downloads)
   assert.match(await chooser.locator('.folder-list').innerText(), /Up\s+There are no folders in here\./);
   await chooser.locator('input').fill(saved);

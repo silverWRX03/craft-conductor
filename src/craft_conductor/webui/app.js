@@ -293,13 +293,13 @@ function ask(message, { id = null, ok = "OK", cancel = "Cancel", danger = false,
     };
     document.addEventListener("keydown", onKey, true);
     const [title, ...more] = String(message).split("\n\n").map(t);
-    const no = h("button", { class: `btn small ${safe ? "primary" : "ghost"}`, onclick: () => done(false) }, cancel);
+    const no = h("button", { class: `btn small ${safe ? "primary cta" : "ghost"}`, onclick: () => done(false) }, cancel);
     stickyToast(boxId, [
       h("strong", { class: "pre-line" }, title),
       more.map((t) => h("p", { class: "small pre-line" }, t)),
       again ? h("label", { class: "row small mt-s dont-ask" }, again, "Don't ask me again") : null,
       h("div", { class: "row mt-s" },
-        h("button", { class: `btn small${safe ? "" : danger ? " danger" : " primary"}`, onclick: () => done(true) }, ok), no)]);
+        h("button", { class: `btn small${safe ? "" : danger ? " danger" : " primary cta"}`, onclick: () => done(true) }, ok), no)]);
     if (safe) no.focus();  // (Enter keeps the careful answer)
   });
 }
@@ -315,7 +315,7 @@ function askText(message, { ok = "OK", cancel = "Cancel", maxLength = 256 } = {}
     document.addEventListener("keydown", onKey, true);
     input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); done(input.value); } });
     stickyToast(boxId, [h("strong", { class: "pre-line" }, t(String(message))), input,
-      h("div", { class: "row mt-s" }, h("button", { class: "btn small primary", onclick: () => done(input.value) }, ok),
+      h("div", { class: "row mt-s" }, h("button", { class: "btn small primary cta", onclick: () => done(input.value) }, ok),
         h("button", { class: "btn small ghost", onclick: () => done(null) }, cancel))]);
     input.focus();
   });
@@ -719,6 +719,34 @@ function delegate(el, actions) {
 // (text that is already there isn't set again: a screen reader may say it again)
 function setText(el, text) { if (el && el.textContent !== text) el.textContent = text; }
 function card(title, ...children) { return h("div", { class: "card" }, title ? h("h3", {}, title) : null, ...children); }
+// ⓘ: the longer explanation behind a small button, so a card shows its one line and its controls. Hovering or the
+// keyboard's focus shows it; pressing keeps it open (so its links can be used) until Escape, pressing it again, or a
+// press elsewhere. Screen readers hear it as the button's description. It stays inside the window (a phone too).
+let tipCount = 0;
+function infoTip(...content) {
+  const id = `info-${++tipCount}`;
+  const bubble = h("span", { id, class: "info-bubble", role: "note" }, content);
+  const btn = h("button", { type: "button", class: "info-tip", "aria-label": "More about this", "aria-expanded": "false", "aria-controls": id, "aria-describedby": id },
+    h("span", { "aria-hidden": "true" }, "ⓘ"));
+  const wrap = h("span", { class: "info-wrap" }, btn, bubble);
+  const place = () => requestAnimationFrame(() => {
+    bubble.style.transform = "";
+    const r = bubble.getBoundingClientRect();
+    if (!r.width) return;
+    const shift = r.right > innerWidth - 12 ? innerWidth - 12 - r.right : r.left < 12 ? 12 - r.left : 0;
+    if (shift) bubble.style.transform = `translateX(${Math.round(shift)}px)`;  // (CSSOM, allowed by the CSP)
+  });
+  const pin = (open) => { wrap.classList.toggle("pinned", open); btn.setAttribute("aria-expanded", String(open)); if (open) place(); };
+  btn.addEventListener("click", (e) => { e.stopPropagation(); pin(!wrap.classList.contains("pinned")); });
+  btn.addEventListener("focus", place);
+  wrap.addEventListener("mouseenter", place);
+  wrap.addEventListener("keydown", (e) => { if (e.key === "Escape" && wrap.classList.contains("pinned")) { e.stopPropagation(); pin(false); btn.focus(); } });
+  wrap._unpin = () => pin(false);
+  return wrap;
+}
+document.addEventListener("click", (e) => {
+  for (const w of document.querySelectorAll(".info-wrap.pinned")) if (!w.contains(e.target) && w._unpin) w._unpin();
+});
 
 // -------------------------------------------------------------------- state
 let status = null;            // the current server's status
@@ -1858,6 +1886,11 @@ function tunnelCard() {
 
 // How friends outside your home join a server (reach.py): playit.gg (pre-selected), a port opened on
 // the router, or only friends at home. The same words as reach.py (a test checks).
+// (the one-line versions, kept on screen: the warnings above are behind their ⓘ)
+const REACH_SHORT = {
+  router: "An open port lets anyone on the internet reach this server: keep the whitelist on.",
+  playit: "playit.gg is a separate company: you need an account (13 or older), friends can't join while it's down, and IP bans don't work through it.",
+};
 const REACH_TEXT = {
   router: "Opening a port on your router makes this server reachable by anyone on the internet, not just your friends. " +
     "Programs scan the whole internet for Minecraft servers all day, and a server they find can be joined and griefed. " +
@@ -1872,15 +1905,16 @@ const REACH_TEXT = {
     "bots look for Minecraft servers all day, and strangers can grief your world.",
 };
 const REACH_WAYS = [
-  ["playit", "🌍 playit.gg (recommended)", "Free for Minecraft. Nothing is opened on your router: friends join through an address playit.gg gives you."],
+  ["playit", "🌍 playit.gg", "Free for Minecraft. Nothing is opened on your router: friends join through an address playit.gg gives you."],
   ["forward", "🔓 Open a port on my router", "Friends join with your home's internet address. Craft Conductor picks the port to forward."],
   ["home", "🏠 Only friends at home", "Only people on this computer's Wi-Fi or network can join."],
 ];
 function reachChoices(way, pick) {
   return h("div", { class: "choices", role: "group", "aria-label": "How friends outside your home join" },
-    REACH_WAYS.map(([w, label, desc]) => h("button", { type: "button", class: "choice" + (way === w ? " selected" : ""),
-      "aria-pressed": String(way === w), "data-reach": w, onclick: () => pick(w) },
-    h("strong", {}, label), h("span", { class: "small muted" }, desc))));
+    REACH_WAYS.map(([w, label, desc]) => h("div", { class: "choice-wrap" },
+      h("button", { type: "button", class: "choice" + (way === w ? " selected" : ""),
+        "aria-pressed": String(way === w), "data-reach": w, onclick: () => pick(w) }, h("strong", {}, label)),
+      infoTip(desc))));
 }
 // Bedrock's ports, as one phrase: "UDP and TCP port 19132, and UDP port 19133" (Geyser's two connection methods, #211).
 function bedrockPortsText(ports, port) {
@@ -1891,13 +1925,12 @@ function bedrockPortsText(ports, port) {
 }
 // The ports to forward and why opening one is risky, next to the port-forwarding choice.
 function forwardDetails(port, bedrock, lanIp, bedrockPorts) {
-  return [h("div", { class: "notice warn small mt-s", role: "note" }, h("strong", {}, "Before you open a port: "), REACH_TEXT.router),
+  return [h("div", { class: "notice warn small mt-s", role: "note" }, "⚠ ", REACH_SHORT.router, infoTip(REACH_TEXT.router)),
     h("p", { class: "small mt-s" }, "Forward ", h("strong", {}, `TCP port ${port}`),
       bedrock ? [" (and ", h("strong", {}, bedrockPortsText(bedrockPorts, bedrock)), " for Bedrock players)"] : null,
-      ` on your router to this computer${lanIp ? ` (${lanIp})` : ""}. Craft Conductor picked ${bedrock ? "these ports" : "this port"}: not Minecraft's usual 25565, ` +
-      "which bots try first, and not one another server or Craft Conductor uses."),
-    h("p", { class: "muted small" }, "Craft Conductor can ask your router to do it (Craft Conductor settings → Router), and let it through Windows Firewall (Check my setup). " +
-      "By hand: Help → Router setup.")];
+      ` on your router to this computer${lanIp ? ` (${lanIp})` : ""}.`,
+      infoTip(`Craft Conductor picked ${bedrock ? "these ports" : "this port"}: not Minecraft's usual 25565, which bots try first, and not one another server or Craft Conductor uses. ` +
+        "Craft Conductor can ask your router to do it (Craft Conductor settings → Router), and let it through Windows Firewall (Check my setup). By hand: Help → Router setup."))];
 }
 // The forwarded port chosen by hand (only when the owner switched that safety rule off: Advanced).
 function ownPort(r, save) {
@@ -1918,9 +1951,12 @@ function playitSetup(port, bedrock, address, saveAddress) {
   const render = (st) => {
     const inst = st.install || { state: "idle" };
     const running = st.agent === true;
+    const about = st.platform === "windows" ? infoTip("playit.gg's program is made by playit.gg's company, ", h("strong", {}, st.signer), ". Craft Conductor downloads its installer from playit.gg's GitHub release, " +
+        "checks it (the SHA-256 GitHub lists for it, and the company's signature) and only then opens it. It's a separate program: it keeps running by itself, also when Craft Conductor is closed.")
+      : st.platform === "linux" ? infoTip("From playit.gg's own package repository, signed with playit.gg's key. It's a separate program that keeps running by itself. Other Linux: ",
+        h("a", { href: st.download_page, target: "_blank", rel: "noopener noreferrer" }, "playit.gg/download ↗"), ".")
+      : infoTip("It's a separate program that keeps running by itself.");
     const get = st.platform === "windows" ? [
-      h("p", { class: "small" }, "playit.gg's program is made by playit.gg's company, ", h("strong", {}, st.signer), ". Craft Conductor downloads its installer from playit.gg's GitHub release, " +
-        "checks it (the SHA-256 GitHub lists for it, and the company's signature) and only then opens it. It's a separate program: it keeps running by itself, also when Craft Conductor is closed."),
       inst.state === "downloading" ? h("p", { class: "small" }, inst.size ? `Downloading… ${Math.round(100 * inst.got / inst.size)}%` : "Downloading…")
         : inst.state === "opened" ? h("p", { class: "small ok-text" }, `playit.gg's installer ${inst.version} passed the checks and is open: follow its steps (Windows asks for permission).`)
         : inst.state === "error" ? h("div", { class: "notice bad small" }, inst.error) : null,
@@ -1931,25 +1967,22 @@ function playitSetup(port, bedrock, address, saveAddress) {
       } }, "⬇ Download and install playit.gg")
         : h("p", { class: "muted small" }, "Press Download and install playit.gg in a browser on the server's own computer: the installer opens there."),
     ] : st.platform === "linux" ? [
-      h("p", { class: "small" }, "Install playit.gg's program from its own package repository (signed with playit.gg's key). In a terminal on this computer:"),
+      h("p", { class: "small" }, "In a terminal on this computer:"),
       st.apt.map(copyLine),
-      h("p", { class: "muted small" }, "It's a separate program that keeps running by itself. Other Linux: ",
-        h("a", { href: st.download_page, target: "_blank", rel: "noopener noreferrer" }, "playit.gg/download ↗"), "."),
-    ] : [h("p", { class: "small" }, "Get playit.gg's program from ", h("a", { href: st.download_page, target: "_blank", rel: "noopener noreferrer" }, "playit.gg/download ↗"),
-      ". It's a separate program that keeps running by itself.")];
+    ] : [h("p", { class: "small" }, "Get it from ", h("a", { href: st.download_page, target: "_blank", rel: "noopener noreferrer" }, "playit.gg/download ↗"), ".")];
     const tunnelIn = h("input", { value: address || "", placeholder: "e.g. name.gl.joinmc.link", class: "mono", "aria-label": "playit.gg address" });
     fill(box,
       h("ol", { class: "steps" },
-        h("li", {}, h("strong", {}, "Get playit.gg's program. "),
+        h("li", {}, h("strong", {}, "Get playit.gg's program."), about, " ",
           running ? h("span", { class: "ok-text" }, "✓ It's running on this computer.") : get),
-        h("li", {}, h("strong", {}, "Connect it to a playit.gg account. "),
-          "playit.gg's program shows a link to claim it: open it, and sign in or make a free account (you need to be 13 or older). Craft Conductor never sees your playit.gg account or its key."),
+        h("li", {}, h("strong", {}, "Connect it to a playit.gg account."),
+          infoTip("playit.gg's program shows a link to claim it: open it, and sign in or make a free account (you need to be 13 or older). Craft Conductor never sees your playit.gg account or its key.")),
         h("li", {}, h("strong", {}, "Add a tunnel. "), "On playit.gg, add a ", h("strong", {}, "Minecraft Java"), ` tunnel to this computer's port ${port}`,
           bedrock ? [", and a ", h("strong", {}, "Minecraft Bedrock"), ` tunnel to UDP port ${bedrock}`] : null, ". ",
           h("strong", {}, "Never"), ` point a tunnel at the control panel's port (${location.port || (location.protocol === "https:" ? 443 : 80)}): anyone on the internet could then reach it.`),
         h("li", {}, h("strong", {}, "Paste the address playit.gg gives it: "),
-          h("div", { class: "row mt-s" }, tunnelIn, h("button", { class: "btn", onclick: () => saveAddress(tunnelIn.value.trim()) }, "Save")),
-          h("span", { class: "muted small" }, "Craft Conductor then checks that friends reach this server through it, and shows it on the Dashboard."))),
+          infoTip("Craft Conductor then checks that friends reach this server through it, and shows it on the Dashboard."),
+          h("div", { class: "row mt-s" }, tunnelIn, h("button", { class: "btn", onclick: () => saveAddress(tunnelIn.value.trim()) }, "Save")))),
       h("p", { class: "muted small" }, h("a", { href: st.guide, target: "_blank", rel: "noopener noreferrer" }, "playit.gg's help ↗"), " · ",
         h("a", { href: "https://status.playit.gg", target: "_blank", rel: "noopener noreferrer" }, "playit.gg status ↗")));
     // (while it downloads, or after the installer opened until the program runs, for 10 minutes at most: look again)
@@ -1978,10 +2011,9 @@ function reachCard(sid, { compact = false } = {}) {
     };
     const bedrock = r.bedrock && r.bedrock.on ? r.bedrock.port : null;
     fill(box, compact ? null : h("h3", {}, "Friends outside your home"),
-      compact ? null : h("p", { class: "small" }, "How friends who aren't on your Wi-Fi join this server."),
       reachChoices(r.way || "", pick),
       !r.way ? h("p", { class: "muted small mt-s" }, "Not chosen yet: friends outside join the way you set up before.") : null,
-      r.way === "playit" ? [h("div", { class: "notice warn small mt-s", role: "note" }, h("strong", {}, "About playit.gg: "), REACH_TEXT.playit),
+      r.way === "playit" ? [h("div", { class: "notice warn small mt-s", role: "note" }, "⚠ ", REACH_SHORT.playit, infoTip(REACH_TEXT.playit)),
         compact ? null : playitSetup(r.port, bedrock, r.tunnel_address, saveAddress)] : null,
       r.way === "forward" ? forwardDetails(r.port, bedrock, r.lan_ip, r.bedrock && r.bedrock.ports) : null,
       r.way === "forward" && r.any_port && !compact ? ownPort(r, async (port) => {
@@ -4188,19 +4220,18 @@ function bedrockCard() {
       load();
     } }, "Let Bedrock players join");
     const on = r.geyser && r.floodgate;
-    fill(box, card("Bedrock players (phones, tablets, consoles)",
-      h("p", { class: "muted small" }, "Friends playing Minecraft on a phone, tablet, Windows (the Microsoft Store version) or a console can join too, through ",
+    fill(box, card(["Bedrock players (phones, tablets, consoles)", infoTip("Friends playing Minecraft on a phone, tablet, Windows (the Microsoft Store version) or a console can join too, through ",
         h("a", { href: "https://geysermc.org", target: "_blank", rel: "noopener noreferrer" }, "Geyser ↗"),
-        ". They sign in with their own Microsoft account; they don't need Java Edition."),
+        ". They sign in with their own Microsoft account; they don't need Java Edition. Xbox, PlayStation and Switch can't add servers by themselves; GeyserMC's guide shows the workarounds.")],
       on ? [
         h("div", { class: `notice ${r.installed ? "ok" : "warn"} mt-s` }, r.installed ? "Bedrock players can join." : "Added: installed with the next update (Updates page)."),
         h("ul", { class: "small mt-s" },
-          h("li", {}, "In Bedrock: add a server with the same address as your Java friends use, and port ", h("strong", {}, String(r.port)),
-            ". On Windows, Win+R and ", h("code", {}, `minecraft://?addExternalServer=Server|<address>:${r.port}`), " adds it straight away (the Bedrock invite link shows how too)."),
-          h("li", {}, "Friends outside your home: also forward ", h("strong", {}, bedrockPortsText(r.ports, r.port)), " on your router (see Help → Router setup)."),
-          h("li", {}, "Xbox, PlayStation and Switch can't add servers by themselves; GeyserMC's guide shows the workarounds."),
-          h("li", {}, "With the whitelist on, add a Bedrock player on the Players page: a dot (.) and their Xbox gamertag, not their Java name (that's their name in game)."))]
-        : h("div", { class: "row mt-s" }, turnOn, h("span", { class: "muted small" }, "Adds the Geyser and Floodgate mods from Modrinth; remove them on the Mods page any time."))));
+          h("li", {}, "In Bedrock: add a server with the same address as your Java friends use, and port ", h("strong", {}, String(r.port)), ".",
+            infoTip("On Windows, Win+R and ", h("code", {}, `minecraft://?addExternalServer=Server|<address>:${r.port}`), " adds it straight away (the Bedrock invite link shows how too).")),
+          h("li", {}, "Friends outside your home: also forward ", h("strong", {}, bedrockPortsText(r.ports, r.port)), " on your router.", infoTip("See Help → Router setup.")),
+          h("li", {}, "With the whitelist on, add a Bedrock player on the Players page: a dot (.) and their Xbox gamertag, not their Java name."))]
+        : [h("p", { class: "small" }, "Friends on phones, tablets and consoles can join too, through Geyser."),
+          h("div", { class: "row mt-s" }, turnOn, infoTip("Adds the Geyser and Floodgate mods from Modrinth; remove them on the Mods page any time."))]));
   };
   load();
   return box;
@@ -4217,10 +4248,9 @@ function linkLifetime(d, done) {
   } }, (d.link_day_choices || [1, 3, 7]).map((n) => h("option", { value: String(n) }, label(n))));
   sel.value = String(d.link_days);
   return h("div", { class: "mt-s" },
-    h("label", { class: "row" }, h("span", {}, "Links work for"), sel),
-    h("p", { class: "muted small" }, "Anyone with a link can use it until it stops, so a link posted in a Discord channel works for everyone there. " +
-      "A link works for a week at most: while no link works, the download port is closed. " +
-      "Changing this starts the time again from now; it also applies to new links. Friends who already set up keep playing after a link stops, but need a new link to update their game."));
+    h("label", { class: "row" }, h("span", {}, "Links work for", infoTip("Anyone with a link can use it until it stops, so a link posted in a Discord channel works for everyone there. " +
+        "A link works for a week at most: while no link works, the download port is closed. " +
+        "Changing this starts the time again from now; it also applies to new links. Friends who already set up keep playing after a link stops, but need a new link to update their game.")), sel));
 }
 
 views.friends = () => {
@@ -4397,14 +4427,9 @@ views.friends = () => {
       fill(body, card(null, h("p", {}, "Friend downloads are part of Craft Conductor's server list. Start Craft Conductor by double-clicking it (or `craft-conductor start`) to use them.")));
       return;
     }
-    const toggle = h("input", { type: "checkbox", checked: d.enabled, onchange: (e) => save({ enabled: e.target.checked },
-      e.target.checked ? "Friend download switched on" : "Friend download switched off") });
-    const intro = card("Let friends set up their Minecraft",
-      h("p", {}, "Send your friends a link. They click it, download Craft Conductor and run it: it adds a ", h("strong", {}, (status && status.motd) || "server"),
-        " instance to their launcher (Minecraft Launcher, Prism Launcher, Modrinth App or CurseForge: they choose) with the right Minecraft version, mod loader and mods, and puts this server in their multiplayer list. They sign in with their own Minecraft account as usual."),
-      h("p", { class: "muted small" }, "🔒 Friends' Craft Conductor connects to this computer over HTTPS, and only to this computer: the invite carries its security fingerprint."),
-      h("label", { class: "row mt-s" }, toggle, h("span", {}, "Make a download for friends")));
-    if (!d.enabled) { fill(body, intro); return; }
+    // The friends' download is always on: a server added since (imported, or made with `craft-conductor create`) is
+    // switched on the first time its Friends page opens.
+    if (!d.enabled) { fill(body, h("p", { class: "muted" }, "Making friends' invite links…")); save({ enabled: true }, null); return; }
     const s = d.share || {};
     const links = d.links || {};
     const linkRow = (label, hint, url) => {
@@ -4424,10 +4449,11 @@ views.friends = () => {
     const pack = d.pack;
     const friendItems = friendModItems();
     fill(body,
-      intro,
-      h("div", { class: "mt" }, card("Invite links",
-        h("p", { class: "small" }, "Send one of these links (by Discord, text or email). Your friend clicks it, presses ",
-          h("strong", {}, "Download"), " and runs the file: Craft Conductor sets up their game. Next time, the link opens their Craft Conductor directly."),
+      card(["Invite links", infoTip("Send your friends a link. They click it, press ", h("strong", {}, "Download"), " and run the file: Craft Conductor adds a ",
+          h("strong", {}, (status && status.motd) || "server"), " instance to their launcher (Minecraft Launcher, Prism Launcher, Modrinth App or CurseForge: they choose) with the right ",
+          "Minecraft version, mod loader and mods, and puts this server in their multiplayer list. They sign in with their own Minecraft account as usual. Next time, the link opens their Craft Conductor directly. ",
+          "🔒 Friends' Craft Conductor connects to this computer over HTTPS, and only to this computer: the invite carries its security fingerprint.")],
+        h("p", { class: "small" }, "Send one of these links by Discord, text or email."),
         playersBlocked() ? h("div", { class: "notice bad", role: "alert" },
           h("strong", {}, "The invite links are paused: "),
           "players' Minecraft wouldn't start with these mods yet. Friends who open a link sent earlier are told to try again later. " +
@@ -4462,15 +4488,15 @@ views.friends = () => {
           [["Local", links.local], ["Internet", links.internet]].filter(([, l]) => l).map(([label, l]) =>
             h("div", { class: "row mt-s" }, h("span", { class: "tag" }, label),
               h("input", { readonly: true, value: l.split("#")[1].split("/")[0], class: "grow mono", "aria-label": `${label} invite code` })))) : null,
-        s.error ? h("div", { class: "notice bad mt-s" }, s.error)
-          : d.expired ? null  // (nothing to share until there are new links)
-          : h("p", { class: "muted small" }, s.running ? `Sharing on port ${s.port}.` : "Sharing starts in a few seconds."),
-        h("p", { class: "muted small" },
-          "For the internet link, friends' Craft Conductor downloads the setup from this computer: forward TCP port ", h("strong", {}, String(s.port)),
-          " on your router to this computer (Craft Conductor settings → Router can do it, and takes it back once no link works). ",
-          "The port is only open while a link works. How friends join the game itself is chosen under Friends outside your home, above. ",
-          "Your public address can change; press the button again if friends can't connect. You can also type an address (e.g. a domain) under ",
-          h("a", { href: "#craft-conductor" }, "Craft Conductor settings → Connections → Sharing with friends"), "."))),
+        (() => {
+          const why = infoTip("For the internet link, friends' Craft Conductor downloads the setup from this computer: forward TCP port ", h("strong", {}, String(s.port)),
+            " on your router to this computer (Craft Conductor settings → Router can do it, and takes it back once no link works). ",
+            "The port is only open while a link works. How friends join the game itself is chosen under Friends outside your home, above. ",
+            "Your public address can change; press the button again if friends can't connect. You can also type an address (e.g. a domain) under ",
+            h("a", { href: "#craft-conductor" }, "Craft Conductor settings → Connections → Sharing with friends"), ".");
+          return s.error ? h("div", { class: "notice bad mt-s" }, s.error, why)
+            : h("p", { class: "muted small" }, d.expired ? "" : s.running ? `Sharing on port ${s.port}.` : "Sharing starts in a few seconds.", why);
+        })()),
       h("div", { class: "mt" }, card("What friends get",
         d.pack_error ? h("div", { class: "notice warn" }, d.pack_error)
           : !pack ? h("p", { class: "empty" }, "Install the server first; the mod summary appears once it's set up.")
@@ -4481,8 +4507,8 @@ views.friends = () => {
         h("label", { class: "mt" }, "Memory for friends' Minecraft",
           (() => { const sel = h("select", { onchange: (e) => save({ memory_gb: Number(e.target.value) }, "Saved") },
             [2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32].map((g) => h("option", { value: String(g) }, `${g} GB`))); sel.value = String(d.memory_gb); return sel; })()))),
-      d.loader === "vanilla" || runsPlugins(d.loader) ? null : h("div", { class: "mt" }, card("Mods for players",
-        h("p", { class: "muted small" }, "Client-side mods like minimaps, recipe viewers or performance mods. The server's own mods that players need are included automatically, and so are the client-side mods they need."),
+      d.loader === "vanilla" || runsPlugins(d.loader) ? null : h("div", { class: "mt" }, card(["Mods for players",
+        infoTip("Client-side mods like minimaps, recipe viewers or performance mods. The server's own mods that players need are included automatically, and so are the client-side mods they need.")],
         h("div", { class: "source-buttons" },
           h("button", { type: "button", class: "btn", onclick: () => openBrowser({ type: "mod", target: server, side: "client", loader: d.loader, version: d.minecraft || "" }) },
             "🔎 Add Friends Mods", h("span", { class: "small muted" }, "Browse mods that run on players' computers")),
@@ -5301,7 +5327,7 @@ async function applyPreset(p, opts) {
   if (p.modpack) { openBrowser({ type: "modpack", target: "setup", loader: "" }); return; }
   const st = setupState;
   setupChoosePack(null);
-  Object.assign(st, { loader: p.loader, minecraft: "latest", localMods: [], friends: !!p.friends });
+  Object.assign(st, { loader: p.loader, minecraft: "latest", localMods: [], friends: true });  // (friends' download: always)
   st.mods.clear();
   const [lo, hi] = p.memory;
   st.memory_gb = Math.max(lo, Math.min(hi, opts.memory_gb || lo));
@@ -8881,7 +8907,7 @@ views["craft-conductor"] = () => {
 // The setup form's choices. One form at a time: `target` is what it's filling in ("new", or a
 // server's id), and it starts fresh when that changes, so a new server never inherits the
 // choices of the last one set up.
-const freshSetup = () => ({ target: null, friends: false, reach: "playit", loader: null, minecraft: "latest", mods: new Map(), motd: "A Minecraft server",
+const freshSetup = () => ({ target: null, friends: true, reach: "playit", loader: null, minecraft: "latest", mods: new Map(), motd: "A Minecraft server",
   properties: null, advancedOpen: false, max_players: 20, difficulty: "normal", gamemode: "survival", port: 25565, portChosen: false, portTyped: false, memory_gb: null,
   network_access: null, accept_eula: false, submitted: false, prefilled: false, modpack: null, localMods: [], world: null, showBetas: false,
   aikar: false, clientMods: new Map(), clientMeta: new Map(), clientLocal: [], companionsSeen: new Set(),  // friends' download: slug -> name; staged files
@@ -10077,7 +10103,7 @@ views.setup = () => {
         c && c.running ? h("p", { class: "small row", role: "status" }, h("span", { class: "spinner" }), t("Checking that the mods start together…")) : null,
         bad ? h("p", { class: "small bad-text", role: "alert" }, "These mods wouldn't start together. Fix them in ",
           fileCheckBad(c, "server") ? "Manage Mods" : "Manage Friends Mods", " (it glows), then create the server.") : null,
-        h("button", { type: "submit", class: "btn primary big", disabled: !!(c && c.running) || bad || !!st.creating }, "Create my server"));
+        h("button", { type: "submit", class: "btn primary big cta", disabled: !!(c && c.running) || bad || !!st.creating }, "Create my server"));
     };
     // Once: a double-click (or Enter pressed twice) while the server is being made sends nothing more.
     const submit = async (e) => {
@@ -10247,12 +10273,10 @@ views.setup = () => {
         : opts.reach && REACH_WAYS.some(([w]) => w === opts.reach) ? [h("h3", { class: "mt" }, "Friends outside your home"),
           h("p", { class: "small" }, h("strong", {}, REACH_WAYS.find(([w]) => w === opts.reach)[1]),
             ", as chosen when the server was made. You can change it on the server's Friends page.")] : null;
-      return card("Friends (optional)",
+      return card("Friends",
         outside,
-        h("h3", { class: "mt" }, "Friends' download"),
-        h("label", { class: "row check-row" },
-          h("input", { type: "checkbox", checked: st.friends, onchange: (e) => { st.friends = e.target.checked; if (st.friends) setupAnnounceCompanions(); renderForm(); } }),
-          h("span", {}, "Make a download for my friends: it sets up their Minecraft with this server's version and mods, and adds the server to their list")),
+        moddable ? h("h3", { class: "mt" }, "Your friends' mods", infoTip("Friends get a download that sets up their Minecraft with this server's version and mods, and adds the server to their list. " +
+          "Add mods for their Minecraft here (a minimap, JEI, …); they also get the server's mods that players need.")) : null,
         moddable ? h("div", { class: "source-buttons mt-s" },
           h("button", { type: "button", class: "btn", onclick: () => {
             if (!st.friends) { st.friends = true; setupAnnounceCompanions(); renderForm(); }
@@ -10261,8 +10285,7 @@ views.setup = () => {
           h("button", { type: "button", class: "btn", onclick: () => friendPicker.click() }, "📁 Local files",
             h("span", { class: "small muted" }, ".jar files on this computer, for players")),
           friendPicker) : null,
-        moddable && st.friends ? [h("h3", { class: "mt" }, "Your friends' mods"), list,
-          h("p", { class: "muted small" }, "Friends also get the server's mods that players need; server-only mods are left out.")] : null,
+        moddable && st.friends ? list : null,
         !moddable ? h("p", { class: "muted small" }, plugins ? "Plugins run on the server only: friends join with plain Minecraft." : "Friends join with plain Minecraft.") : null,
         h("p", { class: "muted small" }, "You get a link to share on the server's Friends page. You can change all this later there."));
     };

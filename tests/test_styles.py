@@ -279,3 +279,16 @@ def test_the_phone_menu_fits_above_the_browsers_own_bars():
     phone = text[text.index("@media(max-width:1023px)"):]
     assert re.search(r"@supports\s*\(height:\s*100dvh\)\s*\{\s*\.sidebar\s*\{[^}]*height:\s*calc\(100dvh", phone)
     assert re.search(r"\.sidebar\s*\{[^}]*padding-bottom:\s*calc\(16px \+ env\(safe-area-inset-bottom", phone)
+
+
+def test_only_cta_buttons_keep_the_filled_accent():
+    """Ordinary primary buttons (Save, Copy, Back up now…) use the standard button style;
+    only Start, Create my server and dialog confirmations carry .cta for the accent fill."""
+    theme = (WEBUI / "craft-conductor-theme.css").read_text(encoding="utf-8")
+    modern = (WEBUI / "craft-conductor-modern.css").read_text(encoding="utf-8")
+    assert ".btn.primary:not(.cta)" in theme
+    assert ':root[data-style="modern"] .btn.primary:not(.cta)' in modern
+    index = (WEBUI / "index.html").read_text(encoding="utf-8")
+    assert 'id="btn-start" class="btn primary cta"' in index
+    app = (WEBUI / "app.js").read_text(encoding="utf-8")
+    assert '"btn primary big cta"' in app and 'primary cta' in app

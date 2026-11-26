@@ -46,6 +46,15 @@ h1,h2,h3,.view-title,.page-title,.brand { color:var(--bright); text-transform:up
 .btn,.cc-btn,input,select,textarea,.switch { border-color:var(--field-border); }
 .btn.primary { background:var(--accent); border-color:var(--accent); color:var(--on-accent); }
 .btn.primary:hover:not(:disabled) { background:var(--panel); color:var(--accent); border-color:var(--accent); }
+/* Only Start, Create my server and a question's answer (.cta) are filled with the accent; every other button is an ordinary one,
+   and the accent marks what's chosen (the page in the sidebar, a picked card, the side of a switch on show). */
+.btn.primary:not(.cta) { background:var(--panel); background-image:none; border-color:var(--field-border); color:var(--bright); box-shadow:none; }
+.btn.primary:not(.cta):hover:not(:disabled) { background:var(--hover-bg); background-image:none; border-color:var(--hover-border); color:var(--bright); }
+.btn.primary:not(.cta):active:not(:disabled) { box-shadow:none; }
+/* (a choice card's ⓘ sits in its corner, beside the button: never inside it) */
+.choice-wrap { position:relative; display:grid; min-width:0; }
+.choice-wrap > .choice { height:100%; padding-inline-end:44px; }
+.choice-wrap > .info-wrap { position:absolute; top:10px; inset-inline-end:10px; }
 .btn.danger { border-color:var(--danger); color:var(--bad-fg); }
 .btn.ghost { color:var(--muted); }
 a { color:var(--accent); }
@@ -75,6 +84,19 @@ input,select,textarea { background:var(--console-bg); color:var(--text); font-fa
 .cc-style-switch.console-view::before { display:none; }
 .cc-style-switch.console-view label { white-space:nowrap; border:1px solid transparent; }
 .cc-style-switch.console-view label:has(input:checked) { background:var(--panel); color:var(--bright); border-color:var(--field-border); }
+/* ⓘ (infoTip): a small round button beside a title or a line, its explanation in a bubble that floats above the page
+   (the one place here with a real shadow, as for menus). Its button answers 44 pixels around it. */
+.info-wrap { position:relative; display:inline-block; vertical-align:baseline; text-transform:none; letter-spacing:normal; font-weight:400; }
+.info-tip { position:relative; display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; margin-inline-start:6px; padding:0;
+  border:0; border-radius:50%; background:none; color:var(--muted); font-size:16px; line-height:1; cursor:pointer; vertical-align:-3px; }
+.info-tip::after { content:""; position:absolute; inset:-11px; }
+.info-tip:hover, .info-wrap.pinned .info-tip { color:var(--accent); }
+.info-tip:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.info-bubble { display:none; position:absolute; z-index:60; top:calc(100% + 8px); inset-inline-start:-6px; width:max-content; max-width:min(380px, calc(100vw - 24px));
+  padding:10px 12px; background:var(--panel); color:var(--text); border:1px solid var(--border); font-size:14px; font-weight:400; line-height:1.5;
+  text-align:start; white-space:normal; box-shadow:0 12px 32px var(--shadow-strong); }
+.info-bubble::before { content:""; position:absolute; inset-inline:0; top:-10px; height:10px; }  /* (the mouse can cross to the bubble) */
+.info-wrap:hover .info-bubble, .info-wrap:focus-within .info-bubble, .info-wrap.pinned .info-bubble { display:block; }
 /* Page headings: read by screen readers (and jumped to), not drawn: the sidebar and the top bar say where you are. */
 h1.view-title:not(.says) { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
 .cc-telemetry-grid .card { margin:0; padding:20px; }

@@ -23,7 +23,7 @@ const assert = require('node:assert/strict');
   await page.getByText('The whitelist will be on').waitFor();
   await page.getByLabel(/Your Minecraft name/).waitFor();
   await page.locator('[data-reach="forward"]').click();
-  await page.getByText('Before you open a port:').first().waitFor();
+  await page.getByText('An open port lets anyone on the internet reach this server: keep the whitelist on.').first().waitFor();
   assert.match(await page.locator('main').innerText(), /Forward TCP port 3\d{4}/);
   await page.locator('[data-reach="home"]').click();
   assert.equal(await page.getByText('The whitelist will be on').count(), 0);

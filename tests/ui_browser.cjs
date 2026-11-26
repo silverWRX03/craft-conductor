@@ -171,6 +171,26 @@ const assert = require('node:assert/strict');
   await page.locator('#doctor').getByRole('button', {name:'Close',exact:true}).click();
   await go('s/alpha/players');
   await page.getByRole('heading', {name:'Player activity',exact:true}).scrollIntoViewIfNeeded();
+  // Step 4: Friends page decluttering — no toggle card, no "recommended", reach descriptions behind ⓘ,
+  // and ordinary action buttons (not .cta) use the standard button style.
+  await go('s/alpha/friends');
+  await page.locator('.choice-wrap .info-tip').first().waitFor();
+  const friendsText = await page.locator('#main').innerText();
+  assert.ok(!friendsText.includes("How friends who aren't on your Wi-Fi join this server"), 'no redundant subtitle');
+  assert.ok(!friendsText.includes('(recommended)'), 'no (recommended) tag on playit.gg');
+  assert.ok(!friendsText.includes('Let friends set up their Minecraft') && !friendsText.includes('Make a download for friends'),
+    'friends download is always on without a toggle card');
+  const firstTip = page.locator('.choice-wrap .info-tip').first();
+  await firstTip.click();
+  assert.equal(await firstTip.getAttribute('aria-expanded'), 'true');
+  const bubble = page.locator('.choice-wrap .info-bubble').first();
+  assert.ok(await bubble.isVisible() && (await bubble.innerText()).includes('Nothing is opened on your router'));
+  await page.keyboard.press('Escape');
+  assert.equal(await firstTip.getAttribute('aria-expanded'), 'false');
+  await go('s/alpha/backups');
+  const backupBtnBg = await page.getByRole('button', { name: 'Back up now', exact: true }).evaluate((b) => getComputedStyle(b).backgroundColor);
+  const startBtnBg = await page.locator('#btn-start').evaluate((b) => getComputedStyle(b).backgroundColor);
+  assert.notEqual(backupBtnBg, startBtnBg, 'ordinary primary buttons do not carry the filled accent');
   await go('s/alpha/settings');
   await page.getByRole('heading', {name:'Web map',exact:true}).scrollIntoViewIfNeeded();
   await go('craft-conductor');

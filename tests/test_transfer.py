@@ -46,7 +46,7 @@ def test_export_and_import_through_the_web(hub_env):
     status, body, _ = c.post("/api/hub/import", {"id": staged["id"]})
     assert status == 200, body
     sid = body["id"]
-    assert sid == "alpha-2" and body["left_out"] == []  # (no secrets to leave out)
+    assert sid == "alpha-2" and body["left_out"] == ["invite_secret"]  # (only the auto-made invite secret stays behind)
     new = hub.get(sid)
     from craft_conductor.properties import server_name
     names = [server_name(read_properties(x.m.server_dir / "server.properties")) for x in (d, new)]
@@ -87,12 +87,12 @@ def test_an_export_leaves_out_the_discord_webhook_and_curseforge_key(hub_env, tm
     parsed = tomllib.loads(settings)
     assert parsed["notify"]["discord_webhook"] == "" and parsed["curseforge"]["api_key"] == ""
     assert parsed["server"]["loader"] == d.m.config.server.loader  # (the rest is as it was)
-    assert manifest["left_out"] == ["curseforge_api_key", "discord_webhook"] and manifest["locked"] == []
+    assert manifest["left_out"] == ["curseforge_api_key", "discord_webhook", "invite_secret"] and manifest["locked"] == []
     assert webhook in d.m.config.path.read_text(encoding="utf-8")  # (the server itself keeps them)
 
     status, staged, _ = c.call("POST", "/api/hub/stage?filename=alpha.zip", raw=path.read_bytes())
     status, body, _ = c.post("/api/hub/import", {"id": staged["id"]})
-    assert status == 200 and body["left_out"] == ["curseforge_api_key", "discord_webhook"]
+    assert status == 200 and body["left_out"] == ["curseforge_api_key", "discord_webhook", "invite_secret"]
     imported = hub.get(body["id"]).m.config
     assert imported.discord_webhook == "" and "fake-curseforge" not in imported.path.read_text(encoding="utf-8")
 
@@ -142,7 +142,7 @@ def test_an_export_carries_what_was_chosen_and_locks_the_secrets_chosen(hub_env,
     d.m.reload_config()
     info = c.get("/api/servers/alpha/export")[1]
     assert {"world", "mods", "maps"} <= set(info["parts"])
-    assert set(info["sensitive"]) == {"curseforge_api_key", "discord_webhook", "rcon", "ip_bans"}
+    assert set(info["sensitive"]) == {"curseforge_api_key", "discord_webhook", "invite_secret", "rcon", "ip_bans"}
 
     # Everything but the world and the map; the CurseForge key, RCON and the IP bans go along, locked.
     status, body, _ = c.post("/api/servers/alpha/export", {"backups": False, "parts": ["mods", "configs", "players"],
@@ -162,7 +162,7 @@ def test_an_export_carries_what_was_chosen_and_locks_the_secrets_chosen(hub_env,
     assert "server/mods/lithium.jar" in names and "client-mods/my-own.jar" in names
     assert not any(n.startswith(("server/world/", "server/bluemap/")) for n in names) and "server/banned-ips.json" not in names
     assert "fake-rcon-password" not in props and "fake-curseforge" not in settings and "webhooks" not in settings
-    assert manifest["locked"] == ["curseforge_api_key", "ip_bans", "rcon"] and manifest["left_out"] == ["discord_webhook"]
+    assert manifest["locked"] == ["curseforge_api_key", "ip_bans", "rcon"] and manifest["left_out"] == ["discord_webhook", "invite_secret"]
     assert json.loads(locked["secrets.json"]) == {"toml": {"curseforge.api_key": "fake-curseforge-key-for-tests"},
                                                   "properties": {"rcon.password": "fake-rcon-password"}}
     assert b"203.0.113.9" in locked["server/banned-ips.json"]
@@ -174,7 +174,7 @@ def test_an_export_carries_what_was_chosen_and_locks_the_secrets_chosen(hub_env,
     status, wrong, _ = c.post("/api/hub/import", {"id": staged["id"], "password": "AAAA-AAAA-AAAA-AAAA-AAAA-AAAA"})
     assert status == 400 and "isn't the one" in wrong["error"]
     status, done, _ = c.post("/api/hub/import", {"id": staged["id"], "password": body["password"]})
-    assert status == 200 and done["opened"] == ["curseforge_api_key", "ip_bans", "rcon"] and done["left_out"] == ["discord_webhook"]
+    assert status == 200 and done["opened"] == ["curseforge_api_key", "ip_bans", "rcon"] and done["left_out"] == ["discord_webhook", "invite_secret"]
     new = hub.get(done["id"]).m
     assert new.config.curseforge_api_key == "fake-curseforge-key-for-tests" and new.config.discord_webhook == ""
     assert read_properties(new.server_dir / "server.properties")["rcon.password"] == "fake-rcon-password"
@@ -186,7 +186,7 @@ def test_an_export_carries_what_was_chosen_and_locks_the_secrets_chosen(hub_env,
     staged = c.call("POST", "/api/hub/stage?filename=alpha.zip", raw=data)[1]
     status, skip, _ = c.post("/api/hub/import", {"id": staged["id"], "skip_locked": True})
     assert status == 200 and skip["opened"] == [] and set(skip["left_out"]) == {"curseforge_api_key", "discord_webhook",
-                                                                                "ip_bans", "rcon"}
+                                                                                "invite_secret", "ip_bans", "rcon"}
     other = hub.get(skip["id"]).m
     fresh = read_properties(other.server_dir / "server.properties")["rcon.password"]
     assert fresh and fresh != "fake-rcon-password" and not (other.server_dir / "banned-ips.json").exists()

@@ -209,6 +209,7 @@ class Hub:
         self.ui = None
         self.share = None           # the share server for friends' downloads, while one is switched on
         self.share_error: str | None = None
+        self._share_lock = threading.Lock()
         self._lock = threading.RLock()
         self._hub_lock = threading.RLock()  # hub.json: one change at a time (see _update_hub_file)
 
@@ -532,24 +533,25 @@ class Hub:
         if self.is_single:
             return
         from .share import ShareServer
-        now = time.time()
-        wanted = any(d.m.config.client.link_works(now) for d in list(self.daemons.values()))
-        port = self.share_settings()["port"]
-        was = self.share.port if self.share else None
-        if self.share and (not wanted or restart or self.share.port != port):
-            self.share.stop()
-            self.share = None
-            if not wanted:
-                log.info("no invite link works any more, so friends' downloads stopped (port %s closed)", was)
-        if wanted and self.share is None:
-            server = ShareServer(self, port)
-            try:
-                server.start()
-                self.share, self.share_error = server, None
-            except (OSError, ValueError) as e:  # (ssl.SSLError is an OSError)
-                self.share_error = f"port {port} is busy ({e.strerror or e}); pick another in Craft Conductor settings"
-                log.warning("couldn't start sharing: %s", self.share_error)
-        now_port = self.share.port if self.share else None
+        with self._share_lock:
+            now = time.time()
+            wanted = any(d.m.config.client.link_works(now) for d in list(self.daemons.values()))
+            port = self.share_settings()["port"]
+            was = self.share.port if self.share else None
+            if self.share and (not wanted or restart or self.share.port != port):
+                self.share.stop()
+                self.share = None
+                if not wanted:
+                    log.info("no invite link works any more, so friends' downloads stopped (port %s closed)", was)
+            if wanted and self.share is None:
+                server = ShareServer(self, port)
+                try:
+                    server.start()
+                    self.share, self.share_error = server, None
+                except (OSError, ValueError) as e:  # (ssl.SSLError is an OSError)
+                    self.share_error = f"port {port} is busy ({e.strerror or e}); pick another in Craft Conductor settings"
+                    log.warning("couldn't start sharing: %s", self.share_error)
+            now_port = self.share.port if self.share else None
         if now_port != was and self.upnp_settings()["enabled"]:
             # The router forwards the download port only while a link works: taken back (or
             # asked for again) now, not at the next half-hourly renewal.
@@ -660,6 +662,7 @@ class Hub:
                 self.daemons.pop(sid, None)
                 return
         self.problems.pop(sid, None)
+        self._friends_download_on(sid, m)
         self._end_long_link(sid, m)
         d = Daemon(m, tick=self.tick, autostart=False, server_id=sid, hub_managed=True)
         d.hub = self
@@ -669,6 +672,25 @@ class Hub:
         t = threading.Thread(target=d.run, daemon=True, name=f"server:{sid}")
         self._threads[sid] = t
         t.start()
+
+    def _friends_download_on(self, sid: str, m) -> None:
+        """The friends' download is always on (the panel has no switch for it): a server that had it off gets it when
+        Craft Conductor starts, with a link if it never had one (working for the usual days: the download port is only
+        open while a link works). A link that stopped stays stopped: New links on the Friends page makes new ones.
+        A server still waiting for first-time setup is left alone until it is created."""
+        c = m.config.client
+        if c.enabled or setupmod.is_pending(m.config.root):
+            return
+        from .clientpack import make_link
+        try:
+            configmod.set_value(m.config.path, "client", "enabled", "true")
+            if not c.token:
+                make_link(m.config.path)
+            m.reload_config()
+        except (ConfigError, OSError) as e:
+            log.warning("couldn't switch on %s's friends' download: %s", sid, e)
+            return
+        log.info("switched on %s's friends' download (always on now)", sid)
 
     def _end_long_link(self, sid: str, m) -> None:
         """An invite link made before links worked a week at most ("until I make new ones", or

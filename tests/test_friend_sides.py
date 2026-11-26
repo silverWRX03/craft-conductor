@@ -215,9 +215,9 @@ def test_a_server_mod_that_runs_on_both_sides_goes_in_friends_mods_too(hub_env, 
     r = c.post(many, {"mods": [{"source": "modrinth", "id": "server-tool"}]})[1]
     assert r["added"] == ["Server Tool"] and "for_players" not in r and players(hub) == []
     # One that runs on both sides goes in friends' mods too: as craft-conductor.toml names it, with the
-    # mods it needs that run on both sides (by project id). The friends' download is off: it says so.
+    # mods it needs that run on both sides (by project id). Friends' download starts on now.
     r = c.post(many, {"mods": [{"source": "modrinth", "id": "recipes"}]})[1]
-    assert r["for_players"] == [{"name": "Recipe Viewer", "deps": ["Recipe Library"]}] and r["friends_on"] is False
+    assert r["for_players"] == [{"name": "Recipe Viewer", "deps": ["Recipe Library"]}] and r["friends_on"] is True
     assert players(hub) == ["recipes", "LIB"]
     # Each list knows the other has them: removing it from the server asks about both.
     m = hub.get("alpha").m

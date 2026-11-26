@@ -237,8 +237,11 @@ def test_check_my_setup_offers_to_remove_rules_for_ports_nothing_uses(hub_env, m
 
 def test_the_friends_download_rule_is_offered_when_nothing_shares_it(hub_env, monkeypatch):
     from test_hub import login
+    from test_web import wait_for
     hub, c = hub_env
     login(c)
+    assert c.post("/api/servers/alpha/client/stop-link")[0] == 200
+    wait_for(lambda: hub.share is None, timeout=15)
     port = hub.share_settings()["port"]
     monkeypatch.setattr(firewall, "available", lambda: True)
     monkeypatch.setattr(firewall, "read", lambda timeout=30, fresh=False: state([ours(port, f"Craft Conductor: friends downloads (TCP {port})")]))
