@@ -115,7 +115,6 @@
   "Best match": "Meilleure correspondance",
   "Beta version": "Version bêta",
   "Beta versions (for testing)": "Versions bêta (pour tester)",
-  "Bigger text,": "Texte plus grand,",
   "Biomes 4× bigger.": "Biomes 4 fois plus grands.",
   "Blocks, chests, animals and villagers in that area go back to how they were. Players' inventories don't change.": "Les blocs, coffres, animaux et villageois de cette zone redeviennent comme avant. Les inventaires des joueurs ne changent pas.",
   "BlueMap draws the map with Minecraft's own textures, which it downloads from Mojang. It waits for your OK.": "BlueMap dessine la carte avec les textures de Minecraft, qu'il télécharge chez Mojang. Il attend votre accord.",
@@ -1183,5 +1182,7 @@
   "In the world's datapacks folder.": "Dans le dossier datapacks du monde.",
   "The pack has no server pack, and Modrinth says this mod only runs on players' computers, so it goes in your friends' download instead of on the server.": "Le pack n'a pas de pack serveur et Modrinth indique que ce mod ne tourne que sur les ordinateurs des joueurs : il va donc dans le téléchargement de vos amis plutôt que sur le serveur.",
   "The pack's server pack leaves it out, so it goes in your friends' download instead of on the server.": "Le pack serveur du modpack l'exclut, il va donc dans le téléchargement de vos amis plutôt que sur le serveur.",
-  "This modpack marks it client-only, so Craft Conductor already leaves it off the server.": "Ce modpack l'indique comme réservé aux clients, donc Craft Conductor le laisse déjà hors du serveur."
+  "This modpack marks it client-only, so Craft Conductor already leaves it off the server.": "Ce modpack l'indique comme réservé aux clients, donc Craft Conductor le laisse déjà hors du serveur.",
+  "Appearance: Look, language, size, contrast and motion.": "Apparence : style, langue, taille, contraste et mouvement.",
+  "Appearance: Look, language, size, contrast and motion": "Apparence : style, langue, taille, contraste et mouvement"
 }

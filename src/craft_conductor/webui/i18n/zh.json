@@ -121,7 +121,6 @@
   "Best match": "最佳匹配",
   "Beta version": "测试版",
   "Beta versions (for testing)": "测试版（用于测试）",
-  "Bigger text,": "更大的文字、",
   "Biomes 4× bigger.": "生物群系大 4 倍。",
   "Blocks, chests, animals and villagers in that area go back to how they were. Players' inventories don't change.": "该区域的方块、箱子、动物和村民会恢复原样。玩家的物品栏不变。",
   "BlueMap draws the map with Minecraft's own textures, which it downloads from Mojang. It waits for your OK.": "BlueMap 用 Minecraft 自己的材质绘制地图，这些材质从 Mojang 下载。它在等你同意。",
@@ -1212,5 +1211,7 @@
   "In the world's datapacks folder.": "位于世界的 datapacks 文件夹中。",
   "The pack has no server pack, and Modrinth says this mod only runs on players' computers, so it goes in your friends' download instead of on the server.": "该整合包没有服务端包，且 Modrinth 标注此模组仅在玩家电脑上运行，因此它会放入好友的下载包中，而不安装在服务端。",
   "The pack's server pack leaves it out, so it goes in your friends' download instead of on the server.": "该整合包的服务端包未包含此模组，因此它会放入好友的下载包中，而不安装在服务端。",
-  "This modpack marks it client-only, so Craft Conductor already leaves it off the server.": "该整合包将其标记为仅客户端，因此 Craft Conductor 已将其排除在服务端之外。"
+  "This modpack marks it client-only, so Craft Conductor already leaves it off the server.": "该整合包将其标记为仅客户端，因此 Craft Conductor 已将其排除在服务端之外。",
+  "Appearance: Look, language, size, contrast and motion.": "外观：样式、语言、字号、对比度和动态效果。",
+  "Appearance: Look, language, size, contrast and motion": "外观：样式、语言、字号、对比度和动态效果"
 }

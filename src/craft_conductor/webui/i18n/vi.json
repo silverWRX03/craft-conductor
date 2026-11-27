@@ -121,7 +121,6 @@
   "Best match": "Phù hợp nhất",
   "Beta version": "Phiên bản beta",
   "Beta versions (for testing)": "Phiên bản beta (để thử)",
-  "Bigger text,": "Chữ to hơn,",
   "Biomes 4× bigger.": "Quần xã lớn gấp 4 lần.",
   "Blocks, chests, animals and villagers in that area go back to how they were. Players' inventories don't change.": "Khối, rương, động vật và dân làng trong khu vực đó trở lại như cũ. Túi đồ của người chơi không đổi.",
   "BlueMap draws the map with Minecraft's own textures, which it downloads from Mojang. It waits for your OK.": "BlueMap vẽ bản đồ bằng texture của chính Minecraft, tải từ Mojang. Nó chờ bạn đồng ý.",
@@ -1207,5 +1206,7 @@
   "In the world's datapacks folder.": "Trong thư mục datapacks của thế giới.",
   "The pack has no server pack, and Modrinth says this mod only runs on players' computers, so it goes in your friends' download instead of on the server.": "Gói này không có gói máy chủ và Modrinth cho biết mod này chỉ chạy trên máy người chơi, nên nó sẽ vào gói tải cho bạn bè thay vì trên máy chủ.",
   "The pack's server pack leaves it out, so it goes in your friends' download instead of on the server.": "Gói máy chủ của gói mod bỏ qua mod này, nên nó sẽ vào gói tải cho bạn bè thay vì trên máy chủ.",
-  "This modpack marks it client-only, so Craft Conductor already leaves it off the server.": "Gói mod này đánh dấu đây là mod chỉ dành cho máy khách, nên Craft Conductor đã bỏ nó khỏi máy chủ."
+  "This modpack marks it client-only, so Craft Conductor already leaves it off the server.": "Gói mod này đánh dấu đây là mod chỉ dành cho máy khách, nên Craft Conductor đã bỏ nó khỏi máy chủ.",
+  "Appearance: Look, language, size, contrast and motion.": "Giao diện: kiểu hiển thị, ngôn ngữ, cỡ chữ, độ tương phản và chuyển động.",
+  "Appearance: Look, language, size, contrast and motion": "Giao diện: kiểu hiển thị, ngôn ngữ, cỡ chữ, độ tương phản và chuyển động"
 }

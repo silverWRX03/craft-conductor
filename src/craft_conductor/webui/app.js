@@ -6371,7 +6371,7 @@ const HELP = [
       h("a", { href: "https://github.com/silverWRX03/craft-conductor/blob/main/docs/headless.md", target: "_blank", rel: "noopener noreferrer" }, "Step-by-step guide ↗"),
       " · ", h("a", { href: "https://github.com/silverWRX03/craft-conductor/blob/main/docs/docker.md", target: "_blank", rel: "noopener noreferrer" }, "Docker ↗"))]],
   ["remote", "Using Craft Conductor from your phone", () => [
-    h("p", {}, "The hamburger menu at the top left opens navigation. Light / Dark and Classic / Modern are in Craft Conductor settings → Appearance → Look: Modern at first, and each person's own choice of Classic or Modern is remembered in this browser, apart from Light / Dark. The Dashboard shows CPU, RAM, server-volume Disk usage and Players in four cards, above the boxed Live console."),
+    h("p", {}, "The hamburger menu at the top left opens navigation. Light / Dark and Classic / Modern are in Craft Conductor settings → Appearance → Look: Modern at first, and each person's own choice of Classic or Modern is remembered in this browser, apart from Light / Dark. The Dashboard shows CPU, RAM, server-volume Disk usage, Players and Performance in five cards, above the boxed Live console."),
     screenshot("phone", "The Dashboard on a phone."),
     h("p", {}, "Open ", h("button", { type: "button", class: "link-btn", onclick: openRemoteAccess }, "Remote access & phones"),
       ": set a strong password, allow other devices, and pair your phone by scanning a QR code (it works once, for five minutes). Until then, only this computer can open the control panel. Away from home (step 3): Tailscale keeps it private to your own devices and the people you share this computer with; Cloudflare's quick tunnel puts it on the internet for 4 hours. Both are free. Never forward the control panel's port on your router."),
@@ -6384,9 +6384,9 @@ const HELP = [
   ["keyboard", "Keyboard, screen readers and display", () => [
     h("p", {}, "Everything works with the keyboard: Tab moves, Enter or Space presses, Escape closes a window. The first Tab reaches ",
       h("strong", {}, "Skip to main content"), ". Screen readers read out messages as they appear. Missed one? The bell at the top right keeps the last 100: Enter opens it, Escape closes it."),
-    h("p", {}, "Bigger text, ", h("strong", {}, "High contrast"), " and ", h("strong", {}, "Less motion"), " are under ",
-      h("a", { href: "#craft-conductor" }, "Craft Conductor settings"), " → Appearance → ", h("strong", {}, "Display"), "."),
-    screenshot("display", "Appearance: language, size, contrast and motion.")]],
+    h("p", {}, h("strong", {}, "Look"), " (Light / Dark and Classic / Modern), bigger text, ", h("strong", {}, "High contrast"), " and ", h("strong", {}, "Less motion"), " are under ",
+      h("a", { href: "#craft-conductor" }, "Craft Conductor settings"), " → Appearance."),
+    screenshot("display", "Appearance: Look, language, size, contrast and motion.")]],
 ];
 
 // The user manual (manual.md, part of Craft Conductor): the same text as on GitHub, shown here with a
@@ -6425,7 +6425,7 @@ const MANUAL_PICTURES = {
   "People and what they may do": [["people", "People: what each person may do on each server"],
     ["person-edit", "Editing what someone may do: a role for each server, and Customize permissions"]],
   "Craft Conductor settings": [["craft-conductor-settings", "Craft Conductor settings: Connections"],
-    ["display", "Appearance: language, size, contrast and motion"],
+    ["display", "Appearance: Look, language, size, contrast and motion"],
     ["folders", "Folders: where files are kept, and where mods downloaded by hand are looked for"],
     ["update-available", "A Craft Conductor update is available"], ["update-dots", "About & updates: the red dots, and the update waiting"],
     ["updating", "Updating Craft Conductor, with the step it's on"], ["update-restarting", "Restarting Craft Conductor while the control panel is away"],

@@ -121,7 +121,6 @@
   "Best match": "सबसे मेल खाते",
   "Beta version": "बीटा संस्करण",
   "Beta versions (for testing)": "बीटा संस्करण (परीक्षण के लिए)",
-  "Bigger text,": "बड़ा टेक्स्ट,",
   "Biomes 4× bigger.": "बायोम 4 गुना बड़े।",
   "Blocks, chests, animals and villagers in that area go back to how they were. Players' inventories don't change.": "उस क्षेत्र के ब्लॉक, संदूक, जानवर और ग्रामीण पहले जैसे हो जाते हैं। खिलाड़ियों की इन्वेंटरी नहीं बदलती।",
   "BlueMap draws the map with Minecraft's own textures, which it downloads from Mojang. It waits for your OK.": "BlueMap नक्शा Minecraft के अपने टेक्सचर से बनाता है, जिन्हें वह Mojang से डाउनलोड करता है। यह आपकी अनुमति का इंतज़ार करता है।",
@@ -1212,5 +1211,7 @@
   "In the world's datapacks folder.": "वर्ल्ड के datapacks फ़ोल्डर में।",
   "The pack has no server pack, and Modrinth says this mod only runs on players' computers, so it goes in your friends' download instead of on the server.": "इस पैक में सर्वर पैक नहीं है, और Modrinth के अनुसार यह मॉड केवल खिलाड़ियों के कंप्यूटर पर चलता है, इसलिए इसे सर्वर के बजाय आपके दोस्तों के डाउनलोड में रखा गया है।",
   "The pack's server pack leaves it out, so it goes in your friends' download instead of on the server.": "पैक का सर्वर पैक इसे बाहर रखता है, इसलिए यह सर्वर के बजाय आपके दोस्तों के डाउनलोड में जाता है।",
-  "This modpack marks it client-only, so Craft Conductor already leaves it off the server.": "यह मॉडपैक इसे केवल-क्लाइंट के रूप में चिह्नित करता है, इसलिए Craft Conductor इसे पहले से ही सर्वर से बाहर रखता है।"
+  "This modpack marks it client-only, so Craft Conductor already leaves it off the server.": "यह मॉडपैक इसे केवल-क्लाइंट के रूप में चिह्नित करता है, इसलिए Craft Conductor इसे पहले से ही सर्वर से बाहर रखता है।",
+  "Appearance: Look, language, size, contrast and motion.": "दिखावट: लुक, भाषा, आकार, कंट्रास्ट और गति।",
+  "Appearance: Look, language, size, contrast and motion": "दिखावट: लुक, भाषा, आकार, कंट्रास्ट और गति"
 }

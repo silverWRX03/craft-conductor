@@ -9368,5 +9368,61 @@
     "type": "Extra",
     "tags": [],
     "source": "added-in-git"
+  },
+  {
+    "id": 1072,
+    "section": "UI redesign: flat surfaces and no glow (Modern and Classic)",
+    "step": "Check both Modern and Classic in Light and Dark themes across Dashboard, Mods, Backups and Settings: cards, rows, buttons, top bar and sidebar sit flat with thin borders and no glow; only dialogs, menus, the bell and messages cast a shadow; hover changes background without lifting cards or buttons; the Running dot does not pulse; the orange Manage Mods alert still glows when attention is needed.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1073,
+    "section": "UI redesign: slim top bar and Look in Appearance",
+    "step": "On desktop and phone, check the top bar only shows server status, Start, Restart, Stop and the bell; switch Light / Dark and Classic / Modern under Craft Conductor settings → Appearance → Look and verify both choices persist across reloads (and the sign-in page keeps its Light / Dark switch).",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1074,
+    "section": "UI redesign: sidebar groups and Dashboard console",
+    "step": "Verify the sidebar lists Dashboard, Friends, Players, Mods, Updates first, folds Backups, Java and Settings under Maintenance until expanded, and places Help, User manual and Craft Conductor settings above Sign out; verify Dashboard has five top cards (CPU, RAM, Disk used/free, Players, Performance), Live console with Activity / Console toggle and Logs folder / Crash reports buttons, and Check my setup / Why am I lagging? / Play on this computer underneath; an old #s/<id>/console link opens the Dashboard.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1075,
+    "section": "UI redesign: helper ⓘ tooltips, always-on friends' download and calmer buttons",
+    "step": "On Friends, Backups, Settings, Java, Mods and Updates, open ⓘ tooltip buttons by hover, click and keyboard (Escape/outside click closes) while short safety warnings stay visible; verify friends' downloads are on automatically with no toggle on Friends or New server; confirm filled accent buttons appear only on Start, Create my server and dialog confirms.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1076,
+    "section": "UI redesign: New server Quick start and Custom setup tabs",
+    "step": "Open New server: verify Quick start opens first with preset cards; pick a preset to see the compact Finish setup card (name, Friends outside your home with one-line playit.gg warning + ⓘ, Create my server); switch to Custom setup via click and Left/Right arrow keys and verify the preset's loader, version and mods are pre-filled.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1077,
+    "section": "UI redesign: Backups Restore modal, folded What changed and Manage Mods rows",
+    "step": "On Backups (server stopped), press Restore… on a backup row and verify the Restore from backup modal offers Roll back the whole server and Put back an area… (Escape/Cancel closes); in New server → Manage Mods after changing loader/version, verify What changed starts folded until clicked; in Manage Mods verify each row shows Version and Source inline after the selected by you tag without repeated Minecraft/loader text or .jar filenames and with right-aligned controls.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
+  },
+  {
+    "id": 1078,
+    "section": "UI redesign: landing page hero actions and modal-only demo prompt",
+    "step": "Open the built website on desktop and phone (Dark and Light): verify Try the live demo and Download buttons sit above the fold in the hero, the #demo section shows a single Try the live demo button beside the phone QR card (no duplicate inline choice cards), clicking Try the live demo opens the choice modal, and cards/controls share the flat hairline no-glow style.",
+    "type": "Extra",
+    "tags": [],
+    "source": "added-in-git"
   }
 ]

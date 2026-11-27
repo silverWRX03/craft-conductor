@@ -121,7 +121,6 @@
   "Best match": "الأكثر تطابقًا",
   "Beta version": "إصدار تجريبي",
   "Beta versions (for testing)": "إصدارات تجريبية (للاختبار)",
-  "Bigger text,": "نص أكبر،",
   "Biomes 4× bigger.": "مناطق حيوية أكبر بأربع مرات.",
   "Blocks, chests, animals and villagers in that area go back to how they were. Players' inventories don't change.": "تعود الكتل والصناديق والحيوانات والقرويون في تلك المنطقة كما كانت. لا تتغير حقائب اللاعبين.",
   "BlueMap draws the map with Minecraft's own textures, which it downloads from Mojang. It waits for your OK.": "يرسم BlueMap الخريطة بخامات Minecraft نفسها التي ينزّلها من Mojang. إنه ينتظر موافقتك.",
@@ -1212,5 +1211,7 @@
   "In the world's datapacks folder.": "في مجلد حزم البيانات (datapacks) الخاص بالعالم.",
   "The pack has no server pack, and Modrinth says this mod only runs on players' computers, so it goes in your friends' download instead of on the server.": "لا تحتوي الحزمة على حزمة خادم، ويقول Modrinth إن هذا المود يعمل على أجهزة اللاعبين فقط، لذلك يُضاف إلى تنزيل أصدقائك بدلًا من الخادم.",
   "The pack's server pack leaves it out, so it goes in your friends' download instead of on the server.": "حزمة الخادم الخاصة بهذه الحزمة تستبعده، لذلك يُضاف إلى تنزيل أصدقائك بدلًا من الخادم.",
-  "This modpack marks it client-only, so Craft Conductor already leaves it off the server.": "تصنّفه هذه الحزمة للعميل فقط، لذلك يتركه Craft Conductor خارج الخادم بالفعل."
+  "This modpack marks it client-only, so Craft Conductor already leaves it off the server.": "تصنّفه هذه الحزمة للعميل فقط، لذلك يتركه Craft Conductor خارج الخادم بالفعل.",
+  "Appearance: Look, language, size, contrast and motion.": "المظهر: الشكل واللغة والحجم والتباين والحركة.",
+  "Appearance: Look, language, size, contrast and motion": "المظهر: الشكل واللغة والحجم والتباين والحركة"
 }

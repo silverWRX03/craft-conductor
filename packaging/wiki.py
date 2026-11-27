@@ -80,7 +80,7 @@ IMAGES = {
     "People and what they may do": [("people.png", "People: what each person may do on each server"),
                                     ("person-edit.png", "Editing what someone may do: a role for each server, and Customize permissions")],
     "Craft Conductor settings": [("craft-conductor-settings.png", "Craft Conductor settings: Connections"),
-                                 ("display.png", "Appearance: language, size, contrast and motion"),
+                                 ("display.png", "Appearance: Look, language, size, contrast and motion"),
                                  ("folders.png", "Folders: where files are kept, and where mods downloaded by hand are looked for"),
                                  ("update-available.png", "A Craft Conductor update is available"),
                                  ("update-dots.png", "About & updates: the red dots, and the update waiting"),

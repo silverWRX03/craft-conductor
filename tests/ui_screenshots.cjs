@@ -327,7 +327,7 @@ const HEADERS = {'X-CRAFT-CONDUCTOR': '1'};
     in_progress: false, deferred: false, failure: null,
     notes: 'Added: a red dot while an update is waiting. Changed: Later lasts until Craft Conductor restarts. Fixed: the update no longer opens another browser tab.'};
   const fake = {self_update: release, down: false};
-  await context.route('**/api/hub', async route => {
+  await context.route(/\/api\/hub(?:\?|$)/, async route => {
     const response = await route.fetch();
     return route.fulfill({response, json: {...(await response.json()), self_update: fake.self_update, update_result: null}});
   });
