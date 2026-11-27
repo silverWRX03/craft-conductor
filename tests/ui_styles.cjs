@@ -99,7 +99,7 @@ const path = require('node:path');
   await themeSwitch.click();
   assert.equal(await theme(page), night);
 
-  // Classic stays Classic: square, capital letters, graph paper; Modern has 16px panels, 8px controls, ordinary words,
+  // Classic stays Classic: square, capital letters, graph paper; Modern has 17px tonal panels, 14px controls, ordinary words,
   // a plain background and 44-pixel buttons with a mouse too.
   const look = () => page.evaluate(() => {
     const b = document.querySelector('.actions .btn'), c = document.querySelector('main .card');
@@ -111,7 +111,7 @@ const path = require('node:path');
   assert.deepEqual(await look(), { caps: 'uppercase', button: '0px', card: '0px', paper: true, tall: false });
   await choose(modern, '#s/alpha/settings');
   await page.locator('main .card').first().waitFor();
-  assert.deepEqual(await look(), { caps: 'none', button: '8px', card: '16px', paper: false, tall: true });
+  assert.deepEqual(await look(), { caps: 'none', button: '14px', card: '17px', paper: false, tall: true });
   assert.ok(await page.evaluate(() => document.getElementById('skip-link').getBoundingClientRect().height >= 44), 'Skip to main content is 44 pixels too');
   // under a mouse a button changes its background and stays where it is
   const hovered = () => page.locator('main .btn:visible').first().evaluate((b) => [getComputedStyle(b).transform, getComputedStyle(b).backgroundColor]);

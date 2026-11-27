@@ -76,7 +76,8 @@ document.addEventListener("click", (e) => {
 function themeBar() {
   const bar = document.querySelector('meta[name="theme-color"]');
   const modern = document.documentElement.dataset.style !== "classic";
-  if (bar) bar.setAttribute("content", document.documentElement.dataset.theme === "day" ? "#F4F4F4" : modern ? "#161B20" : "#0A0A0A");
+  if (bar) bar.setAttribute("content", document.documentElement.dataset.theme === "day"
+    ? (modern ? "#EDF2F5" : "#F4F4F4") : (modern ? "#0B0E11" : "#0A0A0A"));
 }
 
 // ------------------------------------------------------------------ Classic / Modern
@@ -237,6 +238,70 @@ function upload(path, file, onProgress) {
   });
 }
 
+// Crisp monochrome inline SVG icons used in Modern (hidden in Classic so Classic keeps its exact look).
+const CC_ICONS = {
+  cpu: '<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4m6-4v4M9 18v4m6-4v4M2 9h4m-4 6h4M18 9h4m-4 6h4"/>',
+  ram: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10v4m4-4v4m4-4v4"/>',
+  disk: '<ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.66 3.58 3 8 3s8-1.34 8-3V6"/><path d="M4 12v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6"/>',
+  players: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 19v-1a5 5 0 0 1 10 0v1"/><circle cx="17" cy="9" r="2.5"/><path d="M15 15.5a4 4 0 0 1 6.5 3.5"/>',
+  performance: '<path d="M22 12h-4l-3 7-6-14-3 7H2"/>',
+  folder: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
+  crash: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+  doctor: '<path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/>',
+  lag: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  play: '<rect x="2" y="6" width="20" height="12" rx="4"/><path d="M6 12h4M8 10v4m7-2h.01M17 10h.01"/>',
+  cmd: '<polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/>',
+  box: '<path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/>',
+  flask: '<path d="M10 2v7.31L4.72 19a2 2 0 0 0 1.74 3h11.08a2 2 0 0 0 1.74-3L14 9.31V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/>',
+  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+  unlock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.8-1.2"/>',
+  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/><path d="M9 20v-6h6v6"/>',
+  compass: '<circle cx="12" cy="12" r="9"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>',
+  chat: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  map: '<polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/>',
+  bolt: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+  puzzle: '<path d="M19.4 10H18V6a2 2 0 0 0-2-2h-4V2.6a2 2 0 0 0-4 0V4H4v4h1.4a2 2 0 0 1 0 4H4v4h4v1.4a2 2 0 0 0 4 0V16h4a2 2 0 0 0 2-2v-4h1.4a2 2 0 0 0 0-4Z"/>',
+  block: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16"/>',
+  terminal: '<rect x="3" y="4" width="18" height="16" rx="2"/><polyline points="7 10 10 13 7 16"/><line x1="13" y1="16" x2="17" y2="16"/>',
+  print: '<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
+  book: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+  bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4l2-2Z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>',
+  pin: '<path d="M12 22s7-5.5 7-12a7 7 0 1 0-14 0c0 6.5 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/>',
+  bulb: '<path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.3h6c0-1 .4-1.8 1-2.3A7 7 0 0 0 12 2z"/>',
+  dice: '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="8.5" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="8.5" cy="15.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.2" fill="currentColor"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21v-2a6 6 0 0 1 12 0v2"/>',
+  phone: '<rect x="6" y="2" width="12" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>',
+  ban: '<circle cx="12" cy="12" r="9"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/>',
+  info: '<circle cx="12" cy="7.2" r="1.85" fill="currentColor" stroke="none"/><path d="M10.4 11.2h1.6v5.8m-1.8 0h3.6" stroke-width="2.35"/>',
+};
+function ccSvg(name, cls = "cc-btn-icon") {
+  const wrap = h("i", { class: cls, "aria-hidden": "true" });
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "1.9");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.innerHTML = CC_ICONS[name] || "";
+  wrap.append(svg);
+  return wrap;
+}
+function ccLabel(emoji, iconName, label) {
+  return [h("i", { class: "cc-emoji", "aria-hidden": "true" }, emoji + " "), ccSvg(iconName), label];
+}
+// Splits a full translatable string starting with an emoji (so i18n keys stay intact in source and translations work)
+// into Classic's emoji + Modern's crisp monochrome SVG + translated label.
+function ccText(raw, iconName, { inline = false, head = false } = {}) {
+  const tr = t(raw);
+  const m = tr.match(/^(\S+)\s+([\s\S]+)$/);
+  const kids = m ? [h("i", { class: "cc-emoji", "aria-hidden": "true" }, m[1] + " "), ccSvg(iconName, inline ? "cc-inline-icon" : "cc-btn-icon"), m[2]]
+    : [ccSvg(iconName, inline ? "cc-inline-icon" : "cc-btn-icon"), tr];
+  return head ? h("span", { class: "cc-btn-head" }, kids) : kids;
+}
+
 // "Open folder" buttons: shown only in a browser on the server's own computer, where
 // Craft Conductor can open the file manager. ``sid`` picks a server other than the current one.
 function folderBtn(what, label, sid, cls = "btn ghost small") {
@@ -244,7 +309,7 @@ function folderBtn(what, label, sid, cls = "btn ghost small") {
   const path = what === "home" ? "/api/hub/open" : sid ? `/api/servers/${encodeURIComponent(sid)}/open` : "/api/open";
   return h("button", { type: "button", class: cls, title: "Open in your file manager",
     onclick: () => api(path, { method: "POST", body: { what } }).catch((e) => { if (!(e instanceof Unauthorized)) toast(e.message, true); }) },
-  "📂 ", label);
+  ccLabel("📂", what === "crash" ? "crash" : "folder", label));
 }
 
 // A toast that stays until the user picks an action.
@@ -727,7 +792,7 @@ function infoTip(...content) {
   const id = `info-${++tipCount}`;
   const bubble = h("span", { id, class: "info-bubble", role: "note" }, content);
   const btn = h("button", { type: "button", class: "info-tip", "aria-label": "More about this", "aria-expanded": "false", "aria-controls": id, "aria-describedby": id },
-    h("span", { "aria-hidden": "true" }, "ⓘ"));
+    h("span", { class: "cc-emoji", "aria-hidden": "true" }, "ⓘ"), ccSvg("info", "cc-info-icon"));
   const wrap = h("span", { class: "info-wrap" }, btn, bubble);
   const place = () => requestAnimationFrame(() => {
     bubble.style.transform = "";
@@ -1558,14 +1623,14 @@ function showGuide(data) {
     const n = g.steps.filter((x) => x.done).length;
     const all = n === g.steps.length;
     if (minimized()) {
-      fill(box, h("button", { class: "guide-pill", onclick: () => setMin(false) }, `🧭 ${t("Guided setup")} · ${n}/${g.steps.length}`));
+      fill(box, h("button", { class: "guide-pill", onclick: () => setMin(false) }, ccLabel("🧭", "compass", `${t("Guided setup")} · ${n}/${g.steps.length}`)));
       box.classList.add("min");
       roomForGuide(box);
       return;
     }
     box.classList.remove("min");
     fill(box,
-      h("div", { class: "row guide-head" }, h("strong", { class: "grow" }, `🧭 ${t("Guided setup")}`), h("span", { class: "muted small" }, `${n} / ${g.steps.length}`),
+      h("div", { class: "row guide-head" }, h("strong", { class: "grow" }, ccLabel("🧭", "compass", t("Guided setup"))), h("span", { class: "muted small" }, `${n} / ${g.steps.length}`),
         h("button", { class: "link-btn", title: t("Hide for now"), "aria-label": t("Hide for now"), onclick: () => setMin(true) }, "–"),
         h("button", { class: "link-btn", title: t("Stop the guide"), "aria-label": t("Stop the guide"), onclick: stop }, "×")),
       all ? h("div", { class: "notice ok" }, h("strong", {}, "🎉 You did it!"), h("div", { class: "small" }, "Your server is running and a friend has joined. Have fun!"),
@@ -1659,8 +1724,9 @@ async function refreshStatus() {
   const pill = $("#state-pill");
   if (pill.textContent !== t(s.state)) pill.textContent = t(s.state);  // (a status region: said again on every change, #217)
   pill.className = "pill " + s.state;
-  $("#server-title").textContent = (s.motd || s.id) + (s.minecraft
-    ? ` · Minecraft ${s.minecraft} · ${s.loader}` : " · not installed yet");
+  const srvMain = s.motd || s.id;
+  const srvSub = s.minecraft ? ` · Minecraft ${s.minecraft} · ${s.loader}` : " · not installed yet";
+  fill($("#server-title"), h("span", { class: "server-name-main" }, srvMain), h("span", { class: "server-name-sub" }, srvSub));
   const busy = !!s.job;
   $("#job").classList.toggle("hidden", !busy);
   $("#job-name").textContent = busy ? s.job.name + "…" : "";
@@ -1801,7 +1867,9 @@ function consolePanel({ compact = false, tools = null, activity = null } = {}) {
   const toolsShown = [...(tools || []), viewSwitch].filter(Boolean);
   const el = h("section", { class: "card cc-panel cc-console-widget " + (compact ? "console-panel" : "console-wrap"), "aria-label": "Live console" },
     toolsShown.length ? h("div", { class: "console-head" }, title, h("div", { class: "row console-tools" }, toolsShown)) : title,
-    reads ? out : null, actBox, can("console.execute") ? h("div", { class: "console-input" }, input, h("button", { class: "btn", onclick: send }, "Send"))
+    reads ? out : null, actBox, can("console.execute") ? h("div", { class: "console-input" },
+      h("div", { class: "cc-cmd-wrap" }, ccSvg("cmd", "cc-cmd-icon"), input),
+      h("button", { class: "btn cc-send-btn", onclick: send }, "Send"))
       : isOwner() ? null : h("p", { class: "muted small" }, "Typing commands is the owner's (addresses and folders are hidden here)."));
   return { el, input, poll };
 }
@@ -1833,16 +1901,28 @@ function playerHead(name, size = 32) {
   return c;
 }
 
-function meter(label) {
+function setMetricValue(el, raw) {
+  const s = t(raw);
+  let m = s.match(/^([0-9.,]+)(%)$/);
+  if (m) { fill(el, m[1], h("small", { class: "cc-metric-unit" }, m[2])); return; }
+  m = s.match(/^([^/]+?)\s*(\/.*)$/);
+  if (m) { fill(el, m[1].trim(), h("small", { class: "cc-metric-unit" }, " " + m[2].trim())); return; }
+  m = s.match(/^([0-9.,]+)\s+(TPS)$/);
+  if (m) { fill(el, m[1], h("small", { class: "cc-metric-unit" }, " " + m[2])); return; }
+  el.textContent = s;
+}
+
+function meter(label, iconKey) {
   const value = h("strong", {});
   const fillBar = h("div", { class: "bar-fill" });
   const note = h("div", { class: "sr-only" });  // (the details: read by screen readers, and the card's tooltip)
   const el = h("div", { class: "card meter cc-metric-card" },
-    h("div", { class: "meter-head" }, h("span", {}, label), value), h("div", { class: "bar", "aria-hidden": "true" }, fillBar), note);
+    h("div", { class: "meter-head" }, h("span", {}, label), iconKey ? ccSvg(iconKey, "cc-metric-badge") : null, value),
+    h("div", { class: "bar", "aria-hidden": "true" }, fillBar), note);
   return {
     el,
     set(pct, text, sub) {
-      value.textContent = t(text);
+      setMetricValue(value, text);
       note.textContent = t(sub || "");
       if (sub) el.title = t(sub); else el.removeAttribute("title");
       const p = pct === null || pct === undefined ? 0 : Math.max(0, Math.min(100, pct));
@@ -1906,15 +1986,15 @@ const REACH_TEXT = {
     "bots look for Minecraft servers all day, and strangers can grief your world.",
 };
 const REACH_WAYS = [
-  ["playit", "🌍 playit.gg", "Free for Minecraft. Nothing is opened on your router: friends join through an address playit.gg gives you."],
-  ["forward", "🔓 Open a port on my router", "Friends join with your home's internet address. Craft Conductor picks the port to forward."],
-  ["home", "🏠 Only friends at home", "Only people on this computer's Wi-Fi or network can join."],
+  ["playit", "🌍 playit.gg", "Free for Minecraft. Nothing is opened on your router: friends join through an address playit.gg gives you.", "globe"],
+  ["forward", "🔓 Open a port on my router", "Friends join with your home's internet address. Craft Conductor picks the port to forward.", "unlock"],
+  ["home", "🏠 Only friends at home", "Only people on this computer's Wi-Fi or network can join.", "home"],
 ];
 function reachChoices(way, pick) {
   return h("div", { class: "choices", role: "group", "aria-label": "How friends outside your home join" },
-    REACH_WAYS.map(([w, label, desc]) => h("div", { class: "choice-wrap" },
+    REACH_WAYS.map(([w, label, desc, icon]) => h("div", { class: "choice-wrap" },
       h("button", { type: "button", class: "choice" + (way === w ? " selected" : ""),
-        "aria-pressed": String(way === w), "data-reach": w, onclick: () => pick(w) }, h("strong", {}, label)),
+        "aria-pressed": String(way === w), "data-reach": w, onclick: () => pick(w) }, h("strong", {}, ccText(label, icon))),
       infoTip(desc))));
 }
 // Bedrock's ports, as one phrase: "UDP and TCP port 19132, and UDP port 19133" (Geyser's two connection methods, #211).
@@ -2024,7 +2104,7 @@ function reachCard(sid, { compact = false } = {}) {
       r.way === "home" ? h("p", { class: "small mt-s" }, "Friends outside your home can't join. Friends on your network use this computer's address" +
         (r.lan_ip ? ` (${r.lan_ip}:${r.port})` : "") + ".") : null,
       r.reachable.length ? h("p", { class: "small mt-s " + (r.whitelist_on ? "ok-text" : "bad-text") },
-        r.whitelist_on ? "🔒 The whitelist is on: only players you add can join. Add your friends (and yourself) on the Players page."
+        r.whitelist_on ? ccText("🔒 The whitelist is on: only players you add can join. Add your friends (and yourself) on the Players page.", "lock", { inline: true })
           : "⚠ The whitelist is off, and this server can be reached from the internet: anyone who finds it can join.") : null);
   };
   api(path).then(render).catch((e) => { if (!(e instanceof Unauthorized)) fill(box, h("p", { class: "muted small" }, e.message)); });
@@ -2041,9 +2121,9 @@ function lagBox() {
   const findings = (r) => h("ul", { class: "list" }, r.findings.map((f) => h("li", {}, h("div", { class: "grow" },
     h("strong", {}, f.title),
     f.detail ? h("div", { class: "small" }, f.detail) : null,
-    f.places.length ? h("ul", { class: "small lag-places" }, f.places.map((p) => h("li", {}, "📍 " + p))) : null,
+    f.places.length ? h("ul", { class: "small lag-places" }, f.places.map((p) => h("li", {}, ccLabel("📍", "pin", p)))) : null,
     f.mods.length ? h("div", { class: "small" }, t("From mods:") + " " + f.mods.join(", ")) : null,
-    f.tip ? h("div", { class: "muted small" }, "💡 " + t(f.tip)) : null))));
+    f.tip ? h("div", { class: "muted small" }, ccLabel("💡", "bulb", t(f.tip))) : null))));
   const render = (st) => {
     lastState = st;
     const job = st.finder && st.finder.state === "running" ? st.finder : null;
@@ -2054,7 +2134,7 @@ function lagBox() {
       job ? h("div", {}, h("div", { class: "row small" }, h("span", { class: "spinner" }), h("span", { class: "grow" }, t(job.step || "Getting ready…")),
         h("button", { class: "link-btn", onclick: () => api("/api/performance/lag/stop", { method: "POST" }).catch(() => null) }, "Stop")))
         : h("button", { class: "btn", onclick: start, disabled: !up, "data-fkey": "find-lag",
-            title: up ? "Watches the server for 30 seconds, then looks through the world, and says what's slowing it down." : "Start the server first" }, "🐢 Why am I lagging?"),
+            title: up ? "Watches the server for 30 seconds, then looks through the world, and says what's slowing it down." : "Start the server first" }, ccText("🐢 Why am I lagging?", "lag")),
       failed ? h("div", { class: "notice bad mt-s small" }, failed.error) : null,
       r && !job ? h("details", { class: "mt-s", open: Date.now() / 1000 - r.finished < 3600 },
         h("summary", {}, (r.automatic ? t("Looked by itself") : t("Last look")) + ` · ${ago(r.finished)}` + (r.tps ? ` · ${r.tps} TPS` : "")),
@@ -2097,26 +2177,41 @@ function tpsGraph(samples) {
   const low = Math.min(...pts.map((x) => x.tps));
   svg.setAttribute("aria-label", t("Speed over the last hour: lowest {low} TPS").replace("{low}", low.toFixed(1)));
   const t0 = pts[0].time, span = Math.max(1, pts[pts.length - 1].time - t0);
-  const d = pts.map((x, i) => `${i ? "L" : "M"}${(W * (x.time - t0) / span).toFixed(1)},${(H - 2 - (H - 4) * Math.max(0, Math.min(20, x.tps)) / 20).toFixed(1)}`).join(" ");
+  const coords = pts.map((x) => [+(W * (x.time - t0) / span).toFixed(1), +(H - 2 - (H - 4) * Math.max(0, Math.min(20, x.tps)) / 20).toFixed(1)]);
+  const d = coords.map(([x, y], i) => `${i ? "L" : "M"}${x},${y}`).join(" ");
+  const defs = document.createElementNS(NS, "defs");
+  const grad = document.createElementNS(NS, "linearGradient");
+  const gid = "cc-tps-fill-" + (++tpsGradSeq);
+  for (const [k, v] of [["id", gid], ["x1", "0"], ["y1", "0"], ["x2", "0"], ["y2", "1"]]) grad.setAttribute(k, v);
+  const s1 = document.createElementNS(NS, "stop");
+  s1.setAttribute("offset", "0%"); s1.setAttribute("stop-color", "currentColor"); s1.setAttribute("stop-opacity", "0.24");
+  const s2 = document.createElementNS(NS, "stop");
+  s2.setAttribute("offset", "100%"); s2.setAttribute("stop-color", "currentColor"); s2.setAttribute("stop-opacity", "0");
+  grad.append(s1, s2); defs.append(grad);
+  const area = document.createElementNS(NS, "path");
+  area.setAttribute("d", `${d} L${coords[coords.length - 1][0]},${H} L${coords[0][0]},${H} Z`);
+  area.setAttribute("fill", `url(#${gid})`); area.setAttribute("class", "tps-area");
   const line = document.createElementNS(NS, "path");
   line.setAttribute("d", d); line.setAttribute("fill", "none"); line.setAttribute("class", "tps-line");
   line.setAttribute("vector-effect", "non-scaling-stroke");
   const ref = document.createElementNS(NS, "line");
   for (const [k, v] of [["x1", 0], ["x2", W], ["y1", 2], ["y2", 2]]) ref.setAttribute(k, v);
   ref.setAttribute("class", "tps-ref"); ref.setAttribute("vector-effect", "non-scaling-stroke");
-  svg.append(ref, line);
+  svg.append(defs, area, ref, line);
   return svg;
 }
+let tpsGradSeq = 0;
 // The Performance card in the Dashboard's top row: TPS now, and the graph where the others have their bar. What it
 // means is the card's tooltip (and read by screen readers).
 function perfMeter() {
   const value = h("strong", {}, "…");
   const graph = h("div", { class: "perf-graph" });
   const note = h("div", { class: "sr-only" });
-  const el = h("div", { class: "card meter cc-metric-card cc-perf-card" }, h("div", { class: "meter-head" }, h("span", {}, "Performance"), value), graph, note);
+  const el = h("div", { class: "card meter cc-metric-card cc-perf-card" },
+    h("div", { class: "meter-head" }, h("span", {}, "Performance"), ccSvg("performance", "cc-metric-badge"), value), graph, note);
   let last = null;
   const say = (text, sub, status) => {
-    value.textContent = t(text);
+    setMetricValue(value, text);
     value.className = status === "warn" || status === "bad" ? `tps-value ${status}` : "";
     note.textContent = t(sub); el.title = t(sub);
   };
@@ -2197,7 +2292,7 @@ Windows asks for permission once. If another Craft Conductor on this computer us
     try { fill(internet, h("ul", { class: "list doctor-list" }, row(await api("/api/doctor/internet", { method: "POST", body: {} })))); }
     catch (e) { if (!(e instanceof Unauthorized)) fill(internet, h("p", { class: "bad-text small" }, e.message)); }
     testBtn.disabled = false;
-  } }, "🌐 Test from the internet");
+  } }, ccText("🌐 Test from the internet", "globe"));
   const close = () => { const m = $("#doctor"); if (m) m.remove(); document.removeEventListener("keydown", onKey); };
   const onKey = (e) => { if (!$("#doctor") || e.key === "Escape") close(); };  // (gone some other way: the listener goes too)
   document.addEventListener("keydown", onKey);
@@ -2279,7 +2374,7 @@ function playersCard(con) {
   const mapLink = h("div");  // the web map, when there is one and it answers (Settings → Web map)
   (can("mods.view") ? api("/api/webmap") : Promise.reject(null)).then((r) => {
     if (r.kind && r.answers) fill(mapLink, h("a", { class: "btn small ghost mt-s", href: hubInfo && hubInfo.local ? r.local_url : r.lan_url || r.local_url,
-      target: "_blank", rel: "noopener noreferrer" }, `🗺 ${t("See where everyone is on the map")} ↗`));
+      target: "_blank", rel: "noopener noreferrer" }, ccLabel("🗺", "map", `${t("See where everyone is on the map")} ↗`)));
   }).catch(() => null);
 
   const run = async (action, name) => {
@@ -2305,7 +2400,7 @@ function playersCard(con) {
     const dot = h("span", { class: "pdot", "aria-hidden": "true" });
     const badge = h("span", { class: "badge hidden" });
     const ping = h("span", { class: "ping none" });
-    const line = [dot, h("span", { class: "sr-only" }, "Online"), playerHead(name, 24), h("span", { class: "pname" }, name), badge, ping];
+    const line = [dot, h("span", { class: "sr-only" }, "Online"), playerHead(name, 34), h("span", { class: "pname" }, name), badge, ping];
     const row = { name, op: false, roleKey: "", pingKey: "?" };
     if (viewer) {
       row.li = h("li", { class: "prow" }, h("div", { class: "prow-line" }, h("div", { class: "prow-open" }, line)));
@@ -2506,7 +2601,7 @@ views.dashboard = () => {
   const statusBody = h("dl", { class: "kv" });
   const events = h("div", { class: "events" },
     h("p", { class: "muted small activity-empty" }, "Nothing yet. What Craft Conductor does for this server shows here: starting and stopping it, backups, updates and problems."));
-  const cpu = meter("CPU"), mem = meter("RAM"), disk = meter("Disk"), players = meter("Players");
+  const cpu = meter("CPU", "cpu"), mem = meter("RAM", "ram"), disk = meter("Disk", "disk"), players = meter("Players", "players");
   const perf = perfMeter();
   const lag = lagBox();
   const tun = tunnelCard();
@@ -2515,12 +2610,12 @@ views.dashboard = () => {
   const con = consolePanel({ compact: true, tools: [folderBtn("logs", "Logs folder"), folderBtn("crash", "Crash reports")], activity: events });
   // Under the console: Check my setup, Why am I lagging? and Play on this computer.
   const tools = h("div", { class: "row dash-tools" });
-  const play = h("button", { class: "btn", "data-fkey": "play-here", onclick: () => playHere(play) }, "🎮 Play on this computer");
+  const play = h("button", { class: "btn", "data-fkey": "play-here", onclick: () => playHere(play) }, ccText("🎮 Play on this computer", "play"));
   const renderTools = () => {
     const r = perf.last;
     if (r) lag.setSpark(!!r.spark, r.spark_url || null);
     refill(tools, JSON.stringify([r && r.running && r.status]),
-      isOwner() ? h("button", { class: "btn", "data-fkey": "doctor", onclick: openDoctor }, "🩺 Check my setup") : null,
+      isOwner() ? h("button", { class: "btn", "data-fkey": "doctor", onclick: openDoctor }, ccText("🩺 Check my setup", "doctor")) : null,
       lag.el,
       hubInfo && hubInfo.local ? play : null,
       r && r.running && (r.status === "bad" || r.status === "warn") ? slowTips() : null);
@@ -2582,13 +2677,14 @@ views.dashboard = () => {
     renderProblem(s.problem);
     renderMeters(s);
     pc.set(s.players, s.max_players, s.state);
+    const kv = (k, v) => h("div", { class: "kv-item" }, h("dt", {}, k), h("dd", {}, v));
     fill(statusBody,  // (the state: in the top bar)
-      h("dt", {}, "Uptime"), h("dd", {}, s.uptime ? fmtDuration(s.uptime) : "—"),
-      h("dt", {}, "Minecraft"), h("dd", {}, s.minecraft || "not installed"),
-      h("dt", {}, "Loader"), h("dd", {}, `${s.loader} ${s.loader_version || ""}`),
-      h("dt", {}, "Java"), h("dd", {}, s.java_major ? `Java ${s.java_major}${s.java_forced ? ` (forced ${s.java_forced})` : ""}` : "—"),
-      h("dt", {}, "Mods"), h("dd", {}, String(s.mods)),
-      h("dt", {}, "Port"), h("dd", {}, s.port),
+      kv("Uptime", s.uptime ? fmtDuration(s.uptime) : "—"),
+      kv("Minecraft", s.minecraft || "not installed"),
+      kv("Loader", `${s.loader} ${s.loader_version || ""}`),
+      kv("Java", s.java_major ? `Java ${s.java_major}${s.java_forced ? ` (forced ${s.java_forced})` : ""}` : "—"),
+      kv("Mods", String(s.mods)),
+      kv("Port", s.port),
     );
     const u = s.update;
     refill(lagBanner, JSON.stringify([u && u.lagging, s.minecraft]), u ? laggingNotice(u.lagging, s.minecraft) : null);
@@ -3476,12 +3572,12 @@ views.mods = () => {
     load();
   });
   const sources = h("div", { class: "source-buttons" },
-    h("button", { type: "button", class: "btn", onclick: () => picker.click() }, "📁 Local files",
+    h("button", { type: "button", class: "btn", onclick: () => picker.click() }, ccText("📁 Local files", "folder", { head: true }),
       h("span", { class: "small muted" }, ".jar files on this computer")),
     h("button", { type: "button", class: "btn", onclick: () => openBrowser({ type: "mod", target: server, loader: info.loader || "", version: info.minecraft || "" }) },
-      plugins ? "🔎 Download plugins" : "🔎 Download mods", h("span", { class: "small muted" }, plugins ? "Browse Modrinth and Hangar" : "Browse Modrinth and CurseForge")),
+      ccText(plugins ? "🔎 Download plugins" : "🔎 Download mods", "search", { head: true }), h("span", { class: "small muted" }, plugins ? "Browse Modrinth and Hangar" : "Browse Modrinth and CurseForge")),
     hubInfo && hubInfo.single ? null : h("button", { type: "button", class: "btn", onclick: () => openBrowser({ type: "modpack", target: "setup" }) },
-      "📦 Modpacks", h("span", { class: "small muted" }, "Start a new server from a pack")),
+      ccText("📦 Modpacks", "box", { head: true }), h("span", { class: "small muted" }, "Start a new server from a pack")),
     picker);
 
   fill($("#main"), 
@@ -4447,7 +4543,7 @@ views.friends = () => {
       const r = await act(() => api("/api/hub/share/public-ip", { method: "POST", body: {} }));
       findIp.disabled = false;
       if (r) { toast(`Your public address is ${r.ip}`); data = await api("/api/client"); render(); }
-    } }, links.internet ? "Check my public IP again" : "🌐 Use my public IP");
+    } }, links.internet ? "Check my public IP again" : ccText("🌐 Use my public IP", "globe"));
     const pack = d.pack;
     const friendItems = friendModItems();
     fill(body,
@@ -4468,11 +4564,11 @@ views.friends = () => {
           links.internet ? linkRow("Internet link", `For friends anywhere else, through your public address (${s.address}).`, links.internet)
             : h("div", { class: "invite" }, h("strong", {}, "Internet link"),
               h("div", { class: "muted small" }, "For friends elsewhere, Craft Conductor needs your public address. It can find it for you.")),
-          h("p", { class: "small" }, d.expires ? `🔒 These links work until ${fmtTime(d.expires)}, then stop by themselves.`
+          h("p", { class: "small" }, d.expires ? ccLabel("🔒", "lock", `These links work until ${fmtTime(d.expires)}, then stop by themselves.`)
             : "These links work until you make new ones or stop them.")],
         linkLifetime(d, (r) => { data = r; render(); }),
         playersBlocked() ? null : h("div", { class: "row mt-s" }, d.expired ? null : findIp,
-          !d.expired && (links.internet || links.local) ? h("button", { class: "btn", onclick: () => openDiscord(links) }, "💬 Post to Discord") : null,
+          !d.expired && (links.internet || links.local) ? h("button", { class: "btn", onclick: () => openDiscord(links) }, ccText("💬 Post to Discord", "chat")) : null,
           h("button", { class: d.expired ? "btn primary" : "btn ghost", onclick: async () => {
             if (d.expired || await ask("Make new links? The old ones stop working (friends who already set up keep playing, but can't update until they get a new link).", { ok: "Make new links", danger: true })) {
               act(() => api("/api/client/new-link", { method: "POST", body: {} }), "New links made").then((r) => { if (r) { data = r; render(); } });
@@ -4484,7 +4580,7 @@ views.friends = () => {
             }
           } }, "Stop these links") : null),
         !playersBlocked() && (links.internet || links.local) ? h("details", { class: "mt-s small" }, h("summary", {}, "Advanced: invite codes and security"),
-          h("p", { class: "muted" }, "🔒 Friends' Craft Conductor connects to this computer over HTTPS and only to this computer: the invite carries its security fingerprint. " +
+          h("p", { class: "muted" }, ccText("🔒 Friends' Craft Conductor connects to this computer over HTTPS and only to this computer: the invite carries its security fingerprint. ", "lock", { inline: true }),
             "The link's invite is after the #, which browsers never send anywhere; the page is Craft Conductor's own, on GitHub."),
           h("p", { class: "muted" }, "For ", h("code", {}, "craft-conductor join <code>"), " or pasting into Craft Conductor:"),
           [["Local", links.local], ["Internet", links.internet]].filter(([, l]) => l).map(([label, l]) =>
@@ -4513,8 +4609,8 @@ views.friends = () => {
         infoTip("Client-side mods like minimaps, recipe viewers or performance mods. The server's own mods that players need are included automatically, and so are the client-side mods they need.")],
         h("div", { class: "source-buttons" },
           h("button", { type: "button", class: "btn", onclick: () => openBrowser({ type: "mod", target: server, side: "client", loader: d.loader, version: d.minecraft || "" }) },
-            "🔎 Add Friends Mods", h("span", { class: "small muted" }, "Browse mods that run on players' computers")),
-          h("button", { type: "button", class: "btn", onclick: () => picker.click() }, "📁 Local files",
+            ccText("🔎 Add Friends Mods", "search", { head: true }), h("span", { class: "small muted" }, "Browse mods that run on players' computers")),
+          h("button", { type: "button", class: "btn", onclick: () => picker.click() }, ccText("📁 Local files", "folder", { head: true }),
             h("span", { class: "small muted" }, ".jar files on this computer, for players")),
           picker),
         h("div", { class: "mt-s" }, modSummary(friendItems, { noun: "Friends Mods", manage: "Manage Friends Mods", open: openFriendMods,
@@ -5311,15 +5407,15 @@ function randomSeed() {
 // with plain Minecraft.
 const PERFORMANCE_MODS = [["lithium", "Lithium"], ["ferrite-core", "FerriteCore"], ["krypton", "Krypton"]];
 const SETUP_PRESETS = [
-  { icon: "🟩", name: "Vanilla Minecraft with friends", desc: "Vanilla, always the newest version, with a download that sets up your friends' game.",
+  { icon: "🟩", svg: "block", name: "Vanilla Minecraft with friends", desc: "Vanilla, always the newest version, with a download that sets up your friends' game.",
     loader: "vanilla", mods: [], friends: true, memory: [2, 4] },
-  { icon: "⚡", name: "Smooth survival", desc: "Fabric with performance mods (Lithium, FerriteCore, Krypton): less lag, same game. Friends join with plain Minecraft.",
+  { icon: "⚡", svg: "bolt", name: "Smooth survival", desc: "Fabric with performance mods (Lithium, FerriteCore, Krypton): less lag, same game. Friends join with plain Minecraft.",
     loader: "fabric", mods: PERFORMANCE_MODS, memory: [3, 6] },
-  { icon: "🗺️", name: "New lands to explore", desc: "Fabric with Terralith (almost 100 new biomes, vanilla blocks) and the performance mods. Friends join with plain Minecraft.",
+  { icon: "🗺️", svg: "map", name: "New lands to explore", desc: "Fabric with Terralith (almost 100 new biomes, vanilla blocks) and the performance mods. Friends join with plain Minecraft.",
     loader: "fabric", mods: [["terralith", "Terralith"], ...PERFORMANCE_MODS.slice(0, 2)], memory: [4, 6] },
-  { icon: "🧩", name: "Plugins (Paper)", desc: "A fast Paper server for plugins (add them in Custom setup). Friends join with plain Minecraft.",
+  { icon: "🧩", svg: "puzzle", name: "Plugins (Paper)", desc: "A fast Paper server for plugins (add them in Custom setup). Friends join with plain Minecraft.",
     loader: "paper", mods: [], memory: [3, 6] },
-  { icon: "📦", name: "A modpack", desc: "Browse modpacks on Modrinth or CurseForge: the pack decides the version and mods.", modpack: true },
+  { icon: "📦", svg: "box", name: "A modpack", desc: "Browse modpacks on Modrinth or CurseForge: the pack decides the version and mods.", modpack: true },
 ];
 async function applyPreset(p, opts) {
   if (p.modpack) { openBrowser({ type: "modpack", target: "setup", loader: "" }); return; }
@@ -5634,7 +5730,7 @@ function worldPanel(host) {
   const seed = h("input", { value: P["level-seed"] || "", maxlength: 64, placeholder: "Random", "aria-label": "Seed",
     oninput: (e) => { P["level-seed"] = e.target.value; }, onchange: () => host.changed() });
   const dice = h("button", { type: "button", class: "btn", title: "A random seed", "aria-label": "A random seed",
-    onclick: () => { seed.value = P["level-seed"] = randomSeed(); host.changed(); } }, "🎲");
+    onclick: () => { seed.value = P["level-seed"] = randomSeed(); host.changed(); } }, h("i", { class: "cc-emoji", "aria-hidden": "true" }, "🎲"), ccSvg("dice"));
   const type = h("select", { "aria-label": "World type", onchange: () => { P["level-type"] = type.value; host.changed(); } },
     WORLD_TYPES.map(([v, label]) => h("option", { value: v }, label)));
   type.value = P["level-type"] || "minecraft:normal";
@@ -5646,7 +5742,7 @@ function worldPanel(host) {
   const size = h("select", { "aria-label": "Map size" }, MAP_SIZES.map(([v, label]) => h("option", { value: String(v) }, label)));
   size.value = String(st.previewSize || 128);
   size.addEventListener("change", () => { st.previewSize = Number(size.value); });
-  const go = h("button", { type: "button", class: "btn primary" }, "🗺️ Preview map");
+  const go = h("button", { type: "button", class: "btn primary" }, ccText("🗺️ Preview map", "map"));
   const compare = h("button", { type: "button", class: "btn", title: "Maps of 10 random seeds side by side, to pick from" }, "Compare 10 seeds");
 
   // --- world-generation mods
@@ -6437,7 +6533,7 @@ views.manual = (target = $("#main")) => {
   const toc = h("nav", { class: "help-toc card" }, h("strong", {}, "Contents"));
   fill(target,
     h("div", { class: "row mb" }, h("h1", { class: "view-title grow" }, "User manual"),
-      h("button", { class: "btn small", onclick: () => window.print() }, "🖨 Print"),
+      h("button", { class: "btn small", onclick: () => window.print() }, ccText("🖨 Print", "print")),
       h("a", { class: "btn small ghost", href: MANUAL_ON_GITHUB, target: "_blank", rel: "noopener noreferrer" }, "On the wiki, with pictures ↗")),
     toc, h("div", { class: "mt" }, body));
   fetch("/manual.md", { credentials: "same-origin" }).then((r) => r.ok ? r.text() : Promise.reject(new Error(r.statusText)))
@@ -6462,10 +6558,10 @@ views.manual = (target = $("#main")) => {
 
 views.help = (target = $("#main")) => {
   fill(target, h("h1", { class: "view-title" }, "Help"),
-    hubInfo && hubInfo.guide ? h("div", { class: "card mb row" }, h("div", { class: "grow" }, h("strong", {}, "🧭 Guided setup"),
+    hubInfo && hubInfo.guide ? h("div", { class: "card mb row" }, h("div", { class: "grow" }, h("strong", {}, ccText("🧭 Guided setup", "compass", { inline: true })),
       h("div", { class: "muted small" }, "Step by step from making a server to a friend joining it, with each step ticked as you go.")),
       h("button", { class: "btn primary", onclick: startGuide }, hubInfo.guide.active ? "Show the guide" : "Start the guided setup")) : null,
-    h("div", { class: "notice mb" }, "📖 Everything Craft Conductor does, step by step: ", h("a", { href: "#manual" }, h("strong", {}, "the user manual")), ". ",
+    h("div", { class: "notice mb" }, ccText("📖 Everything Craft Conductor does, step by step: ", "book", { inline: true }), h("a", { href: "#manual" }, h("strong", {}, "the user manual")), ". ",
       "Something wrong? ", h("a", { href: "https://github.com/silverWRX03/craft-conductor/issues/new/choose", target: "_blank", rel: "noopener noreferrer" }, "Report a bug ↗"),
       " · ", h("a", { href: "https://github.com/silverWRX03/craft-conductor/blob/main/CHANGELOG.md", target: "_blank", rel: "noopener noreferrer" }, "What's new ↗")),
     h("nav", { class: "help-toc card" }, h("strong", {}, "Contents"),
@@ -6519,7 +6615,7 @@ function openSshInstall() {
       "It isn't open to the internet: you reach it through SSH, an encrypted tunnel to this computer. Press ", h("strong", {}, "Open an SSH tunnel"),
       " (keep that window open while you use it), then ", h("strong", {}, "Open its control panel"), "."),
     h("div", { class: "row mt-s" },
-      hubInfo && hubInfo.local ? h("button", { class: "btn small", onclick: () => openPanel(r) }, "🔐 Open an SSH tunnel") : null,
+      hubInfo && hubInfo.local ? h("button", { class: "btn small", onclick: () => openPanel(r) }, ccText("🔐 Open an SSH tunnel", "lock")) : null,
       h("a", { class: "btn small primary", href: r.panel, target: "_blank", rel: "noopener noreferrer" }, "Open its control panel ↗"),
       h("button", { class: "btn small ghost", onclick: () => navigator.clipboard.writeText(r.tunnel_command).then(() => toast("Tunnel command copied")) }, "Copy the tunnel command")),
     h("pre", { class: "log small" }, r.tunnel_command),
@@ -6537,7 +6633,7 @@ function openSshInstall() {
       h("a", { class: "btn small primary", href: r.panel, target: "_blank", rel: "noopener noreferrer" }, "Open its control panel ↗")),
     h("p", { class: "muted small" }, "Sign in there with the one-time password from the terminal; it asks you to choose your own. " +
       "Keep that address: that computer's servers are managed from its own control panel."));
-  const openBtn = h("button", { class: "btn primary", type: "submit" }, "🔐 Connect with SSH");
+  const openBtn = h("button", { class: "btn primary", type: "submit" }, ccText("🔐 Connect with SSH", "lock"));
   const submit = async (e) => {
     e.preventDefault();
     openBtn.disabled = true;
@@ -7162,7 +7258,7 @@ function openDiscord(links) {
 //   opts.trial        -> body for POST /api/hub/trial (without bisect), or null (friends: no boot)
 //   opts.keepWorking  -> called with the report, to drop the mods that don't work
 function testButton(opts) {
-  return h("button", { type: "button", class: "btn", onclick: () => openTester(opts) }, "🧪 Test these mods");
+  return h("button", { type: "button", class: "btn", onclick: () => openTester(opts) }, ccText("🧪 Test these mods", "flask"));
 }
 function openTester(opts) {
   if ($("#tester")) { $("#tester").classList.remove("hidden"); return; }
@@ -7721,7 +7817,7 @@ views.servers = () => {
     closingTip(),
     h("div", { class: "row mb wrap" },
       h("p", { class: "muted grow" }, "Servers only run when you start them here, and stop when you press Stop or Quit Craft Conductor."),
-      hubInfo && hubInfo.guide ? h("button", { class: "btn ghost", title: "Step by step from making a server to a friend joining it", onclick: startGuide }, "🧭 Guided setup") : null,
+      hubInfo && hubInfo.guide ? h("button", { class: "btn ghost", title: "Step by step from making a server to a friend joining it", onclick: startGuide }, ccText("🧭 Guided setup", "compass")) : null,
       hubInfo && hubInfo.single || !isOwner() ? null : h("div", { class: "row" }, importNote, importBtn, picker)),
     importProblem,
     memLine,
@@ -8759,7 +8855,7 @@ views["craft-conductor"] = () => {
       h("p", { class: "muted small" }, hb.network_access
         ? "Other devices can open this control panel (with your strong password), and paired phones get the everyday controls."
         : "Only this computer can open the control panel. Turn on remote access to use it from a phone or another computer."),
-      h("div", { class: "row" }, h("button", { class: "btn", onclick: openRemoteAccess }, "🔒 Remote access & phones…")),
+      h("div", { class: "row" }, h("button", { class: "btn", onclick: openRemoteAccess }, ccText("🔒 Remote access & phones…", "lock"))),
       h("p", { class: "muted small" }, `Servers are kept in ${hb.home}.`)));
   };
   // Windows: take every rule Craft Conductor made out of Windows Firewall (before deleting Craft Conductor, say).
@@ -9847,7 +9943,7 @@ views.setup = () => {
     const elsewhere = isNew && !opts.network_option ? h("div", { class: "mt" }, card("Or on another computer",
       h("div", { class: "row" },
         h("span", { class: "grow small" }, "Run the server on a Linux PC without a screen on this network (a spare PC, a home server, a Raspberry Pi): Craft Conductor installs itself there over SSH."),
-        h("button", { type: "button", class: "btn", onclick: openSshInstall }, "🐧 Install on a Linux computer…")))) : null;
+        h("button", { type: "button", class: "btn", onclick: openSshInstall }, ccText("🐧 Install on a Linux computer…", "terminal"))))) : null;
     // Quick start: a ready-made starting point (everything stays changeable in Custom setup).
     const presetCards = isNew ? card("Quick start",
       h("p", { class: "muted small" }, "Pick a starting point and create right away, or switch to Custom setup to change anything."),
@@ -9855,7 +9951,7 @@ views.setup = () => {
         class: "choice" + (st.presetName === p.name ? " selected" : ""),
         "aria-pressed": String(st.presetName === p.name),
         onclick: () => applyPreset(p, opts) },
-        h("strong", {}, `${p.icon} `, p.name), h("span", { class: "small muted" }, p.desc))))) : null;
+        h("strong", {}, ccLabel(p.icon, p.svg, p.name)), h("span", { class: "small muted" }, p.desc))))) : null;
     if (!st.loader) {  // one step at a time: Quick start shows presets; Custom setup starts at Server type
       if (tab === "quick" && presetCards) {
         fill(main, intro, presetCards, elsewhere);
@@ -9981,12 +10077,12 @@ views.setup = () => {
       refreshModManager("setup-server-mods");
     });
     const sources = h("div", { class: "source-buttons" },
-      h("button", { type: "button", class: "btn", onclick: () => picker.click() }, "📁 Local files",
+      h("button", { type: "button", class: "btn", onclick: () => picker.click() }, ccText("📁 Local files", "folder", { head: true }),
         h("span", { class: "small muted" }, ".jar files on this computer")),
       h("button", { type: "button", class: "btn", onclick: () => openBrowser({ type: "mod", target: "setup", loader: st.loader, version: setupModVersion() }) },
-        plugins ? "🔎 Download plugins" : "🔎 Download mods", h("span", { class: "small muted" }, plugins ? "Browse Modrinth and Hangar" : "Browse Modrinth and CurseForge")),
+        ccText(plugins ? "🔎 Download plugins" : "🔎 Download mods", "search", { head: true }), h("span", { class: "small muted" }, plugins ? "Browse Modrinth and Hangar" : "Browse Modrinth and CurseForge")),
       plugins ? null : h("button", { type: "button", class: "btn", onclick: () => openBrowser({ type: "modpack", target: "setup", loader: st.modpack ? "" : st.loader }) },
-        "📦 Modpacks", h("span", { class: "small muted" }, "A ready-made pack of mods")),
+        ccText("📦 Modpacks", "box", { head: true }), h("span", { class: "small muted" }, "A ready-made pack of mods")),
       picker);
     const packSummary = h("div");
     const renderPackSummary = () => {
@@ -10109,7 +10205,7 @@ views.setup = () => {
         h("div", { class: "grid mt-s" }, flag("generate-structures", "Villages, temples and other structures"),
           flag("hardcore", "Hardcore: one life, locked to hard")),
         st.modpack ? null : h("div", { class: "source-buttons mt-s" },
-          h("button", { type: "button", class: "btn", onclick: () => openWorldPanel() }, "🗺️ World generation & map preview",
+          h("button", { type: "button", class: "btn", onclick: () => openWorldPanel() }, ccText("🗺️ World generation & map preview", "map", { head: true }),
             h("span", { class: "small muted" }, "Mods that change how the world is made, and a map of your seed before you create the server"))),
         st.previews && st.previews.length && st.previews.some((m) => m.seed === (P["level-seed"] || "")) ?
           h("p", { class: "muted small" }, "✓ You've seen this seed's map.") : null));
@@ -10286,7 +10382,7 @@ views.setup = () => {
         st.reach === "forward" ? forwardDetails(st.port, null, null) : null,
         st.reach !== "home" ? h("p", { class: "small mt-s" }, st.properties && st.properties["white-list"] === "false"
           ? h("span", { class: "bad-text" }, "⚠ The whitelist is off (Advanced settings): anyone who finds the server can join.")
-          : "🔒 The whitelist will be on: only players you add can join. Add your friends on the Players page once the server is made.") : null,
+          : ccText("🔒 The whitelist will be on: only players you add can join. Add your friends on the Players page once the server is made.", "lock", { inline: true })) : null,
         st.reach !== "home" ? h("label", { class: "mt-s" }, "Your Minecraft name (added to the whitelist, so you can join)",
           h("input", { value: st.ownerName || "", maxlength: 16, autocomplete: "off", placeholder: "optional", "aria-describedby": "owner-name-note",
             oninput: (e) => { st.ownerName = e.target.value.trim(); } }),
@@ -10303,8 +10399,8 @@ views.setup = () => {
           h("button", { type: "button", class: "btn", onclick: () => {
             if (!st.friends) { st.friends = true; setupAnnounceCompanions(); renderForm(); }
             openBrowser({ type: "mod", target: "setup", side: "client", loader: st.loader, version: setupModVersion() });
-          } }, "🔎 Set up now", h("span", { class: "small muted" }, "Pick mods for your friends' Minecraft (a minimap, JEI, …)")),
-          h("button", { type: "button", class: "btn", onclick: () => friendPicker.click() }, "📁 Local files",
+          } }, ccText("🔎 Set up now", "search", { head: true }), h("span", { class: "small muted" }, "Pick mods for your friends' Minecraft (a minimap, JEI, …)")),
+          h("button", { type: "button", class: "btn", onclick: () => friendPicker.click() }, ccText("📁 Local files", "folder", { head: true }),
             h("span", { class: "small muted" }, ".jar files on this computer, for players")),
           friendPicker) : null,
         moddable && st.friends ? list : null,
@@ -10365,7 +10461,7 @@ views.setup = () => {
             portField()),
           opts.network_option ? h("label", { class: "row mt" }, lan, h("span", {}, "Let other devices on my network (like my phone) open this control panel")) : null,
           opts.network_option ? null : h("div", { class: "row mt" },
-            h("button", { type: "button", class: "btn", onclick: openRemoteAccess }, "🔒 Remote access…"),
+            h("button", { type: "button", class: "btn", onclick: openRemoteAccess }, ccText("🔒 Remote access…", "lock")),
             h("span", { class: "muted small" }, "Manage your servers from your phone or another computer (needs a strong password).")))),
         h("div", { class: "mt" }, advanced),
         elsewhere,

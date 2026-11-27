@@ -176,23 +176,26 @@ def test_colours_stay_readable():
         assert contrast(c["on-accent"], c["accent"]) >= 4.5, (name, "button text")
         if "warn" in c:
             assert contrast(c["warn"], panel) >= 4.5, (name, "warn")
-    assert sets["modern day"]["accent"].upper() == "#005364" and sets["modern night"]["accent"].upper() == "#00E5FF"
-    assert [sets["modern night"][k].upper() for k in ("bg", "panel", "panel-2")] == ["#0B0E11", "#13171C", "#1A2026"]
-    assert [sets["modern day"][k].upper() for k in ("bg", "panel", "panel-2", "text", "muted", "selected-bg")] == [
-        "#EDF2F5", "#FFFFFF", "#F6F8FA", "#142530", "#354C5C", "#DDF3F7"]
+    assert sets["modern day"]["accent"].upper() == "#005364" and sets["modern night"]["accent"].upper() == "#5CE7F7"
+    assert [sets["modern night"][k].upper() for k in ("bg", "nav", "panel", "panel-2", "track")] == [
+        "#0B0E11", "#10151A", "#151B22", "#1F2731", "#293340"]
+    assert [sets["modern day"][k].upper() for k in ("bg", "nav", "panel", "panel-2", "track", "text", "muted", "selected-bg")] == [
+        "#EDF2F5", "#E4ECF1", "#FFFFFF", "#E8F0F4", "#D5E1E8", "#13222C", "#344A58", "#D5EFF5"]
     # Modern: every word at least 7:1 (WCAG AAA), on every surface it's shown on
     for name in ("modern day", "modern night"):
         c = sets[name]
         for fg in ("text", "muted", "accent", "info", "danger", "warn", "ok-fg", "warn-fg", "bad-fg"):
-            for surface in ("bg", "panel", "panel-2", "hover-bg"):
+            for surface in ("bg", "nav", "panel", "panel-2", "hover-bg", "tonal-btn-bg"):
                 assert contrast(c[fg], c[surface]) >= 7, (name, fg, surface)
         for fg, surface in (("ok-strong", "ok-bg"), ("warn-strong", "warn-bg"), ("bad-strong", "bad-bg"), ("bad-fg", "bad-bg"),
-                            ("accent", "selected-bg"), ("text", "selected-bg"), ("muted", "selected-bg"),  # the open page, the Running pill
+                            ("selected-fg", "selected-bg"), ("accent", "selected-bg"), ("text", "selected-bg"), ("muted", "selected-bg"),
+                            ("tonal-btn-fg", "tonal-btn-bg"), ("metric-text", "panel"), ("metric-muted", "panel"),
                             ("on-accent", "accent"), ("on-accent", "accent-hover"), ("console-fg", "console-bg")):
             assert contrast(c[fg], c[surface]) >= 7, (name, fg, surface)
-        for edge in ("field-border", "accent"):  # a field's edge, the keyboard ring
+        for edge in ("field-border", "accent", "accent-bar"):  # a field's edge, the keyboard ring
             for surface in ("bg", "panel", "panel-2"):
                 assert contrast(c[edge], c[surface]) >= 3, (name, edge, surface)
+        assert contrast(c["metric-bar"], c["track"]) >= 3, (name, "metric bar on track")
         assert luminance(c["console-bg"]) < 0.05, (name, "the console stays dark")
     # what's inside the console and the config editor (dark in both themes)
     inside = tokens(modern, ':root[data-style="modern"]:not([data-contrast="high"]) :is(.console')
@@ -222,7 +225,7 @@ def test_modern_targets_light_and_motion():
     for token in ("--cc-glow", "--cc-reflection", "--cc-ambient", "0 0 22px", "0 0 20px"):
         assert token not in modern, token
     base = re.search(r':root\[data-style="modern"\] \{([^}]*)\}', modern).group(1)
-    assert "--cc-low-shadow:transparent" in base and "--cc-hairline:var(--border)" in base
+    assert "--cc-low-shadow:transparent" in base and "--cc-hairline:transparent" in base
     for selector, body in css_rules(modern):
         if "box-shadow:" in body and "shadow-pop" not in body:
             shadow = body.split("box-shadow:", 1)[1].split(";", 1)[0].strip()
@@ -265,6 +268,8 @@ def test_the_new_files_are_served(running):  # noqa: F811
     daemon, client, config = running
     login(client)
     for path, kind in (("/craft-conductor-modern.css", "text/css"), ("/appearance.js", "text/javascript"),
+                       ("/icon-classic.png", "image/png"), ("/icon-modern-dark.svg", "image/svg+xml"),
+                       ("/icon-modern-light.svg", "image/svg+xml"),
                        ("/fonts/roboto-latin.woff2", "font/woff2"), ("/fonts/OFL.txt", "text/plain")):
         status, _, headers = client.get(path)
         assert status == 200 and headers["Content-Type"].startswith(kind), path

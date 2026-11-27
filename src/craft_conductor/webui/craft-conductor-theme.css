@@ -36,6 +36,11 @@
   :root:not([data-theme]) { color-scheme:only light; --bg:#F4F4F4; --panel:#FFFFFF; --panel-2:#FAFAFA; --border:#1212121F; --field-border:#6B7280; --text:#1A1A1A; --muted:#4B5563; --bright:#121212; --accent:#C53000; --accent-2:#C53000; --on-accent:#FFFFFF; --console-bg:#FAFAFA; --info-fg:#1A1A1A; --depth-shadow:rgba(18,24,32,.12); --depth-highlight:rgba(255,255,255,.95); --depth-grid:rgba(18,24,32,.023); }
 }
 :root:not([data-style="modern"]) *, :root:not([data-style="modern"]) *::before, :root:not([data-style="modern"]) *::after { border-radius:0 !important; }
+:root:not([data-style="modern"]) .logo { background-image:url(icon-classic.png); }
+:root:not([data-style="modern"]) :is(.cc-metric-badge, .cc-btn-icon, .cc-inline-icon, .cc-info-icon, .cc-cmd-icon, .tps-area) { display:none; }
+:root:not([data-style="modern"]) .cc-metric-unit { font-size:inherit; font-weight:inherit; color:inherit; }
+:root:not([data-style="modern"]) :is(.cc-btn-head, .cc-cmd-wrap, .kv-item) { display:contents; }
+:root:not([data-style="modern"]) .players-card .head { width:24px; height:24px; }
 body { background:var(--bg); background-image:linear-gradient(var(--depth-grid) 1px,transparent 1px),linear-gradient(90deg,var(--depth-grid) 1px,transparent 1px); background-size:32px 32px; color:var(--text); font:16px/1.5 var(--sans); }
 :root:not([data-theme="day"]) body { background-image:linear-gradient(var(--depth-grid) 1px,transparent 1px),linear-gradient(90deg,var(--depth-grid) 1px,transparent 1px); background-size:32px 32px; }
 .topbar::after { display:none; }
