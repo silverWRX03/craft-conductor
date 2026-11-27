@@ -15,11 +15,12 @@ const assert = require('node:assert/strict');
 
   // New server: playit.gg is pre-selected, its downsides are said, and the whitelist will be on.
   await page.goto(base + '/#new');
+  await page.getByRole('tab', { name: 'Custom setup' }).click();
   await page.getByRole('button', { name: /^Vanilla:/ }).click();  // (the rest of the form comes with a server type)
   const playitNew = page.locator('[data-reach="playit"]');
   await playitNew.waitFor({ timeout: 20000 });
   assert.equal(await playitNew.getAttribute('aria-pressed'), 'true');
-  await page.getByText('About playit.gg:').first().waitFor();
+  await page.getByText("playit.gg is a separate company: you need an account (13 or older), friends can't join while it's down, and IP bans don't work through it.").first().waitFor();
   await page.getByText('The whitelist will be on').waitFor();
   await page.getByLabel(/Your Minecraft name/).waitFor();
   await page.locator('[data-reach="forward"]').click();

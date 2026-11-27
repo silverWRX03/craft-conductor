@@ -65,17 +65,19 @@ Each step ticks itself as it happens (Craft Conductor sees the server running, w
 
 ## Creating a server
 
-Go to **New server**. One step at a time:
+Go to **New server**. Two tabs sit at the top: **Quick start** and **Custom setup**.
 
-**Quick start (optional).** Ready-made starting points fill the form in for you; change anything afterwards:
+**Quick start** opens first with ready-made starting points. Pick one to fill in the server name, how friends outside your home join, and create right away — or press **Customize version, mods or world →** (or switch to **Custom setup**) to change anything:
 
 - **Vanilla Minecraft with friends:** Vanilla, the newest version, and a download for your friends.
 - **Smooth survival:** Fabric with performance mods (Lithium, FerriteCore, Krypton): less lag, the same game.
 - **New lands to explore:** Fabric with Terralith (new biomes made of vanilla blocks) and performance mods.
-- **Plugins (Paper):** a Paper server to add plugins to.
-- **A modpack:** opens the modpacks in the mod browser (Modrinth or CurseForge).
+- **Plugins (Paper):** a Paper server to add plugins to (add them in Custom setup).
+- **A modpack:** opens the modpacks in the mod browser (Modrinth or CurseForge) and switches to Custom setup once chosen.
 
 The mods in these run on the server only, so friends join with plain Minecraft. Memory is set for the kind of server, within what this computer has.
+
+**Custom setup** walks through each choice one step at a time:
 
 **1. Server type.** Fabric, NeoForge, Forge and Quilt run mods; Paper runs plugins (Spigot/Bukkit ones too); Purpur is Paper with many more gameplay settings and runs the same plugins; Vanilla is plain Minecraft.
 

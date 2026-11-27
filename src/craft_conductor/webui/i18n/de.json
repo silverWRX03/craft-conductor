@@ -31,7 +31,6 @@
   "A Minecraft name is 1 to 16 letters, numbers or _.": "Ein Minecraft-Name hat 1 bis 16 Buchstaben, Ziffern oder _.",
   "A Minecraft server": "Ein Minecraft-Server",
   "A crash, a friend asking to join, an update held back: even when the app is closed.": "Ein Absturz, ein Freund, der beitreten will, ein zurückgehaltenes Update: auch wenn die App geschlossen ist.",
-  "A fast Paper server for plugins (add them in step 3). Friends join with plain Minecraft.": "Ein schneller Paper-Server für Plugins (in Schritt 3 hinzufügen). Freunde spielen mit reinem Minecraft.",
   "A friend asks to be let in": "Ein Freund möchte hinein",
   "A live map of the world that you and your friends open in a browser: see the terrain, builds and who is where.": "Eine Live-Karte der Welt, die du und deine Freunde im Browser öffnen: Gelände, Bauwerke und wer wo ist.",
   "A modpack": "Ein Modpack",
@@ -560,7 +559,6 @@
   "Pick a seed (or leave it empty for a random one) and press Preview map. Craft Conductor makes the world in a private server on this computer, with the server's mods, then draws it from above.": "Wähle einen Seed (oder lass ihn leer für einen zufälligen) und drück Karte ansehen. Craft Conductor erzeugt die Welt auf einem privaten Server auf diesem Computer, mit den Mods des Servers, und zeichnet sie von oben.",
   "Pick a server type first (1. Server type).": "Wähle zuerst einen Servertyp (1. Servertyp).",
   "Pick a server type, Minecraft version and mods": "Servertyp, Minecraft-Version und Mods wählen",
-  "Pick a starting point and change anything afterwards, or choose each step yourself below.": "Wähle einen Ausgangspunkt und ändere danach alles, oder wähle unten jeden Schritt selbst.",
   "Pick at least one link to post": "Wähle mindestens einen Link zum Posten",
   "Pillager outpost": "Plünderer-Außenposten",
   "Ping isn't available.": "Der Ping ist nicht verfügbar.",
@@ -603,7 +601,6 @@
   "Put players back in the default game mode when they join": "Spieler beim Beitreten in den Standard-Spielmodus setzen",
   "QR code for pairing a phone": "QR-Code zum Koppeln eines Handys",
   "Quick add": "Schnell hinzufügen",
-  "Quick start (optional)": "Schnellstart (optional)",
   "Quiet": "Ruhig",
   "Quietest time:": "Ruhigste Zeit:",
   "Quit": "Beenden",
@@ -1177,5 +1174,11 @@
   "Backups are for this computer; use Export to move the server to another PC.": "Backups sind für diesen Computer; nutze Export, um den Server auf einen anderen PC umzuziehen.",
   "Anyone with the address can see the map.": "Jeder mit der Adresse kann die Karte sehen.",
   "Export saves this server in one .zip to move to another computer.": "Export speichert diesen Server in einer .zip-Datei für den Umzug auf einen anderen Computer.",
-  "Put a different world on this server: a singleplayer world or a world .zip.": "Leg eine andere Welt auf diesen Server: eine Einzelspieler-Welt oder eine Welt-.zip."
+  "Put a different world on this server: a singleplayer world or a world .zip.": "Leg eine andere Welt auf diesen Server: eine Einzelspieler-Welt oder eine Welt-.zip.",
+  "Setup mode": "Einrichtungsmodus",
+  "Quick start": "Schnellstart",
+  "Custom setup": "Eigene Einrichtung",
+  "Pick a starting point and create right away, or switch to Custom setup to change anything.": "Wähle einen Startpunkt und leg sofort los, oder wechsle zu Eigene Einrichtung, um alles anzupassen.",
+  "Customize version, mods or world →": "Version, Mods oder Welt anpassen →",
+  "A fast Paper server for plugins (add them in Custom setup). Friends join with plain Minecraft.": "Ein schneller Paper-Server für Plugins (in Eigene Einrichtung hinzufügen). Freunde treten mit normalem Minecraft bei."
 }

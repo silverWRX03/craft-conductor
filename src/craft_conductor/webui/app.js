@@ -5304,7 +5304,7 @@ const SETUP_PRESETS = [
     loader: "fabric", mods: PERFORMANCE_MODS, memory: [3, 6] },
   { icon: "🗺️", name: "New lands to explore", desc: "Fabric with Terralith (almost 100 new biomes, vanilla blocks) and the performance mods. Friends join with plain Minecraft.",
     loader: "fabric", mods: [["terralith", "Terralith"], ...PERFORMANCE_MODS.slice(0, 2)], memory: [4, 6] },
-  { icon: "🧩", name: "Plugins (Paper)", desc: "A fast Paper server for plugins (add them in step 3). Friends join with plain Minecraft.",
+  { icon: "🧩", name: "Plugins (Paper)", desc: "A fast Paper server for plugins (add them in Custom setup). Friends join with plain Minecraft.",
     loader: "paper", mods: [], memory: [3, 6] },
   { icon: "📦", name: "A modpack", desc: "Browse modpacks on Modrinth or CurseForge: the pack decides the version and mods.", modpack: true },
 ];
@@ -5312,12 +5312,12 @@ async function applyPreset(p, opts) {
   if (p.modpack) { openBrowser({ type: "modpack", target: "setup", loader: "" }); return; }
   const st = setupState;
   setupChoosePack(null);
-  Object.assign(st, { loader: p.loader, minecraft: "latest", localMods: [], friends: true });  // (friends' download: always)
+  Object.assign(st, { loader: p.loader, minecraft: "latest", localMods: [], friends: true, presetName: p.name });  // (friends' download: always)
   st.mods.clear();
   const [lo, hi] = p.memory;
   st.memory_gb = Math.max(lo, Math.min(hi, opts.memory_gb || lo));
   for (const [slug, name] of p.mods) await setupAddMod(slug, name);
-  toast(`Starting point: ${p.name}. Change anything below.`);
+  toast(`Starting point: ${p.name}.`);
   setupChanged();
   if (current && current.refresh) current.refresh();
 }
@@ -8892,7 +8892,7 @@ views["craft-conductor"] = () => {
 // The setup form's choices. One form at a time: `target` is what it's filling in ("new", or a
 // server's id), and it starts fresh when that changes, so a new server never inherits the
 // choices of the last one set up.
-const freshSetup = () => ({ target: null, friends: true, reach: "playit", loader: null, minecraft: "latest", mods: new Map(), motd: "A Minecraft server",
+const freshSetup = () => ({ target: null, setupTab: "quick", presetName: null, friends: true, reach: "playit", loader: null, minecraft: "latest", mods: new Map(), motd: "A Minecraft server",
   properties: null, advancedOpen: false, max_players: 20, difficulty: "normal", gamemode: "survival", port: 25565, portChosen: false, portTyped: false, memory_gb: null,
   network_access: null, accept_eula: false, submitted: false, prefilled: false, modpack: null, localMods: [], world: null, showBetas: false,
   aikar: false, clientMods: new Map(), clientMeta: new Map(), clientLocal: [], companionsSeen: new Set(),  // friends' download: slug -> name; staged files
@@ -9305,6 +9305,7 @@ function setupChoosePack(pack) {
   const st = setupState;
   for (const key of (st.modpack && st.modpack.friendKeys) || []) { st.clientMods.delete(key); st.clientMeta.delete(key); }
   st.modpack = pack;
+  if (pack) { st.setupTab = "custom"; st.presetName = null; }
 }
 function setupServerModItems() {
   const st = setupState;
@@ -9799,11 +9800,27 @@ views.setup = () => {
     if (again) again.focus();
   };
   const drawForm = (error) => {
+    // Quick start vs Custom setup tabs (for a new server; existing-server retries open straight in Custom setup).
+    if (isNew && st.loader && !st.presetName && st.setupTab === "quick") st.setupTab = "custom";
+    const tab = isNew ? (st.setupTab || "quick") : "custom";
+    const setTab = (next, focus = false) => {
+      st.setupTab = next;
+      renderForm(error);
+      if (focus) { const b = main.querySelector(`.setup-tab[data-tab="${next}"]`); if (b) b.focus(); }
+    };
+    const setupTabs = isNew ? h("div", { class: "setup-tabs", role: "tablist", "aria-label": "Setup mode" },
+      [["quick", "Quick start"], ["custom", "Custom setup"]].map(([id, label]) =>
+        h("button", { type: "button", class: "setup-tab", role: "tab", "data-tab": id,
+          "aria-selected": String(tab === id), tabindex: tab === id ? "0" : "-1",
+          onclick: () => setTab(id),
+          onkeydown: (e) => {
+            if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); setTab(id === "quick" ? "custom" : "quick", true); }
+          } }, label))) : null;
     const loaderCards = h("div", { class: "choices" }, opts.loaders.map((l) => h("button", {
       type: "button", class: "choice" + (st.loader === l.name ? " selected" : ""),
       "aria-pressed": String(st.loader === l.name), "aria-label": `${t(l.label)}: ${t(l.description)}`,
       disabled: !!st.modpack && st.loader !== l.name,
-      onclick: () => { st.loader = l.name; if (!l.mods) { st.mods.clear(); st.localMods = []; } else setupRecheckMods(true); renderForm(); },
+      onclick: () => { st.loader = l.name; st.presetName = null; st.setupTab = "custom"; if (!l.mods) { st.mods.clear(); st.localMods = []; } else setupRecheckMods(true); renderForm(); },
     }, h("strong", {}, l.label), h("span", { class: "small muted" }, l.description))));
     const intro = [
       h("h1", { class: "view-title" }, isNew ? "Create a new server" : "Set up your server"),
@@ -9811,19 +9828,27 @@ views.setup = () => {
         (opts.network_option ? "" : "It won't start until you press Start.")),
       error ? h("div", { class: "notice bad" }, h("strong", {}, "Setup didn't finish: "), failureText(error, server),
         playersOnlyFix(error) || h("div", { class: "small mt-s" }, "Change your choices below and try again.")) : null,
+      setupTabs,
     ];
     // Or on another computer: a Linux PC without a screen, installed over SSH.
     const elsewhere = isNew && !opts.network_option ? h("div", { class: "mt" }, card("Or on another computer",
       h("div", { class: "row" },
         h("span", { class: "grow small" }, "Run the server on a Linux PC without a screen on this network (a spare PC, a home server, a Raspberry Pi): Craft Conductor installs itself there over SSH."),
         h("button", { type: "button", class: "btn", onclick: openSshInstall }, "🐧 Install on a Linux computer…")))) : null;
-    // Quick start: a ready-made starting point that fills the form in (everything stays changeable).
-    const presetCards = isNew ? card("Quick start (optional)",
-      h("p", { class: "muted small" }, "Pick a starting point and change anything afterwards, or choose each step yourself below."),
-      h("div", { class: "choices presets" }, SETUP_PRESETS.map((p) => h("button", { type: "button", class: "choice", onclick: () => applyPreset(p, opts) },
+    // Quick start: a ready-made starting point (everything stays changeable in Custom setup).
+    const presetCards = isNew ? card("Quick start",
+      h("p", { class: "muted small" }, "Pick a starting point and create right away, or switch to Custom setup to change anything."),
+      h("div", { class: "choices presets" }, SETUP_PRESETS.map((p) => h("button", { type: "button",
+        class: "choice" + (st.presetName === p.name ? " selected" : ""),
+        "aria-pressed": String(st.presetName === p.name),
+        onclick: () => applyPreset(p, opts) },
         h("strong", {}, `${p.icon} `, p.name), h("span", { class: "small muted" }, p.desc))))) : null;
-    if (!st.loader) {  // one step at a time: the rest depends on the server type
-      fill(main, intro, presetCards ? h("div", { class: "mb" }, presetCards) : null, card("1. Server type", loaderCards,
+    if (!st.loader) {  // one step at a time: Quick start shows presets; Custom setup starts at Server type
+      if (tab === "quick" && presetCards) {
+        fill(main, intro, presetCards, elsewhere);
+        return;
+      }
+      fill(main, intro, card("1. Server type", loaderCards,
         h("p", { class: "muted small mt-s" }, "Pick a server type to continue. Fabric, NeoForge, Forge and Quilt run mods; Vanilla is plain Minecraft.")),
         elsewhere);
       return;
@@ -10242,10 +10267,9 @@ views.setup = () => {
         st.properties["enforce-whitelist"] = "true";
       }
       const outside = isNew ? [h("h3", { class: "mt" }, "Friends outside your home"),
-        h("p", { class: "small" }, "How friends who aren't on your Wi-Fi join. You can change this later on the server's Friends page."),
         reachChoices(st.reach, pickReach),
-        st.reach === "playit" ? [h("div", { class: "notice warn small mt-s", role: "note" }, h("strong", {}, "About playit.gg: "), REACH_TEXT.playit),
-          h("p", { class: "muted small mt-s" }, "Once the server is made, its Friends page walks you through getting playit.gg's program. Nothing is downloaded before you press its button.")] : null,
+        st.reach === "playit" ? h("div", { class: "notice warn small mt-s", role: "note" }, "⚠ ", REACH_SHORT.playit,
+          infoTip(REACH_TEXT.playit, " Once the server is made, its Friends page walks you through getting playit.gg's program. Nothing is downloaded before you press its button.")) : null,
         st.reach === "forward" ? forwardDetails(st.port, null, null) : null,
         st.reach !== "home" ? h("p", { class: "small mt-s" }, st.properties && st.properties["white-list"] === "false"
           ? h("span", { class: "bad-text" }, "⚠ The whitelist is off (Advanced settings): anyone who finds the server can join.")
@@ -10258,7 +10282,7 @@ views.setup = () => {
         : opts.reach && REACH_WAYS.some(([w]) => w === opts.reach) ? [h("h3", { class: "mt" }, "Friends outside your home"),
           h("p", { class: "small" }, h("strong", {}, REACH_WAYS.find(([w]) => w === opts.reach)[1]),
             ", as chosen when the server was made. You can change it on the server's Friends page.")] : null;
-      return card("Friends",
+      return { outside, card: card("Friends",
         outside,
         moddable ? h("h3", { class: "mt" }, "Your friends' mods", infoTip("Friends get a download that sets up their Minecraft with this server's version and mods, and adds the server to their list. " +
           "Add mods for their Minecraft here (a minimap, JEI, …); they also get the server's mods that players need.")) : null,
@@ -10272,7 +10296,7 @@ views.setup = () => {
           friendPicker) : null,
         moddable && st.friends ? list : null,
         !moddable ? h("p", { class: "muted small" }, plugins ? "Plugins run on the server only: friends join with plain Minecraft." : "Friends join with plain Minecraft.") : null,
-        h("p", { class: "muted small" }, "You get a link to share on the server's Friends page. You can change all this later there."));
+        h("p", { class: "muted small" }, "You get a link to share on the server's Friends page. You can change all this later there.")) };
     };
 
     const advanced = h("details", { class: "card advanced", open: st.advancedOpen },
@@ -10281,6 +10305,30 @@ views.setup = () => {
       // The World card above covers the seed, type, structures and hardcore.
       propsEditor(opts.properties_schema.filter((p) => !WORLD_CARD_PROPS.includes(p.key)), st.properties));
     advanced.addEventListener("toggle", () => { st.advancedOpen = advanced.open; });
+
+    const friendsPart = opts.network_option ? null : friendsCard();
+    const almostDone = h("div", { class: "mt" }, card("Almost done",
+      h("label", { class: "row" }, eula, h("span", {}, "I accept the ",
+        h("a", { href: "https://aka.ms/MinecraftEULA", target: "_blank", rel: "noopener noreferrer" }, "Minecraft EULA ↗"),
+        ", which every Minecraft server must follow.")),
+      h("p", { class: "muted small" }, `Your server will be created in ${opts.server_dir}`),
+      createBox));
+
+    if (tab === "quick" && presetCards) {
+      fill(main, intro,
+        h("form", { onsubmit: submit },
+          presetCards,
+          h("div", { class: "mt" }, card("Finish setup",
+            h("div", { class: "grid" }, field("Server name (shown in the server list)", inp("motd", { maxlength: 59 }))),
+            friendsPart ? friendsPart.outside : null,
+            h("div", { class: "row mt" },
+              h("button", { type: "button", class: "btn small", onclick: () => setTab("custom") }, "Customize version, mods or world →")))),
+          almostDone,
+          elsewhere));
+      st.renderCreate();
+      setupScheduleCheck();
+      return;
+    }
 
     fill(main, intro,
       h("form", { onsubmit: submit },
@@ -10308,13 +10356,8 @@ views.setup = () => {
             h("span", { class: "muted small" }, "Manage your servers from your phone or another computer (needs a strong password).")))),
         h("div", { class: "mt" }, advanced),
         elsewhere,
-        opts.network_option ? null : h("div", { class: "mt" }, friendsCard()),
-        h("div", { class: "mt" }, card("Almost done",
-          h("label", { class: "row" }, eula, h("span", {}, "I accept the ",
-            h("a", { href: "https://aka.ms/MinecraftEULA", target: "_blank", rel: "noopener noreferrer" }, "Minecraft EULA ↗"),
-            ", which every Minecraft server must follow.")),
-          h("p", { class: "muted small" }, `Your server will be created in ${opts.server_dir}`),
-          createBox))));
+        friendsPart ? h("div", { class: "mt" }, friendsPart.card) : null,
+        almostDone));
     st.renderCreate();
     setupScheduleCheck();
   };

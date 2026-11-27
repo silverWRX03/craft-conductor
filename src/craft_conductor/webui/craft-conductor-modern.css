@@ -204,7 +204,11 @@
   box-shadow:none; }
 :root[data-style="modern"] :is(input, select, textarea):focus { border-color:var(--accent); }
 :root[data-style="modern"] :is(input[type=checkbox], input[type=radio]) { accent-color:var(--accent); }
-:root[data-style="modern"] :is(.switch, .link-btn, .guide-pill, .choice, .preferences-button, .map-thumb, button.prow-open, .folder-row, .cfg-files button, summary, .skip-link) { min-height:44px; }
+:root[data-style="modern"] :is(.switch, .link-btn, .guide-pill, .choice, .preferences-button, .setup-tab, .map-thumb, button.prow-open, .folder-row, .cfg-files button, summary, .skip-link) { min-height:44px; }
+:root[data-style="modern"] .setup-tabs { padding:2px; border-radius:var(--cc-control-radius); background:var(--panel-2); border-color:var(--border); }
+:root[data-style="modern"] .setup-tab { padding:8px 18px; border-radius:7px; font-size:14px; font-weight:500; text-transform:none; letter-spacing:normal; color:var(--muted); }
+:root[data-style="modern"] .setup-tab:hover { background:var(--hover-bg); color:var(--text); }
+:root[data-style="modern"] .setup-tab[aria-selected="true"] { background:var(--selected-bg); border-color:var(--accent); color:var(--accent); font-weight:600; }
 :root[data-style="modern"] .switch { min-width:44px; }
 /* (the contents of Help and the manual: a list of links, so each one is a 44-pixel target too) */
 :root[data-style="modern"] .help-toc li { break-inside:avoid; }

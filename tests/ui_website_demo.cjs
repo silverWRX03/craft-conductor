@@ -68,6 +68,7 @@ async function open(browser, scenario, problems, label, viewport = { width: 1440
       assert.deepEqual((await hub(f)).servers, [], 'no servers yet');
       assert.match(await f.evaluate(() => location.hash), /^#new$/);
       await dismissOffers(f);
+      await f.getByRole('tab', { name: 'Custom setup' }).click();
       await f.locator('button.choice', { hasText: 'Lightweight and quick to update' }).click();
       await f.locator('#setup-version').selectOption('1.21.1');
       await f.getByLabel('Server name (shown in the server list)').fill('Family Survival');
@@ -249,6 +250,7 @@ async function open(browser, scenario, problems, label, viewport = { width: 1440
       assert.match(r.body.reason, /Biomes O' Plenty requires GlitchCore, but no compatible GlitchCore release was found for Minecraft 1\.21\.4 using NeoForge\. Craft Conductor checked Modrinth and CurseForge\./);
       assert.equal(r.body.suggestions[0], '1.21.1', 'it says which version would work');
       await go(f, '#new');
+      await f.getByRole('tab', { name: 'Custom setup' }).click();
       await f.locator('button.choice', { hasText: 'The modern Forge' }).click();
       await f.locator('#setup-version').selectOption('1.21.4');
       await f.getByRole('button', { name: /Download mods/i }).first().click();
@@ -359,6 +361,7 @@ async function open(browser, scenario, problems, label, viewport = { width: 1440
     await t.step(`${name}: the map preview, and points of interest only when asked`, async () => {
       await settle(f);
       await go(f, '#new');
+      await f.getByRole('tab', { name: 'Custom setup' }).click();
       await f.locator('button.choice', { hasText: 'Lightweight and quick to update' }).click();
       await f.evaluate(() => openWorldPanel());
       await f.getByRole('textbox', { name: 'Seed', exact: true }).fill('8675309');  // (a seed with villages near the spawn)

@@ -33,7 +33,6 @@
   "A Minecraft name is 1 to 16 letters, numbers or _.": "Minecraft 名称由 1 到 16 个字母、数字或 _ 组成。",
   "A Minecraft server": "一个 Minecraft 服务器",
   "A crash, a friend asking to join, an update held back: even when the app is closed.": "崩溃、朋友请求加入、更新被暂缓：即使应用已关闭。",
-  "A fast Paper server for plugins (add them in step 3). Friends join with plain Minecraft.": "用于插件的高速 Paper 服务器（在第 3 步添加）。好友用原版 Minecraft 加入。",
   "A friend asks to be let in": "有朋友请求加入",
   "A live map of the world that you and your friends open in a browser: see the terrain, builds and who is where.": "一张你和朋友都能在浏览器中打开的实时世界地图：地形、建筑以及每个人的位置。",
   "A modpack": "整合包",
@@ -574,7 +573,6 @@
   "Pick a seed (or leave it empty for a random one) and press Preview map. Craft Conductor makes the world in a private server on this computer, with the server's mods, then draws it from above.": "选择一个种子（或留空使用随机种子），然后点击“预览地图”。Craft Conductor 会在这台电脑上的私有服务器中用服务器的模组生成世界，然后绘制俯视图。",
   "Pick a server type first (1. Server type).": "请先选择服务器类型（1. 服务器类型）。",
   "Pick a server type, Minecraft version and mods": "选择服务器类型、Minecraft 版本和模组",
-  "Pick a starting point and change anything afterwards, or choose each step yourself below.": "选择一个起点，之后可以随意修改，或在下方逐步自行选择。",
   "Pick at least one link to post": "至少选择一个要发布的链接",
   "Pillager outpost": "掠夺者前哨站",
   "Ping isn't available.": "无法获取延迟。",
@@ -620,7 +618,6 @@
   "Put players back in the default game mode when they join": "玩家加入时恢复为默认游戏模式",
   "QR code for pairing a phone": "用于配对手机的二维码",
   "Quick add": "快速添加",
-  "Quick start (optional)": "快速开始（可选）",
   "Quiet": "清闲",
   "Quietest time:": "最清闲的时间：",
   "Quit": "退出",
@@ -1200,5 +1197,11 @@
   "Backups are for this computer; use Export to move the server to another PC.": "备份仅适用于此电脑；要将服务器移至其他电脑，请使用导出。",
   "Anyone with the address can see the map.": "知道地址的任何人都可以看到地图。",
   "Export saves this server in one .zip to move to another computer.": "导出会将此服务器保存为一个 .zip 文件，以便移至其他电脑。",
-  "Put a different world on this server: a singleplayer world or a world .zip.": "在此服务器上放入其他世界：单人世界或世界 .zip 文件。"
+  "Put a different world on this server: a singleplayer world or a world .zip.": "在此服务器上放入其他世界：单人世界或世界 .zip 文件。",
+  "Setup mode": "设置模式",
+  "Quick start": "快速开始",
+  "Custom setup": "自定义设置",
+  "Pick a starting point and create right away, or switch to Custom setup to change anything.": "选择一个起点即可立即创建，或切换到自定义设置修改任何选项。",
+  "Customize version, mods or world →": "自定义版本、模组或世界 →",
+  "A fast Paper server for plugins (add them in Custom setup). Friends join with plain Minecraft.": "用于插件的高速 Paper 服务器（在自定义设置中添加）。朋友用原版 Minecraft 即可加入。"
 }

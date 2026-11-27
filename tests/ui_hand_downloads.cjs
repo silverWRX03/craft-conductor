@@ -23,6 +23,7 @@ const path = require('node:path');
 
   await page.goto(base + '/#new');
   await page.locator('#app').waitFor({ state: 'visible' });
+  await page.getByRole('tab', { name: 'Custom setup' }).click();
   await page.locator('button.choice', { hasText: 'Lightweight and quick to update' }).click();
   await page.locator('#setup-version').waitFor();
   // A CurseForge mod whose author keeps it to CurseForge

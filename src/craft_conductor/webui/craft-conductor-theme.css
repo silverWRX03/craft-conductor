@@ -99,6 +99,12 @@ input,select,textarea { background:var(--console-bg); color:var(--text); font-fa
 .info-wrap:hover .info-bubble, .info-wrap:focus-within .info-bubble, .info-wrap.pinned .info-bubble { display:block; }
 /* Page headings: read by screen readers (and jumped to), not drawn: the sidebar and the top bar say where you are. */
 h1.view-title:not(.says) { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
+/* New server: Quick start / Custom setup tabs. */
+.setup-tabs { display:inline-flex; gap:4px; padding:3px; margin:0 0 16px; background:var(--panel); border:1px solid var(--border); }
+.setup-tab { padding:8px 16px; border:1px solid transparent; background:transparent; color:var(--muted); font:inherit; font-size:13px;
+  font-weight:600; text-transform:uppercase; letter-spacing:.05em; cursor:pointer; }
+.setup-tab:hover { background:var(--hover-bg); color:var(--bright); }
+.setup-tab[aria-selected="true"] { background:var(--bg); border-color:var(--accent); color:var(--accent); }
 .cc-telemetry-grid .card { margin:0; padding:20px; }
 .cc-metric-card .bar { margin-top:14px; }
 .cc-metric-card { align-content:start; }  /* (the five cards' numbers and bars line up, whatever is under them) */
@@ -238,7 +244,7 @@ h1.view-title:not(.says) { position:absolute; width:1px; height:1px; padding:0; 
 
 /* Fingers (a phone or a tablet): everything that can be pressed is at least 44 by 44 pixels. */
 @media (pointer: coarse) {
-  .btn, .btn.small, .switch, .link-btn, .guide-pill, .choice, .preferences-button, .map-thumb, button.prow-open, .folder-row,
+  .btn, .btn.small, .switch, .link-btn, .guide-pill, .choice, .preferences-button, .setup-tab, .map-thumb, button.prow-open, .folder-row,
   .cfg-files button, summary, select, input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]) { min-height:44px; }
   .btn.small, .switch { min-width:44px; }
   a.btn { display:inline-flex; align-items:center; justify-content:center; }

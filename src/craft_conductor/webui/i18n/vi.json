@@ -33,7 +33,6 @@
   "A Minecraft name is 1 to 16 letters, numbers or _.": "Tên Minecraft gồm 1 đến 16 chữ cái, chữ số hoặc _.",
   "A Minecraft server": "Một máy chủ Minecraft",
   "A crash, a friend asking to join, an update held back: even when the app is closed.": "Sự cố, bạn bè xin vào, bản cập nhật bị hoãn: kể cả khi ứng dụng đã đóng.",
-  "A fast Paper server for plugins (add them in step 3). Friends join with plain Minecraft.": "Máy chủ Paper nhanh cho plugin (thêm ở bước 3). Bạn bè vào bằng Minecraft gốc.",
   "A friend asks to be let in": "Một người bạn xin vào",
   "A live map of the world that you and your friends open in a browser: see the terrain, builds and who is where.": "Bản đồ trực tiếp của thế giới mà bạn và bạn bè mở trong trình duyệt: địa hình, công trình và ai đang ở đâu.",
   "A modpack": "Một modpack",
@@ -571,7 +570,6 @@
   "Pick a seed (or leave it empty for a random one) and press Preview map. Craft Conductor makes the world in a private server on this computer, with the server's mods, then draws it from above.": "Chọn một hạt giống (hoặc để trống để lấy ngẫu nhiên) rồi bấm Xem bản đồ. Craft Conductor tạo thế giới trong một máy chủ riêng trên máy tính này, với các mod của máy chủ, rồi vẽ nó nhìn từ trên xuống.",
   "Pick a server type first (1. Server type).": "Hãy chọn loại máy chủ trước (1. Loại máy chủ).",
   "Pick a server type, Minecraft version and mods": "Chọn loại máy chủ, phiên bản Minecraft và mod",
-  "Pick a starting point and change anything afterwards, or choose each step yourself below.": "Chọn một điểm bắt đầu rồi thay đổi tùy ý sau, hoặc tự chọn từng bước bên dưới.",
   "Pick at least one link to post": "Chọn ít nhất một liên kết để đăng",
   "Pillager outpost": "Tiền đồn cướp bóc",
   "Ping isn't available.": "Không có thông tin ping.",
@@ -617,7 +615,6 @@
   "Put players back in the default game mode when they join": "Đưa người chơi về chế độ chơi mặc định khi vào",
   "QR code for pairing a phone": "Mã QR để ghép nối điện thoại",
   "Quick add": "Thêm nhanh",
-  "Quick start (optional)": "Bắt đầu nhanh (tùy chọn)",
   "Quiet": "Vắng",
   "Quietest time:": "Thời điểm vắng nhất:",
   "Quit": "Thoát",
@@ -1195,5 +1192,11 @@
   "Backups are for this computer; use Export to move the server to another PC.": "Bản sao lưu dành cho máy tính này; dùng Xuất để chuyển máy chủ sang PC khác.",
   "Anyone with the address can see the map.": "Bất kỳ ai có địa chỉ đều có thể xem bản đồ.",
   "Export saves this server in one .zip to move to another computer.": "Xuất lưu máy chủ này vào một tệp .zip để chuyển sang máy tính khác.",
-  "Put a different world on this server: a singleplayer world or a world .zip.": "Đặt một thế giới khác lên máy chủ này: thế giới chơi đơn hoặc tệp .zip thế giới."
+  "Put a different world on this server: a singleplayer world or a world .zip.": "Đặt một thế giới khác lên máy chủ này: thế giới chơi đơn hoặc tệp .zip thế giới.",
+  "Setup mode": "Chế độ thiết lập",
+  "Quick start": "Bắt đầu nhanh",
+  "Custom setup": "Thiết lập tùy chỉnh",
+  "Pick a starting point and create right away, or switch to Custom setup to change anything.": "Chọn điểm bắt đầu để tạo ngay, hoặc chuyển sang Thiết lập tùy chỉnh để thay đổi mọi thứ.",
+  "Customize version, mods or world →": "Tùy chỉnh phiên bản, mod hoặc thế giới →",
+  "A fast Paper server for plugins (add them in Custom setup). Friends join with plain Minecraft.": "Máy chủ Paper nhanh cho plugin (thêm ở Thiết lập tùy chỉnh). Bạn bè tham gia bằng Minecraft thường."
 }

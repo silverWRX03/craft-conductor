@@ -217,8 +217,25 @@ const assert = require('node:assert/strict');
   await page.evaluate(() => window.addingDependency);
   assert.equal(await page.evaluate(() => setupState.mods.get('example-worldgen').channel), 'beta');
   assert.equal(await page.evaluate(() => setupState.mods.has('example-library')), true);
-  // A required library with no build for the chosen Minecraft: the row explains, and only you change the version.
+  // Step 5: New server opens on Quick start; picking a preset shows Finish setup without the 5-step form,
+  // and Custom setup keeps the preset's choices pre-filled.
   await go('new');
+  const quickTab = page.getByRole('tab', { name: 'Quick start' });
+  const customTab = page.getByRole('tab', { name: 'Custom setup' });
+  assert.equal(await quickTab.getAttribute('aria-selected'), 'true', 'Quick start opens first');
+  assert.equal(await page.getByRole('heading', { name: '1. Server type' }).count(), 0, 'Custom form hidden on Quick start');
+  await page.locator('button.choice', { hasText: 'Vanilla Minecraft with friends' }).click();
+  await page.getByRole('heading', { name: 'Finish setup' }).waitFor();
+  assert.equal(await page.locator('#setup-version').count(), 0, 'preset keeps Quick start compact');
+  await quickTab.focus();
+  await page.keyboard.press('ArrowRight');
+  assert.equal(await customTab.getAttribute('aria-selected'), 'true', 'ArrowRight switches to Custom setup');
+  await page.locator('#setup-version').waitFor();
+  // A required library with no build for the chosen Minecraft: the row explains, and only you change the version.
+  await page.evaluate(() => resetSetup());
+  await go('s/alpha/dashboard');
+  await go('new');
+  await page.getByRole('tab', { name: 'Custom setup' }).click();
   await page.locator('.choice', {hasText: 'Lightweight and quick to update'}).click();
   await page.locator('#setup-version').waitFor();
   await page.evaluate(() => { setupState.mods.clear(); setupState.minecraft = '1.21.2'; setupState.rerender(); });
@@ -458,7 +475,8 @@ const assert = require('node:assert/strict');
   await go('s/alpha/mods');
   assert.deepEqual(await misplacedCheckboxes(), []);
   await go('new');
-  await page.locator('button.choice', {hasText: 'Fabric'}).first().click();
+  await page.getByRole('tab', { name: 'Custom setup' }).click();
+  await page.locator('button.choice', {hasText: 'Lightweight and quick to update'}).first().click();
   await page.waitForFunction(() => document.querySelectorAll('#main input[type=checkbox]').length > 5);
   assert.deepEqual(await misplacedCheckboxes(), []);
   await page.evaluate(() => openSshInstall());

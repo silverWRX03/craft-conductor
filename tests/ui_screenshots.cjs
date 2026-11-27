@@ -222,6 +222,7 @@ const HEADERS = {'X-CRAFT-CONDUCTOR': '1'};
   // Change version and the file check: a players' mod that wouldn't start, the version that works,
   // and its builds, on the setup page.
   await go('new');
+  await page.getByRole('tab', { name: 'Custom setup' }).click();
   await page.locator('button.choice', {hasText: 'Lightweight and quick to update'}).click();
   await page.locator('#setup-version').selectOption('1.21.1');
   await page.evaluate(async () => {

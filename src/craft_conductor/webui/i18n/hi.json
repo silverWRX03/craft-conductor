@@ -33,7 +33,6 @@
   "A Minecraft name is 1 to 16 letters, numbers or _.": "Minecraft नाम में 1 से 16 अक्षर, अंक या _ होते हैं।",
   "A Minecraft server": "एक Minecraft सर्वर",
   "A crash, a friend asking to join, an update held back: even when the app is closed.": "क्रैश, जुड़ना चाहता दोस्त, रोका गया अपडेट: ऐप बंद होने पर भी।",
-  "A fast Paper server for plugins (add them in step 3). Friends join with plain Minecraft.": "प्लगइन के लिए तेज़ Paper सर्वर (उन्हें चरण 3 में जोड़ें)। दोस्त सामान्य Minecraft से जुड़ते हैं।",
   "A friend asks to be let in": "कोई दोस्त शामिल होने की अनुमति मांगे",
   "A live map of the world that you and your friends open in a browser: see the terrain, builds and who is where.": "दुनिया का लाइव नक्शा जिसे आप और आपके दोस्त ब्राउज़र में खोलते हैं: ज़मीन, निर्माण और कौन कहाँ है।",
   "A modpack": "एक मॉडपैक",
@@ -574,7 +573,6 @@
   "Pick a seed (or leave it empty for a random one) and press Preview map. Craft Conductor makes the world in a private server on this computer, with the server's mods, then draws it from above.": "एक सीड चुनें (या रैंडम के लिए खाली छोड़ें) और नक्शा देखें दबाएँ। Craft Conductor इस कंप्यूटर पर एक निजी सर्वर में, सर्वर के मॉड्स के साथ, दुनिया बनाता है और फिर उसे ऊपर से बनाकर दिखाता है।",
   "Pick a server type first (1. Server type).": "पहले सर्वर का प्रकार चुनें (1. सर्वर का प्रकार)।",
   "Pick a server type, Minecraft version and mods": "सर्वर का प्रकार, Minecraft संस्करण और मॉड्स चुनें",
-  "Pick a starting point and change anything afterwards, or choose each step yourself below.": "कोई शुरुआती विकल्प चुनें और बाद में कुछ भी बदलें, या नीचे हर चरण खुद चुनें।",
   "Pick at least one link to post": "पोस्ट करने के लिए कम से कम एक लिंक चुनें",
   "Pillager outpost": "पिलेजर चौकी",
   "Ping isn't available.": "पिंग उपलब्ध नहीं है।",
@@ -620,7 +618,6 @@
   "Put players back in the default game mode when they join": "जुड़ने पर खिलाड़ियों को डिफ़ॉल्ट गेम मोड में रखें",
   "QR code for pairing a phone": "फ़ोन जोड़ने के लिए QR कोड",
   "Quick add": "जल्दी जोड़ें",
-  "Quick start (optional)": "जल्दी शुरुआत (वैकल्पिक)",
   "Quiet": "शांत",
   "Quietest time:": "सबसे शांत समय:",
   "Quit": "बाहर निकलें",
@@ -1200,5 +1197,11 @@
   "Backups are for this computer; use Export to move the server to another PC.": "बैकअप इस कंप्यूटर के लिए हैं; सर्वर को दूसरे PC पर ले जाने के लिए एक्सपोर्ट का उपयोग करें।",
   "Anyone with the address can see the map.": "पते वाला कोई भी व्यक्ति मैप देख सकता है।",
   "Export saves this server in one .zip to move to another computer.": "एक्सपोर्ट इस सर्वर को दूसरे कंप्यूटर पर ले जाने के लिए एक .zip में सहेजता है।",
-  "Put a different world on this server: a singleplayer world or a world .zip.": "इस सर्वर पर एक अलग दुनिया रखें: एक सिंगलप्लेयर दुनिया या एक दुनिया .zip।"
+  "Put a different world on this server: a singleplayer world or a world .zip.": "इस सर्वर पर एक अलग दुनिया रखें: एक सिंगलप्लेयर दुनिया या एक दुनिया .zip।",
+  "Setup mode": "सेटअप मोड",
+  "Quick start": "त्वरित शुरुआत",
+  "Custom setup": "कस्टम सेटअप",
+  "Pick a starting point and create right away, or switch to Custom setup to change anything.": "एक शुरुआती विकल्प चुनें और तुरंत बनाएँ, या कुछ भी बदलने के लिए कस्टम सेटअप पर जाएँ।",
+  "Customize version, mods or world →": "वर्ज़न, मॉड्स या दुनिया बदलें →",
+  "A fast Paper server for plugins (add them in Custom setup). Friends join with plain Minecraft.": "प्लगइन्स के लिए तेज़ Paper सर्वर (इन्हें कस्टम सेटअप में जोड़ें)। दोस्त सामान्य Minecraft से जुड़ते हैं।"
 }

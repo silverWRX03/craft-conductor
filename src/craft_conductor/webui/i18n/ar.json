@@ -33,7 +33,6 @@
   "A Minecraft name is 1 to 16 letters, numbers or _.": "اسم Minecraft يتكوّن من 1 إلى 16 حرفًا أو رقمًا أو _.",
   "A Minecraft server": "خادم Minecraft",
   "A crash, a friend asking to join, an update held back: even when the app is closed.": "تعطل، صديق يطلب الانضمام، تحديث معلّق: حتى والتطبيق مغلق.",
-  "A fast Paper server for plugins (add them in step 3). Friends join with plain Minecraft.": "خادم Paper سريع للإضافات البرمجية (أضفها في الخطوة 3). ينضم الأصدقاء بـ Minecraft العادي.",
   "A friend asks to be let in": "صديق يطلب الدخول",
   "A live map of the world that you and your friends open in a browser: see the terrain, builds and who is where.": "خريطة حية للعالم تفتحها أنت وأصدقاؤك في المتصفح: التضاريس والمباني ومكان كل شخص.",
   "A modpack": "حزمة إضافات",
@@ -574,7 +573,6 @@
   "Pick a seed (or leave it empty for a random one) and press Preview map. Craft Conductor makes the world in a private server on this computer, with the server's mods, then draws it from above.": "اختر بذرة (أو اتركها فارغة لبذرة عشوائية) واضغط معاينة الخريطة. يُنشئ Craft Conductor العالم في خادم خاص على هذا الحاسوب، بإضافات الخادم، ثم يرسمه من الأعلى.",
   "Pick a server type first (1. Server type).": "اختر نوع الخادم أولًا (1. نوع الخادم).",
   "Pick a server type, Minecraft version and mods": "اختر نوع الخادم وإصدار Minecraft والإضافات",
-  "Pick a starting point and change anything afterwards, or choose each step yourself below.": "اختر نقطة بداية وغيّر ما تشاء لاحقًا، أو اختر كل خطوة بنفسك أدناه.",
   "Pick at least one link to post": "اختر رابطًا واحدًا على الأقل لنشره",
   "Pillager outpost": "موقع النهّابين",
   "Ping isn't available.": "زمن الاستجابة (ping) غير متاح.",
@@ -620,7 +618,6 @@
   "Put players back in the default game mode when they join": "إعادة اللاعبين إلى وضع اللعب الافتراضي عند انضمامهم",
   "QR code for pairing a phone": "رمز QR لإقران هاتف",
   "Quick add": "إضافة سريعة",
-  "Quick start (optional)": "بداية سريعة (اختياري)",
   "Quiet": "هادئ",
   "Quietest time:": "أهدأ وقت:",
   "Quit": "خروج",
@@ -1200,5 +1197,11 @@
   "Backups are for this computer; use Export to move the server to another PC.": "النسخ الاحتياطية لهذا الكمبيوتر؛ استخدم التصدير لنقل الخادم إلى كمبيوتر آخر.",
   "Anyone with the address can see the map.": "يمكن لأي شخص لديه العنوان رؤية الخريطة.",
   "Export saves this server in one .zip to move to another computer.": "يحفظ التصدير هذا الخادم في ملف .zip واحد لنقله إلى كمبيوتر آخر.",
-  "Put a different world on this server: a singleplayer world or a world .zip.": "ضع عالمًا مختلفًا على هذا الخادم: عالم لعب فردي أو ملف عالم .zip."
+  "Put a different world on this server: a singleplayer world or a world .zip.": "ضع عالمًا مختلفًا على هذا الخادم: عالم لعب فردي أو ملف عالم .zip.",
+  "Setup mode": "وضع الإعداد",
+  "Quick start": "البدء السريع",
+  "Custom setup": "إعداد مخصص",
+  "Pick a starting point and create right away, or switch to Custom setup to change anything.": "اختر نقطة بداية وأنشئ الخادم فورًا، أو انتقل إلى الإعداد المخصص لتغيير أي شيء.",
+  "Customize version, mods or world →": "تخصيص الإصدار أو المودات أو العالم →",
+  "A fast Paper server for plugins (add them in Custom setup). Friends join with plain Minecraft.": "خادم Paper سريع للإضافات (أضفها في الإعداد المخصص). ينضم الأصدقاء بـ Minecraft العادية."
 }
