@@ -668,7 +668,6 @@
   "Revert": "تراجع",
   "Role": "الدور",
   "Roll back": "تراجع",
-  "Roll back to this": "ارجع إلى هذه",
   "Rolling back…": "جارٍ التراجع…",
   "Router": "الموجّه",
   "Router setup (port forwarding)": "إعداد الموجّه (إعادة توجيه المنافذ)",
@@ -1203,5 +1202,15 @@
   "Custom setup": "إعداد مخصص",
   "Pick a starting point and create right away, or switch to Custom setup to change anything.": "اختر نقطة بداية وأنشئ الخادم فورًا، أو انتقل إلى الإعداد المخصص لتغيير أي شيء.",
   "Customize version, mods or world →": "تخصيص الإصدار أو المودات أو العالم →",
-  "A fast Paper server for plugins (add them in Custom setup). Friends join with plain Minecraft.": "خادم Paper سريع للإضافات (أضفها في الإعداد المخصص). ينضم الأصدقاء بـ Minecraft العادية."
+  "A fast Paper server for plugins (add them in Custom setup). Friends join with plain Minecraft.": "خادم Paper سريع للإضافات (أضفها في الإعداد المخصص). ينضم الأصدقاء بـ Minecraft العادية.",
+  "Restore…": "استعادة…",
+  "Restore from backup": "الاستعادة من نسخة احتياطية",
+  "Roll back the whole server": "إرجاع الخادم بالكامل",
+  "Restore the whole server": "استعادة الخادم بالكامل",
+  "Put the whole server (world, mods and settings) back to how it was in this backup.": "أعد الخادم بالكامل (العالم والمودات والإعدادات) كما كان في هذه النسخة الاحتياطية.",
+  "Put back only part of the world; everything else stays as it is now.": "أعد جزءًا من العالم فقط؛ كل شيء آخر يبقى كما هو الآن.",
+  "In the world's datapacks folder.": "في مجلد حزم البيانات (datapacks) الخاص بالعالم.",
+  "The pack has no server pack, and Modrinth says this mod only runs on players' computers, so it goes in your friends' download instead of on the server.": "لا تحتوي الحزمة على حزمة خادم، ويقول Modrinth إن هذا المود يعمل على أجهزة اللاعبين فقط، لذلك يُضاف إلى تنزيل أصدقائك بدلًا من الخادم.",
+  "The pack's server pack leaves it out, so it goes in your friends' download instead of on the server.": "حزمة الخادم الخاصة بهذه الحزمة تستبعده، لذلك يُضاف إلى تنزيل أصدقائك بدلًا من الخادم.",
+  "This modpack marks it client-only, so Craft Conductor already leaves it off the server.": "تصنّفه هذه الحزمة للعميل فقط، لذلك يتركه Craft Conductor خارج الخادم بالفعل."
 }

@@ -652,7 +652,6 @@
   "Revert": "Reverter",
   "Role": "Cargo",
   "Roll back": "Reverter",
-  "Roll back to this": "Voltar para esta",
   "Rolling back…": "Revertendo…",
   "Router": "Roteador",
   "Router setup (port forwarding)": "Configuração do roteador (redirecionamento de portas)",
@@ -1186,5 +1185,15 @@
   "Custom setup": "Configuração personalizada",
   "Pick a starting point and create right away, or switch to Custom setup to change anything.": "Escolha um ponto de partida e crie na hora, ou mude para Configuração personalizada para ajustar o que quiser.",
   "Customize version, mods or world →": "Personalizar versão, mods ou mundo →",
-  "A fast Paper server for plugins (add them in Custom setup). Friends join with plain Minecraft.": "Um servidor Paper rápido para plugins (adicione-os na Configuração personalizada). Amigos entram com Minecraft normal."
+  "A fast Paper server for plugins (add them in Custom setup). Friends join with plain Minecraft.": "Um servidor Paper rápido para plugins (adicione-os na Configuração personalizada). Amigos entram com Minecraft normal.",
+  "Restore…": "Restaurar…",
+  "Restore from backup": "Restaurar de um backup",
+  "Roll back the whole server": "Reverter o servidor inteiro",
+  "Restore the whole server": "Restaurar o servidor inteiro",
+  "Put the whole server (world, mods and settings) back to how it was in this backup.": "Coloca o servidor inteiro (mundo, mods e configurações) como estava neste backup.",
+  "Put back only part of the world; everything else stays as it is now.": "Restaura apenas uma parte do mundo; todo o resto continua como está agora.",
+  "In the world's datapacks folder.": "Na pasta datapacks do mundo.",
+  "The pack has no server pack, and Modrinth says this mod only runs on players' computers, so it goes in your friends' download instead of on the server.": "O pacote não tem pacote de servidor, e o Modrinth diz que este mod roda apenas nos computadores dos jogadores, por isso vai no download dos seus amigos em vez do servidor.",
+  "The pack's server pack leaves it out, so it goes in your friends' download instead of on the server.": "O pacote de servidor do modpack deixa este mod de fora, por isso ele vai no download dos seus amigos em vez do servidor.",
+  "This modpack marks it client-only, so Craft Conductor already leaves it off the server.": "Este modpack marca o mod como apenas para cliente, então o Craft Conductor já o deixa fora do servidor."
 }

@@ -290,14 +290,19 @@ const assert = require('node:assert/strict');
   if (shot) await page.screenshot({path: shot});
   await page.locator('#setup-manage-mods').click();
   if (shot) { await page.waitForTimeout(400); await page.screenshot({path: shot.replace(/\.png$/, '-drawer.png')}); }
-  assert.match(await drawer.locator('section[aria-label="What changed"]').innerText(),
+  const whatChanged1 = drawer.locator('details[aria-label="What changed"]');
+  assert.equal(await whatChanged1.evaluate((el) => el.open), false, 'What changed starts folded');
+  await whatChanged1.locator('summary').click();
+  assert.match(await whatChanged1.innerText(),
     /Lithostitched was removed: Terralith has no build for Forge 1\.21\.1, so nothing needs it now/);
   const noForge = drawer.locator('.notice.warn', {hasText: 'No Forge build for Minecraft 1.21.1'});
   assert.match(await noForge.innerText(), /It has NeoForge and Fabric builds for Minecraft 1\.21\.1 and a datapack build/);
   await noForge.getByRole('button', {name: 'Use NeoForge', exact: true}).waitFor();
   await noForge.getByRole('button', {name: 'Stay on Forge: use its datapack', exact: true}).click();
-  await drawer.getByText("Terralith uses its datapack build on Forge, in the world's datapacks folder: it doesn't need Lithostitched.", {exact: true}).waitFor();
   await drawer.locator('.tag', {hasText: 'datapack'}).waitFor();
+  const whatChanged1b = drawer.locator('details[aria-label="What changed"]');
+  if (!(await whatChanged1b.evaluate((el) => el.open))) await whatChanged1b.locator('summary').click();
+  await drawer.getByText("Terralith uses its datapack build on Forge, in the world's datapacks folder: it doesn't need Lithostitched.", {exact: true}).waitFor();
   assert.deepEqual(await page.evaluate(() => setupDatapacks()), ['terralith']);
   await page.keyboard.press('Escape');
   await drawer.waitFor({state: 'detached'});
@@ -316,12 +321,17 @@ const assert = require('node:assert/strict');
   await page.waitForFunction(() => document.querySelector('#setup-manage-mods.attention'));
   await inView('setup-manage-mods');
   await page.locator('#setup-manage-mods').click();
-  assert.match(await drawer.locator('section[aria-label="What changed"]').innerText(),
+  const whatChanged2 = drawer.locator('details[aria-label="What changed"]');
+  assert.equal(await whatChanged2.evaluate((el) => el.open), false, 'What changed starts folded');
+  await whatChanged2.locator('summary').click();
+  assert.match(await whatChanged2.innerText(),
     /Lithostitched was removed: Terralith has no build for Fabric 1\.21\.2, so nothing needs it now/);
   const noBuild = drawer.locator('.notice.warn', {hasText: 'No Fabric build for Minecraft 1.21.2'});
   await noBuild.getByRole('button', {name: 'Use Minecraft 1.21.1', exact: true}).click();
   await page.getByRole('button', {name: 'Change Minecraft version', exact: true}).click();
   await page.waitForFunction(() => setupState.minecraft === '1.21.1' && setupState.mods.has('lithostitched') && !setupState.mods.get('terralith').bad);
+  const whatChanged3 = drawer.locator('details[aria-label="What changed"]');
+  if (!(await whatChanged3.evaluate((el) => el.open))) await whatChanged3.locator('summary').click();
   await drawer.getByText('Lithostitched was added: Terralith needs it on Fabric 1.21.1.', {exact: true}).waitFor();
   await page.keyboard.press('Escape');
   await drawer.waitFor({state: 'detached'});

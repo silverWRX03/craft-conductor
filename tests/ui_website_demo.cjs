@@ -327,7 +327,8 @@ async function open(browser, scenario, problems, label, viewport = { width: 1440
       const oldest = listed[listed.length - 1].name;
       await go(f, `#s/${S}/backups`);
       const row = f.locator('#main tr, #main li', { hasText: oldest.slice(0, 15) }).first();
-      await row.getByRole('button', { name: 'Roll back to this' }).click();
+      await row.getByRole('button', { name: 'Restore…' }).click();
+      await f.locator('#restore-choice').getByRole('button', { name: /Roll back the whole server/ }).click();
       await answer(f, 'Roll back');
       await until(async () => { const s = await statusOf(f, S); return s.last_job && s.last_job.name === 'roll back' && !s.job; }, 'rolled back', 15000);
       const mods = (await api('/api/servers/family-survival/mods')).body;

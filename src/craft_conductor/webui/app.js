@@ -3277,7 +3277,7 @@ views.mods = () => {
         warning: skipped.get(spec.key) || "",
         versions: inst && inst.datapack ? null : versionsFor(spec.key, (inst || spec).source), held: heldLabel(spec.key),
         problems: problemsFor(modCheck && modCheck.result, spec.key, "server"),
-        detail: inst ? (inst.datapack ? `${inst.filename}, in the world's datapacks folder` : inst.filename)
+        detail: inst ? (inst.datapack ? "In the world's datapacks folder." : "")
           : skipped.has(spec.key) ? "Not installed." : "Added; installed with the next update.",
         controls: () => h("div", { class: "row wrap" },
           h("label", { class: "row small", title: "Required mods hold back Minecraft upgrades until they support the new version." },
@@ -3312,7 +3312,7 @@ views.mods = () => {
         key, name: dep.name, source: dep.source || (inst || {}).source || "modrinth",
         version: dep.version || (inst || {}).version || "", channel: dep.channel || (inst || {}).channel || "release",
         minecraft: r.minecraft, loader: r.loader, dependency: true, neededBy: dep.needers.map((x) => x.name).join(", "),
-        warning: skipped.get(key) || "", detail: inst ? inst.filename : "", tags: [playersTag(key)].filter(Boolean),
+        warning: skipped.get(key) || "", detail: "", tags: [playersTag(key)].filter(Boolean),
         versions: versionsFor(key, dep.source || (inst || {}).source || "modrinth"), held: heldLabel(key),
         problems: problemsFor(modCheck && modCheck.result, key, "server"),
         controls: () => h("div", { class: "row wrap" }, serverConfigButton(key), playersButton(key)),
@@ -3330,7 +3330,7 @@ views.mods = () => {
       key: m.key, name: m.name, source: m.source, version: m.version, channel: m.channel || "release",
       minecraft: r.minecraft, loader: r.loader, dependency: !!m.dependency_of,
       neededBy: m.dependency_of ? ((r.installed || []).find((x) => x.key === m.dependency_of) || {}).name : "",
-      origin: m.dependency_of ? "" : "installed", tags: [m.manual ? "manual download" : null, playersTag(m.key)].filter(Boolean), detail: m.filename,
+      origin: m.dependency_of ? "" : "installed", tags: [m.manual ? "manual download" : null, playersTag(m.key)].filter(Boolean), detail: "",
       versions: m.datapack ? null : versionsFor(m.key, m.source), held: heldLabel(m.key),
       problems: problemsFor(modCheck && modCheck.result, m.key, "server"),
       controls: () => playersButton(m.key),
@@ -3721,27 +3721,44 @@ views.backups = () => {
       if (await ask(msg, { ok: c && c.snapshot ? "Roll back" : "Restore", danger: true }))
         act(() => api("/api/backups/restore", { method: "POST", body: { name: b.name } }), "Rolling back…");
     };
+    const openRestoreChoice = (b) => {
+      if ($("#restore-choice")) return;
+      const noWorld = !!b.holds && !b.holds.includes("world");
+      const close = () => { document.removeEventListener("keydown", onKey, true); const el = $("#restore-choice"); if (el) el.remove(); };
+      const onKey = (e) => { if (e.key === "Escape") { e.preventDefault(); close(); } };
+      document.addEventListener("keydown", onKey, true);
+      const modal = h("div", { class: "modal-backdrop", id: "restore-choice", role: "dialog", "aria-modal": "true",
+        "aria-labelledby": "restore-choice-title", onclick: (e) => { if (e.target === modal) close(); } },
+        h("div", { class: "modal" },
+          h("h2", { id: "restore-choice-title" }, "Restore from backup"),
+          h("p", { class: "muted small" }, h("code", {}, b.name), ` · ${fmtTime(b.time)}`),
+          h("div", { class: "choices two mt-s" },
+            h("button", { type: "button", class: "choice", onclick: () => { close(); rollBack(b); } },
+              h("strong", {}, b.snapshot ? "Roll back the whole server" : "Restore the whole server"),
+              h("span", { class: "small muted" }, "Put the whole server (world, mods and settings) back to how it was in this backup.")),
+            h("button", { type: "button", class: "choice", disabled: noWorld,
+              onclick: () => { close(); openAreaRestore(b); } },
+              h("strong", {}, "Put back an area…"),
+              h("span", { class: "small muted" }, noWorld ? "This backup doesn't hold the world." : "Put back only part of the world; everything else stays as it is now."))),
+          h("div", { class: "row mt" }, h("button", { type: "button", class: "btn ghost", onclick: close }, "Cancel"))));
+      document.body.append(modal);
+      modal.querySelector(".choice").focus();
+    };
     const changed = (b) => b.changes === null || b.changes === undefined ? null
       : b.changes.length ? h("details", { class: "small" }, h("summary", {}, `${b.changes.length} change(s) since the one before`),
         h("ul", { class: "list snapshot-changes" }, b.changes.map((line) => h("li", { class: line.startsWith("+") ? "change-add" : line.startsWith("−") ? "change-rm" : "" }, line))))
         : h("span", { class: "muted small" }, "Only the world changed since the one before");
     fill(list, r.backups.length ? h("table", {},
       h("thead", {}, h("tr", {}, h("th", {}, "Backup"), h("th", {}, "Created"), h("th", {}, "Size"), h("th", {}, "Can be restored"), h("th", {}))),
-      h("tbody", {}, r.backups.map((b) => {
-        const noWorld = !!b.holds && !b.holds.includes("world");
-        return h("tr", {},
-          h("td", {}, h("code", {}, b.name), b.snapshot ? h("div", { class: "small muted" }, `Minecraft ${b.minecraft || "—"} · ${b.mods} mod(s)`) : null, holdsLine(b), changed(b)),
-          h("td", {}, fmtTime(b.time)), h("td", {}, fmtBytes(b.size)),
-          h("td", {}, checked(b.check), " ", h("button", { class: "link-btn small", title: "Read the whole backup to make sure it can be restored",
-            onclick: () => act(() => api("/api/backups/check", { method: "POST", body: { name: b.name } }), "Checking the backup…") }, b.check ? "Check again" : "Check")),
-          h("td", { class: "row" }, h("button", {
-            class: "btn small", disabled: !stopped, title: stopped ? "" : "Stop the server first",
-            onclick: () => rollBack(b),
-          }, b.snapshot ? "Roll back to this" : "Restore"),
-          h("button", { class: "btn small", disabled: !stopped || noWorld,
-            title: noWorld ? "This backup doesn't hold the world" : stopped ? "Put back only part of the world" : "Stop the server first",
-            onclick: () => openAreaRestore(b) }, "Put back an area…")));
-      }))) : h("p", { class: "empty" }, "No backups yet."));
+      h("tbody", {}, r.backups.map((b) => h("tr", {},
+        h("td", {}, h("code", {}, b.name), b.snapshot ? h("div", { class: "small muted" }, `Minecraft ${b.minecraft || "—"} · ${b.mods} mod(s)`) : null, holdsLine(b), changed(b)),
+        h("td", {}, fmtTime(b.time)), h("td", {}, fmtBytes(b.size)),
+        h("td", {}, checked(b.check), " ", h("button", { class: "link-btn small", title: "Read the whole backup to make sure it can be restored",
+          onclick: () => act(() => api("/api/backups/check", { method: "POST", body: { name: b.name } }), "Checking the backup…") }, b.check ? "Check again" : "Check")),
+        h("td", { class: "row" }, h("button", {
+          class: "btn small", disabled: !stopped, title: stopped ? "" : "Stop the server first",
+          onclick: () => openRestoreChoice(b),
+        }, "Restore…")))))) : h("p", { class: "empty" }, "No backups yet."));
   };
   // Backup settings: what backups hold, how many are kept, and a copy somewhere else.
   const loadSettings = async () => {
@@ -4578,12 +4595,8 @@ function openModManager({ title, description = "", owner = "", getItems, getHead
     const counts = modSummaryCounts(items);
     const rows = items.length ? items.map((m) => {
       const source = m.source ? m.source[0].toUpperCase() + m.source.slice(1) : "";
-      const minecraft = Array.isArray(m.minecraft) ? m.minecraft.join(", ") : m.minecraft;
-      const loader = Array.isArray(m.loader) ? m.loader.join(", ") : m.loader;
       const meta = [
         m.version ? `Version ${m.version}` : null,
-        minecraft ? `Minecraft ${minecraft}` : null,
-        loader ? loader : null,
         source || null,
       ].filter(Boolean);
       const tags = [
@@ -4610,8 +4623,8 @@ function openModManager({ title, description = "", owner = "", getItems, getHead
       return h("div", { class: "mod-manager-row" + (m.removed ? " removed" : "") + (problems.length ? " has-problem" : ""), "data-key": m.key },
         h("div", { class: "grow" },
           h("div", { class: "mod-manager-name" }, h("strong", {}, m.name || m.key || "Mod"), tags,
-            m.held ? h("span", { class: "tag warn", title: t("Updates leave it at this version until you pick Newest again (Change version).") }, `held at ${m.held}`) : null),
-          meta.length ? h("div", { class: "muted small" }, meta.join(" · ")) : null,
+            m.held ? h("span", { class: "tag warn", title: t("Updates leave it at this version until you pick Newest again (Change version).") }, `held at ${m.held}`) : null,
+            meta.length ? h("span", { class: "muted small" }, meta.join(" · ")) : null),
           m.warning ? h("div", { class: "small bad-text mt-s" }, m.warning) : null,
           problems.map((x) => h("div", { class: "small bad-text mt-s", role: "status" }, "⛔ ", x.text)),
           fixes.length ? h("div", { class: "row wrap mt-s" }, fixes.map((f) =>
@@ -9330,11 +9343,11 @@ function setupServerModItems() {
         problems: m.project_id ? problemsFor(st.fileCheck && st.fileCheck.result, `${m.source}:${m.project_id}`, "server") : [],
         excludedFromCount: !onServer,
         tags: [...(onServer ? [] : ["client only", "not installed on server"]), ...(m.manual ? ["manual download"] : [])],
-        detail: onServer ? m.path : m.side_from === "modrinth"
-          ? `${m.path} · The pack has no server pack, and Modrinth says this mod only runs on players' computers, so it goes in your friends' download instead of on the server.`
+        detail: onServer ? "" : m.side_from === "modrinth"
+          ? "The pack has no server pack, and Modrinth says this mod only runs on players' computers, so it goes in your friends' download instead of on the server."
           : m.for_friends
-          ? `${m.path} · The pack's server pack leaves it out, so it goes in your friends' download instead of on the server.`
-          : `${m.path} · This modpack marks it client-only, so Craft Conductor already leaves it off the server.`,
+          ? "The pack's server pack leaves it out, so it goes in your friends' download instead of on the server."
+          : "This modpack marks it client-only, so Craft Conductor already leaves it off the server.",
         // (no question: removing ten pack mods took ten pop-ups; an Undo bar shows instead, see undoToast)
         undoNote: "The modpack stays selected, but leaving out one of its mods can change gameplay or break other pack mods. Craft Conductor still checks the final set before creating the server.",
         remove: onServer ? async () => { removed.add(m.path); st.modpack.removed = removed; return true; } : null,
@@ -9930,9 +9943,9 @@ views.setup = () => {
         owner: "setup-server-mods",
         getItems: setupServerModItems,
         getHeader: () => [
-          (st.modChanges || []).length ? h("section", { class: "notice mb", "aria-label": "What changed" },
-            h("strong", {}, `What changed for ${setupLoaderLabel()} ${setupModVersion()}`.trim()),
-            h("ul", { class: "small" }, st.modChanges.map((x) => h("li", {}, x)))) : null,
+          (st.modChanges || []).length ? h("details", { class: "notice mb", "aria-label": "What changed" },
+            h("summary", {}, h("strong", {}, `What changed for ${setupLoaderLabel()} ${setupModVersion()}`.trim() + ` (${st.modChanges.length})`)),
+            h("ul", { class: "small mt-s" }, st.modChanges.map((x) => h("li", {}, x)))) : null,
           st.modpack && st.modpack.error ? h("div", { class: "notice warn mb" }, `Couldn't read the modpack's mod list: ${st.modpack.error}`) : null,
           fileCheckNotice(st.fileCheck, "server", "The server wouldn't start with these mods:"),
           handSection()],

@@ -465,11 +465,12 @@ body.browse-mode main { padding: 0; overflow: hidden; }
 .mod-manager-body { flex: 1; min-height: 0; overflow: auto; padding: 16px 20px 28px; }
 .mod-manager-counts { padding-bottom: 10px; }
 .mod-manager-list { display: grid; gap: 8px; }
-.mod-manager-row { display: flex; align-items: flex-start; gap: 12px; padding: 12px; border: 1px solid var(--border);
+.mod-manager-row { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--border);
   border-radius: 9px; background: var(--panel-2); }
+.mod-manager-row:has(.version-picker, .bad-text) { align-items: flex-start; }
 /* (its own controls keep their width beside a long notice: "required" and "Remove" never break mid-word, #190) */
 .mod-manager-row > :not(.grow) { flex: none; white-space: nowrap; }
-.mod-manager-row > .grow { min-width: 0; overflow-wrap: anywhere; }
+.mod-manager-row > .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .mod-manager-row.removed { opacity: .72; }
 .mod-manager-row.has-problem { border-color: #d64545; box-shadow: inset 3px 0 0 #d64545; }
 .version-picker { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }

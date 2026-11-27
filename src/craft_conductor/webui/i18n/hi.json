@@ -668,7 +668,6 @@
   "Revert": "वापस लाएँ",
   "Role": "रोल",
   "Roll back": "वापस लौटें",
-  "Roll back to this": "इस पर लौटें",
   "Rolling back…": "वापस लौटाया जा रहा है…",
   "Router": "राउटर",
   "Router setup (port forwarding)": "राउटर सेटअप (पोर्ट फ़ॉरवर्डिंग)",
@@ -1203,5 +1202,15 @@
   "Custom setup": "कस्टम सेटअप",
   "Pick a starting point and create right away, or switch to Custom setup to change anything.": "एक शुरुआती विकल्प चुनें और तुरंत बनाएँ, या कुछ भी बदलने के लिए कस्टम सेटअप पर जाएँ।",
   "Customize version, mods or world →": "वर्ज़न, मॉड्स या दुनिया बदलें →",
-  "A fast Paper server for plugins (add them in Custom setup). Friends join with plain Minecraft.": "प्लगइन्स के लिए तेज़ Paper सर्वर (इन्हें कस्टम सेटअप में जोड़ें)। दोस्त सामान्य Minecraft से जुड़ते हैं।"
+  "A fast Paper server for plugins (add them in Custom setup). Friends join with plain Minecraft.": "प्लगइन्स के लिए तेज़ Paper सर्वर (इन्हें कस्टम सेटअप में जोड़ें)। दोस्त सामान्य Minecraft से जुड़ते हैं।",
+  "Restore…": "पुनर्स्थापित करें…",
+  "Restore from backup": "बैकअप से पुनर्स्थापित करें",
+  "Roll back the whole server": "पूरे सर्वर को वापस लाएं",
+  "Restore the whole server": "पूरे सर्वर को पुनर्स्थापित करें",
+  "Put the whole server (world, mods and settings) back to how it was in this backup.": "पूरे सर्वर (वर्ल्ड, मॉड्स और सेटिंग्स) को इस बैकअप जैसा वापस कर दें।",
+  "Put back only part of the world; everything else stays as it is now.": "केवल वर्ल्ड का एक हिस्सा वापस लाएं; बाकी सब कुछ वैसा ही रहेगा।",
+  "In the world's datapacks folder.": "वर्ल्ड के datapacks फ़ोल्डर में।",
+  "The pack has no server pack, and Modrinth says this mod only runs on players' computers, so it goes in your friends' download instead of on the server.": "इस पैक में सर्वर पैक नहीं है, और Modrinth के अनुसार यह मॉड केवल खिलाड़ियों के कंप्यूटर पर चलता है, इसलिए इसे सर्वर के बजाय आपके दोस्तों के डाउनलोड में रखा गया है।",
+  "The pack's server pack leaves it out, so it goes in your friends' download instead of on the server.": "पैक का सर्वर पैक इसे बाहर रखता है, इसलिए यह सर्वर के बजाय आपके दोस्तों के डाउनलोड में जाता है।",
+  "This modpack marks it client-only, so Craft Conductor already leaves it off the server.": "यह मॉडपैक इसे केवल-क्लाइंट के रूप में चिह्नित करता है, इसलिए Craft Conductor इसे पहले से ही सर्वर से बाहर रखता है।"
 }

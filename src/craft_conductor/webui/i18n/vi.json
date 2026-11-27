@@ -665,7 +665,6 @@
   "Revert": "Hoàn tác",
   "Role": "Vai trò",
   "Roll back": "Quay lại",
-  "Roll back to this": "Quay lại bản này",
   "Rolling back…": "Đang quay lại…",
   "Router setup (port forwarding)": "Cài đặt router (chuyển tiếp cổng)",
   "Ruined portal": "Cổng đổ nát",
@@ -1198,5 +1197,15 @@
   "Custom setup": "Thiết lập tùy chỉnh",
   "Pick a starting point and create right away, or switch to Custom setup to change anything.": "Chọn điểm bắt đầu để tạo ngay, hoặc chuyển sang Thiết lập tùy chỉnh để thay đổi mọi thứ.",
   "Customize version, mods or world →": "Tùy chỉnh phiên bản, mod hoặc thế giới →",
-  "A fast Paper server for plugins (add them in Custom setup). Friends join with plain Minecraft.": "Máy chủ Paper nhanh cho plugin (thêm ở Thiết lập tùy chỉnh). Bạn bè tham gia bằng Minecraft thường."
+  "A fast Paper server for plugins (add them in Custom setup). Friends join with plain Minecraft.": "Máy chủ Paper nhanh cho plugin (thêm ở Thiết lập tùy chỉnh). Bạn bè tham gia bằng Minecraft thường.",
+  "Restore…": "Khôi phục…",
+  "Restore from backup": "Khôi phục từ bản sao lưu",
+  "Roll back the whole server": "Hoàn nguyên toàn bộ máy chủ",
+  "Restore the whole server": "Khôi phục toàn bộ máy chủ",
+  "Put the whole server (world, mods and settings) back to how it was in this backup.": "Đưa toàn bộ máy chủ (thế giới, mod và cài đặt) trở lại như trong bản sao lưu này.",
+  "Put back only part of the world; everything else stays as it is now.": "Chỉ khôi phục một phần thế giới; mọi thứ khác giữ nguyên như hiện tại.",
+  "In the world's datapacks folder.": "Trong thư mục datapacks của thế giới.",
+  "The pack has no server pack, and Modrinth says this mod only runs on players' computers, so it goes in your friends' download instead of on the server.": "Gói này không có gói máy chủ và Modrinth cho biết mod này chỉ chạy trên máy người chơi, nên nó sẽ vào gói tải cho bạn bè thay vì trên máy chủ.",
+  "The pack's server pack leaves it out, so it goes in your friends' download instead of on the server.": "Gói máy chủ của gói mod bỏ qua mod này, nên nó sẽ vào gói tải cho bạn bè thay vì trên máy chủ.",
+  "This modpack marks it client-only, so Craft Conductor already leaves it off the server.": "Gói mod này đánh dấu đây là mod chỉ dành cho máy khách, nên Craft Conductor đã bỏ nó khỏi máy chủ."
 }
