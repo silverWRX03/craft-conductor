@@ -2631,8 +2631,8 @@ views.dashboard = () => {
   const renderMeters = (s) => {
     players.set(s.max_players ? 100 * s.players.length / s.max_players : 0, `${s.players.length} / ${s.max_players}`, "Connected players");
     disk.set(s.disk && s.disk.total_bytes ? 100 * s.disk.used_bytes / s.disk.total_bytes : null,
-      s.disk ? `${gb(s.disk.used_bytes)} / ${gb(s.disk.free_bytes)}` : "—",
-      s.disk ? `used / free on the server volume (of ${gb(s.disk.total_bytes)})` : "Disk usage unavailable");
+      s.disk ? `${gb(s.disk.used_bytes)} / ${gb(s.disk.total_bytes)}` : "—",
+      s.disk ? `used / total on this drive (${gb(s.disk.free_bytes)} free)` : "Disk usage unavailable");
     const r = s.resources;
     if (!r) {
       const idle = s.state === "starting" ? "starting…" : "server stopped";
