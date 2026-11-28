@@ -106,18 +106,99 @@ const assert = require('node:assert/strict');
   });
   assert.equal(await closeShown(), true);
   await page.locator('#remote').getByRole('button', {name:'Close',exact:true}).click();
-  for (const view of ['servers', 's/alpha/dashboard', 's/alpha/console', 's/alpha/players', 's/alpha/updates', 's/alpha/mods', 's/alpha/friends', 's/alpha/backups', 's/alpha/java', 'new']) {
+  for (const view of ['servers', 's/alpha/dashboard', 's/alpha/players', 's/alpha/updates', 's/alpha/mods', 's/alpha/friends', 's/alpha/backups', 's/alpha/java', 'new']) {
     await go(view);
     assert.deepEqual(await misplacedCheckboxes(), [], view);
   }
+  // The sidebar: the pages used every day first, then Maintenance, folded until opened (remembered in this browser),
+  // and open by itself while one of its pages is on show.
+  await go('s/alpha/dashboard');
+  const order = await page.locator('#nav a[href^="#s/alpha/"]').evaluateAll((as) => as.map((a) => a.getAttribute('href').split('/').pop()));
+  assert.deepEqual(order, ['dashboard', 'friends', 'players', 'mods', 'updates', 'backups', 'java', 'settings']);
+  const upkeep = page.locator('#nav .nav-group');
+  const backupsLink = page.locator('#nav a[href="#s/alpha/backups"]');
+  assert.equal(await upkeep.getAttribute('aria-expanded'), 'false', 'Maintenance starts folded');
+  assert.ok(!(await backupsLink.isVisible()), 'Backups is folded away');
+  await upkeep.click();
+  assert.equal(await upkeep.getAttribute('aria-expanded'), 'true');
+  await backupsLink.waitFor();
+  await page.reload();
+  await page.locator('#nav .nav-group').waitFor();
+  assert.equal(await upkeep.getAttribute('aria-expanded'), 'true', 'kept open after a reload');
+  await upkeep.click();
+  assert.ok(!(await backupsLink.isVisible()), 'folded again');
+  await go('s/alpha/backups');
+  assert.equal(await upkeep.getAttribute('aria-expanded'), 'true', 'open while on Backups');
+  assert.equal(await backupsLink.getAttribute('aria-current'), 'page');
+  await go('s/alpha/dashboard');
+  assert.equal(await upkeep.getAttribute('aria-expanded'), 'false', 'folded again on the Dashboard: as it was left');
+  // There's no Console page: the console is the Dashboard's, with the logs and crash reports folders at its top right,
+  // and an old Console link opens the Dashboard with the command box ready.
+  assert.equal(await page.locator('#nav a[href="#s/alpha/console"]').count(), 0);
+  const head = page.locator('.cc-console-widget .console-head');
+  assert.deepEqual(await head.locator('.console-tools button').allInnerTexts().then((t) => t.map((x) => x.replace(/^\W+/, '').trim())), ['Logs folder', 'Crash reports']);
+  const sides = await head.evaluate((el) => { const h = el.querySelector('h3').getBoundingClientRect(), t = el.querySelector('.console-tools').getBoundingClientRect(), r = el.getBoundingClientRect();
+    return { titleLeft: Math.round(h.left - r.left), toolsRight: Math.round(r.right - t.right), sameRow: Math.abs(h.top + h.height / 2 - (t.top + t.height / 2)) < 12 }; });
+  assert.ok(sides.titleLeft <= 2 && sides.toolsRight <= 2 && sides.sameRow, 'title on the left, folders on the right: ' + JSON.stringify(sides));
+  assert.ok(await page.locator('.cc-dashboard-rail .players-card').isVisible(), 'Connected Players beside the console');
+  await go('s/alpha/console');
+  assert.ok((await page.title()).startsWith('Dashboard'), 'an old Console link opens the Dashboard');
+  await page.waitForFunction(() => document.activeElement && document.activeElement.getAttribute('aria-label') === 'Server command');
+  // The top row: CPU, RAM, Disk, Players and Performance. The console's Activity / Console switch (remembered, with the
+  // command box in both); under it Check my setup and Why am I lagging?; no Updates card; no state in Runtime Parameters.
+  await go('s/alpha/dashboard');
+  assert.deepEqual(await page.locator('.cc-telemetry-grid .meter-head span').allInnerTexts(), ['CPU', 'RAM', 'Disk', 'Players', 'Performance']);
+  const minecraft = page.locator('.cc-console-widget .console:not(.activity-log)'), activityBox = page.locator('.activity-log');
+  assert.ok(await minecraft.isVisible() && !(await activityBox.isVisible()), 'the console at first');
+  await page.getByRole('group', { name: 'What the box shows' }).getByRole('radio', { name: 'Activity' }).check();
+  assert.ok(await activityBox.isVisible() && !(await minecraft.isVisible()), 'Activity instead');
+  assert.equal(await page.locator('.cc-console-widget h3').innerText(), 'Activity');
+  assert.ok(await page.locator('.console-input input').isVisible(), 'the command box in Activity too');
+  await page.reload();
+  await activityBox.waitFor();
+  assert.ok(await activityBox.isVisible(), 'Activity kept after a reload');
+  await page.getByRole('group', { name: 'What the box shows' }).getByRole('radio', { name: 'Console' }).check();
+  assert.ok(await minecraft.isVisible());
+  assert.match(await page.locator('.dash-tools').innerText(), /Check my setup[\s\S]*Why am I lagging\?/);
+  assert.equal(await page.getByRole('heading', { name: 'Updates', level: 3 }).count(), 0, 'no Updates card on the Dashboard');
+  assert.ok(!(await page.locator('.cc-dashboard-rail dl.kv').innerText()).includes('State'), 'the state is in the top bar');
+  assert.ok(!(await page.locator('.console-input button').getAttribute('class')).includes('primary'), 'Send is an ordinary button');
+  assert.ok(await page.getByRole('heading', { level: 1, name: 'Dashboard' }).count() === 1 && !(await page.locator('h1.view-title').evaluate((e) => e.getBoundingClientRect().width > 1)),
+    'the page heading is there for screen readers, not drawn');
   await go('s/alpha/dashboard');
   await page.evaluate(() => openDoctor());
   await page.waitForFunction(() => document.querySelectorAll('.doctor-list li').length > 1);
   await page.locator('#doctor').getByRole('button', {name:'Close',exact:true}).click();
   await go('s/alpha/players');
   await page.getByRole('heading', {name:'Player activity',exact:true}).scrollIntoViewIfNeeded();
+  // Step 4: Friends page decluttering — no toggle card, no "recommended", reach descriptions behind ⓘ,
+  // and ordinary action buttons (not .cta) use the standard button style.
+  await go('s/alpha/friends');
+  await page.locator('.choice-wrap .info-tip').first().waitFor();
+  const friendsText = await page.locator('#main').innerText();
+  assert.ok(!friendsText.includes("How friends who aren't on your Wi-Fi join this server"), 'no redundant subtitle');
+  assert.ok(!friendsText.includes('(recommended)'), 'no (recommended) tag on playit.gg');
+  assert.ok(!friendsText.includes('Let friends set up their Minecraft') && !friendsText.includes('Make a download for friends'),
+    'friends download is always on without a toggle card');
+  const firstTip = page.locator('.choice-wrap .info-tip').first();
+  await firstTip.click();
+  assert.equal(await firstTip.getAttribute('aria-expanded'), 'true');
+  const bubble = page.locator('.choice-wrap .info-bubble').first();
+  assert.ok(await bubble.isVisible() && (await bubble.innerText()).includes('Nothing is opened on your router'));
+  await page.keyboard.press('Escape');
+  assert.equal(await firstTip.getAttribute('aria-expanded'), 'false');
+  await go('s/alpha/backups');
+  const backupBtnBg = await page.getByRole('button', { name: 'Back up now', exact: true }).evaluate((b) => getComputedStyle(b).backgroundColor);
+  const startBtnBg = await page.locator('#btn-start').evaluate((b) => getComputedStyle(b).backgroundColor);
+  assert.notEqual(backupBtnBg, startBtnBg, 'ordinary primary buttons do not carry the filled accent');
+  assert.ok((await page.locator('#main .info-tip').count()) >= 3, 'Backups helper text behind ⓘ');
+  await go('s/alpha/java');
+  await page.locator('#main .info-tip').first().waitFor();
+  assert.ok((await page.locator('#main .info-tip').count()) >= 2, 'Java helper text behind ⓘ');
   await go('s/alpha/settings');
-  await page.getByRole('heading', {name:'Web map',exact:true}).scrollIntoViewIfNeeded();
+  await page.locator('#main .info-tip').first().waitFor();
+  assert.ok((await page.locator('#main .info-tip').count()) >= 5, 'Settings helper text behind ⓘ');
+  await page.getByRole('heading', {name:/^Web map/}).scrollIntoViewIfNeeded();
   await go('craft-conductor');
   await page.evaluate(() => openRemoteAccess());
   await page.locator('.remote-step').first().waitFor();
@@ -136,8 +217,25 @@ const assert = require('node:assert/strict');
   await page.evaluate(() => window.addingDependency);
   assert.equal(await page.evaluate(() => setupState.mods.get('example-worldgen').channel), 'beta');
   assert.equal(await page.evaluate(() => setupState.mods.has('example-library')), true);
-  // A required library with no build for the chosen Minecraft: the row explains, and only you change the version.
+  // Step 5: New server opens on Quick start; picking a preset shows Finish setup without the 5-step form,
+  // and Custom setup keeps the preset's choices pre-filled.
   await go('new');
+  const quickTab = page.getByRole('tab', { name: 'Quick start' });
+  const customTab = page.getByRole('tab', { name: 'Custom setup' });
+  assert.equal(await quickTab.getAttribute('aria-selected'), 'true', 'Quick start opens first');
+  assert.equal(await page.getByRole('heading', { name: '1. Server type' }).count(), 0, 'Custom form hidden on Quick start');
+  await page.locator('button.choice', { hasText: 'Vanilla Minecraft with friends' }).click();
+  await page.getByRole('heading', { name: 'Finish setup' }).waitFor();
+  assert.equal(await page.locator('#setup-version').count(), 0, 'preset keeps Quick start compact');
+  await quickTab.focus();
+  await page.keyboard.press('ArrowRight');
+  assert.equal(await customTab.getAttribute('aria-selected'), 'true', 'ArrowRight switches to Custom setup');
+  await page.locator('#setup-version').waitFor();
+  // A required library with no build for the chosen Minecraft: the row explains, and only you change the version.
+  await page.evaluate(() => resetSetup());
+  await go('s/alpha/dashboard');
+  await go('new');
+  await page.getByRole('tab', { name: 'Custom setup' }).click();
   await page.locator('.choice', {hasText: 'Lightweight and quick to update'}).click();
   await page.locator('#setup-version').waitFor();
   await page.evaluate(() => { setupState.mods.clear(); setupState.minecraft = '1.21.2'; setupState.rerender(); });
@@ -192,14 +290,19 @@ const assert = require('node:assert/strict');
   if (shot) await page.screenshot({path: shot});
   await page.locator('#setup-manage-mods').click();
   if (shot) { await page.waitForTimeout(400); await page.screenshot({path: shot.replace(/\.png$/, '-drawer.png')}); }
-  assert.match(await drawer.locator('section[aria-label="What changed"]').innerText(),
+  const whatChanged1 = drawer.locator('details[aria-label="What changed"]');
+  assert.equal(await whatChanged1.evaluate((el) => el.open), false, 'What changed starts folded');
+  await whatChanged1.locator('summary').click();
+  assert.match(await whatChanged1.innerText(),
     /Lithostitched was removed: Terralith has no build for Forge 1\.21\.1, so nothing needs it now/);
   const noForge = drawer.locator('.notice.warn', {hasText: 'No Forge build for Minecraft 1.21.1'});
   assert.match(await noForge.innerText(), /It has NeoForge and Fabric builds for Minecraft 1\.21\.1 and a datapack build/);
   await noForge.getByRole('button', {name: 'Use NeoForge', exact: true}).waitFor();
   await noForge.getByRole('button', {name: 'Stay on Forge: use its datapack', exact: true}).click();
-  await drawer.getByText("Terralith uses its datapack build on Forge, in the world's datapacks folder: it doesn't need Lithostitched.", {exact: true}).waitFor();
   await drawer.locator('.tag', {hasText: 'datapack'}).waitFor();
+  const whatChanged1b = drawer.locator('details[aria-label="What changed"]');
+  if (!(await whatChanged1b.evaluate((el) => el.open))) await whatChanged1b.locator('summary').click();
+  await drawer.getByText("Terralith uses its datapack build on Forge, in the world's datapacks folder: it doesn't need Lithostitched.", {exact: true}).waitFor();
   assert.deepEqual(await page.evaluate(() => setupDatapacks()), ['terralith']);
   await page.keyboard.press('Escape');
   await drawer.waitFor({state: 'detached'});
@@ -218,12 +321,17 @@ const assert = require('node:assert/strict');
   await page.waitForFunction(() => document.querySelector('#setup-manage-mods.attention'));
   await inView('setup-manage-mods');
   await page.locator('#setup-manage-mods').click();
-  assert.match(await drawer.locator('section[aria-label="What changed"]').innerText(),
+  const whatChanged2 = drawer.locator('details[aria-label="What changed"]');
+  assert.equal(await whatChanged2.evaluate((el) => el.open), false, 'What changed starts folded');
+  await whatChanged2.locator('summary').click();
+  assert.match(await whatChanged2.innerText(),
     /Lithostitched was removed: Terralith has no build for Fabric 1\.21\.2, so nothing needs it now/);
   const noBuild = drawer.locator('.notice.warn', {hasText: 'No Fabric build for Minecraft 1.21.2'});
   await noBuild.getByRole('button', {name: 'Use Minecraft 1.21.1', exact: true}).click();
   await page.getByRole('button', {name: 'Change Minecraft version', exact: true}).click();
   await page.waitForFunction(() => setupState.minecraft === '1.21.1' && setupState.mods.has('lithostitched') && !setupState.mods.get('terralith').bad);
+  const whatChanged3 = drawer.locator('details[aria-label="What changed"]');
+  if (!(await whatChanged3.evaluate((el) => el.open))) await whatChanged3.locator('summary').click();
   await drawer.getByText('Lithostitched was added: Terralith needs it on Fabric 1.21.1.', {exact: true}).waitFor();
   await page.keyboard.press('Escape');
   await drawer.waitFor({state: 'detached'});
@@ -363,10 +471,10 @@ const assert = require('node:assert/strict');
   await page.locator('.ready-row.green').first().waitFor();
   await page.getByText('This server is set to stay on its current Minecraft version.', {exact:false}).waitFor();
   const color = await page.locator('.dotc.green').first().evaluate(el => getComputedStyle(el).backgroundColor);
-  assert.equal(color, 'rgb(134, 239, 172)');  // (Modern's green, the look it has at first)
+  assert.equal(color, 'rgb(168, 245, 194)');  // (Modern's green, the look it has at first)
   await page.waitForTimeout(400);
   await page.evaluate(() => applyTheme('day'));
-  assert.equal(await page.locator('.dotc.green').first().evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(11, 90, 46)');
+  assert.equal(await page.locator('.dotc.green').first().evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(9, 51, 23)');
   await page.evaluate(() => applyTheme('night'));
   await page.getByRole('button', {name:'Check Minecraft 1.21.2', exact:true}).click();
   await page.locator('.inpage-browser').waitFor({state:'detached'});
@@ -377,7 +485,8 @@ const assert = require('node:assert/strict');
   await go('s/alpha/mods');
   assert.deepEqual(await misplacedCheckboxes(), []);
   await go('new');
-  await page.locator('button.choice', {hasText: 'Fabric'}).first().click();
+  await page.getByRole('tab', { name: 'Custom setup' }).click();
+  await page.locator('button.choice', {hasText: 'Lightweight and quick to update'}).first().click();
   await page.waitForFunction(() => document.querySelectorAll('#main input[type=checkbox]').length > 5);
   assert.deepEqual(await misplacedCheckboxes(), []);
   await page.evaluate(() => openSshInstall());

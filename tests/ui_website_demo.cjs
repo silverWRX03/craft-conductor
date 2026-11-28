@@ -33,6 +33,10 @@ const quiet = (f) => f.evaluate(() => {
   Object.defineProperty(n, 'join', { get: () => 1e15, set: () => {}, enumerable: true, configurable: true });
   Object.defineProperty(n, 'request', { get: () => null, set: () => {}, enumerable: true, configurable: true });
 });
+async function openCustomSetup(f) {  // (Quick start vs Custom setup tabs: releases before the redesign open straight on Server type)
+  const tab = f.getByRole('tab', { name: 'Custom setup' });
+  if (await tab.count()) await tab.click();
+}
 // Stop: the panel asks only when players are connected.
 async function stopServer(f) {
   await f.locator('#btn-stop').click();
@@ -68,6 +72,7 @@ async function open(browser, scenario, problems, label, viewport = { width: 1440
       assert.deepEqual((await hub(f)).servers, [], 'no servers yet');
       assert.match(await f.evaluate(() => location.hash), /^#new$/);
       await dismissOffers(f);
+      await openCustomSetup(f);
       await f.locator('button.choice', { hasText: 'Lightweight and quick to update' }).click();
       await f.locator('#setup-version').selectOption('1.21.1');
       await f.getByLabel('Server name (shown in the server list)').fill('Family Survival');
@@ -97,11 +102,10 @@ async function open(browser, scenario, problems, label, viewport = { width: 1440
       await until(async () => (await statusOf(f, 'family-survival')).players.includes('Alex'), 'a friend joins', 20000);
       await until(async () => (await hub(f)).servers[0].join_requests === 1, 'a friend asks to join', 25000);
       await until(async () => (await f.locator('.cc-demo-note.push').count()) > 0, 'the phone notification (simulated)');
-      await go(f, '#s/family-survival/console');
-      await go(f, '#s/family-survival/dashboard');  // (the Dashboard says so when it opens, as in the real app)
-      await until(async () => /friend asks to be let in/.test(await text(f)), 'the Dashboard says a friend asks');
+      // (the Players page has them: its red dot in the sidebar says so)
+      await go(f, '#s/family-survival/players');
+      await until(async () => (await f.locator('button', { hasText: 'Allow' }).count()) > 0, 'the Players page has the friend asking');
       await shot(page, `${name}-join-request`);
-      await f.locator('a', { hasText: 'See who' }).click();
       await f.locator('button', { hasText: 'Allow' }).first().click();
       await until(async () => (await statusOf(f, 'family-survival')).players.includes('Sam_Builds'), 'Sam_Builds joins', 15000);
       const h = await hub(f);
@@ -250,6 +254,7 @@ async function open(browser, scenario, problems, label, viewport = { width: 1440
       assert.match(r.body.reason, /Biomes O' Plenty requires GlitchCore, but no compatible GlitchCore release was found for Minecraft 1\.21\.4 using NeoForge\. Craft Conductor checked Modrinth and CurseForge\./);
       assert.equal(r.body.suggestions[0], '1.21.1', 'it says which version would work');
       await go(f, '#new');
+      await openCustomSetup(f);
       await f.locator('button.choice', { hasText: 'The modern Forge' }).click();
       await f.locator('#setup-version').selectOption('1.21.4');
       await f.getByRole('button', { name: /Download mods/i }).first().click();
@@ -326,7 +331,13 @@ async function open(browser, scenario, problems, label, viewport = { width: 1440
       const oldest = listed[listed.length - 1].name;
       await go(f, `#s/${S}/backups`);
       const row = f.locator('#main tr, #main li', { hasText: oldest.slice(0, 15) }).first();
-      await row.getByRole('button', { name: 'Roll back to this' }).click();
+      const restoreBtn = row.getByRole('button', { name: 'Restore…' });
+      if (await restoreBtn.count()) {
+        await restoreBtn.click();
+        await f.locator('#restore-choice').getByRole('button', { name: /Roll back the whole server/ }).click();
+      } else {
+        await row.getByRole('button', { name: 'Roll back to this' }).click();
+      }
       await answer(f, 'Roll back');
       await until(async () => { const s = await statusOf(f, S); return s.last_job && s.last_job.name === 'roll back' && !s.job; }, 'rolled back', 15000);
       const mods = (await api('/api/servers/family-survival/mods')).body;
@@ -360,6 +371,7 @@ async function open(browser, scenario, problems, label, viewport = { width: 1440
     await t.step(`${name}: the map preview, and points of interest only when asked`, async () => {
       await settle(f);
       await go(f, '#new');
+      await openCustomSetup(f);
       await f.locator('button.choice', { hasText: 'Lightweight and quick to update' }).click();
       await f.evaluate(() => openWorldPanel());
       await f.getByRole('textbox', { name: 'Seed', exact: true }).fill('8675309');  // (a seed with villages near the spawn)
@@ -377,11 +389,18 @@ async function open(browser, scenario, problems, label, viewport = { width: 1440
 
     await t.step(`${name}: settings are kept, in the demo's own storage`, async () => {
       await settle(f);
+      // Light / Dark: in Craft Conductor settings → Appearance → Look (a release before the redesign: in the top bar)
+      if (await f.locator('#cc-app-theme [data-theme-toggle]').count()) await f.locator('#cc-app-theme [data-theme-toggle]').click();
+      else {
+        await go(f, '#craft-conductor');
+        const tab = f.getByRole('button', { name: 'Appearance', exact: true });
+        if (await tab.count()) await tab.click();
+        await f.locator('.look-rows [data-theme-toggle]').click();
+      }
       await go(f, `#s/${S}/settings`);
       await f.getByLabel('Check every (e.g. 6h, 30m)').fill('12h');
       await f.getByRole('button', { name: 'Save settings' }).first().click();
       await until(async () => (await api('/api/servers/family-survival/settings')).body.check_interval === '12h', 'saved');
-      await f.locator('#cc-app-theme [data-theme-toggle]').click();
       const theme = await f.evaluate(() => document.documentElement.dataset.theme);
       await page.waitForTimeout(1200);  // (the demo is saved by the page a moment after a change)
       await page.reload();

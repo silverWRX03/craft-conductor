@@ -69,6 +69,7 @@ const assert = require('node:assert/strict');
   // The setup page: a players' mod that wouldn't start keeps Create my server waiting.
   await page.goto(base + '/#new');
   await page.locator('#app').waitFor({state: 'visible'});
+  await page.getByRole('tab', { name: 'Custom setup' }).click();
   await page.locator('button.choice', {hasText: 'Lightweight and quick to update'}).click();
   await page.locator('#setup-version').waitFor();
   await page.locator('#setup-version').selectOption('1.21.1');

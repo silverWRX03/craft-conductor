@@ -23,6 +23,7 @@ const path = require('node:path');
 
   await page.goto(base + '/#new');
   await page.locator('#app').waitFor({ state: 'visible' });
+  await page.getByRole('tab', { name: 'Custom setup' }).click();
   await page.locator('button.choice', { hasText: 'Lightweight and quick to update' }).click();
   await page.locator('#setup-version').waitFor();
   // A CurseForge mod whose author keeps it to CurseForge
@@ -67,6 +68,7 @@ const path = require('node:path');
   const chooser = page.locator('#folder-browser');
   await chooser.waitFor();
   await chooser.getByText('Where did you save the mods?').waitFor();
+  await chooser.locator('.folder-list').getByText('There are no folders in here.').waitFor();
   assert.equal(await chooser.locator('input').inputValue(), fs.realpathSync(downloads));  // (it starts in Downloads)
   assert.match(await chooser.locator('.folder-list').innerText(), /Up\s+There are no folders in here\./);
   await chooser.locator('input').fill(saved);

@@ -30,9 +30,10 @@ const assert = require('node:assert/strict');
   await bellBtn.waitFor();
   assert.ok(await page.locator('#bell-dot').isHidden(), 'no dot before any message');
 
-  // A real message (Check now), then one with text a mod or player could have written.
+  // A real message (Check now, on the Updates page), then one with text a mod or player could have written.
+  await page.goto(base + '/#s/alpha/updates');
   await page.getByRole('button', { name: 'Check now' }).click();
-  await page.locator('#toasts .toast', { hasText: 'Checking for updates' }).waitFor();
+  await page.locator('#toasts .toast', { hasText: 'Checking…' }).waitFor();
   await page.locator('#toasts .toast', { hasText: 'update check: up to date' }).waitFor();  // (when the check is done)
   await page.evaluate(() => toast('<img src=x id=evil onerror="window.pwned=1"> broke the server', true));
   await page.locator('#bell-dot').waitFor({ state: 'visible' });
@@ -53,7 +54,7 @@ const assert = require('node:assert/strict');
   assert.match(first, /New/);
   assert.match(first, /Alpha/, 'the server it was about');
   assert.match(await items().nth(1).innerText(), /update check: up to date[\s\S]*Alpha/);
-  assert.match(await items().nth(2).innerText(), /Checking for updates…[\s\S]*Alpha/);
+  assert.match(await items().nth(2).innerText(), /Checking…[\s\S]*Alpha/);
   assert.equal(await items().nth(0).locator('time').count(), 1, 'with its time');
   assert.equal(await page.locator('#evil').count(), 0, 'never HTML');
   assert.equal(await page.evaluate(() => window.pwned), undefined);

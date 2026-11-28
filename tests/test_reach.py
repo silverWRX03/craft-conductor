@@ -322,11 +322,14 @@ def test_links_work_for_a_week_at_most(tmp_path):
 def test_the_router_takes_the_download_port_back_when_no_link_works(hub_env, monkeypatch):
     hub, c = hub_env
     login(c)
+    # Alpha's friends' download starts on at hub startup; stop its initial link first so we watch both edges.
+    assert c.post("/api/servers/alpha/client/stop-link")[0] == 200
+    wait_for(lambda: hub.share is None, timeout=15)
     upnp_on(hub)
     synced = []
     monkeypatch.setattr(hub, "upnp_sync", lambda enabled=None: synced.append(bool(hub.share)))
-    assert c.post("/api/servers/alpha/client", {"enabled": True})[0] == 200
-    wait_for(lambda: hub.share is not None and synced, timeout=15)  # (opened: asked for at once)
+    assert c.post("/api/servers/alpha/client/new-link")[0] == 200
+    wait_for(lambda: hub.share is not None and synced and synced[-1] is True, timeout=15)  # (opened: asked for at once)
     assert c.post("/api/servers/alpha/client/stop-link")[0] == 200
     wait_for(lambda: hub.share is None, timeout=15)
     wait_for(lambda: synced[-1] is False, timeout=15)  # (closed: taken back at once, not at the next renewal)

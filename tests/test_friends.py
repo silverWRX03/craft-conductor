@@ -429,6 +429,36 @@ def test_new_servers_start_without_a_whitelist(tmp_path):
     assert read_properties(cfg.server.dir / "server.properties")["white-list"] == "true"
 
 
+def test_friends_download_switches_on_at_start_for_set_up_servers_only(tmp_path, http, fake_template):
+    """Existing servers that had friends' download off turn it on at hub startup with an invite link;
+    setup-pending placeholders are untouched, and a stopped link stays stopped."""
+    import time
+    from craft_conductor import clientpack
+
+    home = tmp_path / "home"
+    # 1. A set-up server with friends' download off -> turned on with a working link at startup.
+    srv = home / "servers" / "older"
+    setupmod.configure(srv, setupmod.SetupSpec.from_dict({"loader": "vanilla", "accept_eula": True, "friends": False}))
+    assert not configmod.load(srv).client.enabled
+    # 2. A placeholder waiting for first-time setup -> left off.
+    pending = home / "servers" / "not-ready"
+    setupmod.configure(pending, setupmod.SetupSpec.from_dict({"loader": "vanilla", "accept_eula": True, "friends": False}))
+    setupmod.mark_pending(pending)
+    # 3. A server already on whose link was stopped -> stays stopped.
+    stopped = home / "servers" / "paused"
+    setupmod.configure(stopped, setupmod.SetupSpec.from_dict({"loader": "vanilla", "accept_eula": True, "friends": True}))
+    clientpack.stop_link(configmod.load(stopped).path)
+    assert configmod.load(stopped).client.enabled and not configmod.load(stopped).client.link_works(time.time())
+
+    hub = Hub(home, make_manager=lambda cfg: manager(cfg, http, ["1.21.1"]), http=http, tick=0.1)
+    for sid, root in (("older", srv), ("not-ready", pending), ("paused", stopped)):
+        m = manager(configmod.load(root), http, ["1.21.1"])
+        hub._friends_download_on(sid, m)
+    assert configmod.load(srv).client.enabled and configmod.load(srv).client.link_works(time.time())
+    assert not configmod.load(pending).client.enabled and not configmod.load(pending).client.token
+    assert configmod.load(stopped).client.enabled and not configmod.load(stopped).client.link_works(time.time())
+
+
 
 def test_a_pack_whose_lists_arent_lists_is_refused_plainly():
     """A server (an odd one, or a damaged answer) sending "mods": 5 answered "internal error" on the friend's page."""

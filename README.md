@@ -14,8 +14,8 @@ Everything happens in a control panel in your browser: no command lines, no conf
 hunting for the right mod versions.
 
 The control panel comes in two looks, **Modern** (the default) and **Classic**, each with light and dark
-themes: pick one with the switch at the top right. On phones, a hamburger menu contains navigation and
-the remembered Light / Dark slider.
+themes: pick them in **Craft Conductor settings → Appearance**. On phones, a hamburger menu holds the
+navigation.
 
 > **Craft Conductor is in beta.** Keep backups (it makes one before every update), and please report
 > problems in [Issues](https://github.com/silverWRX03/craft-conductor/issues).

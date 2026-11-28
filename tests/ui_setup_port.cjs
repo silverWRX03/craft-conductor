@@ -18,6 +18,7 @@ const assert = require('node:assert/strict');
     await page.locator('#security').getByRole('button', { name: 'Not now' }).click();
     await page.locator('#security').waitFor({ state: 'detached' });
   }
+  await page.getByRole('tab', { name: 'Custom setup' }).click();
   await page.locator('.choice', { hasText: 'Lightweight and quick to update' }).click();
   const port = page.getByLabel('Port (players connect to this)');
   await port.fill('25615');

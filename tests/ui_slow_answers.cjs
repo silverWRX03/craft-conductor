@@ -23,7 +23,7 @@ const assert = require('node:assert/strict');
     json(route, since === 0 ? { lines: [{ text: '[12:00:00] [Server thread/INFO]: Done (3.2s)!' }], last: 1 } : { lines: [], last: 1 });
   });
   await page.route('**/api/servers/alpha/command', (route) => json(route, { ok: true }));
-  await page.goto(base + '/#s/alpha/console');
+  await page.goto(base + '/#s/alpha/dashboard');  // (the console is the Dashboard's)
   await page.locator('.cc-log-line').first().waitFor({ timeout: 30000 });
   await page.fill('input[aria-label="Server command"]', 'list');
   await page.press('input[aria-label="Server command"]', 'Enter');

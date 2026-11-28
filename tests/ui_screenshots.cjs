@@ -51,8 +51,9 @@ const HEADERS = {'X-CRAFT-CONDUCTOR': '1'};
     await page.waitForTimeout(800);
   };
   const scrollTo = async text => {
-    await page.getByRole('heading', {name: text, exact: true}).first().scrollIntoViewIfNeeded();
-    await page.getByRole('heading', {name: text, exact: true}).first().evaluate(el => el.scrollIntoView({block: 'start'}));
+    const h = page.getByRole('heading', {name: new RegExp('^' + text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))}).first();
+    await h.scrollIntoViewIfNeeded();
+    await h.evaluate(el => el.scrollIntoView({block: 'start'}));
     await page.waitForTimeout(400);
   };
   const close = async () => { await page.keyboard.press('Escape'); await page.waitForTimeout(400); };
@@ -149,9 +150,9 @@ const HEADERS = {'X-CRAFT-CONDUCTOR': '1'};
   await shot('phone');
   await page.setViewportSize(DESKTOP);
   await page.waitForTimeout(800);
-  await scrollTo('Performance');
-  await shot('performance');
-  await page.locator('#main').evaluate(el => el.scrollTop = 0);
+  // Performance: its card in the Dashboard's top row
+  await page.locator('.cc-perf-card').screenshot({path: path.join(out, 'performance.png')});
+  console.log('took', 'performance');
   await page.locator('#btn-stop').click();
   await page.locator('.toast-dialog').waitFor();
   await page.waitForTimeout(400);
@@ -179,8 +180,8 @@ const HEADERS = {'X-CRAFT-CONDUCTOR': '1'};
   await page.waitForTimeout(500);
   await shot('check-my-setup');
   await close();
-  await go('s/survival/console');
-  await page.locator('#main input').last().fill('list');
+  await go('s/survival/dashboard');  // (the console is the Dashboard's Live console)
+  await page.locator('.console-input input').fill('list');
   await page.keyboard.press('Enter');
   await page.waitForTimeout(1500);
   await shot('console');
@@ -221,6 +222,7 @@ const HEADERS = {'X-CRAFT-CONDUCTOR': '1'};
   // Change version and the file check: a players' mod that wouldn't start, the version that works,
   // and its builds, on the setup page.
   await go('new');
+  await page.getByRole('tab', { name: 'Custom setup' }).click();
   await page.locator('button.choice', {hasText: 'Lightweight and quick to update'}).click();
   await page.locator('#setup-version').selectOption('1.21.1');
   await page.evaluate(async () => {
@@ -325,7 +327,7 @@ const HEADERS = {'X-CRAFT-CONDUCTOR': '1'};
     in_progress: false, deferred: false, failure: null,
     notes: 'Added: a red dot while an update is waiting. Changed: Later lasts until Craft Conductor restarts. Fixed: the update no longer opens another browser tab.'};
   const fake = {self_update: release, down: false};
-  await context.route('**/api/hub', async route => {
+  await context.route(/\/api\/hub(?:\?|$)/, async route => {
     const response = await route.fetch();
     return route.fulfill({response, json: {...(await response.json()), self_update: fake.self_update, update_result: null}});
   });

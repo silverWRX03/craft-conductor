@@ -19,6 +19,7 @@ const assert = require('node:assert/strict');
     await page.locator('#security').getByRole('button', { name: 'Not now' }).click();
     await page.locator('#security').waitFor({ state: 'detached' });
   }
+  await page.getByRole('tab', { name: 'Custom setup' }).click();
   await page.locator('.choice', { hasText: 'Lightweight and quick to update' }).click();
   await page.locator('#setup-version').waitFor();
   await page.evaluate(() => { setupState.mods.clear(); setupState.clientMods.clear(); setupState.minecraft = '1.21.2'; setupState.friends = true; setupState.rerender(); });

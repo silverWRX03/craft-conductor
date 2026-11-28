@@ -52,6 +52,7 @@ def test_post_the_invite(hub_env):
     assert [x["id"] for x in c.get(f"/api/hub/discord/channels?guild={GUILD}")[1]["channels"]] == [CHANNEL]
 
     hub.save_share(hub.share_settings()["port"], "mc.example.com")
+    assert c.post("/api/servers/alpha/client", {"enabled": False})[0] == 200
     assert c.post("/api/servers/alpha/client/discord", {"guild": GUILD, "channel": CHANNEL})[0] == 400  # friends off
     assert c.post("/api/servers/alpha/client", {"enabled": True})[0] == 200
     assert c.post("/api/servers/alpha/client/discord", {"guild": GUILD, "channel": OTHER})[0] == 400  # not in it

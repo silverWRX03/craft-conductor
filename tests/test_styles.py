@@ -76,11 +76,18 @@ def test_classic_keeps_its_square_corners_and_modern_does_not_get_them():
 def test_the_switch_is_two_labelled_choices_and_modern_is_the_default():
     page = (WEBUI / "index.html").read_text(encoding="utf-8")
     assert '<html lang="en" data-style="modern">' in page
-    switch = re.search(r'<fieldset id="cc-style".*?</fieldset>', page, re.S).group(0)
-    assert "<legend" in switch and "Interface style" in switch
-    radios = re.findall(r'<input type="radio" name="cc-style" value="(\w+)" data-style-choice( checked)?>', switch)
-    assert radios == [("classic", ""), ("modern", " checked")]
-    assert ">Classic<" in switch and ">Modern<" in switch
+    # the top bar keeps to the server, Start / Restart / Stop and the bell; the switches are in Settings → Appearance → Look
+    topbar = re.search(r'<header class="topbar">.*?</header>', page, re.S).group(0)
+    assert "data-theme-toggle" not in topbar and "data-style-choice" not in topbar and 'id="bell"' in topbar
+    assert "data-style-choice" not in page and "cc-theme-mobile" not in page
+    assert page.count("data-theme-toggle") == 1 and "cc-login-theme" in page  # (the sign-in page keeps its Light / Dark)
+    app = (WEBUI / "app.js").read_text(encoding="utf-8")
+    look = app.split("function lookCard() {", 1)[1].split("\n}\n", 1)[0]
+    assert 'h("legend", { class: "sr-only" }, "Interface style")' in look
+    assert 'STYLES.map((v) => h("label", {}, h("input", { type: "radio", name: "cc-style", value: v, "data-style-choice": true' in look
+    assert '"data-theme-toggle": true, role: "switch"' in look
+    assert app.count("lookCard(), languageCard(), displayCard()") == 2  # (the owner's settings and an invited person's)
+    assert 'const STYLE_KEY = "craft-conductor-style", STYLES = ["classic", "modern"];' in app
     # applied in <head>, before the page is drawn, after the stylesheets
     head = page.split("</head>")[0]
     assert head.index("craft-conductor-modern.css") < head.index('<script src="/appearance.js"></script>')
@@ -140,7 +147,7 @@ def test_the_keyboard_ring_is_one_rule_for_everything():
 def test_touch_targets_are_at_least_44px():
     theme = (WEBUI / "craft-conductor-theme.css").read_text(encoding="utf-8")
     coarse = theme.split("@media (pointer: coarse) {", 1)[1]
-    for what in (".btn,", ".sidebar nav a { min-height:44px; }", ".bell, .cc-menu-trigger { width:44px; height:44px; }",
+    for what in (".btn,", ".sidebar nav a, .sidebar nav .nav-group { min-height:44px; }", ".bell, .cc-menu-trigger { width:44px; height:44px; }",
                  ".cc-style-switch label { min-height:44px; min-width:44px; }", ".cc-theme-switch::after"):
         assert what in coarse, what
 
@@ -169,23 +176,26 @@ def test_colours_stay_readable():
         assert contrast(c["on-accent"], c["accent"]) >= 4.5, (name, "button text")
         if "warn" in c:
             assert contrast(c["warn"], panel) >= 4.5, (name, "warn")
-    assert sets["modern day"]["accent"].upper() == "#005364" and sets["modern night"]["accent"].upper() == "#00E5FF"
-    assert [sets["modern night"][k].upper() for k in ("bg", "panel", "panel-2")] == ["#0B0E11", "#13171C", "#1A2026"]
-    assert [sets["modern day"][k].upper() for k in ("bg", "panel", "panel-2", "text", "muted", "selected-bg")] == [
-        "#EDF2F5", "#FFFFFF", "#F6F8FA", "#142530", "#354C5C", "#DDF3F7"]
+    assert sets["modern day"]["accent"].upper() == "#005364" and sets["modern night"]["accent"].upper() == "#5CE7F7"
+    assert [sets["modern night"][k].upper() for k in ("bg", "nav", "panel", "panel-2", "track")] == [
+        "#0B0E11", "#10151A", "#151B22", "#1F2731", "#293340"]
+    assert [sets["modern day"][k].upper() for k in ("bg", "nav", "panel", "panel-2", "track", "text", "muted", "selected-bg")] == [
+        "#EDF2F5", "#E4ECF1", "#FFFFFF", "#E8F0F4", "#D5E1E8", "#13222C", "#344A58", "#D5EFF5"]
     # Modern: every word at least 7:1 (WCAG AAA), on every surface it's shown on
     for name in ("modern day", "modern night"):
         c = sets[name]
         for fg in ("text", "muted", "accent", "info", "danger", "warn", "ok-fg", "warn-fg", "bad-fg"):
-            for surface in ("bg", "panel", "panel-2", "hover-bg"):
+            for surface in ("bg", "nav", "panel", "panel-2", "hover-bg", "tonal-btn-bg"):
                 assert contrast(c[fg], c[surface]) >= 7, (name, fg, surface)
         for fg, surface in (("ok-strong", "ok-bg"), ("warn-strong", "warn-bg"), ("bad-strong", "bad-bg"), ("bad-fg", "bad-bg"),
-                            ("accent", "selected-bg"), ("text", "selected-bg"), ("muted", "selected-bg"),  # the open page, the Running pill
+                            ("selected-fg", "selected-bg"), ("accent", "selected-bg"), ("text", "selected-bg"), ("muted", "selected-bg"),
+                            ("tonal-btn-fg", "tonal-btn-bg"), ("metric-text", "panel"), ("metric-muted", "panel"),
                             ("on-accent", "accent"), ("on-accent", "accent-hover"), ("console-fg", "console-bg")):
             assert contrast(c[fg], c[surface]) >= 7, (name, fg, surface)
-        for edge in ("field-border", "accent"):  # a field's edge, the keyboard ring
+        for edge in ("field-border", "accent", "accent-bar"):  # a field's edge, the keyboard ring
             for surface in ("bg", "panel", "panel-2"):
                 assert contrast(c[edge], c[surface]) >= 3, (name, edge, surface)
+        assert contrast(c["metric-bar"], c["track"]) >= 3, (name, "metric bar on track")
         assert luminance(c["console-bg"]) < 0.05, (name, "the console stays dark")
     # what's inside the console and the config editor (dark in both themes)
     inside = tokens(modern, ':root[data-style="modern"]:not([data-contrast="high"]) :is(.console')
@@ -197,8 +207,8 @@ def test_colours_stay_readable():
 
 
 def test_modern_targets_light_and_motion():
-    """Modern: 44-pixel targets with a mouse too, light only on what can be pressed, nothing moves with less motion, and
-    forced colours keep edges."""
+    """Modern: 44-pixel targets with a mouse too, flat (no glow, shadows only on what floats), hover changes only the
+    background, and forced colours keep edges."""
     modern = (WEBUI / "craft-conductor-modern.css").read_text(encoding="utf-8")
     flat = re.sub(r"@media[^{]*\{", "", modern)  # (not only for fingers: outside any media query)
     for what in ('.btn { min-height:44px;', '.btn.small { min-width:44px;', '.sidebar nav a { min-height:46px;',
@@ -206,18 +216,21 @@ def test_modern_targets_light_and_motion():
                  '.cc-theme-switch::after { content:""; position:absolute; inset:-9px -2px; }', '.help-toc a {'):
         assert what in flat, what
     assert re.search(r'input:not\(\[type=checkbox\], \[type=radio\], \[type=range\], \[type=file\]\), select, textarea:not\(\.code-input\)\) \{\s*min-height:44px', modern)
-    # the lift: only under a mouse, never on a card that only shows something, and never with less motion
-    hover = modern.split("@media (hover: hover) and (pointer: fine) {", 1)[1].split("\n}", 1)[0]
-    assert "translateY(-2px)" in hover and ".card:hover" not in hover and ".server-card:hover" not in hover
+    # under a mouse only the background and edge change: nothing lifts, and nothing fades with less motion
+    assert "translateY(-2px)" not in modern and "@media (hover: hover)" not in modern
     assert ':root[data-style="modern"] .server-card:not(a):hover { transform:none;' in modern
     reduced = modern.split("@media (prefers-reduced-motion: reduce) {", 1)[1].split("\n}", 1)[0]
-    assert "transition:none" in reduced and "transform:none" in reduced
-    assert ':root[data-style="modern"][data-motion="less"]' in modern
-    # the glow is the approved 69% (alpha .18) and high contrast has none of the light
-    assert modern.count("--cc-glow:rgb(0 229 255 / .18)") == 3
+    assert "transition:none" in reduced
+    # flat: no glow and no reflection anywhere; only what floats above the page casts a shadow
+    for token in ("--cc-glow", "--cc-reflection", "--cc-ambient", "0 0 22px", "0 0 20px"):
+        assert token not in modern, token
     base = re.search(r':root\[data-style="modern"\] \{([^}]*)\}', modern).group(1)
-    for token in ("--cc-reflection", "--cc-ambient", "--cc-low-shadow", "--cc-glow"):
-        assert f"{token}:transparent" in base, token
+    assert "--cc-low-shadow:transparent" in base and "--cc-hairline:transparent" in base
+    for selector, body in css_rules(modern):
+        if "box-shadow:" in body and "shadow-pop" not in body:
+            shadow = body.split("box-shadow:", 1)[1].split(";", 1)[0].strip()
+            assert shadow == "none" or shadow.startswith(("inset 0 0 0 1px", "inset 3px 0")) \
+                or shadow == "0 0 0 2px var(--panel)", (selector, shadow)
     forced = modern.split("@media (forced-colors: active) {", 1)[1]
     assert "CanvasText" in forced and "Highlight" in forced
     # the grid paper is Classic's: Modern's background is plain
@@ -242,6 +255,11 @@ def test_page_titles_are_the_one_h1():
     page = (WEBUI / "index.html").read_text(encoding="utf-8")
     assert '<h1 id="page-title" class="page-title hidden"></h1>' in page
     assert 'h("h2", { class: "view-title' not in app and app.count('h("h1", { class: "view-title') >= 14
+    # not drawn (the sidebar and the top bar say where you are), still there for screen readers; the two that say
+    # something new ("isn't set up yet", "Creating…") stay on screen
+    theme = (WEBUI / "craft-conductor-theme.css").read_text(encoding="utf-8")
+    assert "h1.view-title:not(.says) { position:absolute; width:1px; height:1px;" in theme and "display:none" not in theme.split("h1.view-title:not(.says)", 1)[1].split("}", 1)[0]
+    assert app.count('class: "view-title says"') == 2
     # (and the top bar's copy of the title is a heading only on Your servers, which has no title of its own)
     assert 'if (currentName === "servers") $("#page-title").removeAttribute("role");' in app
 
@@ -250,6 +268,8 @@ def test_the_new_files_are_served(running):  # noqa: F811
     daemon, client, config = running
     login(client)
     for path, kind in (("/craft-conductor-modern.css", "text/css"), ("/appearance.js", "text/javascript"),
+                       ("/icon-classic.png", "image/png"), ("/icon-modern-dark.svg", "image/svg+xml"),
+                       ("/icon-modern-light.svg", "image/svg+xml"),
                        ("/fonts/roboto-latin.woff2", "font/woff2"), ("/fonts/OFL.txt", "text/plain")):
         status, _, headers = client.get(path)
         assert status == 200 and headers["Content-Type"].startswith(kind), path
@@ -264,3 +284,16 @@ def test_the_phone_menu_fits_above_the_browsers_own_bars():
     phone = text[text.index("@media(max-width:1023px)"):]
     assert re.search(r"@supports\s*\(height:\s*100dvh\)\s*\{\s*\.sidebar\s*\{[^}]*height:\s*calc\(100dvh", phone)
     assert re.search(r"\.sidebar\s*\{[^}]*padding-bottom:\s*calc\(16px \+ env\(safe-area-inset-bottom", phone)
+
+
+def test_only_cta_buttons_keep_the_filled_accent():
+    """Ordinary primary buttons (Save, Copy, Back up now…) use the standard button style;
+    only Start, Create my server and dialog confirmations carry .cta for the accent fill."""
+    theme = (WEBUI / "craft-conductor-theme.css").read_text(encoding="utf-8")
+    modern = (WEBUI / "craft-conductor-modern.css").read_text(encoding="utf-8")
+    assert ".btn.primary:not(.cta)" in theme
+    assert ':root[data-style="modern"] .btn.primary:not(.cta)' in modern
+    index = (WEBUI / "index.html").read_text(encoding="utf-8")
+    assert 'id="btn-start" class="btn primary cta"' in index
+    app = (WEBUI / "app.js").read_text(encoding="utf-8")
+    assert '"btn primary big cta"' in app and 'primary cta' in app

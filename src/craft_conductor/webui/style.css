@@ -465,11 +465,12 @@ body.browse-mode main { padding: 0; overflow: hidden; }
 .mod-manager-body { flex: 1; min-height: 0; overflow: auto; padding: 16px 20px 28px; }
 .mod-manager-counts { padding-bottom: 10px; }
 .mod-manager-list { display: grid; gap: 8px; }
-.mod-manager-row { display: flex; align-items: flex-start; gap: 12px; padding: 12px; border: 1px solid var(--border);
+.mod-manager-row { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--border);
   border-radius: 9px; background: var(--panel-2); }
+.mod-manager-row:has(.version-picker, .bad-text) { align-items: flex-start; }
 /* (its own controls keep their width beside a long notice: "required" and "Remove" never break mid-word, #190) */
 .mod-manager-row > :not(.grow) { flex: none; white-space: nowrap; }
-.mod-manager-row > .grow { min-width: 0; overflow-wrap: anywhere; }
+.mod-manager-row > .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .mod-manager-row.removed { opacity: .72; }
 .mod-manager-row.has-problem { border-color: #d64545; box-shadow: inset 3px 0 0 #d64545; }
 .version-picker { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
@@ -694,16 +695,15 @@ main { position: relative; }
 .btn:active:not(:disabled) { transform: translateY(1px); }
 .btn.primary:active:not(:disabled) { box-shadow: inset 0 -1px 0 var(--accent-3); }
 
-/* cards lift a little when they can be clicked */
-.card { transition: transform .15s, box-shadow .15s, border-color .15s; }
-.server-card:hover, .choice:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 22px var(--shadow); }
-.card { box-shadow: 0 1px 2px var(--shadow); }
+/* cards that can be clicked change their background under a mouse */
+.card { transition: background-color .15s, border-color .15s; }
+a.server-card:hover, .choice:hover:not(:disabled, .selected) { background-color: var(--hover-bg); border-color: var(--hover-border); }
+.card { box-shadow: none; }
 
-/* a running server's light pulses */
+/* a running server's light: steady (only what needs you stands out) */
 .pill.running { position: relative; padding-inline-start: 20px; }
 .pill.running::before { content: ""; position: absolute; left: 8px; top: 50%; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%;
-  background: #4ade80; box-shadow: 0 0 0 0 #4ade8099; animation: pulse 1.8s infinite; }
-@keyframes pulse { 70% { box-shadow: 0 0 0 7px #4ade8000; } 100% { box-shadow: 0 0 0 0 #4ade8000; } }
+  background: #4ade80; }
 
 /* page changes fade in */
 main > * { animation: rise .25s ease-out; }

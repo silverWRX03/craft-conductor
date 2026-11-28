@@ -10,7 +10,7 @@
   --warn-fg:#EAB308; --warn-strong:#FDE68A; --warn-bg:#28230C; --warn-border:#665416; --warn-soft:#EAB30855;
   --bad-fg:#F87171; --bad-strong:#FECACA; --bad-bg:#2A1212; --bad-border:#713030;
   --hover-border:#64748B; --hover-bg:#202020; --selected-bg:#1C1C1C; --selected-bad-bg:#2A1212;
-  --focus:#FF3E0066; --on-accent:#070707; --faint:#ffffff0a; --shadow:#0008; --shadow-strong:#000b;
+  --focus:#FF3E0066; --on-accent:#070707; --faint:#ffffff0a; --shadow:#0008; --shadow-strong:#000b; --field-border:#2C2C2C;
   --depth-shadow:rgba(0,0,0,.48); --depth-highlight:rgba(255,255,255,.055); --depth-grid:rgba(255,255,255,.014);
   --radius:0; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   --bg-bedrock:var(--bg); --bg-obsidian:var(--panel); --bg-recessed:var(--console-bg); --border-basalt:var(--border);
@@ -19,7 +19,7 @@
 }
 :root[data-theme="day"], :root[data-theme="light"] {
   color-scheme:only light;
-  --bg:#F4F4F4; --panel:#FFFFFF; --panel-2:#FAFAFA; --border:#121212;
+  --bg:#F4F4F4; --panel:#FFFFFF; --panel-2:#FAFAFA; --border:#1212121F; --field-border:#6B7280;
   --text:#1A1A1A; --muted:#4B5563; --bright:#121212;
   --accent:#C53000; --accent-2:#C53000; --accent-3:#9A2600; --danger:#C62828; --warn:#B45309;
   --info:#C53000; --info-fg:#1A1A1A; --console-bg:#FAFAFA;
@@ -33,39 +33,115 @@
 }
 /* Automatic appearance on invite pages, which don't have the app's stored setting. */
 @media(prefers-color-scheme:light) {
-  :root:not([data-theme]) { color-scheme:only light; --bg:#F4F4F4; --panel:#FFFFFF; --panel-2:#FAFAFA; --border:#121212; --text:#1A1A1A; --muted:#4B5563; --bright:#121212; --accent:#C53000; --accent-2:#C53000; --on-accent:#FFFFFF; --console-bg:#FAFAFA; --info-fg:#1A1A1A; --depth-shadow:rgba(18,24,32,.12); --depth-highlight:rgba(255,255,255,.95); --depth-grid:rgba(18,24,32,.023); }
+  :root:not([data-theme]) { color-scheme:only light; --bg:#F4F4F4; --panel:#FFFFFF; --panel-2:#FAFAFA; --border:#1212121F; --field-border:#6B7280; --text:#1A1A1A; --muted:#4B5563; --bright:#121212; --accent:#C53000; --accent-2:#C53000; --on-accent:#FFFFFF; --console-bg:#FAFAFA; --info-fg:#1A1A1A; --depth-shadow:rgba(18,24,32,.12); --depth-highlight:rgba(255,255,255,.95); --depth-grid:rgba(18,24,32,.023); }
 }
 :root:not([data-style="modern"]) *, :root:not([data-style="modern"]) *::before, :root:not([data-style="modern"]) *::after { border-radius:0 !important; }
+:root:not([data-style="modern"]) .logo { background-image:url(icon-classic.png); }
+:root:not([data-style="modern"]) :is(.cc-metric-badge, .cc-btn-icon, .cc-inline-icon, .cc-info-icon, .cc-cmd-icon, .tps-area) { display:none; }
+:root:not([data-style="modern"]) .cc-metric-unit { font-size:inherit; font-weight:inherit; color:inherit; }
+:root:not([data-style="modern"]) :is(.cc-btn-head, .cc-cmd-wrap, .kv-item) { display:contents; }
+:root:not([data-style="modern"]) .players-card .head { width:24px; height:24px; }
 body { background:var(--bg); background-image:linear-gradient(var(--depth-grid) 1px,transparent 1px),linear-gradient(90deg,var(--depth-grid) 1px,transparent 1px); background-size:32px 32px; color:var(--text); font:16px/1.5 var(--sans); }
 :root:not([data-theme="day"]) body { background-image:linear-gradient(var(--depth-grid) 1px,transparent 1px),linear-gradient(90deg,var(--depth-grid) 1px,transparent 1px); background-size:32px 32px; }
 .topbar::after { display:none; }
 .login::before, .login::after { display:none; }
 h1,h2,h3,.view-title,.page-title,.brand { color:var(--bright); text-transform:uppercase; letter-spacing:.08em; }
-.btn,.cc-btn { font-family:var(--sans); font-size:14px; text-transform:uppercase; font-weight:600; letter-spacing:.06em; background:var(--panel); color:var(--bright); box-shadow:0 2px 4px -2px var(--depth-shadow),inset 0 1px 0 var(--depth-highlight); }
+.btn,.cc-btn { font-family:var(--sans); font-size:14px; text-transform:uppercase; font-weight:600; letter-spacing:.06em; background:var(--panel); color:var(--bright); box-shadow:none; }
+/* (what can be pressed or typed in keeps an edge that stands out, 3:1 or more; cards and rows have a soft one) */
+.btn,.cc-btn,input,select,textarea,.switch { border-color:var(--field-border); }
 .btn.primary { background:var(--accent); border-color:var(--accent); color:var(--on-accent); }
 .btn.primary:hover:not(:disabled) { background:var(--panel); color:var(--accent); border-color:var(--accent); }
+/* Only Start, Create my server and a question's answer (.cta) are filled with the accent; every other button is an ordinary one,
+   and the accent marks what's chosen (the page in the sidebar, a picked card, the side of a switch on show). */
+.btn.primary:not(.cta) { background:var(--panel); background-image:none; border-color:var(--field-border); color:var(--bright); box-shadow:none; }
+.btn.primary:not(.cta):hover:not(:disabled) { background:var(--hover-bg); background-image:none; border-color:var(--hover-border); color:var(--bright); }
+.btn.primary:not(.cta):active:not(:disabled) { box-shadow:none; }
+/* (a choice card's ⓘ sits in its corner, beside the button: never inside it) */
+.choice-wrap { position:relative; display:grid; min-width:0; }
+.choice-wrap > .choice { height:100%; padding-inline-end:44px; }
+.choice-wrap > .info-wrap { position:absolute; top:10px; inset-inline-end:10px; }
 .btn.danger { border-color:var(--danger); color:var(--bad-fg); }
 .btn.ghost { color:var(--muted); }
 a { color:var(--accent); }
 input,select,textarea { background:var(--console-bg); color:var(--text); font-family:var(--sans); }
 .card,.cc-panel,.login-card,.modal,.guide,.choice,.props fieldset,.cfg-body,.browse {
-  background-color:var(--panel); background-image:linear-gradient(135deg,var(--depth-highlight),transparent 75%);
-  border:1px solid var(--border); border-top-color:color-mix(in srgb,var(--muted) 35%,var(--border));
-  box-shadow:0 8px 16px -6px var(--depth-shadow),0 2px 3px rgba(0,0,0,.12),inset 0 1px 0 var(--depth-highlight),inset 1px 0 0 var(--depth-highlight);
+  background-color:var(--panel); background-image:none; border:1px solid var(--border); box-shadow:none;
 }
+/* (only what floats above the page casts a shadow) */
+.login-card,.modal,.guide { box-shadow:0 12px 36px var(--shadow-strong); }
 .card h3 { color:var(--bright); border-bottom:1px solid var(--border); padding-bottom:12px; }
-.cc-dashboard { padding:20px; box-shadow:0 14px 38px -16px var(--depth-shadow),inset 0 1px 0 var(--depth-highlight); }
-.cc-telemetry-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-bottom:12px; }
-.cc-telemetry-grid .card { margin:0; padding:16px; }
+.cc-dashboard, .cc-panel.cc-dashboard { padding:0; background:none; border:0; box-shadow:none; }
+.cc-telemetry-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:20px; margin-bottom:20px; }
+/* Performance in the top row: its graph where the others have their bar */
+.cc-perf-card .perf-graph { margin-top:14px; height:40px; }
+.cc-perf-card .tps-graph { display:block; width:100%; height:40px; }
+/* the Dashboard's left column: the console, then Check my setup, Find what's causing lag and Play on this computer */
+.cc-dashboard-main { display:flex; flex-direction:column; gap:16px; min-width:0; }
+.dash-tools { gap:10px; align-items:flex-start; justify-content:center; }
+.dash-tools .lag-box { display:contents; }
+.dash-tools > :is(.notice, details, div) { flex-basis:100%; order:10; }
+/* the console card's Activity side: Craft Conductor's own log, in the console's box */
+.activity-log { font-family:var(--sans); }
+.cc-console-widget .console[hidden] { display:none; }
+.activity-log .events { max-height:none; overflow:visible; }
+/* (the side on show looks like the card's other buttons (Kick, Play on this computer); the other is plain words) */
+.cc-style-switch.console-view { gap:2px; background:transparent; }
+.cc-style-switch.console-view::before { display:none; }
+.cc-style-switch.console-view label { white-space:nowrap; border:1px solid transparent; }
+.cc-style-switch.console-view label:has(input:checked) { background:var(--panel); color:var(--bright); border-color:var(--field-border); }
+/* ⓘ (infoTip): a small round button beside a title or a line, its explanation in a bubble that floats above the page
+   (the one place here with a real shadow, as for menus). Its button answers 44 pixels around it. */
+.info-wrap { position:relative; display:inline-block; vertical-align:baseline; text-transform:none; letter-spacing:normal; font-weight:400; }
+.info-tip { position:relative; display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; margin-inline-start:6px; padding:0;
+  border:0; border-radius:50%; background:none; color:var(--muted); font-size:16px; line-height:1; cursor:pointer; vertical-align:-3px; }
+.info-tip::after { content:""; position:absolute; inset:-11px; }
+.info-tip:hover, .info-wrap.pinned .info-tip { color:var(--accent); }
+.info-tip:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.info-bubble { display:none; position:absolute; z-index:60; top:calc(100% + 8px); inset-inline-start:-6px; width:max-content; max-width:min(380px, calc(100vw - 24px));
+  padding:10px 12px; background:var(--panel); color:var(--text); border:1px solid var(--border); font-size:14px; font-weight:400; line-height:1.5;
+  text-align:start; white-space:normal; box-shadow:0 12px 32px var(--shadow-strong); }
+.info-bubble::before { content:""; position:absolute; inset-inline:0; top:-10px; height:10px; }  /* (the mouse can cross to the bubble) */
+.info-wrap:hover .info-bubble, .info-wrap:focus-within .info-bubble, .info-wrap.pinned .info-bubble { display:block; }
+/* Page headings: read by screen readers (and jumped to), not drawn: the sidebar and the top bar say where you are. */
+h1.view-title:not(.says) { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
+/* New server: Quick start / Custom setup tabs. */
+.setup-tabs { display:inline-flex; gap:4px; padding:3px; margin:0 0 16px; background:var(--panel); border:1px solid var(--border); }
+.setup-tab { padding:8px 16px; border:1px solid transparent; background:transparent; color:var(--muted); font:inherit; font-size:13px;
+  font-weight:600; text-transform:uppercase; letter-spacing:.05em; cursor:pointer; }
+.setup-tab:hover { background:var(--hover-bg); color:var(--bright); }
+.setup-tab[aria-selected="true"] { background:var(--bg); border-color:var(--accent); color:var(--accent); }
+.cc-telemetry-grid .card { margin:0; padding:20px; }
+.cc-metric-card .bar { margin-top:14px; }
+.cc-metric-card { align-content:start; }  /* (the five cards' numbers and bars line up, whatever is under them) */
 .cc-metric-card .meter-head { flex-direction:column; align-items:stretch; }
 .cc-metric-card .meter-head span { font-size:13px; }
-.cc-metric-card .meter-head strong { color:var(--bright); font-size:26px; }
-.cc-dashboard-layout { display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:12px; align-items:start; }
-.cc-dashboard-rail { display:flex; flex-direction:column; gap:12px; }
+.cc-metric-card .meter-head strong { color:var(--bright); font-size:22px; overflow-wrap:anywhere; }
+.cc-dashboard-layout { display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:20px; align-items:start; }
+.cc-dashboard-rail { display:flex; flex-direction:column; gap:20px; }
 .cc-dashboard-rail .card { margin:0; }
-.cc-console-widget { padding:16px; min-width:0; }
+.cc-console-widget { padding:20px; min-width:0; }
 .cc-console-widget h3 { margin:0 0 12px; }
-.console { color:var(--text); background:var(--console-bg); box-shadow:inset 0 3px 12px var(--depth-shadow); }
+/* (the Dashboard's console: the logs and crash reports folders at the top right of its card) */
+.console-head { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 12px; margin:0 0 12px; padding-bottom:8px; border-bottom:1px solid var(--border); }
+.card .console-head h3 { margin:0; padding:0; border-bottom:0; }
+.console-tools { gap:6px; margin-inline-start:auto; justify-content:flex-end; }
+/* The sidebar's Maintenance group: a header that folds Backups, Java and Settings away */
+.sidebar nav .nav-group { display:flex; align-items:center; gap:8px; width:100%; min-height:34px; margin-top:8px; padding:8px 12px 8px 13px;
+  background:none; border:0; color:var(--muted); font:inherit; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.08em;
+  text-align:start; cursor:pointer; }
+.sidebar nav .nav-group:hover { color:var(--text); background:var(--hover-bg); }
+.nav-chevron { display:inline-flex; justify-content:center; flex:0 0 14px; width:14px; font-size:18px; line-height:1; transition:transform .15s ease; }
+.nav-group[aria-expanded="true"] .nav-chevron { transform:rotate(90deg); }
+[dir="rtl"] .nav-group[aria-expanded="false"] .nav-chevron { transform:scaleX(-1); }
+.nav-group-items { display:grid; gap:inherit; }
+/* The sidebar: the server's pages at the top; Help, User manual and Craft Conductor settings at the bottom, then a line,
+   then Sign out, Quit and the version. (#nav: over the narrow screens' own rule; the links scroll when they don't fit.) */
+#nav { display:flex; flex-direction:column; flex:1 1 auto; min-height:0; }
+#nav .nav-sep { margin-top:auto; padding-top:16px; border-top:0; }
+.sidebar-foot { border-top:1px solid var(--border); padding-top:12px; }
+.nav-group-items[hidden] { display:none; }
+@media (prefers-reduced-motion: reduce) { :root:not([data-motion="normal"]) .nav-chevron { transition:none; } }
+.console { color:var(--text); background:var(--console-bg); box-shadow:none; }
 .console.compact { height:450px; }
 .console-wrap { height:calc(calc(100 * var(--vh)) - 180px); }
 .cc-log-line { white-space:pre-wrap; margin-bottom:4px; }
@@ -84,16 +160,16 @@ input,select,textarea { background:var(--console-bg); color:var(--text); font-fa
 :root[data-theme="day"] .tk-b { color:#1E40AF; } :root[data-theme="day"] .tk-c,:root[data-theme="day"] .tk-p { color:#4B5563; }
 :root[data-theme="day"] .tk-t { color:#6B21A8; }
 .app { grid-template-columns:240px minmax(0,1fr); }
-.sidebar, :root[data-theme="day"] .sidebar { background:var(--panel); padding:18px 0; gap:16px; overflow-y:auto; box-shadow:6px 0 18px -12px var(--depth-shadow); }
+.sidebar, :root[data-theme="day"] .sidebar { background:var(--panel); padding:18px 0; gap:16px; overflow-y:auto; box-shadow:none; }
 .sidebar .brand,.sidebar-foot { margin-inline:12px; }
 .sidebar .brand { font-size:15px; letter-spacing:.04em; }
 .sidebar nav { gap:0; }
 .sidebar nav a { min-height:34px; padding:8px 12px 8px 10px; gap:8px; justify-content:flex-start; border-inline-start:3px solid transparent; color:var(--text); text-transform:uppercase; font-size:13px; font-weight:400; letter-spacing:.08em; }
-.sidebar nav a.active,.sidebar nav a:focus-visible { background:var(--selected-bg); color:var(--accent); border-inline-start-color:var(--accent); box-shadow:inset 0 1px 0 var(--depth-highlight),inset 0 -1px 0 var(--depth-highlight); font-weight:600; }
+.sidebar nav a.active,.sidebar nav a:focus-visible { background:var(--selected-bg); color:var(--accent); border-inline-start-color:var(--accent); box-shadow:none; font-weight:600; }
 .sidebar nav a .dot,.sidebar nav a .update-dot { margin-inline-start:auto; }
 .cc-nav-icon { width:14px; height:14px; display:inline-flex; flex:0 0 14px; }
 .cc-nav-icon svg { width:100%; height:100%; }
-.topbar { background:var(--panel); box-shadow:0 1px 0 var(--depth-highlight); }
+.topbar { background:var(--panel); box-shadow:none; }
 .cc-theme-control { display:flex; align-items:center; gap:8px; font-size:13px; text-transform:uppercase; }
 .cc-theme-switch { width:52px; height:28px; position:relative; padding:3px; border:1px solid var(--border); background:var(--console-bg); cursor:pointer; flex:0 0 52px; }
 .cc-theme-switch .cc-thumb { display:block; width:20px; height:20px; background:var(--bright); }
@@ -101,11 +177,9 @@ input,select,textarea { background:var(--console-bg); color:var(--text); font-fa
 .cc-theme-switch[aria-checked="true"] .cc-thumb { transform:translateX(24px); background:var(--accent); }
 [dir="rtl"] .cc-theme-switch[aria-checked="true"] .cc-thumb { transform:translateX(-24px); }
 .cc-login-theme { position:fixed; top:16px; inset-inline-end:16px; z-index:5; }
-#cc-app-theme { margin-inline-start:auto; }
-#cc-theme-mobile:empty { display:none; }
 .cc-menu-trigger,.cc-nav-overlay { display:none; }
 .heat-cell.lvl1 { background:color-mix(in srgb,var(--accent) 25%,var(--panel)); } .heat-cell.lvl2 { background:color-mix(in srgb,var(--accent) 50%,var(--panel)); } .heat-cell.lvl3 { background:color-mix(in srgb,var(--accent) 75%,var(--panel)); }
-:root[data-contrast="high"] { --border:var(--text); --muted:var(--text); --depth-highlight:transparent; --depth-shadow:transparent; }
+:root[data-contrast="high"] { --border:var(--text); --field-border:var(--text); --muted:var(--text); --depth-highlight:transparent; --depth-shadow:transparent; }
 :root[data-contrast="high"][data-theme="night"] { --accent:#FF8D66; --accent-2:#FF8D66; --info:#FF8D66; --focus:#FF8D66; }
 :root[data-contrast="high"][data-theme="day"] { --accent:#AC2900; --accent-2:#AC2900; --info:#AC2900; --focus:#AC2900; }
 @media(max-width:1023px) {
@@ -127,16 +201,15 @@ input,select,textarea { background:var(--console-bg); color:var(--text); font-fa
   .cc-menu-trigger span { width:20px; height:2px; background:var(--bright); }
   .cc-menu-trigger[aria-expanded="true"] span:nth-child(1) { transform:translateY(7px) rotate(45deg); } .cc-menu-trigger[aria-expanded="true"] span:nth-child(2) { opacity:0; } .cc-menu-trigger[aria-expanded="true"] span:nth-child(3) { transform:translateY(-7px) rotate(-45deg); }
   .cc-nav-overlay.open { display:block; position:fixed; inset:0; background:#000b; z-index:79; }
-  #cc-theme-mobile { margin:16px 12px; padding-top:16px; border-top:1px solid var(--border); }
-  #cc-app-theme { margin:0; }
   .topbar { padding:16px 64px; justify-content:center; min-height:72px; }
   .topbar .server-id { justify-content:center; flex-wrap:wrap; }
   .topbar .actions { margin:0; flex-wrap:wrap; justify-content:center; }
   .page-title { text-align:center; }
   .cc-telemetry-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .cc-telemetry-grid .cc-perf-card { grid-column:span 2; }
   .cc-dashboard-layout { grid-template-columns:minmax(0,1fr); }
 }
-@media(max-width:767px) { main { padding:16px; } .cc-dashboard { padding:12px; } .cc-telemetry-grid .card { padding:12px; } .cc-metric-card .meter-head strong { font-size:20px; overflow-wrap:anywhere; } .console.compact { height:360px; } }
+@media(max-width:767px) { main { padding:16px; } .cc-telemetry-grid, .cc-dashboard-layout, .cc-dashboard-rail { gap:12px; } .cc-telemetry-grid .card { padding:12px; } .cc-metric-card .meter-head strong { font-size:20px; overflow-wrap:anywhere; } .console.compact { height:360px; } }
 @media(max-width:1023px) { .view-title { text-align:center; } }
 @media print { .cc-menu-trigger,.cc-nav-overlay { display:none!important; } }
 
@@ -157,29 +230,34 @@ input,select,textarea { background:var(--console-bg); color:var(--text); font-fa
 .cc-style-switch label:has(input:focus-visible) { outline:3px solid var(--accent); outline-offset:2px; }
 @media (prefers-reduced-motion: reduce) { :root:not([data-motion="normal"]) .cc-style-switch::before { transition:none; } }
 @media (forced-colors: active) { .cc-style-switch label:has(input:checked) { outline:2px solid Highlight; outline-offset:-2px; } }
-#cc-style { margin-inline-start:8px; }
+/* (in Craft Conductor settings → Appearance → Look, beside Light / Dark) */
+.look-rows { display:flex; flex-wrap:wrap; gap:16px 40px; align-items:flex-start; }
+.look-row .cc-theme-control { min-height:44px; }
+.look-row { display:flex; flex-direction:column; gap:8px; min-width:0; }
+.look-label { font-weight:600; color:var(--bright); }
+/* The top bar: the server, Start / Restart / Stop and the bell. With no server (or during setup) the bell goes to the end. */
+.topbar .bell { margin-inline-start:8px; }
+.topbar .actions.hidden ~ .bell, body.setup-mode .topbar .bell { margin-inline-start:auto; }
 @media(max-width:1023px) {
-  /* beside the bell, top right; the bar's words and buttons keep clear of both */
-  #cc-style { position:absolute; top:16px; inset-inline-end:64px; margin:0; }
-  .topbar { padding-inline-end:252px; }
+  /* the bell is top right; the bar's words and buttons keep clear of it */
+  .topbar { padding-inline-end:64px; }
 }
 @media(max-width:767px) {
-  /* a phone: the menu, the switch and the bell have the top row to themselves */
+  /* a phone: the menu and the bell have the top row to themselves */
   .topbar { padding:72px 16px 12px; }
 }
 
 /* Fingers (a phone or a tablet): everything that can be pressed is at least 44 by 44 pixels. */
 @media (pointer: coarse) {
-  .btn, .btn.small, .switch, .link-btn, .guide-pill, .choice, .preferences-button, .map-thumb, button.prow-open, .folder-row,
+  .btn, .btn.small, .switch, .link-btn, .guide-pill, .choice, .preferences-button, .setup-tab, .map-thumb, button.prow-open, .folder-row,
   .cfg-files button, summary, select, input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]) { min-height:44px; }
   .btn.small, .switch { min-width:44px; }
   a.btn { display:inline-flex; align-items:center; justify-content:center; }
-  .sidebar nav a { min-height:44px; }
+  .sidebar nav a, .sidebar nav .nav-group { min-height:44px; }
   .bell, .cc-menu-trigger { width:44px; height:44px; }
   .eye { width:44px; height:44px; inset-inline-end:0; }
   .pw-field input { padding-inline-end:48px; }
   .cc-style-switch label { min-height:44px; min-width:44px; }
-  #cc-style { top:12px; }
   /* the day / night switch keeps its look; its button reaches 44 pixels around it (nothing else is that close) */
   .cc-theme-switch::after { content:""; position:absolute; inset:-9px -2px; }  /* (from inside its 1px border: 26 + 18 = 44) */
   input[type=checkbox], input[type=radio] { width:22px; height:22px; }

@@ -47,6 +47,10 @@
       <p class="eyebrow"><span class="status-dot" aria-hidden="true"></span>Your server · your world · your computer</p>
       <h1 id="hero-title">Your own Minecraft server,<br><em>without the headache.</em></h1>
       <p class="lede">Craft Conductor turns a home computer into a Minecraft server for your family and friends. It sets up Minecraft, the mods and Java for you, gets your friends' games ready to join, makes backups, and keeps everything up to date. All from one control panel in your browser.</p>
+      <div class="hero-actions">
+        <button type="button" class="button primary launch-demo">Try the live demo</button>
+        <a class="button secondary" href="#download">Download</a>
+      </div>
       <ul class="hero-facts">
         <li>Free and open source</li><li>Runs on Windows, Mac and Linux</li><li>No command lines or config files</li>
       </ul>
@@ -116,18 +120,16 @@
   </section>
 
   <section class="section demo-section" id="demo" aria-labelledby="demo-title">
-    <p class="eyebrow">Try it before you install</p>
-    <h2 id="demo-title">The real control panel, with made-up data.</h2>
-    <p class="section-copy">The demo is Craft Conductor's own control panel from the release shown below, running in your browser with fictional servers and players. Make a server, start it, let a friend in, add mods, back up and update. Nothing is installed, nothing runs on your computer and nothing is sent anywhere.</p>
-    <div class="demo-choices-inline">
-      <button type="button" class="choice-card launch-demo" data-scenario="new">
-        <span class="choice-icon" aria-hidden="true">＋</span><b>Create my first server</b>
-        <small>Start with nothing and go through the real setup, the way you would at home.</small><strong>Start from scratch →</strong>
-      </button>
-      <button type="button" class="choice-card launch-demo" data-scenario="existing">
-        <span class="choice-icon" aria-hidden="true">▣</span><b>Explore an existing server</b>
-        <small>A family server with friends online, mods, backups, a join request and an update waiting.</small><strong>Look around →</strong>
-      </button>
+    <div class="demo-band">
+      <div class="demo-copy">
+        <p class="eyebrow">Try it before you install</p>
+        <h2 id="demo-title">The real control panel, with made-up data.</h2>
+        <p class="section-copy">The demo is Craft Conductor's own control panel from the release shown below, running in your browser with fictional servers and players. Make a server, start it, let a friend in, add mods, back up and update. Nothing is installed, nothing runs on your computer and nothing is sent anywhere.</p>
+        <div class="demo-actions">
+          <button type="button" class="button primary launch-demo">Try the live demo</button>
+        </div>
+        <p class="fineprint" id="demo-version">The demo shows the newest published release.</p>
+      </div>
       <div class="phone-card">
         <button type="button" id="phone-qr" class="qr-button" aria-label="Open the phone demo here, as a phone-sized preview">
           <img src="demo/phone-qr.svg" alt="QR code for the phone demo" width="140" height="140">
@@ -135,7 +137,6 @@
         <p><b>On your phone</b><br>Scan the code to try the phone demo, or <a id="phone-link" href="demo/?mode=existing&amp;mobile=1">open it here</a>. Each device keeps its own made-up data.</p>
       </div>
     </div>
-    <p class="fineprint" id="demo-version">The demo shows the newest published release.</p>
   </section>
 
   <section class="section" id="download" aria-labelledby="download-title">
