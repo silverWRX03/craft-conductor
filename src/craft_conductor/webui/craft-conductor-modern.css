@@ -137,7 +137,7 @@
   box-shadow:none; }
 :root[data-style="modern"] .card { padding:18px 20px; }
 :root[data-style="modern"] :is(.props fieldset, .cfg-body) { background-color:var(--panel-2); border-radius:var(--cc-inner-radius); box-shadow:none; }
-:root[data-style="modern"] .cc-panel.cc-dashboard { padding:0; background:transparent; border:0; box-shadow:none; max-width:1320px; }
+:root[data-style="modern"] .cc-panel.cc-dashboard { padding:0; background:transparent; border:0; box-shadow:none; }
 :root[data-style="modern"] :is(.login-card, .modal, .guide, .bell-panel) {
   background-color:var(--panel); background-image:none; border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow-pop); }
 :root[data-style="modern"] .guide.min { background:none; border:0; box-shadow:none; }
