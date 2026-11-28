@@ -33,6 +33,10 @@ const quiet = (f) => f.evaluate(() => {
   Object.defineProperty(n, 'join', { get: () => 1e15, set: () => {}, enumerable: true, configurable: true });
   Object.defineProperty(n, 'request', { get: () => null, set: () => {}, enumerable: true, configurable: true });
 });
+async function openCustomSetup(f) {  // (Quick start vs Custom setup tabs: releases before the redesign open straight on Server type)
+  const tab = f.getByRole('tab', { name: 'Custom setup' });
+  if (await tab.count()) await tab.click();
+}
 // Stop: the panel asks only when players are connected.
 async function stopServer(f) {
   await f.locator('#btn-stop').click();
@@ -68,7 +72,7 @@ async function open(browser, scenario, problems, label, viewport = { width: 1440
       assert.deepEqual((await hub(f)).servers, [], 'no servers yet');
       assert.match(await f.evaluate(() => location.hash), /^#new$/);
       await dismissOffers(f);
-      await f.getByRole('tab', { name: 'Custom setup' }).click();
+      await openCustomSetup(f);
       await f.locator('button.choice', { hasText: 'Lightweight and quick to update' }).click();
       await f.locator('#setup-version').selectOption('1.21.1');
       await f.getByLabel('Server name (shown in the server list)').fill('Family Survival');
@@ -250,7 +254,7 @@ async function open(browser, scenario, problems, label, viewport = { width: 1440
       assert.match(r.body.reason, /Biomes O' Plenty requires GlitchCore, but no compatible GlitchCore release was found for Minecraft 1\.21\.4 using NeoForge\. Craft Conductor checked Modrinth and CurseForge\./);
       assert.equal(r.body.suggestions[0], '1.21.1', 'it says which version would work');
       await go(f, '#new');
-      await f.getByRole('tab', { name: 'Custom setup' }).click();
+      await openCustomSetup(f);
       await f.locator('button.choice', { hasText: 'The modern Forge' }).click();
       await f.locator('#setup-version').selectOption('1.21.4');
       await f.getByRole('button', { name: /Download mods/i }).first().click();
@@ -327,8 +331,13 @@ async function open(browser, scenario, problems, label, viewport = { width: 1440
       const oldest = listed[listed.length - 1].name;
       await go(f, `#s/${S}/backups`);
       const row = f.locator('#main tr, #main li', { hasText: oldest.slice(0, 15) }).first();
-      await row.getByRole('button', { name: 'Restore…' }).click();
-      await f.locator('#restore-choice').getByRole('button', { name: /Roll back the whole server/ }).click();
+      const restoreBtn = row.getByRole('button', { name: 'Restore…' });
+      if (await restoreBtn.count()) {
+        await restoreBtn.click();
+        await f.locator('#restore-choice').getByRole('button', { name: /Roll back the whole server/ }).click();
+      } else {
+        await row.getByRole('button', { name: 'Roll back to this' }).click();
+      }
       await answer(f, 'Roll back');
       await until(async () => { const s = await statusOf(f, S); return s.last_job && s.last_job.name === 'roll back' && !s.job; }, 'rolled back', 15000);
       const mods = (await api('/api/servers/family-survival/mods')).body;
@@ -362,7 +371,7 @@ async function open(browser, scenario, problems, label, viewport = { width: 1440
     await t.step(`${name}: the map preview, and points of interest only when asked`, async () => {
       await settle(f);
       await go(f, '#new');
-      await f.getByRole('tab', { name: 'Custom setup' }).click();
+      await openCustomSetup(f);
       await f.locator('button.choice', { hasText: 'Lightweight and quick to update' }).click();
       await f.evaluate(() => openWorldPanel());
       await f.getByRole('textbox', { name: 'Seed', exact: true }).fill('8675309');  // (a seed with villages near the spawn)
